@@ -1,5 +1,9 @@
 on: pull_request
 name: pull_request
+
+env:
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
@@ -100,4 +104,4 @@ jobs:
       branch: ${{ github.event.pull_request.head.ref }}
       run_id: ${{ github.run_id }}
       failures: ${{ needs.test.outputs.failures }}
-      bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+      bot_token: $SLACK_BOT_TOKEN

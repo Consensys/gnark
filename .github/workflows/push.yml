@@ -3,6 +3,10 @@ on:
     branches:
       - 'master'
 name: push_master
+
+env:
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
@@ -94,4 +98,4 @@ jobs:
       branch: ${{ github.ref_name }}
       run_id: ${{ github.run_id }}
       failures: ${{ needs.test.outputs.failures }}
-      bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+      bot_token: $SLACK_BOT_TOKEN
