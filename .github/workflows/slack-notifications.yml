@@ -1,11 +1,11 @@
 # .github/workflows/slack-notifications.yml
 name: Slack Notifications
 
-env:
-  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
 on:
   workflow_call:
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: true
     inputs:
       status:
         description: 'The status of the workflow (success or failure)'
@@ -110,4 +110,4 @@ jobs:
                 }
               ]
             }
-          SLACK_BOT_TOKEN: ${{ env.SLACK_BOT_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

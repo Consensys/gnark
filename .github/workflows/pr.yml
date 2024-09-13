@@ -1,9 +1,6 @@
 on: pull_request
 name: pull_request
 
-env:
-  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
 jobs:
   # staticcheck:
   #   runs-on: ubuntu-latest
@@ -94,6 +91,8 @@ jobs:
   slack-notifications:
     if: always()
     uses: ./.github/workflows/slack-notifications.yml
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     with:
       status: ${{ needs.test.result }}
       actor: ${{ github.actor }}
