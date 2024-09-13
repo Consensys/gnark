@@ -93,10 +93,11 @@ jobs:
     uses: ./.github/workflows/slack-notifications.yml
     needs:
       - test
+      - staticcheck
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     with:
-      status: ${{ needs.test.result }}
+      status: ${{ needs.staticcheck.result }}${{ needs.test.result }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
       branch: ${{ github.event.pull_request.head.ref }}
