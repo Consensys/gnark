@@ -32,10 +32,6 @@ on:
         description: 'Test failure details (if any)'
         required: false
         type: string
-      bot_token:
-        description: 'The Slack bot token'
-        required: true
-        type: string
 
 jobs:
   notify_slack:
