@@ -40,7 +40,7 @@ jobs:
       - name: Notify Slack
         run: |
           if [[ "${{ inputs.status }}" == "success" ]]; then
-            SLACK_MESSAGE=$(cat <<-EOF
+            SLACK_MESSAGE=$(cat <<EOF
             {
               "channel": "#team-gnark-build",
               "blocks": [
@@ -84,7 +84,7 @@ jobs:
             EOF
             )
           else
-            SLACK_MESSAGE=$(cat <<-EOF
+            SLACK_MESSAGE=$(cat <<EOF
             {
               "blocks": [
                 {
