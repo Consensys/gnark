@@ -87,50 +87,18 @@ jobs:
           echo "failures=" > $GITHUB_OUTPUT
         fi
 
-  slack-workflow-status-failed:
-    if: failure()
-    name: post workflow status to slack
+  slack-notifications:
+    if: always()
     needs:
       - staticcheck
       - test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify slack -- workflow failed
-        id: slack
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "actor": "${{ github.actor }}",
-              "repo": "${{ github.repository }}",
-              "status": "FAIL",
-              "title": "${{ github.event.pull_request.title }}",
-              "pr": "${{ github.event.pull_request.head.ref }}",
-              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/",
-              "message": "${{ needs.test.outputs.failures }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    uses: ./.github/workflows/slack-notifications.yml
+    with:
+      status: ${{ job.status }}
+      actor: ${{ github.actor }}
+      repository: ${{ github.repository }}
+      pr_title: ${{ github.event.pull_request.title }}
+      branch: ${{ github.event.pull_request.head.ref }}
+      run_id: ${{ github.run_id }}
+      failures: ${{ steps.tests.outputs.failures }}
 
-  slack-workflow-status-success:
-    if: success()
-    name: post workflow status to slack
-    needs:
-      - staticcheck
-      - test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify slack -- workflow succeeded
-        id: slack
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "actor": "${{ github.actor }}",
-              "repo": "${{ github.repository }}",
-              "status": "SUCCESS",
-              "title": "${{ github.event.pull_request.title }}",
-              "pr": "${{ github.event.pull_request.head.ref }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SUCCESS }}

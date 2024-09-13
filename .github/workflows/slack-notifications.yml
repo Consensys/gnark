@@ -1,0 +1,142 @@
+# .github/workflows/slack-notifications.yml
+name: Slack Notifications
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        description: 'The status of the workflow (success or failure)'
+        required: true
+        type: string
+      actor:
+        description: 'The GitHub actor'
+        required: true
+        type: string
+      repository:
+        description: 'The GitHub repository'
+        required: true
+        type: string
+      pr_title:
+        description: 'Pull request title'
+        required: false
+        type: string
+      branch:
+        description: 'The branch name'
+        required: true
+        type: string
+      run_id:
+        description: 'The workflow run ID'
+        required: true
+        type: string
+      failures:
+        description: 'Test failure details (if any)'
+        required: false
+        type: string
+
+jobs:
+  notify_slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        run: |
+          if [[ "${{ inputs.status }}" == "success" ]]; then
+            SLACK_MESSAGE=$(cat <<-EOF
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":white_check_mark: *Workflow Succeeded*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Actor:*\n${{ inputs.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ inputs.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*PR Title:*\n${{ inputs.pr_title }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ inputs.branch }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*View Run:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>"
+                  }
+                }
+              ]
+            }
+            EOF
+            )
+          else
+            SLACK_MESSAGE=$(cat <<-EOF
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":x: *Workflow Failed*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Actor:*\n${{ inputs.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ inputs.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*PR Title:*\n${{ inputs.pr_title }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ inputs.branch }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Failed Step:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Test Failure Details:* \n${{ inputs.failures }}"
+                  }
+                }
+              ]
+            }
+            EOF
+            )
+          fi
+          
+          curl -X POST -H 'Content-type: application/json' \
+          --data "$SLACK_MESSAGE" \
+          https://slack.com/api/chat.postMessage \
+          -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
