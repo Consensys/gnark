@@ -37,9 +37,6 @@ jobs:
   notify_slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
       - name: Notify Slack
         run: |
           if [[ "${{ inputs.status }}" == "success" ]]; then
@@ -98,6 +95,7 @@ jobs:
               --arg run_id "${{ inputs.run_id }}" \
               --arg failures "${{ inputs.failures }}" \
               '{
+                "channel": "#team-gnark-build",
                 "blocks": [
                   {
                     "type": "section",
@@ -145,11 +143,6 @@ jobs:
               }')
           fi
           
-          echo "SLACK_MESSAGE: $SLACK_MESSAGE"
-          
-          curl -X POST -H 'Content-type: application/json' \
-          --data "$SLACK_MESSAGE" \
-          https://slack.com/api/chat.postMessage \
-          -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}"
+          curl -X POST -H 'Content-type: application/json' --data "$SLACK_MESSAGE" https://slack.com/api/chat.postMessage -H "Authorization: Bearer $SLACK_BOT_TOKEN"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
