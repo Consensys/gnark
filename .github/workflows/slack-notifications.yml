@@ -143,6 +143,6 @@ jobs:
               }')
           fi
           
-          curl -X POST -H 'Content-type: application/json; charset=utf-8' --data "$SLACK_MESSAGE" https://slack.com/api/chat.postMessage -H "Authorization: Bearer $SLACK_BOT_TOKEN"
+          curl -X POST -H 'Content-type: application/json; charset=utf-8' --data "$SLACK_MESSAGE" https://slack.com/api/chat.postMessage -H 'Authorization: Bearer $SLACK_BOT_TOKEN'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
