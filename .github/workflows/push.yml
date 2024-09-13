@@ -87,14 +87,13 @@ jobs:
 
   slack-notifications:
     if: always()
-    needs:
-      - staticcheck
-      - test
     uses: ./.github/workflows/slack-notifications.yml
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     with:
       status: ${{ needs.test.result }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
-      branch: ${{ github.ref_name }}
+      branch: ${{ github.event.pull_request.head.ref }}
       run_id: ${{ github.run_id }}
       failures: ${{ needs.test.outputs.failures }}
