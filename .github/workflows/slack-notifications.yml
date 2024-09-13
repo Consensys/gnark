@@ -41,17 +41,71 @@ jobs:
         id: slack
         uses: slackapi/slack-github-action@v1.27.0
         with:
+          botToken: ${{ env.SLACK_BOT_TOKEN }}
+          bot-token: ${{ env.SLACK_BOT_TOKEN }}
           channel-id: 'team-gnark-build'
           payload: |
             {
-              "text": "GitHub Action build result: ${{ inputs.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "text": "GitHub Action Notification",
               "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "GitHub Action Notification",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:*\n${{ inputs.status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ inputs.branch }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Actor:*\n${{ inputs.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ inputs.repository }}"
+                    }
+                  ]
+                },
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "GitHub Action build result: ${{ inputs.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+                    "text": "*PR Title:*\n${{ inputs.pr_title || 'N/A' }}"
                   }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Run ID:*\n${{ inputs.run_id }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Failures:*\n${{ inputs.failures || 'None' }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "View details: <${{ github.event.pull_request.html_url || github.event.head_commit.url }}|Click here>"
+                    }
+                  ]
                 }
               ]
             }
