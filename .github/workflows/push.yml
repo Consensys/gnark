@@ -87,6 +87,8 @@ jobs:
 
   slack-notifications:
     if: always()
+    needs:
+      - test
     uses: ./.github/workflows/slack-notifications.yml
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
