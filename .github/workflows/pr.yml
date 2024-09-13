@@ -37,6 +37,7 @@ jobs:
           args: -v --timeout=5m
   
   test:
+    needs: staticcheck
     runs-on: ubuntu-latest-128
     permissions: 
       pull-requests: write
