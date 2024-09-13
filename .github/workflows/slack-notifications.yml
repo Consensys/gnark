@@ -38,10 +38,68 @@ jobs:
     steps:
       - name: Post to Slack
         run: |
-          if [ "${{ inputs.status }}" == "successsuccess" ]; then
-            payload="{\"channel\":\"team-gnark-build\",\"text\":\"GitHub Action build result: success\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\":large_green_circle: ${{ inputs.repository }} *${{ inputs.branch }}*\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"plain_text\",\"text\":\"${{ inputs.actor }}\",\"emoji\":true}]}]}"
+          if [ "${{ inputs.status }}" == "success" ]; then
+            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" '{
+              "channel": "team-gnark-build",
+              "text": "GitHub Action build result: success",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":white_check_mark: \($repository) *\($branch)*"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "plain_text",
+                      "text": "Author: \($actor)",
+                      "emoji": true
+                    }
+                  ]
+                }
+              ]
+            }')
           else
-            payload="{\"channel\":\"team-gnark-build\",\"text\":\"GitHub Action build result: failure\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\":red_circle: ${{ inputs.repository }} *${{ inputs.branch }}*\"}},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Failed Step:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>\"}},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Test Failure Details:* ${{ inputs.failures }}\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"plain_text\",\"text\":\"${{ inputs.actor }}\",\"emoji\":true}]}]}"
+            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" --arg failures "${{ inputs.failures }}" '{
+              "channel": "team-gnark-build",
+              "text": "GitHub Action build result: failure",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":red_circle: \($repository) *\($branch)*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Failed Step:* <https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Test Failure Details:* \($failures)"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "plain_text",
+                      "text": "Author: \($actor)",
+                      "emoji": true
+                    }
+                  ]
+                }
+              ]
+            }')
           fi
           curl -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}"
         shell: bash
