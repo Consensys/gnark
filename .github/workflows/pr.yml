@@ -90,7 +90,7 @@ jobs:
   slack-notifications:
     if: always()
     needs:
-      - test
+      - staticcheck
     uses: ./.github/workflows/slack-notifications.yml
     with:
       status: ${{ needs.test.result }}
