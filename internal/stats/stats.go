@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -38,8 +39,17 @@ func (s *globalStats) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
+	// sort circuits names to have a deterministic output
+	var circuitNames []string
+	for circuitName := range s.Stats {
+		circuitNames = append(circuitNames, circuitName)
+	}
+
+	sort.Strings(circuitNames)
+
 	// write data
-	for circuitName, innerStats := range s.Stats {
+	for _, circuitName := range circuitNames {
+		innerStats := s.Stats[circuitName]
 		for backendID, s := range innerStats {
 			if backendID == 0 {
 				continue
