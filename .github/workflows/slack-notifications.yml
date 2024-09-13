@@ -37,20 +37,23 @@ jobs:
   notify_slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Set Slack message payload
-        id: set_payload
-        run: |
-          if [ "${{ inputs.status }}" == "success" ]; then
-            echo "::set-output name=payload::{\"text\":\"GitHub Action build result: success\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\":white_check_mark: *Workflow Succeeded*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Actor:*\n${{ inputs.actor }}\"},{\"type\":\"mrkdwn\",\"text\":\"*Repository:*\n${{ inputs.repository }}\"},{\"type\":\"mrkdwn\",\"text\":\"*PR Title:*\n${{ inputs.pr_title }}\"},{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n${{ inputs.branch }}\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*View Run:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>\"}}]}"
-          else
-            echo "::set-output name=payload::{\"text\":\"GitHub Action build result: failure\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\":x: *Workflow Failed*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Actor:*\n${{ inputs.actor }}\"},{\"type\":\"mrkdwn\",\"text\":\"*Repository:*\n${{ inputs.repository }}\"},{\"type\":\"mrkdwn\",\"text\":\"*PR Title:*\n${{ inputs.pr_title }}\"},{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n${{ inputs.branch }}\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Failed Step:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>\"}},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Test Failure Details:* \n${{ inputs.failures }}\"}}]}"
-          fi
-        shell: bash
-
-      - name: Post to Slack
+      - name: Post to a Slack channel
+        id: slack
         uses: slackapi/slack-github-action@v1.27.0
         with:
-          channel-id: 'CHANNEL_ID'
-          payload: ${{ steps.set_payload.outputs.payload }}
+          channel-id: 'team-gnark-build'
+          payload: |
+            {
+              "text": "GitHub Action build result: ${{ inputs.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "GitHub Action build result: ${{ inputs.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+                  }
+                }
+              ]
+            }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
