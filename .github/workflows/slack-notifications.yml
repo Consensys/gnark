@@ -37,112 +37,56 @@ jobs:
   notify_slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Notify Slack
-        run: |
-          if [[ "${{ inputs.status }}" == "success" ]]; then
-            SLACK_MESSAGE=$(jq -n \
-              --arg actor "${{ inputs.actor }}" \
-              --arg repository "${{ inputs.repository }}" \
-              --arg pr_title "${{ inputs.pr_title }}" \
-              --arg branch "${{ inputs.branch }}" \
-              --arg run_id "${{ inputs.run_id }}" \
-              '{
-                "channel": "#team-gnark-build",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": ":white_check_mark: *Workflow Succeeded*"
-                    }
-                  },
-                  {
-                    "type": "section",
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Actor:*\n\($actor)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Repository:*\n\($repository)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*PR Title:*\n\($pr_title)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Branch:*\n\($branch)"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*View Run:* <https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
-                    }
+      - name: Post to a Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # Replace 'CHANNEL_ID' with your Slack channel ID or name.
+          channel-id: 'team-gnark-build'
+          payload: |
+            {
+              "text": "GitHub Action build result: ${{ inputs.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ inputs.status == 'success' ? ':white_check_mark: *Workflow Succeeded*' : ':x: *Workflow Failed*' }}"
                   }
-                ]
-              }')
-          else
-            SLACK_MESSAGE=$(jq -n \
-              --arg actor "${{ inputs.actor }}" \
-              --arg repository "${{ inputs.repository }}" \
-              --arg pr_title "${{ inputs.pr_title }}" \
-              --arg branch "${{ inputs.branch }}" \
-              --arg run_id "${{ inputs.run_id }}" \
-              --arg failures "${{ inputs.failures }}" \
-              '{
-                "channel": "#team-gnark-build",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
                       "type": "mrkdwn",
-                      "text": ":x: *Workflow Failed*"
-                    }
-                  },
-                  {
-                    "type": "section",
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Actor:*\n\($actor)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Repository:*\n\($repository)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*PR Title:*\n\($pr_title)"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Branch:*\n\($branch)"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "section",
-                    "text": {
+                      "text": "*Actor:*\n${{ inputs.actor }}"
+                    },
+                    {
                       "type": "mrkdwn",
-                      "text": "*Failed Step:* <https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
-                    }
-                  },
-                  {
-                    "type": "section",
-                    "text": {
+                      "text": "*Repository:*\n${{ inputs.repository }}"
+                    },
+                    {
                       "type": "mrkdwn",
-                      "text": "*Test Failure Details:* \n\($failures)"
+                      "text": "*PR Title:*\n${{ inputs.pr_title }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ inputs.branch }}"
                     }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*View Run:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>"
                   }
-                ]
-              }')
-          fi
-          
-          curl -X POST -H 'Authorization: Bearer $SLACK_BOT_TOKEN' -H 'Content-type: application/json; charset=utf-8' --data '$SLACK_MESSAGE' https://slack.com/api/chat.postMessage
+                },
+                ${{ inputs.status == 'failure' && 
+                  '{ "type": "section", "text": { "type": "mrkdwn", "text": "*Test Failure Details:* \n${{ inputs.failures }}" } }'
+                }}
+              ]
+            }
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
