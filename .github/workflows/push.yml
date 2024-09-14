@@ -88,8 +88,10 @@ jobs:
       run: |
         if [ -s /tmp/gotest.log ]; then
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
+          echo "failures=$(echo "$(cat /tmp/gotest.log)")" > $GITHUB_OUTPUT
         else
           echo "## Success ✅" > $GITHUB_STEP_SUMMARY
+          echo "failures=" > $GITHUB_OUTPUT
         fi
 
   slack-notifications:
@@ -106,3 +108,4 @@ jobs:
       repository: ${{ github.repository }}
       branch: "master"
       run_id: ${{ github.run_id }}
+      failures: ${{ needs.test.outputs.failures }}

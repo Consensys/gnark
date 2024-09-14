@@ -124,6 +124,7 @@ func (circuit *notEqualTrace) Define(api frontend.API) error {
 }
 
 func TestTraceNotEqual(t *testing.T) {
+	t.Fatal("testing CI 2")
 	assert := require.New(t)
 
 	var circuit, witness notEqualTrace
