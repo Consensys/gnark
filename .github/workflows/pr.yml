@@ -83,7 +83,7 @@ jobs:
       run: |
         if [ -s /tmp/gotest.log ]; then
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
-          echo "failures=$(cat /tmp/gotest.log | node .github/parse-tests.js)" > $GITHUB_OUTPUT
+          echo "failures=$(cat /tmp/gotest.log | node .github/parse-tests.js) | jq -sRr @json | sed 's/\\n/\\n/g'" > $GITHUB_OUTPUT
         else
           echo "## Success ✅" > $GITHUB_STEP_SUMMARY
           echo "failures=" > $GITHUB_OUTPUT
