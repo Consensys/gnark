@@ -83,7 +83,7 @@ jobs:
       run: |
         if [ -s /tmp/gotest.log ]; then
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
-          echo "failures=$(echo "$(cat /tmp/gotest.log | node .workflows/parse-tests.js)" | jq -sRr @json | sed 's/\\n/\\n/g')" > $GITHUB_OUTPUT
+          echo "failures=$(echo "$(cat /tmp/gotest.log | node .github/parse-tests.js)" | jq -sRr @json | sed 's/\\n/\\n/g')" > $GITHUB_OUTPUT
         else
           echo "## Success ✅" > $GITHUB_STEP_SUMMARY
           echo "failures=" > $GITHUB_OUTPUT
@@ -103,3 +103,4 @@ jobs:
       repository: ${{ github.repository }}
       branch: ${{ github.event.pull_request.head.ref }}
       run_id: ${{ github.run_id }}
+      failures: ${{ steps.generate-job-summary.outputs.failures }}
