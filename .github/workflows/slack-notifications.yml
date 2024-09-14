@@ -27,10 +27,6 @@ on:
         description: 'The workflow run ID'
         required: true
         type: string
-      failures:
-        description: 'Test failure details (if any)'
-        required: false
-        type: string
 
 jobs:
   notify_slack:
@@ -63,7 +59,7 @@ jobs:
               ]
             }')
           else
-            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" --arg failures "${{ inputs.failure }}" '{
+            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}"  '{
               "channel": "team-gnark-build",
               "text": "GitHub Action build result: failure",
               "blocks": [
@@ -79,13 +75,6 @@ jobs:
                   "text": {
                     "type": "mrkdwn",
                     "text": "<https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Failed tests:*\n\n\($failures)"
                   }
                 },
                 {
