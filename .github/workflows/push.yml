@@ -82,15 +82,6 @@ jobs:
         go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
         go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
 
-    - name: Generate job summary
-      id: generate-job-summary
-      if: ${{ always() }}
-      run: |
-        if [ -s /tmp/gotest.log ]; then
-          cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
-        else
-          echo "## Success ✅" > $GITHUB_STEP_SUMMARY
-        fi
 
   slack-notifications:
     if: always()
