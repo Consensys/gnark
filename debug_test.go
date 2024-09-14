@@ -78,7 +78,6 @@ func (circuit *divBy0Trace) Define(api frontend.API) error {
 }
 
 func TestTraceDivBy0(t *testing.T) {
-	t.Fatal("testing CI")
 	if !debug.Debug {
 		t.Skip("skipping test in non debug mode")
 	}
