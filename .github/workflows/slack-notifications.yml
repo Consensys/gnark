@@ -27,10 +27,6 @@ on:
         description: 'The workflow run ID'
         required: true
         type: string
-      failures:
-        description: 'Test failure details (if any)'
-        required: false
-        type: string
 
 jobs:
   notify_slack:
@@ -86,23 +82,4 @@ jobs:
             }')
           fi
           response=$(curl -s -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" )
-          ts=$(echo "$response" | awk -F'"ts":"' '{print $2}' | awk -F'"' '{print $1}')
-          # if $failures is not empty, post the failures to slack thread
-          if [ -n "${{ inputs.failures }}" ]; then
-            payload=$(jq -n --arg repository "Consensys/gnark" --arg failures "${{ inputs.failures }}" --arg ts "$ts" '{
-              "channel": "team-gnark-build",
-              "text": "GitHub Action build result: failure",
-              "thread_ts": "\($ts)",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Failed tests:*\n\n\($failures)"
-                  }
-                }
-                ]
-            }')
-            curl -s -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}"
-          fi
         shell: bash
