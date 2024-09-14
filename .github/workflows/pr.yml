@@ -41,8 +41,6 @@ jobs:
     runs-on: ubuntu-latest-128
     permissions: 
       pull-requests: write
-    outputs:
-      failures: ${{ steps.generate-job-summary.outputs.failures }}
     steps:
     - name: checkout code
       uses: actions/checkout@v4
