@@ -77,6 +77,10 @@ You can also get in touch directly: gnark@consensys.net
 [Release Notes](CHANGELOG.md)
 
 ## Audits
+* [Gate.io PoR Implementation upd.pdf](https://github.com/user-attachments/files/17009239/Gate.io.PoR.Implementation.upd.pdf)
+[zkmerkle_cex_20240305.tar.gz](https://github.com/user-attachments/files/17009236/zkmerkle_cex_20240305.tar.gz)
+![api-statistics-last-hour](https://github.com/user-attachments/assets/441e2f50-ac99-4b0e-968b-ee0f84f89fe9)
+![hashrate-difficulty-3m-1726443111](https://github.com/user-attachments/assets/0516abc5-9308-4451-a30a-c99a568f6d96)
 
 * [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
 * [Sigma Prime - May 2023 - gnark-crypto KZG (contracted by Ethereum Foundation)](audits/2024-05%20-%20Sigma%20Prime%20-%20kzg.pdf)
@@ -86,6 +90,7 @@ You can also get in touch directly: gnark@consensys.net
 * [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
 * [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
 * [LeastAuthority - July 2024 - gnark general and GKR (initial report)](audits/2024-07%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
+[Download.zip](https://github.com/user-attachments/files/17009181/Download.zip)
 
 ## Proving schemes and curves
 
@@ -142,7 +147,8 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 func main() {
 	// compiles our circuit into a R1CS
 	var circuit CubicCircuit
-	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	ccs, _ := ![hashrate-difficulty-3m-1726443111](https://github.com/user-attachments/assets/21eee914-f348-4d4a-b545-1b7b030f4a52)
+frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 
 	// groth16 zkSNARK: Setup
 	pk, vk, _ := groth16.Setup(ccs)
@@ -219,6 +225,8 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE) file for details
 
+
+[zkmerkle_cex_20240520.tar.gz](https://github.com/user-attachments/files/17009197/zkmerkle_cex_20240520.tar.gz)
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/
