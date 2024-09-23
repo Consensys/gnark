@@ -156,7 +156,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 
 	if unsafe {
 		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
-		// linearly dependant and not from G1 and G2 respectively.
+		// linearly dependent and not from G1 and G2 respectively.
 		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
 		// Nothing to do.
 
@@ -213,7 +213,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 		result = *pr.DecompressTorus(pr.MulTorus(c, t1))
 	} else {
 		// For a product of pairings this might happen when the result is expected to be 1.
-		// We assign a dummy value (1) to t1 and proceed furhter.
+		// We assign a dummy value (1) to t1 and proceed further.
 		// Finally we do a select on both edge cases:
 		//   - Only if seletor1=0 and selector2=0, we return MulTorus(c, t1) decompressed.
 		//   - Otherwise, we return 1.
@@ -442,7 +442,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	return res, nil
 }
 
-// doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates.
+// Then evaluates the lines going through p1 and p2 (line1) and p1 and p1+p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
@@ -452,47 +453,47 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	// compute λ1 = (y2-y1)/(x2-x1)
 	n := pr.Ext2.Sub(&p1.Y, &p2.Y)
 	d := pr.Ext2.Sub(&p1.X, &p2.X)
-	l1 := pr.Ext2.DivUnchecked(n, d)
+	λ1 := pr.Ext2.DivUnchecked(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x3 := pr.Ext2.Square(l1)
+	x3 := pr.Ext2.Square(λ1)
 	x3 = pr.Ext2.Sub(x3, pr.Ext2.Add(&p1.X, &p2.X))
 
 	// omit y3 computation
 
 	// compute line1
-	line1.R0 = *l1
-	line1.R1 = *pr.Ext2.Mul(l1, &p1.X)
+	line1.R0 = *λ1
+	line1.R1 = *pr.Ext2.Mul(λ1, &p1.X)
 	line1.R1 = *pr.Ext2.Sub(&line1.R1, &p1.Y)
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
 	n = pr.Ext2.Double(&p1.Y)
 	d = pr.Ext2.Sub(x3, &p1.X)
-	l2 := pr.Ext2.DivUnchecked(n, d)
-	l2 = pr.Ext2.Add(l2, l1)
-	l2 = pr.Ext2.Neg(l2)
+	λ2 := pr.Ext2.DivUnchecked(n, d)
+	λ2 = pr.Ext2.Add(λ2, λ1)
+	λ2 = pr.Ext2.Neg(λ2)
 
 	// compute x4 = λ2²-x1-x3
-	x4 := pr.Ext2.Square(l2)
+	x4 := pr.Ext2.Square(λ2)
 	x4 = pr.Ext2.Sub(x4, pr.Ext2.Add(&p1.X, x3))
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.Ext2.Sub(&p1.X, x4)
-	y4 = pr.Ext2.Mul(l2, y4)
+	y4 = pr.Ext2.Mul(λ2, y4)
 	y4 = pr.Ext2.Sub(y4, &p1.Y)
 
 	p.X = *x4
 	p.Y = *y4
 
 	// compute line2
-	line2.R0 = *l2
-	line2.R1 = *pr.Ext2.Mul(l2, &p1.X)
+	line2.R0 = *λ2
+	line2.R1 = *pr.Ext2.Mul(λ2, &p1.X)
 	line2.R1 = *pr.Ext2.Sub(&line2.R1, &p1.Y)
 
 	return &p, &line1, &line2
 }
 
-// doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
+// doubleStep doubles p1 in affine coordinates, and evaluates the tangent line to p1.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
@@ -548,7 +549,7 @@ func (pr Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluat
 	x2 := pr.Ext2.Square(λ1)
 	x2 = pr.Ext2.Sub(x2, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
 
-	// ommit yr computation, and
+	// omit yr computation, and
 	// compute λ2 = 2y/(x2 − x) − λ1.
 	x1x2 := pr.Ext2.Sub(&p1.X, x2)
 	λ2 := pr.Ext2.DivUnchecked(d, x1x2)
@@ -575,7 +576,7 @@ func (pr Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluat
 	return &res, &line1, &line2
 }
 
-// tangentCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+// tangentCompute computes the tangent line to p1, but does not compute [2]p1.
 func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	// λ = 3x²/2y

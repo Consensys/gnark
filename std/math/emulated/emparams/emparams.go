@@ -329,7 +329,7 @@ func (Mod1e4096) Modulus() *big.Int {
 	return val
 }
 
-// Mod1e512 provides type parametrization for emulated aritmetic:
+// Mod1e512 provides type parametrization for emulated arithmetic:
 //   - limbs: 8
 //   - limb width: 64 bits
 //
@@ -348,7 +348,7 @@ func (Mod1e512) Modulus() *big.Int {
 	return val
 }
 
-// Mod1e256 provides type parametrization for emulated aritmetic:
+// Mod1e256 provides type parametrization for emulated arithmetic:
 //   - limbs: 4
 //   - limb width: 64 bits
 //

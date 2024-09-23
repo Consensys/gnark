@@ -78,7 +78,7 @@ func (c *MarshalG1Test) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	// the bits are layed out exactly as in gnark-crypto
+	// the bits are laid out exactly as in gnark-crypto
 	r := ec.MarshalG1(c.P)
 	for i := range c.R {
 		api.AssertIsEqual(r[i], c.R[i])

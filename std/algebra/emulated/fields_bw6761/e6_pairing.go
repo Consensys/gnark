@@ -81,7 +81,7 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	return result
 }
 
-// ExpX0Minus1Div3 set z to z^(x₀-1)/3 in E6 and return z
+// ExptMinus1Div3 set z to z^(x₀-1)/3 in E6 and return z
 // (x₀-1)/3 = 3195374304363544576
 func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)

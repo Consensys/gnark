@@ -37,7 +37,7 @@ func (c *InnerCircuitNative) Define(api frontend.API) error {
 
 // computeInnerProof computes the proof for the inner circuit we want to verify
 // recursively. In this example the PLONK keys are generated on the fly, but
-// in practice should be genrated once and using MPC.
+// in practice should be generated once and using MPC.
 func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNative{})
 	if err != nil {
