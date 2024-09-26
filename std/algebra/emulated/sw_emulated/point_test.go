@@ -3,6 +3,7 @@ package sw_emulated
 import (
 	"crypto/elliptic"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -20,6 +21,8 @@ import (
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	fr_stark "github.com/consensys/gnark-crypto/ecc/stark-curve/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -1436,7 +1439,7 @@ func (c *ScalarMulTestBounded[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGeneric(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
+	res := cr.scalarMulJoye(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1951,7 +1954,7 @@ func (c *ScalarMulJoyeTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGeneric(&c.P, &c.S)
+	res := cr.scalarMulJoye(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -2182,4 +2185,62 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases3(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+type ScalarMulGLVAndFakeGLVTest[T, S emulated.FieldParams] struct {
+	Q, R AffinePoint[T]
+	S    emulated.Element[S]
+}
+
+func (c *ScalarMulGLVAndFakeGLVTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S)
+	cr.AssertIsEqual(res, &c.R)
+	return nil
+}
+
+func TestScalarMulGLVAndFakeGLV(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S secp256k1.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// bench
+func BenchmarkScalarMulNew(b *testing.B) {
+	c := ScalarMulGLVAndFakeGLVTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("New: ", p.NbConstraints())
+}
+
+func BenchmarkScalarMulOld(b *testing.B) {
+	c := ScalarMulTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Old: ", p.NbConstraints())
 }
