@@ -1704,7 +1704,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	t1bits := c.scalarApi.ToBits(v1)
 	t2bits := c.scalarApi.ToBits(v2)
 	var st S
-	nbits := st.Modulus().BitLen()>>2 + 5
+	nbits := st.Modulus().BitLen()>>2 + 6
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
