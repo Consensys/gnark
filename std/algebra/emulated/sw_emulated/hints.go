@@ -318,8 +318,8 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 6 {
-			return fmt.Errorf("expecting six outputs")
+		if len(outputs) != 10 {
+			return fmt.Errorf("expecting ten outputs")
 		}
 		var r, s eisenstein.ComplexNumber
 		glvBasis := new(ecc.Lattice)
@@ -336,6 +336,10 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		outputs[3].SetUint64(0)
 		outputs[4].SetUint64(0)
 		outputs[5].SetUint64(0)
+		outputs[6].SetUint64(0)
+		outputs[7].SetUint64(0)
+		outputs[8].SetUint64(0)
+		outputs[9].SetUint64(0)
 		res := eisenstein.HalfGCD(&r, &s)
 		if res[0].A0.Sign() == -1 {
 			outputs[0].SetUint64(1)
@@ -355,6 +359,18 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if res[2].A1.Sign() == -1 {
 			outputs[5].SetUint64(1)
 		}
+		if r.A0.Sign() == -1 {
+			outputs[6].SetUint64(1)
+		}
+		if r.A1.Sign() == -1 {
+			outputs[7].SetUint64(1)
+		}
+		if s.A0.Sign() == -1 {
+			outputs[8].SetUint64(1)
+		}
+		if s.A1.Sign() == -1 {
+			outputs[9].SetUint64(1)
+		}
 
 		return nil
 	})
@@ -365,8 +381,8 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 6 {
-			return fmt.Errorf("expecting six outputs")
+		if len(outputs) != 10 {
+			return fmt.Errorf("expecting ten outputs")
 		}
 		var r, s eisenstein.ComplexNumber
 		glvBasis := new(ecc.Lattice)
@@ -384,6 +400,10 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[3].Set(&res[1].A1)
 		outputs[4].Set(&res[2].A0)
 		outputs[5].Set(&res[2].A1)
+		outputs[6].Set(&r.A0)
+		outputs[7].Set(&r.A1)
+		outputs[8].Set(&s.A0)
+		outputs[9].Set(&s.A1)
 		if outputs[0].Sign() == -1 {
 			outputs[0].Neg(outputs[0])
 		}
@@ -402,8 +422,18 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if outputs[5].Sign() == -1 {
 			outputs[5].Neg(outputs[5])
 		}
-		fmt.Println(outputs[0].BitLen(), outputs[1].BitLen(), outputs[2].BitLen(), outputs[3].BitLen(), outputs[4].BitLen(), outputs[5].BitLen())
-
+		if outputs[6].Sign() == -1 {
+			outputs[6].Neg(outputs[6])
+		}
+		if outputs[7].Sign() == -1 {
+			outputs[7].Neg(outputs[7])
+		}
+		if outputs[8].Sign() == -1 {
+			outputs[8].Neg(outputs[8])
+		}
+		if outputs[9].Sign() == -1 {
+			outputs[9].Neg(outputs[9])
+		}
 		return nil
 
 	})
