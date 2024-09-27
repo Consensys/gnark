@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )
@@ -97,11 +98,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		publicWitness = append(publicWitness, res)
 		copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
 	}
-
-	if folded, err := pedersen.FoldCommitments(proof.Commitments, commitmentsSerialized); err != nil {
-		return err
-	} else {
-		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+	if len(vk.CommitmentKeys) > 0 {
+		challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
+		if err != nil {
+			return err
+		}
+		if err = pedersen.BatchVerifyMultiVk(vk.CommitmentKeys, proof.Commitments, []curve.G1Affine{proof.CommitmentPok}, challenge[0]); err != nil {
 			return err
 		}
 	}
@@ -140,6 +142,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 }
 
 // ExportSolidity not implemented for BLS24-317
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }

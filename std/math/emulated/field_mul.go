@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
@@ -17,8 +18,8 @@ import (
 //
 // With this approach this is important that we do not change the [Element]
 // values after they are returned from [mulMod] as mulCheck keeps pointers and
-// the check will fail if the values refered to by the pointers change. By
-// following the [Field] public methods this shouldn't happend as we always take
+// the check will fail if the values referred to by the pointers change. By
+// following the [Field] public methods this shouldn't happen as we always take
 // and return pointers, and to change the values the user has to explicitly
 // dereference.
 //
@@ -193,7 +194,7 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 	}
 
 	// we construct a list of elements we want to commit to. Even though we have
-	// commited when doing range checks, do it again here explicitly for safety.
+	// committed when doing range checks, do it again here explicitly for safety.
 	// TODO: committing is actually expensive in PLONK. We create a constraint
 	// for every variable we commit to (to set the selector polynomial). So, it
 	// is actually better not to commit again. However, if we would be to use
@@ -345,13 +346,13 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	p := new(big.Int)
 	a := new(big.Int)
 	b := new(big.Int)
-	if err := recompose(plimbs, uint(nbBits), p); err != nil {
+	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
 		return fmt.Errorf("recompose p: %w", err)
 	}
-	if err := recompose(alimbs, uint(nbBits), a); err != nil {
+	if err := limbs.Recompose(alimbs, uint(nbBits), a); err != nil {
 		return fmt.Errorf("recompose a: %w", err)
 	}
-	if err := recompose(blimbs, uint(nbBits), b); err != nil {
+	if err := limbs.Recompose(blimbs, uint(nbBits), b); err != nil {
 		return fmt.Errorf("recompose b: %w", err)
 	}
 	quo := new(big.Int)
@@ -360,10 +361,10 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if p.Cmp(new(big.Int)) != 0 {
 		quo.QuoRem(ab, p, rem)
 	}
-	if err := decompose(quo, uint(nbBits), quoLimbs); err != nil {
+	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
 	}
-	if err := decompose(rem, uint(nbBits), remLimbs); err != nil {
+	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
 	xp := make([]*big.Int, nbMultiplicationResLimbs(nbALen, nbBLen))

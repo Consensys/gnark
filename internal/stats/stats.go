@@ -1,9 +1,12 @@
 package stats
 
 import (
-	"encoding/gob"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strconv"
 	"sync"
 
 	"github.com/consensys/gnark"
@@ -15,27 +18,6 @@ import (
 )
 
 const nbCurves = 7
-
-func CurveIdx(curve ecc.ID) int {
-	switch curve {
-	case ecc.BN254:
-		return 0
-	case ecc.BLS12_377:
-		return 1
-	case ecc.BLS12_381:
-		return 2
-	case ecc.BLS24_315:
-		return 3
-	case ecc.BW6_761:
-		return 4
-	case ecc.BW6_633:
-		return 5
-	case ecc.BLS24_317:
-		return 6
-	default:
-		panic("not implemented")
-	}
-}
 
 func init() {
 	if nbCurves != len(gnark.Curves()) {
@@ -49,16 +31,45 @@ func NewGlobalStats() *globalStats {
 	}
 }
 
-func (s *globalStats) Save(path string) error {
-	fStats, err := os.Create(path) //#nosec G304 -- ignoring internal package s
-	if err != nil {
-		return err
+func (s *globalStats) WriteTo(w io.Writer) (int64, error) {
+	csvWriter := csv.NewWriter(w)
+
+	// write header
+	if err := csvWriter.Write([]string{"circuit", "curve", "backend", "nbConstraints", "nbWires"}); err != nil {
+		return 0, err
 	}
 
-	encoder := gob.NewEncoder(fStats)
-	err = encoder.Encode(s.Stats)
-	_ = fStats.Close()
-	return err
+	// sort circuits names to have a deterministic output
+	var circuitNames []string
+	for circuitName := range s.Stats {
+		circuitNames = append(circuitNames, circuitName)
+	}
+
+	sort.Strings(circuitNames)
+
+	// write data
+	for _, circuitName := range circuitNames {
+		innerStats := s.Stats[circuitName]
+		for backendID, s := range innerStats {
+			if backendID == 0 {
+				continue
+			}
+			backend := backend.ID(backendID).String()
+			for curveIdx, stats := range s {
+				if curveIdx == 0 {
+					continue
+				}
+				curve := ecc.ID(curveIdx).String()
+
+				if err := csvWriter.Write([]string{circuitName, curve, backend, strconv.Itoa(stats.NbConstraints), strconv.Itoa(stats.NbInternalWires)}); err != nil {
+					return 0, err
+				}
+			}
+		}
+	}
+
+	csvWriter.Flush()
+	return 0, nil
 }
 
 func (s *globalStats) Load(path string) error {
@@ -67,10 +78,30 @@ func (s *globalStats) Load(path string) error {
 		return err
 	}
 
-	decoder := gob.NewDecoder(fStats)
-	err = decoder.Decode(&s.Stats)
-	_ = fStats.Close()
-	return err
+	defer fStats.Close()
+
+	csvReader := csv.NewReader(fStats)
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		return err
+	}
+
+	s.Stats = make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats)
+
+	for _, record := range records {
+		// we don't do validation here, we assume the file is correct;;
+		circuitName := record[0]
+		curveID, _ := ecc.IDFromString(record[1])
+		backendID := backend.IDFromString(record[2])
+		nbConstraints, _ := strconv.Atoi(record[3])
+		nbWires, _ := strconv.Atoi(record[4])
+
+		rs := s.Stats[circuitName]
+		rs[backendID][curveID] = snippetStats{nbConstraints, nbWires}
+		s.Stats[circuitName] = rs
+	}
+
+	return nil
 }
 
 func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circuit) (snippetStats, error) {
@@ -101,7 +132,7 @@ func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs snippetStats, c
 	s.Lock()
 	defer s.Unlock()
 	rs := s.Stats[circuitName]
-	rs[backendID][CurveIdx(curve)] = cs
+	rs[backendID][curve] = cs
 	s.Stats[circuitName] = rs
 }
 

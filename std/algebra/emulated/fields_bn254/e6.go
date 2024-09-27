@@ -382,6 +382,15 @@ func (e Ext6) FrobeniusSquare(x *E6) *E6 {
 	return &E6{B0: x.B0, B1: *z01, B2: *z02}
 }
 
+func (e Ext6) IsEqual(x, y *E6) frontend.Variable {
+	isB0Equal := e.Ext2.IsEqual(&x.B0, &y.B0)
+	isB1Equal := e.Ext2.IsEqual(&x.B1, &y.B1)
+	isB2Equal := e.Ext2.IsEqual(&x.B2, &y.B2)
+	res := e.api.And(isB0Equal, isB1Equal)
+	res = e.api.And(res, isB2Equal)
+	return res
+}
+
 func (e Ext6) AssertIsEqual(x, y *E6) {
 	e.Ext2.AssertIsEqual(&x.B0, &y.B0)
 	e.Ext2.AssertIsEqual(&x.B1, &y.B1)

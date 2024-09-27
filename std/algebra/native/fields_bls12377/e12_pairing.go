@@ -1,6 +1,8 @@
 package fields_bls12377
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"github.com/consensys/gnark/frontend"
+)
 
 // nSquareKarabina2345 repeated compressed cyclotmic square
 func (e *E12) nSquareKarabina2345(api frontend.API, n int) {
@@ -125,7 +127,7 @@ func (e *E12) MulBy01234(api frontend.API, x [5]E2) *E12 {
 	return e
 }
 
-// ExpX0 compute e1^X0, where X0=9586122913090633729
+// ExpX0 compute e1^X0, where X0=0x8508c00000000001
 func (e *E12) ExpX0(api frontend.API, e1 E12) *E12 {
 
 	res := e1
@@ -148,7 +150,7 @@ func (e *E12) ExpX0(api frontend.API, e1 E12) *E12 {
 
 }
 
-// ExpX0Minus1Square computes e1^((X0-1)^2), where X0=9586122913090633729
+// ExpX0Minus1Square computes e1^((X0-1)^2), where X0=0x8508c00000000001
 func (e *E12) ExpX0Minus1Square(api frontend.API, e1 E12) *E12 {
 
 	var t0, t1, t2, t3, res E12
@@ -175,4 +177,68 @@ func (e *E12) ExpX0Minus1Square(api frontend.API, e1 E12) *E12 {
 
 	return e
 
+}
+
+// ExpU compute e1^U, where U=(X0-1)^2/3 and X0=0x8508c00000000001
+func (e *E12) ExpU(api frontend.API, e1 E12) *E12 {
+
+	var t0, t1, t2, t3 E12
+	t0.CyclotomicSquare(api, e1)
+	e.Mul(api, e1, t0)
+	t0.Mul(api, t0, *e)
+	t1.CyclotomicSquare(api, t0)
+	t2.Mul(api, e1, t1)
+	t1.CyclotomicSquare(api, t2)
+	t1.Mul(api, e1, t1)
+	t3.CyclotomicSquare(api, t1)
+	t3.nSquareKarabina2345(api, 7)
+	t2.Mul(api, t2, t3)
+	t2.nSquareKarabina2345(api, 6)
+	t1.Mul(api, t1, t2)
+	t1.nSquareKarabina2345(api, 4)
+	t0.Mul(api, t0, t1)
+	t0.nSquareKarabina2345(api, 4)
+	t0.Mul(api, e1, t0)
+	t0.nSquareKarabina2345(api, 6)
+	e.Mul(api, *e, t0)
+	e.nSquareKarabina2345(api, 92)
+
+	return e
+}
+
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
+	res, err := api.NewHint(finalExpHint, 18, x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1, x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var residueWitness, scalingFactor, t0, t1 E12
+	residueWitness.assign(res[:12])
+	// constrain cubicNonResiduePower to be in Fp6
+	scalingFactor.C0.B0.A0 = res[12]
+	scalingFactor.C0.B0.A1 = res[13]
+	scalingFactor.C0.B1.A0 = res[14]
+	scalingFactor.C0.B1.A1 = res[15]
+	scalingFactor.C0.B2.A0 = res[16]
+	scalingFactor.C0.B2.A1 = res[17]
+	scalingFactor.C1.SetZero()
+
+	// Check that  x * scalingFactor == residueWitness^(q-u)
+	// where u=0x8508c00000000001 is the BLS12-377 seed,
+	// and residueWitness, scalingFactor from the hint.
+	t0.Frobenius(api, residueWitness)
+	// exponentiation by u
+	t1.ExpX0(api, residueWitness)
+	t0.DivUnchecked(api, t0, t1)
+
+	t1.Mul(api, *x, scalingFactor)
+
+	t0.AssertIsEqual(api, t1)
 }

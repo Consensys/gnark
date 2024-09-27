@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
 // Element defines an element in the ring of integers modulo n. The integer
@@ -31,6 +32,12 @@ type Element[T FieldParams] struct {
 	// ensure that the limbs are width-constrained. We do not store the
 	// enforcement info in the Element to prevent modifying the witness.
 	internal bool
+
+	// modReduced indicates that the element has been reduced modulo the modulus
+	// and we have asserted that the integer value of the element is strictly
+	// less than the modulus. This is required for some operations which depend
+	// on the bit-representation of the element (ToBits, exponentiation etc.).
+	modReduced bool
 
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`
@@ -67,7 +74,7 @@ func newConstElement[T FieldParams](v interface{}) *Element[T] {
 	for i := range blimbs {
 		blimbs[i] = new(big.Int)
 	}
-	if err := decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
+	if err := limbs.Decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
@@ -95,6 +102,11 @@ func (e *Element[T]) GnarkInitHook() {
 		*e = ValueOf[T](0)
 		e.internal = false // we need to constrain in later.
 	}
+	// set modReduced to false - in case the circuit is compiled we may change
+	// the value for an existing element. If we don't reset it here, then during
+	// second compilation we may take a shortPath where we assume that modReduce
+	// flag is set.
+	e.modReduced = false
 }
 
 // copy makes a deep copy of the element.
@@ -104,5 +116,6 @@ func (e *Element[T]) copy() *Element[T] {
 	copy(r.Limbs, e.Limbs)
 	r.overflow = e.overflow
 	r.internal = e.internal
+	r.modReduced = e.modReduced
 	return &r
 }
