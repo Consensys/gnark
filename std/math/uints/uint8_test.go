@@ -80,6 +80,84 @@ func TestRshift(t *testing.T) {
 	assert.NoError(err)
 }
 
+type byteArrayValueOfCircuitWithSpecifiedLen struct {
+	In       frontend.Variable
+	Expected []U8
+}
+
+func (c *byteArrayValueOfCircuitWithSpecifiedLen) Define(api frontend.API) error {
+	uapi, err := New[U32](api)
+	if err != nil {
+		return err
+	}
+
+	res := uapi.ByteArrayValueOf(c.In, 3)
+	api.AssertIsEqual(len(res), len(c.Expected))
+	for i := 0; i < len(res); i++ {
+		uapi.ByteAssertEq(res[i], c.Expected[i])
+	}
+
+	return nil
+}
+
+func TestByteArrayValueOfWithSpecifiedLen(t *testing.T) {
+	assert := test.NewAssert(t)
+	a, b, c := 13, 17, 19
+	p := a + (b << 8) + (c << 16)
+	expected := NewU8Array([]uint8{uint8(a), uint8(b), uint8(c)})
+
+	circuit := &byteArrayValueOfCircuitWithSpecifiedLen{
+		Expected: expected,
+	}
+	assignment := &byteArrayValueOfCircuitWithSpecifiedLen{
+		In:       frontend.Variable(p),
+		Expected: expected,
+	}
+
+	err := test.IsSolved(circuit, assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type byteArrayValueOfCircuitWithoutSpecifiedLen struct {
+	In       frontend.Variable
+	Expected []U8
+}
+
+func (c *byteArrayValueOfCircuitWithoutSpecifiedLen) Define(api frontend.API) error {
+	uapi, err := New[U32](api)
+	if err != nil {
+		return err
+	}
+
+	res := uapi.ByteArrayValueOf(c.In)
+	for i := 0; i < len(c.Expected); i++ {
+		uapi.ByteAssertEq(res[i], c.Expected[i])
+	}
+	for i := len(c.Expected); i < len(res); i++ {
+		uapi.ByteAssertEq(res[i], NewU8(0))
+	}
+
+	return nil
+}
+
+func TestByteArrayValueOfWithoutSpecifiedLen(t *testing.T) {
+	assert := test.NewAssert(t)
+	a, b, c := 13, 17, 19
+	p := a + (b << 8) + (c << 16)
+	expected := NewU8Array([]uint8{uint8(a), uint8(b), uint8(c)})
+
+	circuit := &byteArrayValueOfCircuitWithoutSpecifiedLen{
+		Expected: expected,
+	}
+	assignment := &byteArrayValueOfCircuitWithoutSpecifiedLen{
+		In:       frontend.Variable(p),
+		Expected: expected,
+	}
+
+	err := test.IsSolved(circuit, assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type valueOfCircuit[T Long] struct {
 	In       frontend.Variable
 	Expected T
@@ -116,7 +194,8 @@ func (c *addCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := uapi.Add(c.In[0], c.In[1])
+
+  res := uapi.Add(c.In[0], c.In[1])
 	uapi.AssertEq(res, c.Expected)
 	return nil
 }
