@@ -2,15 +2,14 @@ package gkr
 
 import (
 	"fmt"
-	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/algo_utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/utils/algo_utils"
 )
 
 type circuitDataForSnark struct {
@@ -67,7 +66,7 @@ func (api *API) Series(input, output constraint.GkrVariable, inputInstance, outp
 }
 
 // Import creates a new input variable, whose values across all instances are given by assignment.
-// If the value in an instance depends on an output of another instance, leave the corresponding index in assigment nil and use Series to specify the dependency.
+// If the value in an instance depends on an output of another instance, leave the corresponding index in assignment nil and use Series to specify the dependency.
 func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, error) {
 	nbInstances := len(assignment)
 	logNbInstances := log2(uint(nbInstances))
@@ -124,8 +123,9 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 		}
 	}
 
-	outsSerialized, err := parentApi.Compiler().NewHint(SolveHintPlaceholder, solveHintNOut, ins...)
-	api.toStore.SolveHintID = solver.GetHintID(SolveHintPlaceholder)
+	solveHintPlaceholder := SolveHintPlaceholder(api.toStore)
+	outsSerialized, err := parentApi.Compiler().NewHint(solveHintPlaceholder, solveHintNOut, ins...)
+	api.toStore.SolveHintID = solver.GetHintID(solveHintPlaceholder)
 	if err != nil {
 		return Solution{}, err
 	}
@@ -176,11 +176,12 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 	copy(hintIns[1:], initialChallenges)
 
+	proveHintPlaceholder := ProveHintPlaceholder(hashName)
 	if proofSerialized, err = s.parentApi.Compiler().NewHint(
-		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
+		proveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
-	s.toStore.ProveHintID = solver.GetHintID(ProveHintPlaceholder)
+	s.toStore.ProveHintID = solver.GetHintID(proveHintPlaceholder)
 
 	forSnarkSorted := algo_utils.MapRange(0, len(s.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
@@ -200,14 +201,6 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
-}
-
-func SolveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
-	return fmt.Errorf("placeholder - not meant to be called")
-}
-
-func ProveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
-	return fmt.Errorf("placeholder - not meant to be called")
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {

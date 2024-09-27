@@ -142,7 +142,7 @@ func pow17(api frontend.API, x frontend.Variable) frontend.Variable {
 	return api.Mul(r, x)
 }
 
-// encryptBn256 of a mimc run expressed as r1cs
+// encryptPow5 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow5(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m
@@ -152,7 +152,7 @@ func encryptPow5(h MiMC, m frontend.Variable) frontend.Variable {
 	return h.api.Add(x, h.h)
 }
 
-// encryptBLS24317 of a mimc run expressed as r1cs
+// encryptPow7 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow7(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m
@@ -162,7 +162,7 @@ func encryptPow7(h MiMC, m frontend.Variable) frontend.Variable {
 	return h.api.Add(x, h.h)
 }
 
-// encryptBLS377 of a mimc run expressed as r1cs
+// encryptPow17 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow17(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m

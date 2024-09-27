@@ -251,9 +251,11 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes
 }
 
 func pairingCheckData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine) {
+	// e(a,2b) * e(-2a,b) == 1
 	_, _, P[0], Q[0] = bls12377.Generators()
-	P[1].Neg(&P[0])
+	P[1].Double(&P[0]).Neg(&P[1])
 	Q[1].Set(&Q[0])
+	Q[0].Double(&Q[0])
 
 	return
 }

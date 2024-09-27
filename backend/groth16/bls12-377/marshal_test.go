@@ -98,6 +98,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				vk.G1.K[i] = p1
 			}
 
+			vk.CommitmentKeys = []pedersen.VerifyingKey{}
 			if withCommitment {
 				vk.PublicAndCommitmentCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
 				bases := make([][]curve.G1Affine, len(vk.PublicAndCommitmentCommitted))
@@ -107,9 +108,9 @@ func TestVerifyingKeySerialization(t *testing.T) {
 					for j := range bases[i] {
 						bases[i][j] = elem
 						elem.Add(&elem, &p1)
+						vk.CommitmentKeys = append(vk.CommitmentKeys, pedersen.VerifyingKey{G: p2, GSigma: p2})
 					}
 				}
-				_, vk.CommitmentKey, err = pedersen.Setup(bases...)
 				assert.NoError(t, err)
 			}
 
@@ -183,7 +184,7 @@ func TestProvingKeySerialization(t *testing.T) {
 			}
 			{
 				var err error
-				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases...)
+				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases)
 				require.NoError(t, err)
 			}
 

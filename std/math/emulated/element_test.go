@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
@@ -1097,4 +1098,182 @@ func TestExp(t *testing.T) {
 	testExp[Goldilocks](t)
 	testExp[BN254Fr](t)
 	testExp[emparams.Mod1e512](t)
+}
+
+type ReduceStrictCircuit[T FieldParams] struct {
+	Limbs        []frontend.Variable
+	Expected     []frontend.Variable
+	strictReduce bool
+}
+
+func (c *ReduceStrictCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	var elR *Element[T]
+	if c.strictReduce {
+		elR = f.ReduceStrict(el)
+	} else {
+		elR = f.Reduce(el)
+	}
+	for i := range elR.Limbs {
+		api.AssertIsEqual(elR.Limbs[i], c.Expected[i])
+	}
+
+	// TODO: dummy constraint to have at least two constraints in the circuit.
+	// Otherwise PLONK setup phase fails.
+	api.AssertIsEqual(c.Expected[0], elR.Limbs[0])
+	return nil
+}
+
+func testReduceStrict[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p := fp.Modulus()
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		plimbs[0].Add(plimbs[0], big.NewInt(1))
+		exp := make([]*big.Int, int(fp.NbLimbs()))
+		exp[0] = big.NewInt(1)
+		for i := 1; i < int(fp.NbLimbs()); i++ {
+			exp[i] = big.NewInt(0)
+		}
+		circuitStrict := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs())), strictReduce: true}
+		circuitLax := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs()))}
+		witness := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs()))}
+		for i := range plimbs {
+			witness.Limbs[i] = plimbs[i]
+			witness.Expected[i] = exp[i]
+		}
+		assert.CheckCircuit(circuitStrict, test.WithValidAssignment(witness))
+		assert.CheckCircuit(circuitLax, test.WithInvalidAssignment(witness))
+
+	}, testName[T]())
+}
+
+func TestReduceStrict(t *testing.T) {
+	testReduceStrict[Goldilocks](t)
+	testReduceStrict[BN254Fr](t)
+	testReduceStrict[emparams.Mod1e512](t)
+}
+
+type ToBitsCanonicalCircuit[T FieldParams] struct {
+	Limbs    []frontend.Variable
+	Expected []frontend.Variable
+}
+
+func (c *ToBitsCanonicalCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	bts := f.ToBitsCanonical(el)
+	for i := range bts {
+		api.AssertIsEqual(bts[i], c.Expected[i])
+	}
+	return nil
+}
+
+func testToBitsCanonical[T FieldParams](t *testing.T) {
+	var fp T
+	nbBits := fp.Modulus().BitLen()
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p := fp.Modulus()
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		plimbs[0].Add(plimbs[0], big.NewInt(1))
+		exp := make([]*big.Int, int(nbBits))
+		exp[0] = big.NewInt(1)
+		for i := 1; i < len(exp); i++ {
+			exp[i] = big.NewInt(0)
+		}
+		circuit := &ToBitsCanonicalCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, nbBits)}
+		witness := &ToBitsCanonicalCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, nbBits)}
+		for i := range plimbs {
+			witness.Limbs[i] = plimbs[i]
+		}
+		for i := range exp {
+			witness.Expected[i] = exp[i]
+		}
+		assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+	}, testName[T]())
+}
+
+func TestToBitsCanonical(t *testing.T) {
+	testToBitsCanonical[Goldilocks](t)
+	testToBitsCanonical[BN254Fr](t)
+	testToBitsCanonical[emparams.Mod1e512](t)
+}
+
+type IsZeroEdgeCase[T FieldParams] struct {
+	Limbs    []frontend.Variable
+	Expected frontend.Variable
+}
+
+func (c *IsZeroEdgeCase[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	res := f.IsZero(el)
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func testIsZeroEdgeCases[T FieldParams](t *testing.T) {
+	var fp T
+	p := fp.Modulus()
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		// limbs are for zero
+		witness1 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 1}
+		for i := range plimbs {
+			witness1.Limbs[i] = big.NewInt(0)
+		}
+		// limbs are for p
+		witness2 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 1}
+		for i := range plimbs {
+			witness2.Limbs[i] = plimbs[i]
+		}
+		// limbs are for not zero
+		witness3 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 0}
+		witness3.Limbs[0] = big.NewInt(1)
+		for i := 1; i < len(witness3.Limbs); i++ {
+			witness3.Limbs[i] = big.NewInt(0)
+		}
+		// limbs are for not zero bigger than p
+		witness4 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 0}
+		witness4.Limbs[0] = new(big.Int).Add(plimbs[0], big.NewInt(1))
+		for i := 1; i < len(witness4.Limbs); i++ {
+			witness4.Limbs[i] = plimbs[i]
+		}
+		assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs()))}, test.WithValidAssignment(witness1), test.WithValidAssignment(witness2), test.WithValidAssignment(witness3), test.WithValidAssignment(witness4))
+
+	}, testName[T]())
+}
+
+func TestIsZeroEdgeCases(t *testing.T) {
+	testIsZeroEdgeCases[Goldilocks](t)
+	testIsZeroEdgeCases[BN254Fr](t)
+	testIsZeroEdgeCases[emparams.Mod1e512](t)
 }

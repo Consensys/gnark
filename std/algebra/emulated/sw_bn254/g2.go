@@ -10,6 +10,7 @@ import (
 )
 
 type G2 struct {
+	api frontend.API
 	*fields_bn254.Ext2
 	w    *emulated.Element[BaseField]
 	u, v *fields_bn254.E2
@@ -49,6 +50,7 @@ func NewG2(api frontend.API) *G2 {
 		A1: emulated.ValueOf[BaseField]("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
 	}
 	return &G2{
+		api:  api,
 		Ext2: fields_bn254.NewExt2(api),
 		w:    &w,
 		u:    &u,
@@ -231,7 +233,7 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	xqxp = g2.Ext2.Add(&p.P.X, &q.P.X)
 	x2 := g2.Ext2.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 	// compute λ2 = -λ1-2*p.y/(x2-p.x)
 	ypyp := g2.Ext2.Add(&p.P.Y, &p.P.Y)
 	x2xp := g2.Ext2.Sub(x2, &p.P.X)
@@ -261,4 +263,10 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 func (g2 *G2) AssertIsEqual(p, q *G2Affine) {
 	g2.Ext2.AssertIsEqual(&p.P.X, &q.P.X)
 	g2.Ext2.AssertIsEqual(&p.P.Y, &q.P.Y)
+}
+
+func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
+	xEqual := g2.Ext2.IsEqual(&p.P.X, &q.P.X)
+	yEqual := g2.Ext2.IsEqual(&p.P.Y, &q.P.Y)
+	return g2.api.And(xEqual, yEqual)
 }

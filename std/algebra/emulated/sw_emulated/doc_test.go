@@ -20,7 +20,7 @@ type ExampleCurveCircuit[Base, Scalar emulated.FieldParams] struct {
 func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
 	curve, err := sw_emulated.New[B, S](api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp]())
 	if err != nil {
-		panic("initalize new curve")
+		panic("initialize new curve")
 	}
 	G := curve.Generator()
 	scalar4 := emulated.ValueOf[S](4)

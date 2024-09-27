@@ -55,10 +55,10 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
 	// output of gnark-crypto's Marshal method on G1 points.
-	MarshalG1(G1El) []frontend.Variable
+	MarshalG1(G1El, ...algopts.AlgebraOption) []frontend.Variable
 
 	// MarshalScalar returns the binary decomposition of the argument.
-	MarshalScalar(emulated.Element[FR]) []frontend.Variable
+	MarshalScalar(emulated.Element[FR], ...algopts.AlgebraOption) []frontend.Variable
 
 	// Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
 	Select(b frontend.Variable, p1 *G1El, p2 *G1El) *G1El

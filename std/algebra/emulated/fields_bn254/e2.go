@@ -296,6 +296,14 @@ func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
 }
 
+func (e Ext2) IsEqual(x, y *E2) frontend.Variable {
+	xDiff := e.fp.Sub(&x.A0, &y.A0)
+	yDiff := e.fp.Sub(&x.A1, &y.A1)
+	xIsZero := e.fp.IsZero(xDiff)
+	yIsZero := e.fp.IsZero(yDiff)
+	return e.api.And(xIsZero, yIsZero)
+}
+
 func FromE2(y *bn254.E2) E2 {
 	return E2{
 		A0: emulated.ValueOf[emulated.BN254Fp](y.A0),
