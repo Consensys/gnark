@@ -6,6 +6,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	bls12381_fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	bn_fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
@@ -203,6 +205,32 @@ func scalarMulGLVG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error
 			}
 			// compute the resulting point [s]Q
 			var P bn254.G1Affine
+			P.X.SetBigInt(Px)
+			P.Y.SetBigInt(Py)
+			P.ScalarMultiplication(&P, S)
+			P.X.BigInt(outputs[0])
+			P.Y.BigInt(outputs[1])
+		} else if field.Cmp(bls12381_fp.Modulus()) == 0 {
+			var fp emparams.BLS12381Fp
+			var fr emparams.BLS12381Fr
+			PXLimbs := inputs[:fp.NbLimbs()]
+			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
+			SLimbs := inputs[2*fp.NbLimbs():]
+			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
+			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
+				return err
+
+			}
+			// compute the resulting point [s]Q
+			var P bls12381.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
