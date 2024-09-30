@@ -1767,38 +1767,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// hence have the same X coordinates.
 
 	var Bi *AffinePoint[B]
-	for i := nbits - 1; i >= nbits-3; i-- {
-		// selectorY takes values in [0,15]
-		selectorY := c.api.Add(
-			s1bits[i],
-			c.api.Mul(s2bits[i], 2),
-			c.api.Mul(t1bits[i], 4),
-			c.api.Mul(t2bits[i], 8),
-		)
-		// selectorX takes values in [0,7] s.t.:
-		// 		- when selectorY < 8: selectorX = selectorY
-		// 		- when selectorY >= 8: selectorX = 15 - selectorY
-		selectorX := c.api.Add(
-			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(t2bits[i], 2))),
-			c.api.Mul(t2bits[i], 15),
-		)
-		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need a 8-to-1.
-		Bi = &AffinePoint[B]{
-			X: *c.baseApi.Mux(selectorX,
-				&B16.X, &B8.X, &B14.X, &B6.X, &B12.X, &B4.X, &B10.X, &B2.X,
-			),
-			Y: *c.baseApi.Mux(selectorY,
-				&B16.Y, &B8.Y, &B14.Y, &B6.Y, &B12.Y, &B4.Y, &B10.Y, &B2.Y,
-				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
-			),
-		}
-		// Acc = [2]Acc + Bi
-		Acc = c.double(Acc)
-		Acc = addFn(Acc, Bi)
-	}
-
-	for i := nbits - 4; i > 0; i-- {
+	for i := nbits - 1; i > 0; i-- {
 		// selectorY takes values in [0,15]
 		selectorY := c.api.Add(
 			s1bits[i],
