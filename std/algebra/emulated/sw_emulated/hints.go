@@ -178,6 +178,8 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	})
 }
 
+// TODO @yelhousni: generalize for any supported curve.
+// as it currently works only for BN254, BLS12-381, BW6-761 and Secp256k1 curves.
 func scalarMulGLVG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
@@ -355,8 +357,10 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		r.A0.Set(&glvBasis.V1[0])
 		r.A1.Set(&glvBasis.V1[1])
 		sp := ecc.SplitScalar(inputs[0], glvBasis)
-		s.A0.Set(&sp[0])
-		s.A1.Set(&sp[1])
+		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
+		// so here we return -s instead of s.
+		s.A0.Neg(&sp[0])
+		s.A1.Neg(&sp[1])
 
 		outputs[0].SetUint64(0)
 		outputs[1].SetUint64(0)
@@ -418,8 +422,10 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		r.A0.Set(&glvBasis.V1[0])
 		r.A1.Set(&glvBasis.V1[1])
 		sp := ecc.SplitScalar(inputs[0], glvBasis)
-		s.A0.Set(&sp[0])
-		s.A1.Set(&sp[1])
+		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
+		// so here we return -s instead of s.
+		s.A0.Neg(&sp[0])
+		s.A1.Neg(&sp[1])
 
 		res := eisenstein.HalfGCD(&r, &s)
 		outputs[0].Set(&res[0].A0)

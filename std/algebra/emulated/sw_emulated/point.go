@@ -1657,9 +1657,6 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 	Q := &AffinePoint[B]{X: *point[0], Y: *point[1]}
 
-	// We check that Q - [s]P = 0 or Q + [s](-P) = 0, so we negate P.
-	P = c.Neg(P)
-
 	var _selector0 frontend.Variable
 	one := c.baseApi.One()
 	dummy := &AffinePoint[B]{X: *one, Y: *one}
