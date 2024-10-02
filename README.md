@@ -5,8 +5,11 @@
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 [![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5819104.svg)](https://doi.org/10.5281/zenodo.5819104)
 
-`gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open source and developed under the Apache 2.0 license
+`gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open source and developed under the Apache 2.0 license.
 
+`gnark` uses [`gnark-crypto`] for the finite-field arithmetic and out-circuit implementation of cryptographic algorithms.
+
+`gnark` powers [`Linea zk-rollup`](https://linea.build). Include your project in the [known users](docs/KNOWN_USERS.md) section by opening a PR.
 
 ## Useful Links
 
@@ -24,11 +27,40 @@ To get started with `gnark` and write your first circuit, follow [these instruct
 Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
 
 
-## Warning
+## Security
 
-**`gnark` has been [partially audited](https://github.com/ConsenSys/gnark-crypto/blob/master/audit_oct2022.pdf) and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+**`gnark` and [`gnark-crypto`] have been [extensively audited](#audits), but are provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
 
-`gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) and tested on Unix (Linux / macOS).
+**To report a security bug, please refer to [`gnark` Security Policy](SECURITY.md).**
+
+Refer to [known security advisories](https://github.com/Consensys/gnark/security/advisories?state=published) for a list of known security issues.
+
+## Testing
+
+`gnark` employs the following testing procedures:
+* unit testing - we test the primitives in unit tests
+* circuit testing - we test the circuit implementation against several targets:
+  - test engine - instead of running the full prover and verifier stack, we run the computations only to ensure the completeness of the circuits
+  - proof engines - we compile the circuits, run the setup, prove and verify using native implementation
+  - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-checker`]
+* regression testing - we have implemented [tests for reported issues](internal/regression_tests) to avoid regressions
+* constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions
+* serialization testing - we check that [serialization round-trip is complete](io/roundtrip.go)
+* side-effect testing - we check that circuit [compilation is deterministic](test/assert.go)
+* fuzz testing:
+  - circuit input fuzzing - we provide random inputs to the circuit to cause solver error
+  - native input fuzzing - we provide random inputs to various native methods to cause errors. We have also stored initial fuzzing corpus for regression tests.
+  - circuit definition fuzzing - we cooperate with Consensys Diligence to fuzz the circuit definitions to find bugs in the `gnark` circuit compiler.
+
+The tests are automatically run during every PR and merge commit. We run full test suite only for the Linux on `amd64` target, but run short tests both for Windows target (`amd64`) and macOS target (`arm64`).
+
+## Performance
+
+`gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) using assembly operations. We have generic implementation of the same arithmetic algorithms for ARM backends (`arm64`). We do not implement vector operations.
+
+## Backwards compatibility
+
+`gnark` tries to be backwards compatible when possible, however we do not guarantee that serialized object formats are static over different versions of `gnark`. Particularly - we do not have versioning implemented in the serialized formats, so using files between different versions of gnark may lead to undefined behaviour or even crash the program.
 
 ## Issues
 
@@ -43,6 +75,17 @@ You can also get in touch directly: gnark@consensys.net
 ## Release Notes
 
 [Release Notes](CHANGELOG.md)
+
+## Audits
+
+* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
+* [Sigma Prime - May 2023 - gnark-crypto KZG (contracted by Ethereum Foundation)](audits/2024-05%20-%20Sigma%20Prime%20-%20kzg.pdf)
+* [Consensys Diligence - June 2023 - gnark PLONK Solidity verifier](https://consensys.io/diligence/audits/2023/06/linea-plonk-verifier/)
+* [LeastAuthority - August 2023 - gnark Groth16 Solidity verifier template (contracted by Worldcoin)](https://leastauthority.com/wp-content/uploads/2023/08/Worldcoin_Groth16_Verifier_in_EVM_Smart_Contract_Final_Audit_Report.pdf)
+* [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
+* [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
+* [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
+* [LeastAuthority - September 2024 - gnark general and GKR](audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
 
 ## Proving schemes and curves
 
@@ -148,17 +191,17 @@ If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.9.0,
+@software{gnark-v0.11.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.9.0},
-  month        = feb,
-  year         = 2023,
+  title        = {ConsenSys/gnark: v0.11.0},
+  month        = sep,
+  year         = 2024,
   publisher    = {Zenodo},
-  version      = {v0.9.0},
+  version      = {v0.11.0},
   doi          = {10.5281/zenodo.5819104},
   url          = {https://doi.org/10.5281/zenodo.5819104}
 }
@@ -183,3 +226,5 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 [Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
 [@gnark_team]: https://twitter.com/gnark_team
+[`gnark-crypto`]: https://github.com/Consensys/gnark-crypto
+[`gnark-solidity-checker`]: https://github.com/Consensys/gnark-solidity-checker
