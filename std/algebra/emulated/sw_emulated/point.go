@@ -1540,14 +1540,14 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		_s = c.scalarApi.Select(selector0, c.scalarApi.One(), s)
 	}
 
-	// Checking Q + [s](-P) = 0 is equivalent to [v]Q + [v*s](-P) = 0 for some nonzero v.
+	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
 	// of the GLV endomorphism is a primitive cube root of unity.  If we write
 	// v, s and r as Eisenstein integers we can express the check as:
 	//
-	// 			[v1 + λ*v2]Q + [u1 + λ*u2](-P) = 0
-	// 			[v1]Q + [v2]phi(Q) + [u1]phi(-P) + [u2]phi(-P) = 0
+	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
+	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
 	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2) and u1, u2, v1, v2 < r^{1/4}.
 	//
@@ -1721,12 +1721,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	g := c.Generator()
 	Acc = addFn(Acc, g)
 
-	s1bits := c.scalarApi.ToBits(u1)
-	s2bits := c.scalarApi.ToBits(u2)
-	t1bits := c.scalarApi.ToBits(v1)
-	t2bits := c.scalarApi.ToBits(v2)
+	u1bits := c.scalarApi.ToBits(u1)
+	u2bits := c.scalarApi.ToBits(u2)
+	v1bits := c.scalarApi.ToBits(v1)
+	v2bits := c.scalarApi.ToBits(v2)
 	var st S
-	nbits := st.Modulus().BitLen()>>2 + 6
+	nbits := st.Modulus().BitLen()>>2 + 10
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
@@ -1767,17 +1767,17 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	for i := nbits - 1; i > 0; i-- {
 		// selectorY takes values in [0,15]
 		selectorY := c.api.Add(
-			s1bits[i],
-			c.api.Mul(s2bits[i], 2),
-			c.api.Mul(t1bits[i], 4),
-			c.api.Mul(t2bits[i], 8),
+			u1bits[i],
+			c.api.Mul(u2bits[i], 2),
+			c.api.Mul(v1bits[i], 4),
+			c.api.Mul(v2bits[i], 8),
 		)
 		// selectorX takes values in [0,7] s.t.:
 		// 		- when selectorY < 8: selectorX = selectorY
 		// 		- when selectorY >= 8: selectorX = 15 - selectorY
 		selectorX := c.api.Add(
-			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(t2bits[i], 2))),
-			c.api.Mul(t2bits[i], 15),
+			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(v2bits[i], 2))),
+			c.api.Mul(v2bits[i], 15),
 		)
 		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
 		// but only half of the Bi.X are distinct so we need a 8-to-1.
@@ -1802,13 +1802,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// i = 0
 	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
 	tableP[0] = addFn(tableP[0], Acc)
-	Acc = c.Select(s1bits[0], Acc, tableP[0])
+	Acc = c.Select(u1bits[0], Acc, tableP[0])
 	tablePhiP[0] = addFn(tablePhiP[0], Acc)
-	Acc = c.Select(s2bits[0], Acc, tablePhiP[0])
+	Acc = c.Select(u2bits[0], Acc, tablePhiP[0])
 	tableQ[0] = addFn(tableQ[0], Acc)
-	Acc = c.Select(t1bits[0], Acc, tableQ[0])
+	Acc = c.Select(v1bits[0], Acc, tableQ[0])
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
-	Acc = c.Select(t2bits[0], Acc, tablePhiQ[0])
+	Acc = c.Select(v2bits[0], Acc, tablePhiQ[0])
 
 	// Add should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
