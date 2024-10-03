@@ -1579,68 +1579,46 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// which is equivalent to checking:
 	// 		              	s1*v1 + r1*w1 = s2*v2 + r2*w2 + u1 and
 	// 		s1*v2 + s2*v1 + r1*w2 + r2*w1 = s2*v2 + r2*w2 + u2
+	// or that:
+	// 		s1*v1 + r1*w1 + u2 = s1*v2 + s2*v1 + r1*w2 + r2*w1 + u1
 	s1v1 := c.scalarApi.Mul(s1, v1)
-	s2v2 := c.scalarApi.Mul(s2, v2)
 	r1w1 := c.scalarApi.Mul(r1, w1)
-	r2w2 := c.scalarApi.Mul(r2, w2)
-	zero := c.scalarApi.Zero()
-
-	xor1 := c.api.Xor(selector9, selector3)
-	xor2 := c.api.Xor(selector7, selector5)
-	xor3 := c.api.Xor(selector10, selector4)
-	xor4 := c.api.Xor(selector8, selector6)
-
-	lhs1 := c.scalarApi.Select(xor1, zero, s1v1)
-	lhs2 := c.scalarApi.Select(xor2, zero, r1w1)
-	lhs3 := c.scalarApi.Select(xor3, s2v2, zero)
-	lhs4 := c.scalarApi.Select(xor4, r2w2, zero)
-	lhs5 := c.scalarApi.Select(selector1, u1, zero)
-	lhs := c.scalarApi.Add(c.scalarApi.Add(lhs1, lhs2), c.scalarApi.Add(lhs3, lhs4))
-	lhs = c.scalarApi.Add(lhs, lhs5)
-
-	rhs1 := c.scalarApi.Select(xor1, s1v1, zero)
-	rhs2 := c.scalarApi.Select(xor2, r1w1, zero)
-	rhs3 := c.scalarApi.Select(xor3, zero, s2v2)
-	rhs4 := c.scalarApi.Select(xor4, zero, r2w2)
-	rhs5 := c.scalarApi.Select(selector1, zero, u1)
-	rhs := c.scalarApi.Add(c.scalarApi.Add(rhs1, rhs2), c.scalarApi.Add(rhs3, rhs4))
-	rhs = c.scalarApi.Add(rhs, rhs5)
-
-	c.scalarApi.AssertIsEqual(lhs, rhs)
-
 	s1v2 := c.scalarApi.Mul(s1, v2)
 	s2v1 := c.scalarApi.Mul(s2, v1)
 	r1w2 := c.scalarApi.Mul(r1, w2)
 	r2w1 := c.scalarApi.Mul(r2, w1)
+	zero := c.scalarApi.Zero()
 
-	xor1 = c.api.Xor(selector9, selector4)
-	xor2 = c.api.Xor(selector10, selector3)
+	xor1 := c.api.Xor(selector9, selector3)
+	xor2 := c.api.Xor(selector7, selector5)
+	xor3 := c.api.Xor(selector9, selector4)
+	xor4 := c.api.Xor(selector10, selector3)
 	xor5 := c.api.Xor(selector7, selector6)
 	xor6 := c.api.Xor(selector8, selector5)
 
-	lhs1 = c.scalarApi.Select(xor1, zero, s1v2)
-	lhs2 = c.scalarApi.Select(xor2, zero, s2v1)
-	lhs3 = c.scalarApi.Select(xor5, zero, r1w2)
-	lhs4 = c.scalarApi.Select(xor6, zero, r2w1)
-	lhs5 = c.scalarApi.Select(xor3, s2v2, zero)
-	lhs6 := c.scalarApi.Select(xor4, r2w2, zero)
-	lhs7 := c.scalarApi.Select(selector2, u2, zero)
-
-	lhs = c.scalarApi.Add(c.scalarApi.Add(lhs1, lhs2), c.scalarApi.Add(lhs3, lhs4))
+	lhs1 := c.scalarApi.Select(xor1, zero, s1v1)
+	lhs2 := c.scalarApi.Select(xor2, zero, r1w1)
+	lhs3 := c.scalarApi.Select(xor3, s1v2, zero)
+	lhs4 := c.scalarApi.Select(xor4, s2v1, zero)
+	lhs5 := c.scalarApi.Select(xor5, r1w2, zero)
+	lhs6 := c.scalarApi.Select(xor6, r2w1, zero)
+	lhs7 := c.scalarApi.Select(selector1, u1, zero)
+	lhs8 := c.scalarApi.Select(selector2, zero, u2)
+	lhs := c.scalarApi.Add(c.scalarApi.Add(lhs1, lhs2), c.scalarApi.Add(lhs3, lhs4))
 	lhs = c.scalarApi.Add(lhs, c.scalarApi.Add(lhs5, lhs6))
-	lhs = c.scalarApi.Add(lhs, lhs7)
+	lhs = c.scalarApi.Add(lhs, c.scalarApi.Add(lhs7, lhs8))
 
-	rhs1 = c.scalarApi.Select(xor1, s1v2, zero)
-	rhs2 = c.scalarApi.Select(xor2, s2v1, zero)
-	rhs3 = c.scalarApi.Select(xor5, r1w2, zero)
-	rhs4 = c.scalarApi.Select(xor6, r2w1, zero)
-	rhs5 = c.scalarApi.Select(xor3, zero, s2v2)
-	rhs6 := c.scalarApi.Select(xor4, zero, r2w2)
-	rhs7 := c.scalarApi.Select(selector2, zero, u2)
-
-	rhs = c.scalarApi.Add(c.scalarApi.Add(rhs1, rhs2), c.scalarApi.Add(rhs3, rhs4))
+	rhs1 := c.scalarApi.Select(xor1, s1v1, zero)
+	rhs2 := c.scalarApi.Select(xor2, r1w1, zero)
+	rhs3 := c.scalarApi.Select(xor3, zero, s1v2)
+	rhs4 := c.scalarApi.Select(xor4, zero, s2v1)
+	rhs5 := c.scalarApi.Select(xor5, zero, r1w2)
+	rhs6 := c.scalarApi.Select(xor6, zero, r2w1)
+	rhs7 := c.scalarApi.Select(selector1, zero, u1)
+	rhs8 := c.scalarApi.Select(selector2, u2, zero)
+	rhs := c.scalarApi.Add(c.scalarApi.Add(rhs1, rhs2), c.scalarApi.Add(rhs3, rhs4))
 	rhs = c.scalarApi.Add(rhs, c.scalarApi.Add(rhs5, rhs6))
-	rhs = c.scalarApi.Add(rhs, rhs7)
+	rhs = c.scalarApi.Add(rhs, c.scalarApi.Add(rhs7, rhs8))
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
@@ -1714,10 +1692,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// then we add G (the base point) to Acc to avoid incomplete additions in
 	// the loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it
 	// might happen that Acc==Bi or Acc==-Bi. But now we force Acc to be
-	// different than the stored Bi.  However we need at the end to subtract
-	// [2^nbits]G from the result.
+	// different than the stored Bi. However, at the end, Acc will not be the
+	// point at infinity but [2^nbits]G.
 	//
-	// g0 = G
+	// N.B.: Acc cannot be equal to G, otherwise this means G = -Φ²([s+1]P)
 	g := c.Generator()
 	Acc = addFn(Acc, g)
 
@@ -1810,7 +1788,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(v2bits[0], Acc, tablePhiQ[0])
 
-	// Add should be now equal to [2^nbits]G
+	// Acc should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
 	if cfg.CompleteArithmetic {
 		Acc = c.Select(c.api.Or(selector0, _selector0), &gm, Acc)

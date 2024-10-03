@@ -351,16 +351,20 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 10 {
 			return fmt.Errorf("expecting ten outputs")
 		}
-		var r, s eisenstein.ComplexNumber
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
-		r.A0.Set(&glvBasis.V1[0])
-		r.A1.Set(&glvBasis.V1[1])
+		r := eisenstein.ComplexNumber{
+			A0: &glvBasis.V1[0],
+			A1: &glvBasis.V1[1],
+		}
 		sp := ecc.SplitScalar(inputs[0], glvBasis)
 		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 		// so here we return -s instead of s.
-		s.A0.Neg(&sp[0])
-		s.A1.Neg(&sp[1])
+		s := eisenstein.ComplexNumber{
+			A0: &sp[0],
+			A1: &sp[1],
+		}
+		s.Neg(&s)
 
 		outputs[0].SetUint64(0)
 		outputs[1].SetUint64(0)
@@ -416,28 +420,31 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if len(outputs) != 10 {
 			return fmt.Errorf("expecting ten outputs")
 		}
-		var r, s eisenstein.ComplexNumber
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
-		r.A0.Set(&glvBasis.V1[0])
-		r.A1.Set(&glvBasis.V1[1])
+		r := eisenstein.ComplexNumber{
+			A0: &glvBasis.V1[0],
+			A1: &glvBasis.V1[1],
+		}
 		sp := ecc.SplitScalar(inputs[0], glvBasis)
 		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 		// so here we return -s instead of s.
-		s.A0.Neg(&sp[0])
-		s.A1.Neg(&sp[1])
-
+		s := eisenstein.ComplexNumber{
+			A0: &sp[0],
+			A1: &sp[1],
+		}
+		s.Neg(&s)
 		res := eisenstein.HalfGCD(&r, &s)
-		outputs[0].Set(&res[0].A0)
-		outputs[1].Set(&res[0].A1)
-		outputs[2].Set(&res[1].A0)
-		outputs[3].Set(&res[1].A1)
-		outputs[4].Set(&res[2].A0)
-		outputs[5].Set(&res[2].A1)
-		outputs[6].Set(&r.A0)
-		outputs[7].Set(&r.A1)
-		outputs[8].Set(&s.A0)
-		outputs[9].Set(&s.A1)
+		outputs[0].Set(res[0].A0)
+		outputs[1].Set(res[0].A1)
+		outputs[2].Set(res[1].A0)
+		outputs[3].Set(res[1].A1)
+		outputs[4].Set(res[2].A0)
+		outputs[5].Set(res[2].A1)
+		outputs[6].Set(r.A0)
+		outputs[7].Set(r.A1)
+		outputs[8].Set(s.A0)
+		outputs[9].Set(s.A1)
 		if outputs[0].Sign() == -1 {
 			outputs[0].Neg(outputs[0])
 		}
