@@ -1527,12 +1527,22 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 }
 
+// scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
+// It implements the "GLV + fake GLV" explained in [ethresear.ch/fake-GLV].
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [ethresear.ch/fake-GLV]: https://ethresear.ch/t/fake-glv-you-dont-need-an-efficient-endomorphism-to-implement-glv-like-scalar-multiplication-in-snark-circuits/20394
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
 
+	// handle zero-scalar
 	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
@@ -1540,6 +1550,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		_s = c.scalarApi.Select(selector0, c.scalarApi.One(), s)
 	}
 
+	// Instead of computing [s]P=Q, we check that Q-[s]P == 0.
 	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
@@ -1549,12 +1560,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
 	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
-	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2) and u1, u2, v1, v2 < r^{1/4}.
+	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
+	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
 	//
 	// This can be done as follows:
-	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted GLV decomposition).
+	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted classical GLV decomposition).
 	// 		2. decompose r into r1 + λ*r2  s.t. r1, r2 < sqrt(r) (hardcoded half-GCD of λ mod r).
-	// 		3. find u1, u2, v1, v2 < r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
+	// 		3. find u1, u2, v1, v2 < c*r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
 	// 		   This can be done through a hinted half-GCD in the number field
 	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
 	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
@@ -1566,8 +1578,8 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	u1, u2, v1, v2, w1, w2, r1, r2, s1, s2 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5], sd[6], sd[7], sd[8], sd[9]
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponsing points
-	// here when needed.
+	// return the absolute value in the hint and negate the corresponsing
+	// points here when needed.
 	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 10, _s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
@@ -1581,6 +1593,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// 		s1*v2 + s2*v1 + r1*w2 + r2*w1 = s2*v2 + r2*w2 + u2
 	// or that:
 	// 		s1*v1 + r1*w1 + u2 = s1*v2 + s2*v1 + r1*w2 + r2*w1 + u1
+	//
+	// Since all these values can be negative, we gather all positive values
+	// either in the lhs or rhs and check equality.
 	s1v1 := c.scalarApi.Mul(s1, v1)
 	r1w1 := c.scalarApi.Mul(r1, w1)
 	s1v2 := c.scalarApi.Mul(s1, v2)
@@ -1604,9 +1619,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	lhs6 := c.scalarApi.Select(xor6, r2w1, zero)
 	lhs7 := c.scalarApi.Select(selector1, u1, zero)
 	lhs8 := c.scalarApi.Select(selector2, zero, u2)
-	lhs := c.scalarApi.Add(c.scalarApi.Add(lhs1, lhs2), c.scalarApi.Add(lhs3, lhs4))
-	lhs = c.scalarApi.Add(lhs, c.scalarApi.Add(lhs5, lhs6))
-	lhs = c.scalarApi.Add(lhs, c.scalarApi.Add(lhs7, lhs8))
+	lhs := c.scalarApi.Add(
+		c.scalarApi.Add(lhs1, lhs2),
+		c.scalarApi.Add(lhs3, lhs4),
+	)
+	lhs = c.scalarApi.Add(
+		lhs,
+		c.scalarApi.Add(lhs5, lhs6),
+	)
+	lhs = c.scalarApi.Add(
+		lhs,
+		c.scalarApi.Add(lhs7, lhs8),
+	)
 
 	rhs1 := c.scalarApi.Select(xor1, s1v1, zero)
 	rhs2 := c.scalarApi.Select(xor2, r1w1, zero)
@@ -1616,9 +1640,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	rhs6 := c.scalarApi.Select(xor6, zero, r2w1)
 	rhs7 := c.scalarApi.Select(selector1, zero, u1)
 	rhs8 := c.scalarApi.Select(selector2, u2, zero)
-	rhs := c.scalarApi.Add(c.scalarApi.Add(rhs1, rhs2), c.scalarApi.Add(rhs3, rhs4))
-	rhs = c.scalarApi.Add(rhs, c.scalarApi.Add(rhs5, rhs6))
-	rhs = c.scalarApi.Add(rhs, c.scalarApi.Add(rhs7, rhs8))
+	rhs := c.scalarApi.Add(
+		c.scalarApi.Add(rhs1, rhs2),
+		c.scalarApi.Add(rhs3, rhs4),
+	)
+	rhs = c.scalarApi.Add(
+		rhs,
+		c.scalarApi.Add(rhs5, rhs6),
+	)
+	rhs = c.scalarApi.Add(
+		rhs,
+		c.scalarApi.Add(rhs7, rhs8),
+	)
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
@@ -1635,6 +1668,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 	Q := &AffinePoint[B]{X: *point[0], Y: *point[1]}
 
+	// handle (0,0)-point
 	var _selector0 frontend.Variable
 	one := c.baseApi.One()
 	dummy := &AffinePoint[B]{X: *one, Y: *one}
@@ -1674,7 +1708,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 
-	// precompute P+Q, -P-Q, P-Q, -P+Q, Φ(P)+Φ(Q), -Φ(P)-Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
+	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
 	var tableS, tablePhiS [4]*AffinePoint[B]
 	tableS[0] = addFn(tableP[0], tableQ[0])
 	tableS[1] = c.Neg(tableS[0])
@@ -1699,12 +1733,15 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	g := c.Generator()
 	Acc = addFn(Acc, g)
 
+	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// We prove that the factor is 760 * sqrt(2),
+	// so we need to add 10 bits to r^{1/4}.nbits().
+	var st S
+	nbits := st.Modulus().BitLen()>>2 + 10
 	u1bits := c.scalarApi.ToBits(u1)
 	u2bits := c.scalarApi.ToBits(u2)
 	v1bits := c.scalarApi.ToBits(v1)
 	v2bits := c.scalarApi.ToBits(v2)
-	var st S
-	nbits := st.Modulus().BitLen()>>2 + 10
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
