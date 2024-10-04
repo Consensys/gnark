@@ -1670,13 +1670,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// handle (0,0)-point
 	var _selector0 frontend.Variable
-	one := c.baseApi.One()
-	dummy := &AffinePoint[B]{X: *one, Y: *one}
 	addFn := c.Add
 	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
 		_selector0 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		dummy := &AffinePoint[B]{X: *c.baseApi.One(), Y: *c.baseApi.Zero()}
 		Q = c.Select(_selector0, dummy, Q)
 	}
 
@@ -1805,13 +1804,8 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
 			),
 		}
-		if cfg.CompleteArithmetic {
-			Acc = c.double(Acc)
-			Acc = c.AddUnified(Acc, Bi)
-		} else {
-			// Acc = [2]Acc + Bi
-			Acc = c.doubleAndAdd(Acc, Bi)
-		}
+		// Acc = [2]Acc + Bi
+		Acc = c.doubleAndAdd(Acc, Bi)
 	}
 
 	// i = 0
