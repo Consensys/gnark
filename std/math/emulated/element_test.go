@@ -1277,3 +1277,35 @@ func TestIsZeroEdgeCases(t *testing.T) {
 	testIsZeroEdgeCases[BN254Fr](t)
 	testIsZeroEdgeCases[emparams.Mod1e512](t)
 }
+
+type PolyEvalCircuit[T FieldParams] struct {
+	Inputs     []Element[T]
+	Polynomial Multivariate[T]
+	Expected   Element[T]
+}
+
+func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	input := make([]*Element[T], len(c.Inputs))
+	for i := range input {
+		input[i] = &c.Inputs[i]
+	}
+	res := f.EvalMultivariate(&c.Polynomial, input)
+	f.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestPolyEval(t *testing.T) {
+	testPolyEval[Goldilocks](t)
+	testPolyEval[BN254Fr](t)
+	testPolyEval[emparams.Mod1e512](t)
+}
+
+func testPolyEval[T FieldParams](t *testing.T) {
+	// x^3 + x^2 y + x y^2 + y^3
+	assert := test.NewAssert(t)
+	terms := [][]int{{3, 0}, {2, 1}, {1, 2}, {0, 3}}
+}

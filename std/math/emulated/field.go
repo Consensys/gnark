@@ -48,6 +48,7 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 
 	mulChecks []mulCheck[T]
+	mvChecks  []mvCheck[T] // TODO: maybe make interface and store in the same slice as previous?
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -279,6 +280,18 @@ func max[T constraints.Ordered](a ...T) T {
 		if v > m {
 			m = v
 		}
+	}
+	return m
+}
+
+func sum[T constraints.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
+	}
+	m := a[0]
+	for _, v := range a[1:] {
+		m += v
 	}
 	return m
 }

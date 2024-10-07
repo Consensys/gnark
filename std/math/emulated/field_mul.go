@@ -510,3 +510,143 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 	res = f.Select(expBts[n-1], f.Mul(base, res), res)
 	return res
 }
+
+// Multivariate represents a multivariate polynomial. It is a list of terms
+// where each term is a list of exponents for each variable. The coefficients
+// are stored in the same order as the terms.
+//
+// TODO: better to move this to package. But this needs refactoring to allow for
+// initializing the elements.
+type Multivariate[T FieldParams] struct {
+	Terms        [][]int
+	Coefficients []*Element[T]
+}
+
+func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Element[T] {
+	if len(mv.Terms) != len(mv.Coefficients) {
+		panic("terms and coefficients mismatch")
+	}
+	if len(mv.Terms) == 0 {
+		return f.Zero()
+	}
+	nbVars := len(at)
+	for i := range mv.Terms {
+		if len(mv.Terms[i]) != nbVars {
+			panic("term and variable mismatch")
+		}
+	}
+	for i := range at {
+		f.enforceWidthConditional(at[i])
+	}
+	k, r, c, err := f.callPolyHint(mv, at)
+	if err != nil {
+		panic(err)
+	}
+
+	mvc := mvCheck[T]{
+		f:     f,
+		terms: mv.Terms,
+		vals:  at,
+		r:     r,
+		k:     k,
+		c:     c,
+	}
+
+	f.mvChecks = append(f.mvChecks, mvc)
+	return r
+}
+
+func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
+	// first compute the length of the result so that we know how many bits we need for the quotient.
+	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
+	quoSize := f.polyEvalQuoSize2(mv, at)
+	nbQuoLimbs := (quoSize + nbBits - 1) / nbBits
+	nbRemLimbs := nbLimbs
+	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
+
+	hintInputs := []frontend.Variable{
+		nbBits,
+		nbLimbs,
+		len(mv.Terms),
+		len(at),
+		nbQuoLimbs,
+		nbRemLimbs,
+		nbCarryLimbs,
+	}
+	for i := range mv.Terms {
+		for j := range mv.Terms[i] {
+			hintInputs = append(hintInputs, mv.Terms[i][j])
+		}
+	}
+	for i := range at {
+		hintInputs = append(hintInputs, len(at[i].Limbs))
+		hintInputs = append(hintInputs, at[i].Limbs...)
+	}
+	ret, err := f.api.NewHint(polyHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
+	if err != nil {
+		err = fmt.Errorf("call hint: %w", err)
+		return
+	}
+	quo = f.packLimbs(ret[:nbQuoLimbs], false)
+	rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
+	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:], 0)
+	return quo, rem, carries, nil
+}
+
+type mvCheck[T FieldParams] struct {
+	f     *Field[T]
+	terms [][]int
+	vals  []*Element[T]
+	r     *Element[T] // reduced result
+	k     *Element[T] // quotient
+	c     *Element[T] // carry
+}
+
+// func (f *Field[T]) polyEvalQuoSize(mv *Multivariate[T], at []*Element[T]) (nextOverflow uint, err error) {
+// 	perTermOverflows := make([]uint, len(mv.Terms))
+// 	perTermNbLimbs := make([]int, len(mv.Terms))
+// 	for i := range mv.Terms {
+// 		var toMul []*Element[T]
+// 		totalOverflow := uint(0)
+// 		for k := range mv.Terms[i] {
+// 			for range mv.Terms[i] {
+// 				toMul = append(toMul, at[k])
+// 				totalOverflow += at[k].overflow
+// 			}
+// 		}
+// 		if len(toMul) == 0 {
+// 			panic("empty toMul")
+// 		}
+// 		if len(toMul) == 1 {
+// 			perTermOverflows[i] = toMul[0].overflow
+// 			perTermNbLimbs[i] = len(toMul[0].Limbs)
+// 			continue
+// 		}
+// 		perTermNbLimbs[i] = nbMultiplicationResLimbs(len(toMul[0].Limbs), len(toMul[1].Limbs))
+// 		for j := 2; j < len(toMul); j++ {
+// 			perTermNbLimbs[i] = nbMultiplicationResLimbs(perTermNbLimbs[i], len(toMul[j].Limbs))
+// 		}
+// 		perTermOverflows[i] = uint(len(toMul))*(f.fParams.BitsPerLimb()+1) + totalOverflow
+// 	}
+// 	panic("TODO")
+// }
+
+func (f *Field[T]) polyEvalQuoSize2(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
+	quoSizes := make([]uint, len(mv.Terms))
+	for i, term := range mv.Terms {
+		var lengths []uint
+		for j, pow := range term {
+			for k := 0; k < pow; k++ {
+				lengths = append(lengths, f.fParams.BitsPerLimb()+at[j].overflow)
+			}
+		}
+		quoSizes[i] = sum(lengths...)
+	}
+	quoSize = max(quoSizes...) + uint(len(quoSizes))
+	return quoSize
+}
+
+func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
+
+	return nil
+}
