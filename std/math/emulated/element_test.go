@@ -1305,7 +1305,13 @@ func TestPolyEval(t *testing.T) {
 }
 
 func testPolyEval[T FieldParams](t *testing.T) {
-	// x^3 + x^2 y + x y^2 + y^3
 	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	// x^3 + x^2 y + x y^2 + y^3
 	terms := [][]int{{3, 0}, {2, 1}, {1, 2}, {0, 3}}
+	inputs := make([]*big.Int, 2)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+	}
 }
