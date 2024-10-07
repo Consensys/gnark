@@ -74,7 +74,7 @@ type API interface {
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	// This function constrain the bits b are actually bits (0 or 1)
+	// This function constrain the bits b... to be boolean (0 or 1)
 	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b
