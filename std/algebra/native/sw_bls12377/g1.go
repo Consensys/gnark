@@ -482,24 +482,24 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := api.Compiler().NewHint(decomposeScalarG1, 3, t)
+	td, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, t)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	t1, t2 := td[0], td[1]
 
-	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
-	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), api.Add(t, api.Mul(cc.fr, td[2])))
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), s)
+	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), t)
 
-	nbits := cc.lambda.BitLen() + 1
+	nbits := cc.lambda.BitLen()
 
 	s1bits := api.ToBinary(s1, nbits)
 	s2bits := api.ToBinary(s2, nbits)
