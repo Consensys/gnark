@@ -652,6 +652,77 @@ func TestElementLexicographicallyLargest(t *testing.T) {
 
 }
 
+func TestElementVecOps(t *testing.T) {
+	assert := require.New(t)
+
+	const N = 7
+	a := make(Vector, N)
+	b := make(Vector, N)
+	c := make(Vector, N)
+	for i := 0; i < N; i++ {
+		a[i].SetRandom()
+		b[i].SetRandom()
+	}
+
+	// Vector addition
+	c.Add(a, b)
+	for i := 0; i < N; i++ {
+		var expected Element
+		expected.Add(&a[i], &b[i])
+		assert.True(c[i].Equal(&expected), "Vector addition failed")
+	}
+
+	// Vector subtraction
+	c.Sub(a, b)
+	for i := 0; i < N; i++ {
+		var expected Element
+		expected.Sub(&a[i], &b[i])
+		assert.True(c[i].Equal(&expected), "Vector subtraction failed")
+	}
+
+	// Vector scaling
+	c.ScalarMul(a, &b[0])
+	for i := 0; i < N; i++ {
+		var expected Element
+		expected.Mul(&a[i], &b[0])
+		assert.True(c[i].Equal(&expected), "Vector scaling failed")
+	}
+}
+
+func BenchmarkElementVecOps(b *testing.B) {
+	// note; to benchmark against "no asm" version, use the following
+	// build tag: -tags purego
+	const N = 1024
+	a1 := make(Vector, N)
+	b1 := make(Vector, N)
+	c1 := make(Vector, N)
+	for i := 0; i < N; i++ {
+		a1[i].SetRandom()
+		b1[i].SetRandom()
+	}
+
+	b.Run("Add", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			c1.Add(a1, b1)
+		}
+	})
+
+	b.Run("Sub", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			c1.Sub(a1, b1)
+		}
+	})
+
+	b.Run("ScalarMul", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			c1.ScalarMul(a1, &b1[0])
+		}
+	})
+}
+
 func TestElementAdd(t *testing.T) {
 	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
