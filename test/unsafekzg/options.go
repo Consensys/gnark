@@ -1,12 +1,16 @@
 package unsafekzg
 
 import (
+	"crypto/sha256"
+	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
 
 	"github.com/consensys/gnark/logger"
 )
 
+// Option allows changing the behaviour of the unsafe KZG SRS generation.
 type Option func(*config) error
 
 // WithCacheDir enables the filesystem cache and sets the cache directory
@@ -18,9 +22,49 @@ func WithFSCache() Option {
 	}
 }
 
+// WithCacheDir enables the filesystem cache and sets the cache directory
+// to the provided path.
+func WithCacheDir(dir string) Option {
+	return func(opt *config) error {
+		opt.fsCache = true
+		opt.cacheDir = dir
+		return nil
+	}
+}
+
+// WithToxicValue sets the toxic value to the provided value.
+//
+// NB! This is a debug option and should not be used in production.
+func WithToxicValue(toxicValue *big.Int) Option {
+	return func(opt *config) error {
+		if opt.toxicValue != nil {
+			return errors.New("toxic value already set")
+		}
+		opt.toxicValue = toxicValue
+		return nil
+	}
+}
+
+// WithToxicSeed sets the toxic value to the sha256 hash of the provided seed.
+//
+// NB! This is a debug option and should not be used in production.
+func WithToxicSeed(seed []byte) Option {
+	return func(opt *config) error {
+		if opt.toxicValue != nil {
+			return errors.New("toxic value already set")
+		}
+		h := sha256.New()
+		h.Write(seed)
+		opt.toxicValue = new(big.Int)
+		opt.toxicValue.SetBytes(h.Sum(nil))
+		return nil
+	}
+}
+
 type config struct {
-	fsCache  bool
-	cacheDir string
+	fsCache    bool
+	cacheDir   string
+	toxicValue *big.Int
 }
 
 // default options

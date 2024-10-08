@@ -59,8 +59,8 @@ var (
 	memLock, fsLock sync.RWMutex
 )
 
-// NewSRS returns a pair of kzg.SRS; one in canonical form, the other in lagrange form.
-// Default options use a memory cache, see Option for more details & options.
+// NewSRS returns a pair of [kzg.SRS]; one in canonical form, the other in Lagrange form.
+// Default options use a memory cache, see [Option] for more details & options.
 func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS, lagrange kzg.SRS, err error) {
 
 	nbConstraints := ccs.GetNbConstraints()
@@ -78,7 +78,7 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 		return nil, nil, err
 	}
 
-	key := cacheKey(curveID, sizeCanonical)
+	key := cacheKey(curveID, sizeCanonical, cfg.toxicValue)
 	log.Debug().Str("key", key).Msg("fetching SRS from mem cache")
 	memLock.RLock()
 	entry, ok := cache[key]
@@ -109,17 +109,18 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 	log.Debug().Msg("SRS not found in cache, generating")
 
 	// not in cache, generate
-	canonical, lagrange, err = newSRS(curveID, sizeCanonical)
+	canonical, lagrange, err = newSRS(curveID, sizeCanonical, cfg.toxicValue)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// cache it
+	// cache it. We cache the SRS in case the toxic value given only in the
+	// memory cache to avoid storying weak SRS on filesystem.
 	memLock.Lock()
 	cache[key] = cacheEntry{canonical, lagrange}
 	memLock.Unlock()
 
-	if cfg.fsCache {
+	if cfg.fsCache && cfg.toxicValue == nil {
 		log.Debug().Str("key", key).Str("cacheDir", cfg.cacheDir).Msg("writing SRS to fs cache")
 		fsLock.Lock()
 		fsWrite(key, cfg.cacheDir, canonical, lagrange)
@@ -134,7 +135,10 @@ type cacheEntry struct {
 	lagrange  kzg.SRS
 }
 
-func cacheKey(curveID ecc.ID, size uint64) string {
+func cacheKey(curveID ecc.ID, size uint64, toxicValue *big.Int) string {
+	if toxicValue != nil {
+		return fmt.Sprintf("kzgsrs-%s-%d-toxic-%s", curveID.String(), size, toxicValue.String())
+	}
 	return fmt.Sprintf("kzgsrs-%s-%d", curveID.String(), size)
 }
 
@@ -147,14 +151,17 @@ func extractCurveID(key string) (ecc.ID, error) {
 	return ecc.IDFromString(matches[1])
 }
 
-func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
-
-	tau, err := rand.Int(rand.Reader, curveID.ScalarField())
-	if err != nil {
-		return nil, nil, err
+func newSRS(curveID ecc.ID, size uint64, tau *big.Int) (kzg.SRS, kzg.SRS, error) {
+	var (
+		srs kzg.SRS
+		err error
+	)
+	if tau == nil {
+		tau, err = rand.Int(rand.Reader, curveID.ScalarField())
+		if err != nil {
+			return nil, nil, fmt.Errorf("sample random toxic value: %w", err)
+		}
 	}
-
-	var srs kzg.SRS
 
 	switch curveID {
 	case ecc.BN254:
