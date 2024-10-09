@@ -713,16 +713,19 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
 	}
-	u1, u2, v1, v2, w1, w2, r1, r2, s1, s2 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5], sd[6], sd[7], sd[8], sd[9]
+	u1, u2, v1, v2, w1, w2, _, _, s1, s2 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5], sd[6], sd[7], sd[8], sd[9]
+	// r is fixed and is equal to 91893752504881257701523279626832445440 - ω
+	var r1 big.Int
+	r1.SetString("91893752504881257701523279626832445440", 10)
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponsing
 	// points here when needed.
-	signs, err := api.NewHint(halfGCDEisensteinSigns, 10, _s, cc.lambda)
+	signs, err := api.NewHint(halfGCDEisensteinSigns, 6, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDEisensteinSigns hint: %v", err))
 	}
-	selector1, selector2, selector3, selector4, selector5, selector6, selector7, selector8, selector9, selector10 := signs[0], signs[1], signs[2], signs[3], signs[4], signs[5], signs[6], signs[7], signs[8], signs[9]
+	selector1, selector2, selector3, selector4, selector5, selector6 := signs[0], signs[1], signs[2], signs[3], signs[4], signs[5]
 
 	// We need to check that:
 	// 		(s1 + j*s2)(v1 + j*v2) + (r1 + j*r2)(w1 + j*w2) - (u1 + j*u2) = 0
@@ -739,21 +742,13 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	s1v2 := api.Mul(s1, v2)
 	s2v1 := api.Mul(s2, v1)
 	r1w2 := api.Mul(r1, w2)
-	r2w1 := api.Mul(r2, w1)
 
-	xor1 := api.Xor(selector9, selector3)
-	xor2 := api.Xor(selector7, selector5)
-	xor3 := api.Xor(selector9, selector4)
-	xor4 := api.Xor(selector10, selector3)
-	xor5 := api.Xor(selector7, selector6)
-	xor6 := api.Xor(selector8, selector5)
-
-	lhs1 := api.Select(xor1, 0, s1v1)
-	lhs2 := api.Select(xor2, 0, r1w1)
-	lhs3 := api.Select(xor3, s1v2, 0)
-	lhs4 := api.Select(xor4, s2v1, 0)
-	lhs5 := api.Select(xor5, r1w2, 0)
-	lhs6 := api.Select(xor6, r2w1, 0)
+	lhs1 := api.Select(selector3, s1v1, 0)
+	lhs2 := api.Select(selector5, 0, r1w1)
+	lhs3 := api.Select(selector4, 0, s1v2)
+	lhs4 := api.Select(selector3, 0, s2v1)
+	lhs5 := api.Select(selector6, r1w2, 0)
+	lhs6 := api.Select(selector5, 0, w1)
 	lhs7 := api.Select(selector1, u1, 0)
 	lhs8 := api.Select(selector2, 0, u2)
 	lhs := api.Add(
@@ -769,12 +764,12 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 		api.Add(lhs7, lhs8),
 	)
 
-	rhs1 := api.Select(xor1, s1v1, 0)
-	rhs2 := api.Select(xor2, r1w1, 0)
-	rhs3 := api.Select(xor3, 0, s1v2)
-	rhs4 := api.Select(xor4, 0, s2v1)
-	rhs5 := api.Select(xor5, 0, r1w2)
-	rhs6 := api.Select(xor6, 0, r2w1)
+	rhs1 := api.Select(selector3, 0, s1v1)
+	rhs2 := api.Select(selector5, r1w1, 0)
+	rhs3 := api.Select(selector4, s1v2, 0)
+	rhs4 := api.Select(selector3, s2v1, 0)
+	rhs5 := api.Select(selector6, 0, r1w2)
+	rhs6 := api.Select(selector5, w1, 0)
 	rhs7 := api.Select(selector1, 0, u1)
 	rhs8 := api.Select(selector2, u2, 0)
 	rhs := api.Add(

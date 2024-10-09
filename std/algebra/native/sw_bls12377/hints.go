@@ -125,9 +125,11 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		A0: &glvBasis.V1[0],
 		A1: &glvBasis.V1[1],
 	}
+	// r = 91893752504881257701523279626832445440 - ω
 	sp := ecc.SplitScalar(inputs[0], glvBasis)
 	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 	// so here we return -s instead of s.
+	// s.A0 and s.A1 are always positive.
 	s := eisenstein.ComplexNumber{
 		A0: &sp[0],
 		A1: &sp[1],
@@ -181,11 +183,12 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return fmt.Errorf("expecting two input")
 	}
-	if len(outputs) != 10 {
-		return fmt.Errorf("expecting ten outputs")
+	if len(outputs) != 6 {
+		return fmt.Errorf("expecting six outputs")
 	}
 	glvBasis := new(ecc.Lattice)
 	ecc.PrecomputeLattice(mod, inputs[1], glvBasis)
+	// r = 91893752504881257701523279626832445440 - ω
 	r := eisenstein.ComplexNumber{
 		A0: &glvBasis.V1[0],
 		A1: &glvBasis.V1[1],
@@ -205,10 +208,6 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 	outputs[3].SetUint64(0)
 	outputs[4].SetUint64(0)
 	outputs[5].SetUint64(0)
-	outputs[6].SetUint64(0)
-	outputs[7].SetUint64(0)
-	outputs[8].SetUint64(0)
-	outputs[9].SetUint64(0)
 	res := eisenstein.HalfGCD(&r, &s)
 	if res[0].A0.Sign() == -1 {
 		outputs[0].SetUint64(1)
@@ -227,18 +226,6 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 	}
 	if res[2].A1.Sign() == -1 {
 		outputs[5].SetUint64(1)
-	}
-	if r.A0.Sign() == -1 {
-		outputs[6].SetUint64(1)
-	}
-	if r.A1.Sign() == -1 {
-		outputs[7].SetUint64(1)
-	}
-	if s.A0.Sign() == -1 {
-		outputs[8].SetUint64(1)
-	}
-	if s.A1.Sign() == -1 {
-		outputs[9].SetUint64(1)
 	}
 
 	return nil
