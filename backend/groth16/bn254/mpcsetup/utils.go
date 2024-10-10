@@ -156,6 +156,8 @@ func linearCombinationG2(A []curve.G2Affine) (L1, L2 curve.G2Affine) {
 }
 
 // Generate R in G₂ as Hash(gˢ, gˢˣ, challenge, dst)
+// it is to be used as a challenge for generating a proof of knowledge to x
+// π ≔ x.r; e([1]₁, π) =﹖ e([x]₁, r)
 func genR(sG1, sxG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
 	var buf bytes.Buffer
 	buf.Grow(len(challenge) + curve.SizeOfG1AffineUncompressed*2)
