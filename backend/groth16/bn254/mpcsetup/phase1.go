@@ -52,15 +52,6 @@ type Phase1 struct {
 func InitPhase1(power int) (phase1 Phase1) {
 	N := int(math.Pow(2, float64(power)))
 
-	// Generate key pairs
-	var tau, alpha, beta fr.Element
-	tau.SetOne()
-	alpha.SetOne()
-	beta.SetOne()
-	phase1.PublicKeys.Tau = newPublicKey(tau, nil, 1)
-	phase1.PublicKeys.Alpha = newPublicKey(alpha, nil, 2)
-	phase1.PublicKeys.Beta = newPublicKey(beta, nil, 3)
-
 	// First contribution use generators
 	_, _, g1, g2 := curve.Generators()
 	phase1.Parameters.G2.Beta.Set(&g2)
