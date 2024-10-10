@@ -138,7 +138,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil, err
 	}
 
-	// H (witness reduction / FFT part)
+	// quotient poly H (witness reduction / FFT part)
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
@@ -186,6 +186,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	if _, err := _s.SetRandom(); err != nil {
 		return nil, err
 	}
+	// -rs
+	// Why it is called kr? not rs? -> notation from DIZK paper
 	_kr.Mul(&_r, &_s).Neg(&_kr)
 
 	_r.BigInt(&r)
@@ -201,11 +203,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chBs1Done := make(chan error, 1)
 	computeBS1 := func() {
 		<-chWireValuesB
+		startBs1 := time.Now()
 		if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chBs1Done <- err
 			close(chBs1Done)
 			return
 		}
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValuesB)), time.Since(startBs1)).Msg("bs1.MultiExp done")
+		// + beta + s[δ]
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 		chBs1Done <- nil
@@ -214,11 +219,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chArDone := make(chan error, 1)
 	computeAR1 := func() {
 		<-chWireValuesA
+		startAr := time.Now()
 		if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chArDone <- err
 			close(chArDone)
 			return
 		}
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValuesA)), time.Since(startAr)).Msg("ar.MultiExp done")
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -234,7 +241,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		chKrs2Done := make(chan error, 1)
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 		go func() {
+			startKrs2 := time.Now()
 			_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: n / 2})
+			log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", sizeH), time.Since(startKrs2)).Msg("krs2.MultiExp done")
 			chKrs2Done <- err
 		}()
 
@@ -244,10 +253,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
+		startKrs := time.Now()
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(_wireValues)), time.Since(startKrs)).Msg("krs.MultiExp done")
+		// -rs[δ]
 		krs.AddMixed(&deltas[2])
 		n := 3
 		for n != 0 {
@@ -290,9 +302,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			nbTasks *= 2
 		}
 		<-chWireValuesB
+		startBs := time.Now()
 		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
 			return err
 		}
+		log.Debug().Dur(fmt.Sprintf("MSMG2 %d took", len(wireValuesB)), time.Since(startBs)).Msg("Bs.MultiExp done")
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -369,19 +383,27 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	c = append(c, padding...)
 	n = len(a)
 
+	// a -> aPoly, b -> bPoly, c -> cPoly
+	// point-value form -> coefficient form
 	domain.FFTInverse(a, fft.DIF)
 	domain.FFTInverse(b, fft.DIF)
 	domain.FFTInverse(c, fft.DIF)
 
+	// evaluate aPoly, bPoly, cPoly on coset (roots of unity)
 	domain.FFT(a, fft.DIT, fft.OnCoset())
 	domain.FFT(b, fft.DIT, fft.OnCoset())
 	domain.FFT(c, fft.DIT, fft.OnCoset())
 
+	// vanishing poly t(x) = x^N - 1
+	// calcualte 1/t(g), where g is the generator
 	var den, one fr.Element
 	one.SetOne()
+	// g^N
 	den.Exp(domain.FrMultiplicativeGen, big.NewInt(int64(domain.Cardinality)))
+	// 1/(g^N - 1)
 	den.Sub(&den, &one).Inverse(&den)
 
+	// h = (a*b - c)/t
 	// h = ifft_coset(ca o cb - cc)
 	// reusing a to avoid unnecessary memory allocation
 	utils.Parallelize(n, func(start, end int) {
@@ -392,7 +414,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 		}
 	})
 
-	// ifft_coset
+	// ifft_coset: point-value form -> coefficient form
 	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
 
 	return a
