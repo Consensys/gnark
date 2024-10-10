@@ -282,6 +282,38 @@ type BLS24315Fr struct{ fourLimbPrimeField }
 
 func (fr BLS24315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
 
+// BandersnatchFp provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001 (base 16)
+//	52435875175126190479447740508185965837690552500527637822603658699938581184513 (base 10)
+//
+// This is the base field of the Bandersnatch curve.
+type BandersnatchFp struct{ fourLimbPrimeField }
+
+func (fp BandersnatchFp) Modulus() *big.Int { return ecc.BLS12_381.ScalarField() }
+
+// BandersnatchFr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x1cfb69d4ca675f520cce760202687600ff8f87007419047174fd06b52876e7e1 (base 16)
+//	13108968793781547619861935127046491459309155893440570251786403306729687672801 (base 10)
+//
+// This is the scalar field of the Bandersnatch curve.
+type BandersnatchFr struct{ fourLimbPrimeField }
+
+func (fp BandersnatchFr) Modulus() *big.Int {
+	var scalarField big.Int
+	scalarField.SetString("1cfb69d4ca675f520cce760202687600ff8f87007419047174fd06b52876e7e1", 16)
+	return &scalarField
+}
+
 // Mod1e4096 provides type parametrization for emulated arithmetic:
 //   - limbs: 64
 //   - limb width: 64 bits
