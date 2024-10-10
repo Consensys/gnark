@@ -151,6 +151,7 @@ func (c *Phase2Evaluations) WriteTo(writer io.Writer) (int64, error) {
 		c.G1.A,
 		c.G1.B,
 		c.G2.B,
+		c.G1.VKK,
 	}
 
 	for _, v := range toEncode {
@@ -169,6 +170,7 @@ func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
 		&c.G1.A,
 		&c.G1.B,
 		&c.G2.B,
+		&c.G1.VKK,
 	}
 
 	for _, v := range toEncode {
