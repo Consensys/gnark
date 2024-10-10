@@ -92,7 +92,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 					for j := range bases[i] {
 						bases[i][j] = elem
 						elem.Add(&elem, &p1)
-						vk.CommitmentKeys = append(vk.CommitmentKeys, pedersen.VerifyingKey{G: p2, GSigma: p2})
+						vk.CommitmentKeys = append(vk.CommitmentKeys, pedersen.VerifyingKey{G: p2, GSigmaNeg: p2})
 					}
 				}
 				assert.NoError(t, err)
