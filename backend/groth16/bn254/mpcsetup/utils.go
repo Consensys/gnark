@@ -19,6 +19,7 @@ package mpcsetup
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -71,12 +72,22 @@ func bitReverse[T any](a []T) {
 	}
 }
 
+func linearCombCoeffs(n int) []fr.Element {
+	a, err := rand.Int(rand.Reader, fr.Modulus())
+	if err != nil {
+		panic(err)
+	}
+	return powers(a, n)
+}
+
 // Returns [1, a, a², ..., aⁿ⁻¹ ]
-func powers(a fr.Element, n int) []fr.Element {
+func powers(a *big.Int, n int) []fr.Element {
+	var aMont fr.Element
+	aMont.SetBigInt(a)
 	result := make([]fr.Element, n)
 	result[0] = fr.NewElement(1)
 	for i := 1; i < n; i++ {
-		result[i].Mul(&result[i-1], &a)
+		result[i].Mul(&result[i-1], &aMont)
 	}
 	return result
 }
@@ -137,29 +148,23 @@ func merge(A, B []curve.G1Affine) (a, b curve.G1Affine) {
 	return
 }
 
-// L1 = ∑ rᵢAᵢ, L2 = ∑ rᵢAᵢ₊₁∈𝔾₁
-func linearCombinationG1(A []curve.G1Affine) (L1, L2 curve.G1Affine) {
-	nc := runtime.NumCPU()
+// truncated = ∑ rᵢAᵢ, shifted = ∑ rᵢAᵢ₊₁∈𝔾₁
+func linearCombinationG1(r []fr.Element, A []curve.G1Affine, nbTasks int) curve.G1Affine {
 	n := len(A)
-	r := make([]fr.Element, n-1)
-	for i := 0; i < n-1; i++ {
-		r[i].SetRandom()
-	}
-	L1.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	L2.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	r = r[:n-1]
+	var res curve.G1Affine
+	res.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	shifted.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
 	return
 }
 
-// L1 = ∑ rᵢAᵢ, L2 = ∑ rᵢAᵢ₊₁∈𝔾₂
-func linearCombinationG2(A []curve.G2Affine) (L1, L2 curve.G2Affine) {
+// truncated = ∑ rᵢAᵢ, shifted = ∑ rᵢAᵢ₊₁∈𝔾₂
+func linearCombinationG2(r []fr.Element, A []curve.G2Affine) (truncated, shifted curve.G2Affine) {
 	nc := runtime.NumCPU()
 	n := len(A)
-	r := make([]fr.Element, n-1)
-	for i := 0; i < n-1; i++ {
-		r[i].SetRandom()
-	}
-	L1.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	L2.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	r = r[:n-1]
+	truncated.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	shifted.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
 	return
 }
 
@@ -203,19 +208,10 @@ type valueUpdate struct {
 
 // updateValue produces values associated with contribution to an existing value.
 // if prevCommitment contains only a 𝔾₁ value, then so will updatedCommitment
-func updateValue(prevCommitment pair, challenge []byte, dst byte) valueUpdate {
+// the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
+func updateValue(prevCommitment pair, challenge []byte, dst byte) (valueUpdate, *big.Int) {
 	var x valueUpdate
 	contributionValue, err := rand.Int(rand.Reader, fr.Modulus())
-
-	eraseToxicWaste := func() {
-		if contributionValue == nil {
-			return
-		}
-		for i := range contributionValue.Bits() { // TODO check that this works
-			contributionValue.Bits()[i] = 0
-		}
-	}
-	defer eraseToxicWaste()
 
 	if err != nil {
 		panic(err)
@@ -232,40 +228,69 @@ func updateValue(prevCommitment pair, challenge []byte, dst byte) valueUpdate {
 	pokBase := genR(x.contributionCommitment, x.updatedCommitment.g1, challenge, dst) // r
 	x.contributionPok.ScalarMultiplication(&pokBase, contributionValue)
 
-	return x
+	return x, contributionValue
 }
 
 // verify corresponds with verification steps {i, i+3} with 1 ≤ i ≤ 3 in section 7.1 of Bowe-Gabizon17
 // it checks the proof of knowledge of the contribution, and the fact that the product of the contribution
 // and previous commitment makes the new commitment.
 // prevCommitment is assumed to be valid. No subgroup check and the like.
-func (x *valueUpdate) verify(prevCommitment pair, challenge []byte, dst byte) bool {
+func (x *valueUpdate) verify(prevCommitment pair, challenge []byte, dst byte) error {
 	noG2 := prevCommitment.g2 == nil
-	if noG2 != (x.updatedCommitment.g2 == nil) { // no erasing or creating g2 values
-		return false
+	if noG2 != (x.updatedCommitment.g2 == nil) {
+		return errors.New("erasing or creating g2 values")
 	}
 
 	if !x.contributionPok.IsInSubGroup() || !x.contributionCommitment.IsInSubGroup() || !x.updatedCommitment.validUpdate() {
-		return false
+		return errors.New("contribution values subgroup check failed")
 	}
 
 	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
 	r := genR(x.contributionCommitment, x.updatedCommitment.g1, challenge, dst) // verification challenge in the form of a g2 base
 	_, _, g1, _ := curve.Generators()
 	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
-		return false
+		return errors.New("contribution proof of knowledge verification failed")
 	}
 
 	// check that the updated/previous ratio is consistent between the 𝔾₁ and 𝔾₂ representations. Based on CONSISTENT, algorithm 2 in Section 3.6.
 	if !noG2 && !sameRatioUnsafe(x.updatedCommitment.g1, prevCommitment.g1, *x.updatedCommitment.g2, *prevCommitment.g2) {
-		return false
+		return errors.New("g2 update inconsistent")
 	}
 
 	// now verify that updated₁/previous₁ = x ( = x/g1 = π/r )
 	// have to use the latter value for the RHS because we sameRatio needs both 𝔾₁ and 𝔾₂ values
 	if !sameRatioUnsafe(x.updatedCommitment.g1, prevCommitment.g1, x.contributionPok, r) {
-		return false
+		return errors.New("g1 update inconsistent")
 	}
 
+	return nil
+}
+
+func toRefs[T any](s []T) []*T {
+	res := make([]*T, len(s))
+	for i := range s {
+		res[i] = &s[i]
+	}
+	return res
+}
+
+func areInSubGroup[T interface{ IsInSubGroup() bool }](s []T) bool {
+	for i := range s {
+		if !s[i].IsInSubGroup() {
+			return false
+		}
+	}
 	return true
+}
+
+func areInSubGroupG1(s []curve.G1Affine) bool {
+	return areInSubGroup(toRefs(s))
+}
+
+func areInSubGroupG2(s []curve.G2Affine) bool {
+	return areInSubGroup(toRefs(s))
+}
+
+func truncate[T any](s []T) []T {
+	return s[:len(s)-1]
 }

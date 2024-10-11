@@ -19,13 +19,89 @@ package mpcsetup
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math"
 	"math/big"
+	"runtime"
+	"sync"
 )
 
+// Phase1 represents the Phase1 of the MPC described in
+// https://eprint.iacr.org/2017/1050.pdf
+//
+// Also known as "Powers of Tau"
 type phase1 struct {
+	Principal struct { // "main" contributions
+		Tau, Alpha, Beta valueUpdate
+	}
+	G1Derived struct {
+		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
+		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
+	}
+	G2Derived struct {
+		Tau []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
+	}
+	Challenge []byte // Hash of the transcript PRIOR to this participant
+}
+
+func eraseBigInts(i ...*big.Int) {
+	for _, i := range i {
+		if i != nil {
+			for j := range i.Bits() {
+				i.Bits()[j] = 0
+			}
+		}
+	}
+}
+
+func eraseFrVectors(v ...[]fr.Element) {
+	for _, v := range v {
+		for i := range v {
+			v[i].SetZero()
+		}
+	}
+}
+
+// Contribute contributes randomness to the phase1 object. This mutates phase1.
+// p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
+func (p *phase1) Contribute() {
+	N := len(p.G2Derived.Tau)
+	challenge := p.hash()
+
+	// Generate main value updates
+	var tau, alpha, beta *big.Int
+	p.Principal.Tau, tau = updateValue(p.Principal.Tau.updatedCommitment, challenge, 1)
+	p.Principal.Alpha, alpha = updateValue(p.Principal.Alpha.updatedCommitment, challenge, 2)
+	p.Principal.Beta, beta = updateValue(p.Principal.Beta.updatedCommitment, challenge, 3)
+
+	defer eraseBigInts(tau, alpha, beta)
+
+	// Compute τ, ατ, and βτ
+	taus := powers(tau, 2*N-1)
+	alphaTau := make([]fr.Element, N)
+	betaTau := make([]fr.Element, N)
+
+	defer eraseFrVectors(taus, alphaTau, betaTau)
+
+	alphaTau[0].SetBigInt(alpha)
+	betaTau[0].SetBigInt(beta)
+	for i := 1; i < N; i++ {
+		alphaTau[i].Mul(&taus[i], &alphaTau[0])
+		betaTau[i].Mul(&taus[i], &betaTau[0])
+	}
+
+	// Update using previous parameters
+	// TODO @gbotrel working with jacobian points here will help with perf.
+	scaleG1InPlace(p.G1Derived.Tau, taus)
+	scaleG2InPlace(p.G2Derived.Tau, taus[0:N])
+	scaleG1InPlace(p.G1Derived.AlphaTau, alphaTau)
+	scaleG1InPlace(p.G1Derived.BetaTau, betaTau)
+
+	p.Challenge = challenge
 }
 
 // Phase1 represents the Phase1 of the MPC described in
@@ -88,42 +164,6 @@ func InitPhase1(power int) (phase1 Phase1) {
 	return
 }
 
-// Contribute contributes randomness to the phase1 object. This mutates phase1.
-func (phase1 *Phase1) Contribute() {
-	N := len(phase1.Parameters.G2.Tau)
-
-	// Generate key pairs
-	var tau, alpha, beta fr.Element
-	tau.SetRandom()
-	alpha.SetRandom()
-	beta.SetRandom()
-	phase1.PublicKeys.Tau = newPublicKey(tau, phase1.Hash[:], 1)
-	phase1.PublicKeys.Alpha = newPublicKey(alpha, phase1.Hash[:], 2)
-	phase1.PublicKeys.Beta = newPublicKey(beta, phase1.Hash[:], 3)
-
-	// Compute powers of τ, ατ, and βτ
-	taus := powers(tau, 2*N-1)
-	alphaTau := make([]fr.Element, N)
-	betaTau := make([]fr.Element, N)
-	for i := 0; i < N; i++ {
-		alphaTau[i].Mul(&taus[i], &alpha)
-		betaTau[i].Mul(&taus[i], &beta)
-	}
-
-	// Update using previous parameters
-	// TODO @gbotrel working with jacobian points here will help with perf.
-	scaleG1InPlace(phase1.Parameters.G1.Tau, taus)
-	scaleG2InPlace(phase1.Parameters.G2.Tau, taus[0:N])
-	scaleG1InPlace(phase1.Parameters.G1.AlphaTau, alphaTau)
-	scaleG1InPlace(phase1.Parameters.G1.BetaTau, betaTau)
-	var betaBI big.Int
-	beta.BigInt(&betaBI)
-	phase1.Parameters.G2.Beta.ScalarMultiplication(&phase1.Parameters.G2.Beta, &betaBI)
-
-	// Compute hash of Contribution
-	phase1.Hash = phase1.hash()
-}
-
 func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 	contribs := append([]*Phase1{c0, c1}, c...)
 	for i := 0; i < len(contribs)-1; i++ {
@@ -132,6 +172,97 @@ func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 		}
 	}
 	return nil
+}
+
+// Verify assumes previous is correct
+func (p *phase1) Verify(previous *phase1) error {
+
+	if err := p.Principal.Tau.verify(previous.Principal.Tau.updatedCommitment, p.Challenge, 1); err != nil {
+		return fmt.Errorf("failed to verify contribution to τ: %w", err)
+	}
+	if err := p.Principal.Alpha.verify(previous.Principal.Alpha.updatedCommitment, p.Challenge, 2); err != nil {
+		return fmt.Errorf("failed to verify contribution to α: %w", err)
+	}
+	if err := p.Principal.Beta.verify(previous.Principal.Beta.updatedCommitment, p.Challenge, 3); err != nil {
+		return fmt.Errorf("failed to verify contribution to β: %w", err)
+	}
+
+	if !areInSubGroupG1(p.G1Derived.Tau) || !areInSubGroupG1(p.G1Derived.BetaTau) || !areInSubGroupG1(p.G1Derived.AlphaTau) {
+		return errors.New("derived values 𝔾₁ subgroup check failed")
+	}
+	if !areInSubGroupG2(p.G2Derived.Tau) {
+		return errors.New("derived values 𝔾₂ subgroup check failed")
+	}
+
+	_, _, g1, g2 := curve.Generators()
+
+	// for 1 ≤ i ≤ 2N-3 we want to check τⁱ⁺¹/τⁱ = τ
+	// i.e. e(τⁱ⁺¹,[1]₂) = e(τⁱ,[τ]₂). Due to bi-linearity we can instead check
+	// e(∑rⁱ⁻¹τⁱ⁺¹,[1]₂) = e(∑rⁱ⁻¹τⁱ,[τ]₂), which is tantamount to the check
+	// ∑rⁱ⁻¹τⁱ⁺¹ / ∑rⁱ⁻¹τⁱ = τ
+	r := linearCombCoeffs(len(p.G1Derived.Tau) - 1) // the longest of all lengths
+	// will be reusing the coefficient TODO @Tabaie make sure that's okay
+	nc := runtime.NumCPU()
+	var (
+		tauT1, tauS1, alphaTT, alphaTS, betaTT, betaTS curve.G1Affine
+		tauT2, tauS2                                   curve.G2Affine
+		wg sync.WaitGroup
+	)
+
+	mulExpG1 := func(v *curve.G1Affine, points []curve.G1Affine, nbTasks int) {
+		if _, err := v.MultiExp(points, r[:len(points)], ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
+			panic(err)
+		}
+		wg.Done()
+	}
+
+	mulExpG2 := func(v *curve.G2Affine, points []curve.G2Affine, nbTasks int) {
+		if _, err := v.MultiExp(points, r[:len(points)], ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
+			panic(err)
+		}
+		wg.Done()
+	}
+
+	if nc < 2 {
+		mulExpG1(&tauT1, truncate(p.G1Derived.Tau), nc)
+		mulExpG1(&tauS1, p.G1Derived.Tau[1:], nc)
+	} else {
+		// larger tasks than the others. better get them done together
+		wg.Add(2)
+		go mulExpG1(&tauT1, truncate(p.G1Derived.Tau), nc/2)	// truncated: smaller powers
+		mulExpG1(&tauS1, p.G1Derived.Tau[1:], nc - nc/2)	// shifted: larger powers
+		wg.Wait()
+	}
+
+	if nc < 4 {
+		mulExpG1(&alphaTT, truncate(p.G1Derived.AlphaTau), nc)
+		mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc)
+		mulExpG1(&betaTT, truncate(p.G1Derived.BetaTau), nc)
+		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc)
+	} else {
+		wg.Add(4)
+		go mulExpG1(&alphaTT, truncate(p.G1Derived.AlphaTau), nc/4)
+		go mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc/2 - nc/4)
+		go mulExpG1(&betaTT, truncate(p.G1Derived.BetaTau), nc/4)
+		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc - nc/2 - nc/4)
+		wg.Wait()
+	}
+
+
+
+	if err := tauT1.MultiExp.G1Derived.Tau[:len(p.G1Derived.Tau)-1], r, ecc.MultiExpConfig{NbTasks: nc/2})
+
+	tauT1, tauS1 :=  linearCombinationG1(r, p.G1Derived.Tau[1:]) // at this point we should already know that tau[0] = infty and tau[1] = τ. ReadFrom is in charge of ensuring that.
+
+
+	if !sameRatioUnsafe(tauS1, tauT1, *p.Principal.Tau.updatedCommitment.g2, g2) {
+		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
+	}
+	tauT2, tauS2 := linearCombinationG2(r, p.G2Derived.Tau[1:])
+	if !sameRatioUnsafe(p.Principal.Tau.updatedCommitment.g1, g1, tauS2, tauT2) {
+		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
+	}
+
 }
 
 // verifyPhase1 checks that a contribution is based on a known previous Phase1 state.
@@ -153,6 +284,7 @@ func verifyPhase1(current, contribution *Phase1) error {
 	}
 
 	// Check for valid updates using previous parameters
+	//
 	if !sameRatio(contribution.Parameters.G1.Tau[1], current.Parameters.G1.Tau[1], tauR, contribution.PublicKeys.Tau.XR) {
 		return errors.New("couldn't verify that [τ]₁ is based on previous contribution")
 	}
