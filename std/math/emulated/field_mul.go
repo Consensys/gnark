@@ -518,14 +518,21 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 // TODO: better to move this to package. But this needs refactoring to allow for
 // initializing the elements.
 type Multivariate[T FieldParams] struct {
-	Terms        [][]int
-	Coefficients []*Element[T]
+	Terms [][]int
+	// Coefficients []*Element[T]
+}
+
+func ValueOfMultivariate[T FieldParams](terms [][]int) Multivariate[T] {
+	// if len(terms) != len(coeffs) {
+	// 	panic("terms and coefficients mismatch")
+	// }
+	return Multivariate[T]{Terms: terms}
 }
 
 func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Element[T] {
-	if len(mv.Terms) != len(mv.Coefficients) {
-		panic("terms and coefficients mismatch")
-	}
+	// if len(mv.Terms) != len(mv.Coefficients) {
+	// 	panic("terms and coefficients mismatch")
+	// }
 	if len(mv.Terms) == 0 {
 		return f.Zero()
 	}
@@ -578,6 +585,7 @@ func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem
 			hintInputs = append(hintInputs, mv.Terms[i][j])
 		}
 	}
+	hintInputs = append(hintInputs, f.Modulus().Limbs...)
 	for i := range at {
 		hintInputs = append(hintInputs, len(at[i].Limbs))
 		hintInputs = append(hintInputs, at[i].Limbs...)
@@ -647,6 +655,71 @@ func (f *Field[T]) polyEvalQuoSize2(mv *Multivariate[T], at []*Element[T]) (quoS
 }
 
 func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) < 7 {
+		return fmt.Errorf("not enough inputs")
+	}
+	var (
+		nbBits       = int(inputs[0].Int64())
+		nbLimbs      = int(inputs[1].Int64())
+		nbTerms      = int(inputs[2].Int64())
+		nbVars       = int(inputs[3].Int64())
+		nbQuoLimbs   = int(inputs[4].Int64())
+		nbRemLimbs   = int(inputs[5].Int64())
+		nbCarryLimbs = int(inputs[6].Int64())
+	)
+	terms := make([][]int, nbTerms)
+	ptr := 7
+	for i := range terms {
+		terms[i] = make([]int, nbVars)
+		for j := range terms[i] {
+			terms[i][j] = int(inputs[ptr].Int64())
+			ptr++
+		}
+	}
+	plimbs := inputs[ptr : ptr+nbLimbs]
+	ptr += nbLimbs
+	p := new(big.Int)
+	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
+		return fmt.Errorf("recompose p: %w", err)
+	}
+	varsLimbs := make([][]*big.Int, nbVars)
+	for i := range varsLimbs {
+		varsLimbs[i] = make([]*big.Int, int(inputs[ptr].Int64()))
+		ptr++
+		for j := range varsLimbs[i] {
+			varsLimbs[i][j] = inputs[ptr]
+			ptr++
+		}
+	}
+	if ptr != len(inputs) {
+		return fmt.Errorf("inputs not exhausted")
+	}
+	vars := make([]*big.Int, nbVars)
+	for i := range vars {
+		vars[i] = new(big.Int)
+		if err := limbs.Recompose(varsLimbs[i], uint(nbBits), vars[i]); err != nil {
+			return fmt.Errorf("recompose vars[%d]: %w", i, err)
+		}
+	}
 
+	// compute the result on full inputs
+	prod := big.NewInt(1)
+	for i := range vars {
+		prod.Mul(prod, vars[i])
+	}
+	var (
+		quo = new(big.Int)
+		rem = new(big.Int)
+	)
+	if mod.Cmp(new(big.Int)) != 0 {
+		quo.QuoRem(prod, mod, rem)
+	}
+
+	_ = nbLimbs
+	_ = nbQuoLimbs
+	_ = nbRemLimbs
+	_ = nbCarryLimbs
+
+	fmt.Println("polyHint")
 	return nil
 }
