@@ -1317,6 +1317,8 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	for i := range inputs {
 		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
 		assert.NoError(err)
+	}
+	for i := range inputs {
 		assignmentInput[i] = ValueOf[T](inputs[i])
 	}
 	expected := new(big.Int)

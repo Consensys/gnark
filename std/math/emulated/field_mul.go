@@ -566,8 +566,9 @@ func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Elem
 func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
 	// first compute the length of the result so that we know how many bits we need for the quotient.
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
+	modBits := uint(f.fParams.Modulus().BitLen())
 	quoSize := f.polyEvalQuoSize2(mv, at)
-	nbQuoLimbs := (quoSize + nbBits - 1) / nbBits
+	nbQuoLimbs := (quoSize - modBits + 1) / nbBits
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
@@ -640,12 +641,13 @@ type mvCheck[T FieldParams] struct {
 // }
 
 func (f *Field[T]) polyEvalQuoSize2(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
+	modBits := f.fParams.Modulus().BitLen()
 	quoSizes := make([]uint, len(mv.Terms))
 	for i, term := range mv.Terms {
 		var lengths []uint
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
-				lengths = append(lengths, f.fParams.BitsPerLimb()+at[j].overflow)
+				lengths = append(lengths, uint(modBits)+at[j].overflow)
 			}
 		}
 		quoSizes[i] = sum(lengths...)
@@ -667,6 +669,15 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		nbRemLimbs   = int(inputs[5].Int64())
 		nbCarryLimbs = int(inputs[6].Int64())
 	)
+	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs {
+		return fmt.Errorf("output length mismatch")
+	}
+	outPtr := 0
+	quoLimbs := outputs[outPtr : outPtr+nbQuoLimbs]
+	outPtr += nbQuoLimbs
+	remLimbs := outputs[outPtr : outPtr+nbRemLimbs]
+	outPtr += nbRemLimbs
+	carryLimbs := outputs[outPtr : outPtr+nbCarryLimbs]
 	terms := make([][]int, nbTerms)
 	ptr := 7
 	for i := range terms {
@@ -703,22 +714,103 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	}
 
 	// compute the result on full inputs
-	prod := big.NewInt(1)
-	for i := range vars {
-		prod.Mul(prod, vars[i])
+
+	// first we need to keep track on how many inputs we multiply together to
+	// know how many limbs to expect for schoolbook multiplication
+
+	fullLhs := new(big.Int)
+	for _, term := range terms {
+		termRes := big.NewInt(1)
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termRes.Mul(termRes, vars[i])
+			}
+		}
+		fullLhs.Add(fullLhs, termRes)
 	}
+
+	// compute the result as r + k*p for now
 	var (
 		quo = new(big.Int)
 		rem = new(big.Int)
 	)
-	if mod.Cmp(new(big.Int)) != 0 {
-		quo.QuoRem(prod, mod, rem)
+	if p.Cmp(new(big.Int)) != 0 {
+		quo.QuoRem(fullLhs, p, rem)
+	}
+	// write the remainder and quotient to output
+	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
+		return fmt.Errorf("decompose quo: %w", err)
+	}
+	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
+		return fmt.Errorf("decompose rem: %w", err)
 	}
 
-	_ = nbLimbs
-	_ = nbQuoLimbs
-	_ = nbRemLimbs
-	_ = nbCarryLimbs
+	// compute the result on limbs
+	tmp := new(big.Int)
+	var lhs []*big.Int
+	for _, term := range terms {
+		// collect the variables to be multiplied together
+		var termVarLimbs [][]*big.Int
+		nbTermVarLimbs := 0
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termVarLimbs = append(termVarLimbs, varsLimbs[i])
+				nbTermVarLimbs += len(varsLimbs[i])
+			}
+		}
+		if len(termVarLimbs) == 0 {
+			continue
+		}
+		termRes := make([]*big.Int, nbTermVarLimbs-len(termVarLimbs)+1)
+		for i := range termRes {
+			termRes[i] = new(big.Int)
+		}
+		for i := range termVarLimbs[0] {
+			termRes[i].Set(termVarLimbs[0][i])
+		}
+		nbTermRes := len(termVarLimbs[0])
+		for k := 1; k < len(termVarLimbs); k++ {
+			for i := 0; i < len(termVarLimbs[k]); i++ {
+				for j := 0; j < nbTermRes; j++ {
+					tmp.Mul(termVarLimbs[k][i], termRes[j])
+					termRes[i+j].Add(termRes[i+j], tmp)
+				}
+			}
+			nbTermRes = nbMultiplicationResLimbs(nbTermRes, len(termVarLimbs[k]))
+		}
+		for i := len(lhs); i < len(termRes); i++ {
+			lhs = append(lhs, new(big.Int))
+		}
+		for i := range termRes {
+			lhs[i].Add(lhs[i], termRes[i])
+		}
+	}
+
+	// compute the result as r + k*p on limbs
+	rhs := make([]*big.Int, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs))
+	for i := range rhs {
+		rhs[i] = new(big.Int)
+	}
+	for i := 0; i < nbLimbs; i++ {
+		rhs[i].Add(rhs[i], remLimbs[i])
+		for j := 0; j < nbQuoLimbs; j++ {
+			tmp.Mul(quoLimbs[j], plimbs[i])
+			rhs[i+j].Add(rhs[i+j], tmp)
+		}
+	}
+
+	// compute the carries
+	carry := new(big.Int)
+	for i := range carryLimbs {
+		if i < len(lhs) {
+			carry.Add(carry, lhs[i])
+		}
+		if i < len(rhs) {
+			carry.Sub(carry, rhs[i])
+		}
+		carry.Rsh(carry, uint(nbBits))
+		carryLimbs[i] = new(big.Int).Set(carry)
+	}
 
 	fmt.Println("polyHint")
 	return nil
