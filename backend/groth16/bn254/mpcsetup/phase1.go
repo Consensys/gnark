@@ -25,6 +25,9 @@ import (
 	"math/big"
 )
 
+type phase1 struct {
+}
+
 // Phase1 represents the Phase1 of the MPC described in
 // https://eprint.iacr.org/2017/1050.pdf
 //

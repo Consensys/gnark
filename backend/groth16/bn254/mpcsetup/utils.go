@@ -252,7 +252,7 @@ func (x *valueUpdate) verify(prevCommitment pair, challenge []byte, dst byte) bo
 	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
 	r := genR(x.contributionCommitment, x.updatedCommitment.g1, challenge, dst) // verification challenge in the form of a g2 base
 	_, _, g1, _ := curve.Generators()
-	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π ?= x.r i.e. x/g1 =? π/r
+	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
 		return false
 	}
 
