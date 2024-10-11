@@ -970,3 +970,37 @@ func TestScalarMulG1GLVAndFakeGLV(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
+
+type scalarMulGLVAndFakeGLVEdgeCases struct {
+	A G1Affine
+	R frontend.Variable
+}
+
+func (circuit *scalarMulGLVAndFakeGLVEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestScalarMulG1GLVAndFakeGLVEdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness scalarMulGLVAndFakeGLVEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
