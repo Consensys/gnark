@@ -21,8 +21,8 @@ type KnowledgeProof[G1El algebra.G1ElementT] struct {
 
 // VerifyingKey is a verifying key for Pedersen vector commitments.
 type VerifyingKey[G2El algebra.G2ElementT] struct {
-	G      G2El
-	GSigma G2El // (-1/σ)[G] for toxic σ
+	G         G2El
+	GSigmaNeg G2El // (-1/σ)[G] for toxic σ
 }
 
 // Verifier verifies the knowledge proofs for a Pedersen commitments
@@ -63,7 +63,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertCommitment(commitment Commitment[
 		v.pairing.AssertIsOnG1(&knowledgeProof.G1El)
 	}
 
-	if err = v.pairing.PairingCheck([]*G1El{&commitment.G1El, &knowledgeProof.G1El}, []*G2El{&vk.GSigma, &vk.G}); err != nil {
+	if err = v.pairing.PairingCheck([]*G1El{&commitment.G1El, &knowledgeProof.G1El}, []*G2El{&vk.GSigmaNeg, &vk.G}); err != nil {
 		return fmt.Errorf("pairing check failed: %w", err)
 	}
 	return nil
