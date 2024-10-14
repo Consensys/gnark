@@ -10,6 +10,16 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
+type deferredChecker interface {
+	toCommit() []frontend.Variable
+	maxLen() int
+
+	evalRound1(at []frontend.Variable)
+	evalRound2(at []frontend.Variable)
+	check(api frontend.API, peval frontend.Variable, coef frontend.Variable)
+	cleanEvaluations()
+}
+
 // mulCheck represents a single multiplication check. Instead of doing a
 // multiplication exactly where called, we compute the result using hint and
 // return it. Additionally, we store the correctness check for later checking
@@ -60,6 +70,31 @@ type mulCheck[T FieldParams] struct {
 	k    *Element[T] // coefficient
 	c    *Element[T] // carry
 	p    *Element[T] // modulus if non-nil
+}
+
+func (mc *mulCheck[T]) toCommit() []frontend.Variable {
+	var toCommit []frontend.Variable
+	toCommit = append(toCommit, mc.a.Limbs...)
+	toCommit = append(toCommit, mc.b.Limbs...)
+	toCommit = append(toCommit, mc.r.Limbs...)
+	toCommit = append(toCommit, mc.k.Limbs...)
+	toCommit = append(toCommit, mc.c.Limbs...)
+	if mc.p != nil {
+		toCommit = append(toCommit, mc.p.Limbs...)
+	}
+	return toCommit
+}
+
+func (mc *mulCheck[T]) maxLen() int {
+	maxLen := len(mc.a.Limbs)
+	maxLen = max(maxLen, len(mc.b.Limbs))
+	maxLen = max(maxLen, len(mc.r.Limbs))
+	maxLen = max(maxLen, len(mc.k.Limbs))
+	maxLen = max(maxLen, len(mc.c.Limbs))
+	if mc.p != nil {
+		maxLen = max(maxLen, len(mc.p.Limbs))
+	}
+	return maxLen
 }
 
 // evalRound1 evaluates first c(X), r(X) and k(X) at a given random point at[0].
@@ -132,7 +167,7 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		r: r,
 		p: p,
 	}
-	f.mulChecks = append(f.mulChecks, mc)
+	f.deferredChecks = append(f.deferredChecks, &mc)
 	return r
 }
 
@@ -156,7 +191,7 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 		r: r, // expected to be zero on zero limbs.
 		p: p,
 	}
-	f.mulChecks = append(f.mulChecks, mc)
+	f.deferredChecks = append(f.deferredChecks, &mc)
 }
 
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
@@ -184,12 +219,12 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 
 // performMulChecks should be deferred to actually perform all the
 // multiplication checks.
-func (f *Field[T]) performMulChecks(api frontend.API) error {
+func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
 	// stored.
 
 	// there are no multiplication checks, nothing to do
-	if len(f.mulChecks) == 0 {
+	if len(f.deferredChecks) == 0 {
 		return nil
 	}
 
@@ -201,23 +236,15 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 	// multi-commit and range checks are in different commitment, then we have
 	// problem.
 	var toCommit []frontend.Variable
-	for i := range f.mulChecks {
-		toCommit = append(toCommit, f.mulChecks[i].a.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].b.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].r.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].k.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].c.Limbs...)
-		if f.mulChecks[i].p != nil {
-			toCommit = append(toCommit, f.mulChecks[i].p.Limbs...)
-		}
+	for i := range f.deferredChecks {
+		toCommit = append(toCommit, f.deferredChecks[i].toCommit()...)
 	}
 	// we give all the inputs as inputs to obtain random verifier challenge.
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// for efficiency, we compute all powers of the challenge as slice at.
 		coefsLen := int(f.fParams.NbLimbs())
-		for i := range f.mulChecks {
-			coefsLen = max(coefsLen, len(f.mulChecks[i].a.Limbs), len(f.mulChecks[i].b.Limbs),
-				len(f.mulChecks[i].c.Limbs), len(f.mulChecks[i].k.Limbs))
+		for i := range f.deferredChecks {
+			coefsLen = max(coefsLen, f.deferredChecks[i].maxLen())
 		}
 		at := make([]frontend.Variable, coefsLen)
 		at[0] = commitment
@@ -225,12 +252,12 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 			at[i] = api.Mul(at[i-1], commitment)
 		}
 		// evaluate all r, k, c
-		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound1(at)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].evalRound1(at)
 		}
 		// assuming r is input to some other multiplication, then is already evaluated
-		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound2(at)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].evalRound2(at)
 		}
 		// evaluate p(X) at challenge
 		pval := f.evalWithChallenge(f.Modulus(), at)
@@ -239,13 +266,13 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 		coef.Lsh(coef, f.fParams.BitsPerLimb())
 		ccoef := api.Sub(coef, commitment)
 		// verify all mulchecks
-		for i := range f.mulChecks {
-			f.mulChecks[i].check(api, pval.evaluation, ccoef)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].check(api, pval.evaluation, ccoef)
 		}
 		// clean cached evaluation. Helps in case we compile the same circuit
 		// multiple times.
-		for i := range f.mulChecks {
-			f.mulChecks[i].cleanEvaluations()
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].cleanEvaluations()
 		}
 		return nil
 	}, toCommit...)
@@ -537,7 +564,7 @@ func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Elem
 		c:     c,
 	}
 
-	f.mvChecks = append(f.mvChecks, mvc)
+	f.deferredChecks = append(f.deferredChecks, &mvc)
 	return r
 }
 
@@ -545,8 +572,8 @@ func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem
 	// first compute the length of the result so that we know how many bits we need for the quotient.
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
-	quoSize := f.polyEvalQuoSize2(mv, at)
-	nbQuoLimbs := (quoSize - modBits + 1) / nbBits
+	quoSize := f.polyEvalQuoSize(mv, at)
+	nbQuoLimbs := (quoSize - modBits + nbBits - 1) / nbBits
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
@@ -589,6 +616,27 @@ type mvCheck[T FieldParams] struct {
 	c     *Element[T] // carry
 }
 
+func (mc *mvCheck[T]) toCommit() []frontend.Variable {
+	var toCommit []frontend.Variable
+	toCommit = append(toCommit, mc.r.Limbs...)
+	toCommit = append(toCommit, mc.k.Limbs...)
+	toCommit = append(toCommit, mc.c.Limbs...)
+	for j := range mc.vals {
+		toCommit = append(toCommit, mc.vals[j].Limbs...)
+	}
+	return toCommit
+}
+
+func (mc *mvCheck[T]) maxLen() int {
+	maxLen := len(mc.r.Limbs)
+	maxLen = max(maxLen, len(mc.k.Limbs))
+	maxLen = max(maxLen, len(mc.c.Limbs))
+	for j := range mc.vals {
+		maxLen = max(maxLen, len(mc.vals[j].Limbs))
+	}
+	return maxLen
+}
+
 func (mc *mvCheck[T]) evalRound1(at []frontend.Variable) {
 	mc.c = mc.f.evalWithChallenge(mc.c, at)
 	mc.r = mc.f.evalWithChallenge(mc.r, at)
@@ -625,54 +673,7 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 	mc.c.isEvaluated = false
 }
 
-func (f *Field[T]) performPolyChecks(api frontend.API) error {
-	if len(f.mvChecks) == 0 {
-		return nil
-	}
-	var toCommit []frontend.Variable
-	for i := range f.mvChecks {
-		toCommit = append(toCommit, f.mvChecks[i].r.Limbs...)
-		toCommit = append(toCommit, f.mvChecks[i].k.Limbs...)
-		toCommit = append(toCommit, f.mvChecks[i].c.Limbs...)
-		for j := range f.mvChecks[i].vals {
-			toCommit = append(toCommit, f.mvChecks[i].vals[j].Limbs...)
-		}
-	}
-	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		coefsLen := int(f.fParams.NbLimbs())
-		for i := range f.mvChecks {
-			coefsLen = max(coefsLen, len(f.mvChecks[i].r.Limbs), len(f.mvChecks[i].k.Limbs), len(f.mvChecks[i].c.Limbs))
-			for j := range f.mvChecks[i].vals {
-				coefsLen = max(coefsLen, len(f.mvChecks[i].vals[j].Limbs))
-			}
-		}
-		at := make([]frontend.Variable, coefsLen)
-		at[0] = commitment
-		for i := 1; i < len(at); i++ {
-			at[i] = api.Mul(at[i-1], commitment)
-		}
-		for i := range f.mvChecks {
-			f.mvChecks[i].evalRound1(at)
-		}
-		for i := range f.mvChecks {
-			f.mvChecks[i].evalRound2(at)
-		}
-		pval := f.evalWithChallenge(f.Modulus(), at)
-		coef := big.NewInt(1)
-		coef.Lsh(coef, f.fParams.BitsPerLimb())
-		ccoef := api.Sub(coef, commitment)
-		for i := range f.mvChecks {
-			f.mvChecks[i].check(api, pval.evaluation, ccoef)
-		}
-		for i := range f.mvChecks {
-			f.mvChecks[i].cleanEvaluations()
-		}
-		return nil
-	}, toCommit...)
-	return nil
-}
-
-func (f *Field[T]) polyEvalQuoSize2(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
+func (f *Field[T]) polyEvalQuoSize(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
 	modBits := f.fParams.Modulus().BitLen()
 	quoSizes := make([]uint, len(mv.Terms))
 	for i, term := range mv.Terms {
@@ -831,7 +832,6 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		carryLimbs[i] = new(big.Int).Set(carry)
 	}
 
-	fmt.Println("polyHint")
 	return nil
 }
 
