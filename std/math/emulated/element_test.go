@@ -1331,6 +1331,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 		}
 		expected.Add(expected, termVal)
 	}
+	expected.Mod(expected, fp.Modulus())
 	mv := ValueOfMultivariate[T](terms)
 
 	assignment := &PolyEvalCircuit[T]{
