@@ -17,23 +17,21 @@
 package mpcsetup
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math"
 	"math/big"
-	"runtime"
-	"sync"
 )
 
 // Phase1 represents the Phase1 of the MPC described in
 // https://eprint.iacr.org/2017/1050.pdf
 //
 // Also known as "Powers of Tau"
-type phase1 struct {
+type Phase1 struct {
 	Principal struct { // "main" contributions
 		Tau, Alpha, Beta valueUpdate
 	}
@@ -48,27 +46,9 @@ type phase1 struct {
 	Challenge []byte // Hash of the transcript PRIOR to this participant
 }
 
-func eraseBigInts(i ...*big.Int) {
-	for _, i := range i {
-		if i != nil {
-			for j := range i.Bits() {
-				i.Bits()[j] = 0
-			}
-		}
-	}
-}
-
-func eraseFrVectors(v ...[]fr.Element) {
-	for _, v := range v {
-		for i := range v {
-			v[i].SetZero()
-		}
-	}
-}
-
-// Contribute contributes randomness to the phase1 object. This mutates phase1.
+// Contribute contributes randomness to the Phase1 object. This mutates Phase1.
 // p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
-func (p *phase1) Contribute() {
+func (p *Phase1) Contribute() {
 	N := len(p.G2Derived.Tau)
 	challenge := p.hash()
 
@@ -104,32 +84,15 @@ func (p *phase1) Contribute() {
 	p.Challenge = challenge
 }
 
-// Phase1 represents the Phase1 of the MPC described in
-// https://eprint.iacr.org/2017/1050.pdf
-//
-// Also known as "Powers of Tau"
-type Phase1 struct {
-	Parameters struct {
-		G1 struct {
-			Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
-			AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
-			BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
-		}
-		G2 struct {
-			Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
-			Beta curve.G2Affine   // [β]₂
-		}
-	}
-	PublicKeys struct {
-		Tau, Alpha, Beta PublicKey
-	}
-	Hash []byte // sha256 hash
-}
-
 // InitPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
 // any randomness contribution is made (see Contribute()).
 func InitPhase1(power int) (phase1 Phase1) {
 	N := int(math.Pow(2, float64(power)))
+
+	_, _, g1, g2 := curve.Generators()
+
+	phase1.Challenge = []byte{0}
+	phase1.Principal.Alpha.setEmpty()
 
 	// Generate key pairs
 	var tau, alpha, beta fr.Element
@@ -167,7 +130,7 @@ func InitPhase1(power int) (phase1 Phase1) {
 func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 	contribs := append([]*Phase1{c0, c1}, c...)
 	for i := 0; i < len(contribs)-1; i++ {
-		if err := verifyPhase1(contribs[i], contribs[i+1]); err != nil {
+		if err := contribs[i].Verify(contribs[i+1]); err != nil {
 			return err
 		}
 	}
@@ -175,7 +138,14 @@ func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 }
 
 // Verify assumes previous is correct
-func (p *phase1) Verify(previous *phase1) error {
+func (p *Phase1) Verify(previous *Phase1) error {
+
+	if prevHash := previous.hash(); !bytes.Equal(p.Challenge, previous.hash()) { // if chain-verifying contributions, challenge fields are optional as they can be computed as we go
+		if len(p.Challenge) != 0 {
+			return errors.New("the challenge does not match the previous phase's hash")
+		}
+		p.Challenge = prevHash
+	}
 
 	if err := p.Principal.Tau.verify(previous.Principal.Tau.updatedCommitment, p.Challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
@@ -205,29 +175,8 @@ func (p *phase1) Verify(previous *phase1) error {
 
 	tauT1, tauS1 := linearCombinationsG1(r, p.G1Derived.Tau)
 	tauT2, tauS2 := linearCombinationsG2(r, p.G2Derived.Tau)
-
-	nc := runtime.NumCPU()
-	var (
-		alphaTS, betaTS curve.G1Affine
-		wg              sync.WaitGroup
-	)
-
-	mulExpG1 := func(v *curve.G1Affine, points []curve.G1Affine, nbTasks int) {
-		if _, err := v.MultiExp(points, r[:len(points)], ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
-			panic(err)
-		}
-		wg.Done()
-	}
-
-	if nc >= 2 {
-		wg.Add(2) // small tasks over 𝔾₁
-		go mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc/2)
-		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc-nc/2)
-		wg.Wait()
-	} else {
-		mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc)
-		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc)
-	}
+	alphaTT, alphaTS := linearCombinationsG1(r, p.G1Derived.AlphaTau)
+	betaTT, betaTS := linearCombinationsG1(r, p.G1Derived.BetaTau)
 
 	if !sameRatioUnsafe(tauS1, tauT1, *p.Principal.Tau.updatedCommitment.g2, g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
@@ -237,89 +186,26 @@ func (p *phase1) Verify(previous *phase1) error {
 		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
 	}
 
-	// for 1 ≤ i < N we want to check ατⁱ/τⁱ = α
+	// for 0 ≤ i < N we want to check the ατⁱ
+	// By well-formedness checked by ReadFrom, we assume that ατ⁰ = α
+	// For 0 < i < N we check that ατⁱ/ατⁱ⁻¹ = τ, since we have a representation of τ in 𝔾₂
 	// with a similar bi-linearity argument as above we can do this with a single pairing check
-	// Note that the check at i = 0 is part of the well-formedness requirement and is not checked here,
-	// but guaranteed by ReadFrom.
 
-	if !sameRatioUnsafe(alphaTS, tauS1, *p.Principal.Alpha.updatedCommitment.g2, g2) {
+	if !sameRatioUnsafe(alphaTS, alphaTT, *p.Principal.Tau.updatedCommitment.g2, g2) {
 		return errors.New("couldn't verify the ατⁱ")
 	}
-	if !sameRatioUnsafe(betaTS, tauS1, *p.Principal.Beta.updatedCommitment.g2, g2) {
+	if !sameRatioUnsafe(betaTS, betaTT, *p.Principal.Tau.updatedCommitment.g2, g2) {
 		return errors.New("couldn't verify the βτⁱ")
 	}
 
 	return nil
 }
 
-// verifyPhase1 checks that a contribution is based on a known previous Phase1 state.
-func verifyPhase1(current, contribution *Phase1) error {
-	// Compute R for τ, α, β
-	tauR := genR(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, current.Hash[:], 1)
-	alphaR := genR(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, current.Hash[:], 2)
-	betaR := genR(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, current.Hash[:], 3)
-
-	// Check for knowledge of toxic parameters
-	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.PublicKeys.Tau.XR, tauR) {
-		return errors.New("couldn't verify public key of τ")
+func (p *Phase1) hash() []byte {
+	if len(p.Challenge) == 0 {
+		panic("challenge field missing")
 	}
-	if !sameRatio(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, contribution.PublicKeys.Alpha.XR, alphaR) {
-		return errors.New("couldn't verify public key of α")
-	}
-	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.PublicKeys.Beta.XR, betaR) {
-		return errors.New("couldn't verify public key of β")
-	}
-
-	// Check for valid updates using previous parameters
-	//
-	if !sameRatio(contribution.Parameters.G1.Tau[1], current.Parameters.G1.Tau[1], tauR, contribution.PublicKeys.Tau.XR) {
-		return errors.New("couldn't verify that [τ]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.Parameters.G1.AlphaTau[0], current.Parameters.G1.AlphaTau[0], alphaR, contribution.PublicKeys.Alpha.XR) {
-		return errors.New("couldn't verify that [α]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.Parameters.G1.BetaTau[0], current.Parameters.G1.BetaTau[0], betaR, contribution.PublicKeys.Beta.XR) {
-		return errors.New("couldn't verify that [β]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.Parameters.G2.Tau[1], current.Parameters.G2.Tau[1]) {
-		return errors.New("couldn't verify that [τ]₂ is based on previous contribution")
-	}
-	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.Parameters.G2.Beta, current.Parameters.G2.Beta) {
-		return errors.New("couldn't verify that [β]₂ is based on previous contribution")
-	}
-
-	// Check for valid updates using powers of τ
-	_, _, g1, g2 := curve.Generators()
-	tauL1, tauL2 := linearCombinationG1(contribution.Parameters.G1.Tau)
-	if !sameRatio(tauL1, tauL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of τ in G₁")
-	}
-	alphaL1, alphaL2 := linearCombinationG1(contribution.Parameters.G1.AlphaTau)
-	if !sameRatio(alphaL1, alphaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
-	}
-	betaL1, betaL2 := linearCombinationG1(contribution.Parameters.G1.BetaTau)
-	if !sameRatio(betaL1, betaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
-	}
-	tau2L1, tau2L2 := linearCombinationG2(contribution.Parameters.G2.Tau)
-	if !sameRatio(contribution.Parameters.G1.Tau[1], g1, tau2L1, tau2L2) {
-		return errors.New("couldn't verify valid powers of τ in G₂")
-	}
-
-	// Check hash of the contribution
-	h := contribution.hash()
-	for i := 0; i < len(h); i++ {
-		if h[i] != contribution.Hash[i] {
-			return errors.New("couldn't verify hash of contribution")
-		}
-	}
-
-	return nil
-}
-
-func (phase1 *Phase1) hash() []byte {
 	sha := sha256.New()
-	phase1.writeTo(sha)
+	p.writeTo(sha)
 	return sha.Sum(nil)
 }

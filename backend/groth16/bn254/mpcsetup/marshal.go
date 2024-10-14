@@ -22,31 +22,31 @@ import (
 )
 
 // WriteTo implements io.WriterTo
-func (phase1 *Phase1) WriteTo(writer io.Writer) (int64, error) {
-	n, err := phase1.writeTo(writer)
+func (p *Phase1) WriteTo(writer io.Writer) (int64, error) {
+	n, err := p.writeTo(writer)
 	if err != nil {
 		return n, err
 	}
-	nBytes, err := writer.Write(phase1.Hash)
+	nBytes, err := writer.Write(p.Hash)
 	return int64(nBytes) + n, err
 }
 
-func (phase1 *Phase1) writeTo(writer io.Writer) (int64, error) {
+func (p *Phase1) writeTo(writer io.Writer) (int64, error) {
 	toEncode := []interface{}{
-		&phase1.PublicKeys.Tau.SG,
-		&phase1.PublicKeys.Tau.SXG,
-		&phase1.PublicKeys.Tau.XR,
-		&phase1.PublicKeys.Alpha.SG,
-		&phase1.PublicKeys.Alpha.SXG,
-		&phase1.PublicKeys.Alpha.XR,
-		&phase1.PublicKeys.Beta.SG,
-		&phase1.PublicKeys.Beta.SXG,
-		&phase1.PublicKeys.Beta.XR,
-		phase1.Parameters.G1.Tau,
-		phase1.Parameters.G1.AlphaTau,
-		phase1.Parameters.G1.BetaTau,
-		phase1.Parameters.G2.Tau,
-		&phase1.Parameters.G2.Beta,
+		&p.PublicKeys.Tau.SG,
+		&p.PublicKeys.Tau.SXG,
+		&p.PublicKeys.Tau.XR,
+		&p.PublicKeys.Alpha.SG,
+		&p.PublicKeys.Alpha.SXG,
+		&p.PublicKeys.Alpha.XR,
+		&p.PublicKeys.Beta.SG,
+		&p.PublicKeys.Beta.SXG,
+		&p.PublicKeys.Beta.XR,
+		p.Parameters.G1.Tau,
+		p.Parameters.G1.AlphaTau,
+		p.Parameters.G1.BetaTau,
+		p.Parameters.G2.Tau,
+		&p.Parameters.G2.Beta,
 	}
 
 	enc := curve.NewEncoder(writer)
@@ -59,22 +59,22 @@ func (phase1 *Phase1) writeTo(writer io.Writer) (int64, error) {
 }
 
 // ReadFrom implements io.ReaderFrom
-func (phase1 *Phase1) ReadFrom(reader io.Reader) (int64, error) {
+func (p *Phase1) ReadFrom(reader io.Reader) (int64, error) {
 	toEncode := []interface{}{
-		&phase1.PublicKeys.Tau.SG,
-		&phase1.PublicKeys.Tau.SXG,
-		&phase1.PublicKeys.Tau.XR,
-		&phase1.PublicKeys.Alpha.SG,
-		&phase1.PublicKeys.Alpha.SXG,
-		&phase1.PublicKeys.Alpha.XR,
-		&phase1.PublicKeys.Beta.SG,
-		&phase1.PublicKeys.Beta.SXG,
-		&phase1.PublicKeys.Beta.XR,
-		&phase1.Parameters.G1.Tau,
-		&phase1.Parameters.G1.AlphaTau,
-		&phase1.Parameters.G1.BetaTau,
-		&phase1.Parameters.G2.Tau,
-		&phase1.Parameters.G2.Beta,
+		&p.PublicKeys.Tau.SG,
+		&p.PublicKeys.Tau.SXG,
+		&p.PublicKeys.Tau.XR,
+		&p.PublicKeys.Alpha.SG,
+		&p.PublicKeys.Alpha.SXG,
+		&p.PublicKeys.Alpha.XR,
+		&p.PublicKeys.Beta.SG,
+		&p.PublicKeys.Beta.SXG,
+		&p.PublicKeys.Beta.XR,
+		&p.Parameters.G1.Tau,
+		&p.Parameters.G1.AlphaTau,
+		&p.Parameters.G1.BetaTau,
+		&p.Parameters.G2.Tau,
+		&p.Parameters.G2.Beta,
 	}
 
 	dec := curve.NewDecoder(reader)
@@ -83,8 +83,8 @@ func (phase1 *Phase1) ReadFrom(reader io.Reader) (int64, error) {
 			return dec.BytesRead(), err
 		}
 	}
-	phase1.Hash = make([]byte, 32)
-	nBytes, err := reader.Read(phase1.Hash)
+	p.Hash = make([]byte, 32)
+	nBytes, err := reader.Read(p.Hash)
 	return dec.BytesRead() + int64(nBytes), err
 }
 

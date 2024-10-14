@@ -300,6 +300,15 @@ func (x *valueUpdate) verify(prevCommitment pair, challenge []byte, dst byte) er
 	return nil
 }
 
+// setEmpty does not provide proofs, only sets the value to [1]
+func (x *valueUpdate) setEmpty(g1Only bool) {
+	_, _, g1, g2 := curve.Generators()
+	x.updatedCommitment.g1.Set(&g1)
+	if !g1Only {
+		x.updatedCommitment.g2 = &g2
+	}
+}
+
 func toRefs[T any](s []T) []*T {
 	res := make([]*T, len(s))
 	for i := range s {
@@ -327,4 +336,22 @@ func areInSubGroupG2(s []curve.G2Affine) bool {
 
 func truncate[T any](s []T) []T {
 	return s[:len(s)-1]
+}
+
+func eraseBigInts(i ...*big.Int) {
+	for _, i := range i {
+		if i != nil {
+			for j := range i.Bits() {
+				i.Bits()[j] = 0
+			}
+		}
+	}
+}
+
+func eraseFrVectors(v ...[]fr.Element) {
+	for _, v := range v {
+		for i := range v {
+			v[i].SetZero()
+		}
+	}
 }

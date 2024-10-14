@@ -168,17 +168,17 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func (phase1 *Phase1) clone() Phase1 {
+func (p *Phase1) clone() Phase1 {
 	r := Phase1{}
-	r.Parameters.G1.Tau = append(r.Parameters.G1.Tau, phase1.Parameters.G1.Tau...)
-	r.Parameters.G1.AlphaTau = append(r.Parameters.G1.AlphaTau, phase1.Parameters.G1.AlphaTau...)
-	r.Parameters.G1.BetaTau = append(r.Parameters.G1.BetaTau, phase1.Parameters.G1.BetaTau...)
+	r.Parameters.G1.Tau = append(r.Parameters.G1.Tau, p.Parameters.G1.Tau...)
+	r.Parameters.G1.AlphaTau = append(r.Parameters.G1.AlphaTau, p.Parameters.G1.AlphaTau...)
+	r.Parameters.G1.BetaTau = append(r.Parameters.G1.BetaTau, p.Parameters.G1.BetaTau...)
 
-	r.Parameters.G2.Tau = append(r.Parameters.G2.Tau, phase1.Parameters.G2.Tau...)
-	r.Parameters.G2.Beta = phase1.Parameters.G2.Beta
+	r.Parameters.G2.Tau = append(r.Parameters.G2.Tau, p.Parameters.G2.Tau...)
+	r.Parameters.G2.Beta = p.Parameters.G2.Beta
 
-	r.PublicKeys = phase1.PublicKeys
-	r.Hash = append(r.Hash, phase1.Hash...)
+	r.PublicKeys = p.PublicKeys
+	r.Hash = append(r.Hash, p.Hash...)
 
 	return r
 }
