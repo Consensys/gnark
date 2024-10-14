@@ -582,7 +582,6 @@ func TestElementBitLen(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
-
 }
 
 func TestElementButterflies(t *testing.T) {
@@ -650,77 +649,6 @@ func TestElementLexicographicallyLargest(t *testing.T) {
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 
-}
-
-func TestElementVecOps(t *testing.T) {
-	assert := require.New(t)
-
-	const N = 7
-	a := make(Vector, N)
-	b := make(Vector, N)
-	c := make(Vector, N)
-	for i := 0; i < N; i++ {
-		a[i].SetRandom()
-		b[i].SetRandom()
-	}
-
-	// Vector addition
-	c.Add(a, b)
-	for i := 0; i < N; i++ {
-		var expected Element
-		expected.Add(&a[i], &b[i])
-		assert.True(c[i].Equal(&expected), "Vector addition failed")
-	}
-
-	// Vector subtraction
-	c.Sub(a, b)
-	for i := 0; i < N; i++ {
-		var expected Element
-		expected.Sub(&a[i], &b[i])
-		assert.True(c[i].Equal(&expected), "Vector subtraction failed")
-	}
-
-	// Vector scaling
-	c.ScalarMul(a, &b[0])
-	for i := 0; i < N; i++ {
-		var expected Element
-		expected.Mul(&a[i], &b[0])
-		assert.True(c[i].Equal(&expected), "Vector scaling failed")
-	}
-}
-
-func BenchmarkElementVecOps(b *testing.B) {
-	// note; to benchmark against "no asm" version, use the following
-	// build tag: -tags purego
-	const N = 1024
-	a1 := make(Vector, N)
-	b1 := make(Vector, N)
-	c1 := make(Vector, N)
-	for i := 0; i < N; i++ {
-		a1[i].SetRandom()
-		b1[i].SetRandom()
-	}
-
-	b.Run("Add", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			c1.Add(a1, b1)
-		}
-	})
-
-	b.Run("Sub", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			c1.Sub(a1, b1)
-		}
-	})
-
-	b.Run("ScalarMul", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			c1.ScalarMul(a1, &b1[0])
-		}
-	})
 }
 
 func TestElementAdd(t *testing.T) {
@@ -2230,36 +2158,44 @@ func gen() gopter.Gen {
 	}
 }
 
+func genRandomFq(genParams *gopter.GenParameters) Element {
+	var g Element
+
+	g = Element{
+		genParams.NextUint64(),
+	}
+
+	if qElement[0] != ^uint64(0) {
+		g[0] %= (qElement[0] + 1)
+	}
+
+	for !g.smallerThanModulus() {
+		g = Element{
+			genParams.NextUint64(),
+		}
+		if qElement[0] != ^uint64(0) {
+			g[0] %= (qElement[0] + 1)
+		}
+	}
+
+	return g
+}
+
 func genFull() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-
-		genRandomFq := func() Element {
-			var g Element
-
-			g = Element{
-				genParams.NextUint64(),
-			}
-
-			if qElement[0] != ^uint64(0) {
-				g[0] %= (qElement[0] + 1)
-			}
-
-			for !g.smallerThanModulus() {
-				g = Element{
-					genParams.NextUint64(),
-				}
-				if qElement[0] != ^uint64(0) {
-					g[0] %= (qElement[0] + 1)
-				}
-			}
-
-			return g
-		}
-		a := genRandomFq()
+		a := genRandomFq(genParams)
 
 		var carry uint64
 		a[0], _ = bits.Add64(a[0], qElement[0], carry)
 
+		genResult := gopter.NewGenResult(a, gopter.NoShrinker)
+		return genResult
+	}
+}
+
+func genElement() gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		a := genRandomFq(genParams)
 		genResult := gopter.NewGenResult(a, gopter.NoShrinker)
 		return genResult
 	}
