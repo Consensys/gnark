@@ -202,11 +202,14 @@ func (p *phase1) Verify(previous *phase1) error {
 	// ∑rⁱ⁻¹τⁱ⁺¹ / ∑rⁱ⁻¹τⁱ = τ
 	r := linearCombCoeffs(len(p.G1Derived.Tau) - 1) // the longest of all lengths
 	// will be reusing the coefficient TODO @Tabaie make sure that's okay
+
+	tauT1, tauS1 := linearCombinationsG1(r, p.G1Derived.Tau)
+	tauT2, tauS2 := linearCombinationsG2(r, p.G2Derived.Tau)
+
 	nc := runtime.NumCPU()
 	var (
-		tauT1, tauS1, alphaTT, alphaTS, betaTT, betaTS curve.G1Affine
-		tauT2, tauS2                                   curve.G2Affine
-		wg sync.WaitGroup
+		alphaTS, betaTS curve.G1Affine
+		wg              sync.WaitGroup
 	)
 
 	mulExpG1 := func(v *curve.G1Affine, points []curve.G1Affine, nbTasks int) {
@@ -216,53 +219,37 @@ func (p *phase1) Verify(previous *phase1) error {
 		wg.Done()
 	}
 
-	mulExpG2 := func(v *curve.G2Affine, points []curve.G2Affine, nbTasks int) {
-		if _, err := v.MultiExp(points, r[:len(points)], ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
-			panic(err)
-		}
-		wg.Done()
-	}
-
-	if nc < 2 {
-		mulExpG1(&tauT1, truncate(p.G1Derived.Tau), nc)
-		mulExpG1(&tauS1, p.G1Derived.Tau[1:], nc)
-	} else {
-		// larger tasks than the others. better get them done together
-		wg.Add(2)
-		go mulExpG1(&tauT1, truncate(p.G1Derived.Tau), nc/2)	// truncated: smaller powers
-		mulExpG1(&tauS1, p.G1Derived.Tau[1:], nc - nc/2)	// shifted: larger powers
+	if nc >= 2 {
+		wg.Add(2) // small tasks over 𝔾₁
+		go mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc/2)
+		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc-nc/2)
 		wg.Wait()
-	}
-
-	if nc < 4 {
-		mulExpG1(&alphaTT, truncate(p.G1Derived.AlphaTau), nc)
+	} else {
 		mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc)
-		mulExpG1(&betaTT, truncate(p.G1Derived.BetaTau), nc)
 		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc)
-	} else {
-		wg.Add(4)
-		go mulExpG1(&alphaTT, truncate(p.G1Derived.AlphaTau), nc/4)
-		go mulExpG1(&alphaTS, p.G1Derived.AlphaTau[1:], nc/2 - nc/4)
-		go mulExpG1(&betaTT, truncate(p.G1Derived.BetaTau), nc/4)
-		mulExpG1(&betaTS, p.G1Derived.BetaTau[1:], nc - nc/2 - nc/4)
-		wg.Wait()
 	}
-
-
-
-	if err := tauT1.MultiExp.G1Derived.Tau[:len(p.G1Derived.Tau)-1], r, ecc.MultiExpConfig{NbTasks: nc/2})
-
-	tauT1, tauS1 :=  linearCombinationG1(r, p.G1Derived.Tau[1:]) // at this point we should already know that tau[0] = infty and tau[1] = τ. ReadFrom is in charge of ensuring that.
-
 
 	if !sameRatioUnsafe(tauS1, tauT1, *p.Principal.Tau.updatedCommitment.g2, g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
 	}
-	tauT2, tauS2 := linearCombinationG2(r, p.G2Derived.Tau[1:])
+
 	if !sameRatioUnsafe(p.Principal.Tau.updatedCommitment.g1, g1, tauS2, tauT2) {
 		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
 	}
 
+	// for 1 ≤ i < N we want to check ατⁱ/τⁱ = α
+	// with a similar bi-linearity argument as above we can do this with a single pairing check
+	// Note that the check at i = 0 is part of the well-formedness requirement and is not checked here,
+	// but guaranteed by ReadFrom.
+
+	if !sameRatioUnsafe(alphaTS, tauS1, *p.Principal.Alpha.updatedCommitment.g2, g2) {
+		return errors.New("couldn't verify the ατⁱ")
+	}
+	if !sameRatioUnsafe(betaTS, tauS1, *p.Principal.Beta.updatedCommitment.g2, g2) {
+		return errors.New("couldn't verify the βτⁱ")
+	}
+
+	return nil
 }
 
 // verifyPhase1 checks that a contribution is based on a known previous Phase1 state.

@@ -168,6 +168,40 @@ func linearCombinationG2(r []fr.Element, A []curve.G2Affine) (truncated, shifted
 	return
 }
 
+// linearCombinationsG1 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
+// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+func linearCombinationsG1(rPowers []fr.Element, A []curve.G1Affine) (truncated, shifted curve.G1Affine) {
+	// the common section, 1 to N-2
+	var common curve.G1Affine
+	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+
+	var c big.Int
+	rPowers[1].BigInt(&c)
+	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
+
+	rPowers[len(A)-1].BigInt(&c)
+	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+
+	return
+}
+
+// linearCombinationsG2 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
+// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+func linearCombinationsG2(rPowers []fr.Element, A []curve.G2Affine) (truncated, shifted curve.G2Affine) {
+	// the common section, 1 to N-2
+	var common curve.G2Affine
+	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+
+	var c big.Int
+	rPowers[1].BigInt(&c)
+	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
+
+	rPowers[len(A)-1].BigInt(&c)
+	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+
+	return
+}
+
 // Generate R∈𝔾₂ as Hash(gˢ, gˢˣ, challenge, dst)
 // it is to be used as a challenge for generating a proof of knowledge to x
 // π ≔ x.r; e([1]₁, π) =﹖ e([x]₁, r)
