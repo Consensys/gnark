@@ -84,45 +84,30 @@ func (p *Phase1) Contribute() {
 	p.Challenge = challenge
 }
 
-// InitPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
+// NewPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
 // any randomness contribution is made (see Contribute()).
-func InitPhase1(power int) (phase1 Phase1) {
+func NewPhase1(power int) (phase1 Phase1) {
 	N := int(math.Pow(2, float64(power)))
 
 	_, _, g1, g2 := curve.Generators()
 
 	phase1.Challenge = []byte{0}
-	phase1.Principal.Alpha.setEmpty()
+	phase1.Principal.Alpha.setEmpty(true)
+	phase1.Principal.Beta.setEmpty(true)
+	phase1.Principal.Tau.setEmpty(false)
 
-	// Generate key pairs
-	var tau, alpha, beta fr.Element
-	tau.SetOne()
-	alpha.SetOne()
-	beta.SetOne()
-	phase1.PublicKeys.Tau = newPublicKey(tau, nil, 1)
-	phase1.PublicKeys.Alpha = newPublicKey(alpha, nil, 2)
-	phase1.PublicKeys.Beta = newPublicKey(beta, nil, 3)
-
-	// First contribution use generators
-	_, _, g1, g2 := curve.Generators()
-	phase1.Parameters.G2.Beta.Set(&g2)
-	phase1.Parameters.G1.Tau = make([]curve.G1Affine, 2*N-1)
-	phase1.Parameters.G2.Tau = make([]curve.G2Affine, N)
-	phase1.Parameters.G1.AlphaTau = make([]curve.G1Affine, N)
-	phase1.Parameters.G1.BetaTau = make([]curve.G1Affine, N)
-	for i := 0; i < len(phase1.Parameters.G1.Tau); i++ {
-		phase1.Parameters.G1.Tau[i].Set(&g1)
+	phase1.G1Derived.Tau = make([]curve.G1Affine, 2*N-1)
+	phase1.G2Derived.Tau = make([]curve.G2Affine, N)
+	phase1.G1Derived.AlphaTau = make([]curve.G1Affine, N)
+	phase1.G1Derived.BetaTau = make([]curve.G1Affine, N)
+	for i := range phase1.G1Derived.Tau {
+		phase1.G1Derived.Tau[i].Set(&g1)
 	}
-	for i := 0; i < len(phase1.Parameters.G2.Tau); i++ {
-		phase1.Parameters.G2.Tau[i].Set(&g2)
-		phase1.Parameters.G1.AlphaTau[i].Set(&g1)
-		phase1.Parameters.G1.BetaTau[i].Set(&g1)
+	for i := range phase1.G2Derived.Tau {
+		phase1.G2Derived.Tau[i].Set(&g2)
+		phase1.G1Derived.AlphaTau[i].Set(&g1)
+		phase1.G1Derived.BetaTau[i].Set(&g1)
 	}
-
-	phase1.Parameters.G2.Beta.Set(&g2)
-
-	// Compute hash of Contribution
-	phase1.Hash = phase1.hash()
 
 	return
 }
