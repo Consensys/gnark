@@ -46,9 +46,6 @@ func NewShort(current, target *big.Int) (hash.Hash, error) {
 	case ecc.BLS12_377.ScalarField().String():
 		h = cryptomimc.MIMC_BLS12_377
 		bitBlockSize = ecc.BLS12_377.ScalarField().BitLen()
-	case ecc.BLS12_378.ScalarField().String():
-		h = cryptomimc.MIMC_BLS12_378
-		bitBlockSize = ecc.BLS12_378.ScalarField().BitLen()
 	case ecc.BW6_761.ScalarField().String():
 		h = cryptomimc.MIMC_BW6_761
 		bitBlockSize = ecc.BW6_761.ScalarField().BitLen()
@@ -61,9 +58,6 @@ func NewShort(current, target *big.Int) (hash.Hash, error) {
 	case ecc.BW6_633.ScalarField().String():
 		h = cryptomimc.MIMC_BW6_633
 		bitBlockSize = ecc.BW6_633.ScalarField().BitLen()
-	case ecc.BW6_756.ScalarField().String():
-		h = cryptomimc.MIMC_BW6_756
-		bitBlockSize = ecc.BW6_756.ScalarField().BitLen()
 	default:
 		return nil, fmt.Errorf("no default mimc for scalar field: %s", current.String())
 	}

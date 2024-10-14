@@ -582,7 +582,6 @@ func TestElementBitLen(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
-
 }
 
 func TestElementButterflies(t *testing.T) {
@@ -2159,36 +2158,44 @@ func gen() gopter.Gen {
 	}
 }
 
+func genRandomFq(genParams *gopter.GenParameters) Element {
+	var g Element
+
+	g = Element{
+		genParams.NextUint64(),
+	}
+
+	if qElement[0] != ^uint64(0) {
+		g[0] %= (qElement[0] + 1)
+	}
+
+	for !g.smallerThanModulus() {
+		g = Element{
+			genParams.NextUint64(),
+		}
+		if qElement[0] != ^uint64(0) {
+			g[0] %= (qElement[0] + 1)
+		}
+	}
+
+	return g
+}
+
 func genFull() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-
-		genRandomFq := func() Element {
-			var g Element
-
-			g = Element{
-				genParams.NextUint64(),
-			}
-
-			if qElement[0] != ^uint64(0) {
-				g[0] %= (qElement[0] + 1)
-			}
-
-			for !g.smallerThanModulus() {
-				g = Element{
-					genParams.NextUint64(),
-				}
-				if qElement[0] != ^uint64(0) {
-					g[0] %= (qElement[0] + 1)
-				}
-			}
-
-			return g
-		}
-		a := genRandomFq()
+		a := genRandomFq(genParams)
 
 		var carry uint64
 		a[0], _ = bits.Add64(a[0], qElement[0], carry)
 
+		genResult := gopter.NewGenResult(a, gopter.NoShrinker)
+		return genResult
+	}
+}
+
+func genElement() gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		a := genRandomFq(genParams)
 		genResult := gopter.NewGenResult(a, gopter.NoShrinker)
 		return genResult
 	}
