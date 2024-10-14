@@ -1,0 +1,130 @@
+package poseidon
+
+import (
+	"math/big"
+
+	"github.com/consensys/gnark/frontend"
+)
+
+type Hash struct {
+	state  []frontend.Variable
+	params parameters
+}
+
+// parameters describing the poseidon2 implementation
+type parameters struct {
+
+	// len(preimage)+len(digest)=len(preimage)+ceil(log(2*<security_level>/r))
+	t int
+
+	// sbox degree
+	d int
+
+	// number of full rounds (even number)
+	rF int
+
+	// number of partial rounds
+	rP int
+
+	// diagonal elements of the internal matrices, minus one
+	diagInternalMatrices []big.Int
+
+	// round keys
+	roundKeys [][]big.Int
+}
+
+func NewHash(t, d, rf, rp int) Hash {
+	return Hash{
+		params: parameters{t: t, d: d, rF: rf, rP: rp}}
+}
+
+// sBox applies the sBox on buffer[index]
+func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
+	var tmp frontend.Variable
+	tmp = input[index]
+	if h.params.d == 3 {
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(tmp, input[index])
+	} else if h.params.d == 5 {
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], tmp)
+	} else if h.params.d == 7 {
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], tmp)
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], tmp)
+	}
+}
+
+// matMulM4 computes
+// s <- M4*s
+// where M4=
+// (5 7 1 3)
+// (4 6 1 1)
+// (1 3 5 7)
+// (1 1 4 6)
+// on chunks of 4 elemts on each part of the buffer
+// see https://eprint.iacr.org/2023/323.pdf appendix B for the addition chain
+func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
+	c := len(s) / 4
+	for i := 0; i < c; i++ {
+		t0 := api.Add(s[4*i], s[4*i+1])   // s0+s1
+		t1 := api.Add(s[4*i+2], s[4*i+3]) // s2+s3
+		t2 := api.Mul(s[4*i+1], 2)
+		t2 = api.Add(t2, t1) // 2s1+t1
+		t3 := api.Mul(s[4*i+3], 2)
+		t3 = api.Add(t3, t0) // 2s3+t0
+		t4 := api.Mul(t1, 4)
+		t4 = api.Add(t4, t3) // 4t1+t3
+		t5 := api.Mul(t0, 4)
+		t5 = api.Add(t5, t2)  // 4t0+t2
+		t6 := api.Add(t3, t5) // t3+t5
+		t7 := api.Add(t2, t4) // t2+t4
+		s[4*i] = t6
+		s[4*i+1] = t5
+		s[4*i+2] = t7
+		s[4*i+3] = t4
+	}
+}
+
+// when t=2,3 the buffer is multiplied by circ(2,1) and circ(2,1,1)
+// see https://eprint.iacr.org/2023/323.pdf page 15, case t=2,3
+//
+// when t=0[4], the buffer is multiplied by circ(2M4,M4,..,M4)
+// see https://eprint.iacr.org/2023/323.pdf
+func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
+
+	if h.params.t == 2 {
+		var tmp frontend.Variable
+		tmp = api.Add(input[0], input[1])
+		input[0] = api.Add(tmp, input[0])
+		input[1] = api.Add(tmp, input[1])
+	} else if h.params.t == 3 {
+		var tmp frontend.Variable
+		tmp = api.Add(input[0], input[1])
+		tmp = api.Add(tmp, input[2])
+		input[0] = api.Add(input[0], tmp)
+		input[1] = api.Add(input[1], tmp)
+		input[2] = api.Add(input[2], tmp)
+	} else if h.params.t == 4 {
+		h.matMulM4InPlace(api, input)
+	} else {
+		// at this stage t is supposed to be a multiple of 4
+		// the MDS matrix is circ(2M4,M4,..,M4)
+		h.matMulM4InPlace(api, input)
+		tmp := make([]frontend.Variable, 4)
+		for i := 0; i < h.params.t/4; i++ {
+			tmp[0] = api.Add(tmp[0], input[4*i])
+			tmp[1] = api.Add(tmp[1], input[4*i+1])
+			tmp[2] = api.Add(tmp[2], input[4*i+2])
+			tmp[3] = api.Add(tmp[3], input[4*i+3])
+		}
+		for i := 0; i < h.params.t/4; i++ {
+			input[4*i] = api.Add(input[4*i], tmp[0])
+			input[4*i+1] = api.Add(input[4*i], tmp[1])
+			input[4*i+2] = api.Add(input[4*i], tmp[2])
+			input[4*i+3] = api.Add(input[4*i], tmp[3])
+		}
+	}
+}
