@@ -18,10 +18,15 @@ package tinyfield
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/stretchr/testify/require"
+	"os"
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
 )
 
 func TestVectorSort(t *testing.T) {
@@ -87,4 +92,274 @@ func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
 		return err
 	}
 	return <-chErr
+}
+
+func TestVectorOps(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = 2
+	} else {
+		parameters.MinSuccessfulTests = 10
+	}
+	properties := gopter.NewProperties(parameters)
+
+	addVector := func(a, b Vector) bool {
+		c := make(Vector, len(a))
+		c.Add(a, b)
+
+		for i := 0; i < len(a); i++ {
+			var tmp Element
+			tmp.Add(&a[i], &b[i])
+			if !tmp.Equal(&c[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	subVector := func(a, b Vector) bool {
+		c := make(Vector, len(a))
+		c.Sub(a, b)
+
+		for i := 0; i < len(a); i++ {
+			var tmp Element
+			tmp.Sub(&a[i], &b[i])
+			if !tmp.Equal(&c[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	scalarMulVector := func(a Vector, b Element) bool {
+		c := make(Vector, len(a))
+		c.ScalarMul(a, &b)
+
+		for i := 0; i < len(a); i++ {
+			var tmp Element
+			tmp.Mul(&a[i], &b)
+			if !tmp.Equal(&c[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	sumVector := func(a Vector) bool {
+		var sum Element
+		computed := a.Sum()
+		for i := 0; i < len(a); i++ {
+			sum.Add(&sum, &a[i])
+		}
+
+		return sum.Equal(&computed)
+	}
+
+	innerProductVector := func(a, b Vector) bool {
+		computed := a.InnerProduct(b)
+		var innerProduct Element
+		for i := 0; i < len(a); i++ {
+			var tmp Element
+			tmp.Mul(&a[i], &b[i])
+			innerProduct.Add(&innerProduct, &tmp)
+		}
+
+		return innerProduct.Equal(&computed)
+	}
+
+	mulVector := func(a, b Vector) bool {
+		c := make(Vector, len(a))
+		a[0].SetUint64(0x24)
+		b[0].SetUint64(0x42)
+		c.Mul(a, b)
+
+		for i := 0; i < len(a); i++ {
+			var tmp Element
+			tmp.Mul(&a[i], &b[i])
+			if !tmp.Equal(&c[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	sizes := []int{1, 2, 3, 4, 8, 9, 15, 16, 509, 510, 511, 512, 513, 514}
+	type genPair struct {
+		g1, g2 gopter.Gen
+		label  string
+	}
+
+	for _, size := range sizes {
+		generators := []genPair{
+			{genZeroVector(size), genZeroVector(size), "zero vectors"},
+			{genMaxVector(size), genMaxVector(size), "max vectors"},
+			{genVector(size), genVector(size), "random vectors"},
+			{genVector(size), genZeroVector(size), "random and zero vectors"},
+		}
+		for _, gp := range generators {
+			properties.Property(fmt.Sprintf("vector addition %d - %s", size, gp.label), prop.ForAll(
+				addVector,
+				gp.g1,
+				gp.g2,
+			))
+
+			properties.Property(fmt.Sprintf("vector subtraction %d - %s", size, gp.label), prop.ForAll(
+				subVector,
+				gp.g1,
+				gp.g2,
+			))
+
+			properties.Property(fmt.Sprintf("vector scalar multiplication %d - %s", size, gp.label), prop.ForAll(
+				scalarMulVector,
+				gp.g1,
+				genElement(),
+			))
+
+			properties.Property(fmt.Sprintf("vector sum %d - %s", size, gp.label), prop.ForAll(
+				sumVector,
+				gp.g1,
+			))
+
+			properties.Property(fmt.Sprintf("vector inner product %d - %s", size, gp.label), prop.ForAll(
+				innerProductVector,
+				gp.g1,
+				gp.g2,
+			))
+
+			properties.Property(fmt.Sprintf("vector multiplication %d - %s", size, gp.label), prop.ForAll(
+				mulVector,
+				gp.g1,
+				gp.g2,
+			))
+		}
+	}
+
+	properties.TestingRun(t, gopter.NewFormatedReporter(false, 260, os.Stdout))
+}
+
+func BenchmarkVectorOps(b *testing.B) {
+	// note; to benchmark against "no asm" version, use the following
+	// build tag: -tags purego
+	const N = 1 << 24
+	a1 := make(Vector, N)
+	b1 := make(Vector, N)
+	c1 := make(Vector, N)
+	var mixer Element
+	mixer.SetRandom()
+	for i := 1; i < N; i++ {
+		a1[i-1].SetUint64(uint64(i)).
+			Mul(&a1[i-1], &mixer)
+		b1[i-1].SetUint64(^uint64(i)).
+			Mul(&b1[i-1], &mixer)
+	}
+
+	for n := 1 << 4; n <= N; n <<= 1 {
+		b.Run(fmt.Sprintf("add %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			_b := b1[:n]
+			_c := c1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_c.Add(_a, _b)
+			}
+		})
+
+		b.Run(fmt.Sprintf("sub %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			_b := b1[:n]
+			_c := c1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_c.Sub(_a, _b)
+			}
+		})
+
+		b.Run(fmt.Sprintf("scalarMul %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			_c := c1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_c.ScalarMul(_a, &mixer)
+			}
+		})
+
+		b.Run(fmt.Sprintf("sum %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = _a.Sum()
+			}
+		})
+
+		b.Run(fmt.Sprintf("innerProduct %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			_b := b1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = _a.InnerProduct(_b)
+			}
+		})
+
+		b.Run(fmt.Sprintf("mul %d", n), func(b *testing.B) {
+			_a := a1[:n]
+			_b := b1[:n]
+			_c := c1[:n]
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_c.Mul(_a, _b)
+			}
+		})
+	}
+}
+
+func genZeroVector(size int) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		g := make(Vector, size)
+		genResult := gopter.NewGenResult(g, gopter.NoShrinker)
+		return genResult
+	}
+}
+
+func genMaxVector(size int) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		g := make(Vector, size)
+
+		qMinusOne := qElement
+		qMinusOne[0]--
+
+		for i := 0; i < size; i++ {
+			g[i] = qMinusOne
+		}
+		genResult := gopter.NewGenResult(g, gopter.NoShrinker)
+		return genResult
+	}
+}
+
+func genVector(size int) gopter.Gen {
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		g := make(Vector, size)
+		mixer := Element{
+			genParams.NextUint64(),
+		}
+		if qElement[0] != ^uint64(0) {
+			mixer[0] %= (qElement[0] + 1)
+		}
+
+		for !mixer.smallerThanModulus() {
+			mixer = Element{
+				genParams.NextUint64(),
+			}
+			if qElement[0] != ^uint64(0) {
+				mixer[0] %= (qElement[0] + 1)
+			}
+		}
+
+		for i := 1; i <= size; i++ {
+			g[i-1].SetUint64(uint64(i)).
+				Mul(&g[i-1], &mixer)
+		}
+
+		genResult := gopter.NewGenResult(g, gopter.NoShrinker)
+		return genResult
+	}
 }
