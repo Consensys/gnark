@@ -523,21 +523,21 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 // TODO: better to move this to package. But this needs refactoring to allow for
 // initializing the elements.
 type Multivariate[T FieldParams] struct {
-	Terms [][]int
-	// Coefficients []*Element[T]
+	Terms        [][]int
+	Coefficients []*big.Int
 }
 
-func ValueOfMultivariate[T FieldParams](terms [][]int) Multivariate[T] {
-	// if len(terms) != len(coeffs) {
-	// 	panic("terms and coefficients mismatch")
-	// }
-	return Multivariate[T]{Terms: terms}
+func ValueOfMultivariate[T FieldParams](terms [][]int, coeffs []*big.Int) Multivariate[T] {
+	if len(terms) != len(coeffs) {
+		panic("terms and coefficients mismatch")
+	}
+	return Multivariate[T]{Terms: terms, Coefficients: coeffs}
 }
 
 func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Element[T] {
-	// if len(mv.Terms) != len(mv.Coefficients) {
-	// 	panic("terms and coefficients mismatch")
-	// }
+	if len(mv.Terms) != len(mv.Coefficients) {
+		panic("terms and coefficients mismatch")
+	}
 	if len(mv.Terms) == 0 {
 		return f.Zero()
 	}
@@ -556,12 +556,12 @@ func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Elem
 	}
 
 	mvc := mvCheck[T]{
-		f:     f,
-		terms: mv.Terms,
-		vals:  at,
-		r:     r,
-		k:     k,
-		c:     c,
+		f:    f,
+		mv:   mv,
+		vals: at,
+		r:    r,
+		k:    k,
+		c:    c,
 	}
 
 	f.deferredChecks = append(f.deferredChecks, &mvc)
@@ -591,6 +591,9 @@ func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem
 			hintInputs = append(hintInputs, mv.Terms[i][j])
 		}
 	}
+	for i := range mv.Coefficients {
+		hintInputs = append(hintInputs, mv.Coefficients[i])
+	}
 	hintInputs = append(hintInputs, f.Modulus().Limbs...)
 	for i := range at {
 		hintInputs = append(hintInputs, len(at[i].Limbs))
@@ -608,12 +611,12 @@ func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem
 }
 
 type mvCheck[T FieldParams] struct {
-	f     *Field[T]
-	terms [][]int
-	vals  []*Element[T]
-	r     *Element[T] // reduced result
-	k     *Element[T] // quotient
-	c     *Element[T] // carry
+	f    *Field[T]
+	mv   *Multivariate[T]
+	vals []*Element[T]
+	r    *Element[T] // reduced result
+	k    *Element[T] // quotient
+	c    *Element[T] // carry
 }
 
 func (mc *mvCheck[T]) toCommit() []frontend.Variable {
@@ -651,8 +654,8 @@ func (mc *mvCheck[T]) evalRound2(at []frontend.Variable) {
 
 func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 	ls := frontend.Variable(0)
-	for _, term := range mc.terms {
-		termProd := frontend.Variable(1)
+	for i, term := range mc.mv.Terms {
+		termProd := frontend.Variable(mc.mv.Coefficients[i])
 		for i, pow := range term {
 			for j := 0; j < pow; j++ {
 				termProd = api.Mul(termProd, mc.vals[i].evaluation)
@@ -720,6 +723,11 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 			ptr++
 		}
 	}
+	coeffs := make([]*big.Int, nbTerms)
+	for i := range coeffs {
+		coeffs[i] = inputs[ptr]
+		ptr++
+	}
 	plimbs := inputs[ptr : ptr+nbLimbs]
 	ptr += nbLimbs
 	p := new(big.Int)
@@ -752,8 +760,8 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	// know how many limbs to expect for schoolbook multiplication
 
 	fullLhs := new(big.Int)
-	for _, term := range terms {
-		termRes := big.NewInt(1)
+	for i, term := range terms {
+		termRes := new(big.Int).Set(coeffs[i])
 		for i, pow := range term {
 			for j := 0; j < pow; j++ {
 				termRes.Mul(termRes, vars[i])
@@ -781,7 +789,7 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	// compute the result on limbs
 	tmp := new(big.Int)
 	var lhs []*big.Int
-	for _, term := range terms {
+	for i, term := range terms {
 		// collect the variables to be multiplied together
 		var termVarLimbs [][]*big.Int
 		nbTermVarLimbs := 0
@@ -794,7 +802,7 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(termVarLimbs) == 0 {
 			continue
 		}
-		termRes := []*big.Int{big.NewInt(1)}
+		termRes := []*big.Int{new(big.Int).Set(coeffs[i])}
 		for _, toMul := range termVarLimbs {
 			termRes = limbMul(termRes, toMul)
 		}

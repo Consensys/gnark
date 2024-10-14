@@ -1299,8 +1299,9 @@ func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
 }
 
 type PolyEval2Circuit[T FieldParams] struct {
-	Inputs   []Element[T]
-	Expected Element[T]
+	Inputs     []Element[T]
+	Polynomial Multivariate[T]
+	Expected   Element[T]
 }
 
 func (c *PolyEval2Circuit[T]) Define(api frontend.API) error {
@@ -1308,21 +1309,17 @@ func (c *PolyEval2Circuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	term1 := f.Mul(&c.Inputs[0], &c.Inputs[0])
-	term1 = f.Mul(term1, &c.Inputs[0])
-
-	term2 := f.Mul(&c.Inputs[0], &c.Inputs[0])
-	term2 = f.Mul(term2, &c.Inputs[1])
-
-	term3 := f.Mul(&c.Inputs[0], &c.Inputs[1])
-	term3 = f.Mul(term3, &c.Inputs[1])
-
-	term4 := f.Mul(&c.Inputs[1], &c.Inputs[1])
-	term4 = f.Mul(term4, &c.Inputs[1])
-
-	res := f.Add(term1, term2)
-	res = f.Add(res, term3)
-	res = f.Add(res, term4)
+	addTerms := make([]*Element[T], len(c.Polynomial.Terms))
+	for i, term := range c.Polynomial.Terms {
+		termVal := f.One()
+		for j, exp := range term {
+			for k := 0; k < int(exp); k++ {
+				termVal = f.Mul(termVal, &c.Inputs[j])
+			}
+		}
+		addTerms[i] = f.MulConst(termVal, c.Polynomial.Coefficients[i])
+	}
+	res := f.Sum(addTerms...)
 
 	f.AssertIsEqual(res, &c.Expected)
 	return nil
@@ -1330,6 +1327,7 @@ func (c *PolyEval2Circuit[T]) Define(api frontend.API) error {
 
 type PolyEval3Circuit[T FieldParams] struct {
 	Inputs     []Element[T]
+	Polynomial Multivariate[T]
 	Expected   Element[T]
 	withReduce bool
 }
@@ -1339,19 +1337,18 @@ func (c *PolyEval3Circuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	term1 := f.MulNoReduce(&c.Inputs[0], &c.Inputs[0])
-	term1 = f.MulNoReduce(term1, &c.Inputs[0])
+	addTerms := make([]*Element[T], len(c.Polynomial.Terms))
+	for i, term := range c.Polynomial.Terms {
+		termVal := f.One()
+		for j, exp := range term {
+			for k := 0; k < int(exp); k++ {
+				termVal = f.MulNoReduce(termVal, &c.Inputs[j])
+			}
+		}
+		addTerms[i] = f.MulConst(termVal, c.Polynomial.Coefficients[i])
+	}
+	res := f.Sum(addTerms...)
 
-	term2 := f.MulNoReduce(&c.Inputs[0], &c.Inputs[0])
-	term2 = f.MulNoReduce(term2, &c.Inputs[1])
-
-	term3 := f.MulNoReduce(&c.Inputs[0], &c.Inputs[1])
-	term3 = f.MulNoReduce(term3, &c.Inputs[1])
-
-	term4 := f.MulNoReduce(&c.Inputs[1], &c.Inputs[1])
-	term4 = f.MulNoReduce(term4, &c.Inputs[1])
-
-	res := f.Sum(term1, term2, term3, term4)
 	if c.withReduce {
 		res = f.Reduce(res)
 	}
@@ -1371,8 +1368,9 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 	var fp T
 	var err error
-	// x^3 + x^2 y + x y^2 + y^3
+	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3
 	terms := [][]int{{3, 0}, {2, 1}, {1, 2}, {0, 3}}
+	coefficients := []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5)}
 	inputs := make([]*big.Int, nbInputs)
 	assignmentInput := make([]Element[T], nbInputs)
 	for i := range inputs {
@@ -1384,8 +1382,8 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	}
 	expected := new(big.Int)
 	tmp := new(big.Int)
-	for _, term := range terms {
-		termVal := big.NewInt(1)
+	for i, term := range terms {
+		termVal := new(big.Int).Set(coefficients[i])
 		for i, in := range inputs {
 			tmp.Exp(in, big.NewInt(int64(term[i])), fp.Modulus())
 			termVal.Mul(termVal, tmp)
@@ -1393,7 +1391,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 		expected.Add(expected, termVal)
 	}
 	expected.Mod(expected, fp.Modulus())
-	mv := ValueOfMultivariate[T](terms)
+	mv := ValueOfMultivariate[T](terms, coefficients)
 
 	assignment := &PolyEvalCircuit[T]{
 		Inputs:   assignmentInput,
@@ -1401,11 +1399,11 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	}
 	err = test.IsSolved(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
-	err = test.IsSolved(&PolyEval2Circuit[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	err = test.IsSolved(&PolyEval2Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
-	err = test.IsSolved(&PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	err = test.IsSolved(&PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
-	err = test.IsSolved(&PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), withReduce: true}, assignment, testCurve.ScalarField())
+	err = test.IsSolved(&PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv, withReduce: true}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
 
 	// frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv})
