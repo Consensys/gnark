@@ -48,9 +48,6 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 
 	deferredChecks []deferredChecker
-
-	// mulChecks []mulCheck[T]
-	// mvChecks  []mvCheck[T] // TODO: maybe make interface and store in the same slice as previous?
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -107,7 +104,6 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	}
 
 	native.Compiler().Defer(f.performDeferredChecks)
-	// native.Compiler().Defer(f.performPolyChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
 	}
