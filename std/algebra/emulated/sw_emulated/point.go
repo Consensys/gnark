@@ -1578,7 +1578,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	u1, u2, v1, v2, w1, w2, r1, r2, s1, s2 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5], sd[6], sd[7], sd[8], sd[9]
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponsing
+	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
 	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 10, _s, c.eigenvalue)
 	if err != nil {

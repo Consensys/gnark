@@ -719,7 +719,7 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	r1.SetString("91893752504881257701523279626832445440", 10)
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponsing
+	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
 	signs, err := api.NewHint(halfGCDEisensteinSigns, 6, _s, cc.lambda)
 	if err != nil {
