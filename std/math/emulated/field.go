@@ -105,6 +105,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	}
 
 	native.Compiler().Defer(f.performMulChecks)
+	native.Compiler().Defer(f.performPolyChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
 	}

@@ -589,34 +589,88 @@ type mvCheck[T FieldParams] struct {
 	c     *Element[T] // carry
 }
 
-// func (f *Field[T]) polyEvalQuoSize(mv *Multivariate[T], at []*Element[T]) (nextOverflow uint, err error) {
-// 	perTermOverflows := make([]uint, len(mv.Terms))
-// 	perTermNbLimbs := make([]int, len(mv.Terms))
-// 	for i := range mv.Terms {
-// 		var toMul []*Element[T]
-// 		totalOverflow := uint(0)
-// 		for k := range mv.Terms[i] {
-// 			for range mv.Terms[i] {
-// 				toMul = append(toMul, at[k])
-// 				totalOverflow += at[k].overflow
-// 			}
-// 		}
-// 		if len(toMul) == 0 {
-// 			panic("empty toMul")
-// 		}
-// 		if len(toMul) == 1 {
-// 			perTermOverflows[i] = toMul[0].overflow
-// 			perTermNbLimbs[i] = len(toMul[0].Limbs)
-// 			continue
-// 		}
-// 		perTermNbLimbs[i] = nbMultiplicationResLimbs(len(toMul[0].Limbs), len(toMul[1].Limbs))
-// 		for j := 2; j < len(toMul); j++ {
-// 			perTermNbLimbs[i] = nbMultiplicationResLimbs(perTermNbLimbs[i], len(toMul[j].Limbs))
-// 		}
-// 		perTermOverflows[i] = uint(len(toMul))*(f.fParams.BitsPerLimb()+1) + totalOverflow
-// 	}
-// 	panic("TODO")
-// }
+func (mc *mvCheck[T]) evalRound1(at []frontend.Variable) {
+	mc.c = mc.f.evalWithChallenge(mc.c, at)
+	mc.r = mc.f.evalWithChallenge(mc.r, at)
+	mc.k = mc.f.evalWithChallenge(mc.k, at)
+}
+
+func (mc *mvCheck[T]) evalRound2(at []frontend.Variable) {
+	for i := range mc.vals {
+		mc.vals[i] = mc.f.evalWithChallenge(mc.vals[i], at)
+	}
+}
+
+func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
+	ls := frontend.Variable(0)
+	for _, term := range mc.terms {
+		termProd := frontend.Variable(1)
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termProd = api.Mul(termProd, mc.vals[i].evaluation)
+			}
+		}
+		ls = api.Add(ls, termProd)
+	}
+	rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
+	api.AssertIsEqual(ls, rs)
+}
+
+func (mc *mvCheck[T]) cleanEvaluations() {
+	mc.r.evaluation = 0
+	mc.r.isEvaluated = false
+	mc.k.evaluation = 0
+	mc.k.isEvaluated = false
+	mc.c.evaluation = 0
+	mc.c.isEvaluated = false
+}
+
+func (f *Field[T]) performPolyChecks(api frontend.API) error {
+	if len(f.mvChecks) == 0 {
+		return nil
+	}
+	var toCommit []frontend.Variable
+	for i := range f.mvChecks {
+		toCommit = append(toCommit, f.mvChecks[i].r.Limbs...)
+		toCommit = append(toCommit, f.mvChecks[i].k.Limbs...)
+		toCommit = append(toCommit, f.mvChecks[i].c.Limbs...)
+		for j := range f.mvChecks[i].vals {
+			toCommit = append(toCommit, f.mvChecks[i].vals[j].Limbs...)
+		}
+	}
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		coefsLen := int(f.fParams.NbLimbs())
+		for i := range f.mvChecks {
+			coefsLen = max(coefsLen, len(f.mvChecks[i].r.Limbs), len(f.mvChecks[i].k.Limbs), len(f.mvChecks[i].c.Limbs))
+			for j := range f.mvChecks[i].vals {
+				coefsLen = max(coefsLen, len(f.mvChecks[i].vals[j].Limbs))
+			}
+		}
+		at := make([]frontend.Variable, coefsLen)
+		at[0] = commitment
+		for i := 1; i < len(at); i++ {
+			at[i] = api.Mul(at[i-1], commitment)
+		}
+		for i := range f.mvChecks {
+			f.mvChecks[i].evalRound1(at)
+		}
+		for i := range f.mvChecks {
+			f.mvChecks[i].evalRound2(at)
+		}
+		pval := f.evalWithChallenge(f.Modulus(), at)
+		coef := big.NewInt(1)
+		coef.Lsh(coef, f.fParams.BitsPerLimb())
+		ccoef := api.Sub(coef, commitment)
+		for i := range f.mvChecks {
+			f.mvChecks[i].check(api, pval.evaluation, ccoef)
+		}
+		for i := range f.mvChecks {
+			f.mvChecks[i].cleanEvaluations()
+		}
+		return nil
+	}, toCommit...)
+	return nil
+}
 
 func (f *Field[T]) polyEvalQuoSize2(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
 	modBits := f.fParams.Modulus().BitLen()
