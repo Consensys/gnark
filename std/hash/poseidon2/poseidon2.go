@@ -4,6 +4,14 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	poseidonbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	poseidonbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/poseidon2"
+	poseidonbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/poseidon2"
+	poseidonbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/poseidon2"
+	poseidonbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
+	poseidonbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/poseidon2"
+	poseidonbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -37,9 +45,73 @@ type parameters struct {
 	roundKeys [][]big.Int
 }
 
-func NewHash(t, d, rf, rp int) Hash {
-	return Hash{
-		params: parameters{t: t, d: d, rF: rf, rP: rp}}
+func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
+	params := parameters{t: t, d: d, rF: rf, rP: rp}
+	if curve == ecc.BN254 {
+		rc := poseidonbn254.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BLS12_381 {
+		rc := poseidonbls12381.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BLS12_377 {
+		rc := poseidonbls12377.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BW6_761 {
+		rc := poseidonbw6761.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BW6_633 {
+		rc := poseidonbw6633.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BLS24_315 {
+		rc := poseidonbls24315.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	} else if curve == ecc.BLS24_317 {
+		rc := poseidonbls24317.InitRC("seed", rf, rp, t)
+		params.roundKeys = make([][]big.Int, len(rc))
+		for i := 0; i < len(rc); i++ {
+			params.roundKeys[i] = make([]big.Int, len(rc[i]))
+			for j := 0; j < len(rc[i]); j++ {
+				rc[i][j].BigInt(&params.roundKeys[i][j])
+			}
+		}
+	}
+	return Hash{params: params}
 }
 
 // sBox applies the sBox on buffer[index]
