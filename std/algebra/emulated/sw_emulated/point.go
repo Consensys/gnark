@@ -1730,7 +1730,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// N.B.: Acc cannot be equal to G, otherwise this means G = -Φ²([s+1]P)
 	g := c.Generator()
-	Acc = addFn(Acc, g)
+	Acc = c.Add(Acc, g)
 
 	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
 	// We prove that the factor is 760 * sqrt(2),
@@ -1810,13 +1810,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// i = 0
 	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
-	tableP[0] = addFn(tableP[0], Acc)
+	tableP[0] = c.Add(tableP[0], Acc)
 	Acc = c.Select(u1bits[0], Acc, tableP[0])
-	tablePhiP[0] = addFn(tablePhiP[0], Acc)
+	tablePhiP[0] = c.Add(tablePhiP[0], Acc)
 	Acc = c.Select(u2bits[0], Acc, tablePhiP[0])
-	tableQ[0] = addFn(tableQ[0], Acc)
+	tableQ[0] = c.Add(tableQ[0], Acc)
 	Acc = c.Select(v1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
+	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
 	Acc = c.Select(v2bits[0], Acc, tablePhiQ[0])
 
 	// Acc should be now equal to [2^nbits]G

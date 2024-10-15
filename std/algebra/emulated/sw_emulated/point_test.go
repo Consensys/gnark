@@ -2282,3 +2282,46 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
 }
+
+func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bn254.Generators()
+	var r fr_bn.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S bn254.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.BN254Fp, emulated.BN254Fr]{}
+
+	// s * (0,0) == (0,0)
+	witness1 := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fr](s),
+		P: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+		R: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0 * P == (0,0)
+	witness2 := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fr](new(big.Int)),
+		P: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](g.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](g.Y),
+		},
+		R: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+}
