@@ -12,7 +12,6 @@ var (
 )
 
 type Hash struct {
-	state  []frontend.Variable
 	params parameters
 }
 
