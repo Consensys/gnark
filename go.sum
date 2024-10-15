@@ -70,6 +70,10 @@ github.com/consensys/gnark-crypto v0.14.1-0.20241015125550-70b013938e65 h1:lufqh
 github.com/consensys/gnark-crypto v0.14.1-0.20241015125550-70b013938e65/go.mod h1:F/hJyWBcTr1sWeifAKfEN3aVb3G4U5zheEC8IbWQun4=
 github.com/consensys/gnark-crypto v0.14.1-0.20241015132150-c4cbfda58488 h1:YxUVNlDOQCE+IIGC9jJvnTh5u+/1slIMwqiwUrlrVt8=
 github.com/consensys/gnark-crypto v0.14.1-0.20241015132150-c4cbfda58488/go.mod h1:F/hJyWBcTr1sWeifAKfEN3aVb3G4U5zheEC8IbWQun4=
+github.com/consensys/gnark-crypto v0.14.1-0.20241015165938-49b948fc4950 h1:Nzi7R0gIH3OZBtETCaV8Hd5QXk+Ucj/boLPAL9LRbnk=
+github.com/consensys/gnark-crypto v0.14.1-0.20241015165938-49b948fc4950/go.mod h1:F/hJyWBcTr1sWeifAKfEN3aVb3G4U5zheEC8IbWQun4=
+github.com/consensys/gnark-crypto v0.14.1-0.20241015172500-739228a3ec41 h1:gsAwh0FMunFuFG0lSzux/hK0p8/jgjbCHha02aoVGao=
+github.com/consensys/gnark-crypto v0.14.1-0.20241015172500-739228a3ec41/go.mod h1:F/hJyWBcTr1sWeifAKfEN3aVb3G4U5zheEC8IbWQun4=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
