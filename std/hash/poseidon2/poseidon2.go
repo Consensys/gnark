@@ -1,9 +1,14 @@
 package poseidon
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+)
+
+var (
+	ErrInvalidSizebuffer = errors.New("the size of the input should match the size of the hash buffer")
 )
 
 type Hash struct {
@@ -127,4 +132,76 @@ func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable
 			input[4*i+3] = api.Add(input[4*i], tmp[3])
 		}
 	}
+}
+
+// when t=2,3 the matrix are respectibely [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
+// otherwise the matrix is filled with ones except on the diagonal,
+func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
+	if h.params.t == 2 {
+		var sum frontend.Variable
+		sum = api.Add(input[0], input[1])
+		input[0] = api.Add(input[0], sum)
+		input[1] = api.Mul(2, input[1])
+		input[1] = api.Add(input[1], sum)
+	} else if h.params.t == 3 {
+		var sum frontend.Variable
+		sum = api.Add(input[0], input[1])
+		sum = api.Add(sum, input[2])
+		input[0] = api.Add(input[0], sum)
+		input[1] = api.Add(input[1], sum)
+		input[2] = api.Add(input[2], sum)
+	} else {
+		var sum frontend.Variable
+		sum = input[0]
+		for i := 1; i < h.params.t; i++ {
+			sum = api.Add(sum, input[i])
+		}
+		for i := 0; i < h.params.t; i++ {
+			input[i] = api.Mul(input[i], h.params.diagInternalMatrices[i])
+			input[i] = api.Add(input[i], sum)
+		}
+	}
+}
+
+// addRoundKeyInPlace adds the round-th key to the buffer
+func (h *Hash) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
+	for i := 0; i < h.params.t; i++ {
+		input[i] = api.Add(input[i], h.params.roundKeys[round][i])
+	}
+}
+
+func (h *Hash) permutationInPlace(api frontend.API, input []frontend.Variable) error {
+	if len(input) != h.params.t {
+		return ErrInvalidSizebuffer
+	}
+
+	// external matrix multiplication, cf https://eprint.iacr.org/2023/323.pdf page 14 (part 6)
+	h.matMulExternalInPlace(api, input)
+
+	rf := h.params.rF / 2
+	for i := 0; i < rf; i++ {
+		// one round = matMulExternal(sBox_Full(addRoundKey))
+		h.addRoundKeyInPlace(api, i, input)
+		for j := 0; j < h.params.t; j++ {
+			h.sBox(api, j, input)
+		}
+		h.matMulExternalInPlace(api, input)
+	}
+
+	for i := rf; i < rf+h.params.rP; i++ {
+		// one round = matMulInternal(sBox_sparse(addRoundKey))
+		h.addRoundKeyInPlace(api, i, input)
+		h.sBox(api, 0, input)
+		h.matMulInternalInPlace(api, input)
+	}
+	for i := rf + h.params.rP; i < h.params.rF+h.params.rP; i++ {
+		// one round = matMulExternal(sBox_Full(addRoundKey))
+		h.addRoundKeyInPlace(api, i, input)
+		for j := 0; j < h.params.t; j++ {
+			h.sBox(api, j, input)
+		}
+		h.matMulExternalInPlace(api, input)
+	}
+
+	return nil
 }
