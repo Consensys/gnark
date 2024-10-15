@@ -799,7 +799,6 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	_P := P
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
-		_selector0 = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector0, G1Affine{X: 1, Y: 0}, Q)
 		// if P=(0,0) we assign a dummy point to P and continue
 		_selector0 = api.And(api.IsZero(P.X), api.IsZero(P.Y))
