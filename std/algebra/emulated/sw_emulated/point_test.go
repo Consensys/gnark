@@ -869,6 +869,21 @@ func TestScalarMulEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulEdgeCasesTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fr](new(big.Int)),
+		P: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+		R: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
 }
 
 type IsOnCurveTest[T, S emulated.FieldParams] struct {
@@ -2098,6 +2113,21 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](new(big.Int)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
 }
 
 func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
@@ -2138,6 +2168,21 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulFakeGLVEdgeCasesTest[emulated.P384Fp, emulated.P384Fr]{
+		S: emulated.ValueOf[emulated.P384Fr](new(big.Int)),
+		P: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](0),
+			Y: emulated.ValueOf[emulated.P384Fp](0),
+		},
+		R: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](0),
+			Y: emulated.ValueOf[emulated.P384Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -2181,6 +2226,21 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases3(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulFakeGLVEdgeCasesTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](new(big.Int)),
+		P: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](0),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](0),
+		},
+		R: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](0),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -2283,6 +2343,21 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](new(big.Int)),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](0),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](0),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](0),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
 }
 
 func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
@@ -2325,5 +2400,20 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0 * (0,0) == (0,0)
+	witness3 := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fr](new(big.Int)),
+		P: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+		R: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](0),
+			Y: emulated.ValueOf[emulated.BN254Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
 	assert.NoError(err)
 }

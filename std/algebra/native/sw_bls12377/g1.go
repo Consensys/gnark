@@ -796,24 +796,27 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 
 	// handle (0,0)-point
 	var _selector0 frontend.Variable
+	_P := P
 	if cfg.CompleteArithmetic {
-		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
+		// if Q=(0,0) we assign a dummy point to Q and continue
 		_selector0 = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-		dummy := G1Affine{X: 1, Y: 0}
-		Q.Select(api, _selector0, dummy, Q)
+		Q.Select(api, selector0, G1Affine{X: 1, Y: 0}, Q)
+		// if P=(0,0) we assign a dummy point to P and continue
+		_selector0 = api.And(api.IsZero(P.X), api.IsZero(P.Y))
+		_P.Select(api, _selector0, G1Affine{X: 2, Y: 1}, P)
 	}
 
 	// precompute -P, -Φ(P), Φ(P)
 	var tableP, tablePhiP [2]G1Affine
-	negPY := api.Neg(P.Y)
+	negPY := api.Neg(_P.Y)
 	tableP[1] = G1Affine{
-		X: P.X,
-		Y: api.Select(selector1, negPY, P.Y),
+		X: _P.X,
+		Y: api.Select(selector1, negPY, _P.Y),
 	}
 	tableP[0].Neg(api, tableP[1])
 	tablePhiP[1] = G1Affine{
-		X: api.Mul(P.X, cc.thirdRootOne1),
-		Y: api.Select(selector2, negPY, P.Y),
+		X: api.Mul(_P.X, cc.thirdRootOne1),
+		Y: api.Select(selector2, negPY, _P.Y),
 	}
 	tablePhiP[0].Neg(api, tablePhiP[1])
 
