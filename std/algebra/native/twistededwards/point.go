@@ -101,7 +101,7 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
@@ -195,7 +195,7 @@ func (p *Point) doubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 fron
 
 // phi endomorphism √-2 ∈ 𝒪₋₈
 // (x,y) → λ × (x,y) s.t. λ² = -2 mod Order
-func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoParams) *Point {
+func (p *Point) phi(api frontend.API, p1 *Point, endo *EndoParams) *Point {
 
 	xy := api.Mul(p1.X, p1.Y)
 	yy := api.Mul(p1.Y, p1.Y)
@@ -217,6 +217,7 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
+
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + λ * s2 == s mod Order,
 	// with λ s.t. λ² = -2 mod Order.
@@ -227,23 +228,30 @@ func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variab
 	b1 := api.ToBinary(s1, n)
 	b2 := api.ToBinary(s2, n)
 
-	var res, p2, p3, tmp Point
-	p2.phi(api, p1, curve, endo)
+	var _p1, res, p2, p3, tmp Point
+	// the endomorphism is not defined for point with X=0 or Y=0 Y=0 points are
+	// not on the prime subgroup and X=0 point is the zero-point (0,1).
+	// So we replace p1=(0,1) with a dummy point (3,1) and continue at the end
+	// we return (0,1).
+	selector := api.IsZero(p1.X)
+	_p1.X = api.Select(selector, 3, p1.X)
+	_p1.Y = p1.Y
+	p2.phi(api, &_p1, endo)
 	p2.X = api.Select(s3, api.Neg(p2.X), p2.X)
-	p3.add(api, p1, &p2, curve)
+	p3.add(api, &_p1, &p2, curve)
 
-	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, p1.X, p2.X, p3.X)
-	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, p1.Y, p2.Y, p3.Y)
+	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, _p1.X, p2.X, p3.X)
+	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, _p1.Y, p2.Y, p3.Y)
 
 	for i := n - 2; i >= 0; i-- {
 		res.double(api, &res, curve)
-		tmp.X = api.Lookup2(b1[i], b2[i], 0, p1.X, p2.X, p3.X)
-		tmp.Y = api.Lookup2(b1[i], b2[i], 1, p1.Y, p2.Y, p3.Y)
+		tmp.X = api.Lookup2(b1[i], b2[i], 0, _p1.X, p2.X, p3.X)
+		tmp.Y = api.Lookup2(b1[i], b2[i], 1, _p1.Y, p2.Y, p3.Y)
 		res.add(api, &res, &tmp, curve)
 	}
 
-	p.X = res.X
-	p.Y = res.Y
+	p.X = api.Select(selector, 0, res.X)
+	p.Y = api.Select(selector, 1, res.Y)
 
 	return p
 }

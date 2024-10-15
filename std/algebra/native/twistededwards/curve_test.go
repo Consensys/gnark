@@ -153,6 +153,34 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 	}
 
 	{
+		// scalar mul zero-scalar edge-case
+		res := curve.ScalarMul(circuit.P2, 0)
+		api.AssertIsEqual(res.X, 0)
+		api.AssertIsEqual(res.Y, 1)
+	}
+
+	{
+		// scalar mul zero-point edge-case
+		res := curve.ScalarMul(Point{0, 1}, circuit.S2)
+		api.AssertIsEqual(res.X, 0)
+		api.AssertIsEqual(res.Y, 1)
+	}
+
+	{
+		// scalar mul zero-scalar and zero-point edge-case
+		res := curve.ScalarMul(Point{0, 1}, 0)
+		api.AssertIsEqual(res.X, 0)
+		api.AssertIsEqual(res.Y, 1)
+	}
+
+	{
+		// scalar mul one-scalar edge-case
+		res := curve.ScalarMul(circuit.P2, 1)
+		api.AssertIsEqual(res.X, circuit.P2.X)
+		api.AssertIsEqual(res.Y, circuit.P2.Y)
+	}
+
+	{
 		// double scalar mul
 		res := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, circuit.S1, circuit.S2)
 		api.AssertIsEqual(res.X, circuit.DoubleScalarMulResult.X)
