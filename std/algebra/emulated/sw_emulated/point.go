@@ -1670,26 +1670,26 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// handle (0,0)-point
 	var _selector0 frontend.Variable
-	addFn := c.Add
+	_P := P
 	if cfg.CompleteArithmetic {
-		addFn = c.AddUnified
-		// if Q=(0,0) we assign a dummy point to Q and R and continue
-		_selector0 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		dummy := c.GeneratorMultiples()[3]
-		Q = c.Select(_selector0, &dummy, Q)
+		// if Q=(0,0) we assign a dummy point to Q and continue
+		Q = c.Select(selector0, &c.GeneratorMultiples()[3], Q)
+		// if P=(0,0) we assign a dummy point to P and continue
+		_selector0 = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
+		_P = c.Select(_selector0, &c.GeneratorMultiples()[4], P)
 	}
 
 	// precompute -P, -Φ(P), Φ(P)
 	var tableP, tablePhiP [2]*AffinePoint[B]
-	negPY := c.baseApi.Neg(&P.Y)
+	negPY := c.baseApi.Neg(&_P.Y)
 	tableP[1] = &AffinePoint[B]{
-		X: P.X,
-		Y: *c.baseApi.Select(selector1, negPY, &P.Y),
+		X: _P.X,
+		Y: *c.baseApi.Select(selector1, negPY, &_P.Y),
 	}
 	tableP[0] = c.Neg(tableP[1])
 	tablePhiP[1] = &AffinePoint[B]{
-		X: *c.baseApi.Mul(&P.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, negPY, &P.Y),
+		X: *c.baseApi.Mul(&_P.X, c.thirdRootOne),
+		Y: *c.baseApi.Select(selector2, negPY, &_P.Y),
 	}
 	tablePhiP[0] = c.Neg(tablePhiP[1])
 
@@ -1709,18 +1709,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
 	var tableS, tablePhiS [4]*AffinePoint[B]
-	tableS[0] = addFn(tableP[0], tableQ[0])
+	tableS[0] = c.Add(tableP[0], tableQ[0])
 	tableS[1] = c.Neg(tableS[0])
-	tableS[2] = addFn(tableP[1], tableQ[0])
+	tableS[2] = c.Add(tableP[1], tableQ[0])
 	tableS[3] = c.Neg(tableS[2])
-	tablePhiS[0] = addFn(tablePhiP[0], tablePhiQ[0])
+	tablePhiS[0] = c.Add(tablePhiP[0], tablePhiQ[0])
 	tablePhiS[1] = c.Neg(tablePhiS[0])
-	tablePhiS[2] = addFn(tablePhiP[1], tablePhiQ[0])
+	tablePhiS[2] = c.Add(tablePhiP[1], tablePhiQ[0])
 	tablePhiS[3] = c.Neg(tablePhiS[2])
 
 	// we suppose that the first bits of the sub-scalars are 1 and set:
 	// 		Acc = P + Q + Φ(P) + Φ(Q)
-	Acc := addFn(tableS[1], tablePhiS[1])
+	Acc := c.Add(tableS[1], tablePhiS[1])
 	B1 := Acc
 	// then we add G (the base point) to Acc to avoid incomplete additions in
 	// the loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it
@@ -1745,19 +1745,19 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
 	// 		B2  = +P + Q + Φ(P) - Φ(Q)
-	B2 := addFn(tableS[1], tablePhiS[2])
+	B2 := c.Add(tableS[1], tablePhiS[2])
 	// 		B3  = +P + Q - Φ(P) + Φ(Q)
-	B3 := addFn(tableS[1], tablePhiS[3])
+	B3 := c.Add(tableS[1], tablePhiS[3])
 	// 		B4  = +P + Q - Φ(P) - Φ(Q)
-	B4 := addFn(tableS[1], tablePhiS[0])
+	B4 := c.Add(tableS[1], tablePhiS[0])
 	// 		B5  = +P - Q + Φ(P) + Φ(Q)
-	B5 := addFn(tableS[2], tablePhiS[1])
+	B5 := c.Add(tableS[2], tablePhiS[1])
 	// 		B6  = +P - Q + Φ(P) - Φ(Q)
-	B6 := addFn(tableS[2], tablePhiS[2])
+	B6 := c.Add(tableS[2], tablePhiS[2])
 	// 		B7  = +P - Q - Φ(P) + Φ(Q)
-	B7 := addFn(tableS[2], tablePhiS[3])
+	B7 := c.Add(tableS[2], tablePhiS[3])
 	// 		B8  = +P - Q - Φ(P) - Φ(Q)
-	B8 := addFn(tableS[2], tablePhiS[0])
+	B8 := c.Add(tableS[2], tablePhiS[0])
 	// 		B9  = -P + Q + Φ(P) + Φ(Q)
 	B9 := c.Neg(B8)
 	// 		B10 = -P + Q + Φ(P) - Φ(Q)

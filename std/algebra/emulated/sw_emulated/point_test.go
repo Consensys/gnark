@@ -2194,8 +2194,10 @@ func (c *ScalarMulGLVAndFakeGLVTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S)
-	cr.AssertIsEqual(res, &c.R)
+	res1 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S)
+	res2 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res1, &c.R)
+	cr.AssertIsEqual(res2, &c.R)
 	return nil
 }
 
