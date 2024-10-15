@@ -34,7 +34,8 @@ func TestContributionSerialization(t *testing.T) {
 	assert := require.New(t)
 
 	// Phase 1
-	srs1 := NewPhase1(9)
+	var srs1 Phase1
+	srs1.Initialize(1 << 9)
 	srs1.Contribute()
 
 	assert.NoError(gnarkio.RoundTripCheck(&srs1, func() interface{} { return new(Phase1) }))

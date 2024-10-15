@@ -23,7 +23,6 @@ import (
 	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"math"
 	"math/big"
 )
 
@@ -37,8 +36,8 @@ type Phase1 struct {
 	}
 	G1Derived struct {
 		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
-		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
-		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
+		AlphaTau []curve.G1Affine // {[ατ⁰]₁, [ατ¹]₁, [ατ²]₁, …, [ατⁿ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {[βτ⁰]₁, [βτ¹]₁, [βτ²]₁, …, [βτⁿ⁻¹]₁}
 	}
 	G2Derived struct {
 		Tau []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
@@ -84,29 +83,26 @@ func (p *Phase1) Contribute() {
 	p.Challenge = challenge
 }
 
-// NewPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
-// any randomness contribution is made (see Contribute()).
-func NewPhase1(power int) (phase1 Phase1) {
-	N := int(math.Pow(2, float64(power)))
-
+// Initialize an empty object of size N
+func (p *Phase1) Initialize(N uint64) {
 	_, _, g1, g2 := curve.Generators()
 
-	phase1.Challenge = []byte{0}
-	phase1.Principal.Alpha.setEmpty(true)
-	phase1.Principal.Beta.setEmpty(true)
-	phase1.Principal.Tau.setEmpty(false)
+	p.Challenge = []byte{0}
+	p.Principal.Alpha.setEmpty(true)
+	p.Principal.Beta.setEmpty(false)
+	p.Principal.Tau.setEmpty(false)
 
-	phase1.G1Derived.Tau = make([]curve.G1Affine, 2*N-1)
-	phase1.G2Derived.Tau = make([]curve.G2Affine, N)
-	phase1.G1Derived.AlphaTau = make([]curve.G1Affine, N)
-	phase1.G1Derived.BetaTau = make([]curve.G1Affine, N)
-	for i := range phase1.G1Derived.Tau {
-		phase1.G1Derived.Tau[i].Set(&g1)
+	p.G1Derived.Tau = make([]curve.G1Affine, 2*N-1)
+	p.G2Derived.Tau = make([]curve.G2Affine, N)
+	p.G1Derived.AlphaTau = make([]curve.G1Affine, N)
+	p.G1Derived.BetaTau = make([]curve.G1Affine, N)
+	for i := range p.G1Derived.Tau {
+		p.G1Derived.Tau[i].Set(&g1)
 	}
-	for i := range phase1.G2Derived.Tau {
-		phase1.G2Derived.Tau[i].Set(&g2)
-		phase1.G1Derived.AlphaTau[i].Set(&g1)
-		phase1.G1Derived.BetaTau[i].Set(&g1)
+	for i := range p.G2Derived.Tau {
+		p.G2Derived.Tau[i].Set(&g2)
+		p.G1Derived.AlphaTau[i].Set(&g1)
+		p.G1Derived.BetaTau[i].Set(&g1)
 	}
 
 	return
@@ -158,10 +154,10 @@ func (p *Phase1) Verify(previous *Phase1) error {
 	r := linearCombCoeffs(len(p.G1Derived.Tau) - 1) // the longest of all lengths
 	// will be reusing the coefficient TODO @Tabaie make sure that's okay
 
-	tauT1, tauS1 := linearCombinationsG1(r, p.G1Derived.Tau)
-	tauT2, tauS2 := linearCombinationsG2(r, p.G2Derived.Tau)
-	alphaTT, alphaTS := linearCombinationsG1(r, p.G1Derived.AlphaTau)
-	betaTT, betaTS := linearCombinationsG1(r, p.G1Derived.BetaTau)
+	tauT1, tauS1 := linearCombinationsG1(p.G1Derived.Tau[1:], r)
+	tauT2, tauS2 := linearCombinationsG2(p.G2Derived.Tau[1:], r)
+	alphaTT, alphaTS := linearCombinationsG1(p.G1Derived.AlphaTau, r)
+	betaTT, betaTS := linearCombinationsG1(p.G1Derived.BetaTau, r)
 
 	if !sameRatioUnsafe(tauS1, tauT1, *p.Principal.Tau.updatedCommitment.g2, g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
@@ -191,6 +187,7 @@ func (p *Phase1) hash() []byte {
 		panic("challenge field missing")
 	}
 	sha := sha256.New()
-	p.writeTo(sha)
+	p.WriteTo(sha)
+	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }

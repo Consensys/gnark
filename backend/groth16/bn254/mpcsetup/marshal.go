@@ -21,36 +21,48 @@ import (
 	"io"
 )
 
-// WriteTo implements io.WriterTo
-func (p *Phase1) WriteTo(writer io.Writer) (int64, error) {
-	n, err := p.writeTo(writer)
-	if err != nil {
-		return n, err
+func appendToSlice[T any](s []interface{}, v []T) []interface{} {
+	for i := range v {
+		s = append(s, v[i])
 	}
-	nBytes, err := writer.Write(p.Hash)
-	return int64(nBytes) + n, err
+	return s
 }
 
-func (p *Phase1) writeTo(writer io.Writer) (int64, error) {
-	toEncode := []interface{}{
-		&p.PublicKeys.Tau.SG,
-		&p.PublicKeys.Tau.SXG,
-		&p.PublicKeys.Tau.XR,
-		&p.PublicKeys.Alpha.SG,
-		&p.PublicKeys.Alpha.SXG,
-		&p.PublicKeys.Alpha.XR,
-		&p.PublicKeys.Beta.SG,
-		&p.PublicKeys.Beta.SXG,
-		&p.PublicKeys.Beta.XR,
-		p.Parameters.G1.Tau,
-		p.Parameters.G1.AlphaTau,
-		p.Parameters.G1.BetaTau,
-		p.Parameters.G2.Tau,
-		&p.Parameters.G2.Beta,
+func (p *Phase1) toSlice() []interface{} {
+	N := len(p.G2Derived.Tau)
+	estimatedNbElems := 5*N + 5
+	// size N                                                                    1
+	// commitment, proof of knowledge, and 𝔾₁ representation for τ, α, and β     9
+	// 𝔾₂ representation for τ and β                                             2
+	// [τⁱ]₁  for 2 ≤ i ≤ 2N-2                                                2N-3
+	// [τⁱ]₂  for 2 ≤ i ≤ N-1                                                  N-2
+	// [ατⁱ]₁ for 1 ≤ i ≤ N-1                                                  N-1
+	// [βτⁱ]₁ for 1 ≤ i ≤ N-1                                                  N-1
+
+	toEncode := make([]interface{}, 1, estimatedNbElems)
+
+	toEncode[0] = N
+	toEncode = p.Principal.Tau.appendRefsToSlice(toEncode)
+	toEncode = p.Principal.Alpha.appendRefsToSlice(toEncode)
+	toEncode = p.Principal.Beta.appendRefsToSlice(toEncode)
+
+	toEncode = appendToSlice(toEncode, p.G1Derived.Tau[2:])
+	toEncode = appendToSlice(toEncode, p.G2Derived.Tau[2:])
+	toEncode = appendToSlice(toEncode, p.G1Derived.BetaTau[1:])
+	toEncode = appendToSlice(toEncode, p.G1Derived.AlphaTau[1:])
+
+	if len(toEncode) != estimatedNbElems {
+		panic("incorrect length estimate")
 	}
 
+	return toEncode
+}
+
+// WriteTo implements io.WriterTo
+func (p *Phase1) WriteTo(writer io.Writer) (int64, error) {
+
 	enc := curve.NewEncoder(writer)
-	for _, v := range toEncode {
+	for _, v := range p.toSlice() {
 		if err := enc.Encode(v); err != nil {
 			return enc.BytesWritten(), err
 		}
@@ -60,32 +72,21 @@ func (p *Phase1) writeTo(writer io.Writer) (int64, error) {
 
 // ReadFrom implements io.ReaderFrom
 func (p *Phase1) ReadFrom(reader io.Reader) (int64, error) {
-	toEncode := []interface{}{
-		&p.PublicKeys.Tau.SG,
-		&p.PublicKeys.Tau.SXG,
-		&p.PublicKeys.Tau.XR,
-		&p.PublicKeys.Alpha.SG,
-		&p.PublicKeys.Alpha.SXG,
-		&p.PublicKeys.Alpha.XR,
-		&p.PublicKeys.Beta.SG,
-		&p.PublicKeys.Beta.SXG,
-		&p.PublicKeys.Beta.XR,
-		&p.Parameters.G1.Tau,
-		&p.Parameters.G1.AlphaTau,
-		&p.Parameters.G1.BetaTau,
-		&p.Parameters.G2.Tau,
-		&p.Parameters.G2.Beta,
+	var N uint64
+	dec := curve.NewDecoder(reader)
+	if err := dec.Decode(&N); err != nil {
+		return dec.BytesRead(), err
 	}
 
-	dec := curve.NewDecoder(reader)
-	for _, v := range toEncode {
+	p.Initialize(N)
+	toDecode := p.toSlice()
+
+	for _, v := range toDecode[1:] { // we've already decoded N
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
 	}
-	p.Hash = make([]byte, 32)
-	nBytes, err := reader.Read(p.Hash)
-	return dec.BytesRead() + int64(nBytes), err
+	return dec.BytesRead(), nil
 }
 
 // WriteTo implements io.WriterTo
@@ -178,4 +179,13 @@ func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
 	}
 
 	return dec.BytesRead(), nil
+}
+
+// appendRefsToSlice appends references to values in x to s
+func (x *valueUpdate) appendRefsToSlice(s []interface{}) []interface{} {
+	s = append(s, &x.contributionCommitment, &x.contributionPok, &x.updatedCommitment.g1)
+	if x.updatedCommitment.g2 != nil {
+		return append(s, x.updatedCommitment.g2)
+	}
+	return s
 }

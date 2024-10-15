@@ -148,29 +148,9 @@ func merge(A, B []curve.G1Affine) (a, b curve.G1Affine) {
 	return
 }
 
-// truncated = ∑ rᵢAᵢ, shifted = ∑ rᵢAᵢ₊₁∈𝔾₁
-func linearCombinationG1(r []fr.Element, A []curve.G1Affine, nbTasks int) curve.G1Affine {
-	n := len(A)
-	r = r[:n-1]
-	var res curve.G1Affine
-	res.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	shifted.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	return
-}
-
-// truncated = ∑ rᵢAᵢ, shifted = ∑ rᵢAᵢ₊₁∈𝔾₂
-func linearCombinationG2(r []fr.Element, A []curve.G2Affine) (truncated, shifted curve.G2Affine) {
-	nc := runtime.NumCPU()
-	n := len(A)
-	r = r[:n-1]
-	truncated.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	shifted.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	return
-}
-
 // linearCombinationsG1 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
 // Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
-func linearCombinationsG1(rPowers []fr.Element, A []curve.G1Affine) (truncated, shifted curve.G1Affine) {
+func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, shifted curve.G1Affine) {
 	// the common section, 1 to N-2
 	var common curve.G1Affine
 	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
@@ -187,7 +167,7 @@ func linearCombinationsG1(rPowers []fr.Element, A []curve.G1Affine) (truncated, 
 
 // linearCombinationsG2 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
 // Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
-func linearCombinationsG2(rPowers []fr.Element, A []curve.G2Affine) (truncated, shifted curve.G2Affine) {
+func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, shifted curve.G2Affine) {
 	// the common section, 1 to N-2
 	var common curve.G2Affine
 	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
