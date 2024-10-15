@@ -1673,10 +1673,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	addFn := c.Add
 	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
+		// if Q=(0,0) we assign a dummy point to Q and R and continue
 		_selector0 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		dummy := &AffinePoint[B]{X: *c.baseApi.One(), Y: *c.baseApi.Zero()}
-		Q = c.Select(_selector0, dummy, Q)
+		dummy := c.GeneratorMultiples()[3]
+		Q = c.Select(_selector0, &dummy, Q)
 	}
 
 	// precompute -P, -Φ(P), Φ(P)
