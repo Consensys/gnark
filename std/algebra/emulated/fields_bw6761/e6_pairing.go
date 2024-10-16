@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
@@ -128,10 +129,124 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 	return result
 }
 
+func (e Ext6) mulBy023Direct(z *E6, c0, c1 *baseEl) *E6 {
+	// beta = -4
+	// a0 a1 a2 a3 a4 a5, b0 b1 b2 b3 b4 b5
+	// 0  1  2  3  4  5   6  7  8   9 10 11
+
+	// MulBy023 multiplies z by an E6 sparse element of the form
+	//
+	//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+	// b0 = c0, b1 = 0, b2 = c1, b3 = 1, b4 = 0, b5 = 0
+
+	nonResidue := e.fp.NewElement(-4)
+
+	// c0 = a0c0 + β(a3 + a4c1)
+	// a0 a3 a4 c0 c1 beta
+	mv0 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 1, 0, 0},
+			{0, 1, 0, 0, 0, 1},
+			{0, 0, 1, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c1 = a1c0 + β(a4 + a5c1)
+	// a1 a4 a5 c0 c1 beta
+	mv1 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 1, 0, 0},
+			{0, 1, 0, 0, 0, 1},
+			{0, 0, 1, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c2 = a0c1 + a2c0 + β(a5)
+	// a0 a2 a5 c0 c1 beta
+	mv2 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 1, 0},
+			{0, 1, 0, 1, 0, 0},
+			{0, 0, 1, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c3 = a0 + a1c1 + a3c0
+	// a0 a1 a3 c0 c1
+	mv3 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0},
+			{0, 1, 0, 0, 1},
+			{0, 0, 1, 1, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c4 = a1 + a2c1 + a4c0
+	// a1 a2 a4 c0 c1
+	mv4 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0},
+			{0, 1, 0, 0, 1},
+			{0, 0, 1, 1, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c5 = a2 + a3c1 + a5c0,
+	// a2 a3 a5 c0 c1
+	mv5 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0},
+			{0, 1, 0, 0, 1},
+			{0, 0, 1, 1, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	z0 := e.fp.EvalMultivariate(&mv0, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A3, &z.A4, c0, c1, nonResidue})
+	z1 := e.fp.EvalMultivariate(&mv1, []*emulated.Element[emparams.BW6761Fp]{&z.A1, &z.A4, &z.A5, c0, c1, nonResidue})
+	z2 := e.fp.EvalMultivariate(&mv2, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A2, &z.A5, c0, c1, nonResidue})
+	z3 := e.fp.EvalMultivariate(&mv3, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A1, &z.A3, c0, c1})
+	z4 := e.fp.EvalMultivariate(&mv4, []*emulated.Element[emparams.BW6761Fp]{&z.A1, &z.A2, &z.A4, c0, c1})
+	z5 := e.fp.EvalMultivariate(&mv5, []*emulated.Element[emparams.BW6761Fp]{&z.A2, &z.A3, &z.A5, c0, c1})
+
+	return &E6{
+		A0: *z0,
+		A1: *z1,
+		A2: *z2,
+		A3: *z3,
+		A4: *z4,
+		A5: *z5,
+	}
+}
+
 // MulBy023 multiplies z by an E6 sparse element of the form
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
+	return e.mulBy023Direct(z, c0, c1)
 	z = e.Reduce(z)
 
 	a := e.fp.Mul(&z.A0, c0)
@@ -198,6 +313,44 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 
 }
 
+func (e Ext6) mul023by023Direct(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	// c0 = d0c0 + β
+	nonResidue := e.fp.NewElement(-4)
+
+	mv0 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 1, 0},
+			{0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+
+	// c2 = d0c1 + d1c0
+	mv2 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 1},
+			{0, 1, 1, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c3 = d0 + c0
+	// c4 = d1c1
+	// c5 = d1 + c1,
+	z0 := e.fp.EvalMultivariate(&mv0, []*emulated.Element[emparams.BW6761Fp]{d0, c0, nonResidue})
+	z2 := e.fp.EvalMultivariate(&mv2, []*emulated.Element[emparams.BW6761Fp]{d0, d1, c0, c1})
+	z3 := e.fp.Add(d0, c0)
+	z4 := e.fp.Mul(d1, c1)
+	z5 := e.fp.Add(d1, c1)
+
+	return [5]*baseEl{z0, z2, z3, z4, z5}
+}
+
 //	Mul023By023 multiplies two E6 sparse element of the form:
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
@@ -206,6 +359,7 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	return e.mul023by023Direct(d0, d1, c0, c1)
 	x0 := e.fp.Mul(c0, d0)
 	x1 := e.fp.Mul(c1, d1)
 	x04 := e.fp.Add(c0, d0)
@@ -222,11 +376,148 @@ func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	return [5]*baseEl{zC0B0, x01, x04, x1, x14}
 }
 
+func (e Ext6) mulBy02345Direct(z *E6, x [5]*baseEl) *E6 {
+	// MulBy02345 multiplies z by an E6 sparse element of the form
+	//
+	//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
+	//	}
+
+	// beta = -4
+	// a0 a1 a2 a3 a4 a5, b0 b1 b2 b3 b4 b5
+	// 0  1  2  3  4  5   6  7  8   9 10 11
+	// c0 = a0y0 + β(a1y4 + a2y3 + a3y2 + a4y1)
+	// a0 a1 a2 a3 a4 y0 y1 y2 y3 y4 beta
+	nonResidue := e.fp.NewElement(-4)
+
+	mv0 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+			{0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
+			{0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1},
+			{0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c1 =  a1y0 + β(a2y4 + a3y3 + a4y2 + a5y1)
+	// a1 a2 a3 a4 a5 y0 y1 y2 y3 y4 beta
+	mv1 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+			{0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
+			{0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1},
+			{0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c2 = a0y1 + a2y0 + β(a3y4 + a4y3 + a5y2)
+	// a0 a2 a3 a4 a5 y0 y1 y2 y3 y4 beta
+	mv2 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1},
+			{0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1},
+			{0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c3 = a0y2 + a1y1 + a3y0 + β(a4y4 + a5y3)
+	// a0 a1 a3 a4 a5 y0 y1 y2 y3 y4 beta
+	mv3 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+			{0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+			{0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1},
+			{0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c4 = a0y3 + a1y2 + a2y1 + a4y0 + βa5y4
+	// a0 a1 a2 a4 a5 y0 y1 y2 y3 y4 beta
+	mv4 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+			{0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+			{0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0},
+			{0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c5 = a0y4 + a1y3 + a2y2 + a3y1 + a5y0,
+	// a0 a1 a2 a3 a5 y0 y1 y2 y3 y4
+	mv5 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			{0, 1, 0, 0, 0, 0, 0, 0, 1, 0},
+			{0, 0, 1, 0, 0, 0, 0, 1, 0, 0},
+			{0, 0, 0, 1, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	c0 := e.fp.EvalMultivariate(&mv0, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A1, &z.A2, &z.A3, &z.A4, x[0], x[1], x[2], x[3], x[4], nonResidue})
+	c1 := e.fp.EvalMultivariate(&mv1, []*emulated.Element[emparams.BW6761Fp]{&z.A1, &z.A2, &z.A3, &z.A4, &z.A5, x[0], x[1], x[2], x[3], x[4], nonResidue})
+	c2 := e.fp.EvalMultivariate(&mv2, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A2, &z.A3, &z.A4, &z.A5, x[0], x[1], x[2], x[3], x[4], nonResidue})
+	c3 := e.fp.EvalMultivariate(&mv3, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A1, &z.A3, &z.A4, &z.A5, x[0], x[1], x[2], x[3], x[4], nonResidue})
+	c4 := e.fp.EvalMultivariate(&mv4, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A1, &z.A2, &z.A4, &z.A5, x[0], x[1], x[2], x[3], x[4], nonResidue})
+	c5 := e.fp.EvalMultivariate(&mv5, []*emulated.Element[emparams.BW6761Fp]{&z.A0, &z.A1, &z.A2, &z.A3, &z.A5, x[0], x[1], x[2], x[3], x[4]})
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
 // MulBy02345 multiplies z by an E6 sparse element of the form
 //
 //	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
 //	}
 func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
+	return e.mulBy02345Direct(z, x)
 	a0 := e.fp.Add(&z.A0, &z.A1)
 	a1 := e.fp.Add(&z.A2, &z.A3)
 	a2 := e.fp.Add(&z.A4, &z.A5)
