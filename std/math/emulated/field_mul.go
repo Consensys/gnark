@@ -573,7 +573,7 @@ func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
 	quoSize := f.polyEvalQuoSize(mv, at)
-	nbQuoLimbs := (quoSize - modBits + nbBits - 1) / nbBits
+	nbQuoLimbs := (quoSize - modBits + nbBits) / nbBits
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 

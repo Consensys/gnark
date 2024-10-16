@@ -1406,8 +1406,8 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	err = test.IsSolved(&PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv, withReduce: true}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
 
-	// frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv})
-	// frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval2Circuit[T]{Inputs: make([]Element[T], nbInputs)})
-	// frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs)})
-	// frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), withReduce: true})
+	frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv})
+	frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval2Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv})
+	frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv})
+	frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &PolyEval3Circuit[T]{Inputs: make([]Element[T], nbInputs), Polynomial: mv, withReduce: true})
 }
