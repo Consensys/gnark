@@ -116,8 +116,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 
 // sBox applies the sBox on buffer[index]
 func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
-	var tmp frontend.Variable
-	tmp = input[index]
+	tmp := input[index]
 	if h.params.d == 3 {
 		input[index] = api.Mul(input[index], input[index])
 		input[index] = api.Mul(tmp, input[index])
@@ -244,7 +243,7 @@ func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable
 
 // addRoundKeyInPlace adds the round-th key to the buffer
 func (h *Hash) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
-	for i := 0; i < h.params.t; i++ {
+	for i := 0; i < len(h.params.roundKeys[round]); i++ {
 		input[i] = api.Add(input[i], h.params.roundKeys[round][i])
 	}
 }
