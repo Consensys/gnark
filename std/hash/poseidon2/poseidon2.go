@@ -179,8 +179,7 @@ func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
 
 	if h.params.t == 2 {
-		var tmp frontend.Variable
-		tmp = api.Add(input[0], input[1])
+		tmp := api.Add(input[0], input[1])
 		input[0] = api.Add(tmp, input[0])
 		input[1] = api.Add(tmp, input[1])
 	} else if h.params.t == 3 {
@@ -216,8 +215,7 @@ func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
 	if h.params.t == 2 {
-		var sum frontend.Variable
-		sum = api.Add(input[0], input[1])
+		sum := api.Add(input[0], input[1])
 		input[0] = api.Add(input[0], sum)
 		input[1] = api.Mul(2, input[1])
 		input[1] = api.Add(input[1], sum)
@@ -227,6 +225,7 @@ func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable
 		sum = api.Add(sum, input[2])
 		input[0] = api.Add(input[0], sum)
 		input[1] = api.Add(input[1], sum)
+		input[2] = api.Mul(input[2], 2)
 		input[2] = api.Add(input[2], sum)
 	} else {
 		var sum frontend.Variable
