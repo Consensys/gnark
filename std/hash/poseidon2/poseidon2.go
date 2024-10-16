@@ -48,7 +48,7 @@ type parameters struct {
 func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 	params := parameters{t: t, d: d, rF: rf, rP: rp}
 	if curve == ecc.BN254 {
-		rc := poseidonbn254.InitRC("seed", rf, rp, t)
+		rc := poseidonbn254.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -57,7 +57,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS12_381 {
-		rc := poseidonbls12381.InitRC("seed", rf, rp, t)
+		rc := poseidonbls12381.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -66,7 +66,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS12_377 {
-		rc := poseidonbls12377.InitRC("seed", rf, rp, t)
+		rc := poseidonbls12377.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -75,7 +75,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BW6_761 {
-		rc := poseidonbw6761.InitRC("seed", rf, rp, t)
+		rc := poseidonbw6761.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -84,7 +84,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BW6_633 {
-		rc := poseidonbw6633.InitRC("seed", rf, rp, t)
+		rc := poseidonbw6633.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -93,7 +93,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS24_315 {
-		rc := poseidonbls24315.InitRC("seed", rf, rp, t)
+		rc := poseidonbls24315.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -102,7 +102,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS24_317 {
-		rc := poseidonbls24317.InitRC("seed", rf, rp, t)
+		rc := poseidonbls24317.InitRC(seed, rf, rp, t)
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -130,6 +130,8 @@ func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
 		input[index] = api.Mul(input[index], tmp)
 		input[index] = api.Mul(input[index], input[index])
 		input[index] = api.Mul(input[index], tmp)
+	} else if h.params.d == -1 {
+		input[index] = api.Inverse(input[index])
 	}
 }
 
@@ -241,7 +243,7 @@ func (h *Hash) addRoundKeyInPlace(api frontend.API, round int, input []frontend.
 	}
 }
 
-func (h *Hash) permutationInPlace(api frontend.API, input []frontend.Variable) error {
+func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 	if len(input) != h.params.t {
 		return ErrInvalidSizebuffer
 	}
