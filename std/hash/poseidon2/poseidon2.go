@@ -130,6 +130,12 @@ func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
 		input[index] = api.Mul(input[index], tmp)
 		input[index] = api.Mul(input[index], input[index])
 		input[index] = api.Mul(input[index], tmp)
+	} else if h.params.d == 17 {
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], input[index])
+		input[index] = api.Mul(input[index], tmp)
 	} else if h.params.d == -1 {
 		input[index] = api.Inverse(input[index])
 	}
