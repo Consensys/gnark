@@ -446,22 +446,3 @@ func (circuit *varScalarMul) Define(api frontend.API) error {
 
 	return nil
 }
-
-// bench
-func BenchmarkBandersnatch(b *testing.B) {
-	var c varScalarMul
-	c.curveID = twistededwards.BLS12_381_BANDERSNATCH
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Bandersnatch GLV: ", p.NbConstraints())
-}
-
-func BenchmarkJubjub(b *testing.B) {
-	var c varScalarMul
-	c.curveID = twistededwards.BLS12_381
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Jubjub 2-bit double-and-add: ", p.NbConstraints())
-}

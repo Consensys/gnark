@@ -2,7 +2,6 @@ package sw_emulated
 
 import (
 	"fmt"
-	"math"
 	"math/big"
 	"slices"
 
@@ -1322,7 +1321,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 
 	var st S
-	nbits := int(math.Ceil(float64(st.Modulus().BitLen()) / 2))
+	nbits := (st.Modulus().BitLen() + 1) / 2
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
 

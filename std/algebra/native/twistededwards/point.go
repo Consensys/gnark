@@ -275,7 +275,7 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	rhs := api.Select(bit, api.Add(_k, _s2), _k)
 	api.AssertIsEqual(lhs, rhs)
 
-	n := int(math.Ceil(float64(curve.Order.BitLen()) / 2))
+	n := (curve.Order.BitLen() + 1) / 2
 	b1 := api.ToBinary(s1, n)
 	b2 := api.ToBinary(s2, n)
 
