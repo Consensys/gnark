@@ -38,4 +38,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-// replace github.com/okx/cryptography_cuda/wrappers/go => /home/okxdex/data/zkdex-pap/workspace/jason-huang/cryptography_cuda/wrappers/go
+replace github.com/okx/cryptography_cuda/wrappers/go => /home/okxdex/data/zkdex-pap/workspace/jason-huang/cryptography_cuda/wrappers/go
