@@ -46,14 +46,7 @@ func (c *curve) AssertIsOnCurve(p1 Point) {
 }
 func (c *curve) ScalarMul(p1 Point, scalar frontend.Variable) Point {
 	var p Point
-	if c.endo != nil {
-		// TODO restore
-		// this is disabled until this issue is solved https://github.com/ConsenSys/gnark/issues/268
-		// p.scalarMulGLV(c.api, &p1, scalar, c.params, c.endo)
-		p.scalarMul(c.api, &p1, scalar, c.params)
-	} else {
-		p.scalarMul(c.api, &p1, scalar, c.params)
-	}
+	p.scalarMul(c.api, &p1, scalar, c.params, c.endo)
 	return p
 }
 func (c *curve) DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point {
