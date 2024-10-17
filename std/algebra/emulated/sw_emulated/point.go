@@ -1569,88 +1569,56 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// 		   This can be done through a hinted half-GCD in the number field
 	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
 	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
-	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 10, _s, c.eigenvalue)
+	//
+	// The hint returns u1, u2, v1, v2 and the quotient q.
+	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 5, _s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	u1, u2, v1, v2, w1, w2, r1, r2, s1, s2 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5], sd[6], sd[7], sd[8], sd[9]
+	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 10, _s, c.eigenvalue)
+	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 5, _s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
-	selector1, selector2, selector3, selector4, selector5, selector6, selector7, selector8, selector9, selector10 := signs[0], signs[1], signs[2], signs[3], signs[4], signs[5], signs[6], signs[7], signs[8], signs[9]
+	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := signs[0], signs[1], signs[2], signs[3], signs[4]
 
 	// We need to check that:
-	// 		(s1 + j*s2)(v1 + j*v2) + (r1 + j*r2)(w1 + j*w2) - (u1 + j*u2) = 0
-	// which is equivalent to checking:
-	// 		              	s1*v1 + r1*w1 = s2*v2 + r2*w2 + u1 and
-	// 		s1*v2 + s2*v1 + r1*w2 + r2*w1 = s2*v2 + r2*w2 + u2
-	// or that:
-	// 		s1*v1 + r1*w1 + u2 = s1*v2 + s2*v1 + r1*w2 + r2*w1 + u1
-	//
-	// Since all these values can be negative, we gather all positive values
-	// either in the lhs or rhs and check equality.
-	s1v1 := c.scalarApi.Mul(s1, v1)
-	r1w1 := c.scalarApi.Mul(r1, w1)
-	s1v2 := c.scalarApi.Mul(s1, v2)
-	s2v1 := c.scalarApi.Mul(s2, v1)
-	r1w2 := c.scalarApi.Mul(r1, w2)
-	r2w1 := c.scalarApi.Mul(r2, w1)
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
+	var st S
+	r := emulated.ValueOf[S](st.Modulus())
+	sv1 := c.scalarApi.Mul(_s, v1)
+	sλv2 := c.scalarApi.Mul(_s, c.scalarApi.Mul(c.eigenvalue, v2))
+	λu2 := c.scalarApi.Mul(c.eigenvalue, u2)
+	rq := c.scalarApi.Mul(&r, q)
 	zero := c.scalarApi.Zero()
 
-	xor1 := c.api.Xor(selector9, selector3)
-	xor2 := c.api.Xor(selector7, selector5)
-	xor3 := c.api.Xor(selector9, selector4)
-	xor4 := c.api.Xor(selector10, selector3)
-	xor5 := c.api.Xor(selector7, selector6)
-	xor6 := c.api.Xor(selector8, selector5)
-
-	lhs1 := c.scalarApi.Select(xor1, zero, s1v1)
-	lhs2 := c.scalarApi.Select(xor2, zero, r1w1)
-	lhs3 := c.scalarApi.Select(xor3, s1v2, zero)
-	lhs4 := c.scalarApi.Select(xor4, s2v1, zero)
-	lhs5 := c.scalarApi.Select(xor5, r1w2, zero)
-	lhs6 := c.scalarApi.Select(xor6, r2w1, zero)
-	lhs7 := c.scalarApi.Select(selector1, u1, zero)
-	lhs8 := c.scalarApi.Select(selector2, zero, u2)
+	lhs1 := c.scalarApi.Select(isNegv1, zero, sv1)
+	lhs2 := c.scalarApi.Select(isNegv2, zero, sλv2)
+	lhs3 := c.scalarApi.Select(isNegu1, zero, u1)
+	lhs4 := c.scalarApi.Select(isNegu2, zero, λu2)
+	lhs5 := c.scalarApi.Select(isNegq, rq, zero)
 	lhs := c.scalarApi.Add(
 		c.scalarApi.Add(lhs1, lhs2),
 		c.scalarApi.Add(lhs3, lhs4),
 	)
-	lhs = c.scalarApi.Add(
-		lhs,
-		c.scalarApi.Add(lhs5, lhs6),
-	)
-	lhs = c.scalarApi.Add(
-		lhs,
-		c.scalarApi.Add(lhs7, lhs8),
-	)
+	lhs = c.scalarApi.Add(lhs, lhs5)
 
-	rhs1 := c.scalarApi.Select(xor1, s1v1, zero)
-	rhs2 := c.scalarApi.Select(xor2, r1w1, zero)
-	rhs3 := c.scalarApi.Select(xor3, zero, s1v2)
-	rhs4 := c.scalarApi.Select(xor4, zero, s2v1)
-	rhs5 := c.scalarApi.Select(xor5, zero, r1w2)
-	rhs6 := c.scalarApi.Select(xor6, zero, r2w1)
-	rhs7 := c.scalarApi.Select(selector1, zero, u1)
-	rhs8 := c.scalarApi.Select(selector2, u2, zero)
+	rhs1 := c.scalarApi.Select(isNegv1, sv1, zero)
+	rhs2 := c.scalarApi.Select(isNegv2, sλv2, zero)
+	rhs3 := c.scalarApi.Select(isNegu1, u1, zero)
+	rhs4 := c.scalarApi.Select(isNegu2, λu2, zero)
+	rhs5 := c.scalarApi.Select(isNegq, zero, rq)
 	rhs := c.scalarApi.Add(
 		c.scalarApi.Add(rhs1, rhs2),
 		c.scalarApi.Add(rhs3, rhs4),
 	)
-	rhs = c.scalarApi.Add(
-		rhs,
-		c.scalarApi.Add(rhs5, rhs6),
-	)
-	rhs = c.scalarApi.Add(
-		rhs,
-		c.scalarApi.Add(rhs7, rhs8),
-	)
+	rhs = c.scalarApi.Add(rhs, rhs5)
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
@@ -1683,12 +1651,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	negPY := c.baseApi.Neg(&_P.Y)
 	tableP[1] = &AffinePoint[B]{
 		X: _P.X,
-		Y: *c.baseApi.Select(selector1, negPY, &_P.Y),
+		Y: *c.baseApi.Select(isNegu1, negPY, &_P.Y),
 	}
 	tableP[0] = c.Neg(tableP[1])
 	tablePhiP[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&_P.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, negPY, &_P.Y),
+		Y: *c.baseApi.Select(isNegu2, negPY, &_P.Y),
 	}
 	tablePhiP[0] = c.Neg(tablePhiP[1])
 
@@ -1697,12 +1665,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector3, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isNegv1, negQY, &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector4, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isNegv2, negQY, &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 
@@ -1734,7 +1702,6 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
 	// We prove that the factor is 760 * sqrt(2),
 	// so we need to add 10 bits to r^{1/4}.nbits().
-	var st S
 	nbits := st.Modulus().BitLen()>>2 + 10
 	u1bits := c.scalarApi.ToBits(u1)
 	u2bits := c.scalarApi.ToBits(u2)

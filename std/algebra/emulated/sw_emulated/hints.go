@@ -348,8 +348,8 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 10 {
-			return fmt.Errorf("expecting ten outputs")
+		if len(outputs) != 5 {
+			return fmt.Errorf("expecting five outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -371,12 +371,15 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		outputs[2].SetUint64(0)
 		outputs[3].SetUint64(0)
 		outputs[4].SetUint64(0)
-		outputs[5].SetUint64(0)
-		outputs[6].SetUint64(0)
-		outputs[7].SetUint64(0)
-		outputs[8].SetUint64(0)
-		outputs[9].SetUint64(0)
 		res := eisenstein.HalfGCD(&r, &s)
+		s.A1.Mul(res[1].A1, inputs[1]).
+			Add(s.A1, res[1].A0).
+			Mul(s.A1, inputs[0]).
+			Add(s.A1, res[0].A0)
+		s.A0.Mul(res[0].A1, inputs[1])
+		s.A1.Add(s.A1, s.A0).
+			Div(s.A1, field)
+
 		if res[0].A0.Sign() == -1 {
 			outputs[0].SetUint64(1)
 		}
@@ -389,25 +392,9 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if res[1].A1.Sign() == -1 {
 			outputs[3].SetUint64(1)
 		}
-		if res[2].A0.Sign() == -1 {
+		if s.A1.Sign() == -1 {
 			outputs[4].SetUint64(1)
 		}
-		if res[2].A1.Sign() == -1 {
-			outputs[5].SetUint64(1)
-		}
-		if r.A0.Sign() == -1 {
-			outputs[6].SetUint64(1)
-		}
-		if r.A1.Sign() == -1 {
-			outputs[7].SetUint64(1)
-		}
-		if s.A0.Sign() == -1 {
-			outputs[8].SetUint64(1)
-		}
-		if s.A1.Sign() == -1 {
-			outputs[9].SetUint64(1)
-		}
-
 		return nil
 	})
 }
@@ -417,8 +404,8 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 10 {
-			return fmt.Errorf("expecting ten outputs")
+		if len(outputs) != 5 {
+			return fmt.Errorf("expecting five outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -439,12 +426,14 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[1].Set(res[0].A1)
 		outputs[2].Set(res[1].A0)
 		outputs[3].Set(res[1].A1)
-		outputs[4].Set(res[2].A0)
-		outputs[5].Set(res[2].A1)
-		outputs[6].Set(r.A0)
-		outputs[7].Set(r.A1)
-		outputs[8].Set(s.A0)
-		outputs[9].Set(s.A1)
+		outputs[4].Mul(res[1].A1, inputs[1]).
+			Add(outputs[4], res[1].A0).
+			Mul(outputs[4], inputs[0]).
+			Add(outputs[4], res[0].A0)
+		s.A0.Mul(res[0].A1, inputs[1])
+		outputs[4].Add(outputs[4], s.A0).
+			Div(outputs[4], field)
+
 		if outputs[0].Sign() == -1 {
 			outputs[0].Neg(outputs[0])
 		}
@@ -460,22 +449,6 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if outputs[4].Sign() == -1 {
 			outputs[4].Neg(outputs[4])
 		}
-		if outputs[5].Sign() == -1 {
-			outputs[5].Neg(outputs[5])
-		}
-		if outputs[6].Sign() == -1 {
-			outputs[6].Neg(outputs[6])
-		}
-		if outputs[7].Sign() == -1 {
-			outputs[7].Neg(outputs[7])
-		}
-		if outputs[8].Sign() == -1 {
-			outputs[8].Neg(outputs[8])
-		}
-		if outputs[9].Sign() == -1 {
-			outputs[9].Neg(outputs[9])
-		}
 		return nil
-
 	})
 }
