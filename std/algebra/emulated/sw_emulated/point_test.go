@@ -1971,6 +1971,55 @@ func (c *ScalarMulJoyeTest[T, S]) Define(api frontend.API) error {
 	return nil
 }
 
+func TestScalarMulJoye(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	px, py := p256.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulJoyeTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := ScalarMulJoyeTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](s),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p256.Params().Gx),
+			Y: emulated.ValueOf[emulated.P256Fp](p256.Params().Gy),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMulJoye2(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S secp256k1.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulJoyeTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulJoyeTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 // fake GLV
 type ScalarMulFakeGLVTest[T, S emulated.FieldParams] struct {
 	Q, R AffinePoint[T]
