@@ -1,4 +1,4 @@
-//go:build zeknox
+//go:build !zeknox
 
 package zeknox_bn254
 
@@ -89,7 +89,6 @@ func (pk *ProvingKey) setupDevicePointers() error {
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*groth16_bn254.Proof, error) {
-	fmt.Println("zeknox_bn254.Prove")
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("new prover config: %w", err)
@@ -102,10 +101,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "zeknox").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 	if pk.deviceInfo == nil {
-		log.Debug().Msg("precomputing proving key in GPU")
+		start := time.Now()
 		if err := pk.setupDevicePointers(); err != nil {
 			return nil, fmt.Errorf("setup device pointers: %w", err)
 		}
+		log.Debug().Dur("took", time.Since(start)).Msg("Copy proving key to device")
 	}
 
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
@@ -182,7 +182,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	go func() {
 		startH := time.Now()
 		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
-		log.Debug().Dur("computeH took", time.Since(startH)).Msg("computed H")
+		log.Debug().Dur("took", time.Since(startH)).Msg("computed H")
 		solution.A = nil
 		solution.B = nil
 		solution.C = nil
@@ -207,7 +207,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		chDeviceValues := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
 		if err := CopyToDevice(wireValuesA, chDeviceValues); err != nil {
 			chWireValuesA <- err
-			close(chWireValuesA)
 			return
 		}
 		deviceWireValuesA = <-chDeviceValues
@@ -225,7 +224,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		chDeviceValues := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
 		if err := CopyToDevice(wireValuesB, chDeviceValues); err != nil {
 			chWireValuesB <- err
-			close(chWireValuesB)
 			return
 		}
 		deviceWireValuesB = <-chDeviceValues
@@ -253,23 +251,19 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	var bs1, ar curve.G1Jac
 
-	n := runtime.NumCPU()
-
 	chBs1Done := make(chan error, 1)
 
 	computeBS1 := func() {
 		if err := <-chWireValuesB; err != nil {
 			chBs1Done <- err
-			close(chBs1Done)
 			return
 		}
 		startBs1 := time.Now()
 		if err := msmG1(&bs1, pk.G1Device.B, deviceWireValuesB); err != nil {
 			chBs1Done <- err
-			close(chBs1Done)
 			return
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesB.Len()), time.Since(startBs1)).Msg("bs1.MultiExp done")
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesB.Len()), time.Since(startBs1)).Msg("bs1 done")
 		// + beta + s[δ]
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
@@ -280,16 +274,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	computeAR1 := func() {
 		if err := <-chWireValuesA; err != nil {
 			chArDone <- err
-			close(chArDone)
 			return
 		}
 		startAr := time.Now()
 		if err := msmG1(&ar, pk.G1Device.A, deviceWireValuesA); err != nil {
 			chArDone <- err
-			close(chArDone)
 			return
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesA.Len()), time.Since(startAr)).Msg("ar.MultiExp done")
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesA.Len()), time.Since(startAr)).Msg("ar done")
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -304,40 +296,56 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan error, 1)
-		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 		go func() {
 			startKrs2 := time.Now()
 			// Copy h poly to device, since we haven't implemented FFT on device
-			chDevice := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-			if err := CopyToDevice(h[:sizeH], chDevice); err != nil {
+			chDeviceH := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+			sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
+			if err := CopyToDevice(h[:sizeH], chDeviceH); err != nil {
 				chKrs2Done <- err
-				close(chKrs2Done)
 				return
 			}
-			deviceH = <-chDevice
+			deviceH = <-chDeviceH
 			if err := msmG1(&krs2, pk.G1Device.Z, deviceH); err != nil {
 				chKrs2Done <- err
-				close(chKrs2Done)
 				return
 			}
-			log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", sizeH), time.Since(startKrs2)).Msg("krs2.MultiExp done")
-			chKrs2Done <- err
+			log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", sizeH), time.Since(startKrs2)).Msg("krs2 done")
+			close(chKrs2Done)
 		}()
 
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
-		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		// original Groth16 witness without pedersen commitment
+		wireValuesWithoutCom := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
 		startKrs := time.Now()
-		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		// GPU runtime error
+		// var deviceWire *device.HostOrDeviceSlice[fr.Element]
+		// defer deviceWire.Free()
+		// chDeviceWire := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+		// if err := CopyToDevice(wireValuesWithoutCom, chDeviceWire); err != nil {
+		// 	chKrsDone <- err
+		// 	return
+		// }
+		// deviceWire = <-chDeviceWire
+		// if err := msmG1(&krs, pk.G1Device.K, deviceWire); err != nil {
+		// 	chKrsDone <- err
+		// 	return
+		// }
+
+		// CPU
+		// Compute this MSM on CPU, as it can be done in parallel with other MSM on GPU
+		if _, err := krs.MultiExp(pk.G1.K, wireValuesWithoutCom, ecc.MultiExpConfig{NbTasks: runtime.NumCPU() / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(_wireValues)), time.Since(startKrs)).Msg("krs.MultiExp done")
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValues)), time.Since(startKrs)).Msg("krs done")
 		// -rs[δ]
 		krs.AddMixed(&deltas[2])
+
 		n := 3
 		for n != 0 {
 			select {
@@ -373,17 +381,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 
-		nbTasks := n
-		if nbTasks <= 16 {
-			// if we don't have a lot of CPUs, this may artificially split the MSM
-			nbTasks *= 2
+		if err := <-chWireValuesB; err != nil {
+			return err
 		}
-		<-chWireValuesB
 		startBs := time.Now()
 		if err := msmG2(&Bs, pk.G2Device.B, deviceWireValuesB); err != nil {
 			return err
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", deviceWireValuesB.Len()), time.Since(startBs)).Msg("Bs.MultiExp done")
+		log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", deviceWireValuesB.Len()), time.Since(startBs)).Msg("Bs done")
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -398,17 +403,34 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	<-chHDone
 
 	// schedule our proof part computations
-	go computeKRS()
-	go computeAR1()
-	go computeBS1()
+	// Sequencial GPU execution
+	// TODO: see GPU utilization data
+	computeAR1()
+	if err := <-chArDone; err != nil {
+		return nil, err
+	}
+	computeBS1()
+	if err := <-chBs1Done; err != nil {
+		return nil, err
+	}
+	computeKRS()
+	if err := <-chKrsDone; err != nil {
+		return nil, err
+	}
 	if err := computeBS2(); err != nil {
 		return nil, err
 	}
 
+	// Parallel GPU execution, memory may hit limit
+	// go computeKRS()
+	// go computeAR1()
+	// go computeBS1()
+	// go computeBS2()
+
 	// wait for all parts of the proof to be computed.
-	if err := <-chKrsDone; err != nil {
-		return nil, err
-	}
+	// if err := <-chKrsDone; err != nil {
+	// 	return nil, err
+	// }
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
@@ -423,6 +445,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 }
 
 // if len(toRemove) == 0, returns slice
+//
 // else, returns a new slice without the indexes in toRemove. The first value in the slice is taken as indexes as sliceFirstIndex
 // this assumes len(slice) > len(toRemove)
 // filterHeap modifies toRemove
