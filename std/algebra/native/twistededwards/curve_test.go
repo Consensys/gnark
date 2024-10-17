@@ -18,11 +18,9 @@ package twistededwards
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
@@ -34,9 +32,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
