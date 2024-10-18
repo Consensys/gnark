@@ -21,71 +21,58 @@ import (
 	"io"
 )
 
-// WriteTo implements io.WriterTo
-func (phase1 *Phase1) WriteTo(writer io.Writer) (int64, error) {
-	n, err := phase1.writeTo(writer)
-	if err != nil {
-		return n, err
+func appendRefs[T any](s []interface{}, v []T) []interface{} {
+	for i := range v {
+		s = append(s, &v[i])
 	}
-	nBytes, err := writer.Write(phase1.Hash)
-	return int64(nBytes) + n, err
+	return s
 }
 
-func (phase1 *Phase1) writeTo(writer io.Writer) (int64, error) {
-	toEncode := []interface{}{
-		&phase1.PublicKeys.Tau.SG,
-		&phase1.PublicKeys.Tau.SXG,
-		&phase1.PublicKeys.Tau.XR,
-		&phase1.PublicKeys.Alpha.SG,
-		&phase1.PublicKeys.Alpha.SXG,
-		&phase1.PublicKeys.Alpha.XR,
-		&phase1.PublicKeys.Beta.SG,
-		&phase1.PublicKeys.Beta.SXG,
-		&phase1.PublicKeys.Beta.XR,
-		phase1.Parameters.G1.Tau,
-		phase1.Parameters.G1.AlphaTau,
-		phase1.Parameters.G1.BetaTau,
-		phase1.Parameters.G2.Tau,
-		&phase1.Parameters.G2.Beta,
+// proofRefsSlice produces a slice consisting of references to all proof sub-elements
+// prepended by the size parameter, to be used in WriteTo and ReadFrom functions
+func (p *Phase1) proofRefsSlice() []interface{} {
+	return []interface{}{
+		&p.proofs.Tau.contributionCommitment,
+		&p.proofs.Tau.contributionPok,
+		&p.proofs.Alpha.contributionCommitment,
+		&p.proofs.Alpha.contributionPok,
+		&p.proofs.Beta.contributionCommitment,
+		&p.proofs.Beta.contributionPok,
+	}
+}
+
+// WriteTo implements io.WriterTo
+// It does not write the Challenge from the previous contribution
+func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
+
+	if n, err = p.parameters.WriteTo(writer); err != nil {
+		return
 	}
 
 	enc := curve.NewEncoder(writer)
-	for _, v := range toEncode {
-		if err := enc.Encode(v); err != nil {
-			return enc.BytesWritten(), err
+	for _, v := range p.proofRefsSlice() {
+		if err = enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
 		}
 	}
-	return enc.BytesWritten(), nil
+	return n + enc.BytesWritten(), nil
 }
 
 // ReadFrom implements io.ReaderFrom
-func (phase1 *Phase1) ReadFrom(reader io.Reader) (int64, error) {
-	toEncode := []interface{}{
-		&phase1.PublicKeys.Tau.SG,
-		&phase1.PublicKeys.Tau.SXG,
-		&phase1.PublicKeys.Tau.XR,
-		&phase1.PublicKeys.Alpha.SG,
-		&phase1.PublicKeys.Alpha.SXG,
-		&phase1.PublicKeys.Alpha.XR,
-		&phase1.PublicKeys.Beta.SG,
-		&phase1.PublicKeys.Beta.SXG,
-		&phase1.PublicKeys.Beta.XR,
-		&phase1.Parameters.G1.Tau,
-		&phase1.Parameters.G1.AlphaTau,
-		&phase1.Parameters.G1.BetaTau,
-		&phase1.Parameters.G2.Tau,
-		&phase1.Parameters.G2.Beta,
+// It does not read the Challenge from the previous contribution
+func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
+
+	if n, err = p.parameters.ReadFrom(reader); err != nil {
+		return
 	}
 
 	dec := curve.NewDecoder(reader)
-	for _, v := range toEncode {
-		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+	for _, v := range p.proofRefsSlice() { // we've already decoded N
+		if err = dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
 		}
 	}
-	phase1.Hash = make([]byte, 32)
-	nBytes, err := reader.Read(phase1.Hash)
-	return dec.BytesRead() + int64(nBytes), err
+	return n + dec.BytesRead(), nil
 }
 
 // WriteTo implements io.WriterTo
@@ -177,5 +164,59 @@ func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
 		}
 	}
 
+	return dec.BytesRead(), nil
+}
+
+// refsSlice produces a slice consisting of references to all sub-elements
+// prepended by the size parameter, to be used in WriteTo and ReadFrom functions
+func (c *SrsCommons) refsSlice() []interface{} {
+	N := len(c.G2.Tau)
+	estimatedNbElems := 5*N - 1
+	// size N                                                                    1
+	// 𝔾₂ representation for β                                                   1
+	// [τⁱ]₁  for 1 ≤ i ≤ 2N-2                                                2N-2
+	// [τⁱ]₂  for 1 ≤ i ≤ N-1                                                  N-1
+	// [ατⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
+	// [βτⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
+	refs := make([]interface{}, 1, estimatedNbElems)
+	refs[0] = N
+
+	refs = appendRefs(refs, c.G1.Tau[1:])
+	refs = appendRefs(refs, c.G2.Tau[1:])
+	refs = appendRefs(refs, c.G1.BetaTau)
+	refs = appendRefs(refs, c.G1.AlphaTau)
+
+	if len(refs) != estimatedNbElems {
+		panic("incorrect length estimate")
+	}
+
+	return refs
+}
+
+func (c *SrsCommons) WriteTo(writer io.Writer) (int64, error) {
+	enc := curve.NewEncoder(writer)
+	for _, v := range c.refsSlice() {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+	return enc.BytesWritten(), nil
+}
+
+// ReadFrom implements io.ReaderFrom
+func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
+	var N uint64
+	dec := curve.NewDecoder(reader)
+	if err = dec.Decode(&N); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	c.setZero(N)
+
+	for _, v := range c.refsSlice()[1:] { // we've already decoded N
+		if err = dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
 	return dec.BytesRead(), nil
 }
