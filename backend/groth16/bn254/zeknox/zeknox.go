@@ -176,27 +176,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil, err
 	}
 
-	// quotient poly H (witness reduction / FFT part)
-	var h []fr.Element
-	chHDone := make(chan struct{}, 1)
-	go func() {
-		startH := time.Now()
-		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
-		log.Debug().Dur("took", time.Since(startH)).Msg("computed H")
-		solution.A = nil
-		solution.B = nil
-		solution.C = nil
-		chHDone <- struct{}{}
-	}()
-
 	// we need to copy and filter the wireValues for each multi exp
 	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
-	var deviceWireValuesA, deviceWireValuesB *device.HostOrDeviceSlice[fr.Element]
-	// indicate if the wire values have been copied to the device
-	chWireValuesA, chWireValuesB := make(chan error, 1), make(chan error, 1)
+	var wireValuesA, wireValuesB []fr.Element
+	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
 
 	go func() {
-		wireValuesA := make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
+		wireValuesA = make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
 		for i, j := 0, 0; j < len(wireValuesA); i++ {
 			if pk.InfinityA[i] {
 				continue
@@ -204,16 +190,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			wireValuesA[j] = wireValues[i]
 			j++
 		}
-		chDeviceValues := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-		if err := CopyToDevice(wireValuesA, chDeviceValues); err != nil {
-			chWireValuesA <- err
-			return
-		}
-		deviceWireValuesA = <-chDeviceValues
 		close(chWireValuesA)
 	}()
 	go func() {
-		wireValuesB := make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
+		wireValuesB = make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
 		for i, j := 0, 0; j < len(wireValuesB); i++ {
 			if pk.InfinityB[i] {
 				continue
@@ -221,12 +201,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			wireValuesB[j] = wireValues[i]
 			j++
 		}
-		chDeviceValues := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-		if err := CopyToDevice(wireValuesB, chDeviceValues); err != nil {
-			chWireValuesB <- err
-			return
-		}
-		deviceWireValuesB = <-chDeviceValues
 		close(chWireValuesB)
 	}()
 
@@ -251,68 +225,78 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	var bs1, ar curve.G1Jac
 
-	chBs1Done := make(chan error, 1)
-	computeBS1 := func() {
-		if err := <-chWireValuesB; err != nil {
-			chBs1Done <- err
-			return
+	computeBS1 := func() error {
+		<- chWireValuesB
+		var wireB *device.HostOrDeviceSlice[fr.Element]
+		chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+		if err := CopyToDevice(wireValuesB, chWireB); err != nil {
+			return err
 		}
+		wireB = <-chWireB
+		defer wireB.Free()
 		startBs1 := time.Now()
-		if err := msmG1(&bs1, pk.G1Device.B, deviceWireValuesB); err != nil {
-			chBs1Done <- err
-			return
+		if err := msmG1(&bs1, pk.G1Device.B, wireB); err != nil {
+			return err
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesB.Len()), time.Since(startBs1)).Msg("bs1 done")
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", wireB.Len()), time.Since(startBs1)).Msg("bs1 done")
 		// + beta + s[δ]
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
-		chBs1Done <- nil
+		return nil
 	}
 
-	chArDone := make(chan error, 1)
-	computeAR1 := func() {
-		if err := <-chWireValuesA; err != nil {
-			chArDone <- err
-			return
+	computeAR1 := func() error {
+		<- chWireValuesA
+		var wireA *device.HostOrDeviceSlice[fr.Element]
+		chWireA := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+		if err := CopyToDevice(wireValuesA, chWireA); err != nil {
+			return err
 		}
+		wireA = <-chWireA
+		defer wireA.Free()
 		startAr := time.Now()
-		if err := msmG1(&ar, pk.G1Device.A, deviceWireValuesA); err != nil {
-			chArDone <- err
-			return
+		if err := msmG1(&ar, pk.G1Device.A, wireA); err != nil {
+			return err
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesA.Len()), time.Since(startAr)).Msg("ar done")
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", wireA.Len()), time.Since(startAr)).Msg("ar done")
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
-		chArDone <- nil
+		return nil
 	}
 
-	chKrsDone := make(chan error, 1)
-	var deviceH *device.HostOrDeviceSlice[fr.Element]
-	computeKRS := func() {
-		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
-		// however, having similar lengths for our tasks helps with parallelism
+	var krs2 curve.G1Jac
+	computeKRS2 := func() error {
+		// quotient poly H (witness reduction / FFT part)
+		var h []fr.Element
+		{
+			startH := time.Now()
+			h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+			log.Debug().Dur("took", time.Since(startH)).Msg("computed H")
+			solution.A = nil
+			solution.B = nil
+			solution.C = nil
+		}
+		// Copy h poly to device, since we haven't implemented FFT on device
+		var deviceH *device.HostOrDeviceSlice[fr.Element]
+		chDeviceH := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
+		if err := CopyToDevice(h[:sizeH], chDeviceH); err != nil {
+			return err
+		}
+		deviceH = <-chDeviceH
+		defer deviceH.Free()
+		// MSM G1 Krs2
+		startKrs2 := time.Now()
+		if err := msmG1(&krs2, pk.G1Device.Z, deviceH); err != nil {
+			return err
+		}
+		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", sizeH), time.Since(startKrs2)).Msg("krs2 done")
+		return nil
+	}
 
-		var krs, krs2, p1 curve.G1Jac
-		chKrs2Done := make(chan error, 1)
-		go func() {
-			startKrs2 := time.Now()
-			// Copy h poly to device, since we haven't implemented FFT on device
-			chDeviceH := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-			sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
-			if err := CopyToDevice(h[:sizeH], chDeviceH); err != nil {
-				chKrs2Done <- err
-				return
-			}
-			deviceH = <-chDeviceH
-			if err := msmG1(&krs2, pk.G1Device.Z, deviceH); err != nil {
-				chKrs2Done <- err
-				return
-			}
-			log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", sizeH), time.Since(startKrs2)).Msg("krs2 done")
-			close(chKrs2Done)
-		}()
-
+	var krs1 curve.G1Jac
+	computeKRS1 := func() error {
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
@@ -320,81 +304,35 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// original Groth16 witness without pedersen commitment
 		wireValuesWithoutCom := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
-		// GPU runtime error
-		// var deviceWire *device.HostOrDeviceSlice[fr.Element]
-		// defer deviceWire.Free()
-		// chDeviceWire := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-		// if err := CopyToDevice(wireValuesWithoutCom, chDeviceWire); err != nil {
-		// 	chKrsDone <- err
-		// 	return
-		// }
-		// deviceWire = <-chDeviceWire
-		// if err := msmG1(&krs, pk.G1Device.K, deviceWire); err != nil {
-		// 	chKrsDone <- err
-		// 	return
-		// }
-
 		// CPU
-		// Compute this MSM on CPU, as it can be done in parallel with other MSM on GPU
-		// Also, reduce data copy
+		// Compute this MSM on CPU, as it can be done in parallel with other MSM on GPU, also reduce data copy
 		startKrs := time.Now()
-		if _, err := krs.MultiExp(pk.G1.K, wireValuesWithoutCom, ecc.MultiExpConfig{NbTasks: runtime.NumCPU() / 2}); err != nil {
-			chKrsDone <- err
-			return
+		if _, err := krs1.MultiExp(pk.G1.K, wireValuesWithoutCom, ecc.MultiExpConfig{NbTasks: runtime.NumCPU() / 2}); err != nil {
+			return err
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValues)), time.Since(startKrs)).Msg("krs done")
 		// -rs[δ]
-		krs.AddMixed(&deltas[2])
-
-		n := 3
-		for n != 0 {
-			select {
-			// wait krs2
-			case err := <-chKrs2Done:
-				if err != nil {
-					chKrsDone <- err
-					return
-				}
-				krs.AddAssign(&krs2)
-			// wait ar
-			case err := <-chArDone:
-				if err != nil {
-					chKrsDone <- err
-					return
-				}
-				p1.ScalarMultiplication(&ar, &s)
-				krs.AddAssign(&p1)
-			// wait bs1
-			case err := <-chBs1Done:
-				if err != nil {
-					chKrsDone <- err
-					return
-				}
-				p1.ScalarMultiplication(&bs1, &r)
-				krs.AddAssign(&p1)
-			}
-			n--
-		}
-
-		proof.Krs.FromJacobian(&krs)
-		chKrsDone <- nil
+		krs1.AddMixed(&deltas[2])
+		return nil
 	}
 
-	chBs2Done := make(chan error, 1)
-	computeBS2 := func() {
+	computeBS2 := func() error {
+		<-chWireValuesB
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 
-		if err := <-chWireValuesB; err != nil {
-			chBs2Done <- err
-			return
+		var wireB *device.HostOrDeviceSlice[fr.Element]
+		chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
+		if err := CopyToDevice(wireValuesB, chWireB); err != nil {
+			return err
 		}
+		wireB = <-chWireB
+		defer wireB.Free()
 		startBs := time.Now()
-		if err := msmG2(&Bs, pk.G2Device.B, deviceWireValuesB); err != nil {
-			chBs2Done <- err
-			return
+		if err := msmG2(&Bs, pk.G2Device.B, wireB); err != nil {
+			return err
 		}
-		log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", deviceWireValuesB.Len()), time.Since(startBs)).Msg("Bs done")
+		log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", wireB.Len()), time.Since(startBs)).Msg("Bs done")
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -402,36 +340,33 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		Bs.AddMixed(&pk.G2.Beta)
 
 		proof.Bs.FromJacobian(&Bs)
-		chBs2Done <- nil
+		return nil
 	}
 
-	// wait for FFT to end, as it uses all our CPUs
-	<-chHDone
+	// Parallel execution, memory may hit limit
+	g, _ := errgroup.WithContext(context.TODO())
+	g.Go(computeAR1)
+	g.Go(computeBS1)
+	g.Go(computeKRS1)
+	g.Go(computeKRS2)
+	g.Go(computeBS2)
 
-	// Parallel GPU execution, memory may hit limit
-	go computeAR1()
-	go computeBS1()
-	go computeKRS()
-
-	// wait krs, ar1, bs1
-	// krs done means AR1, BS1 are done
-	if err := <-chKrsDone; err != nil {
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	// bs2 and bs1 both depend on wireValuesB
-	computeBS2()
-	if err := <-chBs2Done; err != nil {
-		return nil, err
+
+	// FinalKRS = KRS1 + KRS2 + s*AR + r*BS1
+	{
+		var p1 curve.G1Jac
+		krs1.AddAssign(&krs2)
+		p1.ScalarMultiplication(&ar, &s)
+		krs1.AddAssign(&p1)
+		p1.ScalarMultiplication(&bs1, &r)
+		krs1.AddAssign(&p1)
+		proof.Krs.FromJacobian(&krs1)
 	}
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
-
-	// Free device memory
-	go func() {
-		deviceWireValuesA.Free()
-		deviceWireValuesB.Free()
-		deviceH.Free()
-	}()
 
 	return proof, nil
 }
