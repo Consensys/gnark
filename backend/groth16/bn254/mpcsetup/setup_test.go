@@ -40,12 +40,13 @@ func TestSetupCircuit(t *testing.T) {
 
 	assert := require.New(t)
 
-	srs1 := NewPhase1(power)
+	var srs1 Phase1
+	srs1.Initialize(1 << power)
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase1; i++ {
 		// we clone test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
+		// add its contribution and send back to coordinator.
 		prev := srs1.clone()
 
 		srs1.Contribute()
@@ -66,7 +67,7 @@ func TestSetupCircuit(t *testing.T) {
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase2; i++ {
 		// we clone for test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
+		// add its contribution and send back to coordinator.
 		prev := srs2.clone()
 
 		srs2.Contribute()
@@ -103,13 +104,15 @@ func BenchmarkPhase1(b *testing.B) {
 
 	b.Run("init", func(b *testing.B) {
 		b.ResetTimer()
+		var srs1 Phase1
 		for i := 0; i < b.N; i++ {
-			_ = NewPhase1(power)
+			srs1.Initialize(1 << power)
 		}
 	})
 
 	b.Run("contrib", func(b *testing.B) {
-		srs1 := NewPhase1(power)
+		var srs1 Phase1
+		srs1.Initialize(1 << power)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			srs1.Contribute()
@@ -120,7 +123,8 @@ func BenchmarkPhase1(b *testing.B) {
 
 func BenchmarkPhase2(b *testing.B) {
 	const power = 14
-	srs1 := NewPhase1(power)
+	var srs1 Phase1
+	srs1.Initialize(1 << power)
 	srs1.Contribute()
 
 	var myCircuit Circuit

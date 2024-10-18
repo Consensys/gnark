@@ -1,4 +1,4 @@
-// Copyright 2020 ConsenSys Software Inc.
+// Copyright 2020 Consensys Software Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,81 +31,126 @@ import (
 //
 // Also known as "Powers of Tau"
 type Phase1 struct {
-	Principal struct { // "main" contributions
+	proofs struct { // "main" contributions
 		Tau, Alpha, Beta valueUpdate
 	}
-	G1Derived struct {
-		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
-		AlphaTau []curve.G1Affine // {[ατ⁰]₁, [ατ¹]₁, [ατ²]₁, …, [ατⁿ⁻¹]₁}
-		BetaTau  []curve.G1Affine // {[βτ⁰]₁, [βτ¹]₁, [βτ²]₁, …, [βτⁿ⁻¹]₁}
-	}
-	G2Derived struct {
-		Tau []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
-	}
-	Challenge []byte // Hash of the transcript PRIOR to this participant
+	parameters SrsCommons
+	Challenge  []byte // Hash of the transcript PRIOR to this participant
 }
 
 // Contribute contributes randomness to the Phase1 object. This mutates Phase1.
 // p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
 func (p *Phase1) Contribute() {
-	N := len(p.G2Derived.Tau)
-	challenge := p.hash()
+	p.Challenge = p.hash()
 
 	// Generate main value updates
-	var tau, alpha, beta *big.Int
-	p.Principal.Tau, tau = updateValue(p.Principal.Tau.updatedCommitment, challenge, 1)
-	p.Principal.Alpha, alpha = updateValue(p.Principal.Alpha.updatedCommitment, challenge, 2)
-	p.Principal.Beta, beta = updateValue(p.Principal.Beta.updatedCommitment, challenge, 3)
+	var (
+		tauContrib, alphaContrib, betaContrib fr.Element
+	)
+	p.proofs.Tau, p.parameters.G1.Tau[1], tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
+	p.proofs.Alpha, p.parameters.G1.AlphaTau[0], alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
+	p.proofs.Beta, p.parameters.G1.BetaTau[0], betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)
 
-	defer eraseBigInts(tau, alpha, beta)
-
-	// Compute τ, ατ, and βτ
-	taus := powers(tau, 2*N-1)
-	alphaTau := make([]fr.Element, N)
-	betaTau := make([]fr.Element, N)
-
-	defer eraseFrVectors(taus, alphaTau, betaTau)
-
-	alphaTau[0].SetBigInt(alpha)
-	betaTau[0].SetBigInt(beta)
-	for i := 1; i < N; i++ {
-		alphaTau[i].Mul(&taus[i], &alphaTau[0])
-		betaTau[i].Mul(&taus[i], &betaTau[0])
-	}
-
-	// Update using previous parameters
-	// TODO @gbotrel working with jacobian points here will help with perf.
-	scaleG1InPlace(p.G1Derived.Tau, taus)
-	scaleG2InPlace(p.G2Derived.Tau, taus[0:N])
-	scaleG1InPlace(p.G1Derived.AlphaTau, alphaTau)
-	scaleG1InPlace(p.G1Derived.BetaTau, betaTau)
-
-	p.Challenge = challenge
+	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib, true)
 }
 
-// Initialize an empty object of size N
-func (p *Phase1) Initialize(N uint64) {
-	_, _, g1, g2 := curve.Generators()
-
-	p.Challenge = []byte{0}
-	p.Principal.Alpha.setEmpty(true)
-	p.Principal.Beta.setEmpty(false)
-	p.Principal.Tau.setEmpty(false)
-
-	p.G1Derived.Tau = make([]curve.G1Affine, 2*N-1)
-	p.G2Derived.Tau = make([]curve.G2Affine, N)
-	p.G1Derived.AlphaTau = make([]curve.G1Affine, N)
-	p.G1Derived.BetaTau = make([]curve.G1Affine, N)
-	for i := range p.G1Derived.Tau {
-		p.G1Derived.Tau[i].Set(&g1)
+// SrsCommons are the circuit-independent components of the Groth16 SRS,
+// computed by the first phase.
+type SrsCommons struct {
+	G1 struct {
+		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
+		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
 	}
-	for i := range p.G2Derived.Tau {
-		p.G2Derived.Tau[i].Set(&g2)
-		p.G1Derived.AlphaTau[i].Set(&g1)
-		p.G1Derived.BetaTau[i].Set(&g1)
+	G2 struct {
+		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
+		Beta curve.G2Affine   // [β]₂
+	}
+}
+
+// setZero instantiates the parameters, and sets all contributions to zero
+func (c *SrsCommons) setZero(N uint64) {
+	c.G1.Tau = make([]curve.G1Affine, 2*N-2)
+	c.G2.Tau = make([]curve.G2Affine, N)
+	c.G1.AlphaTau = make([]curve.G1Affine, N)
+	c.G1.BetaTau = make([]curve.G1Affine, N)
+	_, _, c.G1.Tau[0], c.G2.Tau[0] = curve.Generators()
+}
+
+// setOne instantiates the parameters, and sets all contributions to one
+func (c *SrsCommons) setOne(N uint64) {
+	c.setZero(N)
+	for i := range c.G1.Tau {
+		c.G1.Tau[i] = c.G1.Tau[0]
+	}
+	for i := range c.G1.AlphaTau {
+		c.G1.AlphaTau[i] = c.G1.AlphaTau[0]
+		c.G1.BetaTau[i] = c.G1.AlphaTau[0]
+		c.G2.Tau[i] = c.G2.Tau[0]
+	}
+	c.G2.Beta = c.G2.Tau[0]
+}
+
+// from the fourth argument on this just gives an opportunity to avoid recomputing some scalar multiplications
+func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element, principalG1sPrecomputed bool) {
+	i0 := 0
+	if principalG1sPrecomputed {
+		i0 = 1
 	}
 
-	return
+	// TODO @gbotrel working with jacobian points here will help with perf.
+
+	tauUpdates := powers(tauUpdate, len(c.G1.Tau))
+	// saving 3 exactly scalar muls among millions. Not a significant gain but might as well.
+	scaleG1InPlace(c.G1.Tau[i0+1:], tauUpdates[i0+1:]) // first element remains 1. second element may have been precomputed.
+	scaleG2InPlace(c.G2.Tau[1:], tauUpdates[1:])
+
+	alphaUpdates := make([]fr.Element, len(c.G1.AlphaTau))
+	alphaUpdates[0].Set(alphaUpdate)
+	for i := i0; i < len(alphaUpdates); i++ {
+		alphaUpdates[i].Mul(&tauUpdates[i], &alphaUpdates[1])
+	}
+	scaleG1InPlace(c.G1.AlphaTau[i0:], alphaUpdates[i0:]) // first element may have been precomputed
+
+	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
+	betaUpdates[0].Set(betaUpdate)
+	for i := i0; i < len(betaUpdates); i++ {
+		alphaUpdates[i].Mul(&tauUpdates[i], &betaUpdates[1])
+	}
+	scaleG1InPlace(c.G1.BetaTau[i0:], betaUpdates[i0:])
+
+	var betaUpdateI big.Int
+	betaUpdate.SetBigInt(&betaUpdateI)
+	c.G2.Beta.ScalarMultiplication(&c.G2.Beta, &betaUpdateI)
+}
+
+// Seal performs the final contribution and outputs the final parameters.
+// No randomization is performed at this step.
+// A verifier should simply re-run this and check
+// that it produces the same values.
+// The inner workings of the random beacon are out of scope.
+// WARNING: Seal modifies p, just as Contribute does.
+// The result will be an INVALID Phase1 object.
+func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
+	var (
+		bb  bytes.Buffer
+		err error
+	)
+	bb.Write(p.hash())
+	bb.Write(beaconChallenge)
+
+	newContribs := make([]fr.Element, 3)
+	// cryptographically unlikely for this to be run more than once
+	for newContribs[0].IsZero() || newContribs[1].IsZero() || newContribs[2].IsZero() {
+		if newContribs, err = fr.Hash(bb.Bytes(), []byte("Groth16 SRS generation ceremony - Phase 1 Final Step"), 3); err != nil {
+			panic(err)
+		}
+		bb.WriteByte('=') // padding just so that the hash is different next time
+	}
+
+	p.parameters.update(&newContribs[0], &newContribs[1], &newContribs[2], false)
+
+	return p.parameters
 }
 
 func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
@@ -128,20 +173,29 @@ func (p *Phase1) Verify(previous *Phase1) error {
 		p.Challenge = prevHash
 	}
 
-	if err := p.Principal.Tau.verify(previous.Principal.Tau.updatedCommitment, p.Challenge, 1); err != nil {
+	if err := p.proofs.Tau.verify(
+		pair{previous.parameters.G1.Tau[1], &previous.parameters.G2.Tau[1]},
+		pair{p.parameters.G1.Tau[1], &p.parameters.G2.Tau[1]},
+		p.Challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := p.Principal.Alpha.verify(previous.Principal.Alpha.updatedCommitment, p.Challenge, 2); err != nil {
+	if err := p.proofs.Alpha.verify(
+		pair{previous.parameters.G1.AlphaTau[0], nil},
+		pair{p.parameters.G1.AlphaTau[0], nil},
+		p.Challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := p.Principal.Beta.verify(previous.Principal.Beta.updatedCommitment, p.Challenge, 3); err != nil {
+	if err := p.proofs.Beta.verify(
+		pair{previous.parameters.G1.BetaTau[0], &previous.parameters.G2.Beta},
+		pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta},
+		p.Challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
-	if !areInSubGroupG1(p.G1Derived.Tau) || !areInSubGroupG1(p.G1Derived.BetaTau) || !areInSubGroupG1(p.G1Derived.AlphaTau) {
+	if !areInSubGroupG1(p.parameters.G1.Tau[2:]) || !areInSubGroupG1(p.parameters.G1.BetaTau[1:]) || !areInSubGroupG1(p.parameters.G1.AlphaTau[1:]) {
 		return errors.New("derived values 𝔾₁ subgroup check failed")
 	}
-	if !areInSubGroupG2(p.G2Derived.Tau) {
+	if !areInSubGroupG2(p.parameters.G2.Tau[2:]) {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
 
@@ -151,19 +205,19 @@ func (p *Phase1) Verify(previous *Phase1) error {
 	// i.e. e(τⁱ⁺¹,[1]₂) = e(τⁱ,[τ]₂). Due to bi-linearity we can instead check
 	// e(∑rⁱ⁻¹τⁱ⁺¹,[1]₂) = e(∑rⁱ⁻¹τⁱ,[τ]₂), which is tantamount to the check
 	// ∑rⁱ⁻¹τⁱ⁺¹ / ∑rⁱ⁻¹τⁱ = τ
-	r := linearCombCoeffs(len(p.G1Derived.Tau) - 1) // the longest of all lengths
+	r := linearCombCoeffs(len(p.parameters.G1.Tau) - 1) // the longest of all lengths
 	// will be reusing the coefficient TODO @Tabaie make sure that's okay
 
-	tauT1, tauS1 := linearCombinationsG1(p.G1Derived.Tau[1:], r)
-	tauT2, tauS2 := linearCombinationsG2(p.G2Derived.Tau[1:], r)
-	alphaTT, alphaTS := linearCombinationsG1(p.G1Derived.AlphaTau, r)
-	betaTT, betaTS := linearCombinationsG1(p.G1Derived.BetaTau, r)
+	tauT1, tauS1 := linearCombinationsG1(p.parameters.G1.Tau[1:], r)
+	tauT2, tauS2 := linearCombinationsG2(p.parameters.G2.Tau[1:], r)
+	alphaTT, alphaTS := linearCombinationsG1(p.parameters.G1.AlphaTau, r)
+	betaTT, betaTS := linearCombinationsG1(p.parameters.G1.BetaTau, r)
 
-	if !sameRatioUnsafe(tauS1, tauT1, *p.Principal.Tau.updatedCommitment.g2, g2) {
+	if !sameRatioUnsafe(tauS1, tauT1, p.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
 	}
 
-	if !sameRatioUnsafe(p.Principal.Tau.updatedCommitment.g1, g1, tauS2, tauT2) {
+	if !sameRatioUnsafe(p.parameters.G1.Tau[1], g1, tauS2, tauT2) {
 		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
 	}
 
@@ -172,12 +226,14 @@ func (p *Phase1) Verify(previous *Phase1) error {
 	// For 0 < i < N we check that ατⁱ/ατⁱ⁻¹ = τ, since we have a representation of τ in 𝔾₂
 	// with a similar bi-linearity argument as above we can do this with a single pairing check
 
-	if !sameRatioUnsafe(alphaTS, alphaTT, *p.Principal.Tau.updatedCommitment.g2, g2) {
+	if !sameRatioUnsafe(alphaTS, alphaTT, p.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify the ατⁱ")
 	}
-	if !sameRatioUnsafe(betaTS, betaTT, *p.Principal.Tau.updatedCommitment.g2, g2) {
+	if !sameRatioUnsafe(betaTS, betaTT, p.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify the βτⁱ")
 	}
+
+	// TODO @Tabaie combine all pairing checks except the second one
 
 	return nil
 }

@@ -21,72 +21,58 @@ import (
 	"io"
 )
 
-func appendToSlice[T any](s []interface{}, v []T) []interface{} {
+func appendRefs[T any](s []interface{}, v []T) []interface{} {
 	for i := range v {
-		s = append(s, v[i])
+		s = append(s, &v[i])
 	}
 	return s
 }
 
-func (p *Phase1) toSlice() []interface{} {
-	N := len(p.G2Derived.Tau)
-	estimatedNbElems := 5*N + 5
-	// size N                                                                    1
-	// commitment, proof of knowledge, and 𝔾₁ representation for τ, α, and β     9
-	// 𝔾₂ representation for τ and β                                             2
-	// [τⁱ]₁  for 2 ≤ i ≤ 2N-2                                                2N-3
-	// [τⁱ]₂  for 2 ≤ i ≤ N-1                                                  N-2
-	// [ατⁱ]₁ for 1 ≤ i ≤ N-1                                                  N-1
-	// [βτⁱ]₁ for 1 ≤ i ≤ N-1                                                  N-1
-
-	toEncode := make([]interface{}, 1, estimatedNbElems)
-
-	toEncode[0] = N
-	toEncode = p.Principal.Tau.appendRefsToSlice(toEncode)
-	toEncode = p.Principal.Alpha.appendRefsToSlice(toEncode)
-	toEncode = p.Principal.Beta.appendRefsToSlice(toEncode)
-
-	toEncode = appendToSlice(toEncode, p.G1Derived.Tau[2:])
-	toEncode = appendToSlice(toEncode, p.G2Derived.Tau[2:])
-	toEncode = appendToSlice(toEncode, p.G1Derived.BetaTau[1:])
-	toEncode = appendToSlice(toEncode, p.G1Derived.AlphaTau[1:])
-
-	if len(toEncode) != estimatedNbElems {
-		panic("incorrect length estimate")
+// proofRefsSlice produces a slice consisting of references to all proof sub-elements
+// prepended by the size parameter, to be used in WriteTo and ReadFrom functions
+func (p *Phase1) proofRefsSlice() []interface{} {
+	return []interface{}{
+		&p.proofs.Tau.contributionCommitment,
+		&p.proofs.Tau.contributionPok,
+		&p.proofs.Alpha.contributionCommitment,
+		&p.proofs.Alpha.contributionPok,
+		&p.proofs.Beta.contributionCommitment,
+		&p.proofs.Beta.contributionPok,
 	}
-
-	return toEncode
 }
 
 // WriteTo implements io.WriterTo
-func (p *Phase1) WriteTo(writer io.Writer) (int64, error) {
+// It does not write the Challenge from the previous contribution
+func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
+
+	if n, err = p.parameters.WriteTo(writer); err != nil {
+		return
+	}
 
 	enc := curve.NewEncoder(writer)
-	for _, v := range p.toSlice() {
-		if err := enc.Encode(v); err != nil {
-			return enc.BytesWritten(), err
+	for _, v := range p.proofRefsSlice() {
+		if err = enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
 		}
 	}
-	return enc.BytesWritten(), nil
+	return n + enc.BytesWritten(), nil
 }
 
 // ReadFrom implements io.ReaderFrom
-func (p *Phase1) ReadFrom(reader io.Reader) (int64, error) {
-	var N uint64
-	dec := curve.NewDecoder(reader)
-	if err := dec.Decode(&N); err != nil {
-		return dec.BytesRead(), err
+// It does not read the Challenge from the previous contribution
+func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
+
+	if n, err = p.parameters.ReadFrom(reader); err != nil {
+		return
 	}
 
-	p.Initialize(N)
-	toDecode := p.toSlice()
-
-	for _, v := range toDecode[1:] { // we've already decoded N
-		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+	dec := curve.NewDecoder(reader)
+	for _, v := range p.proofRefsSlice() { // we've already decoded N
+		if err = dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
 		}
 	}
-	return dec.BytesRead(), nil
+	return n + dec.BytesRead(), nil
 }
 
 // WriteTo implements io.WriterTo
@@ -181,11 +167,56 @@ func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
 	return dec.BytesRead(), nil
 }
 
-// appendRefsToSlice appends references to values in x to s
-func (x *valueUpdate) appendRefsToSlice(s []interface{}) []interface{} {
-	s = append(s, &x.contributionCommitment, &x.contributionPok, &x.updatedCommitment.g1)
-	if x.updatedCommitment.g2 != nil {
-		return append(s, x.updatedCommitment.g2)
+// refsSlice produces a slice consisting of references to all sub-elements
+// prepended by the size parameter, to be used in WriteTo and ReadFrom functions
+func (c *SrsCommons) refsSlice() []interface{} {
+	N := len(c.G2.Tau)
+	estimatedNbElems := 5*N - 1
+	// size N                                                                    1
+	// 𝔾₂ representation for β                                                   1
+	// [τⁱ]₁  for 1 ≤ i ≤ 2N-2                                                2N-2
+	// [τⁱ]₂  for 1 ≤ i ≤ N-1                                                  N-1
+	// [ατⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
+	// [βτⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
+	refs := make([]interface{}, 1, estimatedNbElems)
+	refs[0] = N
+
+	refs = appendRefs(refs, c.G1.Tau[1:])
+	refs = appendRefs(refs, c.G2.Tau[1:])
+	refs = appendRefs(refs, c.G1.BetaTau)
+	refs = appendRefs(refs, c.G1.AlphaTau)
+
+	if len(refs) != estimatedNbElems {
+		panic("incorrect length estimate")
 	}
-	return s
+
+	return refs
+}
+
+func (c *SrsCommons) WriteTo(writer io.Writer) (int64, error) {
+	enc := curve.NewEncoder(writer)
+	for _, v := range c.refsSlice() {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+	return enc.BytesWritten(), nil
+}
+
+// ReadFrom implements io.ReaderFrom
+func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
+	var N uint64
+	dec := curve.NewDecoder(reader)
+	if err = dec.Decode(&N); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	c.setZero(N)
+
+	for _, v := range c.refsSlice()[1:] { // we've already decoded N
+		if err = dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+	return dec.BytesRead(), nil
 }
