@@ -411,14 +411,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	// Parallel GPU execution, memory may hit limit
 	go computeAR1()
 	go computeBS1()
-	go computeBS2()
 	go computeKRS()
 
-	// wait for all parts of the proof to be computed.
-	// Krs done means AR1, BS1 are done
+	// wait krs, ar1, bs1
+	// krs done means AR1, BS1 are done
 	if err := <-chKrsDone; err != nil {
 		return nil, err
 	}
+	// bs2 and bs1 both depend on wireValuesB
+	computeBS2()
 	if err := <-chBs2Done; err != nil {
 		return nil, err
 	}
@@ -518,11 +519,20 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	return a
 }
 
-func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
+func checkMsmInputs[P, S any](points *device.HostOrDeviceSlice[P], scalars *device.HostOrDeviceSlice[S]) error {
+	if !points.IsOnDevice() || !scalars.IsOnDevice() {
+		return fmt.Errorf("MSM: points and scalars must be on device")
+	}
 	if points.Len() != scalars.Len() {
 		return fmt.Errorf("MSM: len(points) != len(scalars)")
 	}
+	return nil
+}
+
+func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
+	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
+	cfg.AreInputsOnDevice = true
 	cfg.ArePointsInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.FfiAffineSz = 64
@@ -533,9 +543,7 @@ func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], s
 }
 
 func msmG2(res *curve.G2Jac, points *device.HostOrDeviceSlice[curve.G2Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
-	if points.Len() != scalars.Len() {
-		return fmt.Errorf("MSM: len(points) != len(scalars)")
-	}
+	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
 	cfg.AreInputsOnDevice = true
 	cfg.ArePointsInMont = true
