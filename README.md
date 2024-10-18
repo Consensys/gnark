@@ -161,6 +161,34 @@ func main() {
 
 ### GPU Support
 
+#### Zeknox Library
+Unlock free GPU acceleration with [OKX Zeknox library](https://github.com/okx/cryptography_cuda)
+
+##### Download prebuilt binary
+```sh
+sudo cp libblst.a libcryptocuda.a /usr/local/lib/
+```
+
+If you want to build from source, see guide in https://github.com/okx/cryptography_cuda
+
+##### Enjoy GPU
+Run `groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
+
+Test
+```go
+assert.ProverSucceeded(&mimcCircuit, &Circuit{
+		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
+		Hash:     "12886436712380113721405259596386800092738845035233065858332878701083870690753",
+	}, test.WithCurves(ecc.BN254), test.WithProverOpts(backend.WithZeknoxAcceleration()))
+```
+
+```sh
+go run -tags=zeknox examples/main.go
+# (place -tags before the filename)
+
+go test github.com/consensys/gnark/examples/mimc -tags=prover_checks,zeknox
+```
+
 #### Icicle Library
 
 The following schemes and curves support experimental use of Ingonyama's Icicle GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
@@ -178,7 +206,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
 ```go
     // toggle on
     proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
-    
+
     // toggle off
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```
