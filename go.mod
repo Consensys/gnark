@@ -16,7 +16,7 @@ require (
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/iciclegnark v0.1.0
 	github.com/leanovate/gopter v0.2.11
-	github.com/okx/cryptography_cuda/wrappers/go v0.0.0-20241016023422-25c1f0f5f44e
+	github.com/okx/cryptography_cuda v0.0.0-20241018104554-bafea0c91f28
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
@@ -38,4 +38,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/okx/cryptography_cuda/wrappers/go => /home/okxdex/data/zkdex-pap/workspace/jason-huang/cryptography_cuda/wrappers/go
+// replace github.com/okx/cryptography_cuda => /home/okxdex/data/zkdex-pap/workspace/jason-huang/cryptography_cuda
