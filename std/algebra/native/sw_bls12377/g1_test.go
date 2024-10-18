@@ -977,16 +977,16 @@ type scalarMulGLVAndFakeGLVEdgeCases struct {
 }
 
 func (circuit *scalarMulGLVAndFakeGLVEdgeCases) Define(api frontend.API) error {
-	expected1 := G1Affine{}
-	expected2 := G1Affine{}
-	expected3 := G1Affine{}
+	expected1, expected2, expected3, expected4 := G1Affine{}, G1Affine{}, G1Affine{}, G1Affine{}
 	infinity := G1Affine{X: 0, Y: 0}
 	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
 	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
 	expected3.varScalarMul(api, infinity, 0, algopts.WithCompleteArithmetic())
+	expected4.varScalarMul(api, circuit.A, 1, algopts.WithCompleteArithmetic())
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	expected3.AssertIsEqual(api, infinity)
+	expected4.AssertIsEqual(api, circuit.A)
 	return nil
 }
 

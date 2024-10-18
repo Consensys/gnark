@@ -1541,12 +1541,17 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		panic(err)
 	}
 
-	// handle zero-scalar
+	// handle 0-scalar and (-1)-scalar cases
 	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
-		selector0 = c.scalarApi.IsZero(s)
-		_s = c.scalarApi.Select(selector0, c.scalarApi.One(), s)
+		one := c.scalarApi.One()
+		selector0 = c.api.Or(
+			c.scalarApi.IsZero(s),
+			c.scalarApi.IsZero(
+				c.scalarApi.Add(s, one)),
+		)
+		_s = c.scalarApi.Select(selector0, one, s)
 	}
 
 	// Instead of computing [s]P=Q, we check that Q-[s]P == 0.
@@ -1636,7 +1641,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	Q := &AffinePoint[B]{X: *point[0], Y: *point[1]}
 
 	// handle (0,0)-point
-	var _selector0 frontend.Variable
+	var _selector0, _selector1 frontend.Variable
 	_P := P
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
@@ -1644,6 +1649,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		// if P=(0,0) we assign a dummy point to P and continue
 		_selector0 = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
 		_P = c.Select(_selector0, &c.GeneratorMultiples()[4], P)
+		// if s=±1 we assign a dummy point to Q and continue
+		_selector1 = c.baseApi.IsZero(c.baseApi.Sub(&P.X, &Q.X))
+		Q = c.Select(_selector1, &c.GeneratorMultiples()[3], Q)
 	}
 
 	// precompute -P, -Φ(P), Φ(P)
@@ -1788,7 +1796,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Acc should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
 	if cfg.CompleteArithmetic {
-		Acc = c.Select(c.api.Or(selector0, _selector0), &gm, Acc)
+		Acc = c.Select(c.api.Or(c.api.Or(selector0, _selector0), _selector1), &gm, Acc)
 	}
 	c.AssertIsEqual(Acc, &gm)
 
