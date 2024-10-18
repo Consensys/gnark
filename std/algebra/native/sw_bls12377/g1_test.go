@@ -933,3 +933,77 @@ func TestMultiScalarMulFolded(t *testing.T) {
 	}, &assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }
+
+// fake GLV
+type scalarMulGLVAndFakeGLV struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *scalarMulGLVAndFakeGLV) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.scalarMulGLVAndFakeGLV(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG1GLVAndFakeGLV(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness scalarMulGLVAndFakeGLV
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type scalarMulGLVAndFakeGLVEdgeCases struct {
+	A G1Affine
+	R frontend.Variable
+}
+
+func (circuit *scalarMulGLVAndFakeGLVEdgeCases) Define(api frontend.API) error {
+	expected1, expected2, expected3, expected4 := G1Affine{}, G1Affine{}, G1Affine{}, G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected3.varScalarMul(api, infinity, 0, algopts.WithCompleteArithmetic())
+	expected4.varScalarMul(api, circuit.A, 1, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	expected3.AssertIsEqual(api, infinity)
+	expected4.AssertIsEqual(api, circuit.A)
+	return nil
+}
+
+func TestScalarMulG1GLVAndFakeGLVEdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness scalarMulGLVAndFakeGLVEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
+	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -133,6 +134,23 @@ func GetBW6761Params() CurveParams {
 	}
 }
 
+// GetStarkCurveParams returns the curve parameters for the STARK curve.
+// When initialising new curve, use the base field [emulated.STARKCurveFp] and scalar
+// field [emulated.STARKCurveFr].
+func GetStarkCurveParams() CurveParams {
+	_, g1aff := stark_curve.Generators()
+	b, _ := new(big.Int).SetString("3141592653589793238462643383279502884197169399375105820974944592307816406665", 10)
+	return CurveParams{
+		A:            big.NewInt(1),
+		B:            b,
+		Gx:           g1aff.X.BigInt(new(big.Int)),
+		Gy:           g1aff.Y.BigInt(new(big.Int)),
+		Gm:           computeStarkCurveTable(),
+		Eigenvalue:   nil,
+		ThirdRootOne: nil,
+	}
+}
+
 // GetCurveParams returns suitable curve parameters given the parametric type
 // Base as base field. It caches the parameters and modifying the values in the
 // parameters struct leads to undefined behaviour.
@@ -151,18 +169,21 @@ func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 		return p384Params
 	case emulated.BW6761Fp{}.Modulus().String():
 		return bw6761Params
+	case emulated.STARKCurveFp{}.Modulus().String():
+		return starkCurveParams
 	default:
 		panic("no stored parameters")
 	}
 }
 
 var (
-	secp256k1Params CurveParams
-	bn254Params     CurveParams
-	bls12381Params  CurveParams
-	p256Params      CurveParams
-	p384Params      CurveParams
-	bw6761Params    CurveParams
+	secp256k1Params  CurveParams
+	bn254Params      CurveParams
+	bls12381Params   CurveParams
+	p256Params       CurveParams
+	p384Params       CurveParams
+	bw6761Params     CurveParams
+	starkCurveParams CurveParams
 )
 
 func init() {
@@ -172,4 +193,5 @@ func init() {
 	p256Params = GetP256Params()
 	p384Params = GetP384Params()
 	bw6761Params = GetBW6761Params()
+	starkCurveParams = GetStarkCurveParams()
 }

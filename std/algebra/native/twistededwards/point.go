@@ -16,9 +16,7 @@ limitations under the License.
 
 package twistededwards
 
-import (
-	"github.com/consensys/gnark/frontend"
-)
+import "github.com/consensys/gnark/frontend"
 
 // neg computes the negative of a point in SNARK coordinates
 func (p *Point) neg(api frontend.API, p1 *Point) *Point {
@@ -95,17 +93,12 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 	return p
 }
 
-// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// scalarMulGeneric computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
-	if len(endo) == 1 && endo[0] != nil {
-		// use glv
-		return p.scalarMulGLV(api, p1, scalar, curve, endo[0])
-	}
-
+func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
@@ -142,6 +135,15 @@ func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	return p
 }
 
+// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scal: scalar as a SNARK constraint
+// Standard left to right double and add
+func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+	return p.scalarMulFakeGLV(api, p1, scalar, curve)
+}
+
 // doubleBaseScalarMul computes s1*P1+s2*P2
 // where P1 and P2 are points on a twisted Edwards curve
 // and s1, s2 scalars.
@@ -169,6 +171,137 @@ func (p *Point) doubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 fron
 
 	p.X = res.X
 	p.Y = res.Y
+
+	return p
+}
+
+// GLV
+
+// phi endomorphism √-2 ∈ 𝒪₋₈
+// (x,y) → λ × (x,y) s.t. λ² = -2 mod Order
+func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoParams) *Point {
+
+	xy := api.Mul(p1.X, p1.Y)
+	yy := api.Mul(p1.Y, p1.Y)
+	f := api.Sub(1, yy)
+	f = api.Mul(f, endo.Endo[1])
+	g := api.Add(yy, endo.Endo[0])
+	g = api.Mul(g, endo.Endo[0])
+	h := api.Sub(yy, endo.Endo[0])
+
+	p.X = api.DivUnchecked(f, xy)
+	p.Y = api.DivUnchecked(g, h)
+
+	return p
+}
+
+// scalarMulGLV computes the scalar multiplication of a point on a twisted
+// Edwards curve à la GLV.
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scal: scalar as a SNARK constraint
+// Standard left to right double and add
+func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
+	// the hints allow to decompose the scalar s into s1 and s2 such that
+	// s1 + λ * s2 == s mod Order,
+	// with λ s.t. λ² = -2 mod Order.
+	sd, err := api.NewHint(decomposeScalar, 3, scalar)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	s1, s2 := sd[0], sd[1]
+
+	// -s1 + λ * s2 == s + k*Order
+	api.AssertIsEqual(api.Sub(api.Mul(s2, endo.Lambda), s1), api.Add(scalar, api.Mul(curve.Order, sd[2])))
+
+	// Normally s1 and s2 are of the max size sqrt(Order) = 128
+	// But in a circuit, we force s1 to be negative by rounding always above.
+	// This changes the size bounds to 2*sqrt(Order) = 129.
+	n := 129
+
+	b1 := api.ToBinary(s1, n)
+	b2 := api.ToBinary(s2, n)
+
+	var res, _p1, p2, p3, tmp Point
+	_p1.neg(api, p1)
+	p2.phi(api, p1, curve, endo)
+	p3.add(api, &_p1, &p2, curve)
+
+	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, _p1.X, p2.X, p3.X)
+	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, _p1.Y, p2.Y, p3.Y)
+
+	for i := n - 2; i >= 0; i-- {
+		res.double(api, &res, curve)
+		tmp.X = api.Lookup2(b1[i], b2[i], 0, _p1.X, p2.X, p3.X)
+		tmp.Y = api.Lookup2(b1[i], b2[i], 1, _p1.Y, p2.Y, p3.Y)
+		res.add(api, &res, &tmp, curve)
+	}
+
+	p.X = res.X
+	p.Y = res.Y
+
+	return p
+}
+
+// scalarMulFakeGLV computes the scalar multiplication of a point on a twisted
+// Edwards curve following https://hackmd.io/@yelhousni/Hy-aWld50
+//
+// [s]p1 == q is equivalent to [s2]([s]p1 - q) = (0,1) which is [s1]p1 + [s2]q = (0,1)
+// with s1, s2 < sqrt(Order) and s1 + s2 * s = 0 mod Order.
+//
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scal: scalar as a SNARK constraint
+// Standard left to right double and add
+func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
+	// the hints allow to decompose the scalar s into s1 and s2 such that
+	// s1 + s * s2 == 0 mod Order,
+	s, err := api.NewHint(halfGCD, 4, scalar, curve.Order)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s1, s2, bit, k := s[0], s[1], s[2], s[3]
+
+	// check that s1 + s2 * s == k*Order
+	_s2 := api.Mul(s2, scalar)
+	_k := api.Mul(k, curve.Order)
+	lhs := api.Select(bit, s1, api.Add(s1, _s2))
+	rhs := api.Select(bit, api.Add(_k, _s2), _k)
+	api.AssertIsEqual(lhs, rhs)
+
+	n := (curve.Order.BitLen() + 1) / 2
+	b1 := api.ToBinary(s1, n)
+	b2 := api.ToBinary(s2, n)
+
+	var res, p2, p3, tmp Point
+	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalar, curve.Order)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	p2.X = api.Select(bit, api.Neg(q[0]), q[0])
+	p2.Y = q[1]
+
+	p3.add(api, p1, &p2, curve)
+
+	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, p1.X, p2.X, p3.X)
+	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, p1.Y, p2.Y, p3.Y)
+
+	for i := n - 2; i >= 0; i-- {
+		res.double(api, &res, curve)
+		tmp.X = api.Lookup2(b1[i], b2[i], 0, p1.X, p2.X, p3.X)
+		tmp.Y = api.Lookup2(b1[i], b2[i], 1, p1.Y, p2.Y, p3.Y)
+		res.add(api, &res, &tmp, curve)
+	}
+
+	api.AssertIsEqual(res.X, 0)
+	api.AssertIsEqual(res.Y, 1)
+
+	p.X = q[0]
+	p.Y = q[1]
 
 	return p
 }
