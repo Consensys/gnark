@@ -251,38 +251,45 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	var bs1, ar curve.G1Jac
 
-	computeBS1 := func() error {
+	chBs1Done := make(chan error, 1)
+	computeBS1 := func() {
 		if err := <-chWireValuesB; err != nil {
-			return err
+			chBs1Done <- err
+			return
 		}
 		startBs1 := time.Now()
 		if err := msmG1(&bs1, pk.G1Device.B, deviceWireValuesB); err != nil {
-			return err
+			chBs1Done <- err
+			return
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesB.Len()), time.Since(startBs1)).Msg("bs1 done")
 		// + beta + s[δ]
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
-		return nil
+		chBs1Done <- nil
 	}
 
-	computeAR1 := func() error {
+	chArDone := make(chan error, 1)
+	computeAR1 := func() {
 		if err := <-chWireValuesA; err != nil {
-			return err
+			chArDone <- err
+			return
 		}
 		startAr := time.Now()
 		if err := msmG1(&ar, pk.G1Device.A, deviceWireValuesA); err != nil {
-			return err
+			chArDone <- err
+			return
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", deviceWireValuesA.Len()), time.Since(startAr)).Msg("ar done")
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
-		return nil
+		chArDone <- nil
 	}
 
+	chKrsDone := make(chan error, 1)
 	var deviceH *device.HostOrDeviceSlice[fr.Element]
-	computeKRS := func() error {
+	computeKRS := func() {
 		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
 		// however, having similar lengths for our tasks helps with parallelism
 
@@ -329,37 +336,63 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		// CPU
 		// Compute this MSM on CPU, as it can be done in parallel with other MSM on GPU
+		// Also, reduce data copy
 		startKrs := time.Now()
 		if _, err := krs.MultiExp(pk.G1.K, wireValuesWithoutCom, ecc.MultiExpConfig{NbTasks: runtime.NumCPU() / 2}); err != nil {
-			return err
+			chKrsDone <- err
+			return
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValues)), time.Since(startKrs)).Msg("krs done")
 		// -rs[δ]
 		krs.AddMixed(&deltas[2])
 
-		if err := <-chKrs2Done; err != nil {
-			return err
+		n := 3
+		for n != 0 {
+			select {
+			// wait krs2
+			case err := <-chKrs2Done:
+				if err != nil {
+					chKrsDone <- err
+					return
+				}
+				krs.AddAssign(&krs2)
+			// wait ar
+			case err := <-chArDone:
+				if err != nil {
+					chKrsDone <- err
+					return
+				}
+				p1.ScalarMultiplication(&ar, &s)
+				krs.AddAssign(&p1)
+			// wait bs1
+			case err := <-chBs1Done:
+				if err != nil {
+					chKrsDone <- err
+					return
+				}
+				p1.ScalarMultiplication(&bs1, &r)
+				krs.AddAssign(&p1)
+			}
+			n--
 		}
-		krs.AddAssign(&krs2)
-		p1.ScalarMultiplication(&ar, &s)
-		krs.AddAssign(&p1)
-		p1.ScalarMultiplication(&bs1, &r)
-		krs.AddAssign(&p1)
 
 		proof.Krs.FromJacobian(&krs)
-		return nil
+		chKrsDone <- nil
 	}
 
-	computeBS2 := func() error {
+	chBs2Done := make(chan error, 1)
+	computeBS2 := func() {
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 
 		if err := <-chWireValuesB; err != nil {
-			return err
+			chBs2Done <- err
+			return
 		}
 		startBs := time.Now()
 		if err := msmG2(&Bs, pk.G2Device.B, deviceWireValuesB); err != nil {
-			return err
+			chBs2Done <- err
+			return
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", deviceWireValuesB.Len()), time.Since(startBs)).Msg("Bs done")
 
@@ -369,27 +402,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		Bs.AddMixed(&pk.G2.Beta)
 
 		proof.Bs.FromJacobian(&Bs)
-		return nil
+		chBs2Done <- nil
 	}
 
 	// wait for FFT to end, as it uses all our CPUs
 	<-chHDone
 
-	// schedule our proof part computations
-	// Sequencial GPU execution
-	// TODO: see GPU utilization data
-	if err := computeAR1(); err != nil {
+	// Parallel GPU execution, memory may hit limit
+	go computeAR1()
+	go computeBS1()
+	go computeBS2()
+	go computeKRS()
+
+	// wait for all parts of the proof to be computed.
+	// Krs done means AR1, BS1 are done
+	if err := <-chKrsDone; err != nil {
 		return nil, err
 	}
-	if err := computeBS1(); err != nil {
+	if err := <-chBs2Done; err != nil {
 		return nil, err
 	}
-	if err := computeKRS(); err != nil {
-		return nil, err
-	}
-	if err := computeBS2(); err != nil {
-		return nil, err
-	}
+
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	// Free device memory
