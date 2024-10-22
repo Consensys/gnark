@@ -663,7 +663,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 
-	// when nbits is odd, we need to handle the first iteration separately
+	// when nbits is even, we need to handle the first iteration separately
 	if nbits%2 == 0 {
 		// Acc = [2]Acc ± Q ± Φ(Q)
 		T := &AffinePoint[B]{
@@ -675,7 +675,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		Acc = c.double(Acc)
 		Acc = c.add(Acc, T)
 	} else {
-		// when nbits is even we start the main loop at normally nbits - 1
+		// when nbits is odd we start the main loop at normally nbits - 1
 		nbits++
 	}
 	for i := nbits - 2; i > 0; i -= 2 {
@@ -1420,7 +1420,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// note that half of these points are negatives of the other half,
 	// hence have the same X coordinates.
 
-	// When nbits is odd, we need to handle the first iteration separately
+	// When nbits is even, we need to handle the first iteration separately
 	if nbits%2 == 0 {
 		// Acc = [2]Acc ± Q ± R
 		T := &AffinePoint[B]{
@@ -1432,7 +1432,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		Acc = c.double(Acc)
 		Acc = c.add(Acc, T)
 	} else {
-		// when nbits is even we start the main loop at normally nbits - 1
+		// when nbits is odd we start the main loop at normally nbits - 1
 		nbits++
 	}
 	for i := nbits - 2; i > 2; i -= 2 {
