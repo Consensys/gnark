@@ -470,7 +470,7 @@ func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], s
 	cfg.AreInputsOnDevice = true
 	cfg.ArePointsInMont = true
 	cfg.Npoints = uint32(points.Len())
-	cfg.FfiAffineSz = 64
+	cfg.LargeBucketFactor = 2
 	if err := msm.MSM_G1(unsafe.Pointer(res), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
 		return err
 	}
