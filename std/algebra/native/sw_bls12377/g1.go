@@ -674,6 +674,8 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 }
 
 // fake-GLV
+//
+// N.B.: this method is more expensive than classical GLV, but it is useful for testing purposes.
 func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -712,6 +714,8 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	//
 	// The hint returns u1, u2, v1, v2 and the quotient q.
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	//
+	// N.B.: this check may overflow. But we don't use this method anywhere but for testing purposes.
 	sd, err := api.NewHint(halfGCDEisenstein, 5, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))

@@ -1255,8 +1255,8 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
-// TODO @yelhousni: generalize for any supported curve as it currently works
-// only for P-256, P-384 and STARK curve because of the scalarMulG1Hint.
+// TODO @yelhousni: generalize for any supported curve as it currently supports only:
+// P256, P384 and STARK curve.
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
@@ -1301,7 +1301,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	inps = append(inps, Q.X.Limbs...)
 	inps = append(inps, Q.Y.Limbs...)
 	inps = append(inps, s.Limbs...)
-	R, err := c.baseApi.NewHintWithNativeInput(scalarMulG1Hint, 2, inps...)
+	R, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}
@@ -1533,6 +1533,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
+// TODO @yelhousni: generalize for any supported curve as it currently supports only:
+// BN254, BLS12-381, BW6-761 and Secp256k1.
+//
 // [ethresear.ch/fake-GLV]: https://ethresear.ch/t/fake-glv-you-dont-need-an-efficient-endomorphism-to-implement-glv-like-scalar-multiplication-in-snark-circuits/20394
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
@@ -1575,14 +1578,14 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
 	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
 	//
-	// The hint returns u1, u2, v1, v2 and the quotient q.
-	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	// The hint returns u1, u2, v1, v2.
+	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
 	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 5, _s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
+	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
 
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
@@ -1591,39 +1594,33 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
-	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := signs[0], signs[1], signs[2], signs[3], signs[4]
+	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
 
 	// We need to check that:
-	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 = 0
 	var st S
-	r := emulated.ValueOf[S](st.Modulus())
 	sv1 := c.scalarApi.Mul(_s, v1)
 	sλv2 := c.scalarApi.Mul(_s, c.scalarApi.Mul(c.eigenvalue, v2))
 	λu2 := c.scalarApi.Mul(c.eigenvalue, u2)
-	rq := c.scalarApi.Mul(&r, q)
 	zero := c.scalarApi.Zero()
 
 	lhs1 := c.scalarApi.Select(isNegv1, zero, sv1)
 	lhs2 := c.scalarApi.Select(isNegv2, zero, sλv2)
 	lhs3 := c.scalarApi.Select(isNegu1, zero, u1)
 	lhs4 := c.scalarApi.Select(isNegu2, zero, λu2)
-	lhs5 := c.scalarApi.Select(isNegq, rq, zero)
 	lhs := c.scalarApi.Add(
 		c.scalarApi.Add(lhs1, lhs2),
 		c.scalarApi.Add(lhs3, lhs4),
 	)
-	lhs = c.scalarApi.Add(lhs, lhs5)
 
 	rhs1 := c.scalarApi.Select(isNegv1, sv1, zero)
 	rhs2 := c.scalarApi.Select(isNegv2, sλv2, zero)
 	rhs3 := c.scalarApi.Select(isNegu1, u1, zero)
 	rhs4 := c.scalarApi.Select(isNegu2, λu2, zero)
-	rhs5 := c.scalarApi.Select(isNegq, zero, rq)
 	rhs := c.scalarApi.Add(
 		c.scalarApi.Add(rhs1, rhs2),
 		c.scalarApi.Add(rhs3, rhs4),
 	)
-	rhs = c.scalarApi.Add(rhs, rhs5)
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
@@ -1634,7 +1631,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	inps = append(inps, P.X.Limbs...)
 	inps = append(inps, P.Y.Limbs...)
 	inps = append(inps, s.Limbs...)
-	point, err := c.baseApi.NewHintWithNativeInput(scalarMulGLVG1Hint, 2, inps...)
+	point, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}

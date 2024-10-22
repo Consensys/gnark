@@ -31,8 +31,7 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalarG1Signs,
 		decomposeScalarG1Subscalars,
-		scalarMulG1Hint,
-		scalarMulGLVG1Hint,
+		scalarMulHint,
 		halfGCD,
 		halfGCDSigns,
 		halfGCDEisenstein,
@@ -93,10 +92,13 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 	})
 }
 
-// TODO @yelhousni: generalize for any supported curve.
-// as it currently works only for P-256, P-384 and STARK curve.
-func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+// TODO @yelhousni: generalize for any supported curve as it currently supports only:
+// BN254, BLS12-381, BW6-761 and Secp256k1, P256, P384 and STARK curve.
+func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
 		if len(outputs) != 2 {
 			return fmt.Errorf("expecting two outputs")
 		}
@@ -120,8 +122,10 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 			}
 			curve := elliptic.P256()
-			// compute the resulting point [s]Q
-			outputs[0], outputs[1] = curve.ScalarMult(Px, Py, S.Bytes())
+			// compute the resulting point [s]P
+			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
+			outputs[0].Set(Qx)
+			outputs[1].Set(Qy)
 		} else if field.Cmp(elliptic.P384().Params().P) == 0 {
 			var fp emparams.P384Fp
 			var fr emparams.P384Fr
@@ -142,8 +146,10 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 			}
 			curve := elliptic.P384()
-			// compute the resulting point [s]Q
-			outputs[0], outputs[1] = curve.ScalarMult(Px, Py, S.Bytes())
+			// compute the resulting point [s]P
+			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
+			outputs[0].Set(Qx)
+			outputs[1].Set(Qy)
 		} else if field.Cmp(stark_fp.Modulus()) == 0 {
 			var fp emparams.STARKCurveFp
 			var fr emparams.STARKCurveFr
@@ -170,23 +176,7 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			P.ScalarMultiplication(&P, S)
 			P.X.BigInt(outputs[0])
 			P.Y.BigInt(outputs[1])
-		} else {
-			return fmt.Errorf("unsupported curve")
-		}
-
-		return nil
-	})
-}
-
-// TODO @yelhousni: generalize for any supported curve.
-// as it currently works only for BN254, BLS12-381, BW6-761 and Secp256k1 curves.
-func scalarMulGLVG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
-		}
-
-		if field.Cmp(bn_fp.Modulus()) == 0 {
+		} else if field.Cmp(bn_fp.Modulus()) == 0 {
 			var fp emparams.BN254Fp
 			var fr emparams.BN254Fr
 			PXLimbs := inputs[:fp.NbLimbs()]
@@ -290,6 +280,7 @@ func scalarMulGLVG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error
 			P.ScalarMultiplication(&P, S)
 			P.X.BigInt(outputs[0])
 			P.Y.BigInt(outputs[1])
+
 		} else {
 			return fmt.Errorf("unsupported curve")
 		}
