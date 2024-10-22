@@ -913,6 +913,10 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	}
 }
 
+func (e Ext6) squarePolyWithRand(x *E6, r *baseEl) *E6 {
+
+}
+
 func (e Ext6) squareDirect(x *E6) *E6 {
 	// beta = -4
 	// a0 a1 a2 a3 a4 a5, b0 b1 b2 b3 b4 b5
