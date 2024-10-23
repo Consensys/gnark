@@ -34,15 +34,31 @@ func (mc *e6mulCheck) check(sapi *emulated.Field[emulated.BW6761Fp], rpowers []*
 		},
 	)
 	mv2 := emulated.ValueOfMultivariate[emulated.BW6761Fp](
+		// r0 + r1 x + r2 x^2 + r3 x^3 + r4 x^4 + r5 x^5 + q0 np + q1 x np + q2 x^2 np + q3 x^3 np + q4 x^4 np
+		//   r0 r1 r2 r3 r4 r5 q0 q1 q2 q3 q4 x1 x2 x3 x4 x5 np
 		[][]int{
-			{1, 0, 0, 0, 0, 0, 0, 0, 0},
-			{0, 1, 0, 0, 0, 1, 0, 0, 0},
-			{0, 0, 1, 0, 0, 0, 1, 0, 0},
-			{0, 0, 0, 1, 0, 0, 0, 1, 0},
-			{0, 0, 0, 0, 1, 0, 0, 0, 1},
+			{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+			{0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+			{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+
+			{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+			{0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1},
+
+			// {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			// {0, 1, 0, 0, 0, 1, 0, 0, 0, 1},
+			// {0, 0, 1, 0, 0, 0, 1, 0, 0, 1},
+			// {0, 0, 0, 1, 0, 0, 0, 1, 0, 1},
+			// {0, 0, 0, 0, 1, 0, 0, 0, 1, 1},
 		},
 		[]*big.Int{
 			big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1),
+			big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1),
 		},
 	)
 	ax := sapi.EvalMultivariate(&mv, []*baseEl{&mc.A.A0, &mc.A.A1, &mc.A.A2, &mc.A.A3, &mc.A.A4, &mc.A.A5, rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4]})
@@ -52,11 +68,16 @@ func (mc *e6mulCheck) check(sapi *emulated.Field[emulated.BW6761Fp], rpowers []*
 	} else {
 		bx = ax
 	}
-	rx := sapi.EvalMultivariate(&mv, []*baseEl{&mc.R.A0, &mc.R.A1, &mc.R.A2, &mc.R.A3, &mc.R.A4, &mc.R.A5, rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4]})
-	qx := sapi.EvalMultivariate(&mv2, []*baseEl{&mc.Q.A0, &mc.Q.A1, &mc.Q.A2, &mc.Q.A3, &mc.Q.A4, rpowers[0], rpowers[1], rpowers[2], rpowers[3]})
+	// rx := sapi.EvalMultivariate(&mv, []*baseEl{&mc.R.A0, &mc.R.A1, &mc.R.A2, &mc.R.A3, &mc.R.A4, &mc.R.A5, rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4]})
+	// qnx := sapi.EvalMultivariate(&mv2, []*baseEl{&mc.Q.A0, &mc.Q.A1, &mc.Q.A2, &mc.Q.A3, &mc.Q.A4, rpowers[0], rpowers[1], rpowers[2], rpowers[3], modEval})
 	abx := sapi.Mul(ax, bx)
-	qnx := sapi.Mul(qx, modEval)
-	rqnx := sapi.Add(rx, qnx)
+	rqnx := sapi.EvalMultivariate(&mv2, []*baseEl{
+		&mc.R.A0, &mc.R.A1, &mc.R.A2, &mc.R.A3, &mc.R.A4, &mc.R.A5,
+		&mc.Q.A0, &mc.Q.A1, &mc.Q.A2, &mc.Q.A3, &mc.Q.A4,
+		rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4],
+		modEval,
+	})
+	// rqnx := sapi.Add(rx, qnx)
 	sapi.AssertIsEqual(abx, rqnx)
 }
 
