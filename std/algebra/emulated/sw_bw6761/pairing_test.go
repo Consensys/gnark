@@ -94,6 +94,8 @@ func TestPairTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+	frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairCircuit{})
+
 }
 
 func TestPairFixedTestSolve(t *testing.T) {
@@ -108,6 +110,7 @@ func TestPairFixedTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+	frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairCircuit{InG2: NewG2AffineFixedPlaceholder()})
 }
 
 type MultiPairCircuit struct {

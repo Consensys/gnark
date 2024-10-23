@@ -477,6 +477,10 @@ func (builder *builder) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(builder, cb)
 }
 
+func (builder *builder) DeferPrepend(cb func(frontend.API) error) {
+	circuitdefer.Prepend(builder, cb)
+}
+
 func (*builder) FrontendType() frontendtype.Type {
 	return frontendtype.R1CS
 }

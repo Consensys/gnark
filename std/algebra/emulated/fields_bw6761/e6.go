@@ -6,6 +6,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 type curveF = emulated.Field[emulated.BW6761Fp]
@@ -18,6 +19,8 @@ type E6 struct {
 type Ext6 struct {
 	api frontend.API
 	fp  *curveF
+
+	mulchecks map[*baseEl][]e6mulCheck
 }
 
 func NewExt6(api frontend.API) *Ext6 {
@@ -25,10 +28,13 @@ func NewExt6(api frontend.API) *Ext6 {
 	if err != nil {
 		panic(err)
 	}
-	return &Ext6{
-		api: api,
-		fp:  fp,
+	r := &Ext6{
+		api:       api,
+		fp:        fp,
+		mulchecks: make(map[*baseEl][]e6mulCheck),
 	}
+	api.Compiler().DeferPrepend(r.deferredMulChecks)
+	return r
 }
 
 func (e Ext6) Reduce(x *E6) *E6 {
@@ -192,7 +198,7 @@ func (e Ext6) mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 func (e Ext6) Mul(x, y *E6) *E6 {
 	x = e.Reduce(x)
 	y = e.Reduce(y)
-	return e.mulToomCook6(x, y)
+	return e.mulDirect(x, y)
 }
 
 func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
@@ -415,6 +421,215 @@ func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
 	s2 = e.fp.MulConst(v7, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
+func (e Ext6) mulDirect(x, y *E6) *E6 {
+	// beta = -4
+	// a0 a1 a2 a3 a4 a5, b0 b1 b2 b3 b4 b5
+	// 0  1  2  3  4  5   6  7  8   9 10 11
+	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)
+	nonResidue := e.fp.NewElement(-4)
+
+	mv0 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				1, 0, 0, 0, 0, 0, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 1, 1},
+			{
+				0, 0, 1, 0, 0, 0,
+				0, 0, 0, 0, 1, 0, 1},
+			{
+				0, 0, 0, 1, 0, 0,
+				0, 0, 0, 1, 0, 0, 1},
+			{
+				0, 0, 0, 0, 1, 0,
+				0, 0, 1, 0, 0, 0, 1},
+			{
+				0, 0, 0, 0, 0, 1,
+				0, 1, 0, 0, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c1 = a0b1 + a1b0 + β(a2b5 + a3b4 + a4b3 + a5b2)
+	mv1 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				0, 1, 0, 0, 0, 0, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				1, 0, 0, 0, 0, 0, 0},
+			{
+				0, 0, 1, 0, 0, 0,
+				0, 0, 0, 0, 0, 1, 1},
+			{
+				0, 0, 0, 1, 0, 0,
+				0, 0, 0, 0, 1, 0, 1},
+			{
+				0, 0, 0, 0, 1, 0,
+				0, 0, 0, 1, 0, 0, 1},
+			{
+				0, 0, 0, 0, 0, 1,
+				0, 0, 1, 0, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c2 = a0b2 + a1b1 + a2b0 + β(a3b5 + a4b4 + a5b3)
+	mv2 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				0, 0, 1, 0, 0, 0, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				0, 1, 0, 0, 0, 0, 0},
+			{
+				0, 0, 1, 0, 0, 0,
+				1, 0, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 1, 0, 0,
+				0, 0, 0, 0, 0, 1, 1},
+			{
+				0, 0, 0, 0, 1, 0,
+				0, 0, 0, 0, 1, 0, 1},
+			{
+				0, 0, 0, 0, 0, 1,
+				0, 0, 0, 1, 0, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c3 = a0b3 + a1b2 + a2b1 + a3b0 + β(a4b5 + a5b4)
+	mv3 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				0, 0, 0, 1, 0, 0, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				0, 0, 1, 0, 0, 0, 0},
+			{
+				0, 0, 1, 0, 0, 0,
+				0, 1, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 1, 0, 0,
+				1, 0, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 0, 1, 0,
+				0, 0, 0, 0, 0, 1, 1},
+			{
+				0, 0, 0, 0, 0, 1,
+				0, 0, 0, 0, 1, 0, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c4 = a0b4 + a1b3 + a2b2 + a3b1 + a4b0 + βa5b5
+	mv4 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 1, 0, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				0, 0, 0, 1, 0, 0, 0},
+			{
+				0, 0, 1, 0, 0, 0,
+				0, 0, 1, 0, 0, 0, 0},
+			{
+				0, 0, 0, 1, 0, 0,
+				0, 1, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 0, 1, 0,
+				1, 0, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 0, 0, 1,
+				0, 0, 0, 0, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c5 = a0b5 + a1b4 + a2b3 + a3b2 + a4b1 + a5b0,
+	mv5 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{
+				1, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 1, 0},
+			{
+				0, 1, 0, 0, 0, 0,
+				0, 0, 0, 0, 1, 0, 0},
+			{
+				0, 0, 1, 0, 0, 0,
+				0, 0, 0, 1, 0, 0, 0},
+			{
+				0, 0, 0, 1, 0, 0,
+				0, 0, 1, 0, 0, 0, 0},
+			{
+				0, 0, 0, 0, 1, 0,
+				0, 1, 0, 0, 0, 0, 0},
+			{
+				0, 0, 0, 0, 0, 1,
+				1, 0, 0, 0, 0, 0, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	c0 := e.fp.EvalMultivariate(&mv0, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
+	c1 := e.fp.EvalMultivariate(&mv1, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
+	c2 := e.fp.EvalMultivariate(&mv2, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
+	c3 := e.fp.EvalMultivariate(&mv3, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
+	c4 := e.fp.EvalMultivariate(&mv4, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
+	c5 := e.fp.EvalMultivariate(&mv5, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, nonResidue})
 
 	return &E6{
 		A0: *c0,
@@ -703,7 +918,146 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	}
 }
 
+func (e Ext6) squareDirect(x *E6) *E6 {
+	// beta = -4
+	// a0 a1 a2 a3 a4 a5, b0 b1 b2 b3 b4 b5
+	// 0  1  2  3  4  5   6  7  8   9 10 11
+	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)
+	nonResidue := e.fp.NewElement(-4)
+
+	mv0 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{2, 0, 0, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 1, 1},
+			{0, 0, 1, 0, 1, 0, 1},
+			{0, 0, 0, 2, 0, 0, 1},
+			{0, 0, 1, 0, 1, 0, 1},
+			{0, 1, 0, 0, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c1 = a0b1 + a1b0 + β(a2b5 + a3b4 + a4b3 + a5b2)
+	mv1 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 1, 0, 0, 0, 0, 0},
+			{1, 1, 0, 0, 0, 0, 0},
+			{0, 0, 1, 0, 0, 1, 1},
+			{0, 0, 0, 1, 1, 0, 1},
+			{0, 0, 0, 1, 1, 0, 1},
+			{0, 0, 1, 0, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c2 = a0b2 + a1b1 + a2b0 + β(a3b5 + a4b4 + a5b3)
+	mv2 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 1, 0, 0, 0, 0},
+			{0, 2, 0, 0, 0, 0, 0},
+			{1, 0, 1, 0, 0, 0, 0},
+			{0, 0, 0, 1, 0, 1, 1},
+			{0, 0, 0, 0, 2, 0, 1},
+			{0, 0, 0, 1, 0, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c3 = a0b3 + a1b2 + a2b1 + a3b0 + β(a4b5 + a5b4)
+	mv3 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 1, 0, 0, 0},
+			{0, 1, 1, 0, 0, 0, 0},
+			{0, 1, 1, 0, 0, 0, 0},
+			{1, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 1, 1, 1},
+			{0, 0, 0, 0, 1, 1, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c4 = a0b4 + a1b3 + a2b2 + a3b1 + a4b0 + βa5b5
+	mv4 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 1, 0, 0},
+			{0, 1, 0, 1, 0, 0, 0},
+			{0, 0, 2, 0, 0, 0, 0},
+			{0, 1, 0, 1, 0, 0, 0},
+			{1, 0, 0, 0, 1, 0, 0},
+			{0, 0, 0, 0, 0, 2, 1},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	// c5 = a0b5 + a1b4 + a2b3 + a3b2 + a4b1 + a5b0,
+	mv5 := emulated.ValueOfMultivariate[emparams.BW6761Fp](
+		[][]int{
+			{1, 0, 0, 0, 0, 1, 0},
+			{0, 1, 0, 0, 1, 0, 0},
+			{0, 0, 1, 1, 0, 0, 0},
+			{0, 0, 1, 1, 0, 0, 0},
+			{0, 1, 0, 0, 1, 0, 0},
+			{1, 0, 0, 0, 0, 1, 0},
+		},
+		[]*big.Int{
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+			big.NewInt(1),
+		},
+	)
+	c0 := e.fp.EvalMultivariate(&mv0, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+	c1 := e.fp.EvalMultivariate(&mv1, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+	c2 := e.fp.EvalMultivariate(&mv2, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+	c3 := e.fp.EvalMultivariate(&mv3, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+	c4 := e.fp.EvalMultivariate(&mv4, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+	c5 := e.fp.EvalMultivariate(&mv5, []*emulated.Element[emparams.BW6761Fp]{&x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, nonResidue})
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
 func (e Ext6) Square(x *E6) *E6 {
+	// return e.squarePolyWithRand(x, e.fp.NewElement(-1))
+	return e.squareDirect(x)
 	// We don't use Montgomery-6 or Toom-Cook-6 for the squaring but instead we
 	// simulate a quadratic over cubic extension tower because Karatsuba over
 	// Chung-Hasan SQR2 is better constraint wise.

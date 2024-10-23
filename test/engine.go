@@ -696,6 +696,10 @@ func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
 }
 
+func (e *engine) DeferPrepend(cb func(frontend.API) error) {
+	circuitdefer.Prepend(e, cb)
+}
+
 // AddInstruction is used to add custom instructions to the constraint system.
 // In constraint system, this is asynchronous. In here, we do it synchronously.
 func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {

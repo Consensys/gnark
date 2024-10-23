@@ -56,6 +56,8 @@ type Compiler interface {
 	// operations etc. Unlike Go defer, it is not locally scoped.
 	Defer(cb func(api API) error)
 
+	DeferPrepend(cb func(api API) error)
+
 	// InternalVariable returns the internal variable associated with the given wireID
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	InternalVariable(wireID uint32) Variable

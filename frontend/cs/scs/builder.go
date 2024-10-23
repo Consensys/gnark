@@ -669,6 +669,10 @@ func (builder *builder) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(builder, cb)
 }
 
+func (builder *builder) DeferPrepend(cb func(frontend.API) error) {
+	circuitdefer.Prepend(builder, cb)
+}
+
 // AddInstruction is used to add custom instructions to the constraint system.
 func (builder *builder) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
 	return builder.cs.AddInstruction(bID, calldata)

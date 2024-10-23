@@ -26,6 +26,26 @@ func Put[T any](builder any, cb T) {
 	kv.SetKeyValue(deferKey{}, deferred)
 }
 
+func Prepend[T any](builder any, cb T) {
+	// we use generics for type safety but to avoid import cycles.
+	// TODO: compare with using any and type asserting at caller
+	kv, ok := builder.(kvstore.Store)
+	if !ok {
+		panic("builder does not implement kvstore.Store")
+	}
+	val := kv.GetKeyValue(deferKey{})
+	var deferred []T
+	if val != nil {
+		var ok bool
+		deferred, ok = val.([]T)
+		if !ok {
+			panic("stored deferred functions not []func(frontend.API) error")
+		}
+	}
+	newDeferred := append([]T{cb}, deferred...)
+	kv.SetKeyValue(deferKey{}, newDeferred)
+}
+
 func GetAll[T any](builder any) []T {
 	kv, ok := builder.(kvstore.Store)
 	if !ok {

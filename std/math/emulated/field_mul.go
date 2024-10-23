@@ -10,6 +10,16 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
+type deferredChecker interface {
+	toCommit() []frontend.Variable
+	maxLen() int
+
+	evalRound1(at []frontend.Variable)
+	evalRound2(at []frontend.Variable)
+	check(api frontend.API, peval frontend.Variable, coef frontend.Variable)
+	cleanEvaluations()
+}
+
 // mulCheck represents a single multiplication check. Instead of doing a
 // multiplication exactly where called, we compute the result using hint and
 // return it. Additionally, we store the correctness check for later checking
@@ -60,6 +70,31 @@ type mulCheck[T FieldParams] struct {
 	k    *Element[T] // coefficient
 	c    *Element[T] // carry
 	p    *Element[T] // modulus if non-nil
+}
+
+func (mc *mulCheck[T]) toCommit() []frontend.Variable {
+	var toCommit []frontend.Variable
+	toCommit = append(toCommit, mc.a.Limbs...)
+	toCommit = append(toCommit, mc.b.Limbs...)
+	toCommit = append(toCommit, mc.r.Limbs...)
+	toCommit = append(toCommit, mc.k.Limbs...)
+	toCommit = append(toCommit, mc.c.Limbs...)
+	if mc.p != nil {
+		toCommit = append(toCommit, mc.p.Limbs...)
+	}
+	return toCommit
+}
+
+func (mc *mulCheck[T]) maxLen() int {
+	maxLen := len(mc.a.Limbs)
+	maxLen = max(maxLen, len(mc.b.Limbs))
+	maxLen = max(maxLen, len(mc.r.Limbs))
+	maxLen = max(maxLen, len(mc.k.Limbs))
+	maxLen = max(maxLen, len(mc.c.Limbs))
+	if mc.p != nil {
+		maxLen = max(maxLen, len(mc.p.Limbs))
+	}
+	return maxLen
 }
 
 // evalRound1 evaluates first c(X), r(X) and k(X) at a given random point at[0].
@@ -132,7 +167,7 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		r: r,
 		p: p,
 	}
-	f.mulChecks = append(f.mulChecks, mc)
+	f.deferredChecks = append(f.deferredChecks, &mc)
 	return r
 }
 
@@ -156,7 +191,7 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 		r: r, // expected to be zero on zero limbs.
 		p: p,
 	}
-	f.mulChecks = append(f.mulChecks, mc)
+	f.deferredChecks = append(f.deferredChecks, &mc)
 }
 
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
@@ -184,12 +219,12 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 
 // performMulChecks should be deferred to actually perform all the
 // multiplication checks.
-func (f *Field[T]) performMulChecks(api frontend.API) error {
+func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
 	// stored.
 
 	// there are no multiplication checks, nothing to do
-	if len(f.mulChecks) == 0 {
+	if len(f.deferredChecks) == 0 {
 		return nil
 	}
 
@@ -201,23 +236,15 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 	// multi-commit and range checks are in different commitment, then we have
 	// problem.
 	var toCommit []frontend.Variable
-	for i := range f.mulChecks {
-		toCommit = append(toCommit, f.mulChecks[i].a.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].b.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].r.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].k.Limbs...)
-		toCommit = append(toCommit, f.mulChecks[i].c.Limbs...)
-		if f.mulChecks[i].p != nil {
-			toCommit = append(toCommit, f.mulChecks[i].p.Limbs...)
-		}
+	for i := range f.deferredChecks {
+		toCommit = append(toCommit, f.deferredChecks[i].toCommit()...)
 	}
 	// we give all the inputs as inputs to obtain random verifier challenge.
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// for efficiency, we compute all powers of the challenge as slice at.
 		coefsLen := int(f.fParams.NbLimbs())
-		for i := range f.mulChecks {
-			coefsLen = max(coefsLen, len(f.mulChecks[i].a.Limbs), len(f.mulChecks[i].b.Limbs),
-				len(f.mulChecks[i].c.Limbs), len(f.mulChecks[i].k.Limbs))
+		for i := range f.deferredChecks {
+			coefsLen = max(coefsLen, f.deferredChecks[i].maxLen())
 		}
 		at := make([]frontend.Variable, coefsLen)
 		at[0] = commitment
@@ -225,12 +252,12 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 			at[i] = api.Mul(at[i-1], commitment)
 		}
 		// evaluate all r, k, c
-		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound1(at)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].evalRound1(at)
 		}
 		// assuming r is input to some other multiplication, then is already evaluated
-		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound2(at)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].evalRound2(at)
 		}
 		// evaluate p(X) at challenge
 		pval := f.evalWithChallenge(f.Modulus(), at)
@@ -239,13 +266,13 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 		coef.Lsh(coef, f.fParams.BitsPerLimb())
 		ccoef := api.Sub(coef, commitment)
 		// verify all mulchecks
-		for i := range f.mulChecks {
-			f.mulChecks[i].check(api, pval.evaluation, ccoef)
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].check(api, pval.evaluation, ccoef)
 		}
 		// clean cached evaluation. Helps in case we compile the same circuit
 		// multiple times.
-		for i := range f.mulChecks {
-			f.mulChecks[i].cleanEvaluations()
+		for i := range f.deferredChecks {
+			f.deferredChecks[i].cleanEvaluations()
 		}
 		return nil
 	}, toCommit...)
@@ -367,30 +394,8 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
-	xp := make([]*big.Int, nbMultiplicationResLimbs(nbALen, nbBLen))
-	yp := make([]*big.Int, nbMultiplicationResLimbs(nbQuoLen, nbLimbs))
-	for i := range xp {
-		xp[i] = new(big.Int)
-	}
-	for i := range yp {
-		yp[i] = new(big.Int)
-	}
-	tmp := new(big.Int)
-	// we know compute the schoolbook multiprecision multiplication of a*b and
-	// r+k*p
-	for i := 0; i < nbALen; i++ {
-		for j := 0; j < nbBLen; j++ {
-			tmp.Mul(alimbs[i], blimbs[j])
-			xp[i+j].Add(xp[i+j], tmp)
-		}
-	}
-	for i := 0; i < nbLimbs; i++ {
-		yp[i].Add(yp[i], remLimbs[i])
-		for j := 0; j < nbQuoLen; j++ {
-			tmp.Mul(quoLimbs[j], plimbs[i])
-			yp[i+j].Add(yp[i+j], tmp)
-		}
-	}
+	xp := limbMul(alimbs, blimbs)
+	yp := limbMul(quoLimbs, plimbs)
 	carry := new(big.Int)
 	for i := range carryLimbs {
 		if i < len(xp) {
@@ -508,5 +513,346 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 		base = f.Mul(base, base)
 	}
 	res = f.Select(expBts[n-1], f.Mul(base, res), res)
+	return res
+}
+
+// Multivariate represents a multivariate polynomial. It is a list of terms
+// where each term is a list of exponents for each variable. The coefficients
+// are stored in the same order as the terms.
+//
+// TODO: better to move this to package. But this needs refactoring to allow for
+// initializing the elements.
+type Multivariate[T FieldParams] struct {
+	Terms        [][]int
+	Coefficients []*big.Int
+}
+
+func ValueOfMultivariate[T FieldParams](terms [][]int, coeffs []*big.Int) Multivariate[T] {
+	if len(terms) != len(coeffs) {
+		panic("terms and coefficients mismatch")
+	}
+	return Multivariate[T]{Terms: terms, Coefficients: coeffs}
+}
+
+func (f *Field[T]) EvalMultivariate(mv *Multivariate[T], at []*Element[T]) *Element[T] {
+	if len(mv.Terms) != len(mv.Coefficients) {
+		panic("terms and coefficients mismatch")
+	}
+	if len(mv.Terms) == 0 {
+		return f.Zero()
+	}
+	nbVars := len(at)
+	for i := range mv.Terms {
+		if len(mv.Terms[i]) != nbVars {
+			panic("term and variable mismatch")
+		}
+	}
+	for i := range at {
+		f.enforceWidthConditional(at[i])
+	}
+	k, r, c, err := f.callPolyHint(mv, at)
+	if err != nil {
+		panic(err)
+	}
+
+	mvc := mvCheck[T]{
+		f:    f,
+		mv:   mv,
+		vals: at,
+		r:    r,
+		k:    k,
+		c:    c,
+	}
+
+	f.deferredChecks = append(f.deferredChecks, &mvc)
+	return r
+}
+
+func (f *Field[T]) callPolyHint(mv *Multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
+	// first compute the length of the result so that we know how many bits we need for the quotient.
+	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
+	modBits := uint(f.fParams.Modulus().BitLen())
+	quoSize := f.polyEvalQuoSize(mv, at)
+	nbQuoLimbs := (quoSize - modBits + nbBits) / nbBits
+	nbRemLimbs := nbLimbs
+	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
+
+	hintInputs := []frontend.Variable{
+		nbBits,
+		nbLimbs,
+		len(mv.Terms),
+		len(at),
+		nbQuoLimbs,
+		nbRemLimbs,
+		nbCarryLimbs,
+	}
+	for i := range mv.Terms {
+		for j := range mv.Terms[i] {
+			hintInputs = append(hintInputs, mv.Terms[i][j])
+		}
+	}
+	for i := range mv.Coefficients {
+		hintInputs = append(hintInputs, mv.Coefficients[i])
+	}
+	hintInputs = append(hintInputs, f.Modulus().Limbs...)
+	for i := range at {
+		hintInputs = append(hintInputs, len(at[i].Limbs))
+		hintInputs = append(hintInputs, at[i].Limbs...)
+	}
+	ret, err := f.api.NewHint(polyHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
+	if err != nil {
+		err = fmt.Errorf("call hint: %w", err)
+		return
+	}
+	quo = f.packLimbs(ret[:nbQuoLimbs], false)
+	rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
+	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:], 0)
+	return quo, rem, carries, nil
+}
+
+type mvCheck[T FieldParams] struct {
+	f    *Field[T]
+	mv   *Multivariate[T]
+	vals []*Element[T]
+	r    *Element[T] // reduced result
+	k    *Element[T] // quotient
+	c    *Element[T] // carry
+}
+
+func (mc *mvCheck[T]) toCommit() []frontend.Variable {
+	var toCommit []frontend.Variable
+	toCommit = append(toCommit, mc.r.Limbs...)
+	toCommit = append(toCommit, mc.k.Limbs...)
+	toCommit = append(toCommit, mc.c.Limbs...)
+	for j := range mc.vals {
+		toCommit = append(toCommit, mc.vals[j].Limbs...)
+	}
+	return toCommit
+}
+
+func (mc *mvCheck[T]) maxLen() int {
+	maxLen := len(mc.r.Limbs)
+	maxLen = max(maxLen, len(mc.k.Limbs))
+	maxLen = max(maxLen, len(mc.c.Limbs))
+	for j := range mc.vals {
+		maxLen = max(maxLen, len(mc.vals[j].Limbs))
+	}
+	return maxLen
+}
+
+func (mc *mvCheck[T]) evalRound1(at []frontend.Variable) {
+	mc.c = mc.f.evalWithChallenge(mc.c, at)
+	mc.r = mc.f.evalWithChallenge(mc.r, at)
+	mc.k = mc.f.evalWithChallenge(mc.k, at)
+}
+
+func (mc *mvCheck[T]) evalRound2(at []frontend.Variable) {
+	for i := range mc.vals {
+		mc.vals[i] = mc.f.evalWithChallenge(mc.vals[i], at)
+	}
+}
+
+func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
+	ls := frontend.Variable(0)
+	for i, term := range mc.mv.Terms {
+		termProd := frontend.Variable(mc.mv.Coefficients[i])
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termProd = api.Mul(termProd, mc.vals[i].evaluation)
+			}
+		}
+		ls = api.Add(ls, termProd)
+	}
+	rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
+	api.AssertIsEqual(ls, rs)
+}
+
+func (mc *mvCheck[T]) cleanEvaluations() {
+	mc.r.evaluation = 0
+	mc.r.isEvaluated = false
+	mc.k.evaluation = 0
+	mc.k.isEvaluated = false
+	mc.c.evaluation = 0
+	mc.c.isEvaluated = false
+}
+
+func (f *Field[T]) polyEvalQuoSize(mv *Multivariate[T], at []*Element[T]) (quoSize uint) {
+	modBits := f.fParams.Modulus().BitLen()
+	quoSizes := make([]uint, len(mv.Terms))
+	for i, term := range mv.Terms {
+		var lengths []uint
+		for j, pow := range term {
+			for k := 0; k < pow; k++ {
+				lengths = append(lengths, uint(modBits)+at[j].overflow)
+			}
+		}
+		quoSizes[i] = sum(lengths...)
+	}
+	quoSize = max(quoSizes...) + uint(len(quoSizes))
+	return quoSize
+}
+
+func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) < 7 {
+		return fmt.Errorf("not enough inputs")
+	}
+	var (
+		nbBits       = int(inputs[0].Int64())
+		nbLimbs      = int(inputs[1].Int64())
+		nbTerms      = int(inputs[2].Int64())
+		nbVars       = int(inputs[3].Int64())
+		nbQuoLimbs   = int(inputs[4].Int64())
+		nbRemLimbs   = int(inputs[5].Int64())
+		nbCarryLimbs = int(inputs[6].Int64())
+	)
+	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs {
+		return fmt.Errorf("output length mismatch")
+	}
+	outPtr := 0
+	quoLimbs := outputs[outPtr : outPtr+nbQuoLimbs]
+	outPtr += nbQuoLimbs
+	remLimbs := outputs[outPtr : outPtr+nbRemLimbs]
+	outPtr += nbRemLimbs
+	carryLimbs := outputs[outPtr : outPtr+nbCarryLimbs]
+	terms := make([][]int, nbTerms)
+	ptr := 7
+	for i := range terms {
+		terms[i] = make([]int, nbVars)
+		for j := range terms[i] {
+			terms[i][j] = int(inputs[ptr].Int64())
+			ptr++
+		}
+	}
+	coeffs := make([]*big.Int, nbTerms)
+	for i := range coeffs {
+		coeffs[i] = inputs[ptr]
+		ptr++
+	}
+	plimbs := inputs[ptr : ptr+nbLimbs]
+	ptr += nbLimbs
+	p := new(big.Int)
+	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
+		return fmt.Errorf("recompose p: %w", err)
+	}
+	varsLimbs := make([][]*big.Int, nbVars)
+	for i := range varsLimbs {
+		varsLimbs[i] = make([]*big.Int, int(inputs[ptr].Int64()))
+		ptr++
+		for j := range varsLimbs[i] {
+			varsLimbs[i][j] = inputs[ptr]
+			ptr++
+		}
+	}
+	if ptr != len(inputs) {
+		return fmt.Errorf("inputs not exhausted")
+	}
+	vars := make([]*big.Int, nbVars)
+	for i := range vars {
+		vars[i] = new(big.Int)
+		if err := limbs.Recompose(varsLimbs[i], uint(nbBits), vars[i]); err != nil {
+			return fmt.Errorf("recompose vars[%d]: %w", i, err)
+		}
+	}
+
+	// compute the result on full inputs
+
+	// first we need to keep track on how many inputs we multiply together to
+	// know how many limbs to expect for schoolbook multiplication
+
+	fullLhs := new(big.Int)
+	for i, term := range terms {
+		termRes := new(big.Int).Set(coeffs[i])
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termRes.Mul(termRes, vars[i])
+			}
+		}
+		fullLhs.Add(fullLhs, termRes)
+	}
+
+	// compute the result as r + k*p for now
+	var (
+		quo = new(big.Int)
+		rem = new(big.Int)
+	)
+	if p.Cmp(new(big.Int)) != 0 {
+		quo.QuoRem(fullLhs, p, rem)
+	}
+	// write the remainder and quotient to output
+	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
+		return fmt.Errorf("decompose quo: %w", err)
+	}
+	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
+		return fmt.Errorf("decompose rem: %w", err)
+	}
+
+	// compute the result on limbs
+	tmp := new(big.Int)
+	var lhs []*big.Int
+	for i, term := range terms {
+		// collect the variables to be multiplied together
+		var termVarLimbs [][]*big.Int
+		nbTermVarLimbs := 0
+		for i, pow := range term {
+			for j := 0; j < pow; j++ {
+				termVarLimbs = append(termVarLimbs, varsLimbs[i])
+				nbTermVarLimbs += len(varsLimbs[i])
+			}
+		}
+		if len(termVarLimbs) == 0 {
+			continue
+		}
+		termRes := []*big.Int{new(big.Int).Set(coeffs[i])}
+		for _, toMul := range termVarLimbs {
+			termRes = limbMul(termRes, toMul)
+		}
+		for i := len(lhs); i < len(termRes); i++ {
+			lhs = append(lhs, new(big.Int))
+		}
+		for i := range termRes {
+			lhs[i].Add(lhs[i], termRes[i])
+		}
+	}
+
+	// compute the result as r + k*p on limbs
+	rhs := make([]*big.Int, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs))
+	for i := range rhs {
+		rhs[i] = new(big.Int)
+	}
+	for i := 0; i < nbLimbs; i++ {
+		rhs[i].Add(rhs[i], remLimbs[i])
+		for j := 0; j < nbQuoLimbs; j++ {
+			tmp.Mul(quoLimbs[j], plimbs[i])
+			rhs[i+j].Add(rhs[i+j], tmp)
+		}
+	}
+
+	// compute the carries
+	carry := new(big.Int)
+	for i := range carryLimbs {
+		if i < len(lhs) {
+			carry.Add(carry, lhs[i])
+		}
+		if i < len(rhs) {
+			carry.Sub(carry, rhs[i])
+		}
+		carry.Rsh(carry, uint(nbBits))
+		carryLimbs[i] = new(big.Int).Set(carry)
+	}
+
+	return nil
+}
+
+func limbMul(lhs []*big.Int, rhs []*big.Int) []*big.Int {
+	tmp := new(big.Int)
+	res := make([]*big.Int, nbMultiplicationResLimbs(len(lhs), len(rhs)))
+	for i := range res {
+		res[i] = new(big.Int)
+	}
+	for i := 0; i < len(lhs); i++ {
+		for j := 0; j < len(rhs); j++ {
+			res[i+j].Add(res[i+j], tmp.Mul(lhs[i], rhs[j]))
+		}
+	}
 	return res
 }
