@@ -16,7 +16,7 @@ require (
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/iciclegnark v0.1.0
 	github.com/leanovate/gopter v0.2.11
-	github.com/okx/cryptography_cuda v0.0.0-20241018104554-bafea0c91f28
+	github.com/okx/cryptography_cuda v0.0.0-20241023025010-e04a13d4df26
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0

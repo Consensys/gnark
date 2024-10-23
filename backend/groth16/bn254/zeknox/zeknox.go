@@ -471,9 +471,11 @@ func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], s
 	cfg.ArePointsInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
-	if err := msm.MSM_G1(unsafe.Pointer(res), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
+	resAffine := curve.G1Affine{}
+	if err := msm.MSM_G1(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
 		return err
 	}
+	res.FromAffine(&resAffine)
 	return nil
 }
 
@@ -484,8 +486,6 @@ func msmG2(res *curve.G2Jac, points *device.HostOrDeviceSlice[curve.G2Affine], s
 	cfg.ArePointsInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
-	// TODO: MSM_G2 should return Jacobian
-	// https://github.com/okx/cryptography_cuda/issues/90
 	resAffine := curve.G2Affine{}
 	if err := msm.MSM_G2(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
 		return err

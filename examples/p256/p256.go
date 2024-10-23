@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const NumSignatures = 10
+const NumSignatures = 1
 
 var circuitName string
 
