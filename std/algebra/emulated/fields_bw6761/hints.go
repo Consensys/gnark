@@ -23,6 +23,77 @@ func GetHints() []solver.Hint {
 	}
 }
 
+func mulWithQuotient(in1, in2 []*big.Int) (remainder [6]*big.Int, quotient [5]*big.Int) {
+	mod := bw6761.ID.BaseField()
+	var A, B, R bw6761.E6
+	A.B0.A0.SetBigInt(in1[0])
+	A.B1.A0.SetBigInt(in1[1])
+	A.B0.A1.SetBigInt(in1[2])
+	A.B1.A1.SetBigInt(in1[3])
+	A.B0.A2.SetBigInt(in1[4])
+	A.B1.A2.SetBigInt(in1[5])
+
+	B.B0.A0.SetBigInt(in2[0])
+	B.B1.A0.SetBigInt(in2[1])
+	B.B0.A1.SetBigInt(in2[2])
+	B.B1.A1.SetBigInt(in2[3])
+	B.B0.A2.SetBigInt(in2[4])
+	B.B1.A2.SetBigInt(in2[5])
+
+	R.Mul(&A, &B)
+
+	remainder = [6]*big.Int{
+		R.B0.A0.BigInt(new(big.Int)),
+		R.B1.A0.BigInt(new(big.Int)),
+		R.B0.A1.BigInt(new(big.Int)),
+		R.B1.A1.BigInt(new(big.Int)),
+		R.B0.A2.BigInt(new(big.Int)),
+		R.B1.A2.BigInt(new(big.Int)),
+	}
+
+	lhs := make([]*big.Int, 11)
+	for i := range lhs {
+		lhs[i] = new(big.Int)
+	}
+	for i := range in1 {
+		for j := range in2 {
+			lhs[i+j].Add(lhs[i+j], new(big.Int).Mul(in1[i], in2[j]))
+		}
+	}
+	for i := range remainder {
+		lhs[i].Sub(lhs[i], remainder[i])
+	}
+
+	for i := range lhs {
+		lhs[i].Mod(lhs[i], mod)
+		// fmt.Println(i, lhs[i].String())
+	}
+
+	for i := 0; i < 5; i++ {
+		quotient[i] = new(big.Int).Set(lhs[i+6])
+	}
+
+	for i := range quotient {
+		quotient[i].Mod(quotient[i], mod)
+		// fmt.Println(i, quotient[i].String())
+	}
+	return
+}
+
+func mulE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			remainder, quotient := mulWithQuotient(inputs[0:6], inputs[6:12])
+			for i := range remainder {
+				outputs[i].Set(remainder[i])
+			}
+			for i := range quotient {
+				outputs[i+6].Set(quotient[i])
+			}
+			return nil
+		})
+}
+
 func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
