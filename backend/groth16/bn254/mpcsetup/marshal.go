@@ -92,7 +92,7 @@ func (c *Phase2) writeTo(writer io.Writer) (int64, error) {
 		&c.PublicKey.SXG,
 		&c.PublicKey.XR,
 		&c.Parameters.G1.Delta,
-		c.Parameters.G1.L,
+		c.Parameters.G1.PKK,
 		c.Parameters.G1.Z,
 		&c.Parameters.G2.Delta,
 	}
@@ -114,7 +114,7 @@ func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 		&c.PublicKey.SXG,
 		&c.PublicKey.XR,
 		&c.Parameters.G1.Delta,
-		&c.Parameters.G1.L,
+		&c.Parameters.G1.PKK,
 		&c.Parameters.G1.Z,
 		&c.Parameters.G2.Delta,
 	}

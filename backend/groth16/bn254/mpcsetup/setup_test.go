@@ -190,7 +190,7 @@ func (p *Phase1) clone() Phase1 {
 func (phase2 *Phase2) clone() Phase2 {
 	r := Phase2{}
 	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
-	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
+	r.Parameters.G1.PKK = append(r.Parameters.G1.PKK, phase2.Parameters.G1.PKK...)
 	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
 	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
 	r.PublicKey = phase2.PublicKey
