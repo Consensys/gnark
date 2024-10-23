@@ -33,22 +33,26 @@ func (mc *e6mulCheck) check(sapi *emulated.Field[emulated.BW6761Fp], rpowers []*
 			big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1),
 		},
 	)
+	mone := sapi.NewElement(-1)
 	mv2 := emulated.ValueOfMultivariate[emulated.BW6761Fp](
-		// r0 + r1 x + r2 x^2 + r3 x^3 + r4 x^4 + r5 x^5 + q0 np + q1 x np + q2 x^2 np + q3 x^3 np + q4 x^4 np
-		//   r0 r1 r2 r3 r4 r5 q0 q1 q2 q3 q4 x1 x2 x3 x4 x5 np
+		// r0 + r1 x + r2 x^2 + r3 x^3 + r4 x^4 + r5 x^5 + q0 np + q1 x np + q2 x^2 np + q3 x^3 np + q4 x^4 np - ax0 bx0 - ax1 bx1 - ax2 bx2 - ax3 bx3 - ax4 bx4 - ax5 bx5
+		//   r0 r1 r2 r3 r4 r5 q0 q1 q2 q3 q4 x1 x2 x3 x4 x5 np ax bx -1
 		[][]int{
-			{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
-			{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
-			{0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
-			{0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
-			{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+			{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
 
-			{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-			{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1},
-			{0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1},
-			{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1},
-			{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1},
+			{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0},
+
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+			// {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
 
 			// {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			// {0, 1, 0, 0, 0, 1, 0, 0, 0, 1},
@@ -59,6 +63,7 @@ func (mc *e6mulCheck) check(sapi *emulated.Field[emulated.BW6761Fp], rpowers []*
 		[]*big.Int{
 			big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1),
 			big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1),
+			big.NewInt(1),
 		},
 	)
 	ax := sapi.EvalMultivariate(&mv, []*baseEl{&mc.A.A0, &mc.A.A1, &mc.A.A2, &mc.A.A3, &mc.A.A4, &mc.A.A5, rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4]})
@@ -70,15 +75,17 @@ func (mc *e6mulCheck) check(sapi *emulated.Field[emulated.BW6761Fp], rpowers []*
 	}
 	// rx := sapi.EvalMultivariate(&mv, []*baseEl{&mc.R.A0, &mc.R.A1, &mc.R.A2, &mc.R.A3, &mc.R.A4, &mc.R.A5, rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4]})
 	// qnx := sapi.EvalMultivariate(&mv2, []*baseEl{&mc.Q.A0, &mc.Q.A1, &mc.Q.A2, &mc.Q.A3, &mc.Q.A4, rpowers[0], rpowers[1], rpowers[2], rpowers[3], modEval})
-	abx := sapi.Mul(ax, bx)
+	// abx := sapi.Mul(ax, bx)
 	rqnx := sapi.EvalMultivariate(&mv2, []*baseEl{
 		&mc.R.A0, &mc.R.A1, &mc.R.A2, &mc.R.A3, &mc.R.A4, &mc.R.A5,
 		&mc.Q.A0, &mc.Q.A1, &mc.Q.A2, &mc.Q.A3, &mc.Q.A4,
 		rpowers[0], rpowers[1], rpowers[2], rpowers[3], rpowers[4],
 		modEval,
+		ax, bx, mone,
 	})
 	// rqnx := sapi.Add(rx, qnx)
-	sapi.AssertIsEqual(abx, rqnx)
+	sapi.AssertIsEqual(rqnx, sapi.Zero())
+	// sapi.AssertIsEqual(abx, rqnx)
 }
 
 type E6 struct {
@@ -1170,6 +1177,7 @@ func (e Ext6) squareDirect(x *E6) *E6 {
 }
 
 func (e Ext6) Square(x *E6) *E6 {
+	// return e.squarePolyWithRand(x, e.fp.NewElement(-1))
 	return e.squareDirect(x)
 	// We don't use Montgomery-6 or Toom-Cook-6 for the squaring but instead we
 	// simulate a quadratic over cubic extension tower because Karatsuba over
