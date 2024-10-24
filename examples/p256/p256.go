@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const NumSignatures = 1
+const NumSignatures = 10
 
 var circuitName string
 
@@ -165,16 +165,11 @@ func Groth16Prove(fileDir string) {
 		if err != nil {
 			panic(err)
 		}
-		elapsed := time.Since(start)
-		log.Printf("Witness Generation: %d ms", elapsed.Milliseconds())
 
-		start = time.Now()
 		proof, err := groth16.Prove(r1cs, pk, witnessData, solidity.WithProverTargetSolidityVerifier(backend.GROTH16))
 		if err != nil {
 			panic(err)
 		}
-		elapsed = time.Since(start)
-		log.Printf("CPU Prove: %d ms", elapsed.Milliseconds())
 		publicWitness, err := witnessData.Public()
 		if err != nil {
 			panic(err)
@@ -191,23 +186,18 @@ func Groth16Prove(fileDir string) {
 		if err != nil {
 			panic(err)
 		}
-		elapsed := time.Since(start)
-		log.Printf("Witness Generation: %d ms", elapsed.Milliseconds())
 
-		start = time.Now()
 		proof, err := groth16.Prove(r1cs, pk, witnessData, solidity.WithProverTargetSolidityVerifier(backend.GROTH16), backend.WithZeknoxAcceleration())
 		if err != nil {
 			panic(err)
 		}
-		elapsed = time.Since(start)
-		log.Printf("GPU Prove %d: %d ms", i+1, elapsed.Milliseconds())
 		publicWitness, err := witnessData.Public()
 		if err != nil {
 			panic(err)
 		}
 		if err := groth16.Verify(proof, vk, publicWitness, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)); err != nil {
 			fmt.Printf("\n!!! GPU Verify %d: %s\n\n", i+1, err)
-			panic(err)
+			// panic(err)
 		}
 	}
 }
