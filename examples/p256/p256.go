@@ -15,6 +15,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	zeknox_bn254 "github.com/consensys/gnark/backend/groth16/bn254/zeknox"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -138,20 +139,17 @@ func Groth16Setup(fileDir string) {
 }
 
 func Groth16Prove(fileDir string) {
-	// proveStart := time.Now()
-	// Witness generation
+	// Read r1cs
 	start := time.Now()
-
-	// Read files
-	start = time.Now()
 	r1cs := groth16.NewCS(ecc.BN254)
 	ReadFromFile(r1cs, fileDir+circuitName+".r1cs")
 	elapsed := time.Since(start)
 	log.Printf("Read r1cs: %d ms", elapsed.Milliseconds())
 
+	// read zkey
 	start = time.Now()
 	pk := groth16.NewProvingKey(ecc.BN254)
-
+	defer pk.(*zeknox_bn254.ProvingKey).Free()
 	UnsafeReadFromFile(pk, fileDir+circuitName+".zkey")
 	elapsed = time.Since(start)
 	log.Printf("Read zkey: %d ms", elapsed.Milliseconds())

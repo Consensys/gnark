@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -46,7 +45,6 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		return nil
 	}
 	pk.deviceInfo = &deviceInfo{}
-	// TODO: setup FFT
 
 	// MSM G1 & G2 Device Setup
 	g, _ := errgroup.WithContext(context.TODO())
@@ -84,11 +82,26 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		return err
 	}
 	// if no error, store device pointers in pk
-	pk.G1Device.A = <-deviceA
-	pk.G1Device.B = <-deviceG1B
-	pk.G1Device.K = <-deviceK
-	pk.G1Device.Z = <-deviceZ
-	pk.G2Device.B = <-deviceG2B
+	pk.G1Device.A = DevicePoints[curve.G1Affine]{
+		HostOrDeviceSlice: <-deviceA,
+		ArePointsInMont:   true,
+	}
+	pk.G1Device.B = DevicePoints[curve.G1Affine]{
+		HostOrDeviceSlice: <-deviceG1B,
+		ArePointsInMont:   true,
+	}
+	pk.G1Device.K = DevicePoints[curve.G1Affine]{
+		HostOrDeviceSlice: <-deviceK,
+		ArePointsInMont:   true,
+	}
+	pk.G1Device.Z = DevicePoints[curve.G1Affine]{
+		HostOrDeviceSlice: <-deviceZ,
+		ArePointsInMont:   true,
+	}
+	pk.G2Device.B = DevicePoints[curve.G2Affine]{
+		HostOrDeviceSlice: <-deviceG2B,
+		ArePointsInMont:   true,
+	}
 
 	return nil
 }
@@ -233,6 +246,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	computeBS1 := func() error {
 		<-chWireValuesB
+		<-chWireValuesB
 		var wireB *device.HostOrDeviceSlice[fr.Element]
 		chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
 		if err := CopyToDevice(wireValuesB, chWireB); err != nil {
@@ -241,17 +255,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireB = <-chWireB
 		defer wireB.Free()
 		startBs1 := time.Now()
-
-		val := atomic.LoadInt32(&g1_point_b_mont)
-		mont := true
-		if val == 1 {
-			mont = false
-		} else {
-			atomic.StoreInt32(&g1_point_b_mont, 1)
-			mont = true
-		}
-
-		if err := msmG1(&bs1, pk.G1Device.B, wireB, mont); err != nil {
+		if err := msmG1(&bs1, &pk.G1Device.B, wireB); err != nil {
 			return err
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", wireB.Len()), time.Since(startBs1)).Msg("bs1 done")
@@ -263,6 +267,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	computeAR1 := func() error {
 		<-chWireValuesA
+		<-chWireValuesA
 		var wireA *device.HostOrDeviceSlice[fr.Element]
 		chWireA := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
 		if err := CopyToDevice(wireValuesA, chWireA); err != nil {
@@ -271,17 +276,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireA = <-chWireA
 		defer wireA.Free()
 		startAr := time.Now()
-
-		val := atomic.LoadInt32(&g1_point_a_mont)
-		mont := true
-		if val == 1 {
-			mont = false
-		} else {
-			atomic.StoreInt32(&g1_point_a_mont, 1)
-			mont = true
-		}
-
-		if err := msmG1(&ar, pk.G1Device.A, wireA, mont); err != nil {
+		if err := msmG1(&ar, &pk.G1Device.A, wireA); err != nil {
 			return err
 		}
 
@@ -315,16 +310,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		defer deviceH.Free()
 		// MSM G1 Krs2
 		startKrs2 := time.Now()
-
-		val := atomic.LoadInt32(&g1_point_z_mont)
-		mont := true
-		if val == 1 {
-			mont = false
-		} else {
-			atomic.StoreInt32(&g1_point_z_mont, 1)
-			mont = true
-		}
-		if err := msmG1(&krs2, pk.G1Device.Z, deviceH, mont); err != nil {
+		if err := msmG1(&krs2, &pk.G1Device.Z, deviceH); err != nil {
 			return err
 		}
 
@@ -366,26 +352,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireB = <-chWireB
 		defer wireB.Free()
 		startBs := time.Now()
-		// scalar := onHost(wireValuesB[:])
-		// point := onHost(pk.G2.B[:])
-		// if err := msmG2(&Bs, &point, &scalar); err != nil {
-		// 	return err
-		// }
-
-		val := atomic.LoadInt32(&g2_point_b_mont)
-		mont := true
-		if val == 1 {
-			mont = false
-		} else {
-			atomic.StoreInt32(&g2_point_b_mont, 1)
-			mont = true
-		}
-
-		if err := msmG2(&Bs, pk.G2Device.B, wireB, mont); err != nil {
-			return err
-		}
-
-		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: 16}); err != nil {
+		if err := msmG2(&Bs, &pk.G2Device.B, wireB); err != nil {
 			return err
 		}
 
@@ -522,7 +489,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	return a
 }
 
-func checkMsmInputs[P, S any](points *device.HostOrDeviceSlice[P], scalars *device.HostOrDeviceSlice[S]) error {
+func checkMsmInputs[P curve.G1Affine | curve.G2Affine](points *DevicePoints[P], scalars *device.HostOrDeviceSlice[fr.Element]) error {
 	if !points.IsOnDevice() || !scalars.IsOnDevice() {
 		return fmt.Errorf("MSM: points and scalars must be on device")
 	}
@@ -532,38 +499,36 @@ func checkMsmInputs[P, S any](points *device.HostOrDeviceSlice[P], scalars *devi
 	return nil
 }
 
-func msmG1(res *curve.G1Jac, points *device.HostOrDeviceSlice[curve.G1Affine], scalars *device.HostOrDeviceSlice[fr.Element], input_point_in_mont bool) error {
+func msmG1(res *curve.G1Jac, points *DevicePoints[curve.G1Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
 	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
 	cfg.AreInputsOnDevice = true
-
-	cfg.AreInputPointInMont = input_point_in_mont
-	cfg.AreInputScalarInMont = true
-	cfg.AreOutputPointInMont = true
+	cfg.ArePointsInMont = points.ArePointsInMont
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
 	resAffine := curve.G1Affine{}
 	if err := msm.MSM_G1(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
 		return err
 	}
+	// After 1 GPU MSM, points in GPU are converted to affine form
+	points.ArePointsInMont = false
 	res.FromAffine(&resAffine)
 	return nil
 }
 
-func msmG2(res *curve.G2Jac, points *device.HostOrDeviceSlice[curve.G2Affine], scalars *device.HostOrDeviceSlice[fr.Element], mont bool) error {
+func msmG2(res *curve.G2Jac, points *DevicePoints[curve.G2Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
 	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
 	cfg.AreInputsOnDevice = true
-
-	cfg.AreInputPointInMont = mont
-	cfg.AreOutputPointInMont = true
-	cfg.AreInputScalarInMont = true
+	cfg.ArePointsInMont = points.ArePointsInMont
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
 	resAffine := curve.G2Affine{}
 	if err := msm.MSM_G2(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
 		return err
 	}
+	// After 1 GPU MSM, points in GPU are converted to affine form
+	points.ArePointsInMont = false
 	res.FromAffine(&resAffine)
 	return nil
 }
