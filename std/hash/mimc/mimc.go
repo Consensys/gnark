@@ -75,12 +75,14 @@ func (h *MiMC) SetState(newState []frontend.Variable) error {
 	}
 
 	h.h = newState[0]
+	h.data = nil
 	return nil
 }
 
 // State returns the inner-state of the hasher. In the context of MiMC only a
 // single field element is returned.
 func (h *MiMC) State() []frontend.Variable {
+	h.Sum() // this flushes the unsummed data
 	return []frontend.Variable{h.h}
 }
 
