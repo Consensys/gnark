@@ -61,6 +61,29 @@ func (h *MiMC) Reset() {
 	h.h = 0
 }
 
+// SetState manually sets the state of the hasher to the provided value. In the
+// case of MiMC only a single frontend variable is expected to represent the
+// state.
+func (h *MiMC) SetState(newState []frontend.Variable) error {
+
+	if len(h.data) > 0 {
+		return errors.New("the hasher is not in an initial state")
+	}
+
+	if len(newState) != 1 {
+		return errors.New("the MiMC hasher expects a single field element to represent the state")
+	}
+
+	h.h = newState[0]
+	return nil
+}
+
+// State returns the inner-state of the hasher. In the context of MiMC only a
+// single field element is returned.
+func (h *MiMC) State() []frontend.Variable {
+	return []frontend.Variable{h.h}
+}
+
 // Sum hash using [Miyaguchi–Preneel] where the XOR operation is replaced by
 // field addition.
 //
