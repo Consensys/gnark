@@ -20,7 +20,9 @@ import (
 	"crypto/sha256"
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
+	"github.com/consensys/gnark/backend/groth16/internal"
 	"math/big"
+	"slices"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -32,7 +34,7 @@ type Phase2Evaluations struct {
 	G1 struct {
 		A   []curve.G1Affine // A are the left coefficient polynomials for each witness element, evaluated at τ
 		B   []curve.G1Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
-		VKK []curve.G1Affine // VKK are the coefficients of the public witness
+		VKK []curve.G1Affine // VKK are the coefficients of the public witness (and commitments)
 	}
 	G2 struct {
 		B []curve.G2Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
@@ -42,17 +44,19 @@ type Phase2Evaluations struct {
 type Phase2 struct {
 	Parameters struct {
 		G1 struct {
-			Delta  curve.G1Affine
-			PKK, Z []curve.G1Affine // Z is the domain vanishing polynomial
+			Delta curve.G1Affine
+			Z     []curve.G1Affine // Z is the domain vanishing polynomial
+			PKK   []curve.G1Affine // PKK are the coefficients of the private witness
 		}
 		G2 struct {
 			Delta curve.G2Affine
+			Sigma curve.G2Affine
 		}
-		CommitmentKeys pedersen.ProvingKey
+		CommitmentKeys []pedersen.ProvingKey
 	}
-	Sigmas    []valueUpdate // commitment key secrets
-	PublicKey PublicKey     // commitment to delta
-	Hash      []byte
+	Sigmas []valueUpdate // commitment key secrets
+	Delta  valueUpdate   // updates to delta
+	Hash   []byte
 }
 
 // Init is to be run by the coordinator
@@ -118,8 +122,8 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	coeffAlphaTau1 := lagrangeCoeffsG1(srs.G1.AlphaTau, size) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
 	coeffBetaTau1 := lagrangeCoeffsG1(srs.G1.BetaTau, size)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
 
-	internal, secret, public := r1cs.GetNbVariables()
-	nWires := internal + secret + public
+	nbInternal, nbSecret, nbPublic := r1cs.GetNbVariables()
+	nWires := nbInternal + nbSecret + nbPublic
 	var evals Phase2Evaluations
 	evals.G1.A = make([]curve.G1Affine, nWires) // recall: A are the left coefficients in DIZK parlance
 	evals.G1.B = make([]curve.G1Affine, nWires) // recall: B are the right coefficients in DIZK parlance
@@ -157,6 +161,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	_, _, g1, g2 := curve.Generators()
 	c2.Parameters.G1.Delta = g1
 	c2.Parameters.G2.Delta = g2
+	c2.Parameters.G2.Sigma = g2
 
 	// Build Z in PK as τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
@@ -168,35 +173,56 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	bitReverse(c2.Parameters.G1.Z)
 	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
 
+	commitments := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	c2.Sigmas = make([]valueUpdate, len(commitments))
+	c2.Parameters.CommitmentKeys = make([]pedersen.ProvingKey, len(commitments))
+	for j := range commitments {
+		c2.Parameters.CommitmentKeys[i].Basis = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
+	}
+	nbCommitted := internal.NbElements(commitments.GetPrivateCommitted())
+
 	// Evaluate PKK
-	nPrivate := internal + secret
-	c2.Parameters.G1.PKK = make([]curve.G1Affine, nPrivate)
-	evals.G1.VKK = make([]curve.G1Affine, public)
-	offset := public
+
+	c2.Parameters.G1.PKK = make([]curve.G1Affine, 0, nbInternal+nbSecret-nbCommitted-len(commitments))
+	evals.G1.VKK = make([]curve.G1Affine, 0, nbPublic+len(commitments))
+	committedIterator := internal.NewMergeIterator(commitments.GetPrivateCommitted())
+	nbCommitmentsSeen := 0
 	for i := 0; i < nWires; i++ {
+		// since as yet δ, γ = 1, the VKK and PKK are computed identically, as βA + αB + C
 		var tmp curve.G1Affine
 		tmp.Add(&bA[i], &aB[i])
 		tmp.Add(&tmp, &C[i])
-		if i < public {
-			evals.G1.VKK[i].Set(&tmp)
+		commitmentIndex := committedIterator.IndexIfNext(i)
+		isCommitment := nbCommitmentsSeen < len(commitments) && commitments[nbCommitmentsSeen].CommitmentIndex == i
+		if commitmentIndex != -1 {
+			c2.Parameters.CommitmentKeys[commitmentIndex].Basis = append(c2.Parameters.CommitmentKeys[commitmentIndex].Basis, tmp)
+		} else if i < nbPublic || isCommitment {
+			evals.G1.VKK = append(evals.G1.VKK, tmp)
 		} else {
-			c2.Parameters.G1.PKK[i-offset].Set(&tmp)
+			c2.Parameters.G1.PKK = append(c2.Parameters.G1.PKK, tmp)
+		}
+		if isCommitment {
+			nbCommitmentsSeen++
 		}
 	}
-	// Set δ public key
-	var delta fr.Element
-	delta.SetOne()
-	c2.PublicKey = newPublicKey(delta, nil, 1)
+
+	for i := range commitments {
+		c2.Parameters.CommitmentKeys[i].BasisExpSigma = slices.Clone(c2.Parameters.CommitmentKeys[i].Basis)
+	}
 
 	// Hash initial contribution
-	c2.Hash = c2.hash()
+	c2.Hash = c2.hash() // TODO remove
 	return c2, evals
 }
 
 func (c *Phase2) Contribute() {
 	// Sample toxic δ
 	var delta, deltaInv fr.Element
+	var sigma fr.Element
 	var deltaBI, deltaInvBI big.Int
+
+	updateValue()
+
 	delta.SetRandom()
 	deltaInv.Inverse(&delta)
 
