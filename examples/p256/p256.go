@@ -185,7 +185,7 @@ func Groth16Prove(fileDir string) {
 	}
 
 	// GPU
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		fmt.Printf("------ GPU Prove %d ------\n", i+1)
 		witnessData, err := generateWitness()
 		if err != nil {
@@ -207,7 +207,7 @@ func Groth16Prove(fileDir string) {
 		}
 		if err := groth16.Verify(proof, vk, publicWitness, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)); err != nil {
 			fmt.Printf("\n!!! GPU Verify %d: %s\n\n", i+1, err)
-			// panic(err)
+			panic(err)
 		}
 	}
 }
