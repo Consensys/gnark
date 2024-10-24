@@ -82,7 +82,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// ProverSucceeded is deprecated use [Assert.CheckCircuit] instead
+// ProverFailed is deprecated use [Assert.CheckCircuit] instead
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
