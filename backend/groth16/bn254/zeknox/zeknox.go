@@ -30,11 +30,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var g2_point_b_mont int32 = 0
-var g1_point_b_mont int32 = 0
-var g1_point_a_mont int32 = 0
-var g1_point_z_mont int32 = 0
-
 const HasZeknox = true
 
 // Use single GPU
@@ -246,7 +241,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	computeBS1 := func() error {
 		<-chWireValuesB
-		<-chWireValuesB
 		var wireB *device.HostOrDeviceSlice[fr.Element]
 		chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
 		if err := CopyToDevice(wireValuesB, chWireB); err != nil {
@@ -266,7 +260,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	computeAR1 := func() error {
-		<-chWireValuesA
 		<-chWireValuesA
 		var wireA *device.HostOrDeviceSlice[fr.Element]
 		chWireA := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
@@ -368,19 +361,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	// Parallel execution, memory may hit limit
-	// g, _ := errgroup.WithContext(context.TODO())
-	// g.Go(computeAR1)
-	computeAR1()
-	// g.Go(computeBS1)
-	computeBS1()
-	// g.Go(computeKRS1)
-	computeKRS1()
-	// g.Go(computeKRS2)
-	computeKRS2()
+	g, _ := errgroup.WithContext(context.TODO())
+	g.Go(computeAR1)
+	g.Go(computeBS1)
+	g.Go(computeKRS1)
+	g.Go(computeKRS2)
 
-	// if err := g.Wait(); err != nil {
-	// 	return nil, err
-	// }
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 
 	computeBS2()
 
@@ -398,12 +387,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	return proof, nil
-}
-
-func onHost[T any](hostData []T) device.HostOrDeviceSlice[T] {
-	deviceSlice := device.NewEmpty[T]()
-	deviceSlice.OnHost(hostData)
-	return *deviceSlice
 }
 
 // if len(toRemove) == 0, returns slice
@@ -519,10 +502,10 @@ func gpuMsm[R curve.G1Jac | curve.G2Jac, P curve.G1Affine | curve.G2Affine](
 			return err
 		}
 		if r, ok := any(res).(*curve.G1Jac); ok {
-            r.FromAffine(&resAffine)
-        } else {
+			r.FromAffine(&resAffine)
+		} else {
 			panic("res type should be *curve.G1Jac")
-        }
+		}
 	case *DevicePoints[curve.G2Affine]:
 		resAffine := curve.G2Affine{}
 		if err := msm.MSM_G2(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {

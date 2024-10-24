@@ -206,8 +206,8 @@ func Groth16Prove(fileDir string) {
 			panic(err)
 		}
 		if err := groth16.Verify(proof, vk, publicWitness, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)); err != nil {
+			fmt.Printf("\n!!! GPU Verify %d: %s\n\n", i+1, err)
 			// panic(err)
-			fmt.Printf("!!! GPU Verify %d: %s\n", i+1, err)
 		}
 	}
 }
