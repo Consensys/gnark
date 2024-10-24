@@ -84,23 +84,23 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	// if no error, store device pointers in pk
 	pk.G1Device.A = DevicePoints[curve.G1Affine]{
 		HostOrDeviceSlice: <-deviceA,
-		ArePointsInMont:   true,
+		Mont:              true,
 	}
 	pk.G1Device.B = DevicePoints[curve.G1Affine]{
 		HostOrDeviceSlice: <-deviceG1B,
-		ArePointsInMont:   true,
+		Mont:              true,
 	}
 	pk.G1Device.K = DevicePoints[curve.G1Affine]{
 		HostOrDeviceSlice: <-deviceK,
-		ArePointsInMont:   true,
+		Mont:              true,
 	}
 	pk.G1Device.Z = DevicePoints[curve.G1Affine]{
 		HostOrDeviceSlice: <-deviceZ,
-		ArePointsInMont:   true,
+		Mont:              true,
 	}
 	pk.G2Device.B = DevicePoints[curve.G2Affine]{
 		HostOrDeviceSlice: <-deviceG2B,
-		ArePointsInMont:   true,
+		Mont:              true,
 	}
 
 	return nil
@@ -503,7 +503,8 @@ func msmG1(res *curve.G1Jac, points *DevicePoints[curve.G1Affine], scalars *devi
 	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
 	cfg.AreInputsOnDevice = true
-	cfg.ArePointsInMont = points.ArePointsInMont
+	cfg.AreInputScalarInMont = true
+	cfg.AreOutputPointInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
 	resAffine := curve.G1Affine{}
@@ -511,7 +512,7 @@ func msmG1(res *curve.G1Jac, points *DevicePoints[curve.G1Affine], scalars *devi
 		return err
 	}
 	// After 1 GPU MSM, points in GPU are converted to affine form
-	points.ArePointsInMont = false
+	points.Mont = false
 	res.FromAffine(&resAffine)
 	return nil
 }
@@ -520,7 +521,9 @@ func msmG2(res *curve.G2Jac, points *DevicePoints[curve.G2Affine], scalars *devi
 	checkMsmInputs(points, scalars)
 	cfg := msm.DefaultMSMConfig()
 	cfg.AreInputsOnDevice = true
-	cfg.ArePointsInMont = points.ArePointsInMont
+	cfg.AreInputPointInMont = points.Mont
+	cfg.AreInputScalarInMont = true
+	cfg.AreOutputPointInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
 	resAffine := curve.G2Affine{}
@@ -528,7 +531,7 @@ func msmG2(res *curve.G2Jac, points *DevicePoints[curve.G2Affine], scalars *devi
 		return err
 	}
 	// After 1 GPU MSM, points in GPU are converted to affine form
-	points.ArePointsInMont = false
+	points.Mont = false
 	res.FromAffine(&resAffine)
 	return nil
 }

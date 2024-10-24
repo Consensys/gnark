@@ -27,7 +27,7 @@ type DevicePoints[T bn254.G1Affine | bn254.G2Affine] struct {
 	// Gnark points are in Montgomery form
 	// After 1 GPU MSM, points in GPU are converted to affine form
 	// Pass it to MSM config
-	ArePointsInMont bool
+	Mont bool
 }
 
 func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error {
