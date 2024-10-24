@@ -255,7 +255,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireB = <-chWireB
 		defer wireB.Free()
 		startBs1 := time.Now()
-		if err := msmG1(&bs1, &pk.G1Device.B, wireB); err != nil {
+		if err := gpuMsm(&bs1, &pk.G1Device.B, wireB); err != nil {
 			return err
 		}
 		log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", wireB.Len()), time.Since(startBs1)).Msg("bs1 done")
@@ -276,7 +276,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireA = <-chWireA
 		defer wireA.Free()
 		startAr := time.Now()
-		if err := msmG1(&ar, &pk.G1Device.A, wireA); err != nil {
+		if err := gpuMsm(&ar, &pk.G1Device.A, wireA); err != nil {
 			return err
 		}
 
@@ -310,7 +310,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		defer deviceH.Free()
 		// MSM G1 Krs2
 		startKrs2 := time.Now()
-		if err := msmG1(&krs2, &pk.G1Device.Z, deviceH); err != nil {
+		if err := gpuMsm(&krs2, &pk.G1Device.Z, deviceH); err != nil {
 			return err
 		}
 
@@ -352,7 +352,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		wireB = <-chWireB
 		defer wireB.Free()
 		startBs := time.Now()
-		if err := msmG2(&Bs, &pk.G2Device.B, wireB); err != nil {
+		if err := gpuMsm(&Bs, &pk.G2Device.B, wireB); err != nil {
 			return err
 		}
 
@@ -489,50 +489,57 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	return a
 }
 
-func checkMsmInputs[P curve.G1Affine | curve.G2Affine](points *DevicePoints[P], scalars *device.HostOrDeviceSlice[fr.Element]) error {
+// GPU Msm for either G1 or G2 points
+func gpuMsm[R curve.G1Jac | curve.G2Jac, P curve.G1Affine | curve.G2Affine](
+	res *R,
+	points *DevicePoints[P],
+	scalars *device.HostOrDeviceSlice[fr.Element],
+) error {
+	// Check inputs
 	if !points.IsOnDevice() || !scalars.IsOnDevice() {
-		return fmt.Errorf("MSM: points and scalars must be on device")
+		panic("points and scalars must be on device")
 	}
 	if points.Len() != scalars.Len() {
-		return fmt.Errorf("MSM: len(points) != len(scalars)")
+		panic("points and scalars should be in the same length")
 	}
-	return nil
-}
 
-func msmG1(res *curve.G1Jac, points *DevicePoints[curve.G1Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
-	checkMsmInputs(points, scalars)
+	// Setup MSM config
 	cfg := msm.DefaultMSMConfig()
-	cfg.AreInputsOnDevice = true
-	cfg.AreInputScalarInMont = true
-	cfg.AreOutputPointInMont = true
-	cfg.Npoints = uint32(points.Len())
-	cfg.LargeBucketFactor = 2
-	resAffine := curve.G1Affine{}
-	if err := msm.MSM_G1(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
-		return err
-	}
-	// After 1 GPU MSM, points in GPU are converted to affine form
-	points.Mont = false
-	res.FromAffine(&resAffine)
-	return nil
-}
-
-func msmG2(res *curve.G2Jac, points *DevicePoints[curve.G2Affine], scalars *device.HostOrDeviceSlice[fr.Element]) error {
-	checkMsmInputs(points, scalars)
-	cfg := msm.DefaultMSMConfig()
-	cfg.AreInputsOnDevice = true
 	cfg.AreInputPointInMont = points.Mont
+	cfg.AreInputsOnDevice = true
 	cfg.AreInputScalarInMont = true
 	cfg.AreOutputPointInMont = true
 	cfg.Npoints = uint32(points.Len())
 	cfg.LargeBucketFactor = 2
-	resAffine := curve.G2Affine{}
-	if err := msm.MSM_G2(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
-		return err
+
+	switch any(points).(type) {
+	case *DevicePoints[curve.G1Affine]:
+		resAffine := curve.G1Affine{}
+		if err := msm.MSM_G1(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
+			return err
+		}
+		if r, ok := any(res).(*curve.G1Jac); ok {
+            r.FromAffine(&resAffine)
+        } else {
+			panic("res type should be *curve.G1Jac")
+        }
+	case *DevicePoints[curve.G2Affine]:
+		resAffine := curve.G2Affine{}
+		if err := msm.MSM_G2(unsafe.Pointer(&resAffine), points.AsPtr(), scalars.AsPtr(), deviceId, cfg); err != nil {
+			return err
+		}
+		if r, ok := any(res).(*curve.G2Jac); ok {
+			r.FromAffine(&resAffine)
+		} else {
+			panic("res type should be *curve.G2Jac")
+		}
+	default:
+		panic("invalid points type")
 	}
-	// After 1 GPU MSM, points in GPU are converted to affine form
+
+	// After GPU MSM, points in GPU are converted to affine form
 	points.Mont = false
-	res.FromAffine(&resAffine)
+
 	return nil
 }
 
