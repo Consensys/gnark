@@ -86,7 +86,7 @@ func butterflyG2(a *curve.G2Affine, b *curve.G2Affine) {
 	b.Sub(&t, b)
 }
 
-// kerDIF8 is a kernel that process a FFT of size 8
+// kerDIF8 is a kernel that processes an FFT of size 8
 func kerDIF8G1(a []curve.G1Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG1(&a[0], &a[4])
 	butterflyG1(&a[1], &a[5])
@@ -114,7 +114,7 @@ func kerDIF8G1(a []curve.G1Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG1(&a[6], &a[7])
 }
 
-// kerDIF8 is a kernel that process a FFT of size 8
+// kerDIF8 is a kernel that processes an FFT of size 8
 func kerDIF8G2(a []curve.G2Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG2(&a[0], &a[4])
 	butterflyG2(&a[1], &a[5])
