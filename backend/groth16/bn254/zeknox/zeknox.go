@@ -114,6 +114,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return groth16_bn254.Prove(r1cs, &pk.ProvingKey, fullWitness, opts...)
 	}
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "zeknox").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
+	if pk.deviceInfo != nil {
+		pk.Free()
+		pk.deviceInfo = nil
+	}
 	if pk.deviceInfo == nil {
 		start := time.Now()
 		if err := pk.setupDevicePointers(); err != nil {
@@ -366,12 +370,17 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	g.Go(computeBS1)
 	g.Go(computeKRS1)
 	g.Go(computeKRS2)
-
+	g.Go(computeBS2)
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	computeBS2()
+	// Serial execution
+	// computeAR1()
+	// computeBS1()
+	// computeKRS1()
+	// computeKRS2()
+	// computeBS2()
 
 	// FinalKRS = KRS1 + KRS2 + s*AR + r*BS1
 	{
