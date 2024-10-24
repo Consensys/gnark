@@ -840,9 +840,9 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	Acc.AddAssign(api, H)
 
 	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is 760 * sqrt(2),
-	// so we need to add 10 bits to r^{1/4}.nbits().
-	nbits := cc.lambda.BitLen()>>1 + 10
+	// We prove that the factor is log_(3/sqrt(3)))(r).
+	// so we need to add 9 bits to r^{1/4}.nbits().
+	nbits := cc.lambda.BitLen()>>1 + 9
 	u1bits := api.ToBinary(u1, nbits)
 	u2bits := api.ToBinary(u2, nbits)
 	v1bits := api.ToBinary(v1, nbits)
