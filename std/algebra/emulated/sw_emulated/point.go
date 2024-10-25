@@ -966,13 +966,14 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	tableS[3] = c.Neg(tableS[2])
 	f0 := c.baseApi.Mul(&tableS[0].X, c.thirdRootOne)
 	f2 := c.baseApi.Mul(&tableS[2].X, c.thirdRootOne)
+	xor := c.api.Xor(selector2, selector4)
 	tablePhiS[0] = &AffinePoint[B]{
-		X: *c.baseApi.Select(c.api.Xor(selector2, selector4), f2, f0),
+		X: *c.baseApi.Select(xor, f2, f0),
 		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
 	}
 	tablePhiS[1] = c.Neg(tablePhiS[0])
 	tablePhiS[2] = &AffinePoint[B]{
-		X: *c.baseApi.Select(c.api.Xor(selector2, selector4), f0, f2),
+		X: *c.baseApi.Select(xor, f0, f2),
 		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[2].Y, &tableS[0].Y, &tableS[1].Y, &tableS[3].Y),
 	}
 	tablePhiS[3] = c.Neg(tablePhiS[2])
