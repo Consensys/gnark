@@ -516,16 +516,20 @@ func (pk *ProvingKey) ReadDump(r io.Reader) error {
 		return err
 	}
 
-	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
-	for i := range pk.CommitmentKeys {
-		pk.CommitmentKeys[i].Basis, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
+	for i := 0; i < int(nbCommitments); i++{
+		cpkey := pedersen.ProvingKey{}
+		cpkey.Basis, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 		if err != nil {
 			return err
 		}
-		pk.CommitmentKeys[i].BasisExpSigma, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
+		cpkey.BasisExpSigma, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 		if err != nil {
 			return err
 		}
+		pk.CommitmentKeys = append(pk.CommitmentKeys, cpkey)
+	}
+	if len(pk.CommitmentKeys) != int(nbCommitments) {
+		return fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(pk.CommitmentKeys))
 	}
 
 	return nil
