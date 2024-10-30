@@ -82,7 +82,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				vk.G1.K[i] = p1
 			}
 
-			vk.CommitmentKeys = []pedersen.VerifyingKey{}
 			if withCommitment {
 				vk.PublicAndCommitmentCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
 				bases := make([][]curve.G1Affine, len(vk.PublicAndCommitmentCommitted))
