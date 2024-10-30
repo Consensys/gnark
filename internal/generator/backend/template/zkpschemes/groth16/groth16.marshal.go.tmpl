@@ -358,7 +358,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		n2, err := cpkey.ReadFrom(r)
 		n += n2
 		if err != nil {
-			return n, err
+			return n + dec.BytesRead(), err
 		}
 		pk.CommitmentKeys = append(pk.CommitmentKeys, cpkey)
 	}
