@@ -460,11 +460,11 @@ func (pk *ProvingKey) WriteDump(w io.Writer) error {
 func (pk *ProvingKey) ReadDump(r io.Reader) error {
 	// read the marker to fail early in case of malformed input
 	if err := unsafe.ReadMarker(r); err != nil {
-		return err
+		return fmt.Errorf("read marker: %w", err)
 	}
 
 	if _, err := pk.Domain.ReadFrom(r); err != nil {
-		return err
+		return fmt.Errorf("read domain: %w", err)
 	}
 
 	dec := curve.NewDecoder(r, curve.NoSubgroupChecks())
@@ -488,57 +488,61 @@ func (pk *ProvingKey) ReadDump(r io.Reader) error {
 		&pk.NbInfinityB,
 	}
 
-	for _, v := range toDecode {
+	for i, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			return err
+			return fmt.Errorf("read field %d: %w", i, err)
 		}
 	}
 	pk.InfinityA = make([]bool, nbWires)
 	pk.InfinityB = make([]bool, nbWires)
 
 	if err := dec.Decode(&pk.InfinityA); err != nil {
-		return err
+		return fmt.Errorf("read InfinityA: %w", err)
 	}
 	if err := dec.Decode(&pk.InfinityB); err != nil {
-		return err
+		return fmt.Errorf("read InfinityB: %w", err)
 	}
 	if err := dec.Decode(&nbCommitments); err != nil {
-		return err
+		return fmt.Errorf("read nbCommitments: %w", err)
 	}
 
 	// read slices of points
 	var err error
 	pk.G1.A, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 	if err != nil {
-		return err
+		return fmt.Errorf("read G1.A: %w", err)
 	}
 	pk.G1.B, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 	if err != nil {
-		return err
+		return fmt.Errorf("read G1.B: %w", err)
 	}
 	pk.G1.Z, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 	if err != nil {
-		return err
+		return fmt.Errorf("read G1.Z: %w", err)
 	}
 	pk.G1.K, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 	if err != nil {
-		return err
+		return fmt.Errorf("read G1.K: %w", err)
 	}
 	pk.G2.B, _, err = unsafe.ReadSlice[[]curve.G2Affine](r)
 	if err != nil {
-		return err
+		return fmt.Errorf("read G2.B: %w", err)
 	}
 
-	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
-	for i := range pk.CommitmentKeys {
-		pk.CommitmentKeys[i].Basis, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
+	for i := 0; i < int(nbCommitments); i++ {
+		cpkey := pedersen.ProvingKey{}
+		cpkey.Basis, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 		if err != nil {
-			return err
+			return fmt.Errorf("read commitment basis %d: %w", i, err)
 		}
-		pk.CommitmentKeys[i].BasisExpSigma, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
+		cpkey.BasisExpSigma, _, err = unsafe.ReadSlice[[]curve.G1Affine](r)
 		if err != nil {
-			return err
+			return fmt.Errorf("read commitment basisExpSigma %d: %w", i, err)
 		}
+		pk.CommitmentKeys = append(pk.CommitmentKeys, cpkey)
+	}
+	if len(pk.CommitmentKeys) != int(nbCommitments) {
+		return fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(pk.CommitmentKeys))
 	}
 
 	return nil

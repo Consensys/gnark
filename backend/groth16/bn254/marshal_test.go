@@ -174,17 +174,18 @@ func TestProvingKeySerialization(t *testing.T) {
 			pk.InfinityB = make([]bool, nbWires)
 			pk.InfinityA[2] = true
 
-			pedersenBasis := make([]curve.G1Affine, nbCommitment)
-			pedersenBases := make([][]curve.G1Affine, nbCommitment)
-			pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitment)
-			for i := range pedersenBasis {
-				pedersenBasis[i] = p1
-				pedersenBases[i] = pedersenBasis[:i+1]
-			}
-			{
-				var err error
-				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases)
-				require.NoError(t, err)
+			if nbCommitment > 0 {
+				pedersenBasis := make([]curve.G1Affine, nbCommitment)
+				pedersenBases := make([][]curve.G1Affine, nbCommitment)
+				for i := range pedersenBasis {
+					pedersenBasis[i] = p1
+					pedersenBases[i] = pedersenBasis[:i+1]
+				}
+				{
+					var err error
+					pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases)
+					require.NoError(t, err)
+				}
 			}
 
 			if err := io.RoundTripCheck(&pk, func() any { return new(ProvingKey) }); err != nil {
