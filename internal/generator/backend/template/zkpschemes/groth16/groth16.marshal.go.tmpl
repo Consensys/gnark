@@ -353,14 +353,17 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 	if err := dec.Decode(&nbCommitments); err != nil {
 		return n + dec.BytesRead(), err
 	}
-
-	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
-	for i := range pk.CommitmentKeys {
-		n2, err := pk.CommitmentKeys[i].ReadFrom(r)
+	for i := 0; i < int(nbCommitments); i++ {
+		cpkey := pedersen.ProvingKey{}
+		n2, err := cpkey.ReadFrom(r)
 		n += n2
 		if err != nil {
 			return n, err
 		}
+		pk.CommitmentKeys = append(pk.CommitmentKeys, cpkey)
+	}
+	if len(pk.CommitmentKeys) != int(nbCommitments) {
+		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(pk.CommitmentKeys))
 	}
 
 	return n + dec.BytesRead(), nil
