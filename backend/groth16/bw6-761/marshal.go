@@ -326,7 +326,7 @@ func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
 	n, err := pk.Domain.ReadFrom(r)
 	if err != nil {
-		return n, err
+		return n, fmt.Errorf("read domain: %w", err)
 	}
 
 	dec := curve.NewDecoder(r, decOptions...)
@@ -350,31 +350,34 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		&pk.NbInfinityB,
 	}
 
-	for _, v := range toDecode {
+	for i, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			return n + dec.BytesRead(), err
+			return n + dec.BytesRead(), fmt.Errorf("read field %d: %w", i, err)
 		}
 	}
 	pk.InfinityA = make([]bool, nbWires)
 	pk.InfinityB = make([]bool, nbWires)
 
 	if err := dec.Decode(&pk.InfinityA); err != nil {
-		return n + dec.BytesRead(), err
+		return n + dec.BytesRead(), fmt.Errorf("read InfinityA: %w", err)
 	}
 	if err := dec.Decode(&pk.InfinityB); err != nil {
-		return n + dec.BytesRead(), err
+		return n + dec.BytesRead(), fmt.Errorf("read InfinityB: %w", err)
 	}
 	if err := dec.Decode(&nbCommitments); err != nil {
-		return n + dec.BytesRead(), err
+		return n + dec.BytesRead(), fmt.Errorf("read nbCommitments: %w", err)
 	}
-
-	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
-	for i := range pk.CommitmentKeys {
-		n2, err := pk.CommitmentKeys[i].ReadFrom(r)
+	for i := 0; i < int(nbCommitments); i++ {
+		cpkey := pedersen.ProvingKey{}
+		n2, err := cpkey.ReadFrom(r)
 		n += n2
 		if err != nil {
-			return n, err
+			return n + dec.BytesRead(), fmt.Errorf("read commitment key %d: %w", i, err)
 		}
+		pk.CommitmentKeys = append(pk.CommitmentKeys, cpkey)
+	}
+	if len(pk.CommitmentKeys) != int(nbCommitments) {
+		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(pk.CommitmentKeys))
 	}
 
 	return n + dec.BytesRead(), nil
