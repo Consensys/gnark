@@ -180,9 +180,9 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 		&nbCommitments,
 	}
 
-	for _, v := range toDecode {
+	for i, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+			return dec.BytesRead(), fmt.Errorf("read field %d: %w", i, err)
 		}
 	}
 
@@ -202,17 +202,17 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 		}
 		n += m
 		if err != nil {
-			return n + dec.BytesRead(), err
+			return n + dec.BytesRead(), fmt.Errorf("read commitment key %d: %w", i, err)
 		}
 		vk.CommitmentKeys = append(vk.CommitmentKeys, commitmentKey)
 	}
 	if len(vk.CommitmentKeys) != int(nbCommitments) {
-		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys")
+		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(vk.CommitmentKeys))
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
-		return n + dec.BytesRead(), err
+		return n + dec.BytesRead(), fmt.Errorf("precompute: %w", err)
 	}
 
 	return n + dec.BytesRead(), nil
