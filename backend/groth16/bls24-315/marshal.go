@@ -22,6 +22,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils/unsafe"
 	"github.com/consensys/gnark/internal/utils"
+
+	"fmt"
 	"io"
 )
 
@@ -196,35 +198,39 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 		&nbCommitments,
 	}
 
-	for _, v := range toDecode {
+	for i, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+			return dec.BytesRead(), fmt.Errorf("read field %d: %w", i, err)
 		}
 	}
 
 	vk.PublicAndCommitmentCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
 
-	vk.CommitmentKeys = make([]pedersen.VerifyingKey, nbCommitments)
 	var n int64
-	for i := range vk.CommitmentKeys {
+	for i := 0; i < int(nbCommitments); i++ {
 		var (
 			m   int64
 			err error
 		)
+		commitmentKey := pedersen.VerifyingKey{}
 		if raw {
-			m, err = vk.CommitmentKeys[i].UnsafeReadFrom(r)
+			m, err = commitmentKey.UnsafeReadFrom(r)
 		} else {
-			m, err = vk.CommitmentKeys[i].ReadFrom(r)
+			m, err = commitmentKey.ReadFrom(r)
 		}
 		n += m
 		if err != nil {
-			return n + dec.BytesRead(), err
+			return n + dec.BytesRead(), fmt.Errorf("read commitment key %d: %w", i, err)
 		}
+		vk.CommitmentKeys = append(vk.CommitmentKeys, commitmentKey)
+	}
+	if len(vk.CommitmentKeys) != int(nbCommitments) {
+		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(vk.CommitmentKeys))
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
-		return n + dec.BytesRead(), err
+		return n + dec.BytesRead(), fmt.Errorf("precompute: %w", err)
 	}
 
 	return n + dec.BytesRead(), nil
