@@ -3,6 +3,8 @@ import (
 	{{ template "import_pedersen" . }}
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark-crypto/utils/unsafe"
+
+	"fmt"
 	"io"
 )
 
@@ -186,22 +188,26 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 
 	vk.PublicAndCommitmentCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
 	
-	vk.CommitmentKeys = make([]pedersen.VerifyingKey, nbCommitments)
 	var n int64
-	for i := range vk.CommitmentKeys {
+	for i := 0; i < int(nbCommitments); i++ {
 		var (
 			m   int64
 			err error
 		)
+		commitmentKey := pedersen.VerifyingKey{}
 		if raw {
-			m, err = vk.CommitmentKeys[i].UnsafeReadFrom(r)
+			m, err = commitmentKey.UnsafeReadFrom(r)
 		} else {
-			m, err = vk.CommitmentKeys[i].ReadFrom(r)
+			m, err = commitmentKey.ReadFrom(r)
 		}
 		n += m
 		if err != nil {
 			return n + dec.BytesRead(), err
 		}
+		vk.CommitmentKeys = append(vk.CommitmentKeys, commitmentKey)
+	}
+	if len(vk.CommitmentKeys) != int(nbCommitments) {
+		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys")
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
