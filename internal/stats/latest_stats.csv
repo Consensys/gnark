@@ -132,13 +132,13 @@ math/emulated/secp256k1_64,bls24_315,groth16,1070,1950
 math/emulated/secp256k1_64,bls24_317,groth16,1070,1950
 math/emulated/secp256k1_64,bw6_761,groth16,1070,1950
 math/emulated/secp256k1_64,bw6_633,groth16,1070,1950
-math/emulated/secp256k1_64,bn254,plonk,4497,4388
-math/emulated/secp256k1_64,bls12_377,plonk,4497,4388
-math/emulated/secp256k1_64,bls12_381,plonk,4497,4388
-math/emulated/secp256k1_64,bls24_315,plonk,4497,4388
-math/emulated/secp256k1_64,bls24_317,plonk,4497,4388
-math/emulated/secp256k1_64,bw6_761,plonk,4497,4388
-math/emulated/secp256k1_64,bw6_633,plonk,4497,4388
+math/emulated/secp256k1_64,bn254,plonk,3873,4388
+math/emulated/secp256k1_64,bls12_377,plonk,3873,4388
+math/emulated/secp256k1_64,bls12_381,plonk,3873,4388
+math/emulated/secp256k1_64,bls24_315,plonk,3873,4388
+math/emulated/secp256k1_64,bls24_317,plonk,3873,4388
+math/emulated/secp256k1_64,bw6_761,plonk,3873,4388
+math/emulated/secp256k1_64,bw6_633,plonk,3873,4388
 pairing_bls12377,bn254,groth16,0,0
 pairing_bls12377,bls12_377,groth16,0,0
 pairing_bls12377,bls12_381,groth16,0,0
@@ -160,7 +160,7 @@ pairing_bls12381,bls24_315,groth16,0,0
 pairing_bls12381,bls24_317,groth16,0,0
 pairing_bls12381,bw6_761,groth16,0,0
 pairing_bls12381,bw6_633,groth16,0,0
-pairing_bls12381,bn254,plonk,5629807,5285448
+pairing_bls12381,bn254,plonk,4896933,5285448
 pairing_bls12381,bls12_377,plonk,0,0
 pairing_bls12381,bls12_381,plonk,0,0
 pairing_bls12381,bls24_315,plonk,0,0
@@ -188,7 +188,7 @@ pairing_bn254,bls24_315,groth16,0,0
 pairing_bn254,bls24_317,groth16,0,0
 pairing_bn254,bw6_761,groth16,0,0
 pairing_bn254,bw6_633,groth16,0,0
-pairing_bn254,bn254,plonk,3798583,3560759
+pairing_bn254,bn254,plonk,3304850,3560759
 pairing_bn254,bls12_377,plonk,0,0
 pairing_bn254,bls12_381,plonk,0,0
 pairing_bn254,bls24_315,plonk,0,0
@@ -202,7 +202,7 @@ pairing_bw6761,bls24_315,groth16,0,0
 pairing_bw6761,bls24_317,groth16,0,0
 pairing_bw6761,bw6_761,groth16,0,0
 pairing_bw6761,bw6_633,groth16,0,0
-pairing_bw6761,bn254,plonk,11486969,10777222
+pairing_bw6761,bn254,plonk,9919350,10777222
 pairing_bw6761,bls12_377,plonk,0,0
 pairing_bw6761,bls12_381,plonk,0,0
 pairing_bw6761,bls24_315,plonk,0,0
@@ -216,7 +216,7 @@ scalar_mul_G1_bn254,bls24_315,groth16,0,0
 scalar_mul_G1_bn254,bls24_317,groth16,0,0
 scalar_mul_G1_bn254,bw6_761,groth16,0,0
 scalar_mul_G1_bn254,bw6_633,groth16,0,0
-scalar_mul_G1_bn254,bn254,plonk,278909,261995
+scalar_mul_G1_bn254,bn254,plonk,242129,261995
 scalar_mul_G1_bn254,bls12_377,plonk,0,0
 scalar_mul_G1_bn254,bls12_381,plonk,0,0
 scalar_mul_G1_bn254,bls24_315,plonk,0,0
@@ -230,7 +230,7 @@ scalar_mul_P256,bls24_315,groth16,0,0
 scalar_mul_P256,bls24_317,groth16,0,0
 scalar_mul_P256,bw6_761,groth16,0,0
 scalar_mul_P256,bw6_633,groth16,0,0
-scalar_mul_P256,bn254,plonk,385060,359805
+scalar_mul_P256,bn254,plonk,329932,359805
 scalar_mul_P256,bls12_377,plonk,0,0
 scalar_mul_P256,bls12_381,plonk,0,0
 scalar_mul_P256,bls24_315,plonk,0,0
@@ -244,7 +244,7 @@ scalar_mul_secp256k1,bls24_315,groth16,0,0
 scalar_mul_secp256k1,bls24_317,groth16,0,0
 scalar_mul_secp256k1,bw6_761,groth16,0,0
 scalar_mul_secp256k1,bw6_633,groth16,0,0
-scalar_mul_secp256k1,bn254,plonk,281870,264753
+scalar_mul_secp256k1,bn254,plonk,244652,264753
 scalar_mul_secp256k1,bls12_377,plonk,0,0
 scalar_mul_secp256k1,bls12_381,plonk,0,0
 scalar_mul_secp256k1,bls24_315,plonk,0,0
