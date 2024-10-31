@@ -96,8 +96,13 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 
 	var toCommit []frontend.Variable
-	for i := range queries {
-		toCommit = append(toCommit, queries[i]...)
+
+	// if table is single-column, then we don't need to sample coefficients
+	// for the random linear combination.
+	if nbRow > 1 {
+		for i := range queries {
+			toCommit = append(toCommit, queries[i]...)
+		}
 	}
 	toCommit = append(toCommit, exps...)
 
