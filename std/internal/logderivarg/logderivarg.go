@@ -77,18 +77,10 @@ func Build(api frontend.API, table Table, queries Table) error {
 		return fmt.Errorf("table empty")
 	}
 	nbRow := len(table[0])
-	constTable := true
 	countInputs := []frontend.Variable{len(table), nbRow}
 	for i := range table {
 		if len(table[i]) != nbRow {
 			return fmt.Errorf("table row length mismatch")
-		}
-		if constTable {
-			for j := range table[i] {
-				if _, isConst := api.Compiler().ConstantValue(table[i][j]); !isConst {
-					constTable = false
-				}
-			}
 		}
 		countInputs = append(countInputs, table[i]...)
 	}
@@ -104,11 +96,6 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 
 	var toCommit []frontend.Variable
-	if !constTable {
-		for i := range table {
-			toCommit = append(toCommit, table[i]...)
-		}
-	}
 	for i := range queries {
 		toCommit = append(toCommit, queries[i]...)
 	}
