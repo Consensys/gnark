@@ -282,3 +282,15 @@ func max[T constraints.Ordered](a ...T) T {
 	}
 	return m
 }
+
+func sum[T constraints.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
+	}
+	m := a[0]
+	for _, v := range a[1:] {
+		m += v
+	}
+	return m
+}
