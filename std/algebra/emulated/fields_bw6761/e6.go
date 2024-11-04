@@ -190,9 +190,7 @@ func (e Ext6) mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 }
 
 func (e Ext6) Mul(x, y *E6) *E6 {
-	x = e.Reduce(x)
-	y = e.Reduce(y)
-	return e.mulToomCook6(x, y)
+	return e.mulDirect(x, y)
 }
 
 func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
@@ -415,6 +413,37 @@ func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
 	s2 = e.fp.MulConst(v7, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
+func (e Ext6) mulDirect(x, y *E6) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)
+	c0 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A0}, {nonResidue, &x.A1, &y.A5}, {nonResidue, &x.A2, &y.A4}, {nonResidue, &x.A3, &y.A3}, {nonResidue, &x.A4, &y.A2}, {nonResidue, &x.A5, &y.A1}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c1 = a0b1 + a1b0 + β(a2b5 + a3b4 + a4b3 + a5b2)
+	c1 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A1}, {&x.A1, &y.A0}, {nonResidue, &x.A2, &y.A5}, {nonResidue, &x.A3, &y.A4}, {nonResidue, &x.A4, &y.A3}, {nonResidue, &x.A5, &y.A2}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c2 = a0b2 + a1b1 + a2b0 + β(a3b5 + a4b4 + a5b3)
+	c2 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A2}, {&x.A1, &y.A1}, {&x.A2, &y.A0}, {nonResidue, &x.A3, &y.A5}, {nonResidue, &x.A4, &y.A4}, {nonResidue, &x.A5, &y.A3}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c3 = a0b3 + a1b2 + a2b1 + a3b0 + β(a4b5 + a5b4)
+	c3 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A3}, {&x.A1, &y.A2}, {&x.A2, &y.A1}, {&x.A3, &y.A0}, {nonResidue, &x.A4, &y.A5}, {nonResidue, &x.A5, &y.A4}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c4 = a0b4 + a1b3 + a2b2 + a3b1 + a4b0 + βa5b5
+	c4 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A4}, {&x.A1, &y.A3}, {&x.A2, &y.A2}, {&x.A3, &y.A1}, {&x.A4, &y.A0}, {nonResidue, &x.A5, &y.A5}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c5 = a0b5 + a1b4 + a2b3 + a3b2 + a4b1 + a5b0,
+	c5 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A5}, {&x.A1, &y.A4}, {&x.A2, &y.A3}, {&x.A3, &y.A2}, {&x.A4, &y.A1}, {&x.A5, &y.A0}},
+		[]int{1, 1, 1, 1, 1, 1})
 
 	return &E6{
 		A0: *c0,
