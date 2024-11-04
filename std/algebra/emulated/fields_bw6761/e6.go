@@ -736,6 +736,7 @@ func (e Ext6) Square(x *E6) *E6 {
 	return e.squareDirect(x)
 }
 
+// squareDirect computes the square of an element in E6 using schoolbook multiplication.
 func (e Ext6) squareDirect(x *E6) *E6 {
 	nonResidue := e.fp.NewElement(-4)
 	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)

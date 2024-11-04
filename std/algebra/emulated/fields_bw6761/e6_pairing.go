@@ -135,7 +135,7 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	return e.mulBy023Direct(z, c0, c1)
 }
 
-// MulBy023 multiplies z by an E6 sparse element 023 using schoolbook multiplication
+// mulBy023Direct multiplies z by an E6 sparse element 023 using schoolbook multiplication
 func (e Ext6) mulBy023Direct(z *E6, c0, c1 *baseEl) *E6 {
 	nonResidue := e.fp.NewElement(-4)
 
@@ -230,7 +230,7 @@ func (e Ext6) mulBy023(z *E6, c0, c1 *baseEl) *E6 {
 
 }
 
-//	Mul023By023 multiplies two E6 sparse element of the form:
+// Mul023By023 multiplies two E6 sparse element of the form:
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 //
@@ -258,7 +258,7 @@ func (e Ext6) mul023by023Direct(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	return [5]*baseEl{z0, z2, z3, z4, z5}
 }
 
-//	Mul023By023 multiplies two E6 sparse element of the form:
+// mul023By023 multiplies two E6 sparse element of the form:
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 //
@@ -284,8 +284,7 @@ func (e Ext6) mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 
 // MulBy02345 multiplies z by an E6 sparse element of the form
 //
-//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
-//	}
+//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4}
 func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	return e.mulBy02345Direct(z, x)
 }
