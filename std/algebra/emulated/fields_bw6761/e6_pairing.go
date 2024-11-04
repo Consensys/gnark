@@ -132,6 +132,38 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
+	return e.mulBy023Direct(z, c0, c1)
+}
+
+// MulBy023 multiplies z by an E6 sparse element 023 using schoolbook multiplication
+func (e Ext6) mulBy023Direct(z *E6, c0, c1 *baseEl) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+
+	// z0 = a0c0 + β(a3 + a4c1)
+	z0 := e.fp.Eval([][]*baseEl{{&z.A0, c0}, {nonResidue, &z.A3}, {nonResidue, &z.A4, c1}}, []int{1, 1, 1})
+	// z1 = a1c0 + β(a4 + a5c1)
+	z1 := e.fp.Eval([][]*baseEl{{&z.A1, c0}, {nonResidue, &z.A4}, {nonResidue, &z.A5, c1}}, []int{1, 1, 1})
+	// z2 = a0c1 + a2c0 + β(a5)
+	z2 := e.fp.Eval([][]*baseEl{{&z.A0, c1}, {&z.A2, c0}, {nonResidue, &z.A5}}, []int{1, 1, 1})
+	// c3 = a0 + a1c1 + a3c0
+	z3 := e.fp.Eval([][]*baseEl{{&z.A0}, {&z.A1, c1}, {&z.A3, c0}}, []int{1, 1, 1})
+	// c4 = a1 + a2c1 + a4c0
+	z4 := e.fp.Eval([][]*baseEl{{&z.A1}, {&z.A2, c1}, {&z.A4, c0}}, []int{1, 1, 1})
+	// c5 = a2 + a3c1 + a5c0,
+	z5 := e.fp.Eval([][]*baseEl{{&z.A2}, {&z.A3, c1}, {&z.A5, c0}}, []int{1, 1, 1})
+
+	return &E6{
+		A0: *z0,
+		A1: *z1,
+		A2: *z2,
+		A3: *z3,
+		A4: *z4,
+		A5: *z5,
+	}
+}
+
+// mulBy023 multiplies z by an E6 sparse element 023
+func (e Ext6) mulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	z = e.Reduce(z)
 
 	a := e.fp.Mul(&z.A0, c0)

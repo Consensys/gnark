@@ -342,6 +342,45 @@ func TestExptFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e6MulBy023Variants struct {
+	A    E6 `gnark:",public"`
+	W    E6
+	B, C baseEl
+}
+
+func (circuit *e6MulBy023Variants) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := e.mulBy023(&circuit.A, &circuit.B, &circuit.C)
+	expected2 := e.mulBy023Direct(&circuit.A, &circuit.B, &circuit.C)
+	e.AssertIsEqual(expected1, &circuit.W)
+	e.AssertIsEqual(expected2, &circuit.W)
+	return nil
+}
+
+func TestFp6MulBy023Variants(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, w bw6761.E6
+	_, _ = a.SetRandom()
+	var one, b, c fp.Element
+	one.SetOne()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	w.Set(&a)
+	w.MulBy014(&b, &c, &one)
+
+	witness := e6MulBy023Variants{
+		A: FromE6(&a),
+		B: emulated.ValueOf[emulated.BW6761Fp](&b),
+		C: emulated.ValueOf[emulated.BW6761Fp](&c),
+		W: FromE6(&w),
+	}
+
+	err := test.IsSolved(&e6MulBy023Variants{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type e6MulBy023 struct {
 	A    E6 `gnark:",public"`
 	W    E6
