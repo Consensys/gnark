@@ -1372,3 +1372,50 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Terms: terms, Coeffs: coefficients}, test.WithValidAssignment(assignment))
 }
 
+type PolyEvalNegativeCoefficient[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegativeCoefficient[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// x - y
+	coefficients := []*big.Int{big.NewInt(1), big.NewInt(-1)}
+	res := f.Eval([][]*Element[T]{{&c.Inputs[0]}, {&c.Inputs[1]}}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegativeCoefficient(t *testing.T) {
+	testPolyEvalNegativeCoefficient[Goldilocks](t)
+	testPolyEvalNegativeCoefficient[BN254Fr](t)
+	testPolyEvalNegativeCoefficient[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
+	t.Skip("not implemented yet")
+	assert := test.NewAssert(t)
+	var fp T
+	fmt.Println("modulus", fp.Modulus())
+	var err error
+	const nbInputs = 2
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		fmt.Println("input", i, inputs[i])
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int).Sub(inputs[0], inputs[1])
+	expected.Mod(expected, fp.Modulus())
+	fmt.Println("expected", expected)
+	assignment := &PolyEvalNegativeCoefficient[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegativeCoefficient[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
+}
