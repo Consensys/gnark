@@ -1277,3 +1277,98 @@ func TestIsZeroEdgeCases(t *testing.T) {
 	testIsZeroEdgeCases[BN254Fr](t)
 	testIsZeroEdgeCases[emparams.Mod1e512](t)
 }
+
+type PolyEvalCircuit[T FieldParams] struct {
+	Inputs   []Element[T]
+	Terms    [][]int
+	Coeffs   []*big.Int
+	Expected Element[T]
+}
+
+func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
+	// withEval
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	terms := make([][]*Element[T], len(c.Terms))
+	for i := range terms {
+		terms[i] = make([]*Element[T], len(c.Terms[i]))
+		for j := range terms[i] {
+			terms[i][j] = &c.Inputs[c.Terms[i][j]]
+		}
+	}
+	resEval := f.Eval(terms, c.Coeffs)
+
+	// withSum
+	addTerms := make([]*Element[T], len(c.Terms))
+	for i, term := range c.Terms {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.Mul(termVal, &c.Inputs[term[j]])
+		}
+		addTerms[i] = f.MulConst(termVal, c.Coeffs[i])
+	}
+	resSum := f.Sum(addTerms...)
+
+	// mul no reduce
+	addTerms2 := make([]*Element[T], len(c.Terms))
+	for i, term := range c.Terms {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.MulNoReduce(termVal, &c.Inputs[term[j]])
+		}
+		addTerms2[i] = f.MulConst(termVal, c.Coeffs[i])
+	}
+	resNoReduce := f.Sum(addTerms2...)
+	resReduced := f.Reduce(resNoReduce)
+
+	// assertions
+	f.AssertIsEqual(resEval, &c.Expected)
+	f.AssertIsEqual(resSum, &c.Expected)
+	f.AssertIsEqual(resNoReduce, &c.Expected)
+	f.AssertIsEqual(resReduced, &c.Expected)
+
+	return nil
+}
+
+func TestPolyEval(t *testing.T) {
+	testPolyEval[Goldilocks](t)
+	testPolyEval[BN254Fr](t)
+	testPolyEval[emparams.Mod1e512](t)
+}
+
+func testPolyEval[T FieldParams](t *testing.T) {
+	const nbInputs = 2
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3
+	terms := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
+	coefficients := []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5)}
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int)
+	for i, term := range terms {
+		termVal := new(big.Int).Set(coefficients[i])
+		for j := range term {
+			termVal.Mul(termVal, inputs[term[j]])
+		}
+		expected.Add(expected, termVal)
+	}
+	expected.Mod(expected, fp.Modulus())
+
+	assignment := &PolyEvalCircuit[T]{
+		Inputs:   assignmentInput,
+		Expected: ValueOf[T](expected),
+	}
+	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Terms: terms, Coeffs: coefficients}, test.WithValidAssignment(assignment))
+}
+
