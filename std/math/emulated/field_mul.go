@@ -395,30 +395,8 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
-	xp := make([]*big.Int, nbMultiplicationResLimbs(nbALen, nbBLen))
-	yp := make([]*big.Int, nbMultiplicationResLimbs(nbQuoLen, nbLimbs))
-	for i := range xp {
-		xp[i] = new(big.Int)
-	}
-	for i := range yp {
-		yp[i] = new(big.Int)
-	}
-	tmp := new(big.Int)
-	// we know compute the schoolbook multiprecision multiplication of a*b and
-	// r+k*p
-	for i := 0; i < nbALen; i++ {
-		for j := 0; j < nbBLen; j++ {
-			tmp.Mul(alimbs[i], blimbs[j])
-			xp[i+j].Add(xp[i+j], tmp)
-		}
-	}
-	for i := 0; i < nbLimbs; i++ {
-		yp[i].Add(yp[i], remLimbs[i])
-		for j := 0; j < nbQuoLen; j++ {
-			tmp.Mul(quoLimbs[j], plimbs[i])
-			yp[i+j].Add(yp[i+j], tmp)
-		}
-	}
+	xp := limbMul(alimbs, blimbs)
+	yp := limbMul(quoLimbs, plimbs)
 	carry := new(big.Int)
 	for i := range carryLimbs {
 		if i < len(xp) {
@@ -536,5 +514,19 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 		base = f.Mul(base, base)
 	}
 	res = f.Select(expBts[n-1], f.Mul(base, res), res)
+	return res
+}
+
+func limbMul(lhs []*big.Int, rhs []*big.Int) []*big.Int {
+	tmp := new(big.Int)
+	res := make([]*big.Int, nbMultiplicationResLimbs(len(lhs), len(rhs)))
+	for i := range res {
+		res[i] = new(big.Int)
+	}
+	for i := 0; i < len(lhs); i++ {
+		for j := 0; j < len(rhs); j++ {
+			res[i+j].Add(res[i+j], tmp.Mul(lhs[i], rhs[j]))
+		}
+	}
 	return res
 }
