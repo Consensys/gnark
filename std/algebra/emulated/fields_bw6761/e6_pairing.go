@@ -238,6 +238,34 @@ func (e Ext6) mulBy023(z *E6, c0, c1 *baseEl) *E6 {
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	return e.mul023by023Direct(d0, d1, c0, c1)
+}
+
+// mul023by023Direct multiplies two E6 sparse element using schoolbook multiplication
+func (e Ext6) mul023by023Direct(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	nonResidue := e.fp.NewElement(-4)
+	// c0 = d0c0 + β
+	z0 := e.fp.Eval([][]*baseEl{{d0, c0}, {nonResidue}}, []int{1, 1})
+	// c2 = d0c1 + d1c0
+	z2 := e.fp.Eval([][]*baseEl{{d0, c1}, {d1, c0}}, []int{1, 1})
+	// c3 = d0 + c0
+	z3 := e.fp.Add(d0, c0)
+	// c4 = d1c1
+	z4 := e.fp.Mul(d1, c1)
+	// c5 = d1 + c1,
+	z5 := e.fp.Add(d1, c1)
+
+	return [5]*baseEl{z0, z2, z3, z4, z5}
+}
+
+//	Mul023By023 multiplies two E6 sparse element of the form:
+//
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+//
+// and
+//
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+func (e Ext6) mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	x0 := e.fp.Mul(c0, d0)
 	x1 := e.fp.Mul(c1, d1)
 	x04 := e.fp.Add(c0, d0)
