@@ -449,3 +449,33 @@ func TestFp6Mul023By023Variants(t *testing.T) {
 	err := test.IsSolved(&e6Mul023By023Variants{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type e6MulBy02345Variants struct {
+	A E6 `gnark:",public"`
+	B E6 `gnark:",public"`
+}
+
+func (circuit *e6MulBy02345Variants) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := e.mulBy02345(&circuit.A, [5]*baseEl{&circuit.B.A0, &circuit.B.A2, &circuit.B.A3, &circuit.B.A4, &circuit.B.A5})
+	expected2 := e.mulBy02345Direct(&circuit.A, [5]*baseEl{&circuit.B.A0, &circuit.B.A2, &circuit.B.A3, &circuit.B.A4, &circuit.B.A5})
+	e.AssertIsEqual(expected1, expected2)
+	return nil
+}
+
+func TestFp6MulBy02345Variants(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+
+	witness := e6MulBy02345Variants{
+		A: FromE6(&a),
+		B: FromE6(&b),
+	}
+
+	err := test.IsSolved(&e6MulBy02345Variants{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
