@@ -479,3 +479,42 @@ func TestFp6MulBy02345Variants(t *testing.T) {
 	err := test.IsSolved(&e6MulBy02345Variants{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type e6CycolotomicSquareKarabina12345Variants struct {
+	A E6 `gnark:",public"`
+	C E6 `gnark:",public"`
+}
+
+func (circuit *e6CycolotomicSquareKarabina12345Variants) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := e.cyclotomicSquareKarabina12345(&circuit.A)
+	expected2 := e.cyclotomicSquareKarabina12345Eval(&circuit.A)
+	e.AssertIsEqual(expected1, expected2)
+	dec1 := e.decompressKarabina12345(expected1)
+	dec2 := e.decompressKarabina12345Eval(expected2)
+	e.AssertIsEqual(dec1, dec2)
+	e.fp.AssertIsEqual(&dec1.A1, &circuit.C.A1)
+	e.fp.AssertIsEqual(&dec1.A2, &circuit.C.A2)
+	// e.fp.AssertIsEqual(&dec1.A3, &circuit.C.A3)
+	e.fp.AssertIsEqual(&dec1.A4, &circuit.C.A4)
+	e.fp.AssertIsEqual(&dec1.A5, &circuit.C.A5)
+
+	return nil
+}
+
+func TestFp6CyclotomicSquareKarabina12345Variants(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bw6761.E6
+	_, _ = a.SetRandom()
+	c.CyclotomicSquare(&a)
+
+	witness := e6CycolotomicSquareKarabina12345Variants{
+		A: FromE6(&a),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6CycolotomicSquareKarabina12345Variants{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}

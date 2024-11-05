@@ -857,6 +857,45 @@ func (e Ext6) squareEmulatedTower(x *E6) *E6 {
 // https://eprint.iacr.org/2010/542.pdf
 // Sec. 5.6 with minor modifications to fit our tower
 func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
+	return e.cyclotomicSquareKarabina12345Eval(x)
+}
+
+// cyclotomicSquareKarabina12345Eval computes
+// [Ext6.cyclotomicSquareKarabina12345] but with the non-native Eval method.
+func (e Ext6) cyclotomicSquareKarabina12345Eval(x *E6) *E6 {
+	c := e.fp.NewElement(-4)
+	mone := e.fp.NewElement(-1)
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h1 = 3*c*g2^2 + 3*g3^2 - 2*g1
+	h1 := e.fp.Eval([][]*baseEl{{c, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	// h2 = 3*c*g5^2 + 3*g1^2 - 2*g2
+	h2 := e.fp.Eval([][]*baseEl{{c, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	// h3 = 6*c*g1*g5 + 2*g3
+	h3 := e.fp.Eval([][]*baseEl{{c, &g1, &g5}, {&g3}}, []int{6, 2})
+	// h4 = 3*c*g2*g5 + 3*g1*g3 - g4
+	h4 := e.fp.Eval([][]*baseEl{{c, &g2, &g5}, {&g1, &g3}, {mone, &g4}}, []int{3, 3, 1})
+	// h5 = 6*g2*g3 + 2*g5
+	h5 := e.fp.Eval([][]*baseEl{{&g2, &g3}, {&g5}}, []int{6, 2})
+
+	return &E6{
+		A0: x.A0,
+		A1: *h3,
+		A2: *h1,
+		A3: *h4,
+		A4: *h2,
+		A5: *h5,
+	}
+
+}
+
+// Karabina's compressed cyclotomic square SQR12345
+// https://eprint.iacr.org/2010/542.pdf
+// Sec. 5.6 with minor modifications to fit our tower
+func (e Ext6) cyclotomicSquareKarabina12345(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	// h4 = -g4 + 3((g3+g5)(g1+c*g2)-g1g5-c*g3g2)
@@ -917,6 +956,32 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 
 // DecompressKarabina12345 decompresses Karabina's cyclotomic square result SQR12345
 func (e Ext6) DecompressKarabina12345(x *E6) *E6 {
+	return e.decompressKarabina12345Eval(x)
+}
+
+// decompressKarabina12345Eval computes [Ext6.DecompressKarabina12345] but with the non-native Eval method.
+func (e Ext6) decompressKarabina12345Eval(x *E6) *E6 {
+	mone := e.fp.NewElement(-1)
+	c := e.fp.NewElement(-4)
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h0 = -3*c*g1*g2 + 2*c*g4^2 + c*g3*g5 + 1
+	h0 := e.fp.Eval([][]*baseEl{{mone, c, &g1, &g2}, {c, &g4, &g4}, {c, &g3, &g5}, {e.fp.One()}}, []int{3, 2, 1, 1})
+	return &E6{
+		A0: *h0,
+		A1: g3,
+		A2: g1,
+		A3: g4,
+		A4: g2,
+		A5: g5,
+	}
+}
+
+// DecompressKarabina12345 decompresses Karabina's cyclotomic square result SQR12345
+func (e Ext6) decompressKarabina12345(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	// h0 = (2g4^2 + g3g5 - 3g2g1)*c + 1
