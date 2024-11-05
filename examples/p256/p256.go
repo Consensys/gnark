@@ -180,7 +180,7 @@ func Groth16Prove(fileDir string) {
 	}
 
 	// GPU
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 1; i++ {
 		fmt.Printf("------ GPU Prove %d ------\n", i+1)
 		witnessData, err := generateWitness()
 		if err != nil {

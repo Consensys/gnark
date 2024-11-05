@@ -4,7 +4,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/okx/cryptography_cuda/wrappers/go/device"
+	"github.com/okx/zeknox/wrappers/go/device"
 )
 
 type deviceInfo struct {
