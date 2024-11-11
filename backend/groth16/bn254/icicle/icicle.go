@@ -26,19 +26,25 @@ import (
 	"github.com/consensys/gnark/logger"
 	"github.com/rs/zerolog"
 
-	icicle_core "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
-	icicle_cr "github.com/ingonyama-zk/icicle/v2/wrappers/golang/cuda_runtime"
-	icicle_bn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
-	icicle_g2 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/g2"
-	icicle_msm "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/msm"
-	icicle_ntt "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/ntt"
-	icicle_vecops "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/vecOps"
+	icicle_core "github.com/ingonyama-zk/icicle/v3/wrappers/golang/core"
+	icicle_runtime "github.com/ingonyama-zk/icicle/v3/wrappers/golang/runtime"
+	icicle_bn254 "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254"
+	icicle_g2 "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254/g2"
+	icicle_msm "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254/msm"
+	icicle_ntt "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254/ntt"
+	icicle_vecops "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254/vecOps"
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
 const HasIcicle = true
 
+func registerDevice() {
+	icicle_runtime.LoadBackendFromEnvOrDefault()
+	device := icicle_runtime.CreateDevice("CUDA", 0)
+	icicle_runtime.SetDevice(&device)
+}
+ 
 func (pk *ProvingKey) setupDevicePointers() error {
 	if pk.deviceInfo != nil {
 		return nil
@@ -62,27 +68,25 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
 	
+	registerDevice()
+	
 	copyDenDone := make(chan bool, 1)
 	go func() {
 		denIcicleArrHost := (icicle_core.HostSlice[fr.Element])(denIcicleArr)
 		denIcicleArrHost.CopyToDevice(&pk.DenDevice, true)
 		icicle_bn254.FromMontgomery(&pk.DenDevice)
 		copyDenDone <- true
-		}()
+	}()
 		
 	/*************************  Init Domain Device  ***************************/
-	ctx, err := icicle_cr.GetDefaultDeviceContext()
-	if err != icicle_cr.CudaSuccess {
-		panic("Couldn't create device context") // TODO
-	}
-
 	genBits := gen.Bits()
 	limbs := icicle_core.ConvertUint64ArrToUint32Arr(genBits[:])
 	copy(pk.CosetGenerator[:], limbs[:fr.Limbs*2])
 	var rouIcicle icicle_bn254.ScalarField
 	rouIcicle.FromLimbs(limbs)
-	e := icicle_ntt.InitDomain(rouIcicle, ctx, true)
-	if e.IcicleErrorCode != icicle_core.IcicleSuccess {
+	
+	e := icicle_ntt.InitDomain(rouIcicle, icicle_core.GetDefaultNTTInitDomainConfig())
+	if e != icicle_runtime.Success {
 		panic("Couldn't initialize domain") // TODO
 	}
 
@@ -527,8 +531,8 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 
 	computeInttNttOnDevice := func(scalars []fr.Element, channel chan icicle_core.DeviceSlice) {
 		cfg := icicle_ntt.GetDefaultNttConfig()
-		scalarsStream, _ := icicle_cr.CreateStream()
-		cfg.Ctx.Stream = &scalarsStream
+		scalarsStream, _ := icicle_runtime.CreateStream()
+		cfg.StreamHandle = scalarsStream
 		cfg.Ordering = icicle_core.KNM
 		cfg.IsAsync = true
 		scalarsHost := icicle_core.HostSliceFromElements(scalars)
@@ -539,7 +543,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 		cfg.Ordering = icicle_core.KMN
 		cfg.CosetGen = pk.CosetGenerator
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice)
-		icicle_cr.SynchronizeStream(&scalarsStream)
+		icicle_runtime.SynchronizeStream(scalarsStream)
 		if isProfile {
 			log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
 		}
