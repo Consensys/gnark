@@ -223,7 +223,7 @@ func (p *Polynomial[FR]) InterpolateLDE(at *emulated.Element[FR], values []*emul
 	return res
 }
 
-// EvalEquals returns the evaluation
+// EvalEqual returns the evaluation
 //
 //	eq(x, y) = \prod (1-x)*(1-y) + x*y,
 //
