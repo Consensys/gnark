@@ -77,10 +77,14 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	var rouIcicle icicle_bn254.ScalarField
 	rouIcicle.FromLimbs(limbs)
 	
-	e := icicle_ntt.InitDomain(rouIcicle, icicle_core.GetDefaultNTTInitDomainConfig())
-	if e != icicle_runtime.Success {
-		panic("Couldn't initialize domain") // TODO
-	}
+	initDomain := make(chan bool, 1)
+	icicle_runtime.RunOnDevice(device, func(args ...any) {
+		e := icicle_ntt.InitDomain(rouIcicle, icicle_core.GetDefaultNTTInitDomainConfig())
+		if e != icicle_runtime.Success {
+			panic("Couldn't initialize domain") // TODO
+		}
+		initDomain <- true
+	})
 
 	/*************************  End Init Domain Device  ***************************/
 	/*************************  Start G1 Device Setup  ***************************/
@@ -117,11 +121,6 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		copyZDone <- true
 	})
 	/*************************  End G1 Device Setup  ***************************/
-	<-copyDenDone
-	<-copyADone
-	<-copyBDone
-	<-copyKDone
-	<-copyZDone
 	/*************************  Start G2 Device Setup  ***************************/
 	copyG2BDone := make(chan bool, 1)
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
@@ -130,9 +129,17 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		icicle_g2.G2AffineFromMontgomery(pk.G2Device.B)
 		copyG2BDone <- true
 	})
-
-	<-copyG2BDone
 	/*************************  End G2 Device Setup  ***************************/
+
+	/*************************  Wait for all data tranfsers  ***************************/
+	<-initDomain
+	<-copyDenDone
+	<-copyADone
+	<-copyBDone
+	<-copyKDone
+	<-copyZDone
+	<-copyG2BDone
+
 	return nil
 }
 
@@ -202,7 +209,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "icicle").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 
 	device := icicle_runtime.CreateDevice("CUDA", 0)
-	icicle_runtime.SetDevice(&device)
 	
 	if pk.deviceInfo == nil {
 		log.Debug().Msg("precomputing proving key in GPU")
