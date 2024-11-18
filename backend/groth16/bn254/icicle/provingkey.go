@@ -5,6 +5,7 @@ import (
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	icicle_core "github.com/ingonyama-zk/icicle/v3/wrappers/golang/core"
+	icicle_runtime "github.com/ingonyama-zk/icicle/v3/wrappers/golang/runtime"
 )
 
 type deviceInfo struct {
@@ -24,6 +25,13 @@ type ProvingKey struct {
 }
 
 func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error {
+	icicle_runtime.LoadBackendFromEnvOrDefault()
+	device := icicle_runtime.CreateDevice("CUDA", 0)
+	icicle_runtime.SetDevice(&device)
+	icicle_runtime.RunOnDevice(&device, func(args ...any) {
+		icicle_runtime.WarmUpDevice()
+	})
+
 	return groth16_bn254.Setup(r1cs, &pk.ProvingKey, vk)
 }
 

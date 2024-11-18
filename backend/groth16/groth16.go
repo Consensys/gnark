@@ -20,7 +20,6 @@
 package groth16
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -178,10 +177,8 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 
 	case *cs_bn254.R1CS:
 		if icicle_bn254.HasIcicle {
-			fmt.Println("proving with icicle")
 			return icicle_bn254.Prove(_r1cs, pk.(*icicle_bn254.ProvingKey), fullWitness, opts...)
 		}
-		fmt.Println("proving no icicle")
 		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6761.R1CS:
