@@ -18,7 +18,6 @@ package groth16
 
 import (
 	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -373,7 +372,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	domain.FFTInverse(a, fft.DIF)
 	domain.FFTInverse(b, fft.DIF)
 	domain.FFTInverse(c, fft.DIF)
-	
+
 	domain.FFT(a, fft.DIT, fft.OnCoset())
 	domain.FFT(b, fft.DIT, fft.OnCoset())
 	domain.FFT(c, fft.DIT, fft.OnCoset())
