@@ -24,14 +24,16 @@ type ProvingKey struct {
 	*deviceInfo
 }
 
-func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error {
+func WarmUpDevice() {
 	icicle_runtime.LoadBackendFromEnvOrDefault()
 	device := icicle_runtime.CreateDevice("CUDA", 0)
-	icicle_runtime.SetDevice(&device)
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		icicle_runtime.WarmUpDevice()
 	})
+}
 
+func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error {
+	WarmUpDevice()
 	return groth16_bn254.Setup(r1cs, &pk.ProvingKey, vk)
 }
 
