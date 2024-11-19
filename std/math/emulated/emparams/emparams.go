@@ -43,6 +43,11 @@ func (twelveLimbPrimeField) NbLimbs() uint     { return 12 }
 func (twelveLimbPrimeField) BitsPerLimb() uint { return 64 }
 func (twelveLimbPrimeField) IsPrime() bool     { return true }
 
+type oneLimbPrimeField struct{}
+
+func (oneLimbPrimeField) NbLimbs() uint { return 1 }
+func (oneLimbPrimeField) IsPrime() bool { return true }
+
 // Goldilocks provides type parametrization for field emulation:
 //   - limbs: 1
 //   - limb width: 64 bits
@@ -51,11 +56,9 @@ func (twelveLimbPrimeField) IsPrime() bool     { return true }
 //
 //	0xffffffff00000001 (base 16)
 //	18446744069414584321 (base 10)
-type Goldilocks struct{}
+type Goldilocks struct{ oneLimbPrimeField }
 
-func (fp Goldilocks) NbLimbs() uint     { return 1 }
 func (fp Goldilocks) BitsPerLimb() uint { return 64 }
-func (fp Goldilocks) IsPrime() bool     { return true }
 func (fp Goldilocks) Modulus() *big.Int { return goldilocks.Modulus() }
 
 // Secp256k1Fp provides type parametrization for field emulation:
@@ -366,3 +369,35 @@ func (Mod1e256) Modulus() *big.Int {
 	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
 	return val
 }
+
+// BabyBear provides type parametrization for field emulation:
+//   - limbs: 1
+//   - limb width: 31 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	15*2^27+1
+//	0x78000001 (base 16)
+//	2013265921 (base 10)
+//
+// The field has 2-adicity of 27.
+type BabyBear struct{ oneLimbPrimeField }
+
+func (BabyBear) BitsPerLimb() uint { return 31 }
+func (BabyBear) Modulus() *big.Int { return big.NewInt(2013265921) }
+
+// KoalaBear provides type parametrization for field emulation:
+//   - limbs: 1
+//   - limb width: 31 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	2^31-2^24+1
+//	0x7f000001 (base 16)
+//	2130706433 (base 10)
+//
+// The field has 2-adicity of 24.
+type KoalaBear struct{ oneLimbPrimeField }
+
+func (KoalaBear) BitsPerLimb() uint { return 31 }
+func (KoalaBear) Modulus() *big.Int { return big.NewInt(2130706433) }
