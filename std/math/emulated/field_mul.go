@@ -520,6 +520,27 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 // multivariate represents a multivariate polynomial. It is a list of terms
 // where each term is a list of exponents for each variable. The coefficients
 // are stored in the same order as the terms.
+//
+// For example, if there are two inputs x and y and we compute the polynomial
+//
+//	x^2 + 2xy + y^2
+//
+// then we have the terms
+//
+//	[[2, 0], [1, 1], [0, 2]]
+//
+// and coefficients
+//
+//	[1, 1, 1].
+//
+// These definitions differ from how we expose the method in the [Field.Eval]
+// method - there as we use pointers to the variables themselves, then we can
+// allow to give the inputs directly a la
+//
+//	f.Eval([][]*Element[T]{{x,x}, {x,y}, {y,y}}, []int{1, 1, 1}),
+//
+// but we cannot use the references inside the hint function as we work with
+// solved values.
 type multivariate[T FieldParams] struct {
 	Terms        [][]int
 	Coefficients []int
