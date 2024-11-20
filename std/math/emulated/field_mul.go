@@ -552,6 +552,12 @@ type multivariate[T FieldParams] struct {
 //
 // NB! This is experimental API. It does not support negative coefficients. It
 // does not check that computing the term wouldn't overflow the field.
+//
+// For example, for computing the expression x^2 + 2xy + y^2 we would call
+//
+//	f.Eval([][]*Element[T]{{x,x}, {x,y}, {y,y}}, []int{1, 2, 1})
+//
+// The method returns the result of the evaluation.
 func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
