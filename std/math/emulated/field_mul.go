@@ -218,6 +218,10 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 
 // checkZero creates multiplication check a * 1 = 0 + k*p.
 func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
+	// fast path - the result is on zero limbs. This means that it is constant zero
+	if len(a.Limbs) == 0 {
+		return
+	}
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
 	f.enforceWidthConditional(a)
