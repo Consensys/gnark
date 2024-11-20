@@ -38,4 +38,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-// replace github.com/okx/zeknox v0.0.0-20241023112133-1756b0ee9527 => /home/ubuntu/git/cryptography_cuda
+// replace github.com/okx/zeknox v0.0.0-20241023112133-1756b0ee9527 => /home/ubuntu/git/zeknox
