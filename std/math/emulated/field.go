@@ -136,7 +136,7 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 // Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
-		f.zeroConst = newConstElement[T](0)
+		f.zeroConst = f.newInternalElement([]frontend.Variable{}, 0)
 	})
 	return f.zeroConst
 }
@@ -144,7 +144,7 @@ func (f *Field[T]) Zero() *Element[T] {
 // One returns one as a constant.
 func (f *Field[T]) One() *Element[T] {
 	f.oneConstOnce.Do(func() {
-		f.oneConst = newConstElement[T](1)
+		f.oneConst = f.newInternalElement([]frontend.Variable{1}, 0)
 	})
 	return f.oneConst
 }
