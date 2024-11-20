@@ -522,7 +522,7 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 // are stored in the same order as the terms.
 type multivariate[T FieldParams] struct {
 	Terms        [][]int
-	Coefficients []*big.Int
+	Coefficients []int
 }
 
 // Eval evaluates the multivariate polynomial. The elements of the inner slices
@@ -531,7 +531,7 @@ type multivariate[T FieldParams] struct {
 //
 // NB! This is experimental API. It does not support negative coefficients. It
 // does not check that computing the term wouldn't overflow the field.
-func (f *Field[T]) Eval(at [][]*Element[T], coefs []*big.Int) *Element[T] {
+func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
 	}
@@ -539,7 +539,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []*big.Int) *Element[T] {
 		return f.Zero()
 	}
 	for i := range coefs {
-		if coefs[i].Sign() < 0 {
+		if coefs[i] < 0 {
 			panic("negative coefficient")
 		}
 	}
@@ -604,7 +604,7 @@ func (f *Field[T]) callPolyHint(mv *multivariate[T], at []*Element[T]) (quo, rem
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
 	quoSize := f.polyEvalQuoSize(mv, at)
-	nbQuoLimbs := (quoSize - modBits + nbBits) / nbBits
+	nbQuoLimbs := (uint(quoSize) - modBits + nbBits) / nbBits
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
@@ -711,20 +711,20 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 	mc.c.isEvaluated = false
 }
 
-func (f *Field[T]) polyEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize uint) {
+func (f *Field[T]) polyEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize int) {
 	modBits := f.fParams.Modulus().BitLen()
-	quoSizes := make([]uint, len(mv.Terms))
+	quoSizes := make([]int, len(mv.Terms))
 	for i, term := range mv.Terms {
-		var lengths []uint
+		var lengths []int
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
-				lengths = append(lengths, uint(modBits)+at[j].overflow)
+				lengths = append(lengths, modBits+int(at[j].overflow))
 			}
 		}
-		lengths = append(lengths, uint(mv.Coefficients[i].BitLen()))
+		lengths = append(lengths, bits.Len(uint(mv.Coefficients[i])))
 		quoSizes[i] = sum(lengths...)
 	}
-	quoSize = max(quoSizes...) + uint(len(quoSizes))
+	quoSize = max(quoSizes...) + len(quoSizes)
 	return quoSize
 }
 

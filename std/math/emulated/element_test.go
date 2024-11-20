@@ -1281,7 +1281,7 @@ func TestIsZeroEdgeCases(t *testing.T) {
 type PolyEvalCircuit[T FieldParams] struct {
 	Inputs   []Element[T]
 	Terms    [][]int
-	Coeffs   []*big.Int
+	Coeffs   []int
 	Expected Element[T]
 }
 
@@ -1307,7 +1307,7 @@ func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
 		for j := range term {
 			termVal = f.Mul(termVal, &c.Inputs[term[j]])
 		}
-		addTerms[i] = f.MulConst(termVal, c.Coeffs[i])
+		addTerms[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
 	}
 	resSum := f.Sum(addTerms...)
 
@@ -1318,7 +1318,7 @@ func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
 		for j := range term {
 			termVal = f.MulNoReduce(termVal, &c.Inputs[term[j]])
 		}
-		addTerms2[i] = f.MulConst(termVal, c.Coeffs[i])
+		addTerms2[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
 	}
 	resNoReduce := f.Sum(addTerms2...)
 	resReduced := f.Reduce(resNoReduce)
@@ -1345,7 +1345,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	var err error
 	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3
 	terms := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
-	coefficients := []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5)}
+	coefficients := []int{2, 3, 4, 5}
 	inputs := make([]*big.Int, nbInputs)
 	assignmentInput := make([]Element[T], nbInputs)
 	for i := range inputs {
@@ -1357,7 +1357,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	}
 	expected := new(big.Int)
 	for i, term := range terms {
-		termVal := new(big.Int).Set(coefficients[i])
+		termVal := new(big.Int).SetInt64(int64(coefficients[i]))
 		for j := range term {
 			termVal.Mul(termVal, inputs[term[j]])
 		}
@@ -1383,7 +1383,7 @@ func (c *PolyEvalNegativeCoefficient[T]) Define(api frontend.API) error {
 		return err
 	}
 	// x - y
-	coefficients := []*big.Int{big.NewInt(1), big.NewInt(-1)}
+	coefficients := []int{1, -1}
 	res := f.Eval([][]*Element[T]{{&c.Inputs[0]}, {&c.Inputs[1]}}, coefficients)
 	f.AssertIsEqual(res, &c.Res)
 	return nil
