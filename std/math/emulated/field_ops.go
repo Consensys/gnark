@@ -190,7 +190,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
 	var fp T
-	nbLimbs := max(len(a.Limbs), len(b.Limbs))
+	nbLimbs := max(len(a.Limbs), len(b.Limbs), int(fp.NbLimbs()))
 	limbs := make([]frontend.Variable, nbLimbs)
 	padLimbs := subPadding(fp.Modulus(), fp.BitsPerLimb(), b.overflow, uint(nbLimbs))
 	for i := range limbs {
