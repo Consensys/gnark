@@ -1279,10 +1279,10 @@ func TestIsZeroEdgeCases(t *testing.T) {
 }
 
 type PolyEvalCircuit[T FieldParams] struct {
-	Inputs   []Element[T]
-	Terms    [][]int
-	Coeffs   []int
-	Expected Element[T]
+	Inputs         []Element[T]
+	TermsByIndices [][]int
+	Coeffs         []int
+	Expected       Element[T]
 }
 
 func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
@@ -1291,18 +1291,19 @@ func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	terms := make([][]*Element[T], len(c.Terms))
+	// reconstruct the terms from the inputs and the indices
+	terms := make([][]*Element[T], len(c.TermsByIndices))
 	for i := range terms {
-		terms[i] = make([]*Element[T], len(c.Terms[i]))
+		terms[i] = make([]*Element[T], len(c.TermsByIndices[i]))
 		for j := range terms[i] {
-			terms[i][j] = &c.Inputs[c.Terms[i][j]]
+			terms[i][j] = &c.Inputs[c.TermsByIndices[i][j]]
 		}
 	}
 	resEval := f.Eval(terms, c.Coeffs)
 
 	// withSum
-	addTerms := make([]*Element[T], len(c.Terms))
-	for i, term := range c.Terms {
+	addTerms := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
 		termVal := f.One()
 		for j := range term {
 			termVal = f.Mul(termVal, &c.Inputs[term[j]])
@@ -1312,8 +1313,8 @@ func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
 	resSum := f.Sum(addTerms...)
 
 	// mul no reduce
-	addTerms2 := make([]*Element[T], len(c.Terms))
-	for i, term := range c.Terms {
+	addTerms2 := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
 		termVal := f.One()
 		for j := range term {
 			termVal = f.MulNoReduce(termVal, &c.Inputs[term[j]])
@@ -1343,8 +1344,13 @@ func testPolyEval[T FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 	var fp T
 	var err error
-	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3
-	terms := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
+	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 assuming we have inputs w=[x, y], then
+	// we can represent by the indices of the inputs:
+	//    2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 -> 2*x*x*x + 3*x*x*y + 4*x*y*y + 5*y*y*y -> 2*w[0]*w[0]*w[0] + 3*w[0]*w[0]*w[1] + 4*w[0]*w[1]*w[1] + 5*w[1]*w[1]*w[1]
+	// the following variable gives the indices of the inputs. For givin the
+	// circuit this is better as then we can easily reference to the inputs by
+	// index.
+	toMulByIndex := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
 	coefficients := []int{2, 3, 4, 5}
 	inputs := make([]*big.Int, nbInputs)
 	assignmentInput := make([]Element[T], nbInputs)
@@ -1356,7 +1362,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 		assignmentInput[i] = ValueOf[T](inputs[i])
 	}
 	expected := new(big.Int)
-	for i, term := range terms {
+	for i, term := range toMulByIndex {
 		termVal := new(big.Int).SetInt64(int64(coefficients[i]))
 		for j := range term {
 			termVal.Mul(termVal, inputs[term[j]])
@@ -1369,7 +1375,7 @@ func testPolyEval[T FieldParams](t *testing.T) {
 		Inputs:   assignmentInput,
 		Expected: ValueOf[T](expected),
 	}
-	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), Terms: terms, Coeffs: coefficients}, test.WithValidAssignment(assignment))
+	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), TermsByIndices: toMulByIndex, Coeffs: coefficients}, test.WithValidAssignment(assignment))
 }
 
 type PolyEvalNegativeCoefficient[T FieldParams] struct {
