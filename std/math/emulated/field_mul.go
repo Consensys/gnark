@@ -218,7 +218,7 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	// by one and expected result should be zero.
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(p)
-	b := f.shortOne()
+	b := f.One()
 	k, r, c, err := f.callMulHint(a, b, false, p)
 	if err != nil {
 		panic(err)

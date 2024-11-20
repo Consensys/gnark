@@ -149,14 +149,6 @@ func (f *Field[T]) One() *Element[T] {
 	return f.oneConst
 }
 
-// shortOne returns one as a constant stored in a single limb.
-func (f *Field[T]) shortOne() *Element[T] {
-	f.shortOneConstOnce.Do(func() {
-		f.shortOneConst = f.newInternalElement([]frontend.Variable{1}, 0)
-	})
-	return f.shortOneConst
-}
-
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {

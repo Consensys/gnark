@@ -33,9 +33,9 @@ func (f *Field[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	for nextOverflow, err = f.addPreCond(a, b); errors.As(err, &target); nextOverflow, err = f.addPreCond(a, b) {
 		if errors.As(err, &target) {
 			if !target.reduceRight {
-				a = f.mulMod(a, f.shortOne(), 0, modulus)
+				a = f.mulMod(a, f.One(), 0, modulus)
 			} else {
-				b = f.mulMod(b, f.shortOne(), 0, modulus)
+				b = f.mulMod(b, f.One(), 0, modulus)
 			}
 		}
 	}
