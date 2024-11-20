@@ -192,6 +192,10 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
 // defers the actual multiplication check.
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
 	f.enforceWidthConditional(p)
