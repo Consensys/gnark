@@ -111,7 +111,7 @@ identity at a random point:
 where e(X) is a polynomial used for carrying the overflows of the left- and
 right-hand side of the above equation.
 
-This approachs can be extended to the case when the left hand side is not a
+This approach can be extended to the case when the left hand side is not a
 simple multiplication, but rather any evaluation of a multivariate polynomial.
 So in essence we can check the correctness of any polynomial evaluation modulo
 r:

@@ -636,7 +636,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		}
 	}
 	// we already know all different inputs. We now count the number of
-	// occurences in every term.
+	// occurrences in every term.
 	terms := make([][]int, 0, len(at))
 	for i := range at {
 		term := make([]int, len(allElems))
@@ -684,7 +684,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 
 // callPolyMvHint computes the multivariate evaluation given by mv at at. It
 // returns the remainder (reduced result), the quotient and the carries. The
-// computation is performed inside a hint, so it is the callers responsibilty to
+// computation is performed inside a hint, so it is the callers responsibility to
 // perform the deferred multiplication check.
 func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
 	// first compute the length of the result so that we know how many bits we need for the quotient.
