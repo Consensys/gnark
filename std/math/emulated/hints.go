@@ -24,7 +24,7 @@ func GetHints() []solver.Hint {
 		SqrtHint,
 		mulHint,
 		subPaddingHint,
-		polyHint,
+		polyMvHint,
 	}
 }
 

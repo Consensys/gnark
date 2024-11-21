@@ -111,6 +111,17 @@ identity at a random point:
 where e(X) is a polynomial used for carrying the overflows of the left- and
 right-hand side of the above equation.
 
+This approachs can be extended to the case when the left hand side is not a
+simple multiplication, but rather any evaluation of a multivariate polynomial.
+So in essence we can check the correctness of any polynomial evaluation modulo
+r:
+
+	F(x_1, x_2, ..., x_n) = c + z*r
+
+through the following identity:
+
+	F(x_1(X), x_2(X), ..., x_n(X)) = c(X) + z(X) * r(X) + (2^w' - X) e(X).
+
 # Subtraction
 
 We perform subtraction limb-wise between the elements x and y. However, we have

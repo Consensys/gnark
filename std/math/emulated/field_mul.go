@@ -11,13 +11,49 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
+// deferredChecker is an interface for deferring a check in non-native
+// arithmetic. The idea of the deferred check is that we do not compute the
+// check immediately, but we store the values and the check to be done later.
+// This allows us to share the verifier challenge computation between multiple
+// checks.
+//
+// Currently used for multiplication and multivariate evaluation checks.
 type deferredChecker interface {
+	// toCommit outputs the variable which should be committed to. The checker
+	// then uses the commitment to obtain the verifier challenge for the
+	// Schwartz-Zippel lemma.
 	toCommit() []frontend.Variable
+	// maxLen returns the maximum number of limbs in the deferred check. This is
+	// used for computing the number of powers of the verifier challenge to
+	// compute
 	maxLen() int
 
+	// evalRound1 evaluates the first round of the check at with the random
+	// challenge, given through its powers at. In the first round we do not
+	// assume that any of the values is already evaluated as they come directly
+	// from hint.
+	//
+	// The method should store the evaluation result inside the Element and mark
+	// it as evaluated. If the method is called for already evaluated input then
+	// should assume that the challenge is the same as the one used for the
+	// evaluation.
 	evalRound1(at []frontend.Variable)
+	// evalRound2 evaluates the second round of the check at a given random point
+	// at[0]. However, it may happen that some of the values are equal to the
+	// result from a previous check. In that case we can reuse the evaluation to
+	// save constraints.
+	//
+	// The method should store the evaluation result inside the Element and mark
+	// it as evaluated. If the method is called for already evaluated input then
+	// should assume that the challenge is the same as the one used for the
+	// evaluation.
 	evalRound2(at []frontend.Variable)
+	// check checks the correctness of the deferred check. The method should use
+	// the stored evaluations. We additionally provide the evaluation of
+	// p(challenge) and (2^t-challenge) as they are static over all checks.
 	check(api frontend.API, peval frontend.Variable, coef frontend.Variable)
+	// cleanEvaluations cleans the cached evaluation values. This is necessary for
+	// ensuring the circuit stability over many compilations.
 	cleanEvaluations()
 }
 
@@ -558,20 +594,31 @@ type multivariate[T FieldParams] struct {
 //	f.Eval([][]*Element[T]{{x,x}, {x,y}, {y,y}}, []int{1, 2, 1})
 //
 // The method returns the result of the evaluation.
+//
+// To overcome the problem of not supporting negative coefficients, we can use a
+// constant non-native element -1 as one of the inputs.
 func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
 	}
+	// it is the obvious case - when we don't have any inputs then we need to
+	// evaluate the zero polynomial which is always zero.
 	if len(at) == 0 {
 		return f.Zero()
 	}
+	// omit the negative coefficients for now. We don't support it for now.
 	for i := range coefs {
 		if coefs[i] < 0 {
 			panic("negative coefficient")
 		}
 	}
-	// initialize the multivariate struct from the inputs
+	// initialize the multivariate struct from the inputs. The current method
+	// takes as input references to the elements. However, the hint function
+	// works with solved values. So it would be better to work with the exact
+	// exponents there.
 
+	// we detect all different elements in the inputs.
+	//
 	// it would be easier to use a map to store the elements and then use the
 	// map to get the inputs in the right order. However, for deterministic
 	// circuit compilation we need to use the same order of inputs. So we use
@@ -588,6 +635,8 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 			allElems = append(allElems, at[i][j])
 		}
 	}
+	// we already know all different inputs. We now count the number of
+	// occurences in every term.
 	terms := make([][]int, 0, len(at))
 	for i := range at {
 		term := make([]int, len(allElems))
@@ -603,16 +652,23 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		f.enforceWidthConditional(allElems[i])
 	}
 
+	// multivariate is used for passing the terms and coefficients to the hint
+	// in a compact form.
 	mv := &multivariate[T]{
 		Terms:        terms,
 		Coefficients: coefs,
 	}
 
-	k, r, c, err := f.callPolyHint(mv, allElems)
+	// we call the hint to compute the result. The hint returns the reduced
+	// result, the quotient and the carries.
+	k, r, c, err := f.callPolyMvHint(mv, allElems)
 	if err != nil {
 		panic(err)
 	}
 
+	// finally, we store the deferred check which is performed later. The
+	// `mvCheck` implements the deferredChecker interface, so that we use the
+	// generic deferred check method.
 	mvc := mvCheck[T]{
 		f:    f,
 		mv:   mv,
@@ -626,11 +682,15 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	return r
 }
 
-func (f *Field[T]) callPolyHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
+// callPolyMvHint computes the multivariate evaluation given by mv at at. It
+// returns the remainder (reduced result), the quotient and the carries. The
+// computation is performed inside a hint, so it is the callers responsibilty to
+// perform the deferred multiplication check.
+func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
 	// first compute the length of the result so that we know how many bits we need for the quotient.
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
-	quoSize := f.polyEvalQuoSize(mv, at)
+	quoSize := f.polyMvEvalQuoSize(mv, at)
 	nbQuoLimbs := (uint(quoSize) - modBits + nbBits) / nbBits
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
@@ -644,20 +704,25 @@ func (f *Field[T]) callPolyHint(mv *multivariate[T], at []*Element[T]) (quo, rem
 		nbRemLimbs,
 		nbCarryLimbs,
 	}
+	// store the terms in the hint input. First the exponents
 	for i := range mv.Terms {
 		for j := range mv.Terms[i] {
 			hintInputs = append(hintInputs, mv.Terms[i][j])
 		}
 	}
+	// and now the coefficients
 	for i := range mv.Coefficients {
 		hintInputs = append(hintInputs, mv.Coefficients[i])
 	}
+	// finally, we store the modulus and all the inputs
 	hintInputs = append(hintInputs, f.Modulus().Limbs...)
 	for i := range at {
+		// keep in mind that not all inputs may be full length. We need to store
+		// the length also.
 		hintInputs = append(hintInputs, len(at[i].Limbs))
 		hintInputs = append(hintInputs, at[i].Limbs...)
 	}
-	ret, err := f.api.NewHint(polyHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
+	ret, err := f.api.NewHint(polyMvHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
 	if err != nil {
 		err = fmt.Errorf("call hint: %w", err)
 		return
@@ -668,6 +733,10 @@ func (f *Field[T]) callPolyHint(mv *multivariate[T], at []*Element[T]) (quo, rem
 	return quo, rem, carries, nil
 }
 
+// mvCheck is a deferred check for multivariate polynomial evaluation. It
+// contains the multivariate polynomial, the values at which it is evaluated and
+// the reduced result, quotient and carries. Implements deferredChecker and
+// follows mulCheck implementation.
 type mvCheck[T FieldParams] struct {
 	f    *Field[T]
 	mv   *multivariate[T]
@@ -738,10 +807,18 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 	mc.c.isEvaluated = false
 }
 
-func (f *Field[T]) polyEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize int) {
+// polyMvEvalQuoSize compute the length of the quotient in bits when evaluating
+// the multivariate polynomial. The method is used to compute the number of bits
+// required to represent the quotient in the hint function.
+//
+// As it only depends on the bit-length of the inputs, then we can precompute it
+// regardless of the actual values.
+func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize int) {
 	modBits := f.fParams.Modulus().BitLen()
 	quoSizes := make([]int, len(mv.Terms))
 	for i, term := range mv.Terms {
+		// for every term, the result length is the sum of the lengths of the
+		// variables and the coefficient.
 		var lengths []int
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
@@ -751,11 +828,16 @@ func (f *Field[T]) polyEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSi
 		lengths = append(lengths, bits.Len(uint(mv.Coefficients[i])))
 		quoSizes[i] = sum(lengths...)
 	}
+	// and for the full result, it is maximum of the inputs. We also add a bit
+	// for every term for overflow.
 	quoSize = max(quoSizes...) + len(quoSizes)
 	return quoSize
 }
 
-func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
+// polyMvHint computes the multivariate evaluation as a hint. Should not be
+// called directly, but rather through [Field.callPolyMvHint] method which
+// handles the input packing and output unpacking.
+func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) < 7 {
 		return fmt.Errorf("not enough inputs")
 	}
@@ -779,6 +861,7 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	carryLimbs := outputs[outPtr : outPtr+nbCarryLimbs]
 	terms := make([][]int, nbTerms)
 	ptr := 7
+	// read the terms
 	for i := range terms {
 		terms[i] = make([]int, nbVars)
 		for j := range terms[i] {
@@ -786,17 +869,20 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 			ptr++
 		}
 	}
+	// read the coefficients
 	coeffs := make([]*big.Int, nbTerms)
 	for i := range coeffs {
 		coeffs[i] = inputs[ptr]
 		ptr++
 	}
+	// read the modulus
 	plimbs := inputs[ptr : ptr+nbLimbs]
 	ptr += nbLimbs
 	p := new(big.Int)
 	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
 		return fmt.Errorf("recompose p: %w", err)
 	}
+	// read the inputs
 	varsLimbs := make([][]*big.Int, nbVars)
 	for i := range varsLimbs {
 		varsLimbs[i] = make([]*big.Int, int(inputs[ptr].Int64()))
@@ -809,6 +895,7 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if ptr != len(inputs) {
 		return fmt.Errorf("inputs not exhausted")
 	}
+	// recompose the inputs in limb-form to *big.Int form
 	vars := make([]*big.Int, nbVars)
 	for i := range vars {
 		vars[i] = new(big.Int)
@@ -818,7 +905,6 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	}
 
 	// compute the result on full inputs
-
 	fullLhs := new(big.Int)
 	for i, term := range terms {
 		termRes := new(big.Int).Set(coeffs[i])
@@ -861,9 +947,12 @@ func polyHint(mod *big.Int, inputs, outputs []*big.Int) error {
 			continue
 		}
 		termRes := []*big.Int{new(big.Int).Set(coeffs[i])}
+		// perform limbwise multiplication
 		for _, toMul := range termVarLimbs {
 			termRes = limbMul(termRes, toMul)
 		}
+		// add current term to the result. Increase the length of necessary when
+		// required.
 		for i := len(lhs); i < len(termRes); i++ {
 			lhs = append(lhs, new(big.Int))
 		}
