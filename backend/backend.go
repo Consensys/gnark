@@ -138,7 +138,7 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 // tag and the ZEKNOX dependencies are properly installed. See [ZEKNOX] for
 // installation description.
 //
-// [ZEKNOX]: https://github.com/okx/cryptography_cuda
+// [ZEKNOX]: https://github.com/okx/zeknox
 func WithZeknoxAcceleration() ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.Accelerator = "zeknox"
