@@ -110,7 +110,11 @@ type mulCheck[T FieldParams] struct {
 }
 
 func (mc *mulCheck[T]) toCommit() []frontend.Variable {
-	var toCommit []frontend.Variable
+	nbToCommit := len(mc.a.Limbs) + len(mc.b.Limbs) + len(mc.r.Limbs) + len(mc.k.Limbs) + len(mc.c.Limbs)
+	if mc.p != nil {
+		nbToCommit += len(mc.p.Limbs)
+	}
+	toCommit := make([]frontend.Variable, 0, nbToCommit)
 	toCommit = append(toCommit, mc.a.Limbs...)
 	toCommit = append(toCommit, mc.b.Limbs...)
 	toCommit = append(toCommit, mc.r.Limbs...)
@@ -747,7 +751,11 @@ type mvCheck[T FieldParams] struct {
 }
 
 func (mc *mvCheck[T]) toCommit() []frontend.Variable {
-	var toCommit []frontend.Variable
+	nbToCommit := len(mc.r.Limbs) + len(mc.k.Limbs) + len(mc.c.Limbs)
+	for j := range mc.vals {
+		nbToCommit += len(mc.vals[j].Limbs)
+	}
+	toCommit := make([]frontend.Variable, 0, nbToCommit)
 	toCommit = append(toCommit, mc.r.Limbs...)
 	toCommit = append(toCommit, mc.k.Limbs...)
 	toCommit = append(toCommit, mc.c.Limbs...)
