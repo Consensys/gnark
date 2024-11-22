@@ -164,17 +164,24 @@ func main() {
 #### Zeknox Library
 Unlock free GPU acceleration with [OKX Zeknox library](https://github.com/okx/zeknox)
 
-##### Download prebuilt binary
-```sh
-sudo cp libblst.a libcryptocuda.a /usr/local/lib/
+Build from source, see guide in https://github.com/okx/zeknox
+
+##### Run
+```go
+// main.go
+groth16.Prove(r1cs, pk, witnessData)
+// ->
+groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())
 ```
 
-If you want to build from source, see guide in https://github.com/okx/zeknox
+```sh
+# run with zeknox build tag
+go run -tags=zeknox main.go
+# (place -tags before the filename)
+```
 
-##### Enjoy GPU
-Run `groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
-
-Test
+##### Test
+add the following to the [mimc test](examples/mimc/mimc_test.go)
 ```go
 assert.ProverSucceeded(&mimcCircuit, &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
@@ -183,11 +190,10 @@ assert.ProverSucceeded(&mimcCircuit, &Circuit{
 ```
 
 ```sh
-go run -tags=zeknox examples/main.go
-# (place -tags before the filename)
-
+# test with zeknox build tag
 go test github.com/consensys/gnark/examples/mimc -tags=prover_checks,zeknox
 ```
+
 
 #### Icicle Library
 
