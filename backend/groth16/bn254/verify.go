@@ -17,9 +17,14 @@
 package groth16
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"golang.org/x/crypto/sha3"
 	"io"
+	"math/big"
 	"text/template"
 	"time"
 
@@ -30,6 +35,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )
@@ -98,11 +104,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		publicWitness = append(publicWitness, res)
 		copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
 	}
-
-	if folded, err := pedersen.FoldCommitments(proof.Commitments, commitmentsSerialized); err != nil {
-		return err
-	} else {
-		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+	if len(vk.CommitmentKeys) > 0 {
+		challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
+		if err != nil {
+			return err
+		}
+		if err = pedersen.BatchVerifyMultiVk(vk.CommitmentKeys, proof.Commitments, []curve.G1Affine{proof.CommitmentPok}, challenge[0]); err != nil {
 			return err
 		}
 	}
@@ -144,7 +151,33 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	log := logger.Logger()
+	if err != nil {
+		return err
+	}
+	if cfg.HashToFieldFn == nil {
+		// set the target hash function to legacy keccak256 as it is the default for `solidity.WithTargetSolidityVerifier``
+		cfg.HashToFieldFn = sha3.NewLegacyKeccak256()
+		log.Debug().Msg("hash to field function not set, using keccak256 as default")
+	}
+	// a bit hacky way to understand what hash function is provided. We already
+	// receive instance of hash function but it is difficult to compare it with
+	// sha256.New() or sha3.NewLegacyKeccak256() directly.
+	//
+	// So, we hash an empty input and compare the outputs.
+	cfg.HashToFieldFn.Reset()
+	hashBts := cfg.HashToFieldFn.Sum(nil)
+	var hashFnName string
+	if bytes.Equal(hashBts, sha256.New().Sum(nil)) {
+		hashFnName = "sha256"
+	} else if bytes.Equal(hashBts, sha3.NewLegacyKeccak256().Sum(nil)) {
+		hashFnName = "keccak256"
+	} else {
+		return fmt.Errorf("unsupported hash function used, only supported sha256 and legacy keccak256")
+	}
+	cfg.HashToFieldFn.Reset()
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -162,9 +195,16 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 			}
 			return out
 		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
+		},
+		"hashFnName": func() string {
+			return hashFnName
+		},
 	}
 
-	log := logger.Logger()
 	if len(vk.PublicAndCommitmentCommitted) > 1 {
 		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
 	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
@@ -185,7 +225,13 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
 
 	// execute template
-	err = tmpl.Execute(w, vk)
+	err = tmpl.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
 
 	// restore Beta, Gamma and Delta
 	vk.G2.Beta = beta

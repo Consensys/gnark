@@ -179,10 +179,11 @@ type instance struct {
 	htfFunc        hash.Hash // hash to field function
 
 	// polynomials
-	x        []*iop.Polynomial // x stores tracks the polynomial we need
-	bp       []*iop.Polynomial // blinding polynomials
-	h        *iop.Polynomial   // h is the quotient polynomial
-	blindedZ []fr.Element      // blindedZ is the blinded version of Z
+	x                         []*iop.Polynomial // x stores tracks the polynomial we need
+	bp                        []*iop.Polynomial // blinding polynomials
+	h                         *iop.Polynomial   // h is the quotient polynomial
+	blindedZ                  []fr.Element      // blindedZ is the blinded version of Z
+	quotientShardsRandomizers [2]fr.Element     // random elements for blinding the shards of the quotient
 
 	linearizedPolynomial       []fr.Element
 	linearizedPolynomialDigest kzg.Digest
@@ -245,6 +246,12 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	s.domain0 = fft.NewDomain(sizeSystem)
+
+	// sampling random numbers for blinding the quotient
+	if opts.StatisticalZK {
+		s.quotientShardsRandomizers[0].SetRandom()
+		s.quotientShardsRandomizers[1].SetRandom()
+	}
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
@@ -320,7 +327,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // solveConstraints computes the evaluation of the polynomials L, R, O
-// and sets x[id_L], x[id_R], x[id_O] in canonical form
+// and sets x[id_L], x[id_R], x[id_O] in Lagrange form
 func (s *instance) solveConstraints() error {
 	_solution, err := s.spr.Solve(s.fullWitness, s.opt.SolverOpts...)
 	if err != nil {
@@ -529,7 +536,7 @@ func (s *instance) computeQuotient() (err error) {
 		return err
 	}
 
-	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
 	if err != nil {
 		return err
 	}
@@ -610,17 +617,39 @@ func (s *instance) openZ() (err error) {
 }
 
 func (s *instance) h1() []fr.Element {
-	h1 := s.h.Coefficients()[:s.domain0.Cardinality+2]
+	var h1 []fr.Element
+	if !s.opt.StatisticalZK {
+		h1 = s.h.Coefficients()[:s.domain0.Cardinality+2]
+	} else {
+		h1 = make([]fr.Element, s.domain0.Cardinality+3)
+		copy(h1, s.h.Coefficients()[:s.domain0.Cardinality+2])
+		h1[s.domain0.Cardinality+2].Set(&s.quotientShardsRandomizers[0])
+	}
 	return h1
 }
 
 func (s *instance) h2() []fr.Element {
-	h2 := s.h.Coefficients()[s.domain0.Cardinality+2 : 2*(s.domain0.Cardinality+2)]
+	var h2 []fr.Element
+	if !s.opt.StatisticalZK {
+		h2 = s.h.Coefficients()[s.domain0.Cardinality+2 : 2*(s.domain0.Cardinality+2)]
+	} else {
+		h2 = make([]fr.Element, s.domain0.Cardinality+3)
+		copy(h2, s.h.Coefficients()[s.domain0.Cardinality+2:2*(s.domain0.Cardinality+2)])
+		h2[0].Sub(&h2[0], &s.quotientShardsRandomizers[0])
+		h2[s.domain0.Cardinality+2].Set(&s.quotientShardsRandomizers[1])
+	}
 	return h2
 }
 
 func (s *instance) h3() []fr.Element {
-	h3 := s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
+	var h3 []fr.Element
+	if !s.opt.StatisticalZK {
+		h3 = s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
+	} else {
+		h3 = make([]fr.Element, s.domain0.Cardinality+2)
+		copy(h3, s.h.Coefficients()[2*(s.domain0.Cardinality+2):3*(s.domain0.Cardinality+2)])
+		h3[0].Sub(&h3[0], &s.quotientShardsRandomizers[1])
+	}
 	return h3
 }
 
@@ -696,13 +725,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 func (s *instance) batchOpening() error {
 
-	// wait for LRO to be committed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chLRO:
-	}
-
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -772,7 +794,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	case <-s.chQk:
 	}
 
-	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
+	nbBsbGates := len(s.proof.Bsb22Commitments)
 
 	gateConstraint := func(u ...fr.Element) fr.Element {
 
@@ -919,7 +941,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		// we do **a lot** of FFT here, but on the small domain.
 		// note that for all the polynomials in the proving key
 		// (Ql, Qr, Qm, Qo, S1, S2, S3, Qcp, Qc) and ID, LOne
-		// we could pre-compute theses rho*2 FFTs and store them
+		// we could pre-compute these rho*2 FFTs and store them
 		// at the cost of a huge memory footprint.
 		batchApply(s.x, func(p *iop.Polynomial) {
 			nbTasks := calculateNbTasks(len(s.x)-1) * 2
@@ -1077,7 +1099,7 @@ func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	return pEvaluatedAtZeta
 }
 
-// /!\ modifies p's underlying array of coefficients, in particular the size changes
+// /!\ modifies the size
 func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
 	cp := p.Coefficients()
 	cbp := bp.Coefficients()
@@ -1150,10 +1172,10 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 	return g.Wait()
 }
 
-// divideByXMinusOne
+// divideByZH
 // The input must be in LagrangeCoset.
 // The result is in Canonical Regular. (in place using a)
-func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
+func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
 
 	// check that the basis is LagrangeCoset
 	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
@@ -1193,7 +1215,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 	res[0].Exp(domains[1].FrMultiplicativeGen, expo)
 
 	var t fr.Element
-	t.Exp(domains[1].Generator, big.NewInt(int64(domains[0].Cardinality)))
+	t.Exp(domains[1].Generator, expo)
 
 	one := fr.One()
 
@@ -1220,6 +1242,8 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(β*s3(X))*Z(μζ) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X)
 // - Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+//
+// /!\ blindedZCanonical is modified
 func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
 
 	// l(ζ)r(ζ)
@@ -1258,25 +1282,26 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	s2.Neg(&s2).Mul(&s2, &alpha)
 
 	// Z_h(ζ), ζⁿ⁺², L₁(ζ)*α²*Z
-	var zhZeta, zetaNPlusTwo, alphaSquareLagrangeOne, one, den, frNbElmt fr.Element
+	var zhZeta, zetaNPlusTwo, alphaSquareLagrangeZero, one, den, frNbElmt fr.Element
 	one.SetOne()
 	nbElmt := int64(s.domain0.Cardinality)
-	alphaSquareLagrangeOne.Set(&zeta).Exp(alphaSquareLagrangeOne, big.NewInt(nbElmt)) // ζⁿ
-	zetaNPlusTwo.Mul(&alphaSquareLagrangeOne, &zeta).Mul(&zetaNPlusTwo, &zeta)        // ζⁿ⁺²
-	alphaSquareLagrangeOne.Sub(&alphaSquareLagrangeOne, &one)                         // ζⁿ - 1
-	zhZeta.Set(&alphaSquareLagrangeOne)                                               // Z_h(ζ) = ζⁿ - 1
+	alphaSquareLagrangeZero.Set(&zeta).Exp(alphaSquareLagrangeZero, big.NewInt(nbElmt)) // ζⁿ
+	zetaNPlusTwo.Mul(&alphaSquareLagrangeZero, &zeta).Mul(&zetaNPlusTwo, &zeta)         // ζⁿ⁺²
+	alphaSquareLagrangeZero.Sub(&alphaSquareLagrangeZero, &one)                         // ζⁿ - 1
+	zhZeta.Set(&alphaSquareLagrangeZero)                                                // Z_h(ζ) = ζⁿ - 1
 	frNbElmt.SetUint64(uint64(nbElmt))
-	den.Sub(&zeta, &one).Inverse(&den)                         // 1/(ζ-1)
-	alphaSquareLagrangeOne.Mul(&alphaSquareLagrangeOne, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
-									Mul(&alphaSquareLagrangeOne, &alpha).
-									Mul(&alphaSquareLagrangeOne, &alpha).
-									Mul(&alphaSquareLagrangeOne, &s.domain0.CardinalityInv) // α²*L₁(ζ)
+	den.Sub(&zeta, &one).Inverse(&den)                           // 1/(ζ-1)
+	alphaSquareLagrangeZero.Mul(&alphaSquareLagrangeZero, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
+									Mul(&alphaSquareLagrangeZero, &alpha).
+									Mul(&alphaSquareLagrangeZero, &alpha).
+									Mul(&alphaSquareLagrangeZero, &s.domain0.CardinalityInv) // α²*L₁(ζ)
 
 	s3canonical := s.trace.S3.Coefficients()
 
 	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
 
-	// the hi are all of the same length
+	// len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1 when Statistical ZK is activated
+	// len(h1)=len(h2)=len(h3)=len(blindedZCanonical)-1 when Statistical ZK is deactivated
 	h1 := s.h1()
 	h2 := s.h2()
 	h3 := s.h3()
@@ -1316,20 +1341,29 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 				}
 			}
 
-			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeOne) // α²L₁(ζ)Z(X)
-			blindedZCanonical[i].Add(&t, &t0)                      // linPol += α²L₁(ζ)Z(X)
+			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeZero) // α²L₁(ζ)Z(X)
+			blindedZCanonical[i].Add(&t, &t0)                       // linPol += α²L₁(ζ)Z(X)
 
-			if i < len(h1) {
+			// if statistical zeroknowledge is deactivated, len(h1)=len(h2)=len(h3)=len(blindedZ)-1.
+			// Else len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1
+			if i < len(h3) {
 				t.Mul(&h3[i], &zetaNPlusTwo).
 					Add(&t, &h2[i]).
 					Mul(&t, &zetaNPlusTwo).
-					Add(&t, &h1[i])
-				t.Mul(&t, &zhZeta)
+					Add(&t, &h1[i]).
+					Mul(&t, &zhZeta)
 				blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+			} else {
+				if s.opt.StatisticalZK {
+					t.Mul(&h2[i], &zetaNPlusTwo).
+						Add(&t, &h1[i]).
+						Mul(&t, &zhZeta)
+					blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+				}
 			}
-
 		}
 	})
+
 	return blindedZCanonical
 }
 

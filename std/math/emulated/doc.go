@@ -55,8 +55,8 @@ know that the limb values do not overflow 2^w, then we say that the element is
 in normal form.
 
 In the implementation, we have two functions for splitting an element into limbs
-and composing an element from limbs -- [decompose] and [recompose]. The
-[recompose] function also accepts element in non-normal form.
+and composing an element from limbs -- [limbs.Decompose] and [limbs.Recompose].
+The [limbs.Recompose] function also accepts element in non-normal form.
 
 # Elements in non-normal form
 
@@ -110,6 +110,17 @@ identity at a random point:
 
 where e(X) is a polynomial used for carrying the overflows of the left- and
 right-hand side of the above equation.
+
+This approach can be extended to the case when the left hand side is not a
+simple multiplication, but rather any evaluation of a multivariate polynomial.
+So in essence we can check the correctness of any polynomial evaluation modulo
+r:
+
+	F(x_1, x_2, ..., x_n) = c + z*r
+
+through the following identity:
+
+	F(x_1(X), x_2(X), ..., x_n(X)) = c(X) + z(X) * r(X) + (2^w' - X) e(X).
 
 # Subtraction
 

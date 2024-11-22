@@ -59,7 +59,7 @@ type VerifyingKey struct {
 	// e(α, β)
 	e curve.GT // not serialized
 
-	CommitmentKey   pedersen.VerifyingKey
+	CommitmentKeys   []pedersen.VerifyingKey
 	PublicAndCommitmentCommitted [][]int // indexes of public/commitment committed variables
 }
 
@@ -269,9 +269,21 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return errors.New("didn't consume all G1 points") // TODO @Tabaie Remove this
 	}
 
-	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBases...)
+	cG2, err := curve.RandomOnG2()
 	if err != nil {
 		return err
+	}
+	if len(commitmentBases) > 0 {
+		pk.CommitmentKeys = make([]pedersen.ProvingKey, len(commitmentBases))
+		vk.CommitmentKeys = make([]pedersen.VerifyingKey, len(commitmentBases))
+	}
+	for i := range commitmentBases {
+		comPKey, comVKey, err := pedersen.Setup(commitmentBases[i:i+1], pedersen.WithG2Point(cG2))
+		if err != nil {
+			return err
+		}
+		pk.CommitmentKeys[i] = comPKey[0]
+		vk.CommitmentKeys[i] = comVKey
 	}
 
 	vk.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentWires, r1cs.GetNbPublicVariables())
@@ -545,7 +557,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 		}
 	}
 
-	pk.CommitmentKeys,_, err = pedersen.Setup(commitmentBases...)
+	pk.CommitmentKeys,_, err = pedersen.Setup(commitmentBases)
 	if err != nil {
 		return err
 	}

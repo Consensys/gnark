@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
@@ -1097,4 +1098,330 @@ func TestExp(t *testing.T) {
 	testExp[Goldilocks](t)
 	testExp[BN254Fr](t)
 	testExp[emparams.Mod1e512](t)
+}
+
+type ReduceStrictCircuit[T FieldParams] struct {
+	Limbs        []frontend.Variable
+	Expected     []frontend.Variable
+	strictReduce bool
+}
+
+func (c *ReduceStrictCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	var elR *Element[T]
+	if c.strictReduce {
+		elR = f.ReduceStrict(el)
+	} else {
+		elR = f.Reduce(el)
+	}
+	for i := range elR.Limbs {
+		api.AssertIsEqual(elR.Limbs[i], c.Expected[i])
+	}
+
+	// TODO: dummy constraint to have at least two constraints in the circuit.
+	// Otherwise PLONK setup phase fails.
+	api.AssertIsEqual(c.Expected[0], elR.Limbs[0])
+	return nil
+}
+
+func testReduceStrict[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p := fp.Modulus()
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		plimbs[0].Add(plimbs[0], big.NewInt(1))
+		exp := make([]*big.Int, int(fp.NbLimbs()))
+		exp[0] = big.NewInt(1)
+		for i := 1; i < int(fp.NbLimbs()); i++ {
+			exp[i] = big.NewInt(0)
+		}
+		circuitStrict := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs())), strictReduce: true}
+		circuitLax := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs()))}
+		witness := &ReduceStrictCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, int(fp.NbLimbs()))}
+		for i := range plimbs {
+			witness.Limbs[i] = plimbs[i]
+			witness.Expected[i] = exp[i]
+		}
+		assert.CheckCircuit(circuitStrict, test.WithValidAssignment(witness))
+		assert.CheckCircuit(circuitLax, test.WithInvalidAssignment(witness))
+
+	}, testName[T]())
+}
+
+func TestReduceStrict(t *testing.T) {
+	testReduceStrict[Goldilocks](t)
+	testReduceStrict[BN254Fr](t)
+	testReduceStrict[emparams.Mod1e512](t)
+}
+
+type ToBitsCanonicalCircuit[T FieldParams] struct {
+	Limbs    []frontend.Variable
+	Expected []frontend.Variable
+}
+
+func (c *ToBitsCanonicalCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	bts := f.ToBitsCanonical(el)
+	for i := range bts {
+		api.AssertIsEqual(bts[i], c.Expected[i])
+	}
+	return nil
+}
+
+func testToBitsCanonical[T FieldParams](t *testing.T) {
+	var fp T
+	nbBits := fp.Modulus().BitLen()
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p := fp.Modulus()
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		plimbs[0].Add(plimbs[0], big.NewInt(1))
+		exp := make([]*big.Int, int(nbBits))
+		exp[0] = big.NewInt(1)
+		for i := 1; i < len(exp); i++ {
+			exp[i] = big.NewInt(0)
+		}
+		circuit := &ToBitsCanonicalCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, nbBits)}
+		witness := &ToBitsCanonicalCircuit[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: make([]frontend.Variable, nbBits)}
+		for i := range plimbs {
+			witness.Limbs[i] = plimbs[i]
+		}
+		for i := range exp {
+			witness.Expected[i] = exp[i]
+		}
+		assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+	}, testName[T]())
+}
+
+func TestToBitsCanonical(t *testing.T) {
+	testToBitsCanonical[Goldilocks](t)
+	testToBitsCanonical[BN254Fr](t)
+	testToBitsCanonical[emparams.Mod1e512](t)
+}
+
+type IsZeroEdgeCase[T FieldParams] struct {
+	Limbs    []frontend.Variable
+	Expected frontend.Variable
+}
+
+func (c *IsZeroEdgeCase[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	el := f.newInternalElement(c.Limbs, 0)
+	res := f.IsZero(el)
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func testIsZeroEdgeCases[T FieldParams](t *testing.T) {
+	var fp T
+	p := fp.Modulus()
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		// limbs are for zero
+		witness1 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 1}
+		for i := range plimbs {
+			witness1.Limbs[i] = big.NewInt(0)
+		}
+		// limbs are for p
+		witness2 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 1}
+		for i := range plimbs {
+			witness2.Limbs[i] = plimbs[i]
+		}
+		// limbs are for not zero
+		witness3 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 0}
+		witness3.Limbs[0] = big.NewInt(1)
+		for i := 1; i < len(witness3.Limbs); i++ {
+			witness3.Limbs[i] = big.NewInt(0)
+		}
+		// limbs are for not zero bigger than p
+		witness4 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 0}
+		witness4.Limbs[0] = new(big.Int).Add(plimbs[0], big.NewInt(1))
+		for i := 1; i < len(witness4.Limbs); i++ {
+			witness4.Limbs[i] = plimbs[i]
+		}
+		assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs()))}, test.WithValidAssignment(witness1), test.WithValidAssignment(witness2), test.WithValidAssignment(witness3), test.WithValidAssignment(witness4))
+
+	}, testName[T]())
+}
+
+func TestIsZeroEdgeCases(t *testing.T) {
+	testIsZeroEdgeCases[Goldilocks](t)
+	testIsZeroEdgeCases[BN254Fr](t)
+	testIsZeroEdgeCases[emparams.Mod1e512](t)
+}
+
+type PolyEvalCircuit[T FieldParams] struct {
+	Inputs         []Element[T]
+	TermsByIndices [][]int
+	Coeffs         []int
+	Expected       Element[T]
+}
+
+func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
+	// withEval
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// reconstruct the terms from the inputs and the indices
+	terms := make([][]*Element[T], len(c.TermsByIndices))
+	for i := range terms {
+		terms[i] = make([]*Element[T], len(c.TermsByIndices[i]))
+		for j := range terms[i] {
+			terms[i][j] = &c.Inputs[c.TermsByIndices[i][j]]
+		}
+	}
+	resEval := f.Eval(terms, c.Coeffs)
+
+	// withSum
+	addTerms := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.Mul(termVal, &c.Inputs[term[j]])
+		}
+		addTerms[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
+	}
+	resSum := f.Sum(addTerms...)
+
+	// mul no reduce
+	addTerms2 := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.MulNoReduce(termVal, &c.Inputs[term[j]])
+		}
+		addTerms2[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
+	}
+	resNoReduce := f.Sum(addTerms2...)
+	resReduced := f.Reduce(resNoReduce)
+
+	// assertions
+	f.AssertIsEqual(resEval, &c.Expected)
+	f.AssertIsEqual(resSum, &c.Expected)
+	f.AssertIsEqual(resNoReduce, &c.Expected)
+	f.AssertIsEqual(resReduced, &c.Expected)
+
+	return nil
+}
+
+func TestPolyEval(t *testing.T) {
+	testPolyEval[Goldilocks](t)
+	testPolyEval[BN254Fr](t)
+	testPolyEval[emparams.Mod1e512](t)
+}
+
+func testPolyEval[T FieldParams](t *testing.T) {
+	const nbInputs = 2
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 assuming we have inputs w=[x, y], then
+	// we can represent by the indices of the inputs:
+	//    2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 -> 2*x*x*x + 3*x*x*y + 4*x*y*y + 5*y*y*y -> 2*w[0]*w[0]*w[0] + 3*w[0]*w[0]*w[1] + 4*w[0]*w[1]*w[1] + 5*w[1]*w[1]*w[1]
+	// the following variable gives the indices of the inputs. For givin the
+	// circuit this is better as then we can easily reference to the inputs by
+	// index.
+	toMulByIndex := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
+	coefficients := []int{2, 3, 4, 5}
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int)
+	for i, term := range toMulByIndex {
+		termVal := new(big.Int).SetInt64(int64(coefficients[i]))
+		for j := range term {
+			termVal.Mul(termVal, inputs[term[j]])
+		}
+		expected.Add(expected, termVal)
+	}
+	expected.Mod(expected, fp.Modulus())
+
+	assignment := &PolyEvalCircuit[T]{
+		Inputs:   assignmentInput,
+		Expected: ValueOf[T](expected),
+	}
+	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), TermsByIndices: toMulByIndex, Coeffs: coefficients}, test.WithValidAssignment(assignment))
+}
+
+type PolyEvalNegativeCoefficient[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegativeCoefficient[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// x - y
+	coefficients := []int{1, -1}
+	res := f.Eval([][]*Element[T]{{&c.Inputs[0]}, {&c.Inputs[1]}}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegativeCoefficient(t *testing.T) {
+	testPolyEvalNegativeCoefficient[Goldilocks](t)
+	testPolyEvalNegativeCoefficient[BN254Fr](t)
+	testPolyEvalNegativeCoefficient[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
+	t.Skip("not implemented yet")
+	assert := test.NewAssert(t)
+	var fp T
+	fmt.Println("modulus", fp.Modulus())
+	var err error
+	const nbInputs = 2
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		fmt.Println("input", i, inputs[i])
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int).Sub(inputs[0], inputs[1])
+	expected.Mod(expected, fp.Modulus())
+	fmt.Println("expected", expected)
+	assignment := &PolyEvalNegativeCoefficient[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegativeCoefficient[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
 }

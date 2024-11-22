@@ -177,7 +177,7 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -186,10 +186,13 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bls12381.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bls12381.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
@@ -228,11 +231,13 @@ func TestGroupMembershipSolve(t *testing.T) {
 
 // bench
 func BenchmarkPairing(b *testing.B) {
-
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bls12381.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bls12381.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),

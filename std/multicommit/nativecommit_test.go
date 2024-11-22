@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -52,7 +51,7 @@ func TestMultipleCommitments(t *testing.T) {
 	circuit := multipleCommitmentCircuit{}
 	assignment := multipleCommitmentCircuit{X: 10}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16)) // right now PLONK doesn't implement commitment
+	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254)) // right now PLONK doesn't implement commitment
 }
 
 type noCommitVariable struct {
@@ -64,9 +63,11 @@ func (c *noCommitVariable) Define(api frontend.API) error {
 	return nil
 }
 
+// TestNoCommitVariable checks that a circuit that doesn't use the commitment variable
+// compiles and prover succeeds. This is due to the randomization of the commitment.
 func TestNoCommitVariable(t *testing.T) {
 	circuit := noCommitVariable{}
+	assignment := noCommitVariable{X: 10}
 	assert := test.NewAssert(t)
-	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-	assert.Error(err)
+	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254))
 }

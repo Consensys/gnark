@@ -3,6 +3,7 @@ package sw_bls24315
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -36,25 +37,38 @@ func NewCurve(api frontend.API) (*Curve, error) {
 }
 
 // MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
-	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
-	ss := c.fr.Reduce(&s)
-	x := c.fr.ToBits(ss)
-	for i, j := 0, nbBits-1; i < j; {
-		x[i], x[j] = x[j], x[i]
-		i++
-		j--
+func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
 	}
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	var ss *emulated.Element[ScalarField]
+	if cfg.ToBitsCanonical {
+		ss = c.fr.ReduceStrict(&s)
+	} else {
+		ss = c.fr.Reduce(&s)
+	}
+	x := c.fr.ToBits(ss)[:nbBits]
+	slices.Reverse(x)
 	return x
 }
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
 // in little endian.
-func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	nbBits := 8 * ((ecc.BLS24_315.BaseField().BitLen() + 7) / 8)
+	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
+	if !cfg.ToBitsCanonical {
+		bOpts = append(bOpts, bits.OmitModulusCheck())
+	}
 	res := make([]frontend.Variable, 2*nbBits)
-	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
-	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	x := bits.ToBinary(c.api, P.X, bOpts...)
+	y := bits.ToBinary(c.api, P.Y, bOpts...)
 	for i := 0; i < nbBits; i++ {
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]
@@ -174,16 +188,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
-		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(decomposeScalarG1Simple, 3, gamma)
-		if err != nil {
-			panic(err)
-		}
-		gamma1, gamma2 := sd[0], sd[1]
-		c.api.AssertIsEqual(
-			c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)),
-			c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])),
-		)
+		gamma1, gamma2 := callDecomposeScalar(c.api, gamma, true)
 		nbits := 127
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
@@ -250,7 +255,7 @@ func NewPairing(api frontend.API) *Pairing {
 }
 
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
-// modify the inputs. It returns an error if there is a mismatch betwen the
+// modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
 func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
@@ -329,7 +334,7 @@ func NewG1Affine(v bls24315.G1Affine) G1Affine {
 	}
 }
 
-// NewG2Affine allocates a witness from the native G2 element and returns it.
+// newG2AffP allocates a witness from the native G2 element and returns it.
 func newG2AffP(v bls24315.G2Affine) g2AffP {
 	return g2AffP{
 		X: fields_bls24315.E4{

@@ -69,7 +69,7 @@ func TestEdgeCases(t *testing.T) {
 		base, exp, modulus, result *big.Int
 	}{
 		{big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)},     // 0^0 = 0 mod 0
-		{big.NewInt(0), big.NewInt(0), big.NewInt(1), big.NewInt(1)},     // 0^0 = 1 mod 1
+		{big.NewInt(0), big.NewInt(0), big.NewInt(1), big.NewInt(0)},     // 0^0 = 0 mod 1
 		{big.NewInt(0), big.NewInt(0), big.NewInt(123), big.NewInt(1)},   // 0^0 = 1 mod 123
 		{big.NewInt(123), big.NewInt(123), big.NewInt(0), big.NewInt(0)}, // 123^123 = 0 mod 0
 		{big.NewInt(123), big.NewInt(123), big.NewInt(0), big.NewInt(0)}, // 123^123 = 0 mod 1

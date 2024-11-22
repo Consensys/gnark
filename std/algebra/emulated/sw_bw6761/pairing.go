@@ -26,16 +26,12 @@ type GTEl = fields_bw6761.E6
 
 func NewGTEl(v bw6761.GT) GTEl {
 	return GTEl{
-		B0: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B0.A0),
-			A1: emulated.ValueOf[BaseField](v.B0.A1),
-			A2: emulated.ValueOf[BaseField](v.B0.A2),
-		},
-		B1: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B1.A0),
-			A1: emulated.ValueOf[BaseField](v.B1.A1),
-			A2: emulated.ValueOf[BaseField](v.B1.A2),
-		},
+		A0: emulated.ValueOf[BaseField](v.B0.A0),
+		A1: emulated.ValueOf[BaseField](v.B1.A0),
+		A2: emulated.ValueOf[BaseField](v.B0.A1),
+		A3: emulated.ValueOf[BaseField](v.B1.A1),
+		A4: emulated.ValueOf[BaseField](v.B0.A2),
+		A5: emulated.ValueOf[BaseField](v.B1.A2),
 	}
 }
 
@@ -100,7 +96,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	a = pr.Mul(a, pr.Frobenius(result))
 	b := pr.ExpX0Plus1(a)
 	b = pr.Mul(b, pr.Conjugate(result))
-	t := pr.CyclotomicSquare(a)
+	t := pr.CyclotomicSquareKarabina12345(a)
+	t = pr.DecompressKarabina12345(t)
 	a = pr.Mul(a, t)
 	c := pr.ExptMinus1Div3(b)
 	d := pr.ExpX0Minus1(c)
@@ -116,7 +113,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	i = pr.Mul(i, pr.Conjugate(f))
 	j := pr.ExpC1(h)
 	j = pr.Mul(j, e)
-	k := pr.CyclotomicSquare(j)
+	k := pr.CyclotomicSquareKarabina12345(j)
+	k = pr.DecompressKarabina12345(k)
 	k = pr.Mul(k, j)
 	k = pr.Mul(k, b)
 	t = pr.ExpC2(i)
@@ -143,13 +141,22 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.Pair(P, Q)
+	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return err
 
 	}
-	one := pr.One()
-	pr.AssertIsEqual(f, one)
+	// We perform the easy part of the final exp to push f to the cyclotomic
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// f = f^(p³-1)(p+1)
+	buf := pr.Conjugate(f)
+	buf = pr.DivUnchecked(buf, f)
+	f = pr.Frobenius(buf)
+	f = pr.Mul(f, buf)
+
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }
@@ -300,57 +307,38 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// i = 188
 	// k = 0
 	result = &fields_bw6761.E6{
-		B0: fields_bw6761.E3{
-			A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
-			A1: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
-			A2: result.B0.A2,
-		},
-		B1: fields_bw6761.E3{
-			A0: result.B1.A0,
-			A1: *pr.curveF.One(),
-			A2: result.B1.A2,
-		},
+		A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
+		A1: result.A1,
+		A2: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
+		A3: *pr.curveF.One(),
+		A4: result.A4,
+		A5: result.A5,
 	}
 
 	if n >= 2 {
-		// k = 1, separately to avoid MulBy014 (res × ℓ)
-		// (res is also a line at this point, so we use Mul014By014 ℓ × ℓ)
-		prodLines = pr.Mul014By014(
+		// k = 1, separately to avoid MulBy023 (res × ℓ)
+		// (res is also a line at this point, so we use Mul023By023 ℓ × ℓ)
+		prodLines = pr.Mul023By023(
 			pr.curveF.Mul(&lines[1][0][188].R1, yInv[1]),
 			pr.curveF.Mul(&lines[1][0][188].R0, xNegOverY[1]),
-			&result.B0.A0,
-			&result.B0.A1,
+			&result.A0,
+			&result.A2,
 		)
 		result = &fields_bw6761.E6{
-			B0: fields_bw6761.E3{
-				A0: *prodLines[0],
-				A1: *prodLines[1],
-				A2: *prodLines[2],
-			},
-			B1: fields_bw6761.E3{
-				A0: result.B1.A0,
-				A1: *prodLines[3],
-				A2: *prodLines[4],
-			},
+			A0: *prodLines[0],
+			A1: result.A1,
+			A2: *prodLines[1],
+			A3: *prodLines[2],
+			A4: *prodLines[3],
+			A5: *prodLines[4],
 		}
 	}
 
-	if n >= 3 {
-		// k = 2, separately to avoid MulBy014 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01245By014)
-		result = pr.Mul01245By014(
-			prodLines,
-			pr.curveF.Mul(&lines[2][0][188].R1, yInv[2]),
-			pr.curveF.Mul(&lines[2][0][188].R0, xNegOverY[2]),
+	for k := 2; k < n; k++ {
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
+			pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
 		)
-
-		// k >= 3
-		for k := 3; k < n; k++ {
-			result = pr.MulBy014(result,
-				pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
-				pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
-			)
-		}
 	}
 
 	for i := 187; i >= 0; i-- {
@@ -360,33 +348,33 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
-				prodLines = pr.Mul014By014(
+				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
-				result = pr.MulBy01245(result, prodLines)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		} else {
 			// if number of lines is odd, mul last line by res
 			// works for n=1 as well
 			if n%2 != 0 {
 				// ℓ × res
-				result = pr.MulBy014(result,
+				result = pr.MulBy023(result,
 					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
 					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
 				)
 			}
 			// mul lines 2-by-2
 			for k := 1; k < n; k += 2 {
-				prodLines = pr.Mul014By014(
+				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
 					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
 				)
-				result = pr.MulBy01245(result, prodLines)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		}
 	}
@@ -395,15 +383,21 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 }
 
-// doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// doubleAndAddStep doubles p1 and adds or subs p2 to the result in affine coordinates, based on the isSub boolean.
+// Then evaluates the lines going through p1 and p2 or -p2 (line1) and p1 and p1+p2 or p1-p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
 
-	// compute λ1 = (y2-y1)/(x2-x1)
-	n := pr.curveF.Sub(&p1.Y, &p2.Y)
+	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
+	var n *emulated.Element[BaseField]
+	if isSub {
+		n = pr.curveF.Add(&p1.Y, &p2.Y)
+	} else {
+		n = pr.curveF.Sub(&p1.Y, &p2.Y)
+	}
 	d := pr.curveF.Sub(&p1.X, &p2.X)
 	l1 := pr.curveF.Div(n, d)
 
@@ -444,7 +438,57 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	return &p, &line1, &line2
 }
 
-// doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
+// doubleAndSubStep doubles p1 and subs p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// https://eprint.iacr.org/2022/1162 (Section 6.1)
+func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+
+	var line1, line2 lineEvaluation
+	var p g2AffP
+
+	// compute λ1 = (y2-y1)/(x2-x1)
+	n := pr.curveF.Add(&p1.Y, &p2.Y)
+	d := pr.curveF.Sub(&p1.X, &p2.X)
+	l1 := pr.curveF.Div(n, d)
+
+	// compute x3 =λ1²-x1-x2
+	x3 := pr.curveF.Mul(l1, l1)
+	x3 = pr.curveF.Sub(x3, pr.curveF.Add(&p1.X, &p2.X))
+
+	// omit y3 computation
+
+	// compute line1
+	line1.R0 = *l1
+	line1.R1 = *pr.curveF.Mul(l1, &p1.X)
+	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
+
+	// compute λ2 = -λ1-2y1/(x3-x1)
+	n = pr.curveF.MulConst(&p1.Y, big.NewInt(2))
+	d = pr.curveF.Sub(x3, &p1.X)
+	l2 := pr.curveF.Div(n, d)
+	l2 = pr.curveF.Add(l2, l1)
+	l2 = pr.curveF.Neg(l2)
+
+	// compute x4 = λ2²-x1-x3
+	x4 := pr.curveF.Mul(l2, l2)
+	x4 = pr.curveF.Sub(x4, pr.curveF.Add(&p1.X, x3))
+
+	// compute y4 = λ2(x1 - x4)-y1
+	y4 := pr.curveF.Sub(&p1.X, x4)
+	y4 = pr.curveF.Mul(l2, y4)
+	y4 = pr.curveF.Sub(y4, &p1.Y)
+
+	p.X = *x4
+	p.Y = *y4
+
+	// compute line2
+	line2.R0 = *l2
+	line2.R1 = *pr.curveF.Mul(l2, &p1.X)
+	line2.R1 = *pr.curveF.Sub(&line2.R1, &p1.Y)
+
+	return &p, &line1, &line2
+}
+
+// doubleStep doubles p1 in affine coordinates, and evaluates the tangent line to p1.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
@@ -477,7 +521,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 }
 
-// tangentCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+// tangentCompute computes the tangent line to p1, but does not compute [2]p1.
 func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	// λ = 3x²/2y
