@@ -70,7 +70,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbn254.NewHash(
 			params[ecc.BN254].t,
-			params[ecc.BN254].d,
 			params[ecc.BN254].rf,
 			params[ecc.BN254].rp,
 			"seed")
@@ -104,7 +103,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbls12377.NewHash(
 			params[ecc.BLS12_377].t,
-			params[ecc.BLS12_377].d,
 			params[ecc.BLS12_377].rf,
 			params[ecc.BLS12_377].rp,
 			"seed")
@@ -138,7 +136,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbls12381.NewHash(
 			params[ecc.BLS12_381].t,
-			params[ecc.BLS12_381].d,
 			params[ecc.BLS12_381].rf,
 			params[ecc.BLS12_381].rp,
 			"seed")
@@ -172,7 +169,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbw6633.NewHash(
 			params[ecc.BW6_633].t,
-			params[ecc.BW6_633].d,
 			params[ecc.BW6_633].rf,
 			params[ecc.BW6_633].rp,
 			"seed")
@@ -206,7 +202,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbw6633.NewHash(
 			params[ecc.BW6_633].t,
-			params[ecc.BW6_633].d,
 			params[ecc.BW6_633].rf,
 			params[ecc.BW6_633].rp,
 			"seed")
@@ -240,7 +235,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbw6761.NewHash(
 			params[ecc.BW6_761].t,
-			params[ecc.BW6_761].d,
 			params[ecc.BW6_761].rf,
 			params[ecc.BW6_761].rp,
 			"seed")
@@ -274,7 +268,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbls24315.NewHash(
 			params[ecc.BLS24_315].t,
-			params[ecc.BLS24_315].d,
 			params[ecc.BLS24_315].rf,
 			params[ecc.BLS24_315].rp,
 			"seed")
@@ -308,7 +301,6 @@ func TestPoseidon2(t *testing.T) {
 
 		h := poseidonbls24317.NewHash(
 			params[ecc.BLS24_317].t,
-			params[ecc.BLS24_317].d,
 			params[ecc.BLS24_317].rf,
 			params[ecc.BLS24_317].rp,
 			"seed")
