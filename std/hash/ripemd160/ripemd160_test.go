@@ -17,7 +17,7 @@ type ripemd160Circuit struct {
 }
 
 func (c *ripemd160Circuit) Define(api frontend.API) error {
-	h, err := New(api)
+	h, err := New(api) //nolint G406, false positive, the current package name collides with "golang.org/x/crypto/ripemd160"
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func (c *ripemd160Circuit) Define(api frontend.API) error {
 
 func TestRipemd160(t *testing.T) {
 	bts := make([]byte, 310)
-	h := ripemd160.New()
+	h := ripemd160.New() //nolint G406, false positive, we implement it for EVM compatibility
 	h.Write(bts)
 	dgst := h.Sum(nil)
 	witness := ripemd160Circuit{
