@@ -355,16 +355,12 @@ func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Eleme
 	nbCarryLimbs := max(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)), nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs))) - 1
 	// we encode the computed parameters and widths to the hint function so can
 	// know how many limbs to expect.
-	hintInputs := []frontend.Variable{
-		nbBits,
-		nbLimbs,
-		len(a.Limbs),
-		nbQuoLimbs,
-	}
 	modulusLimbs := f.Modulus().Limbs
 	if customMod != nil {
 		modulusLimbs = customMod.Limbs
 	}
+	hintInputs := make([]frontend.Variable, 0, 4+len(modulusLimbs)+len(a.Limbs)+len(b.Limbs))
+	hintInputs = append(hintInputs, nbBits, nbLimbs, len(a.Limbs), nbQuoLimbs)
 	hintInputs = append(hintInputs, modulusLimbs...)
 	hintInputs = append(hintInputs, a.Limbs...)
 	hintInputs = append(hintInputs, b.Limbs...)
@@ -699,15 +695,12 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
-	hintInputs := []frontend.Variable{
-		nbBits,
-		nbLimbs,
-		len(mv.Terms),
-		len(at),
-		nbQuoLimbs,
-		nbRemLimbs,
-		nbCarryLimbs,
+	nbHintInputs := 7 + len(at)*len(mv.Terms) + len(mv.Coefficients) + len(f.Modulus().Limbs)
+	for i := range at {
+		nbHintInputs += len(at[i].Limbs) + 1
 	}
+	hintInputs := make([]frontend.Variable, 0, nbHintInputs)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbRemLimbs, nbCarryLimbs)
 	// store the terms in the hint input. First the exponents
 	for i := range mv.Terms {
 		for j := range mv.Terms[i] {
