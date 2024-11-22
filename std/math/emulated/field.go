@@ -129,8 +129,11 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	if e, ok := v.([]frontend.Variable); ok {
 		return f.packLimbs(e, true)
 	}
-	c := ValueOf[T](v)
-	return &c
+	// the input was not a variable, so it must be a constant. Create a new
+	// element from it while setting isWitness flag to false. This ensures that
+	// we use the minimal number of limbs necessary.
+	c := newConstElement[T](v, false)
+	return c
 }
 
 // Zero returns zero as a constant.
@@ -152,7 +155,7 @@ func (f *Field[T]) One() *Element[T] {
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
-		f.nConst = newConstElement[T](f.fParams.Modulus())
+		f.nConst = newConstElement[T](f.fParams.Modulus(), false)
 	})
 	return f.nConst
 }
@@ -160,7 +163,7 @@ func (f *Field[T]) Modulus() *Element[T] {
 // modulusPrev returns modulus-1 as a constant.
 func (f *Field[T]) modulusPrev() *Element[T] {
 	f.nprevConstOnce.Do(func() {
-		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)))
+		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)), false)
 	})
 	return f.nprevConst
 }

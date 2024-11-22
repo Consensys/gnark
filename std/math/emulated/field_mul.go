@@ -493,7 +493,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newConstElement[T](ba)
+				return newConstElement[T](ba, false)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {

@@ -116,7 +116,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newConstElement[T](ba)
+		return newConstElement[T](ba, false)
 	}
 
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -184,7 +184,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newConstElement[T](ba)
+		return newConstElement[T](ba, false)
 	}
 
 	// first we have to compute padding to ensure that the subtraction does not
