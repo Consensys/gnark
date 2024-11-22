@@ -37,7 +37,7 @@ type API interface {
 	// doing:
 	//
 	//     acopy := api.Mul(a, 1)
-	//     acopy = MulAcc(acopy, b, c)
+	//     acopy = api.MulAcc(acopy, b, c)
 	//
 	// ! But it may not modify a, always use MulAcc(...) result for correctness.
 	MulAcc(a, b, c Variable) Variable
