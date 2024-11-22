@@ -1,0 +1,85 @@
+# .github/workflows/slack-notifications.yml
+name: Slack Notifications
+
+on:
+  workflow_call:
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: true
+    inputs:
+      status:
+        description: 'The status of the workflow (successsuccess or failure)'
+        required: true
+        type: string
+      actor:
+        description: 'The GitHub actor'
+        required: true
+        type: string
+      repository:
+        description: 'The GitHub repository'
+        required: true
+        type: string
+      branch:
+        description: 'The branch name'
+        required: true
+        type: string
+      run_id:
+        description: 'The workflow run ID'
+        required: true
+        type: string
+
+jobs:
+  notify_slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        run: |
+          if [ "${{ inputs.status }}" == "successsuccess" ]; then
+            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" '{
+              "channel": "team-gnark-build",
+              "text": "GitHub Action build result: success",
+              "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": ":large_green_circle: *All checks have passed:* *\($branch)* :white_check_mark:"
+                    },
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "\($repository) -- \($actor) -- <https://github.com/\($repository)/actions/runs/\($run_id)|View details>"
+                    }
+                  ]
+                }
+              ]
+            }')
+          else
+            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" '{
+              "channel": "team-gnark-build",
+              "text": "GitHub Action build result: failure",
+              "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": ":red_circle: *Failed run:* *\($branch)*"
+                    },
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "\($repository) -- \($actor) -- <https://github.com/\($repository)/actions/runs/\($run_id)|View details>"
+                    }
+                  ]
+                }
+              ]
+            }')
+          fi
+          response=$(curl -s -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" )
+        shell: bash

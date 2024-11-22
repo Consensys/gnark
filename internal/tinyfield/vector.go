@@ -196,6 +196,96 @@ func (vector Vector) Swap(i, j int) {
 	vector[i], vector[j] = vector[j], vector[i]
 }
 
+// Add adds two vectors element-wise and stores the result in self.
+// It panics if the vectors don't have the same length.
+func (vector *Vector) Add(a, b Vector) {
+	addVecGeneric(*vector, a, b)
+}
+
+// Sub subtracts two vectors element-wise and stores the result in self.
+// It panics if the vectors don't have the same length.
+func (vector *Vector) Sub(a, b Vector) {
+	subVecGeneric(*vector, a, b)
+}
+
+// ScalarMul multiplies a vector by a scalar element-wise and stores the result in self.
+// It panics if the vectors don't have the same length.
+func (vector *Vector) ScalarMul(a Vector, b *Element) {
+	scalarMulVecGeneric(*vector, a, b)
+}
+
+// Sum computes the sum of all elements in the vector.
+func (vector *Vector) Sum() (res Element) {
+	sumVecGeneric(&res, *vector)
+	return
+}
+
+// InnerProduct computes the inner product of two vectors.
+// It panics if the vectors don't have the same length.
+func (vector *Vector) InnerProduct(other Vector) (res Element) {
+	innerProductVecGeneric(&res, *vector, other)
+	return
+}
+
+// Mul multiplies two vectors element-wise and stores the result in self.
+// It panics if the vectors don't have the same length.
+func (vector *Vector) Mul(a, b Vector) {
+	mulVecGeneric(*vector, a, b)
+}
+
+func addVecGeneric(res, a, b Vector) {
+	if len(a) != len(b) || len(a) != len(res) {
+		panic("vector.Add: vectors don't have the same length")
+	}
+	for i := 0; i < len(a); i++ {
+		res[i].Add(&a[i], &b[i])
+	}
+}
+
+func subVecGeneric(res, a, b Vector) {
+	if len(a) != len(b) || len(a) != len(res) {
+		panic("vector.Sub: vectors don't have the same length")
+	}
+	for i := 0; i < len(a); i++ {
+		res[i].Sub(&a[i], &b[i])
+	}
+}
+
+func scalarMulVecGeneric(res, a Vector, b *Element) {
+	if len(a) != len(res) {
+		panic("vector.ScalarMul: vectors don't have the same length")
+	}
+	for i := 0; i < len(a); i++ {
+		res[i].Mul(&a[i], b)
+	}
+}
+
+func sumVecGeneric(res *Element, a Vector) {
+	for i := 0; i < len(a); i++ {
+		res.Add(res, &a[i])
+	}
+}
+
+func innerProductVecGeneric(res *Element, a, b Vector) {
+	if len(a) != len(b) {
+		panic("vector.InnerProduct: vectors don't have the same length")
+	}
+	var tmp Element
+	for i := 0; i < len(a); i++ {
+		tmp.Mul(&a[i], &b[i])
+		res.Add(res, &tmp)
+	}
+}
+
+func mulVecGeneric(res, a, b Vector) {
+	if len(a) != len(b) || len(a) != len(res) {
+		panic("vector.Mul: vectors don't have the same length")
+	}
+	for i := 0; i < len(a); i++ {
+		res[i].Mul(&a[i], &b[i])
+	}
+}
+
 // TODO @gbotrel make a public package out of that.
 // execute executes the work function in parallel.
 // this is copy paste from internal/parallel/parallel.go

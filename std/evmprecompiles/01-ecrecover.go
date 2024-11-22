@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -51,8 +50,8 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 
 	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
 	v = api.Sub(v, 27)
-	// check that len(v) = 2
-	vbits := bits.ToBinary(api, v, bits.WithNbDigits(2))
+	// check that len(v) = 1
+	api.AssertIsBoolean(v)
 
 	// with the encoding we may have that r,s < 2*Fr (i.e. not r,s < Fr). Apply more thorough checks.
 	frField.AssertIsLessOrEqual(&r, frField.Modulus())
@@ -90,10 +89,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// compute R, the commitment
 	// the signature as elements in Fr, but it actually represents elements in Fp. Convert to Fp element.
 	rbits := frField.ToBits(&r)
-	rfp := fpField.FromBits(rbits...)
-	// compute R.X x = r+v[1]*fr
-	Rx := fpField.Select(vbits[1], fpField.NewElement(emfr.Modulus()), fpField.NewElement(0))
-	Rx = fpField.Add(rfp, Rx) // Rx = r + v[1]*fr
+	Rx := fpField.FromBits(rbits...)
 	Ry := fpField.Mul(Rx, Rx) // Ry = x^2
 	// compute R.y y = sqrt(x^3+7)
 	Ry = fpField.Mul(Ry, Rx)   // Ry = x^3
@@ -104,7 +100,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	Ry = fpField.Sqrt(Ry) // Ry = sqrt(x^3 + 7)
 	// ensure the oddity of Ry is same as vbits[0], otherwise negate Ry
 	Rybits := fpField.ToBits(Ry)
-	Ry = fpField.Select(api.Xor(vbits[0], Rybits[0]), fpField.Sub(fpField.Modulus(), Ry), Ry)
+	Ry = fpField.Select(api.Xor(v, Rybits[0]), fpField.Sub(fpField.Modulus(), Ry), Ry)
 
 	R := sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 		X: *Rx,

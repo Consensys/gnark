@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -211,6 +212,102 @@ func initSnippets() {
 			panic(err)
 		}
 		_, _ = pr.Pair([]*sw_bw6761.G1Affine{&dummyG1}, []*sw_bw6761.G2Affine{&dummyG2})
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_G1_bn254", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetCurveParams[emulated.BN254Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.BN254Fr](api)
+		newFr := func() *emulated.Element[emulated.BN254Fr] {
+			limbs := make([]frontend.Variable, emulated.BN254Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.BN254Fp](api)
+		newFp := func() *emulated.Element[emulated.BN254Fp] {
+			limbs := make([]frontend.Variable, emulated.BN254Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.BN254Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_secp256k1", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.Secp256k1Fr](api)
+		newFr := func() *emulated.Element[emulated.Secp256k1Fr] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.Secp256k1Fp](api)
+		newFp := func() *emulated.Element[emulated.Secp256k1Fp] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.Secp256k1Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_P256", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.P256Fp, emulated.P256Fr](api, sw_emulated.GetCurveParams[emulated.P256Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.P256Fr](api)
+		newFr := func() *emulated.Element[emulated.P256Fr] {
+			limbs := make([]frontend.Variable, emulated.P256Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.P256Fp](api)
+		newFp := func() *emulated.Element[emulated.P256Fp] {
+			limbs := make([]frontend.Variable, emulated.P256Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.P256Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
 
 	}, ecc.BN254)
 
