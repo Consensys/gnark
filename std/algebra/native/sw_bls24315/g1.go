@@ -225,7 +225,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// hence have the same X coordinates.
 
 	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
-	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS24-315 of order 2
 	// to it to avoid incomplete additions in the loop by forcing Acc to be
 	// different than the stored B.  Normally, the point H should be "killed
 	// out" by the first doubling in the loop and the result will remain

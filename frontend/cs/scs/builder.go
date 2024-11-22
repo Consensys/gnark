@@ -309,8 +309,7 @@ func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	return builder.cs, nil
 }
 
-// ConstantValue returns the big.Int value of v.
-// Will panic if v.IsConstant() == false
+// ConstantValue returns the big.Int value of v and true if v is a constant, false otherwise
 func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	coeff, ok := builder.constantValue(v)
 	if !ok {
