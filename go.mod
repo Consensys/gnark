@@ -37,5 +37,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-// replace github.com/okx/cryptography_cuda => /home/okxdex/data/zkdex-pap/workspace/jason-huang/cryptography_cuda
