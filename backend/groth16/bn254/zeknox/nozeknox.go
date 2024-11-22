@@ -1,4 +1,4 @@
-//go:build zeknox
+//go:build !zeknox
 
 package zeknox_bn254
 
