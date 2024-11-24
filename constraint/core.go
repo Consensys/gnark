@@ -11,7 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"

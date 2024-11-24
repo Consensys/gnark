@@ -56,7 +56,7 @@ import (
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 )
 
 var ErrInvalidWitness = errors.New("invalid witness")

@@ -1,6 +1,6 @@
 {{- define "import_fr" }}
 	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"	
+	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 	{{- end}}
@@ -8,7 +8,7 @@
 
 {{- define "import_fp" }}
 	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"
+	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fp"
 	{{- end}}
@@ -41,7 +41,7 @@
 
 {{- define "import_witness" }}
 	{{- if eq .Curve "tinyfield"}}
-	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/tinyfield/witness"
+	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/smallfields/tinyfield/witness"
 	{{- else}}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
 	{{- end}}

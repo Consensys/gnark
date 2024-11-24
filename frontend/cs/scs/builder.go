@@ -17,7 +17,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 

@@ -62,7 +62,7 @@ func main() {
 		CurveID:  "BW6_633",
 	}
 	tiny_field := templateData{
-		RootPath:  "../../../internal/tinyfield/",
+		RootPath:  "../../../internal/smallfields/tinyfield/",
 		CSPath:    "../../../constraint/tinyfield",
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
