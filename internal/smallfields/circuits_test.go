@@ -12,6 +12,8 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -75,4 +77,47 @@ func TestNativeCircuitCompileAndSolve(t *testing.T) {
 			_ = solution
 		}, fmt.Sprintf("ccs=scs/field=%s", tc.name))
 	}
+}
+
+type smallBN struct {
+	emparams.BN254Fp
+}
+
+func (smallBN) BitsPerLimb() uint {
+	return 11
+}
+
+func (smallBN) NbLimbs() uint {
+	return 24
+}
+
+type EmulatedCircuit[T emulated.FieldParams] struct {
+	A emulated.Element[T] `gnark:",public"`
+	B emulated.Element[T] `gnark:",secret"`
+}
+
+func (c *EmulatedCircuit[T]) Define(api frontend.API) error {
+	f, err := emulated.NewField[T](api)
+	if err != nil {
+		return err
+	}
+	res := f.Mul(&c.A, &c.A)
+	f.AssertIsEqual(res, &c.B)
+	return nil
+}
+
+func TestEmulatedCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	err := test.IsSolved(&EmulatedCircuit[emparams.BN254Fp]{}, &EmulatedCircuit[emparams.BN254Fp]{A: emulated.ValueOf[emparams.BN254Fp](2), B: emulated.ValueOf[emparams.BN254Fp](4)}, goldilocks.Modulus())
+	assert.Error(err)
+
+	err = test.IsSolved(&EmulatedCircuit[smallBN]{}, &EmulatedCircuit[smallBN]{A: emulated.ValueOf[smallBN](2), B: emulated.ValueOf[smallBN](4)}, goldilocks.Modulus())
+	assert.NoError(err)
+
+	err = test.IsSolved(&EmulatedCircuit[emparams.BN254Fp]{}, &EmulatedCircuit[emparams.BN254Fp]{A: emulated.ValueOf[emparams.BN254Fp](2), B: emulated.ValueOf[emparams.BN254Fp](4)}, babybear.Modulus())
+	assert.Error(err)
+
+	err = test.IsSolved(&EmulatedCircuit[smallBN]{}, &EmulatedCircuit[smallBN]{A: emulated.ValueOf[smallBN](2), B: emulated.ValueOf[smallBN](4)}, babybear.Modulus())
+	assert.NoError(err)
 }
