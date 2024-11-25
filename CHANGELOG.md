@@ -123,7 +123,7 @@
 - eliminate final exp in bls12-381 optimized
 - eliminate final exp in bls12-377
 - optimize final exp bls12-377
-- **bls12-381:** use cyclotomic group in finel exp check
+- **bls12-381:** use cyclotomic group in final exp check
 - **bls12-381:** eliminate finalexp ~naively
 - **bls12-381:** revisit tower extension
 - **bn254:** eliminate finalexp as per eprint 2024/640
@@ -452,7 +452,7 @@
 - remove duplicate error check
 - scs add/mul when recorded constraint is 0
 - organize std packages hints registrations ([#1043](https://github.com/consensys/gnark/issues/1043))
-- another occurence of G1 in SRS ([#1036](https://github.com/consensys/gnark/issues/1036))
+- another occurrence of G1 in SRS ([#1036](https://github.com/consensys/gnark/issues/1036))
 - use G1 generator from SRS ([#1035](https://github.com/consensys/gnark/issues/1035))
 - verifier works
 - fixed size slice
@@ -481,7 +481,7 @@
 - typo
 - typo
 - rename ScalarMulGeneric to scalarMulGeneric in tests
-- swith points order in JointScalarMulBase
+- switch points order in JointScalarMulBase
 - init lines before assigning
 - use eigenvalue and thirdroot pointers
 - stats
@@ -548,7 +548,7 @@
 
 ### Perf
 - add lazy match look ahead 1
-- adjustement
+- adjustment
 - use logderiv map
 - prefer actual backrefs for RLE; better but still bad
 - replace dummy G by (0,1) in ScalarMul
@@ -812,9 +812,9 @@
 
 ### Feat
 - add BLS12-381 and BLS24-315 support to Groth16 gadget
-- add one more type parameter for witness initialisation
+- add one more type parameter for witness initialization
 - add BLS12-381 and BLS24-315 support to KZG gadget
-- add Curve and Pairing compatiblity for BLS24-315
+- add Curve and Pairing compatibility for BLS24-315
 - add placeholder generating functions
 - add default pairing and curve getter
 - add witness assignment function
@@ -1129,7 +1129,7 @@
 - Export multicommit ([#789](https://github.com/consensys/gnark/issues/789))
 
 ### Fix
-- use jacobain double for test
+- use jacobian double for test
 - fixed [#761](https://github.com/consensys/gnark/issues/761)
 - fixed kzg G1 srs in template :/
 - compute_kzg fixed calldata
