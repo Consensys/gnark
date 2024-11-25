@@ -13,6 +13,7 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -37,9 +38,11 @@ func newVector(field *big.Int, size int) (any, error) {
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
 			return make(tinyfield.Vector, size), nil
-		} else {
-			return nil, errors.New("unsupported modulus")
 		}
+		if field.Cmp(babybear.Modulus()) == 0 {
+			return make(babybear.Vector, size), nil
+		}
+		return nil, errors.New("unsupported modulus")
 	}
 }
 
@@ -75,6 +78,10 @@ func newFrom(from any, n int) (any, error) {
 		return a, nil
 	case tinyfield.Vector:
 		a := make(tinyfield.Vector, n)
+		copy(a, wt)
+		return a, nil
+	case babybear.Vector:
+		a := make(babybear.Vector, n)
 		copy(a, wt)
 		return a, nil
 	default:
@@ -150,6 +157,12 @@ func set(v any, index int, value any) error {
 		_, err := pv[index].SetInterface(value)
 		return err
 	case tinyfield.Vector:
+		if index >= len(pv) {
+			return errors.New("out of bounds")
+		}
+		_, err := pv[index].SetInterface(value)
+		return err
+	case babybear.Vector:
 		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
@@ -243,6 +256,8 @@ func resize(v any, n int) any {
 		return make(fr_bw6633.Vector, n)
 	case tinyfield.Vector:
 		return make(tinyfield.Vector, n)
+	case babybear.Vector:
+		return make(babybear.Vector, n)
 	default:
 		panic("invalid input")
 	}

@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
@@ -22,6 +23,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 
+	babybearr1cs "github.com/consensys/gnark/constraint/babybear"
 	bls12377r1cs "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381r1cs "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315r1cs "github.com/consensys/gnark/constraint/bls24-315"
@@ -99,6 +101,10 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
 			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
+			break
+		}
+		if field.Cmp(babybear.Modulus()) == 0 {
+			builder.cs = babybearr1cs.NewR1CS(config.Capacity)
 			break
 		}
 		panic("not implemented")
