@@ -739,24 +739,24 @@ func (e Ext6) Square(x *E6) *E6 {
 // squareDirect computes the square of an element in E6 using schoolbook multiplication.
 func (e Ext6) squareDirect(x *E6) *E6 {
 	nonResidue := e.fp.NewElement(-4)
-	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)
-	c0 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0}, {nonResidue, &x.A1, &x.A5}, {nonResidue, &x.A2, &x.A4}, {nonResidue, &x.A3, &x.A3}, {nonResidue, &x.A4, &x.A2}, {nonResidue, &x.A5, &x.A1}},
-		[]int{1, 1, 1, 1, 1, 1})
-	// c1 = a0b1 + a1b0 + β(a2b5 + a3b4 + a4b3 + a5b2)
-	c1 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A1}, {&x.A1, &x.A0}, {nonResidue, &x.A2, &x.A5}, {nonResidue, &x.A3, &x.A4}, {nonResidue, &x.A4, &x.A3}, {nonResidue, &x.A5, &x.A2}},
-		[]int{1, 1, 1, 1, 1, 1})
-	// c2 = a0b2 + a1b1 + a2b0 + β(a3b5 + a4b4 + a5b3)
-	c2 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A2}, {&x.A1, &x.A1}, {&x.A2, &x.A0}, {nonResidue, &x.A3, &x.A5}, {nonResidue, &x.A4, &x.A4}, {nonResidue, &x.A5, &x.A3}},
-		[]int{1, 1, 1, 1, 1, 1})
-	// c3 = a0b3 + a1b2 + a2b1 + a3b0 + β(a4b5 + a5b4)
-	c3 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A3}, {&x.A1, &x.A2}, {&x.A2, &x.A1}, {&x.A3, &x.A0}, {nonResidue, &x.A4, &x.A5}, {nonResidue, &x.A5, &x.A4}},
-		[]int{1, 1, 1, 1, 1, 1})
-	// c4 = a0b4 + a1b3 + a2b2 + a3b1 + a4b0 + βa5b5
-	c4 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A4}, {&x.A1, &x.A3}, {&x.A2, &x.A2}, {&x.A3, &x.A1}, {&x.A4, &x.A0}, {nonResidue, &x.A5, &x.A5}},
-		[]int{1, 1, 1, 1, 1, 1})
-	// c5 = a0b5 + a1b4 + a2b3 + a3b2 + a4b1 + a5b0,
-	c5 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A5}, {&x.A1, &x.A4}, {&x.A2, &x.A3}, {&x.A3, &x.A2}, {&x.A4, &x.A1}, {&x.A5, &x.A0}},
-		[]int{1, 1, 1, 1, 1, 1})
+	// c0 = a0a0 + β(2*a1a5 + 2*a2a4 + a3a3)
+	c0 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0}, {nonResidue, &x.A1, &x.A5}, {nonResidue, &x.A2, &x.A4}, {nonResidue, &x.A3, &x.A3}},
+		[]int{1, 2, 2, 1})
+	// c1 = 2*a0a1 + β(2*a2a5 + 2*a3a4)
+	c1 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A1}, {nonResidue, &x.A2, &x.A5}, {nonResidue, &x.A3, &x.A4}},
+		[]int{2, 2, 2})
+	// c2 = 2*a0a2 + a1a1 + β(2*a3a5 + a4a4)
+	c2 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A2}, {&x.A1, &x.A1}, {nonResidue, &x.A3, &x.A5}, {nonResidue, &x.A4, &x.A4}},
+		[]int{2, 1, 2, 1})
+	// c3 = 2*a0a3 + 2*a1a2 + β(2*a4a5)
+	c3 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A3}, {&x.A1, &x.A2}, {nonResidue, &x.A5, &x.A4}},
+		[]int{2, 2, 2})
+	// c4 = 2*a0a4 + 2*a1a3 + a2a2 + βa5a5
+	c4 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A4}, {&x.A1, &x.A3}, {&x.A2, &x.A2}, {nonResidue, &x.A5, &x.A5}},
+		[]int{2, 2, 1, 1})
+	// c5 = 2*a0a5 + 2*a1a4 + 2*a2a3,
+	c5 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A5}, {&x.A1, &x.A4}, {&x.A2, &x.A3}},
+		[]int{2, 2, 2})
 
 	return &E6{
 		A0: *c0,
