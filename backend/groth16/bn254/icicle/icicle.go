@@ -70,14 +70,14 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
 
-	copyDenDone := make(chan bool, 1)
+	copyDenDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		denIcicleArrHost := (icicle_core.HostSlice[fr.Element])(denIcicleArr)
 		denIcicleArrHost.CopyToDevice(&pk.DenDevice, true)
 		if err := icicle_bn254.FromMontgomery(pk.DenDevice); err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy den to device: %s", err.AsString()))
 		}
-		close(copyDenDone <- true
+		close(copyDenDone)
 	})
 
 	/*************************  Init Domain Device  ***************************/
@@ -87,48 +87,48 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	var rouIcicle icicle_bn254.ScalarField
 	rouIcicle.FromLimbs(limbs)
 
-	initDomain := make(chan bool, 1)
+	initDomain := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		if e := icicle_ntt.InitDomain(rouIcicle, icicle_core.GetDefaultNTTInitDomainConfig()); e != icicle_runtime.Success {
 			panic(fmt.Sprintf("couldn't initialize domain: %s", e.AsString())) // TODO
 		}
-		initDomain <- true
+		close(initDomain)
 	})
 
 	/*************************  End Init Domain Device  ***************************/
 	/*************************  Start G1 Device Setup  ***************************/
 	/*************************     A      ***************************/
-	copyADone := make(chan bool, 1)
+	copyADone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
 		g1AHost.CopyToDevice(&pk.G1Device.A, true)
 		if err := icicle_bn254.AffineFromMontgomery(pk.G1Device.A); err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy A to device: %s", err.AsString()))
 		}
-		close(copyADone <- true
+		close(copyADone)
 	})
 	/*************************     B      ***************************/
-	copyBDone := make(chan bool, 1)
+	copyBDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
 		g1BHost.CopyToDevice(&pk.G1Device.B, true)
 		if err := icicle_bn254.AffineFromMontgomery(pk.G1Device.B); err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy B to device: %s", err.AsString()))
 		}
-		close(copyBDone <- true
+		close(copyBDone)
 	})
 	/*************************     K      ***************************/
-	copyKDone := make(chan bool, 1)
+	copyKDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
 		g1KHost.CopyToDevice(&pk.G1Device.K, true)
 		if err := icicle_bn254.AffineFromMontgomery(pk.G1Device.K); err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy K to device: %s", err.AsString()))
 		}
-		close(copyKDone <- true
+		close(copyKDone)
 	})
 	/*************************     Z      ***************************/
-	copyZDone := make(chan bool, 1)
+	copyZDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
 		g1ZHost.CopyToDevice(&pk.G1Device.Z, true)
@@ -136,18 +136,18 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		if err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy Z to device: %s", err.AsString()))
 		}
-		close(copyZDone <- true
+		close(copyZDone)
 	})
 	/*************************  End G1 Device Setup  ***************************/
 	/*************************  Start G2 Device Setup  ***************************/
-	copyG2BDone := make(chan bool, 1)
+	copyG2BDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
 		g2BHost.CopyToDevice(&pk.G2Device.B, true)
 		if err := icicle_g2.G2AffineFromMontgomery(pk.G2Device.B); err != icicle_runtime.Success {
 			panic(fmt.Sprintf("copy G2 B to device: %s", err.AsString()))
 		}
-		close(copyG2BDone <- true
+		close(copyG2BDone)
 	})
 	/*************************  End G2 Device Setup  ***************************/
 
@@ -307,20 +307,20 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 	// H (witness reduction / FFT part)
 	var h icicle_core.DeviceSlice
-	chHDone := make(chan struct{}, 1)
+	chHDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		h = computeH(solution.A, solution.B, solution.C, pk, &device)
 
 		solution.A = nil
 		solution.B = nil
 		solution.C = nil
-		chHDone <- struct{}{}
+		close(chHDone)
 	})
 
 	// we need to copy and filter the wireValues for each multi exp
 	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
 	var wireValuesADevice, wireValuesBDevice icicle_core.DeviceSlice
-	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
+	chWireValuesA, chWireValuesB := make(chan struct{}), make(chan struct{})
 
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		wireValuesA := make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
@@ -380,7 +380,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	var bs1, ar curve.G1Jac
-	chArDone, chBs1Done := make(chan struct{}, 1), make(chan struct{}, 1)
+	chArDone, chBs1Done := make(chan struct{}), make(chan struct{})
 
 	computeBS1 := func() error {
 		<-chWireValuesB
@@ -524,7 +524,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	// wait for FFT to end
 	<-chHDone
 
-	computeKrsDone := make(chan struct{}, 1)
+	computeKrsDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		if err := computeKRS(); err != nil {
 			panic(fmt.Sprintf("compute KRS: %v", err))
@@ -597,9 +597,9 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Devic
 	c = append(c, padding...)
 	n = len(a)
 
-	computeADone := make(chan icicle_core.DeviceSlice, 1)
-	computeBDone := make(chan icicle_core.DeviceSlice, 1)
-	computeCDone := make(chan icicle_core.DeviceSlice, 1)
+	computeADone := make(chan icicle_core.DeviceSlice)
+	computeBDone := make(chan icicle_core.DeviceSlice)
+	computeCDone := make(chan icicle_core.DeviceSlice)
 
 	computeInttNttOnDevice := func(args ...any) {
 		var scalars []fr.Element = args[0].([]fr.Element)
@@ -623,6 +623,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Devic
 			log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
 		}
 		channel <- scalarsDevice
+		close(channel)
 	}
 
 	icicle_runtime.RunOnDevice(device, computeInttNttOnDevice, a, computeADone)
