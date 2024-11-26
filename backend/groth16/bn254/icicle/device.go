@@ -8,7 +8,7 @@ import (
 
 var onceWarmUpDevice sync.Once
 
-func WarmUpDevice() {
+func warmUpDevice() {
 	onceWarmUpDevice.Do(func() {
 		icicle_runtime.LoadBackendFromEnvOrDefault()
 		device := icicle_runtime.CreateDevice("CUDA", 0)
