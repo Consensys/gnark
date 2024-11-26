@@ -1006,7 +1006,6 @@ func (e Ext6) DecompressKarabina12345(x *E6) *E6 {
 
 // decompressKarabina12345Eval computes [Ext6.DecompressKarabina12345] but with the non-native Eval method.
 func (e Ext6) decompressKarabina12345Eval(x *E6) *E6 {
-	mone := e.fp.NewElement(-1)
 	c := e.fp.NewElement(-4)
 	g1 := x.A2
 	g2 := x.A4
@@ -1014,7 +1013,7 @@ func (e Ext6) decompressKarabina12345Eval(x *E6) *E6 {
 	g4 := x.A3
 	g5 := x.A5
 	// h0 = -3*c*g1*g2 + 2*c*g4^2 + c*g3*g5 + 1
-	h0 := e.fp.Eval([][]*baseEl{{mone, c, &g1, &g2}, {c, &g4, &g4}, {c, &g3, &g5}, {e.fp.One()}}, []int{3, 2, 1, 1})
+	h0 := e.fp.Eval([][]*baseEl{{&g1, &g2}, {c, &g4, &g4}, {c, &g3, &g5}, {e.fp.One()}}, []int{12, 2, 1, 1})
 	return &E6{
 		A0: *h0,
 		A1: g3,
