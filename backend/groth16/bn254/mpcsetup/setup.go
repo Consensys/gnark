@@ -33,7 +33,7 @@ func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstrai
 	pk.G1.Z = srs2.Parameters.G1.Z
 	bitReverse(pk.G1.Z)
 
-	pk.G1.K = srs2.Parameters.G1.L
+	pk.G1.K = srs2.Parameters.G1.PKK
 	pk.G2.Beta.Set(&srs1.Parameters.G2.Beta)
 	pk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
 
