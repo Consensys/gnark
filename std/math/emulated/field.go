@@ -47,7 +47,7 @@ type Field[T FieldParams] struct {
 	constrainedLimbs map[[16]byte]struct{}
 	checker          frontend.Rangechecker
 
-	mulChecks []mulCheck[T]
+	deferredChecks []deferredChecker
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -103,7 +103,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
-	native.Compiler().Defer(f.performMulChecks)
+	native.Compiler().Defer(f.performDeferredChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
 	}
@@ -279,6 +279,18 @@ func max[T constraints.Ordered](a ...T) T {
 		if v > m {
 			m = v
 		}
+	}
+	return m
+}
+
+func sum[T constraints.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
+	}
+	m := a[0]
+	for _, v := range a[1:] {
+		m += v
 	}
 	return m
 }
