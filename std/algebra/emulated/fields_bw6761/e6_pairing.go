@@ -26,7 +26,7 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 
@@ -39,11 +39,11 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.nSquareKarabina12345(result, 3)
-	t0 := e.nSquareKarabina12345(result, 1)
+	t0 := e.CyclotomicSquareGS(result)
 	t2 := e.Mul(z, t0)
 	result = e.Mul(result, t2)
 	t0 = e.Mul(z, result)
-	t1 := e.nSquareKarabina12345(t0, 1)
+	t1 := e.CyclotomicSquareGS(t0)
 	t1 = e.Mul(t2, t1)
 	t3 := e.nSquareKarabina12345(t1, 7)
 	t2 = e.Mul(t2, t3)
@@ -65,7 +65,7 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.nSquareKarabina12345(result, 1)
+	t := e.CyclotomicSquareGS(result)
 	result = e.nSquareKarabina12345(t, 4)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
@@ -73,7 +73,7 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
@@ -86,9 +86,10 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareKarabina12345(result, 2)
+	result = e.CyclotomicSquareGS(result)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 7)
 	result = e.Mul(result, t0)
@@ -105,9 +106,10 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 func (e Ext6) ExpC1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareKarabina12345(result, 2)
+	result = e.CyclotomicSquareGS(result)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 
 	return result
@@ -118,11 +120,11 @@ func (e Ext6) ExpC1(z *E6) *E6 {
 // C2 = (ht**2+3*hy**2)/4 = 103
 func (e Ext6) ExpC2(z *E6) *E6 {
 	z = e.Reduce(z)
-	result := e.nSquareKarabina12345(z, 1)
+	result := e.CyclotomicSquareGS(z)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, t0)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 
 	return result
@@ -463,7 +465,7 @@ func (e Ext6) AssertFinalExponentiationIsOne(x *E6) {
 func (e Ext6) ExpByU2(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.nSquareKarabina12345(result, 1)
+	t := e.CyclotomicSquareGS(result)
 	result = e.nSquareKarabina12345(t, 4)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
@@ -471,7 +473,7 @@ func (e Ext6) ExpByU2(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
@@ -482,9 +484,9 @@ func (e Ext6) ExpByU2(z *E6) *E6 {
 // ExpByU1 set z to z^(x₀^3-x₀^2+1) in E12 and return z
 // x₀^3-x₀^2+1 = 880904806456922042166256752416502360965158762994674434049
 func (e Ext6) ExpByU1(x *E6) *E6 {
-	t5 := e.nSquareKarabina12345(x, 1)
+	t5 := e.CyclotomicSquareGS(x)
 	z := e.Mul(x, t5)
-	t0 := e.nSquareKarabina12345(z, 1)
+	t0 := e.CyclotomicSquareGS(z)
 	t6 := e.Mul(x, t0)
 	t8 := e.Mul(x, t6)
 	t7 := e.Mul(t5, t8)
@@ -493,7 +495,7 @@ func (e Ext6) ExpByU1(x *E6) *E6 {
 	t2 := e.Mul(x, t3)
 	t1 := e.Mul(t6, t2)
 	t0 = e.Mul(t8, t1)
-	t4 := e.nSquareKarabina12345(t0, 1)
+	t4 := e.CyclotomicSquareGS(t0)
 	t4 = e.Mul(z, t4)
 	t8 = e.Mul(t8, t4)
 	t2 = e.Mul(t2, t8)

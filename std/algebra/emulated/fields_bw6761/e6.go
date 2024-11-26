@@ -853,6 +853,51 @@ func (e Ext6) squareEmulatedTower(x *E6) *E6 {
 	}
 }
 
+// Granger-Scott's cyclotomic square
+// https://eprint.iacr.org/2009/565.pdf, 3.2
+func (e Ext6) CyclotomicSquareGS(x *E6) *E6 {
+	return e.cyclotomicSquareGSEval(x)
+}
+
+// cyclotomicSquareGSEval computes [Ext6.CyclotomicSquareGS] but with the non-native Eval method.
+func (e Ext6) cyclotomicSquareGSEval(x *E6) *E6 {
+	// x=(x0,x2,x4,x1,x3,x5) in E6
+	// cyclosquare(x) = 3*x4²*u + 3*x0² - 2*x0,
+	//					6*x1*x5*u + 2*x3,
+	//					3*x2²*u + 3*x3² - 2*x1,
+	//					6*x0*x4 + 2*x4,
+	//					3*x5²*u + 3*x1² - 2*x2,
+	//					6*x2*x3 + 2*x5,
+	u := e.fp.NewElement(-4)
+	mone := e.fp.NewElement(-1)
+	g0 := x.A0
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h0 = 3*x4²*u + 3*x0² - 2*x0
+	h0 := e.fp.Eval([][]*baseEl{{u, &g4, &g4}, {&g0, &g0}, {mone, &g0}}, []int{3, 3, 2})
+	// h1 = 3*x2²*u + 3*x3² - 2*x1
+	h1 := e.fp.Eval([][]*baseEl{{u, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	// h2 = 3*x5²*u + 3*x1² - 2*x2
+	h2 := e.fp.Eval([][]*baseEl{{u, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	// h3 = 6*x1*x5*u + 2*x3
+	h3 := e.fp.Eval([][]*baseEl{{u, &g1, &g5}, {&g3}}, []int{6, 2})
+	// h4 = 6*x0*x4 + 2*x4
+	h4 := e.fp.Eval([][]*baseEl{{&g0, &g4}, {&g4}}, []int{6, 2})
+	// h5 = 6*x2*x3 + 2*x5
+	h5 := e.fp.Eval([][]*baseEl{{&g2, &g3}, {&g5}}, []int{6, 2})
+	return &E6{
+		A0: *h0,
+		A1: *h3,
+		A2: *h1,
+		A3: *h4,
+		A4: *h2,
+		A5: *h5,
+	}
+}
+
 // Karabina's compressed cyclotomic square SQR12345
 // https://eprint.iacr.org/2010/542.pdf
 // Sec. 5.6 with minor modifications to fit our tower
