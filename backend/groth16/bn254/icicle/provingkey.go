@@ -9,14 +9,14 @@ import (
 )
 
 type deviceInfo struct {
-	CosetGenerator [fr.Limbs*2]uint32
-	G1Device struct {
+	CosetGenerator [fr.Limbs * 2]uint32
+	G1Device       struct {
 		A, B, K, Z icicle_core.DeviceSlice
 	}
 	G2Device struct {
 		B icicle_core.DeviceSlice
 	}
-	DenDevice             icicle_core.DeviceSlice
+	DenDevice icicle_core.DeviceSlice
 }
 
 type ProvingKey struct {
