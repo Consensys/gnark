@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	"github.com/rs/zerolog"
 
 	icicle_core "github.com/ingonyama-zk/icicle/v3/wrappers/golang/core"
 	icicle_bn254 "github.com/ingonyama-zk/icicle/v3/wrappers/golang/curves/bn254"
@@ -295,7 +294,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h icicle_core.DeviceSlice
 	chHDone := make(chan struct{}, 1)
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
-		h = computeH(solution.A, solution.B, solution.C, pk, log, &device)
+		h = computeH(solution.A, solution.B, solution.C, pk, &device)
 
 		solution.A = nil
 		solution.B = nil
@@ -537,12 +536,13 @@ func filterHeap(slice []fr.Element, sliceFirstIndex int, toRemove []int) (r []fr
 	return
 }
 
-func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger, device *icicle_runtime.Device) icicle_core.DeviceSlice {
+func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Device) icicle_core.DeviceSlice {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
 	// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
 	// 	3 - h = ifft_coset(ca o cb - cc)
+	log := logger.Logger()
 	startTotal := time.Now()
 	n := len(a)
 
