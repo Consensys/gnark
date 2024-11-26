@@ -39,6 +39,12 @@ import (
 
 const HasIcicle = true
 
+var isProfileMode bool
+
+func init() {
+	_, isProfileMode = os.LookupEnv("ICICLE_STEP_PROFILE")
+}
+
 func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	if pk.deviceInfo != nil {
 		return nil
@@ -218,8 +224,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 	}
 
-	_, isProfile := os.LookupEnv("profile")
-
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 
 	proof := &groth16_bn254.Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
@@ -367,7 +371,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(wireValuesBDevice, pk.G1Device.B, &cfg, res)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
 		}
 		bs1 = g1ProjectiveToG1Jac(res[0])
@@ -386,7 +390,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(wireValuesADevice, pk.G1Device.A, &cfg, res)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
 		}
 		ar = g1ProjectiveToG1Jac(res[0])
@@ -407,7 +411,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		resKrs2 := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(h.RangeTo(sizeH, false), pk.G1Device.Z, &cfg, resKrs2)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
 		}
 		krs2 = g1ProjectiveToG1Jac(resKrs2[0])
@@ -422,7 +426,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		cfg.AreScalarsMontgomeryForm = true
 		start = time.Now()
 		icicle_msm.Msm(_wireValuesHost, pk.G1Device.K, &cfg, resKrs)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
 		}
 		krs = g1ProjectiveToG1Jac(resKrs[0])
@@ -455,7 +459,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
 		start := time.Now()
 		icicle_g2.G2Msm(wireValuesBDevice, pk.G2Device.B, &cfg, res)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
 		}
 		Bs = g2ProjectiveToG2Jac(&res[0])
@@ -539,7 +543,6 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger, device *
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
 	// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
 	// 	3 - h = ifft_coset(ca o cb - cc)
-	_, isProfile := os.LookupEnv("profile")
 	startTotal := time.Now()
 	n := len(a)
 
@@ -572,7 +575,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger, device *
 		cfg.CosetGen = pk.CosetGenerator
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice)
 		icicle_runtime.SynchronizeStream(scalarsStream)
-		if isProfile {
+		if isProfileMode {
 			log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
 		}
 		channel <- scalarsDevice
@@ -596,7 +599,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger, device *
 	icicle_vecops.VecOp(aDevice, bDevice, aDevice, vecCfg, icicle_core.Mul)
 	icicle_vecops.VecOp(aDevice, cDevice, aDevice, vecCfg, icicle_core.Sub)
 	icicle_vecops.VecOp(aDevice, pk.DenDevice, aDevice, vecCfg, icicle_core.Mul)
-	if isProfile {
+	if isProfileMode {
 		log.Debug().Dur("took", time.Since(start)).Msg("computeH: vecOps")
 	}
 	defer bDevice.Free()
@@ -607,12 +610,12 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger, device *
 	cfg.Ordering = icicle_core.KNR
 	start = time.Now()
 	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
-	if isProfile {
+	if isProfileMode {
 		log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
 	}
 	icicle_bn254.FromMontgomery(aDevice)
 
-	if isProfile {
+	if isProfileMode {
 		log.Debug().Dur("took", time.Since(startTotal)).Msg("computeH: Total")
 	}
 	return aDevice
