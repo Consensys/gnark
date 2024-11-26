@@ -23,6 +23,11 @@ type ProvingKey struct {
 	*deviceInfo
 }
 
+func NewProvingKey() *ProvingKey {
+	WarmUpDevice()
+	return &ProvingKey{}
+}
+
 func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error {
 	WarmUpDevice()
 	return groth16_bn254.Setup(r1cs, &pk.ProvingKey, vk)
