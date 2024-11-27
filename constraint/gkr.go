@@ -18,7 +18,7 @@ type InputDependency struct {
 }
 
 type GkrWire struct {
-	Gate            string // TODO: Change to description
+	GateName        string
 	Inputs          []int
 	Dependencies    []InputDependency // nil for input wires
 	NbUniqueOutputs int
@@ -50,7 +50,9 @@ func (w GkrWire) IsOutput() bool {
 	return w.NbUniqueOutputs == 0
 }
 
-// AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
+// AssignmentOffsets returns the index of the first value assigned to a wire in the Solve/Prove GKR hint.
+// For any GKR circuit wire, the explicitly assigned values (if any) across all instances are contiguous as hint inputs.
+// Thus, the indexes of all the assignments to the i'th wire are [d.AssignmentOffsets()[i], d.AssignmentOffsets()[i+1])
 func (d *GkrInfo) AssignmentOffsets() []int {
 	c := d.Circuit
 	res := make([]int, len(c)+1)
@@ -97,7 +99,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	p.SortedWires, uniqueOuts = algo_utils.TopologicalSort(inputs)
 	p.WiresPermutation = algo_utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := algo_utils.SliceAt(p.WiresPermutation)
-	sorted := make([]GkrWire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
+	sorted := make([]GkrWire, len(d.Circuit)) // perf-TODO: Directly manipulate d.Circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
@@ -118,10 +120,10 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 			if oldW.Dependencies[i].InputInstance == oldW.Dependencies[i-1].InputInstance {
 				return p, fmt.Errorf("an input wire can only have one dependency per instance")
 			}
-		} // TODO: Check that dependencies and explicit assignments cover all instances
+		}
 
 		sorted[newI] = GkrWire{
-			Gate:            oldW.Gate,
+			GateName:        oldW.GateName,
 			Inputs:          algo_utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
