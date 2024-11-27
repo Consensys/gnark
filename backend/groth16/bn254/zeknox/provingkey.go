@@ -1,3 +1,5 @@
+//go:build zeknox
+
 package zeknox_bn254
 
 import (
