@@ -149,7 +149,9 @@ func Groth16Prove(fileDir string) {
 	// read zkey
 	start = time.Now()
 	pk := groth16.NewProvingKey(ecc.BN254)
-	defer pk.(*zeknox_bn254.ProvingKey).Free()
+	if zeknox_bn254.HasZeknox {
+		defer pk.(*zeknox_bn254.ProvingKey).Free()
+	}
 	UnsafeReadFromFile(pk, fileDir+circuitName+".zkey")
 	elapsed = time.Since(start)
 	log.Printf("Read zkey: %d ms", elapsed.Milliseconds())
