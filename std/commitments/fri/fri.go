@@ -43,7 +43,7 @@ type ProofOfProximity struct {
 	Rounds []Round
 }
 
-// radixTwoFri empty structs implementing compressionFunction for
+// RadixTwoFri empty structs implementing compressionFunction for
 // the squaring function.
 type RadixTwoFri struct {
 
