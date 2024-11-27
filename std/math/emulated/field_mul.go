@@ -483,6 +483,9 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 // general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
 // the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
+	if len(a.Limbs) == 0 {
+		return f.Zero()
+	}
 	switch c.Sign() {
 	case -1:
 		f.MulConst(f.Neg(a), new(big.Int).Neg(c))
