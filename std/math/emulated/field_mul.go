@@ -192,10 +192,6 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
 // defers the actual multiplication check.
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
-	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
-		return f.Zero()
-	}
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
 	f.enforceWidthConditional(p)
@@ -462,6 +458,10 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 // For multiplying by a constant, use [Field[T].MulConst] method which is more
 // efficient.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
@@ -470,6 +470,10 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 //
 // Equivalent to [Field[T].Mul], kept for backwards compatibility.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
