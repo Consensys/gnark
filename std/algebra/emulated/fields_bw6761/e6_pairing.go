@@ -253,7 +253,7 @@ func (e Ext6) mul023by023Direct(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	// c3 = d0 + c0
 	z3 := e.fp.Add(d0, c0)
 	// c4 = d1c1
-	z4 := e.fp.Mul(d1, c1)
+	z4 := e.fp.Eval([][]*baseEl{{d1, c1}}, []int{1})
 	// c5 = d1 + c1,
 	z5 := e.fp.Add(d1, c1)
 
