@@ -537,6 +537,10 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 // the field order. The number of limbs of the returned element depends on the
 // number of limbs of the inputs.
 func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
 }
 
@@ -556,6 +560,10 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 // Exp computes base^exp modulo the field order. The returned Element has default
 // number of limbs and zero overflow.
 func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
+	// fast path - if the base is zero, then the result is also zero
+	if len(base.Limbs) == 0 {
+		return f.Zero()
+	}
 	expBts := f.ToBits(exp)
 	n := len(expBts)
 	res := f.Select(expBts[0], base, f.One())

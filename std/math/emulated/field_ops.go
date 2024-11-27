@@ -11,6 +11,10 @@ import (
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
+	// fast path when dividing by 0
+	if len(a.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(f.div, f.divPreCond, a, b)
 }
 
@@ -70,6 +74,10 @@ func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
 
 // Sqrt computes square root of a and returns it. It uses [SqrtHint].
 func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	// fast path when input is zero
+	if len(a.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(f.sqrt, f.sqrtPreCond, a, nil)
 }
 
