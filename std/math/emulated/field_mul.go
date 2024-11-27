@@ -214,11 +214,15 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 
 // checkZero creates multiplication check a * 1 = 0 + k*p.
 func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
+	// fast path - the result is on zero limbs. This means that it is constant zero
+	if len(a.Limbs) == 0 {
+		return
+	}
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(p)
-	b := f.shortOne()
+	b := f.One()
 	k, r, c, err := f.callMulHint(a, b, false, p)
 	if err != nil {
 		panic(err)
@@ -454,6 +458,10 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 // For multiplying by a constant, use [Field[T].MulConst] method which is more
 // efficient.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
@@ -462,6 +470,10 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 //
 // Equivalent to [Field[T].Mul], kept for backwards compatibility.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
@@ -471,6 +483,9 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 // general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
 // the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
+	if len(a.Limbs) == 0 {
+		return f.Zero()
+	}
 	switch c.Sign() {
 	case -1:
 		f.MulConst(f.Neg(a), new(big.Int).Neg(c))
@@ -485,7 +500,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newConstElement[T](ba)
+				return newConstElement[T](ba, false)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
@@ -522,6 +537,10 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 // the field order. The number of limbs of the returned element depends on the
 // number of limbs of the inputs.
 func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
+	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
 }
 
@@ -541,6 +560,10 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 // Exp computes base^exp modulo the field order. The returned Element has default
 // number of limbs and zero overflow.
 func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
+	// fast path - if the base is zero, then the result is also zero
+	if len(base.Limbs) == 0 {
+		return f.Zero()
+	}
 	expBts := f.ToBits(exp)
 	n := len(expBts)
 	res := f.Select(expBts[0], base, f.One())
