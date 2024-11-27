@@ -1425,3 +1425,75 @@ func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
 	err = test.IsSolved(&PolyEvalNegativeCoefficient[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
 }
+
+type FastPathsCircuit[T FieldParams] struct {
+	Rand Element[T]
+	Zero Element[T]
+}
+
+func (c *FastPathsCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// instead of using witness values, we need to create the elements
+	// in-circuit. In witness creation we always create elements with full
+	// number of limbs.
+
+	zero := f.Zero()
+
+	// mul
+	res := f.Mul(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.Mul(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	res = f.MulMod(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.MulMod(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	res = f.MulNoReduce(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.MulNoReduce(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// div
+	res = f.Div(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// square root
+	res = f.Sqrt(zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// exp
+	res = f.Exp(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	return nil
+}
+
+func TestFasthPaths(t *testing.T) {
+	testFastPaths[Goldilocks](t)
+	testFastPaths[BN254Fr](t)
+	testFastPaths[emparams.Mod1e512](t)
+}
+
+func testFastPaths[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	randVal, _ := rand.Int(rand.Reader, fp.Modulus())
+	circuit := &FastPathsCircuit[T]{}
+	assignment := &FastPathsCircuit[T]{Rand: ValueOf[T](randVal), Zero: ValueOf[T](0)}
+
+	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
+}
