@@ -3,6 +3,7 @@
 package icicle
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -258,10 +259,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			privateCommittedValues[i][j].SetBigInt(inJ)
 		}
 
-		var err error
-		if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
-			return err
+		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		ckBasisMsmDone := make(chan struct{})
+		var icicleError icicle_runtime.EIcicleError
+		icicle_runtime.RunOnDevice(&device, func(args ...any) {
+			cfg := icicle_msm.GetDefaultMSMConfig()
+			cfg.AreBasesMontgomeryForm = true
+			cfg.AreScalarsMontgomeryForm = true
+			icicleError = icicle_msm.Msm(icicle_core.HostSliceFromElements(privateCommittedValues[i]), icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis), &cfg, proofCommitmentIcicle)
+			close(ckBasisMsmDone)
+		})
+		<-ckBasisMsmDone
+		if icicleError != icicle_runtime.Success {
+			return errors.New(icicleError.AsString())
 		}
+		proof.Commitments[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[0])
 
 		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
 		hashBts := opt.HashToFieldFn.Sum(nil)
@@ -285,13 +297,37 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	wireValues := []fr.Element(solution.W)
 
 	start := time.Now()
-	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
+	numCommitmentKeys := len(pk.CommitmentKeys)
+	poks := make([]curve.G1Affine, numCommitmentKeys)
 
-	for i := range pk.CommitmentKeys {
-		var err error
-		if poks[i], err = pk.CommitmentKeys[i].ProveKnowledge(privateCommittedValues[i]); err != nil {
-			return nil, err
+	// if there are CommitmentKeys, run a batch MSM for pederson Proof of Knowledge
+	if numCommitmentKeys > 0 {
+		startPoKBatch := time.Now()
+		var basisExpSigmas []curve.G1Affine
+		var committedValues []fr.Element
+		for i := range pk.CommitmentKeys {
+			basisExpSigmas = append(basisExpSigmas, pk.CommitmentKeys[i].BasisExpSigma...)
+			committedValues = append(committedValues, privateCommittedValues[i]...)
 		}
+		
+		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], numCommitmentKeys)
+		ckBasisExpSigmaMsmBatchDone := make(chan struct{})
+		var icicleError icicle_runtime.EIcicleError
+		icicle_runtime.RunOnDevice(&device, func(args ...any) {
+			cfg := icicle_msm.GetDefaultMSMConfig()
+			cfg.AreBasesMontgomeryForm = true
+			cfg.AreScalarsMontgomeryForm = true
+			icicleError = icicle_msm.Msm(icicle_core.HostSliceFromElements(committedValues), icicle_core.HostSliceFromElements(basisExpSigmas), &cfg, proofCommitmentIcicle)
+			close(ckBasisExpSigmaMsmBatchDone)
+		})
+		<-ckBasisExpSigmaMsmBatchDone
+		if icicleError != icicle_runtime.Success {
+			return nil, errors.New(icicleError.AsString())
+		}
+		for i := range pk.CommitmentKeys {
+			poks[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[i])
+		}
+		log.Debug().Dur("took", time.Since(startPoKBatch)).Msg("ICICLE Batch Proof of Knowledge")
 	}
 	// compute challenge for folding the PoKs from the commitments
 	commitmentsSerialized := make([]byte, fr.Bytes*len(commitmentInfo))
