@@ -122,6 +122,42 @@ func TestMulFp6(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type fp6MulVariants struct {
+	A, B E6
+	C    E6 `gnark:",public"`
+}
+
+func (circuit *fp6MulVariants) Define(api frontend.API) error {
+	expected1 := E6{}
+	expected2 := E6{}
+
+	expected1.mulKaratsubaOverKaratsuba(api, circuit.A, circuit.B)
+	expected2.mulToom3OverKaratsuba(api, circuit.A, circuit.B)
+
+	expected1.AssertIsEqual(api, circuit.C)
+	expected2.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestMulVariantsFp6(t *testing.T) {
+
+	var circuit, witness fp6MulVariants
+
+	// witness values
+	var a, b, c bls12377.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Mul(&a, &b)
+
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
 type fp6MulBy01 struct {
 	A      E6
 	C0, C1 E2

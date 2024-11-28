@@ -78,7 +78,7 @@ func (c *MarshalG1Test) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	// the bits are layed out exactly as in gnark-crypto
+	// the bits are laid out exactly as in gnark-crypto
 	r := ec.MarshalG1(c.P)
 	for i := range c.R {
 		api.AssertIsEqual(r[i], c.R[i])
@@ -278,18 +278,17 @@ func TestConstantScalarMulG1(t *testing.T) {
 }
 
 type g1constantScalarMulEdgeCases struct {
-	A G1Affine
-	R *big.Int
+	A, Inf G1Affine
+	R      *big.Int
 }
 
 func (circuit *g1constantScalarMulEdgeCases) Define(api frontend.API) error {
 	expected1 := G1Affine{}
 	expected2 := G1Affine{}
-	infinity := G1Affine{X: 0, Y: 0}
 	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
-	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
-	expected1.AssertIsEqual(api, infinity)
-	expected2.AssertIsEqual(api, infinity)
+	expected2.constScalarMul(api, circuit.Inf, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, circuit.Inf)
+	expected2.AssertIsEqual(api, circuit.Inf)
 	return nil
 }
 
@@ -310,6 +309,9 @@ func TestConstantScalarMulG1EdgeCases(t *testing.T) {
 	r.BigInt(br)
 	// br is a circuit parameter
 	circuit.R = br
+
+	witness.Inf.X = 0
+	witness.Inf.Y = 0
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -353,18 +355,17 @@ func TestVarScalarMulG1(t *testing.T) {
 }
 
 type g1varScalarMulEdgeCases struct {
-	A G1Affine
-	R frontend.Variable
+	A, Inf  G1Affine
+	R, Zero frontend.Variable
 }
 
 func (circuit *g1varScalarMulEdgeCases) Define(api frontend.API) error {
 	expected1 := G1Affine{}
 	expected2 := G1Affine{}
-	infinity := G1Affine{X: 0, Y: 0}
-	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
-	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
-	expected1.AssertIsEqual(api, infinity)
-	expected2.AssertIsEqual(api, infinity)
+	expected2.varScalarMul(api, circuit.Inf, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.varScalarMul(api, circuit.A, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, circuit.Inf)
+	expected2.AssertIsEqual(api, circuit.Inf)
 	return nil
 }
 
@@ -381,6 +382,9 @@ func TestVarScalarMulG1EdgeCases(t *testing.T) {
 	witness.R = r.String()
 	// assign the inputs
 	witness.A.Assign(&a)
+	witness.Inf.X = 0
+	witness.Inf.Y = 0
+	witness.Zero = 0
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -626,9 +630,9 @@ func TestMultiScalarMul(t *testing.T) {
 }
 
 type g1JointScalarMulEdgeCases struct {
-	A, B G1Affine
-	C    G1Affine `gnark:",public"`
-	R, S frontend.Variable
+	A, B, Inf  G1Affine
+	C          G1Affine `gnark:",public"`
+	R, S, Zero frontend.Variable
 }
 
 func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
@@ -636,15 +640,14 @@ func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2 := G1Affine{}
 	expected3 := G1Affine{}
 	expected4 := G1Affine{}
-	infinity := G1Affine{X: 0, Y: 0}
-	expected1.jointScalarMul(api, infinity, infinity, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
-	expected2.jointScalarMul(api, circuit.A, circuit.B, big.NewInt(0), big.NewInt(0), algopts.WithCompleteArithmetic())
-	expected3.jointScalarMul(api, circuit.A, infinity, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
-	expected4.jointScalarMul(api, circuit.A, circuit.B, circuit.R, big.NewInt(0), algopts.WithCompleteArithmetic())
+	expected1.jointScalarMul(api, circuit.Inf, circuit.Inf, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
+	expected2.jointScalarMul(api, circuit.A, circuit.B, circuit.Zero, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected3.jointScalarMul(api, circuit.A, circuit.Inf, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
+	expected4.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.Zero, algopts.WithCompleteArithmetic())
 	_expected := G1Affine{}
 	_expected.ScalarMul(api, circuit.A, circuit.R, algopts.WithCompleteArithmetic())
-	expected1.AssertIsEqual(api, infinity)
-	expected2.AssertIsEqual(api, infinity)
+	expected1.AssertIsEqual(api, circuit.Inf)
+	expected2.AssertIsEqual(api, circuit.Inf)
 	expected3.AssertIsEqual(api, _expected)
 	expected4.AssertIsEqual(api, _expected)
 	return nil
@@ -675,6 +678,10 @@ func TestJointScalarMulG1EdgeCases(t *testing.T) {
 	_a.AddAssign(&_b)
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
+
+	witness.Inf.X = 0
+	witness.Inf.Y = 0
+	witness.Zero = 0
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -932,4 +939,82 @@ func TestMultiScalarMulFolded(t *testing.T) {
 		Scalars: make([]emulated.Element[ScalarField], nbLen),
 	}, &assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+}
+
+// fake GLV
+type scalarMulGLVAndFakeGLV struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *scalarMulGLVAndFakeGLV) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.scalarMulGLVAndFakeGLV(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG1GLVAndFakeGLV(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness scalarMulGLVAndFakeGLV
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type scalarMulGLVAndFakeGLVEdgeCases struct {
+	A, Inf       G1Affine
+	R, Zero, One frontend.Variable
+}
+
+func (circuit *scalarMulGLVAndFakeGLVEdgeCases) Define(api frontend.API) error {
+	expected1, expected2, expected3, expected4 := G1Affine{}, G1Affine{}, G1Affine{}, G1Affine{}
+	expected1.varScalarMul(api, circuit.A, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, circuit.Inf, circuit.R, algopts.WithCompleteArithmetic())
+	expected3.varScalarMul(api, circuit.Inf, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected4.varScalarMul(api, circuit.A, circuit.One, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, circuit.Inf)
+	expected2.AssertIsEqual(api, circuit.Inf)
+	expected3.AssertIsEqual(api, circuit.Inf)
+	expected4.AssertIsEqual(api, circuit.A)
+	return nil
+}
+
+func TestScalarMulG1GLVAndFakeGLVEdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness scalarMulGLVAndFakeGLVEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	witness.Inf.X = 0
+	witness.Inf.Y = 0
+	witness.Zero = 0
+	witness.One = 1
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }

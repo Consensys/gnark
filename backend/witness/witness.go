@@ -270,7 +270,7 @@ func (w *witness) ToJSON(s *schema.Schema) ([]byte, error) {
 	if s.NbPublic != int(w.nbPublic) || (w.nbSecret != 0 && w.nbSecret != uint32(s.NbSecret)) {
 		return nil, errors.New("schema is inconsistent with Witness")
 	}
-	typ := reflect.PtrTo(leafType(w.vector))
+	typ := reflect.PointerTo(leafType(w.vector))
 	instance := s.Instantiate(typ)
 
 	chValues := w.iterate()
@@ -308,7 +308,7 @@ func (w *witness) ToJSON(s *schema.Schema) ([]byte, error) {
 // This is a convenience method and should be avoided in most cases.
 func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 	typ := leafType(w.vector)
-	ptrTyp := reflect.PtrTo(typ)
+	ptrTyp := reflect.PointerTo(typ)
 
 	// we instantiate an object matching the schema, with leaf type == field element
 	// note that we pass a pointer here to have nil for zero values

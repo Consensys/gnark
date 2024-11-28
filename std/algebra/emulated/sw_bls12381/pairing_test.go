@@ -177,7 +177,7 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -186,10 +186,13 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bls12381.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bls12381.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
@@ -228,11 +231,13 @@ func TestGroupMembershipSolve(t *testing.T) {
 
 // bench
 func BenchmarkPairing(b *testing.B) {
-
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bls12381.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bls12381.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
@@ -270,6 +275,67 @@ func BenchmarkPairing(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	buf.Reset()
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+
+	b.Run("solve r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkFinalExponentiation(b *testing.B) {
+	// e(a,2b) * e(-2a,b) == 1
+	var gt bls12381.GT
+	gt.SetRandom()
+	res := bls12381.FinalExponentiation(&gt)
+	witness := FinalExponentiationCircuit{
+		InGt: NewGTEl(gt),
+		Res:  NewGTEl(res),
+	}
+	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		b.Fatal(err)
+	}
+	var ccs constraint.ConstraintSystem
+	b.Run("compile scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	var buf bytes.Buffer
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+	b.Run("solve scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("compile r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}

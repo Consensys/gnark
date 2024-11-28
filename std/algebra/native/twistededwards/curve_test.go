@@ -204,7 +204,7 @@ func TestCurve(t *testing.T) {
 // testData generates random test data for given curve
 // returns p1, p2 and r, d such that p1 + p2 == r and p1 + p1 == d
 // returns rs1, rs12, s1, s2 such that rs1 = p2 * s2 and rs12 = p1*s1 + p2 * s2
-// retunrs n such that n = -p2
+// returns n such that n = -p2
 func testData(params *CurveParams, curveID twistededwards.ID) (
 	_p1,
 	_p2,
@@ -418,4 +418,27 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
+}
+
+type varScalarMul struct {
+	curveID twistededwards.ID
+	P       Point
+	R       Point
+	S       frontend.Variable
+}
+
+func (circuit *varScalarMul) Define(api frontend.API) error {
+
+	// get edwards curve curve
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+
+	// scalar mul
+	res := curve.ScalarMul(circuit.P, circuit.S)
+	api.AssertIsEqual(res.X, circuit.R.X)
+	api.AssertIsEqual(res.Y, circuit.R.Y)
+
+	return nil
 }

@@ -309,8 +309,7 @@ func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	return builder.cs, nil
 }
 
-// ConstantValue returns the big.Int value of v.
-// Will panic if v.IsConstant() == false
+// ConstantValue returns the big.Int value of v and true if v is a constant, false otherwise
 func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	coeff, ok := builder.constantValue(v)
 	if !ok {
@@ -729,12 +728,14 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 		if _, ok := lookup[int(c.XA)]; ok {
 			res = append(res, [2]int{nbPub + constraintIdx, 0})
 			delete(lookup, int(c.XA))
-			continue
 		}
 		if _, ok := lookup[int(c.XB)]; ok {
 			res = append(res, [2]int{nbPub + constraintIdx, 1})
 			delete(lookup, int(c.XB))
-			continue
+		}
+		if _, ok := lookup[int(c.XC)]; ok {
+			res = append(res, [2]int{nbPub + constraintIdx, 2})
+			delete(lookup, int(c.XC))
 		}
 		if len(lookup) == 0 {
 			// we can break early if we found constraints for all the wires

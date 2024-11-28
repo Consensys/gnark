@@ -48,6 +48,18 @@ func (id ID) String() string {
 	}
 }
 
+// IDFromString returns the ID of a proof system from its string representation
+func IDFromString(s string) ID {
+	switch s {
+	case "groth16":
+		return GROTH16
+	case "plonk":
+		return PLONK
+	default:
+		return UNKNOWN
+	}
+}
+
 // ProverOption defines option for altering the behavior of the prover in
 // Prove, ReadAndProve and IsSolved methods. See the descriptions of functions
 // returning instances of this type for implemented options.
@@ -60,6 +72,7 @@ type ProverConfig struct {
 	ChallengeHash  hash.Hash
 	KZGFoldingHash hash.Hash
 	Accelerator    string
+	StatisticalZK  bool
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -129,6 +142,16 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 func WithIcicleAcceleration() ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.Accelerator = "icicle"
+		return nil
+	}
+}
+
+// WithStatisticalZeroKnowledge ensures that statistical zero knowledgeness is achieved.
+// This option makes the prover more memory costly, as there are 3 more size n (size of the circuit)
+// allocations.
+func WithStatisticalZeroKnowledge() ProverOption {
+	return func(pc *ProverConfig) error {
+		pc.StatisticalZK = true
 		return nil
 	}
 }

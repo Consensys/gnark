@@ -43,6 +43,11 @@ func (twelveLimbPrimeField) NbLimbs() uint     { return 12 }
 func (twelveLimbPrimeField) BitsPerLimb() uint { return 64 }
 func (twelveLimbPrimeField) IsPrime() bool     { return true }
 
+type oneLimbPrimeField struct{}
+
+func (oneLimbPrimeField) NbLimbs() uint { return 1 }
+func (oneLimbPrimeField) IsPrime() bool { return true }
+
 // Goldilocks provides type parametrization for field emulation:
 //   - limbs: 1
 //   - limb width: 64 bits
@@ -51,11 +56,9 @@ func (twelveLimbPrimeField) IsPrime() bool     { return true }
 //
 //	0xffffffff00000001 (base 16)
 //	18446744069414584321 (base 10)
-type Goldilocks struct{}
+type Goldilocks struct{ oneLimbPrimeField }
 
-func (fp Goldilocks) NbLimbs() uint     { return 1 }
 func (fp Goldilocks) BitsPerLimb() uint { return 64 }
-func (fp Goldilocks) IsPrime() bool     { return true }
 func (fp Goldilocks) Modulus() *big.Int { return goldilocks.Modulus() }
 
 // Secp256k1Fp provides type parametrization for field emulation:
@@ -282,6 +285,34 @@ type BLS24315Fr struct{ fourLimbPrimeField }
 
 func (fr BLS24315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
 
+// STARKCurveFp provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x800000000000011000000000000000000000000000000000000000000000001 (base 16)
+//	3618502788666131213697322783095070105623107215331596699973092056135872020481 (base 10)
+//
+// This is the base field of the STARK curve.
+type STARKCurveFp struct{ fourLimbPrimeField }
+
+func (fp STARKCurveFp) Modulus() *big.Int { return ecc.STARK_CURVE.BaseField() }
+
+// STARKCurveFr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x800000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2f (base 16)
+//	3618502788666131213697322783095070105526743751716087489154079457884512865583 (base 10)
+//
+// This is the scalar field of the STARK curve.
+type STARKCurveFr struct{ fourLimbPrimeField }
+
+func (fp STARKCurveFr) Modulus() *big.Int { return ecc.STARK_CURVE.ScalarField() }
+
 // Mod1e4096 provides type parametrization for emulated aritmetic:
 //   - limbs: 64
 //   - limb width: 64 bits
@@ -301,7 +332,7 @@ func (Mod1e4096) Modulus() *big.Int {
 	return val
 }
 
-// Mod1e512 provides type parametrization for emulated aritmetic:
+// Mod1e512 provides type parametrization for emulated arithmetic:
 //   - limbs: 8
 //   - limb width: 64 bits
 //
@@ -319,3 +350,54 @@ func (Mod1e512) Modulus() *big.Int {
 	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
 	return val
 }
+
+// Mod1e256 provides type parametrization for emulated arithmetic:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The modulus for type parametrisation is 2^256-1.
+//
+// This is non-prime modulus. It is mainly targeted for using variable-modulus
+// operations (ModAdd, ModMul, ModExp, ModAssertIsEqual) for variable modulus
+// arithmetic.
+type Mod1e256 struct{}
+
+func (Mod1e256) NbLimbs() uint     { return 4 }
+func (Mod1e256) BitsPerLimb() uint { return 64 }
+func (Mod1e256) IsPrime() bool     { return false }
+func (Mod1e256) Modulus() *big.Int {
+	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+	return val
+}
+
+// BabyBear provides type parametrization for field emulation:
+//   - limbs: 1
+//   - limb width: 31 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	15*2^27+1
+//	0x78000001 (base 16)
+//	2013265921 (base 10)
+//
+// The field has 2-adicity of 27.
+type BabyBear struct{ oneLimbPrimeField }
+
+func (BabyBear) BitsPerLimb() uint { return 31 }
+func (BabyBear) Modulus() *big.Int { return big.NewInt(2013265921) }
+
+// KoalaBear provides type parametrization for field emulation:
+//   - limbs: 1
+//   - limb width: 31 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	2^31-2^24+1
+//	0x7f000001 (base 16)
+//	2130706433 (base 10)
+//
+// The field has 2-adicity of 24.
+type KoalaBear struct{ oneLimbPrimeField }
+
+func (KoalaBear) BitsPerLimb() uint { return 31 }
+func (KoalaBear) Modulus() *big.Int { return big.NewInt(2130706433) }

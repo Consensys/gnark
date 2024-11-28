@@ -9,13 +9,13 @@ import (
 // solidityTemplate
 // this is an experimental feature and gnark solidity generator as not been thoroughly tested
 const solidityTemplate = `
-{{- $numPublic := sub (len .G1.K) 1 }}
-{{- $numCommitments := len .PublicAndCommitmentCommitted }}
+{{- $numPublic := sub (len .Vk.G1.K) 1 }}
+{{- $numCommitments := len .Vk.PublicAndCommitmentCommitted }}
 {{- $numWitness := sub $numPublic $numCommitments }}
-{{- $PublicAndCommitmentCommitted := .PublicAndCommitmentCommitted }}
+{{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity {{ .Cfg.PragmaVersion }};
 
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
@@ -75,49 +75,50 @@ contract Verifier {
     uint256 constant EXP_SQRT_FP = 0xC19139CB84C680A6E14116DA060561765E05AA45A1C72A34F082305B61F3F52; // (P + 1) / 4;
 
     // Groth16 alpha point in G1
-    uint256 constant ALPHA_X = {{.G1.Alpha.X.String}};
-    uint256 constant ALPHA_Y = {{.G1.Alpha.Y.String}};
+    uint256 constant ALPHA_X = {{ (fpstr .Vk.G1.Alpha.X) }};
+    uint256 constant ALPHA_Y = {{ (fpstr .Vk.G1.Alpha.Y) }};
 
     // Groth16 beta point in G2 in powers of i
-    uint256 constant BETA_NEG_X_0 = {{.G2.Beta.X.A0.String}};
-    uint256 constant BETA_NEG_X_1 = {{.G2.Beta.X.A1.String}};
-    uint256 constant BETA_NEG_Y_0 = {{.G2.Beta.Y.A0.String}};
-    uint256 constant BETA_NEG_Y_1 = {{.G2.Beta.Y.A1.String}};
+    uint256 constant BETA_NEG_X_0 = {{ (fpstr .Vk.G2.Beta.X.A0) }};
+    uint256 constant BETA_NEG_X_1 = {{ (fpstr .Vk.G2.Beta.X.A1) }};
+    uint256 constant BETA_NEG_Y_0 = {{ (fpstr .Vk.G2.Beta.Y.A0) }};
+    uint256 constant BETA_NEG_Y_1 = {{ (fpstr .Vk.G2.Beta.Y.A1) }};
 
     // Groth16 gamma point in G2 in powers of i
-    uint256 constant GAMMA_NEG_X_0 = {{.G2.Gamma.X.A0.String}};
-    uint256 constant GAMMA_NEG_X_1 = {{.G2.Gamma.X.A1.String}};
-    uint256 constant GAMMA_NEG_Y_0 = {{.G2.Gamma.Y.A0.String}};
-    uint256 constant GAMMA_NEG_Y_1 = {{.G2.Gamma.Y.A1.String}};
+    uint256 constant GAMMA_NEG_X_0 = {{ (fpstr .Vk.G2.Gamma.X.A0) }};
+    uint256 constant GAMMA_NEG_X_1 = {{ (fpstr .Vk.G2.Gamma.X.A1) }};
+    uint256 constant GAMMA_NEG_Y_0 = {{ (fpstr .Vk.G2.Gamma.Y.A0) }};
+    uint256 constant GAMMA_NEG_Y_1 = {{ (fpstr .Vk.G2.Gamma.Y.A1) }};
 
     // Groth16 delta point in G2 in powers of i
-    uint256 constant DELTA_NEG_X_0 = {{.G2.Delta.X.A0.String}};
-    uint256 constant DELTA_NEG_X_1 = {{.G2.Delta.X.A1.String}};
-    uint256 constant DELTA_NEG_Y_0 = {{.G2.Delta.Y.A0.String}};
-    uint256 constant DELTA_NEG_Y_1 = {{.G2.Delta.Y.A1.String}};
+    uint256 constant DELTA_NEG_X_0 = {{ (fpstr .Vk.G2.Delta.X.A0) }};
+    uint256 constant DELTA_NEG_X_1 = {{ (fpstr .Vk.G2.Delta.X.A1) }};
+    uint256 constant DELTA_NEG_Y_0 = {{ (fpstr .Vk.G2.Delta.Y.A0) }};
+    uint256 constant DELTA_NEG_Y_1 = {{ (fpstr .Vk.G2.Delta.Y.A1) }};
 
     {{- if gt $numCommitments 0 }}
     // Pedersen G point in G2 in powers of i
-    uint256 constant PEDERSEN_G_X_0 = {{.CommitmentKey.G.X.A0.String}};
-    uint256 constant PEDERSEN_G_X_1 = {{.CommitmentKey.G.X.A1.String}};
-    uint256 constant PEDERSEN_G_Y_0 = {{.CommitmentKey.G.Y.A0.String}};
-    uint256 constant PEDERSEN_G_Y_1 = {{.CommitmentKey.G.Y.A1.String}};
+    {{- $cmtVk0 := index .Vk.CommitmentKeys 0 }}
+    uint256 constant PEDERSEN_G_X_0 = {{ (fpstr $cmtVk0.G.X.A0) }};
+    uint256 constant PEDERSEN_G_X_1 = {{ (fpstr $cmtVk0.G.X.A1) }};
+    uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr $cmtVk0.G.Y.A0) }};
+    uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr $cmtVk0.G.Y.A1) }};
 
-    // Pedersen GRootSigmaNeg point in G2 in powers of i
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_0 = {{.CommitmentKey.GRootSigmaNeg.X.A0.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_1 = {{.CommitmentKey.GRootSigmaNeg.X.A1.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_0 = {{.CommitmentKey.GRootSigmaNeg.Y.A0.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_1 = {{.CommitmentKey.GRootSigmaNeg.Y.A1.String}};
+    // Pedersen GSigmaNeg point in G2 in powers of i
+    uint256 constant PEDERSEN_GSIGMANEG_X_0 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_X_1 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A1) }};
+    uint256 constant PEDERSEN_GSIGMANEG_Y_0 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_Y_1 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A1) }};
     {{- end }}
 
     // Constant and public input points
-    {{- $k0 := index .G1.K 0}}
-    uint256 constant CONSTANT_X = {{$k0.X.String}};
-    uint256 constant CONSTANT_Y = {{$k0.Y.String}};
-    {{- range $i, $ki := .G1.K }}
+    {{- $k0 := index .Vk.G1.K 0}}
+    uint256 constant CONSTANT_X = {{ (fpstr $k0.X) }};
+    uint256 constant CONSTANT_Y = {{ (fpstr $k0.Y) }};
+    {{- range $i, $ki := .Vk.G1.K }}
         {{- if gt $i 0 }}
-    uint256 constant PUB_{{sub $i 1}}_X = {{$ki.X.String}};
-    uint256 constant PUB_{{sub $i 1}}_Y = {{$ki.Y.String}};
+    uint256 constant PUB_{{sub $i 1}}_X = {{ (fpstr $ki.X) }};
+    uint256 constant PUB_{{sub $i 1}}_Y = {{ (fpstr $ki.Y) }};
         {{- end }}
     {{- end }}
 
@@ -189,7 +190,7 @@ contract Verifier {
     }
 
     /// Square test in Fp.
-    /// @notice Returns wheter a number x exists such that x * x = a in Fp.
+    /// @notice Returns whether a number x exists such that x * x = a in Fp.
     /// @notice Will revert with InvalidProof() if the input is not a square
     /// or not reduced.
     /// @param a the square
@@ -566,7 +567,7 @@ contract Verifier {
             {{- end }}
 
             publicCommitments[{{$i}}] = uint256(
-                sha256(
+                {{ hashFnName }}(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
                         commitments[{{sum (mul $i 2) 1}}],
@@ -578,16 +579,16 @@ contract Verifier {
             // Commitments
             pairings[ 0] = commitments[0];
             pairings[ 1] = commitments[1];
-            pairings[ 2] = PEDERSEN_G_X_1;
-            pairings[ 3] = PEDERSEN_G_X_0;
-            pairings[ 4] = PEDERSEN_G_Y_1;
-            pairings[ 5] = PEDERSEN_G_Y_0;
+            pairings[ 2] = PEDERSEN_GSIGMANEG_X_1;
+            pairings[ 3] = PEDERSEN_GSIGMANEG_X_0;
+            pairings[ 4] = PEDERSEN_GSIGMANEG_Y_1;
+            pairings[ 5] = PEDERSEN_GSIGMANEG_Y_0;
             pairings[ 6] = Px;
             pairings[ 7] = Py;
-            pairings[ 8] = PEDERSEN_GROOTSIGMANEG_X_1;
-            pairings[ 9] = PEDERSEN_GROOTSIGMANEG_X_0;
-            pairings[10] = PEDERSEN_GROOTSIGMANEG_Y_1;
-            pairings[11] = PEDERSEN_GROOTSIGMANEG_Y_0;
+            pairings[ 8] = PEDERSEN_G_X_1;
+            pairings[ 9] = PEDERSEN_G_X_0;
+            pairings[10] = PEDERSEN_G_Y_1;
+            pairings[11] = PEDERSEN_G_Y_0;
 
             // Verify pedersen commitments
             bool success;
@@ -713,7 +714,7 @@ contract Verifier {
         {{- end }}
 
             publicCommitments[{{$i}}] = uint256(
-                sha256(
+                {{ hashFnName }}(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
                         commitments[{{sum (mul $i 2) 1}}],
@@ -729,15 +730,15 @@ contract Verifier {
             let f := mload(0x40)
 
             calldatacopy(f, commitments, 0x40) // Copy Commitments
-            mstore(add(f, 0x40), PEDERSEN_G_X_1)
-            mstore(add(f, 0x60), PEDERSEN_G_X_0)
-            mstore(add(f, 0x80), PEDERSEN_G_Y_1)
-            mstore(add(f, 0xa0), PEDERSEN_G_Y_0)
+            mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
+            mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
+            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
+            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
             calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
-            mstore(add(f, 0x100), PEDERSEN_GROOTSIGMANEG_X_1)
-            mstore(add(f, 0x120), PEDERSEN_GROOTSIGMANEG_X_0)
-            mstore(add(f, 0x140), PEDERSEN_GROOTSIGMANEG_Y_1)
-            mstore(add(f, 0x160), PEDERSEN_GROOTSIGMANEG_Y_0)
+            mstore(add(f, 0x100), PEDERSEN_G_X_1)
+            mstore(add(f, 0x120), PEDERSEN_G_X_0)
+            mstore(add(f, 0x140), PEDERSEN_G_Y_1)
+            mstore(add(f, 0x160), PEDERSEN_G_Y_0)
 
             success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x180, f, 0x20)
             success := and(success, mload(f))

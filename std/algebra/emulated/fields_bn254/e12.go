@@ -114,6 +114,71 @@ func (e Ext12) Square(x *E12) *E12 {
 	}
 }
 
+// Granger--Scott cyclotomic square
+func (e Ext12) CyclotomicSquare(x *E12) *E12 {
+	t0 := e.Ext2.Square(&x.C1.B1)
+	t1 := e.Ext2.Square(&x.C0.B0)
+	t6 := e.Ext2.Add(&x.C1.B1, &x.C0.B0)
+	t6 = e.Ext2.Square(t6)
+	t6 = e.Ext2.Sub(t6, t0)
+	t6 = e.Ext2.Sub(t6, t1)
+	t2 := e.Ext2.Square(&x.C0.B2)
+	t3 := e.Ext2.Square(&x.C1.B0)
+	t7 := e.Ext2.Add(&x.C0.B2, &x.C1.B0)
+	t7 = e.Ext2.Square(t7)
+	t7 = e.Ext2.Sub(t7, t2)
+	t7 = e.Ext2.Sub(t7, t3)
+	t4 := e.Ext2.Square(&x.C1.B2)
+	t5 := e.Ext2.Square(&x.C0.B1)
+	t8 := e.Ext2.Add(&x.C1.B2, &x.C0.B1)
+	t8 = e.Ext2.Square(t8)
+	t8 = e.Ext2.Sub(t8, t4)
+	t8 = e.Ext2.Sub(t8, t5)
+	t8 = e.Ext2.MulByNonResidue(t8)
+	t0 = e.Ext2.MulByNonResidue(t0)
+	t0 = e.Ext2.Add(t0, t1)
+	t2 = e.Ext2.MulByNonResidue(t2)
+	t2 = e.Ext2.Add(t2, t3)
+	t4 = e.Ext2.MulByNonResidue(t4)
+	t4 = e.Ext2.Add(t4, t5)
+	z00 := e.Ext2.Sub(t0, &x.C0.B0)
+	z00 = e.Ext2.Double(z00)
+	z00 = e.Ext2.Add(z00, t0)
+	z01 := e.Ext2.Sub(t2, &x.C0.B1)
+	z01 = e.Ext2.Double(z01)
+	z01 = e.Ext2.Add(z01, t2)
+	z02 := e.Ext2.Sub(t4, &x.C0.B2)
+	z02 = e.Ext2.Double(z02)
+	z02 = e.Ext2.Add(z02, t4)
+	z10 := e.Ext2.Add(t8, &x.C1.B0)
+	z10 = e.Ext2.Double(z10)
+	z10 = e.Ext2.Add(z10, t8)
+	z11 := e.Ext2.Add(t6, &x.C1.B1)
+	z11 = e.Ext2.Double(z11)
+	z11 = e.Ext2.Add(z11, t6)
+	z12 := e.Ext2.Add(t7, &x.C1.B2)
+	z12 = e.Ext2.Double(z12)
+	z12 = e.Ext2.Add(z12, t7)
+	return &E12{
+		C0: E6{
+			B0: *z00,
+			B1: *z01,
+			B2: *z02,
+		},
+		C1: E6{
+			B0: *z10,
+			B1: *z11,
+			B2: *z12,
+		},
+	}
+}
+
+func (e Ext12) IsEqual(x, y *E12) frontend.Variable {
+	isC0Equal := e.Ext6.IsEqual(&x.C0, &y.C0)
+	isC1Equal := e.Ext6.IsEqual(&x.C1, &y.C1)
+	return e.api.And(isC0Equal, isC1Equal)
+}
+
 func (e Ext12) AssertIsEqual(x, y *E12) {
 	e.Ext6.AssertIsEqual(&x.C0, &y.C0)
 	e.Ext6.AssertIsEqual(&x.C1, &y.C1)
