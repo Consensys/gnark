@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"sync"
 
@@ -51,25 +53,23 @@ func main() {
 	}
 	wg.Wait()
 
-	fmt.Println("id,curve,backend,nbConstraints,nbWires")
-	for name, c := range snippets {
-		if r != nil && !r.MatchString(name) {
-			continue
-		}
-		ss := s.Stats[name]
-		for _, curve := range c.Curves {
-			for _, backendID := range backend.Implemented() {
-				cs := ss[backendID][stats.CurveIdx(curve)]
-				fmt.Printf("%s,%s,%s,%d,%d\n", name, curve, backendID, cs.NbConstraints, cs.NbInternalWires)
-			}
-		}
+	// write csv to buffer
+	var buf bytes.Buffer
+	if _, err := s.WriteTo(&buf); err != nil {
+		log.Fatal(err)
 	}
 
+	// print csv
+	fmt.Println(buf.String())
+
 	if *fSave {
-		const refPath = "../latest.stats"
-		if err := s.Save(refPath); err != nil {
+		const refPath = "../latest_stats.csv"
+		// write buffer to file
+
+		if err := os.WriteFile(refPath, buf.Bytes(), 0600); err != nil {
 			log.Fatal(err)
 		}
+
 		log.Println("successfully saved new reference stats file", refPath)
 	}
 

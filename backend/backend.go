@@ -48,6 +48,18 @@ func (id ID) String() string {
 	}
 }
 
+// IDFromString returns the ID of a proof system from its string representation
+func IDFromString(s string) ID {
+	switch s {
+	case "groth16":
+		return GROTH16
+	case "plonk":
+		return PLONK
+	default:
+		return UNKNOWN
+	}
+}
+
 // ProverOption defines option for altering the behavior of the prover in
 // Prove, ReadAndProve and IsSolved methods. See the descriptions of functions
 // returning instances of this type for implemented options.
@@ -126,7 +138,7 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 // tag and the ZEKNOX dependencies are properly installed. See [ZEKNOX] for
 // installation description.
 //
-// [ZEKNOX]: https://github.com/okx/cryptography_cuda
+// [ZEKNOX]: https://github.com/okx/zeknox
 func WithZeknoxAcceleration() ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.Accelerator = "zeknox"

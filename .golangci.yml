@@ -13,5 +13,7 @@ linters-settings:
   gosec:
     excludes:
       - G115 # Conversions from int -> uint etc.
+issues:
+  exclude-generated: disable
 run:
   issues-exit-code: 1

@@ -15,16 +15,21 @@ import (
 //
 // [MODEXP]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/expmod/index.html
 func Expmod[P emulated.FieldParams](api frontend.API, base, exp, modulus *emulated.Element[P]) *emulated.Element[P] {
-	// x^0 = 1
+	// x^0 = 1 (unless mod 0 or mod 1)
 	// x mod 0 = 0
+	// x mod 1 = 0
+	// 0^0 = 1 (unless mod 0 or mod 1)
+
 	f, err := emulated.NewField[P](api)
 	if err != nil {
 		panic(fmt.Sprintf("new field: %v", err))
 	}
-	// in case modulus is zero, then need to compute with dummy values and return zero as a result
+	// in case modulus is zero or one, then need to compute with dummy values and return zero as a result
 	isZeroMod := f.IsZero(modulus)
+	isOneMod := f.IsZero(f.Sub(modulus, f.One()))
+	isOneOrZeroMod := api.Or(isZeroMod, isOneMod)
 	modulus = f.Select(isZeroMod, f.One(), modulus)
 	res := f.ModExp(base, exp, modulus)
-	res = f.Select(isZeroMod, f.Zero(), res)
+	res = f.Select(isOneOrZeroMod, f.Zero(), res)
 	return res
 }

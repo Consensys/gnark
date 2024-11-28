@@ -85,7 +85,7 @@ You can also get in touch directly: gnark@consensys.net
 * [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
 * [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
 * [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
-* [LeastAuthority - July 2024 - gnark general and GKR (initial report)](audits/2024-07%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
+* [LeastAuthority - September 2024 - gnark general and GKR](audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
 
 ## Proving schemes and curves
 
@@ -162,21 +162,21 @@ func main() {
 ### GPU Support
 
 #### Zeknox Library
-Unlock free GPU acceleration with [OKX Zeknox library](https://github.com/okx/zeknox)
+Unlock free GPU acceleration with [OKX zeknox library](https://github.com/okx/zeknox).
 
-##### Download prebuilt binary
+##### Download prebuilt binaries
 ```sh
 curl -L -o libzeknox.a https://github.com/okx/zeknox/releases/download/v1.0.0/bn254-msm-86-89-90-libzeknox.a
 curl -L -o libblst.a https://github.com/okx/zeknox/releases/download/v1.0.0/libblst.a
 sudo cp libblst.a libzeknox.a /usr/local/lib/
 ```
 
-If you want to build from source, see guide in https://github.com/okx/zeknox
+If you want to build from source, see guide in https://github.com/okx/zeknox.
 
 ##### Enjoy GPU
 Run `groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
 
-Test
+##### Test
 ```go
 assert.ProverSucceeded(&mimcCircuit, &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
