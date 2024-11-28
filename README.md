@@ -162,14 +162,16 @@ func main() {
 ### GPU Support
 
 #### Zeknox Library
-Unlock free GPU acceleration with [OKX Zeknox library](https://github.com/okx/cryptography_cuda)
+Unlock free GPU acceleration with [OKX Zeknox library](https://github.com/okx/zeknox)
 
 ##### Download prebuilt binary
 ```sh
-sudo cp libblst.a libcryptocuda.a /usr/local/lib/
+curl -L -o libzeknox.a https://github.com/okx/zeknox/releases/download/v1.0.0/bn254-msm-86-89-90-libzeknox.a
+curl -L -o libblst.a https://github.com/okx/zeknox/releases/download/v1.0.0/libblst.a
+sudo cp libblst.a libzeknox.a /usr/local/lib/
 ```
 
-If you want to build from source, see guide in https://github.com/okx/cryptography_cuda
+If you want to build from source, see guide in https://github.com/okx/zeknox
 
 ##### Enjoy GPU
 Run `groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
