@@ -427,12 +427,8 @@ contract Verifier {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
-            {{- if eq $numCommitments 1 }}
             mstore(g, mload(commitments))
             mstore(add(g, 0x20), mload(add(commitments, 0x20)))
-            {{- else }}
-            success := and(success,  staticcall(gas(), PRECOMPILE_ADD, commitments, {{mul 0x40 $numCommitments}}, g, 0x40))
-            {{- end }}
             success := and(success,  staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
             {{- end }}
             {{- range $i := intRange $numPublic }}
