@@ -4,7 +4,6 @@ import (
 	cryptoecdsa "crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
 	"io"
 	"log"
 	"math/big"
@@ -73,22 +72,20 @@ func generateWitnessCircuit() EcdsaCircuit[emulated.P256Fp, emulated.P256Fr] {
 			!inner.ReadASN1Integer(r) ||
 			!inner.ReadASN1Integer(s) ||
 			!inner.Empty() {
-			panic("invalid sig")
+			log.Panicf("Invalid signature.")
 		}
 		flag := cryptoecdsa.Verify(&publicKey, msgHash[:], r, s)
 		if !flag {
-			println("can't verify signature")
+			log.Panicf("Can't verify signature.")
 		}
 
 		// hashIn += Pub[i].X + Pub[i].Y + Msg[i]
 		pubX := publicKey.X.Bytes()
 		pubY := publicKey.Y.Bytes()
-		// println("pubX:", hex.EncodeToString(pubX))
-		// println("pubY:", hex.EncodeToString(pubY))
-		// println("msgHash:", hex.EncodeToString(msgHash[:]))
 		hashIn = append(hashIn, pubX[:]...)
 		hashIn = append(hashIn, pubY[:]...)
 		hashIn = append(hashIn, msgHash[:]...)
+
 		// Assign to circuit witness
 		witness.Sig[i] = Signature[emulated.P256Fr]{
 			R: emulated.ValueOf[emulated.P256Fr](r),
@@ -102,7 +99,6 @@ func generateWitnessCircuit() EcdsaCircuit[emulated.P256Fp, emulated.P256Fr] {
 	}
 	hashOut := keccak256(hashIn)
 	hashOut[0] = 0 // ignore the first byte, since BN254 order < uint256
-	// println("hashOut:", hex.EncodeToString(hashOut[:]))
 	witness.Commitment = hashOut[:]
 	return witness
 }
@@ -162,7 +158,7 @@ func Groth16Prove(fileDir string) {
 
 	// CPU
 	for i := 0; i < 1; i++ {
-		fmt.Printf("------ CPU Prove %d ------", i+1)
+		log.Printf("------ CPU Prove %d ------", i+1)
 		witnessData, err := generateWitness()
 		if err != nil {
 			panic(err)
@@ -183,7 +179,7 @@ func Groth16Prove(fileDir string) {
 
 	// GPU
 	for i := 0; i < 1; i++ {
-		fmt.Printf("------ GPU Prove %d ------\n", i+1)
+		log.Printf("------ GPU Prove %d ------\n", i+1)
 		witnessData, err := generateWitness()
 		if err != nil {
 			panic(err)
@@ -198,8 +194,7 @@ func Groth16Prove(fileDir string) {
 			panic(err)
 		}
 		if err := groth16.Verify(proof, vk, publicWitness, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)); err != nil {
-			fmt.Printf("\nError in GPU Verify %d: %s\n\n", i+1, err)
-			// panic(err)
+			log.Panicf("\nError in GPU Verify %d: %s\n\n", i+1, err)
 		}
 	}
 }

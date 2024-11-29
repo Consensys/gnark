@@ -30,4 +30,5 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 }
 
 func (pk *ProvingKey) Free() {
+	// nothing to do here
 }

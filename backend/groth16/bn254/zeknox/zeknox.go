@@ -46,7 +46,6 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	// G1.A
 	deviceA := make(chan *device.HostOrDeviceSlice[curve.G1Affine], 1)
 	g.Go(func() error { return CopyToDevice(pk.G1.A, deviceA) })
-
 	// G1.B
 	deviceG1B := make(chan *device.HostOrDeviceSlice[curve.G1Affine], 1)
 	g.Go(func() error { return CopyToDevice(pk.G1.B, deviceG1B) })
@@ -62,7 +61,6 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	}
 	deviceK := make(chan *device.HostOrDeviceSlice[curve.G1Affine], 1)
 	g.Go(func() error { return CopyToDevice(pointsNoInfinity, deviceK) })
-	// g.Go(func() error { return CopyToDevice(pk.G1.K, deviceK) })
 
 	// G1.Z
 	deviceZ := make(chan *device.HostOrDeviceSlice[curve.G1Affine], 1)
@@ -333,65 +331,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		krs1.AddMixed(&deltas[2])
 		return nil
 	}
-
-	/*
-		computeKRS1 := func() error {
-			// filter the wire values if needed
-			// TODO Perf @Tabaie worst memory allocation offender
-			toRemove := commitmentInfo.GetPrivateCommitted()
-			toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
-			// original Groth16 witness without pedersen commitment
-			wireValuesWithoutCom := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
-
-			var deviceWireValuesWithoutCom *device.HostOrDeviceSlice[fr.Element]
-			chDeviceW := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-			sizeW := len(wireValuesWithoutCom)
-			// copy to GPU
-			if err := CopyToDevice(wireValuesWithoutCom[:sizeW], chDeviceW); err != nil {
-				return err
-			}
-			deviceWireValuesWithoutCom = <-chDeviceW
-			defer deviceWireValuesWithoutCom.Free()
-			// on GPU
-			startKrs := time.Now()
-			if err := gpuMsm(&krs1, &pk.G1Device.K, deviceWireValuesWithoutCom); err != nil {
-				return err
-			}
-			log.Debug().Dur(fmt.Sprintf("MSMG1 %d took", len(wireValues)), time.Since(startKrs)).Msg("GPU krs1 done")
-			// -rs[δ]
-			krs1.AddMixed(&deltas[2])
-			return nil
-		}
-	*/
-	/*
-		computeBS2 := func() error {
-			<-chWireValuesB
-			// Bs2 (1 multi exp G2 - size = len(wires))
-			var Bs, deltaS curve.G2Jac
-
-			var wireB *device.HostOrDeviceSlice[fr.Element]
-			chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
-			if err := CopyToDevice(wireValuesB, chWireB); err != nil {
-				return err
-			}
-			wireB = <-chWireB
-			defer wireB.Free()
-			startBs := time.Now()
-			if err := gpuMsm(&Bs, &pk.G2Device.B, wireB); err != nil {
-				return err
-			}
-
-			log.Debug().Dur(fmt.Sprintf("MSMG2 %v took", wireB.Len()), time.Since(startBs)).Msg("Bs done")
-
-			deltaS.FromAffine(&pk.G2.Delta)
-			deltaS.ScalarMultiplication(&deltaS, &s)
-			Bs.AddAssign(&deltaS)
-			Bs.AddMixed(&pk.G2.Beta)
-
-			proof.Bs.FromJacobian(&Bs)
-			return nil
-		}
-	*/
 
 	computeBS2_CPU := func() error {
 		// Bs2 (1 multi exp G2 - size = len(wires))
