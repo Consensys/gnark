@@ -147,15 +147,13 @@ func Build(api frontend.API, table Table, queries Table) error {
 }
 
 func randLinearCoefficients(api frontend.API, nbRow int, commitment frontend.Variable) (rowCoeffs []frontend.Variable, challenge frontend.Variable) {
-	if nbRow == 1 {
-		return []frontend.Variable{1}, commitment
-	}
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
 		panic(err)
 	}
 	rowCoeffs = make([]frontend.Variable, nbRow)
-	for i := 0; i < nbRow; i++ {
+	rowCoeffs[0] = 1
+	for i := 1; i < nbRow; i++ {
 		hasher.Reset()
 		hasher.Write(i+1, commitment)
 		rowCoeffs[i] = hasher.Sum()
