@@ -297,7 +297,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// The point (x,0) is of order 2. But this function does not check
 		// subgroup membership.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
-		xNegOverY[k] = pr.curveF.Eval([][]*baseEl{{&P[k].X, yInv[k]}}, []int{1})
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 

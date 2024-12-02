@@ -1154,11 +1154,11 @@ func (e Ext6) Frobenius(x *E6) *E6 {
 	_frobBC := emulated.ValueOf[emulated.BW6761Fp]("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292651")
 	var z E6
 	z.A0 = x.A0
-	z.A2 = *e.fp.Eval([][]*baseEl{{&x.A2, &_frobA}}, []int{1})
-	z.A4 = *e.fp.Eval([][]*baseEl{{&x.A4, &_frobB}}, []int{1})
-	z.A1 = *e.fp.Eval([][]*baseEl{{&x.A1, &_frobC}}, []int{1})
+	z.A2 = *e.fp.Mul(&x.A2, &_frobA)
+	z.A4 = *e.fp.Mul(&x.A4, &_frobB)
+	z.A1 = *e.fp.Mul(&x.A1, &_frobC)
 	z.A3 = *e.fp.Neg(&x.A3)
-	z.A5 = *e.fp.Eval([][]*baseEl{{&x.A5, &_frobBC}}, []int{1})
+	z.A5 = *e.fp.Mul(&x.A5, &_frobBC)
 
 	return &z
 }
