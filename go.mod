@@ -35,5 +35,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-// replace github.com/ingonyama-zk/icicle/v3 v3.1.0 => ../icicle
