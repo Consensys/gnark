@@ -3,7 +3,6 @@
 package icicle
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -261,18 +260,16 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		ckBasisMsmDone := make(chan struct{})
-		var icicleError icicle_runtime.EIcicleError
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			icicleError = icicle_msm.Msm(icicle_core.HostSliceFromElements(privateCommittedValues[i]), icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis), &cfg, proofCommitmentIcicle)
+			if err := icicle_msm.Msm(icicle_core.HostSliceFromElements(privateCommittedValues[i]), icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis), &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
+				panic(fmt.Sprintf("commitment: %s", err.AsString()))
+			}
 			close(ckBasisMsmDone)
 		})
 		<-ckBasisMsmDone
-		if icicleError != icicle_runtime.Success {
-			return errors.New(icicleError.AsString())
-		}
 		proof.Commitments[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[0])
 
 		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
@@ -309,21 +306,19 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			basisExpSigmas = append(basisExpSigmas, pk.CommitmentKeys[i].BasisExpSigma...)
 			committedValues = append(committedValues, privateCommittedValues[i]...)
 		}
-		
+
 		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], numCommitmentKeys)
 		ckBasisExpSigmaMsmBatchDone := make(chan struct{})
-		var icicleError icicle_runtime.EIcicleError
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			icicleError = icicle_msm.Msm(icicle_core.HostSliceFromElements(committedValues), icicle_core.HostSliceFromElements(basisExpSigmas), &cfg, proofCommitmentIcicle)
+			if err := icicle_msm.Msm(icicle_core.HostSliceFromElements(committedValues), icicle_core.HostSliceFromElements(basisExpSigmas), &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
+				panic(fmt.Sprintf("commitment POK: %s", err.AsString()))
+			}
 			close(ckBasisExpSigmaMsmBatchDone)
 		})
 		<-ckBasisExpSigmaMsmBatchDone
-		if icicleError != icicle_runtime.Success {
-			return nil, errors.New(icicleError.AsString())
-		}
 		for i := range pk.CommitmentKeys {
 			poks[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[i])
 		}
