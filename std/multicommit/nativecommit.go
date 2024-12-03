@@ -20,12 +20,20 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/std/math/fieldextension"
 )
 
 type multicommitter struct {
-	closed bool
-	vars   []frontend.Variable
-	cbs    []WithCommitmentFn
+	closed   bool
+	vars     []frontend.Variable
+	cbs      []WithCommitmentFn
+	wcbs     []wcbInfo
+	maxWidth int
+}
+
+type wcbInfo struct {
+	cb    WithWideCommitmentFn
+	width int
 }
 
 type ctxMulticommitterKey struct{}
@@ -80,27 +88,56 @@ func getCached(api frontend.API) *multicommitter {
 func (mct *multicommitter) commitAndCall(api frontend.API) error {
 	// close collecting input in case anyone wants to check more variables to commit to.
 	mct.closed = true
-	if len(mct.cbs) == 0 {
+	if len(mct.cbs) == 0 && len(mct.wcbs) == 0 {
 		// shouldn't happen. we defer this function on creating multicommitter
 		// instance. It is probably some race.
 		panic("calling committer with zero callbacks")
 	}
-	committer, ok := api.Compiler().(frontend.Committer)
-	if !ok {
-		panic("compiler doesn't implement frontend.Committer")
+	var rootCmt []frontend.Variable
+	var err error
+	if len(mct.wcbs) > 0 && mct.maxWidth > 1 {
+		committer, ok := api.Compiler().(frontend.WideCommitter)
+		if !ok {
+			panic("compiler doesn't implement frontend.WideCommitter")
+		}
+		rootCmt, err = committer.WideCommit(mct.maxWidth, mct.vars...)
+		if err != nil {
+			return fmt.Errorf("wide commit: %w", err)
+		}
+	} else {
+		committer, ok := api.Compiler().(frontend.Committer)
+		if !ok {
+			panic("compiler doesn't implement frontend.Committer")
+		}
+		rootCmt = make([]frontend.Variable, 1)
+		rootCmt[0], err = committer.Commit(mct.vars...)
+		if err != nil {
+			return fmt.Errorf("commit: %w", err)
+		}
 	}
-	rootCmt, err := committer.Commit(mct.vars...)
-	if err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-	cmt := rootCmt
-	if err = mct.cbs[0](api, cmt); err != nil {
-		return fmt.Errorf("callback 0: %w", err)
-	}
-	for i := 1; i < len(mct.cbs); i++ {
-		cmt = api.Mul(rootCmt, cmt)
+	cmt := rootCmt[0]
+	for i := 0; i < len(mct.cbs); i++ {
+		if i > 0 {
+			cmt = api.Mul(rootCmt[0], cmt)
+		}
 		if err := mct.cbs[i](api, cmt); err != nil {
 			return fmt.Errorf("callback %d: %w", i, err)
+		}
+	}
+	if len(mct.wcbs) == 0 {
+		return nil
+	}
+	fe, err := fieldextension.NewExtension(api, fieldextension.WithDegree(mct.maxWidth))
+	if err != nil {
+		return fmt.Errorf("create field extension: %w", err)
+	}
+	wCmt := rootCmt
+	for i := range len(mct.wcbs) {
+		if i > 0 {
+			wCmt = fe.Mul(wCmt, rootCmt)
+		}
+		if err := mct.wcbs[i].cb(api, wCmt[:mct.wcbs[i].width]); err != nil {
+			return fmt.Errorf("wide callback %d: %w", i, err)
 		}
 	}
 	return nil
@@ -115,6 +152,10 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 // leads to panic. However, the method can call defer for other callbacks.
 type WithCommitmentFn func(api frontend.API, commitment frontend.Variable) error
 
+// WithWideCommitmentFn is as [WidthCommitmentFn], but instead receives a slice
+// of commitments. The commitments is generated in the extension field.
+type WithWideCommitmentFn func(api frontend.API, commitment []frontend.Variable) error
+
 // WithCommitment schedules the function cb to be called with a unique
 // commitment. We append the variables committedVariables to be committed to
 // with the native [frontend.Committer] interface.
@@ -125,4 +166,14 @@ func WithCommitment(api frontend.API, cb WithCommitmentFn, committedVariables ..
 	}
 	mct.vars = append(mct.vars, committedVariables...)
 	mct.cbs = append(mct.cbs, cb)
+}
+
+func WithWideCommitment(api frontend.API, cb WithWideCommitmentFn, width int, committedVariable ...frontend.Variable) {
+	mct := getCached(api)
+	if mct.closed {
+		panic("called WithCommitment recursively")
+	}
+	mct.maxWidth = max(mct.maxWidth, width)
+	mct.vars = append(mct.vars, committedVariable...)
+	mct.wcbs = append(mct.wcbs, wcbInfo{cb: cb, width: width})
 }
