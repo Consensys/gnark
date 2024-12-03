@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/test"
 )
 
@@ -51,7 +53,7 @@ func TestMultipleCommitments(t *testing.T) {
 	circuit := multipleCommitmentCircuit{}
 	assignment := multipleCommitmentCircuit{X: 10}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254)) // right now PLONK doesn't implement commitment
+	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254))
 }
 
 type noCommitVariable struct {
@@ -70,4 +72,34 @@ func TestNoCommitVariable(t *testing.T) {
 	assignment := noCommitVariable{X: 10}
 	assert := test.NewAssert(t)
 	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254))
+}
+
+type wideCommitment struct {
+	X frontend.Variable
+}
+
+func (c *wideCommitment) Define(api frontend.API) error {
+	WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		api.AssertIsDifferent(commitment, 0)
+		return nil
+	}, c.X)
+	WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+		fe, err := fieldextension.NewExtension(api, fieldextension.WithDegree(8))
+		if err != nil {
+			return err
+		}
+		res := fe.Mul(commitment, commitment)
+		for i := range res {
+			api.AssertIsDifferent(res[i], 0)
+		}
+		return nil
+	}, 8, c.X)
+	return nil
+}
+
+func TestWideCommitment(t *testing.T) {
+	assert := test.NewAssert(t)
+	err := test.IsSolved(&wideCommitment{}, &wideCommitment{X: 10}, babybear.Modulus())
+	// TODO: when we have implemented for PLONK, then also check for that. We're never going to implement for Groth16
+	assert.NoError(err)
 }
