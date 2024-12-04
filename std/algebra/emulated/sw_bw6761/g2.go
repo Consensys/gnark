@@ -151,7 +151,7 @@ func (g2 *G2) double(p *G2Affine) *G2Affine {
 	mone := g2.curveF.NewElement(-1)
 	xr := g2.curveF.Eval([][]*baseEl{{λ, λ}, {mone, &p.P.X}}, []int{1, 2})
 
-	// yr = λ(p-xr) - p.y
+	// yr = λ(p.x-xr) - p.y
 	yr := g2.curveF.Eval([][]*baseEl{{λ, &p.P.X}, {mone, λ, xr}, {mone, &p.P.Y}}, []int{1, 1, 1})
 
 	return &G2Affine{
