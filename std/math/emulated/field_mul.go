@@ -838,7 +838,7 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 // As it only depends on the bit-length of the inputs, then we can precompute it
 // regardless of the actual values.
 func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize int) {
-	modBits := f.fParams.Modulus().BitLen()
+	var fp T
 	quoSizes := make([]int, len(mv.Terms))
 	for i, term := range mv.Terms {
 		// for every term, the result length is the sum of the lengths of the
@@ -846,11 +846,11 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 		var lengths []int
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
-				lengths = append(lengths, modBits+int(at[j].overflow))
+				lengths = append(lengths, len(at[j].Limbs)*int(fp.BitsPerLimb())+int(at[j].overflow))
 			}
 		}
 		lengths = append(lengths, bits.Len(uint(mv.Coefficients[i])))
-		quoSizes[i] = sum(lengths...)
+		quoSizes[i] = sum(lengths...) - 1
 	}
 	// and for the full result, it is maximum of the inputs. We also add a bit
 	// for every term for overflow.
