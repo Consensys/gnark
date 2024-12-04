@@ -402,22 +402,24 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 	line1.R0 = *l1
 	line1.R1 = *pr.curveF.Eval([][]*baseEl{{l1, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
 
-	// compute λ2 = -λ1+2y1/(x1-x3)
-	d = pr.curveF.Inverse(pr.curveF.Sub(&p1.X, x3))
-	l2 := pr.curveF.Eval([][]*baseEl{{mone, l1}, {&p1.Y, d}}, []int{1, 2})
+	// compute -λ2 = λ1+2y1/(x3-x1)
+	ypyp := pr.curveF.MulConst(&p1.Y, big.NewInt(2))
+	x2xp := pr.curveF.Sub(x3, &p1.X)
+	l2 := pr.curveF.Div(ypyp, x2xp)
+	l2 = pr.curveF.Add(l1, l2)
 
-	// compute x4 = λ2²-x1-x3
+	// compute x4 = (-λ2)²-x1-x3
 	x4 := pr.curveF.Eval([][]*baseEl{{l2, l2}, {mone, &p1.X}, {mone, x3}}, []int{1, 1, 1})
 
-	// compute y4 = λ2(x1 - x4)-y1
-	y4 := pr.curveF.Eval([][]*baseEl{{l2, pr.curveF.Sub(&p1.X, x4)}, {mone, &p1.Y}}, []int{1, 1})
+	// compute y4 = -λ2(-x1 + x4)-y1
+	y4 := pr.curveF.Eval([][]*baseEl{{l2, pr.curveF.Sub(x4, &p1.X)}, {mone, &p1.Y}}, []int{1, 1})
 
 	p.X = *x4
 	p.Y = *y4
 
 	// compute line2
-	line2.R0 = *l2
-	line2.R1 = *pr.curveF.Eval([][]*baseEl{{l2, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
+	line2.R0 = *pr.curveF.Neg(l2)
+	line2.R1 = *pr.curveF.Eval([][]*baseEl{{mone, l2, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
 
 	return &p, &line1, &line2
 }
