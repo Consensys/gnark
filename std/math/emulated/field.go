@@ -54,9 +54,7 @@ type ctxKey[T FieldParams] struct{}
 
 // NewField returns an object to be used in-circuit to perform emulated
 // arithmetic over the field defined by type parameter [FieldParams]. The
-// operations on this type are defined on [Element]. There is also another type
-// [FieldAPI] implementing [frontend.API] which can be used in place of native
-// API for existing circuits.
+// operations on this type are defined on [Element].
 //
 // This is an experimental feature and performing emulated arithmetic in-circuit
 // is extremely costly. See package doc for more info.
