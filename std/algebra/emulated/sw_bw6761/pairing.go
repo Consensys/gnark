@@ -374,21 +374,27 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 }
 
-// doubleAndSubStep doubles p1 and subs p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// doubleAndAddStep doubles p1 and adds or subs p2 to the result in affine coordinates, based on the isSub boolean.
+// Then evaluates the lines going through p1 and p2 or -p2 (line1) and p1 and p1+p2 or p1-p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
-	mone := pr.curveF.NewElement(-1)
 
-	// compute λ1 = (y2-y1)/(x2-x1)
-	n := pr.curveF.Add(&p1.Y, &p2.Y)
+	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
+	var n *emulated.Element[BaseField]
+	if isSub {
+		n = pr.curveF.Add(&p1.Y, &p2.Y)
+	} else {
+		n = pr.curveF.Sub(&p1.Y, &p2.Y)
+	}
 	d := pr.curveF.Sub(&p1.X, &p2.X)
 	l1 := pr.curveF.Div(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x3 := pr.curveF.Eval([][]*baseEl{{l1, l1}, {mone, &p1.X}, {mone, &p2.X}}, []int{1, 1, 1})
+	x3 := pr.curveF.Mul(l1, l1)
+	x3 = pr.curveF.Sub(x3, pr.curveF.Add(&p1.X, &p2.X))
 
 	// omit y3 computation
 
@@ -399,16 +405,18 @@ func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
 	n = pr.curveF.MulConst(&p1.Y, big.NewInt(2))
-	d = pr.curveF.Sub(x3, &p1.X)
+	d = pr.curveF.Sub(&p1.X, x3)
 	l2 := pr.curveF.Div(n, d)
-	l2 = pr.curveF.Add(l2, l1)
-	l2 = pr.curveF.Neg(l2)
+	l2 = pr.curveF.Sub(l2, l1)
 
 	// compute x4 = λ2²-x1-x3
-	x4 := pr.curveF.Eval([][]*baseEl{{l2, l2}, {mone, &p1.X}, {mone, x3}}, []int{1, 1, 1})
+	x4 := pr.curveF.Mul(l2, l2)
+	x4 = pr.curveF.Sub(x4, pr.curveF.Add(&p1.X, x3))
 
 	// compute y4 = λ2(x1 - x4)-y1
-	y4 := pr.curveF.Eval([][]*baseEl{{l2, &p1.X}, {mone, l2, x4}, {mone, &p1.Y}}, []int{1, 1, 1})
+	y4 := pr.curveF.Sub(&p1.X, x4)
+	y4 = pr.curveF.Mul(l2, y4)
+	y4 = pr.curveF.Sub(y4, &p1.Y)
 
 	p.X = *x4
 	p.Y = *y4
