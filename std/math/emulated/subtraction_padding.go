@@ -26,6 +26,12 @@ func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint
 	if modulus.Cmp(big.NewInt(0)) == 0 {
 		panic("modulus is zero")
 	}
+	// we ensure that the number of padding limbs is sufficient to represent the
+	// modulus
+	requiredLimbs := (uint(modulus.BitLen()) + bitsPerLimbs - 1) / bitsPerLimbs
+	if nbLimbs < requiredLimbs {
+		nbLimbs = requiredLimbs
+	}
 	// first, we build a number nLimbs, such that nLimbs > b;
 	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
 	// so a number nLimbs > b, is simply taking the next power of 2 over this bound .
