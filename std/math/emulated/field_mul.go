@@ -262,7 +262,7 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 	return a
 }
 
-// performMulChecks should be deferred to actually perform all the
+// performDeferredChecks should be deferred to actually perform all the
 // multiplication checks.
 func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
