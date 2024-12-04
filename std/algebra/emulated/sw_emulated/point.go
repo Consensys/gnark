@@ -195,10 +195,10 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	λ := c.baseApi.Div(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
-	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
+	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
 
 	// p.y = λ(p.x-r.x) - p.y
-	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
+	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
@@ -307,7 +307,7 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}}, []int{1, 2})
 
 	// yr = λ(p-xr) - p.y
-	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
+	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
@@ -351,7 +351,7 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
 	// yr = λ(p.x-xr) - p.y
-	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, &p.X}, {mone, λ2, xr}, {mone, &p.Y}}, []int{1, 1, 1})
+	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(&p.X, xr)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
@@ -379,7 +379,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	λ1 := c.baseApi.Div(yqyp, xqxp)
 
 	// compute x2 = λ1²-p.x-q.x
-	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
+	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
 
 	// omit y2 computation
 	// compute λ2 = λ1+2*p.y/(x2-p.x)
@@ -392,7 +392,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
 	// compute y3 = λ2*(-p.x + x3)-p.y
-	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, x3}, {mone, λ2, &p.X}, {mone, &p.Y}}, []int{1, 1, 1})
+	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(x3, &p.X)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(x3),
