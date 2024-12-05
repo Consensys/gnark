@@ -165,10 +165,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
 		// and proceed further.
 		selector1 = pr.Ext6.IsZero(&e.C1)
-		e = &fields_bls12381.E12{
-			C0: e.C0,
-			C1: *pr.Ext6.Select(selector1, _dummy, &e.C1),
-		}
+		e.C1.B0.A0 = *pr.curveF.Select(selector1, pr.curveF.One(), &e.C1.B0.A0)
 	}
 
 	// Torus compression absorbed:

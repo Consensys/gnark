@@ -2,6 +2,7 @@ package evmprecompiles
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -259,4 +260,41 @@ func TestInvalidFailureTag(t *testing.T) {
 	witness.IsFailure = 1
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.Error(err)
+}
+
+func TestLargeV(t *testing.T) {
+	assert := test.NewAssert(t)
+	var pk ecdsa.PublicKey
+	msg := []byte("test")
+	var rE, sE fr.Element
+	r, s := new(big.Int), new(big.Int)
+	for _, v := range []uint{2, 3} {
+		for {
+			rE.SetRandom()
+			sE.SetRandom()
+			rE.BigInt(r)
+			sE.BigInt(s)
+			if err := pk.RecoverFrom(msg, v, r, s); errors.Is(err, ecdsa.ErrNoSqrtR) {
+				continue
+			} else {
+				assert.NoError(err)
+				break
+			}
+		}
+		circuit := ecrecoverCircuit{}
+		witness := ecrecoverCircuit{
+			Message:   emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
+			V:         v + 27, // EVM constant
+			R:         emulated.ValueOf[emulated.Secp256k1Fr](r),
+			S:         emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Strict:    0,
+			IsFailure: 0,
+			Expected: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, ecc.BLS12_377.ScalarField())
+		assert.Error(err)
+	}
 }

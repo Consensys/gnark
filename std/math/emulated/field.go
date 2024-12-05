@@ -47,7 +47,7 @@ type Field[T FieldParams] struct {
 	constrainedLimbs map[[16]byte]struct{}
 	checker          frontend.Rangechecker
 
-	mulChecks []mulCheck[T]
+	deferredChecks []deferredChecker
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -103,7 +103,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
-	native.Compiler().Defer(f.performMulChecks)
+	native.Compiler().Defer(f.performDeferredChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
 	}
@@ -129,14 +129,17 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	if e, ok := v.([]frontend.Variable); ok {
 		return f.packLimbs(e, true)
 	}
-	c := ValueOf[T](v)
-	return &c
+	// the input was not a variable, so it must be a constant. Create a new
+	// element from it while setting isWitness flag to false. This ensures that
+	// we use the minimal number of limbs necessary.
+	c := newConstElement[T](v, false)
+	return c
 }
 
 // Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
-		f.zeroConst = newConstElement[T](0)
+		f.zeroConst = f.newInternalElement([]frontend.Variable{}, 0)
 	})
 	return f.zeroConst
 }
@@ -144,23 +147,15 @@ func (f *Field[T]) Zero() *Element[T] {
 // One returns one as a constant.
 func (f *Field[T]) One() *Element[T] {
 	f.oneConstOnce.Do(func() {
-		f.oneConst = newConstElement[T](1)
+		f.oneConst = f.newInternalElement([]frontend.Variable{1}, 0)
 	})
 	return f.oneConst
-}
-
-// shortOne returns one as a constant stored in a single limb.
-func (f *Field[T]) shortOne() *Element[T] {
-	f.shortOneConstOnce.Do(func() {
-		f.shortOneConst = f.newInternalElement([]frontend.Variable{1}, 0)
-	})
-	return f.shortOneConst
 }
 
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
-		f.nConst = newConstElement[T](f.fParams.Modulus())
+		f.nConst = newConstElement[T](f.fParams.Modulus(), false)
 	})
 	return f.nConst
 }
@@ -168,7 +163,7 @@ func (f *Field[T]) Modulus() *Element[T] {
 // modulusPrev returns modulus-1 as a constant.
 func (f *Field[T]) modulusPrev() *Element[T] {
 	f.nprevConstOnce.Do(func() {
-		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)))
+		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)), false)
 	})
 	return f.nprevConst
 }
@@ -279,6 +274,18 @@ func max[T constraints.Ordered](a ...T) T {
 		if v > m {
 			m = v
 		}
+	}
+	return m
+}
+
+func sum[T constraints.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
+	}
+	m := a[0]
+	for _, v := range a[1:] {
+		m += v
 	}
 	return m
 }

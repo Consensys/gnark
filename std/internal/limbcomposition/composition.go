@@ -12,9 +12,6 @@ import (
 //
 //	res = \sum_{i=0}^{len(inputs)} inputs[i] * 2^{nbBits * i}
 func Recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
-	if len(inputs) == 0 {
-		return fmt.Errorf("zero length slice input")
-	}
 	if res == nil {
 		return fmt.Errorf("result not initialized")
 	}

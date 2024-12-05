@@ -434,6 +434,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 	if err != nil {
 		return err
 	}
+	if cfg.HashToFieldFn != nil {
+		return fmt.Errorf("setting hash to field function is not supported for PLONK Solidity export. Hash function is hardcoded to RFC9380")
+	}
 
 	return t.Execute(w, struct {
 		Cfg solidity.ExportConfig

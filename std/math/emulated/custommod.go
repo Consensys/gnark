@@ -14,6 +14,10 @@ import (
 //
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Element[T] {
+	// fast path when either of the inputs is zero then result is always zero
+	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+		return f.Zero()
+	}
 	res := f.mulMod(a, b, 0, modulus)
 	return res
 }
@@ -33,9 +37,9 @@ func (f *Field[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	for nextOverflow, err = f.addPreCond(a, b); errors.As(err, &target); nextOverflow, err = f.addPreCond(a, b) {
 		if errors.As(err, &target) {
 			if !target.reduceRight {
-				a = f.mulMod(a, f.shortOne(), 0, modulus)
+				a = f.mulMod(a, f.One(), 0, modulus)
 			} else {
-				b = f.mulMod(b, f.shortOne(), 0, modulus)
+				b = f.mulMod(b, f.One(), 0, modulus)
 			}
 		}
 	}
@@ -93,6 +97,10 @@ func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 //
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
+	// fasth path when the base is zero then result is always zero
+	if len(base.Limbs) == 0 {
+		return f.Zero()
+	}
 	expBts := f.ToBits(exp)
 	n := len(expBts)
 	res := f.Select(expBts[0], base, f.One())

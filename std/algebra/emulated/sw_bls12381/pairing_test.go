@@ -330,3 +330,64 @@ func BenchmarkPairing(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkFinalExponentiation(b *testing.B) {
+	// e(a,2b) * e(-2a,b) == 1
+	var gt bls12381.GT
+	gt.SetRandom()
+	res := bls12381.FinalExponentiation(&gt)
+	witness := FinalExponentiationCircuit{
+		InGt: NewGTEl(gt),
+		Res:  NewGTEl(res),
+	}
+	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		b.Fatal(err)
+	}
+	var ccs constraint.ConstraintSystem
+	b.Run("compile scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	var buf bytes.Buffer
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+	b.Run("solve scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("compile r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	buf.Reset()
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+
+	b.Run("solve r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}

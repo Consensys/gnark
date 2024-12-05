@@ -34,35 +34,35 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 			return ret, fmt.Errorf("expected *ped_bls12377.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls12377.NewG2Affine(tVk.G)
-		s.GRootSigmaNeg = sw_bls12377.NewG2Affine(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls12377.NewG2Affine(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bls12381.G2Affine]:
 		tVk, ok := vk.(*ped_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bls12381.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls12381.NewG2Affine(tVk.G)
-		s.GRootSigmaNeg = sw_bls12381.NewG2Affine(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls12381.NewG2Affine(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bls24315.G2Affine]:
 		tVk, ok := vk.(*ped_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bls24315.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls24315.NewG2Affine(tVk.G)
-		s.GRootSigmaNeg = sw_bls24315.NewG2Affine(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls24315.NewG2Affine(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*ped_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bw6761.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bw6761.NewG2Affine(tVk.G)
-		s.GRootSigmaNeg = sw_bw6761.NewG2Affine(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bw6761.NewG2Affine(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bn254.G2Affine]:
 		tVk, ok := vk.(*ped_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bn254.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bn254.NewG2Affine(tVk.G)
-		s.GRootSigmaNeg = sw_bn254.NewG2Affine(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bn254.NewG2Affine(tVk.GSigmaNeg)
 	default:
 		panic(fmt.Sprintf("unknown parametric type: %T", s))
 	}
@@ -82,35 +82,35 @@ func ValueOfVerifyingKeyFixed[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2E
 			return ret, fmt.Errorf("expected *ped_bls12377.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls12377.NewG2AffineFixed(tVk.G)
-		s.GRootSigmaNeg = sw_bls12377.NewG2AffineFixed(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls12377.NewG2AffineFixed(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bls12381.G2Affine]:
 		tVk, ok := vk.(*ped_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bls12381.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls12381.NewG2AffineFixed(tVk.G)
-		s.GRootSigmaNeg = sw_bls12381.NewG2AffineFixed(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls12381.NewG2AffineFixed(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bls24315.G2Affine]:
 		tVk, ok := vk.(*ped_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bls24315.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bls24315.NewG2AffineFixed(tVk.G)
-		s.GRootSigmaNeg = sw_bls24315.NewG2AffineFixed(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bls24315.NewG2AffineFixed(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*ped_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bw6761.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bw6761.NewG2AffineFixed(tVk.G)
-		s.GRootSigmaNeg = sw_bw6761.NewG2AffineFixed(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bw6761.NewG2AffineFixed(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bn254.G2Affine]:
 		tVk, ok := vk.(*ped_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected *ped_bn254.VerifyingKey, got %T", vk)
 		}
 		s.G = sw_bn254.NewG2AffineFixed(tVk.G)
-		s.GRootSigmaNeg = sw_bn254.NewG2AffineFixed(tVk.GRootSigmaNeg)
+		s.GSigmaNeg = sw_bn254.NewG2AffineFixed(tVk.GSigmaNeg)
 	default:
 		return ret, fmt.Errorf("unknown parametric type: %T", s)
 	}
