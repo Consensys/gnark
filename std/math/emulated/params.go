@@ -18,6 +18,7 @@ import (
 //   - [P256Fp] and [P256Fr]
 //   - [P384Fp] and [P384Fr]
 //   - [STARKCurveFp] and [STARKCurveFr]
+//   - [BabyBear] and [KoalaBear]
 type FieldParams interface {
 	NbLimbs() uint     // number of limbs to represent field element
 	BitsPerLimb() uint // number of bits per limb. Top limb may contain less than limbSize bits.
@@ -42,4 +43,6 @@ type (
 	BW6761Fr     = emparams.BW6761Fr
 	STARKCurveFp = emparams.STARKCurveFp
 	STARKCurveFr = emparams.STARKCurveFr
+	BabyBear     = emparams.BabyBear
+	KoalaBear    = emparams.KoalaBear
 )
