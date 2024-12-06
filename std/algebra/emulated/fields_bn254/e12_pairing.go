@@ -448,19 +448,19 @@ func (e Ext12) AssertFinalExponentiationIsOne(x *E12) {
 		},
 	}
 	// constrain cubicNonResiduePower to be in Fp6
-	cubicNonResiduePower := E12{
-		C0: E6{
-			B0: E2{A0: *res[12], A1: *res[13]},
-			B1: E2{A0: *res[14], A1: *res[15]},
-			B2: E2{A0: *res[16], A1: *res[17]},
-		},
-		C1: (*e.Ext6.Zero()),
+	cubicNonResiduePower := E6{
+		B0: E2{A0: *res[12], A1: *res[13]},
+		B1: E2{A0: *res[14], A1: *res[15]},
+		B2: E2{A0: *res[16], A1: *res[17]},
 	}
 
 	// Check that  x * cubicNonResiduePower == residueWitness^λ
 	// where λ = 6u + 2 + q^3 - q^2 + q, with u the BN254 seed
 	// and residueWitness, cubicNonResiduePower from the hint.
-	t2 := e.Mul(&cubicNonResiduePower, x)
+	t2 := &E12{
+		C0: *e.Ext6.Mul(&x.C0, &cubicNonResiduePower),
+		C1: *e.Ext6.Mul(&x.C1, &cubicNonResiduePower),
+	}
 
 	t1 := e.FrobeniusCube(&residueWitness)
 	t0 := e.FrobeniusSquare(&residueWitness)

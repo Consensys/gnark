@@ -411,13 +411,10 @@ func (e Ext12) AssertFinalExponentiationIsOne(x *E12) {
 		},
 	}
 	// constrain cubicNonResiduePower to be in Fp6
-	scalingFactor := E12{
-		C0: E6{
-			B0: E2{A0: *res[12], A1: *res[13]},
-			B1: E2{A0: *res[14], A1: *res[15]},
-			B2: E2{A0: *res[16], A1: *res[17]},
-		},
-		C1: (*e.Ext6.Zero()),
+	scalingFactor := E6{
+		B0: E2{A0: *res[12], A1: *res[13]},
+		B1: E2{A0: *res[14], A1: *res[15]},
+		B2: E2{A0: *res[16], A1: *res[17]},
 	}
 
 	// Check that  x * scalingFactor == residueWitness^(q-u)
@@ -428,7 +425,10 @@ func (e Ext12) AssertFinalExponentiationIsOne(x *E12) {
 	t1 := e.Expt(&residueWitness)
 	t0 = e.Mul(t0, t1)
 
-	t1 = e.Mul(x, &scalingFactor)
+	t1 = &E12{
+		C0: *e.Ext6.Mul(&x.C0, &scalingFactor),
+		C1: *e.Ext6.Mul(&x.C1, &scalingFactor),
+	}
 
 	e.AssertIsEqual(t0, t1)
 }
