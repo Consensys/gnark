@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	fp_bn "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -15,6 +16,7 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
+	*fields_bn254.Ext2
 	curveF *emulated.Field[BaseField]
 	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
@@ -24,36 +26,34 @@ type Pairing struct {
 
 type GTEl = fields_bn254.E12
 
-func NewGTEl(v bn254.GT) GTEl {
+func NewGTEl(a bn254.GT) GTEl {
+	var c0, c1, c2, c3, c4, c5, t fp_bn.Element
+	t.SetUint64(9).Mul(&t, &a.C0.B0.A1)
+	c0.Sub(&a.C0.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B0.A1)
+	c1.Sub(&a.C1.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B1.A1)
+	c2.Sub(&a.C0.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B1.A1)
+	c3.Sub(&a.C1.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B2.A1)
+	c4.Sub(&a.C0.B2.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B2.A1)
+	c5.Sub(&a.C1.B2.A0, &t)
+
 	return GTEl{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B0.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B0.A1),
-			},
-			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B1.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B1.A1),
-			},
-			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B2.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B2.A1),
-			},
-		},
-		C1: fields_bn254.E6{
-			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B0.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B0.A1),
-			},
-			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B1.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B1.A1),
-			},
-			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B2.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B2.A1),
-			},
-		},
+		A0:  emulated.ValueOf[emulated.BN254Fp](c0),
+		A1:  emulated.ValueOf[emulated.BN254Fp](c1),
+		A2:  emulated.ValueOf[emulated.BN254Fp](c2),
+		A3:  emulated.ValueOf[emulated.BN254Fp](c3),
+		A4:  emulated.ValueOf[emulated.BN254Fp](c4),
+		A5:  emulated.ValueOf[emulated.BN254Fp](c5),
+		A6:  emulated.ValueOf[emulated.BN254Fp](a.C0.B0.A1),
+		A7:  emulated.ValueOf[emulated.BN254Fp](a.C1.B0.A1),
+		A8:  emulated.ValueOf[emulated.BN254Fp](a.C0.B1.A1),
+		A9:  emulated.ValueOf[emulated.BN254Fp](a.C1.B1.A1),
+		A10: emulated.ValueOf[emulated.BN254Fp](a.C0.B2.A1),
+		A11: emulated.ValueOf[emulated.BN254Fp](a.C1.B2.A1),
 	}
 }
 
@@ -89,154 +89,6 @@ func (pr Pairing) generators() *G2Affine {
 	return pr.g2gen
 }
 
-// FinalExponentiation computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// FinalExponentiation returns a decompressed element in E12.
-//
-// This is the safe version of the method where e may be {-1,1}. If it is known
-// that e ≠ {-1,1} then using the unsafe version of the method saves
-// considerable amount of constraints. When called with the result of
-// [MillerLoop], then current method is applicable when length of the inputs to
-// Miller loop is 1.
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, false)
-}
-
-// FinalExponentiationUnsafe computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// FinalExponentiationUnsafe returns a decompressed element in E12.
-//
-// This is the unsafe version of the method where e may NOT be {-1,1}. If e ∈
-// {-1, 1}, then there exists no valid solution to the circuit. This method is
-// applicable when called with the result of [MillerLoop] method when the length
-// of the inputs to Miller loop is 1.
-func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, true)
-}
-
-// finalExponentiation computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// finalExponentiation returns a decompressed element in E12
-func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
-
-	// 1. Easy part
-	// (p⁶-1)(p²+1)
-	var selector1, selector2 frontend.Variable
-	_dummy := pr.Ext6.One()
-
-	if unsafe {
-		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
-		// linearly dependent and not from G1 and G2 respectively.
-		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
-		// Nothing to do.
-
-	} else {
-		// However, for a product of Miller loops (n>=2) this might happen.  If this is
-		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
-		// and proceed further.
-		selector1 = pr.Ext6.IsZero(&e.C1)
-		e.C1.B0.A0 = *pr.curveF.Select(selector1, pr.curveF.One(), &e.C1.B0.A0)
-	}
-
-	// Torus compression absorbed:
-	// Raising e to (p⁶-1) is
-	// e^(p⁶) / e = (e.C0 - w*e.C1) / (e.C0 + w*e.C1)
-	//            = (-e.C0/e.C1 + w) / (-e.C0/e.C1 - w)
-	// So the fraction -e.C0/e.C1 is already in the torus.
-	// This absorbs the torus compression in the easy part.
-	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
-	c = pr.Ext6.Neg(c)
-	t0 := pr.FrobeniusSquareTorus(c)
-	c = pr.MulTorus(t0, c)
-
-	// 2. Hard part (up to permutation)
-	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
-	// Duquesne and Ghammam
-	// https://eprint.iacr.org/2015/192.pdf
-	// Fuentes et al. (alg. 6)
-	// performed in torus compressed form
-	t0 = pr.ExptTorus(c)
-	t0 = pr.InverseTorus(t0)
-	t0 = pr.SquareTorus(t0)
-	t1 := pr.SquareTorus(t0)
-	t1 = pr.MulTorus(t0, t1)
-	t2 := pr.ExptTorus(t1)
-	t2 = pr.InverseTorus(t2)
-	t3 := pr.InverseTorus(t1)
-	t1 = pr.MulTorus(t2, t3)
-	t3 = pr.SquareTorus(t2)
-	t4 := pr.ExptTorus(t3)
-	t4 = pr.MulTorus(t1, t4)
-	t3 = pr.MulTorus(t0, t4)
-	t0 = pr.MulTorus(t2, t4)
-	t0 = pr.MulTorus(c, t0)
-	t2 = pr.FrobeniusTorus(t3)
-	t0 = pr.MulTorus(t2, t0)
-	t2 = pr.FrobeniusSquareTorus(t4)
-	t0 = pr.MulTorus(t2, t0)
-	t2 = pr.InverseTorus(c)
-	t2 = pr.MulTorus(t2, t3)
-	t2 = pr.FrobeniusCubeTorus(t2)
-
-	var result GTEl
-	// MulTorus(t0, t2) requires t0 ≠ -t2. When t0 = -t2, it means the
-	// product is 1 in the torus.
-	if unsafe {
-		// For a single pairing, this does not happen because the pairing is non-degenerate.
-		result = *pr.DecompressTorus(pr.MulTorus(t2, t0))
-	} else {
-		// For a product of pairings this might happen when the result is expected to be 1.
-		// We assign a dummy value (1) to t0 and proceed further.
-		// Finally we do a select on both edge cases:
-		//   - Only if seletor1=0 and selector2=0, we return MulTorus(t2, t0) decompressed.
-		//   - Otherwise, we return 1.
-		_sum := pr.Ext6.Add(t0, t2)
-		selector2 = pr.Ext6.IsZero(_sum)
-		t0 = pr.Ext6.Select(selector2, _dummy, t0)
-		selector := pr.api.Mul(pr.api.Sub(1, selector1), pr.api.Sub(1, selector2))
-		result = *pr.Select(selector, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One())
-	}
-
-	return &result
-}
-
-// Pair calculates the reduced pairing for a set of points
-// ∏ᵢ e(Pᵢ, Qᵢ).
-//
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
-	res, err := pr.MillerLoop(P, Q)
-	if err != nil {
-		return nil, fmt.Errorf("miller loop: %w", err)
-	}
-	res = pr.finalExponentiation(res, len(P) == 1)
-	return res, nil
-}
-
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
@@ -252,10 +104,10 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// cyclotomic squaring (e.g. Karabina12345).
 	//
 	// f = f^(p⁶-1)(p²+1)
-	buf := pr.Conjugate(f)
-	buf = pr.DivUnchecked(buf, f)
-	f = pr.FrobeniusSquare(buf)
-	f = pr.Mul(f, buf)
+	buf := pr.Ext12.Conjugate(f)
+	buf = pr.Ext12.DivUnchecked(buf, f)
+	f = pr.Ext12.FrobeniusSquare(buf)
+	f = pr.Ext12.Mul(f, buf)
 
 	pr.AssertFinalExponentiationIsOne(f)
 
