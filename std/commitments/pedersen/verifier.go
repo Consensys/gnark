@@ -63,7 +63,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertCommitment(commitment Commitment[
 		v.pairing.AssertIsOnG1(&knowledgeProof.G1El)
 	}
 
-	if err = v.pairing.PairingCheck([]*G1El{&commitment.G1El, &knowledgeProof.G1El}, []*G2El{&vk.GSigmaNeg, &vk.G}); err != nil {
+	if err = v.pairing.DoublePairingCheck([2]*G1El{&commitment.G1El, &knowledgeProof.G1El}, [2]*G2El{&vk.GSigmaNeg, &vk.G}); err != nil {
 		return fmt.Errorf("pairing check failed: %w", err)
 	}
 	return nil
