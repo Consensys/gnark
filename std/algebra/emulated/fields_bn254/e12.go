@@ -461,6 +461,13 @@ func (e Ext12) squareDirect(a *E12) *E12 {
 	}
 }
 
+// Granger-Scott's cyclotomic square
+// https://eprint.iacr.org/2009/565.pdf, 3.2
+func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
+	// TODO: implement GS
+	return e.squareDirect(x)
+}
+
 func (e Ext12) Inverse(x *E12) *E12 {
 	res, err := e.fp.NewHint(inverseE12Hint, 12, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &x.A6, &x.A7, &x.A8, &x.A9, &x.A10, &x.A11)
 	if err != nil {
