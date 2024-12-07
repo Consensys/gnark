@@ -400,6 +400,99 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 		A11: *d11,
 	}
 }
+func (e Ext12) Square(x *E12) *E12 {
+	return e.squareDirect(x)
+}
+
+func (e Ext12) squareDirect(a *E12) *E12 {
+
+	mone := e.fp.NewElement(-1)
+	//  d0  =  a0 a0  - 82 * (2 a1 a11 + 2 a2 a10 + 2 a3 a9 + 2 a4 a8 + 2 a5 a7 + a6 a6) - 1476 * (2 a7 a11 + 2 a8 a10 + a9 a9)
+	d0 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A0}, {mone, &a.A1, &a.A11}, {mone, &a.A2, &a.A10}, {mone, &a.A3, &a.A9}, {mone, &a.A4, &a.A8}, {mone, &a.A5, &a.A7}, {mone, &a.A6, &a.A6}, {mone, &a.A7, &a.A11}, {mone, &a.A8, &a.A10}, {mone, &a.A9, &a.A9}}, []int{1, 164, 164, 164, 164, 164, 82, 2952, 2952, 1476})
+
+	// d1  =  2 a0 a1  - 164 * (2 a2 a11 + a3 a10 + a4 a9 + a5 a8 + a6 a7) - 2952 * (a8 a11 + a9 a10)
+	d1 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A1}, {mone, &a.A2, &a.A11}, {mone, &a.A3, &a.A10}, {mone, &a.A4, &a.A9}, {mone, &a.A5, &a.A8}, {mone, &a.A6, &a.A7}, {mone, &a.A8, &a.A11}, {mone, &a.A9, &a.A10}}, []int{2, 164, 164, 164, 164, 164, 2952, 2952})
+
+	// d2  =  2 a0 a2 + a1 a1  - 82 * (2 a3 a11 + 2 a4 a10 + 2 a5 a9 + 2 a6 a8 + a7 a7) - 1476 * (2 a9 a11 + a10 a10)
+	d2 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A2}, {&a.A1, &a.A1}, {mone, &a.A3, &a.A11}, {mone, &a.A4, &a.A10}, {mone, &a.A5, &a.A9}, {mone, &a.A6, &a.A8}, {mone, &a.A7, &a.A7}, {mone, &a.A9, &a.A11}, {mone, &a.A10, &a.A10}}, []int{2, 1, 164, 164, 164, 164, 82, 2952, 1476})
+
+	// d3  =  2 a0 a3 + 2 a1 a2  - 164 * (a4 a11 + a5 a10 + a6 a9 + a7 a8) - 2952 * a10 a11
+	d3 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A3}, {&a.A1, &a.A2}, {mone, &a.A4, &a.A11}, {mone, &a.A5, &a.A10}, {mone, &a.A6, &a.A9}, {mone, &a.A7, &a.A8}, {mone, &a.A10, &a.A11}}, []int{2, 2, 164, 164, 164, 164, 2952})
+
+	// d4  =  2 a0 a4 + 2 a1 a3 + a2 a2  - 82 * (2 a5 a11 + 2 a6 a10 + 2 a7 a9 + a8 a8) - 1476 * a11 a11
+	d4 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A4}, {&a.A1, &a.A3}, {&a.A2, &a.A2}, {mone, &a.A5, &a.A11}, {mone, &a.A6, &a.A10}, {mone, &a.A7, &a.A9}, {mone, &a.A8, &a.A8}, {mone, &a.A11, &a.A11}}, []int{2, 2, 1, 164, 164, 164, 82, 1476})
+
+	// d5  =  2 (a0 a5 + a1 a4 + a2 a3) - 164 * (a6 a11 + a7 a10 + a8 a9)
+	d5 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A5}, {&a.A1, &a.A4}, {&a.A2, &a.A3}, {mone, &a.A6, &a.A11}, {mone, &a.A7, &a.A10}, {mone, &a.A8, &a.A9}}, []int{2, 2, 2, 164, 164, 164})
+
+	// d6  =  2 a0 a6 + 2 a1 a5 + 2 a2 a4 + a3 a3  + 18 * (2 a1 a11 + 2 a2 a10 + 2 a3 a9 + 2 a4 a8 + 2 a5 a7 + a6 a6) + 242 * (2 a7 a11 + 2 a8 a10 + a9 a9)
+	d6 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A6}, {&a.A1, &a.A5}, {&a.A2, &a.A4}, {&a.A3, &a.A3}, {&a.A1, &a.A11}, {&a.A2, &a.A10}, {&a.A3, &a.A9}, {&a.A4, &a.A8}, {&a.A5, &a.A7}, {&a.A6, &a.A6}, {&a.A7, &a.A11}, {&a.A8, &a.A10}, {&a.A9, &a.A9}}, []int{2, 2, 2, 1, 36, 36, 36, 36, 36, 18, 484, 484, 242})
+
+	// d7  =  2(a0 a7 + a1 a6 + a2 a5 + a3 a4)  + 36 * (a2 a11 + a3 a10 + a4 a9 + a5 a8 + a6 a7) + 484 * (a8 a11 + a9 a10)
+	d7 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A7}, {&a.A1, &a.A6}, {&a.A2, &a.A5}, {&a.A3, &a.A4}, {&a.A2, &a.A11}, {&a.A3, &a.A10}, {&a.A4, &a.A9}, {&a.A5, &a.A8}, {&a.A6, &a.A7}, {&a.A8, &a.A11}, {&a.A9, &a.A10}}, []int{2, 2, 2, 2, 36, 36, 36, 36, 36, 484, 484})
+
+	// d8  =  2(a0 a8 + a1 a7 + a2 a6 + a3 a5) + a4 a4  + 18 * (2 a3 a11 + 2 a4 a10 + 2 a5 a9 + 2 a6 a8 + a7 a7) + 242 * (2 a9 a11 + a10 a10)
+	d8 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A8}, {&a.A1, &a.A7}, {&a.A2, &a.A6}, {&a.A3, &a.A5}, {&a.A4, &a.A4}, {&a.A3, &a.A11}, {&a.A4, &a.A10}, {&a.A5, &a.A9}, {&a.A6, &a.A8}, {&a.A7, &a.A7}, {&a.A9, &a.A11}, {&a.A10, &a.A10}}, []int{2, 2, 2, 2, 1, 36, 36, 36, 36, 18, 484, 242})
+
+	// d9  =  2(a0 a9 + a1 a8 + a2 a7 + a3 a6 + a4 a5)  + 36 * (a4 a11 + a5 a10 + a6 a9 + a7 a8) + 484 * a10 a11
+	d9 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A9}, {&a.A1, &a.A8}, {&a.A2, &a.A7}, {&a.A3, &a.A6}, {&a.A4, &a.A5}, {&a.A4, &a.A11}, {&a.A5, &a.A10}, {&a.A6, &a.A9}, {&a.A7, &a.A8}, {&a.A10, &a.A11}}, []int{2, 2, 2, 2, 2, 36, 36, 36, 36, 484})
+
+	// d10 =  2(a0 a10 + a1 a9 + a2 a8 + a3 a7 + a4 a6) + a5 a5 + 18 * (2 a5 a11 + 2 a6 a10 + 2 a7 a9 + a8 a8) + 242 * a11 a11
+	d10 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A10}, {&a.A1, &a.A9}, {&a.A2, &a.A8}, {&a.A3, &a.A7}, {&a.A4, &a.A6}, {&a.A5, &a.A5}, {&a.A5, &a.A11}, {&a.A6, &a.A10}, {&a.A7, &a.A9}, {&a.A8, &a.A8}, {&a.A11, &a.A11}}, []int{2, 2, 2, 2, 2, 1, 36, 36, 36, 18, 242})
+
+	// d11 =  2(a0 a11 + a1 a10 + a2 a9 + a3 a8 + a4 a7 + a5 a6) + 36 * (a6 a11 + a7 a10 + a8 a9)
+	d11 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A11}, {&a.A1, &a.A10}, {&a.A2, &a.A9}, {&a.A3, &a.A8}, {&a.A4, &a.A7}, {&a.A5, &a.A6}, {&a.A6, &a.A11}, {&a.A7, &a.A10}, {&a.A8, &a.A9}}, []int{2, 2, 2, 2, 2, 2, 36, 36, 36})
+
+	return &E12{
+		A0:  *d0,
+		A1:  *d1,
+		A2:  *d2,
+		A3:  *d3,
+		A4:  *d4,
+		A5:  *d5,
+		A6:  *d6,
+		A7:  *d7,
+		A8:  *d8,
+		A9:  *d9,
+		A10: *d10,
+		A11: *d11,
+	}
+}
+
+func (e Ext12) Inverse(x *E12) *E12 {
+	res, err := e.fp.NewHint(inverseE12Hint, 12, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &x.A6, &x.A7, &x.A8, &x.A9, &x.A10, &x.A11)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := E12{A0: *res[0], A1: *res[1], A2: *res[2], A3: *res[3], A4: *res[4], A5: *res[5], A6: *res[6], A7: *res[7], A8: *res[8], A9: *res[9], A10: *res[10], A11: *res[11]}
+	one := e.One()
+
+	// 1 == inv * x
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
+
+	return &inv
+
+}
+
+func (e Ext12) DivUnchecked(x, y *E12) *E12 {
+	res, err := e.fp.NewHint(divE12Hint, 12, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &x.A6, &x.A7, &x.A8, &x.A9, &x.A10, &x.A11, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5, &y.A6, &y.A7, &y.A8, &y.A9, &y.A10, &y.A11)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E12{A0: *res[0], A1: *res[1], A2: *res[2], A3: *res[3], A4: *res[4], A5: *res[5], A6: *res[6], A7: *res[7], A8: *res[8], A9: *res[9], A10: *res[10], A11: *res[11]}
+
+	// x = div * y
+	_x := e.Mul(&div, y)
+	e.AssertIsEqual(x, _x)
+
+	return &div
+
+}
 
 func (e Ext12) Select(selector frontend.Variable, z1, z0 *E12) *E12 {
 	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
@@ -578,7 +671,6 @@ func FromE12(a *bn254.E12) E12 {
 	}
 }
 
-// direct to tower extension conversion
 func (e Ext12) e12RoundTrip(a *E12) *E12 {
 	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
 	// The two towers are isomorphic and the coefficients are permuted as follows:

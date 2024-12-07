@@ -129,7 +129,6 @@ func TestMulFp12(t *testing.T) {
 
 }
 
-/*
 type e12Div struct {
 	A, B, C E12
 }
@@ -189,7 +188,6 @@ func TestSquareFp12(t *testing.T) {
 	assert.NoError(err)
 
 }
-*/
 
 type e12Conjugate struct {
 	A E12
@@ -221,7 +219,6 @@ func TestConjugateFp12(t *testing.T) {
 	assert.NoError(err)
 }
 
-/*
 type e12Inverse struct {
 	A E12
 	C E12 `gnark:",public"`
@@ -252,45 +249,7 @@ func TestInverseFp12(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e12ExptTorus struct {
-	A E6
-	C E12 `gnark:",public"`
-}
-
-func (circuit *e12ExptTorus) Define(api frontend.API) error {
-	e := NewExt12(api)
-	z := e.ExptTorus(&circuit.A)
-	expected := e.DecompressTorus(z)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestFp12ExptTorus(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	c.Expt(&a)
-	_a, _ := a.CompressTorus()
-	witness := e12ExptTorus{
-		A: FromE6(&_a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&e12ExptTorus{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
+/*
 type e12MulBy034 struct {
 	A    E12 `gnark:",public"`
 	W    E12
@@ -330,6 +289,46 @@ func TestFp12MulBy034(t *testing.T) {
 }
 
 // Torus-based arithmetic
+type e12ExptTorus struct {
+	A E6
+	C E12 `gnark:",public"`
+}
+
+func (circuit *e12ExptTorus) Define(api frontend.API) error {
+	e := NewExt12(api)
+	z := e.ExptTorus(&circuit.A)
+	expected := e.DecompressTorus(z)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestFp12ExptTorus(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	c.Expt(&a)
+	_a, _ := a.CompressTorus()
+	witness := e12ExptTorus{
+		A: FromE6(&_a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12ExptTorus{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+
 type torusCompress struct {
 	A E12
 	C E6 `gnark:",public"`
