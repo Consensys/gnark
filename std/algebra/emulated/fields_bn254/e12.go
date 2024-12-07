@@ -14,6 +14,7 @@ type E12 struct {
 }
 
 type Ext12 struct {
+	*Ext2
 	api frontend.API
 	fp  *curveF
 }
@@ -24,8 +25,9 @@ func NewExt12(api frontend.API) *Ext12 {
 		panic(err)
 	}
 	return &Ext12{
-		api: api,
-		fp:  fp,
+		Ext2: NewExt2(api),
+		api:  api,
+		fp:   fp,
 	}
 }
 
@@ -741,5 +743,137 @@ func (e Ext12) e12RoundTrip(a *E12) *E12 {
 		A9:  A9,
 		A10: A10,
 		A11: A11,
+	}
+}
+
+func (e Ext12) Frobenius(a *E12) *E12 {
+	nine := big.NewInt(9)
+	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
+	a001 := e.fp.Neg(&a.A6)
+	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
+	a011 := e.fp.Neg(&a.A8)
+	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
+	a021 := e.fp.Neg(&a.A10)
+	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
+	a101 := e.fp.Neg(&a.A7)
+	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
+	a111 := e.fp.Neg(&a.A9)
+	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
+	a121 := e.fp.Neg(&a.A11)
+
+	t1 := e.Ext2.MulByNonResidue1Power2(&E2{A0: *a010, A1: *a011})
+	t2 := e.Ext2.MulByNonResidue1Power4(&E2{A0: *a020, A1: *a021})
+	t3 := e.Ext2.MulByNonResidue1Power1(&E2{A0: *a100, A1: *a101})
+	t4 := e.Ext2.MulByNonResidue1Power3(&E2{A0: *a110, A1: *a111})
+	t5 := e.Ext2.MulByNonResidue1Power5(&E2{A0: *a120, A1: *a121})
+
+	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
+	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
+	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
+	A4 := e.fp.Sub(&t2.A0, e.fp.MulConst(&t2.A1, nine))
+	A5 := e.fp.Sub(&t5.A0, e.fp.MulConst(&t5.A1, nine))
+
+	return &E12{
+		A0:  *A0,
+		A1:  *A1,
+		A2:  *A2,
+		A3:  *A3,
+		A4:  *A4,
+		A5:  *A5,
+		A6:  *a001,
+		A7:  t3.A1,
+		A8:  t1.A1,
+		A9:  t4.A1,
+		A10: t2.A1,
+		A11: t5.A1,
+	}
+}
+
+func (e Ext12) FrobeniusSquare(a *E12) *E12 {
+	nine := big.NewInt(9)
+	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
+	a001 := &a.A6
+	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
+	a011 := &a.A8
+	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
+	a021 := &a.A10
+	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
+	a101 := &a.A7
+	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
+	a111 := &a.A9
+	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
+	a121 := &a.A11
+
+	t1 := e.Ext2.MulByNonResidue2Power2(&E2{A0: *a010, A1: *a011})
+	t2 := e.Ext2.MulByNonResidue2Power4(&E2{A0: *a020, A1: *a021})
+	t3 := e.Ext2.MulByNonResidue2Power1(&E2{A0: *a100, A1: *a101})
+	t4 := e.Ext2.MulByNonResidue2Power3(&E2{A0: *a110, A1: *a111})
+	t5 := e.Ext2.MulByNonResidue2Power5(&E2{A0: *a120, A1: *a121})
+
+	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
+	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
+	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
+	A4 := e.fp.Sub(&t2.A0, e.fp.MulConst(&t2.A1, nine))
+	A5 := e.fp.Sub(&t5.A0, e.fp.MulConst(&t5.A1, nine))
+
+	return &E12{
+		A0:  *A0,
+		A1:  *A1,
+		A2:  *A2,
+		A3:  *A3,
+		A4:  *A4,
+		A5:  *A5,
+		A6:  *a001,
+		A7:  t3.A1,
+		A8:  t1.A1,
+		A9:  t4.A1,
+		A10: t2.A1,
+		A11: t5.A1,
+	}
+}
+
+func (e Ext12) FrobeniusCube(a *E12) *E12 {
+	nine := big.NewInt(9)
+	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
+	a001 := e.fp.Neg(&a.A6)
+	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
+	a011 := e.fp.Neg(&a.A8)
+	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
+	a021 := e.fp.Neg(&a.A10)
+	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
+	a101 := e.fp.Neg(&a.A7)
+	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
+	a111 := e.fp.Neg(&a.A9)
+	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
+	a121 := e.fp.Neg(&a.A11)
+
+	t1 := e.Ext2.MulByNonResidue3Power2(&E2{A0: *a010, A1: *a011})
+	t2 := e.Ext2.MulByNonResidue3Power4(&E2{A0: *a020, A1: *a021})
+	t3 := e.Ext2.MulByNonResidue3Power1(&E2{A0: *a100, A1: *a101})
+	t4 := e.Ext2.MulByNonResidue3Power3(&E2{A0: *a110, A1: *a111})
+	t5 := e.Ext2.MulByNonResidue3Power5(&E2{A0: *a120, A1: *a121})
+
+	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
+	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
+	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
+	A4 := e.fp.Sub(&t2.A0, e.fp.MulConst(&t2.A1, nine))
+	A5 := e.fp.Sub(&t5.A0, e.fp.MulConst(&t5.A1, nine))
+
+	return &E12{
+		A0:  *A0,
+		A1:  *A1,
+		A2:  *A2,
+		A3:  *A3,
+		A4:  *A4,
+		A5:  *A5,
+		A6:  *a001,
+		A7:  t3.A1,
+		A8:  t1.A1,
+		A9:  t4.A1,
+		A10: t2.A1,
+		A11: t5.A1,
 	}
 }
