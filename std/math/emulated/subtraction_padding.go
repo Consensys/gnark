@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -72,17 +73,17 @@ func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint
 // In case of fixed modulus use subPadding instead.
 func subPaddingHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) < 4 {
-		return fmt.Errorf("input must be at least four elements")
+		return errors.New("input must be at least four elements")
 	}
 	nbLimbs := int(inputs[0].Int64())
 	bitsPerLimbs := uint(inputs[1].Uint64())
 	overflow := uint(inputs[2].Uint64())
 	retLimbs := int(inputs[3].Int64())
 	if len(inputs[4:]) != nbLimbs {
-		return fmt.Errorf("input length mismatch")
+		return errors.New("input length mismatch")
 	}
 	if len(outputs) != retLimbs {
-		return fmt.Errorf("result does not fit into output")
+		return errors.New("result does not fit into output")
 	}
 	pLimbs := inputs[4 : 4+nbLimbs]
 	p := new(big.Int)
