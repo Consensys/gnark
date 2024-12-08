@@ -42,7 +42,7 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 		return fmt.Errorf("expected %d limbs got %d", emfr.NbLimbs()*3+1, len(inputs))
 	}
 	if !inputs[emfr.NbLimbs()].IsInt64() {
-		return fmt.Errorf("second input input must be in [0,3]")
+		return fmt.Errorf("second input must be in [0,3]")
 	}
 	if len(outputs) != 2*int(emfp.NbLimbs())+1 {
 		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
