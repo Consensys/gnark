@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -305,11 +306,11 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	}
 
 	if cfg.CompleteArithmetic {
-		// subtract [2^N]G = (0,1) since we added H at the beginning
+		// subtract [2^N]H = (0,1) since we added H at the beginning
 		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 	} else {
-		// subtract [2^N]G = (0,1) since we added H at the beginning
+		// subtract [2^N]H = (0,1) since we added H at the beginning
 		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
 	}
 
@@ -481,24 +482,24 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := api.Compiler().NewHint(decomposeScalarG1, 3, t)
+	td, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, t)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	t1, t2 := td[0], td[1]
 
-	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
-	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), api.Add(t, api.Mul(cc.fr, td[2])))
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), s)
+	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), t)
 
-	nbits := cc.lambda.BitLen() + 1
+	nbits := cc.lambda.BitLen()
 
 	s1bits := api.ToBinary(s1, nbits)
 	s2bits := api.ToBinary(s2, nbits)
@@ -670,4 +671,213 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 	P.Y = Acc.Y
 
 	return P
+}
+
+// fake-GLV
+//
+// N.B.: this method is more expensive than classical GLV, but it is useful for testing purposes.
+func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	// handle zero-scalar
+	var selector0 frontend.Variable
+	_s := s
+	if cfg.CompleteArithmetic {
+		selector0 = api.IsZero(s)
+		_s = api.Select(selector0, 1, s)
+	}
+
+	// Instead of computing [s]P=Q, we check that Q-[s]P == 0.
+	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
+	//
+	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
+	// of the GLV endomorphism is a primitive cube root of unity.  If we write
+	// v, s and r as Eisenstein integers we can express the check as:
+	//
+	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
+	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
+	//
+	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
+	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	//
+	// This can be done as follows:
+	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted classical GLV decomposition).
+	// 		2. decompose r into r1 + λ*r2  s.t. r1, r2 < sqrt(r) (hardcoded half-GCD of λ mod r).
+	// 		3. find u1, u2, v1, v2 < c*r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
+	// 		   This can be done through a hinted half-GCD in the number field
+	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
+	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
+	//
+	// The hint returns u1, u2, v1, v2 and the quotient q.
+	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	//
+	// N.B.: this check may overflow. But we don't use this method anywhere but for testing purposes.
+	sd, err := api.NewHint(halfGCDEisenstein, 5, _s, cc.lambda)
+	if err != nil {
+		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+	}
+	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
+
+	// Eisenstein integers real and imaginary parts can be negative. So we
+	// return the absolute value in the hint and negate the corresponding
+	// points here when needed.
+	signs, err := api.NewHint(halfGCDEisensteinSigns, 5, _s, cc.lambda)
+	if err != nil {
+		panic(fmt.Sprintf("halfGCDEisensteinSigns hint: %v", err))
+	}
+	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := signs[0], signs[1], signs[2], signs[3], signs[4]
+
+	// We need to check that:
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
+	sv1 := api.Mul(_s, v1)
+	sλv2 := api.Mul(_s, api.Mul(cc.lambda, v2))
+	λu2 := api.Mul(cc.lambda, u2)
+	rq := api.Mul(cc.fr, q)
+
+	lhs1 := api.Select(isNegv1, 0, sv1)
+	lhs2 := api.Select(isNegv2, 0, sλv2)
+	lhs3 := api.Select(isNegu1, 0, u1)
+	lhs4 := api.Select(isNegu2, 0, λu2)
+	lhs5 := api.Select(isNegq, rq, 0)
+	lhs := api.Add(
+		api.Add(lhs1, lhs2),
+		api.Add(lhs3, lhs4),
+	)
+	lhs = api.Add(lhs, lhs5)
+
+	rhs1 := api.Select(isNegv1, sv1, 0)
+	rhs2 := api.Select(isNegv2, sλv2, 0)
+	rhs3 := api.Select(isNegu1, u1, 0)
+	rhs4 := api.Select(isNegu2, λu2, 0)
+	rhs5 := api.Select(isNegq, 0, rq)
+	rhs := api.Add(
+		api.Add(rhs1, rhs2),
+		api.Add(rhs3, rhs4),
+	)
+	rhs = api.Add(rhs, rhs5)
+
+	api.AssertIsEqual(lhs, rhs)
+
+	// Next we compute the hinted scalar mul Q = [s]P
+	point, err := api.NewHint(scalarMulGLVG1Hint, 2, P.X, P.Y, s)
+	if err != nil {
+		panic(fmt.Sprintf("scalar mul hint: %v", err))
+	}
+	Q := G1Affine{X: point[0], Y: point[1]}
+
+	// handle (0,0)-point
+	var _selector0 frontend.Variable
+	_P := P
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy point to Q and continue
+		Q.Select(api, selector0, G1Affine{X: 1, Y: 0}, Q)
+		// if P=(0,0) we assign a dummy point to P and continue
+		_selector0 = api.And(api.IsZero(P.X), api.IsZero(P.Y))
+		_P.Select(api, _selector0, G1Affine{X: 2, Y: 1}, P)
+	}
+
+	// precompute -P, -Φ(P), Φ(P)
+	var tableP, tablePhiP [2]G1Affine
+	negPY := api.Neg(_P.Y)
+	tableP[1] = G1Affine{
+		X: _P.X,
+		Y: api.Select(isNegu1, negPY, _P.Y),
+	}
+	tableP[0].Neg(api, tableP[1])
+	tablePhiP[1] = G1Affine{
+		X: api.Mul(_P.X, cc.thirdRootOne1),
+		Y: api.Select(isNegu2, negPY, _P.Y),
+	}
+	tablePhiP[0].Neg(api, tablePhiP[1])
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	negQY := api.Neg(Q.Y)
+	tableQ[1] = G1Affine{
+		X: Q.X,
+		Y: api.Select(isNegv1, negQY, Q.Y),
+	}
+	tableQ[0].Neg(api, tableQ[1])
+	tablePhiQ[1] = G1Affine{
+		X: api.Mul(Q.X, cc.thirdRootOne1),
+		Y: api.Select(isNegv2, negQY, Q.Y),
+	}
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
+	var tableS, tablePhiS [4]G1Affine
+	tableS[0] = tableP[0]
+	tableS[0].AddAssign(api, tableQ[0])
+	tableS[1].Neg(api, tableS[0])
+	tableS[2] = tableP[1]
+	tableS[2].AddAssign(api, tableQ[0])
+	tableS[3].Neg(api, tableS[2])
+	tablePhiS[0] = tablePhiP[0]
+	tablePhiS[0].AddAssign(api, tablePhiQ[0])
+	tablePhiS[1].Neg(api, tablePhiS[0])
+	tablePhiS[2] = tablePhiP[1]
+	tablePhiS[2].AddAssign(api, tablePhiQ[0])
+	tablePhiS[3].Neg(api, tablePhiS[2])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = P + Q + Φ(P) + Φ(Q)
+	Acc := tableS[1]
+	Acc.AddAssign(api, tablePhiS[1])
+	// When doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen that
+	// Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2 to it
+	// to avoid incomplete additions in the loop by forcing Acc to be different
+	// than the stored B.  Normally, the point H should be "killed out" by the
+	// first doubling in the loop and the result will remain unchanged.
+	// However, we are using affine coordinates that do not encode the infinity
+	// point. Given the affine formulae, doubling (0,1) results in (0,-1).
+	// Since the loop size N=nbits-1 is odd the result at the end should be
+	// [2^N]H = H = (0,1).
+	H := G1Affine{X: 0, Y: 1}
+	Acc.AddAssign(api, H)
+
+	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// We prove that the factor is log_(3/sqrt(3)))(r).
+	// so we need to add 9 bits to r^{1/4}.nbits().
+	nbits := cc.lambda.BitLen()>>1 + 9 // 72
+	u1bits := api.ToBinary(u1, nbits)
+	u2bits := api.ToBinary(u2, nbits)
+	v1bits := api.ToBinary(v1, nbits)
+	v2bits := api.ToBinary(v2, nbits)
+
+	var B G1Affine
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(u1bits[i], v1bits[i]), tableS[2].X, tableS[0].X)
+		B.Y = api.Lookup2(u1bits[i], v1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+		B.X = api.Select(api.Xor(u2bits[i], v2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
+		B.Y = api.Lookup2(u2bits[i], v2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
+		Acc.AddAssign(api, B)
+	}
+
+	// i = 0
+	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
+	tableP[0].AddAssign(api, Acc)
+	Acc.Select(api, u1bits[0], Acc, tableP[0])
+	tablePhiP[0].AddAssign(api, Acc)
+	Acc.Select(api, u2bits[0], Acc, tablePhiP[0])
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, v1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, v2bits[0], Acc, tablePhiQ[0])
+
+	// Acc should be now equal to H=(0,-1)
+	H = G1Affine{X: 0, Y: -1}
+	if cfg.CompleteArithmetic {
+		Acc.Select(api, api.Or(selector0, _selector0), H, Acc)
+	}
+	Acc.AssertIsEqual(api, H)
+
+	R.X = point[0]
+	R.Y = point[1]
+
+	return R
 }
