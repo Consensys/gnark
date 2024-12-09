@@ -443,15 +443,26 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
-	xp := limbMul(alimbs, blimbs)
-	yp := limbMul(quoLimbs, plimbs)
+	// to compute the carries, we need to perform multiplication on limbs
+	lhs := limbMul(alimbs, blimbs)
+	rhs := limbMul(quoLimbs, plimbs)
+	// add the remainder to the rhs, it now only has k*p. This is only for very
+	// edge cases where by adding the remainder we get additional bits in the
+	// carry.
+	for i := range remLimbs {
+		if i < len(rhs) {
+			rhs[i].Add(rhs[i], remLimbs[i])
+		} else {
+			rhs = append(rhs, new(big.Int).Set(remLimbs[i]))
+		}
+	}
 	carry := new(big.Int)
 	for i := range carryLimbs {
-		if i < len(xp) {
-			carry.Add(carry, xp[i])
+		if i < len(lhs) {
+			carry.Add(carry, lhs[i])
 		}
-		if i < len(yp) {
-			carry.Sub(carry, yp[i])
+		if i < len(rhs) {
+			carry.Sub(carry, rhs[i])
 		}
 		carry.Rsh(carry, uint(nbBits))
 		carryLimbs[i] = new(big.Int).Set(carry)
