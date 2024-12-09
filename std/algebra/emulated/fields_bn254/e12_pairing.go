@@ -174,61 +174,49 @@ func (e Ext12) AssertFinalExponentiationIsOne(a *E12) {
 		panic(err)
 	}
 
-	A0 := e.fp.Sub(res[0], e.fp.MulConst(res[1], nine))
-	A1 := e.fp.Sub(res[6], e.fp.MulConst(res[7], nine))
-	A2 := e.fp.Sub(res[2], e.fp.MulConst(res[3], nine))
-	A3 := e.fp.Sub(res[8], e.fp.MulConst(res[9], nine))
-	A4 := e.fp.Sub(res[4], e.fp.MulConst(res[5], nine))
-	A5 := e.fp.Sub(res[10], e.fp.MulConst(res[11], nine))
-	A6 := res[1]
-	A7 := res[7]
-	A8 := res[3]
-	A9 := res[9]
-	A10 := res[5]
-	A11 := res[11]
-
 	residueWitness := E12{
-		A0:  *A0,
-		A1:  *A1,
-		A2:  *A2,
-		A3:  *A3,
-		A4:  *A4,
-		A5:  *A5,
-		A6:  *A6,
-		A7:  *A7,
-		A8:  *A8,
-		A9:  *A9,
-		A10: *A10,
-		A11: *A11,
+		A0:  *e.fp.Sub(res[0], e.fp.MulConst(res[1], nine)),
+		A1:  *e.fp.Sub(res[6], e.fp.MulConst(res[7], nine)),
+		A2:  *e.fp.Sub(res[2], e.fp.MulConst(res[3], nine)),
+		A3:  *e.fp.Sub(res[8], e.fp.MulConst(res[9], nine)),
+		A4:  *e.fp.Sub(res[4], e.fp.MulConst(res[5], nine)),
+		A5:  *e.fp.Sub(res[10], e.fp.MulConst(res[11], nine)),
+		A6:  *res[1],
+		A7:  *res[7],
+		A8:  *res[3],
+		A9:  *res[9],
+		A10: *res[5],
+		A11: *res[11],
 	}
 
-	A0 = e.fp.Sub(res[12+0], e.fp.MulConst(res[12+1], nine))
-	A1 = e.fp.Sub(res[12+6], e.fp.MulConst(res[12+7], nine))
-	A2 = e.fp.Sub(res[12+2], e.fp.MulConst(res[12+3], nine))
-	A3 = e.fp.Sub(res[12+8], e.fp.MulConst(res[12+9], nine))
-	A4 = e.fp.Sub(res[12+4], e.fp.MulConst(res[12+5], nine))
-	A5 = e.fp.Sub(res[12+10], e.fp.MulConst(res[12+11], nine))
-	A6 = e.fp.Zero()
-	A7 = e.fp.Zero()
-	A8 = e.fp.Zero()
-	A9 = e.fp.Zero()
-	A10 = e.fp.Zero()
-	A11 = e.fp.Zero()
-
 	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  0
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  0
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
 	cubicNonResiduePower := E12{
-		A0:  *A0,
-		A1:  *A1,
-		A2:  *A2,
-		A3:  *A3,
-		A4:  *A4,
-		A5:  *A5,
-		A6:  *A6,
-		A7:  *A7,
-		A8:  *A8,
-		A9:  *A9,
-		A10: *A10,
-		A11: *A11,
+		A0:  *e.fp.Sub(res[12], e.fp.MulConst(res[13], nine)),
+		A1:  *e.fp.Zero(),
+		A2:  *e.fp.Sub(res[14], e.fp.MulConst(res[15], nine)),
+		A3:  *e.fp.Zero(),
+		A4:  *e.fp.Sub(res[16], e.fp.MulConst(res[17], nine)),
+		A5:  *e.fp.Zero(),
+		A6:  *res[13],
+		A7:  *e.fp.Zero(),
+		A8:  *res[15],
+		A9:  *e.fp.Zero(),
+		A10: *res[17],
+		A11: *e.fp.Zero(),
 	}
 
 	// Check that  x * cubicNonResiduePower == residueWitness^λ

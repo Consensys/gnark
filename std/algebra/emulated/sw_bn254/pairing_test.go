@@ -115,6 +115,39 @@ func TestMillerLoopAndMulTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type FinalExponentiationIsOne struct {
+	InGt GTEl
+}
+
+func (c *FinalExponentiationIsOne) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	pairing.AssertFinalExponentiationIsOne(&c.InGt)
+	return nil
+}
+
+func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	ml, err := bn254.MillerLoop(
+		[]bn254.G1Affine{p1, p2},
+		[]bn254.G2Affine{q1, q2},
+	)
+	witness := FinalExponentiationIsOne{
+		InGt: NewGTEl(ml),
+	}
+	err = test.IsSolved(&FinalExponentiationIsOne{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type PairingCheckCircuit struct {
 	In1G1 G1Affine
 	In2G1 G1Affine
