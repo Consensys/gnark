@@ -119,7 +119,7 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 		return fmt.Errorf("callback 0: %w", err)
 	}
 	for i := 1; i < len(mct.cbs); i++ {
-		cmt = api.Mul(rootCmt, cmt)
+		cmt = api.Mul(rootCmt[0], cmt)
 		if err := mct.cbs[i](api, cmt); err != nil {
 			return fmt.Errorf("callback %d: %w", i, err)
 		}
