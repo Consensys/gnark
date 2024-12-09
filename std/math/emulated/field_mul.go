@@ -347,10 +347,18 @@ func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Eleme
 		// the quotient can be the total length of the multiplication result.
 		modbits = 0
 	}
-	nbQuoLimbs := (uint(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))*nbBits + nextOverflow + 1 - //
-		modbits + //
-		nbBits - 1) /
-		nbBits
+	var nbQuoLimbs uint
+	if uint(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))*nbBits+nextOverflow+nbBits > modbits {
+		// when the product of a*b is wider than the modulus, then we need
+		// non-zero limbs for the quotient. Otherwise the quotient is zero,
+		// represented on zero limbs. But we already handle cases when the
+		// quotient is zero in the calling functions, this is only for
+		// additional safety.
+		nbQuoLimbs = (uint(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))*nbBits + nextOverflow + 1 - //
+			modbits + //
+			nbBits - 1) /
+			nbBits
+	}
 	// the remainder is always less than modulus so can represent on the same
 	// number of limbs as the modulus.
 	nbRemLimbs := nbLimbs
