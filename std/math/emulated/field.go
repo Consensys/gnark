@@ -36,16 +36,14 @@ type Field[T FieldParams] struct {
 	maxOfOnce sync.Once
 
 	// constants for often used elements n, 0 and 1. Allocated only once
-	nConstOnce        sync.Once
-	nConst            *Element[T]
-	nprevConstOnce    sync.Once
-	nprevConst        *Element[T]
-	zeroConstOnce     sync.Once
-	zeroConst         *Element[T]
-	oneConstOnce      sync.Once
-	oneConst          *Element[T]
-	shortOneConstOnce sync.Once
-	shortOneConst     *Element[T]
+	nConstOnce     sync.Once
+	nConst         *Element[T]
+	nprevConstOnce sync.Once
+	nprevConst     *Element[T]
+	zeroConstOnce  sync.Once
+	zeroConst      *Element[T]
+	oneConstOnce   sync.Once
+	oneConst       *Element[T]
 
 	log zerolog.Logger
 
