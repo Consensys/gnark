@@ -18,9 +18,11 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/test"
 )
 
+// go test github.com/consensys/gnark/examples/mimc -tags=prover_checks
 func TestPreimage(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -35,5 +37,10 @@ func TestPreimage(t *testing.T) {
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
 		Hash:     "12886436712380113721405259596386800092738845035233065858332878701083870690753",
 	}, test.WithCurves(ecc.BN254))
+
+	assert.ProverSucceeded(&mimcCircuit, &Circuit{
+		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
+		Hash:     "12886436712380113721405259596386800092738845035233065858332878701083870690753",
+	}, test.WithCurves(ecc.BN254), test.WithProverOpts(backend.WithZeknoxAcceleration()))
 
 }
