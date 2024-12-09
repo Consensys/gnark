@@ -733,7 +733,10 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
 	quoSize := f.polyMvEvalQuoSize(mv, at)
-	nbQuoLimbs := (uint(quoSize) - modBits + nbBits) / nbBits
+	var nbQuoLimbs uint
+	if quoSize+nbBits > modBits {
+		nbQuoLimbs = (quoSize - modBits + nbBits) / nbBits
+	}
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
