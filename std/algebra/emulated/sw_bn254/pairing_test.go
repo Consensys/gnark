@@ -87,6 +87,7 @@ func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
 		[]bn254.G1Affine{p1, p2},
 		[]bn254.G2Affine{q1, q2},
 	)
+	assert.NoError(err)
 	witness := FinalExponentiationIsOne{
 		InGt: NewGTEl(ml),
 	}
