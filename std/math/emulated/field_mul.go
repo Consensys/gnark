@@ -1012,7 +1012,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	}
 
 	// compute the result as r + k*p on limbs
-	rhs := make([]*big.Int, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs))
+	rhs := make([]*big.Int, max(nbLimbs, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs)))
 	for i := range rhs {
 		rhs[i] = new(big.Int)
 	}
