@@ -745,7 +745,7 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 		nbHintInputs += len(at[i].Limbs) + 1
 	}
 	hintInputs := make([]frontend.Variable, 0, nbHintInputs)
-	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbRemLimbs, nbCarryLimbs)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbCarryLimbs)
 	// store the terms in the hint input. First the exponents
 	for i := range mv.Terms {
 		for j := range mv.Terms[i] {
@@ -893,8 +893,8 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		nbTerms      = int(inputs[2].Int64())
 		nbVars       = int(inputs[3].Int64())
 		nbQuoLimbs   = int(inputs[4].Int64())
-		nbRemLimbs   = int(inputs[5].Int64())
-		nbCarryLimbs = int(inputs[6].Int64())
+		nbRemLimbs   = nbLimbs
+		nbCarryLimbs = int(inputs[5].Int64())
 	)
 	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs {
 		return fmt.Errorf("output length mismatch")
@@ -906,7 +906,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	outPtr += nbRemLimbs
 	carryLimbs := outputs[outPtr : outPtr+nbCarryLimbs]
 	terms := make([][]int, nbTerms)
-	ptr := 7
+	ptr := 6
 	// read the terms
 	for i := range terms {
 		terms[i] = make([]int, nbVars)
