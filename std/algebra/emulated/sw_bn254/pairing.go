@@ -256,17 +256,62 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	res := pr.Ext12.One()
 	var prodLines [10]*baseEl
 
 	// Compute f_{6x₀+2,Q}(P)
 	// i = 64
-	for k := 0; k < n; k++ {
-		res = pr.MulBy01379(
-			res,
-			pr.Ext2.MulByElement(&lines[k][0][0].R0, xNegOverY[k]),
-			pr.Ext2.MulByElement(&lines[k][0][0].R1, yInv[k]),
+	//
+	// k = 0
+	c3 := pr.Ext2.MulByElement(&lines[0][0][0].R0, xNegOverY[0])
+	c4 := pr.Ext2.MulByElement(&lines[0][0][0].R1, yInv[0])
+	nine := big.NewInt(9)
+	res := &GTEl{
+		A0:  *pr.curveF.One(),
+		A1:  *pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
+		A2:  *pr.curveF.Zero(),
+		A3:  *pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
+		A4:  *pr.curveF.Zero(),
+		A5:  *pr.curveF.Zero(),
+		A6:  *pr.curveF.Zero(),
+		A7:  c3.A1,
+		A8:  *pr.curveF.Zero(),
+		A9:  c4.A1,
+		A10: *pr.curveF.Zero(),
+		A11: *pr.curveF.Zero(),
+	}
+
+	if n >= 2 {
+		// k = 1, separately to avoid MulBy034 (res × ℓ)
+		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
+		// line evaluation at P[1]
+		// ℓ × res
+		prodLines = pr.Mul01379By01379(
+			pr.Ext2.MulByElement(&lines[1][0][64].R0, xNegOverY[1]),
+			pr.Ext2.MulByElement(&lines[1][0][64].R1, yInv[1]),
+			&fields_bn254.E2{
+				A0: *pr.curveF.Add(&res.A1, pr.curveF.MulConst(&res.A7, nine)),
+				A1: res.A7,
+			},
+			&fields_bn254.E2{
+				A0: *pr.curveF.Add(&res.A3, pr.curveF.MulConst(&res.A9, nine)),
+				A1: res.A9,
+			},
 		)
+		res = pr.Ext12.MulBy012346789(res, prodLines)
+	}
+
+	if n >= 3 {
+		// k >= 3
+		for k := 3; k < n; k++ {
+			// line evaluation at P[k]
+			// ℓ × res
+			res = pr.MulBy01379(
+				res,
+				pr.Ext2.MulByElement(&lines[k][0][0].R0, xNegOverY[k]),
+				pr.Ext2.MulByElement(&lines[k][0][0].R1, yInv[k]),
+			)
+
+		}
 	}
 
 	for i := 63; i >= 0; i-- {
@@ -274,30 +319,11 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 		for k := 0; k < n; k++ {
 			if loopCounter[i] == 0 {
-				// if number of lines is odd, mul last line by res
-				// works for n=1 as well
-				if n%2 != 0 {
-					// ℓ × res
-					res = pr.MulBy01379(
-						res,
-						pr.Ext2.MulByElement(&lines[n-1][0][i].R0, xNegOverY[n-1]),
-						pr.Ext2.MulByElement(&lines[n-1][0][i].R1, yInv[n-1]),
-					)
-				}
-
-				// mul lines 2-by-2
-				for k := 1; k < n; k += 2 {
-					// ℓ × ℓ
-					prodLines = pr.Mul01379By01379(
-						pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-						pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-						pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
-						pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
-					)
-					// (ℓ × ℓ) × res
-					res = pr.Ext12.MulBy012346789(res, prodLines)
-				}
-
+				res = pr.MulBy01379(
+					res,
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+				)
 			} else {
 				// ℓ × ℓ
 				prodLines = pr.Mul01379By01379(
