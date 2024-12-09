@@ -91,6 +91,64 @@ func (pr Pairing) generators() *G2Affine {
 	return pr.g2gen
 }
 
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+	res, err := pr.MillerLoop(P, Q)
+	if err != nil {
+		return nil, fmt.Errorf("miller loop: %w", err)
+	}
+	res = pr.FinalExponentiation(res)
+	return res, nil
+}
+
+// FinalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ
+// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// where s is the cofactor 2x₀(6x₀²+3x₀+1)
+func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
+	// Easy part
+	// (p⁶-1)(p²+1)
+	t0 := pr.Ext12.Conjugate(e)
+	e = pr.Ext12.Inverse(e)
+	t0 = pr.Ext12.Mul(t0, e)
+	e = pr.Ext12.FrobeniusSquare(t0)
+	e = pr.Ext12.Mul(e, t0)
+
+	// Hard part (up to permutation)
+	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
+	// Duquesne and Ghammam
+	// https://eprint.iacr.org/2015/192.pdf
+	// Fuentes et al. (alg. 6)
+	t0 = pr.Ext12.Expt(e)
+	t0 = pr.Ext12.Conjugate(t0)
+	t0 = pr.Ext12.CyclotomicSquareGS(t0)
+	t1 := pr.Ext12.CyclotomicSquareGS(t0)
+	t1 = pr.Ext12.Mul(t0, t1)
+	t2 := pr.Ext12.Expt(t1)
+	t2 = pr.Ext12.Conjugate(t2)
+	t3 := pr.Ext12.Conjugate(t1)
+	t1 = pr.Ext12.Mul(t2, t3)
+	t3 = pr.Ext12.CyclotomicSquareGS(t2)
+	t4 := pr.Ext12.Expt(t3)
+	t4 = pr.Ext12.Mul(t1, t4)
+	t3 = pr.Ext12.Mul(t0, t4)
+	t0 = pr.Ext12.Mul(t2, t4)
+	t0 = pr.Ext12.Mul(e, t0)
+	t2 = pr.Ext12.Frobenius(t3)
+	t0 = pr.Ext12.Mul(t2, t0)
+	t2 = pr.Ext12.FrobeniusSquare(t4)
+	t0 = pr.Ext12.Mul(t2, t0)
+	t2 = pr.Ext12.Conjugate(e)
+	t2 = pr.Ext12.Mul(t2, t3)
+	t2 = pr.Ext12.FrobeniusCube(t2)
+	t0 = pr.Ext12.Mul(t2, t0)
+
+	return t0
+}
+
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
@@ -111,7 +169,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f = pr.Ext12.FrobeniusSquare(buf)
 	f = pr.Ext12.Mul(f, buf)
 
-	// pr.AssertFinalExponentiationIsOne(f)
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }
@@ -262,8 +320,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// i = 64
 	//
 	// k = 0
-	c3 := pr.Ext2.MulByElement(&lines[0][0][0].R0, xNegOverY[0])
-	c4 := pr.Ext2.MulByElement(&lines[0][0][0].R1, yInv[0])
+	c3 := pr.Ext2.MulByElement(&lines[0][0][64].R0, xNegOverY[0])
+	c4 := pr.Ext2.MulByElement(&lines[0][0][64].R1, yInv[0])
 	nine := big.NewInt(9)
 	res := &GTEl{
 		A0:  *pr.curveF.One(),
@@ -281,34 +339,13 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	if n >= 2 {
-		// k = 1, separately to avoid MulBy034 (res × ℓ)
-		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
-		// line evaluation at P[1]
-		// ℓ × res
-		prodLines = pr.Mul01379By01379(
-			pr.Ext2.MulByElement(&lines[1][0][64].R0, xNegOverY[1]),
-			pr.Ext2.MulByElement(&lines[1][0][64].R1, yInv[1]),
-			&fields_bn254.E2{
-				A0: *pr.curveF.Add(&res.A1, pr.curveF.MulConst(&res.A7, nine)),
-				A1: res.A7,
-			},
-			&fields_bn254.E2{
-				A0: *pr.curveF.Add(&res.A3, pr.curveF.MulConst(&res.A9, nine)),
-				A1: res.A9,
-			},
-		)
-		res = pr.Ext12.MulBy012346789(res, prodLines)
-	}
-
-	if n >= 3 {
-		// k >= 3
-		for k := 3; k < n; k++ {
+		for k := 1; k < n; k++ {
 			// line evaluation at P[k]
 			// ℓ × res
 			res = pr.MulBy01379(
 				res,
-				pr.Ext2.MulByElement(&lines[k][0][0].R0, xNegOverY[k]),
-				pr.Ext2.MulByElement(&lines[k][0][0].R1, yInv[k]),
+				pr.Ext2.MulByElement(&lines[k][0][64].R0, xNegOverY[k]),
+				pr.Ext2.MulByElement(&lines[k][0][64].R1, yInv[k]),
 			)
 
 		}

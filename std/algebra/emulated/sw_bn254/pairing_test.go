@@ -33,6 +33,34 @@ func randomG1G2Affines() (bn254.G1Affine, bn254.G2Affine) {
 	return p, q
 }
 
+type FinalExponentiation struct {
+	InGt GTEl
+	Res  GTEl
+}
+
+func (c *FinalExponentiation) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	expected := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(expected, &c.Res)
+	return nil
+}
+
+func TestFinalExponentiationTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	var gt bn254.GT
+	gt.SetRandom()
+	res := bn254.FinalExponentiation(&gt)
+	witness := FinalExponentiation{
+		InGt: NewGTEl(gt),
+		Res:  NewGTEl(res),
+	}
+	err := test.IsSolved(&FinalExponentiation{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type FinalExponentiationIsOne struct {
 	InGt GTEl
 }
@@ -63,6 +91,39 @@ func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
 		InGt: NewGTEl(ml),
 	}
 	err = test.IsSolved(&FinalExponentiationIsOne{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type PairCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GTEl
+}
+
+func (c *PairCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPairTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

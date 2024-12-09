@@ -425,6 +425,43 @@ func TestFp12Mul01379By01379(t *testing.T) {
 
 }
 
+type e12Expt struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *e12Expt) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.Expt(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestFp12Expt(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	c.Expt(&a)
+	witness := e12Expt{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12Expt{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // utils
 // Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
 func Mul034By034(d0, d3, d4, c0, c3, c4 *bn254.E2) [5]bn254.E2 {
