@@ -376,3 +376,77 @@ func TestFp12MulBy01379(t *testing.T) {
 	assert.NoError(err)
 
 }
+
+type e12Mul01379By01379 struct {
+	A, B E2 `gnark:",public"`
+	C, D E2 `gnark:",public"`
+	W    E12
+}
+
+func (circuit *e12Mul01379By01379) Define(api frontend.API) error {
+	e := NewExt12(api)
+	res := e.Mul01379By01379(&circuit.A, &circuit.B, &circuit.C, &circuit.D)
+	e.AssertIsEqual(res, &circuit.W)
+	return nil
+}
+
+func TestFp12Mul01379By01379(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var one, a, b, c, d bn254.E2
+	one.SetOne()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	_, _ = d.SetRandom()
+	prod := Mul034By034(&one, &a, &b, &one, &c, &d)
+	var w bn254.E12
+	w.C0.B0.Set(&prod[0])
+	w.C0.B1.Set(&prod[1])
+	w.C0.B2.Set(&prod[2])
+	w.C1.B0.Set(&prod[3])
+	w.C1.B1.Set(&prod[4])
+	w.C1.B2.SetZero()
+
+	witness := e12Mul01379By01379{
+		A: FromE2(&a),
+		B: FromE2(&b),
+		C: FromE2(&c),
+		D: FromE2(&d),
+		W: FromE12(&w),
+	}
+
+	err := test.IsSolved(&e12Mul01379By01379{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+// utils
+// Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
+func Mul034By034(d0, d3, d4, c0, c3, c4 *bn254.E2) [5]bn254.E2 {
+	var z00, tmp, x0, x3, x4, x04, x03, x34 bn254.E2
+	x0.Mul(c0, d0)
+	x3.Mul(c3, d3)
+	x4.Mul(c4, d4)
+	tmp.Add(c0, c4)
+	x04.Add(d0, d4).
+		Mul(&x04, &tmp).
+		Sub(&x04, &x0).
+		Sub(&x04, &x4)
+	tmp.Add(c0, c3)
+	x03.Add(d0, d3).
+		Mul(&x03, &tmp).
+		Sub(&x03, &x0).
+		Sub(&x03, &x3)
+	tmp.Add(c3, c4)
+	x34.Add(d3, d4).
+		Mul(&x34, &tmp).
+		Sub(&x34, &x3).
+		Sub(&x34, &x4)
+
+	z00.MulByNonResidue(&x4).
+		Add(&z00, &x0)
+
+	return [5]bn254.E2{z00, x3, x34, x03, x04}
+}

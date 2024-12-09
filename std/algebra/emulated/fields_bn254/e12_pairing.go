@@ -147,6 +147,84 @@ func (e *Ext12) MulBy01379(a *E12, c3, c4 *E2) *E12 {
 	}
 }
 
+// Mul01379By01379 multiplies two E12 sparse element of the form:
+//
+//	A0  =  1
+//	A1  =  c3.A0 - 9 * c3.A1
+//	A2  =  0
+//	A3  =  c4.A0 - 9 * c4.A1
+//	A4  =  0
+//	A5  =  0
+//	A6  =  0
+//	A7  =  c3.A1
+//	A8  =  0
+//	A9  =  c4.A1
+//	A10 =  0
+//	A11 =  0
+func (e *Ext12) Mul01379By01379(e3, e4, c3, c4 *E2) *E12 {
+	nine := big.NewInt(9)
+	a1 := e.fp.Sub(&e3.A0, e.fp.MulConst(&e3.A1, nine))
+	a3 := e.fp.Sub(&e4.A0, e.fp.MulConst(&e4.A1, nine))
+	a7 := &e3.A1
+	a9 := &e4.A1
+	b1 := e.fp.Sub(&c3.A0, e.fp.MulConst(&c3.A1, nine))
+	b3 := e.fp.Sub(&c4.A0, e.fp.MulConst(&c4.A1, nine))
+	b7 := &c3.A1
+	b9 := &c4.A1
+
+	// d0  =  1  - 82 * (a3 b9 + a9 b3) - 1476 * a9 b9
+	mone := e.fp.NewElement(-1)
+	d0 := e.fp.Eval([][]*baseEl{{e.fp.One()}, {mone, a3, b9}, {mone, a9, b3}, {mone, a9, b9}}, []int{1, 82, 82, 1476})
+
+	// d1  =  b1 + a1
+	d1 := e.fp.Add(a1, b1)
+
+	// d2  =  a1 b1 - 82 * a7 b7
+	d2 := e.fp.Eval([][]*baseEl{{a1, b1}, {mone, a7, b7}}, []int{1, 82})
+
+	// d3  =  b3 + a3
+	d3 := e.fp.Add(a3, b3)
+
+	// d4  =  a1 b3 + a3 b1 - 82 * (a7 b9 + a9 b7)
+	d4 := e.fp.Eval([][]*baseEl{{a1, b3}, {a3, b1}, {mone, a7, b9}, {mone, a9, b7}}, []int{1, 1, 82, 82})
+
+	// d5  =  0
+	d5 := e.fp.Zero()
+
+	// d6  =  a3 b3 + 18 * (a3 b9 + a9 b3) + 242 * a9 b9
+	d6 := e.fp.Eval([][]*baseEl{{a3, b3}, {a3, b9}, {a9, b3}, {a9, b9}}, []int{1, 18, 18, 242})
+
+	// d7  =  b7 + a7
+	d7 := e.fp.Add(a7, b7)
+
+	// d8  =  a1 b7 + a7 b1 + 18 * a7 b7
+	d8 := e.fp.Eval([][]*baseEl{{a1, b7}, {a7, b1}, {a7, b7}}, []int{1, 1, 18})
+
+	// d9  =  b9 + a9
+	d9 := e.fp.Add(a9, b9)
+
+	// d10 =  a3 b7 + a1 b9 + a7 b3 + a9 b1 + 18 * (a7 b9 + a9 b7)
+	d10 := e.fp.Eval([][]*baseEl{{a3, b7}, {a1, b9}, {a7, b3}, {a9, b1}, {a7, b9}, {a9, b7}}, []int{1, 1, 1, 1, 18, 18})
+
+	// d11 =  0
+	d11 := e.fp.Zero()
+
+	return &E12{
+		A0:  *d0,
+		A1:  *d1,
+		A2:  *d2,
+		A3:  *d3,
+		A4:  *d4,
+		A5:  *d5,
+		A6:  *d6,
+		A7:  *d7,
+		A8:  *d8,
+		A9:  *d9,
+		A10: *d10,
+		A11: *d11,
+	}
+}
+
 // AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
 // same equivalence class as the reduced pairing. This replaces the final
 // exponentiation step in-circuit.

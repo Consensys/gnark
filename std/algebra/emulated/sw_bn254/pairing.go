@@ -258,7 +258,16 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	res := pr.Ext12.One()
 
 	// Compute f_{6x₀+2,Q}(P)
-	for i := 64; i >= 0; i-- {
+	// i = 64
+	for k := 0; k < n; k++ {
+		res = pr.MulBy01379(
+			res,
+			pr.Ext2.MulByElement(&lines[k][0][0].R0, xNegOverY[k]),
+			pr.Ext2.MulByElement(&lines[k][0][0].R1, yInv[k]),
+		)
+	}
+
+	for i := 63; i >= 0; i-- {
 		res = pr.Ext12.Square(res)
 
 		for k := 0; k < n; k++ {
