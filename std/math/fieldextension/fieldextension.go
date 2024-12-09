@@ -172,3 +172,33 @@ func (e *Extension) AssertIsEqual(a, b ExtensionVariable) {
 		e.api.AssertIsEqual(b[i], 0)
 	}
 }
+
+func (e *Extension) Zero() ExtensionVariable {
+	ret := make(ExtensionVariable, len(e.extension))
+	for i := range ret {
+		ret[i] = frontend.Variable(0)
+	}
+	return ret
+}
+
+func (e *Extension) One() ExtensionVariable {
+	ret := make(ExtensionVariable, len(e.extension))
+	ret[0] = frontend.Variable(1)
+	for i := 1; i < len(ret); i++ {
+		ret[i] = frontend.Variable(0)
+	}
+	return ret
+}
+
+func (e *Extension) AsExtensionVariable(a frontend.Variable) ExtensionVariable {
+	ret := make(ExtensionVariable, len(e.extension))
+	ret[0] = a
+	for i := 1; i < len(ret); i++ {
+		ret[i] = frontend.Variable(0)
+	}
+	return ret
+}
+
+func (e *Extension) Degree() int {
+	return len(e.extension) - 1
+}
