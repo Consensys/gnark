@@ -386,7 +386,10 @@ type e12Mul01379By01379 struct {
 func (circuit *e12Mul01379By01379) Define(api frontend.API) error {
 	e := NewExt12(api)
 	res := e.Mul01379By01379(&circuit.A, &circuit.B, &circuit.C, &circuit.D)
-	e.AssertIsEqual(res, &circuit.W)
+	e.AssertIsEqual(
+		&E12{*res[0], *res[1], *res[2], *res[3], *res[4], *e.fp.Zero(), *res[5], *res[6], *res[7], *res[8], *res[9], *e.fp.Zero()},
+		&circuit.W,
+	)
 	return nil
 }
 

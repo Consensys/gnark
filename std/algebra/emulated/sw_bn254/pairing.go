@@ -13,6 +13,9 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+type baseEl = emulated.Element[BaseField]
+type GTEl = fields_bn254.E12
+
 type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
@@ -23,8 +26,6 @@ type Pairing struct {
 	bTwist *fields_bn254.E2
 	g2gen  *G2Affine
 }
-
-type GTEl = fields_bn254.E12
 
 func NewGTEl(a bn254.GT) GTEl {
 	var c0, c1, c2, c3, c4, c5, t fp_bn.Element
@@ -243,8 +244,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[BaseField], n)
-	xNegOverY := make([]*emulated.Element[BaseField], n)
+	yInv := make([]*baseEl, n)
+	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.
@@ -256,6 +257,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	res := pr.Ext12.One()
+	var prodLines [10]*baseEl
 
 	// Compute f_{6x₀+2,Q}(P)
 	// i = 64
@@ -271,19 +273,41 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		res = pr.Ext12.Square(res)
 
 		for k := 0; k < n; k++ {
-			res = pr.MulBy01379(
-				res,
-				pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-				pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-			)
 			if loopCounter[i] == 0 {
-				continue
+				// if number of lines is odd, mul last line by res
+				// works for n=1 as well
+				if n%2 != 0 {
+					// ℓ × res
+					res = pr.MulBy01379(
+						res,
+						pr.Ext2.MulByElement(&lines[n-1][0][i].R0, xNegOverY[n-1]),
+						pr.Ext2.MulByElement(&lines[n-1][0][i].R1, yInv[n-1]),
+					)
+				}
+
+				// mul lines 2-by-2
+				for k := 1; k < n; k += 2 {
+					// ℓ × ℓ
+					prodLines = pr.Mul01379By01379(
+						pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+						pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+						pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+						pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+					)
+					// (ℓ × ℓ) × res
+					res = pr.Ext12.MulBy012346789(res, prodLines)
+				}
+
 			} else {
-				res = pr.MulBy01379(
-					res,
+				// ℓ × ℓ
+				prodLines = pr.Mul01379By01379(
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
 					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
 				)
+				// (ℓ × ℓ) × res
+				res = pr.Ext12.MulBy012346789(res, prodLines)
 			}
 		}
 	}
@@ -292,16 +316,13 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// lines evaluations at P
 	// and ℓ × ℓ
 	for k := 0; k < n; k++ {
-		res = pr.MulBy01379(
-			res,
+		prodLines = pr.Mul01379By01379(
 			pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
 			pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
-		)
-		res = pr.MulBy01379(
-			res,
 			pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
 			pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
 		)
+		res = pr.Ext12.MulBy012346789(res, prodLines)
 	}
 
 	return res, nil
