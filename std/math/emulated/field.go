@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
+	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
@@ -23,6 +24,8 @@ import (
 type Field[T FieldParams] struct {
 	// api is the native API
 	api frontend.API
+	// extensionApi is the extension API when we need to perform multiplication checks over the extension field
+	extensionApi *fieldextension.Extension
 
 	// f carries the ring parameters
 	fParams T
@@ -71,6 +74,14 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[[16]byte]struct{}),
 		checker:          rangecheck.New(native),
+	}
+	if native.Compiler().Field().BitLen() < 128 {
+		f.log.Debug().Msg("using small native field, multiplication checks will be performed in extension field")
+		extapi, err := fieldextension.NewExtension(native)
+		if err != nil {
+			return nil, fmt.Errorf("extension field: %w", err)
+		}
+		f.extensionApi = extapi
 	}
 
 	// ensure prime is correctly set
