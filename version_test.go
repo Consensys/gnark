@@ -14,7 +14,7 @@ func TestVersion(t *testing.T) {
 	// git describe --abbrev=0 --> doesn't work on CI
 	// git -c 'versionsort.suffix=-' ls-remote --exit-code --refs --sort='version:refname' --tags https://github.com/consensys/gnark-crypto '*.*.*'
 	cmd := exec.Command("git", "-c", "versionsort.suffix=-", "ls-remote", "--exit-code", "--refs", "--sort=version:refname",
-		"--tags", "https://github.com/ConsenSys/gnark", "*.*.*")
+		"--tags", "https://github.com/consensys/gnark", "*.*.*")
 	stdout, err := cmd.Output()
 	assert.NoError(err)
 
