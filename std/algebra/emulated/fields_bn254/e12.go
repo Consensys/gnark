@@ -464,8 +464,92 @@ func (e Ext12) squareDirect(a *E12) *E12 {
 // Granger-Scott's cyclotomic square
 // https://eprint.iacr.org/2009/565.pdf, 3.2
 func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
-	// TODO: implement GS
-	return e.squareDirect(x)
+	// x=(x0,x2,x4,x1,x3,x5) in E6
+	// cyclosquare(x) = 3*x4²*u + 3*x0² - 2*x0,
+	//					6*x1*x5*u + 2*x3,
+	//					3*x2²*u + 3*x3² - 2*x1,
+	//					6*x0*x4 + 2*x4,
+	//					3*x5²*u + 3*x1² - 2*x2,
+	//					6*x2*x3 + 2*x5,
+	nine := big.NewInt(9)
+	x000 := e.fp.Add(&x.A0, e.fp.MulConst(&x.A6, nine))
+	x00 := E2{A0: *x000, A1: x.A6}
+	x010 := e.fp.Add(&x.A2, e.fp.MulConst(&x.A8, nine))
+	x01 := E2{A0: *x010, A1: x.A8}
+	x020 := e.fp.Add(&x.A4, e.fp.MulConst(&x.A10, nine))
+	x02 := E2{A0: *x020, A1: x.A10}
+	x100 := e.fp.Add(&x.A1, e.fp.MulConst(&x.A7, nine))
+	x10 := E2{A0: *x100, A1: x.A7}
+	x110 := e.fp.Add(&x.A3, e.fp.MulConst(&x.A9, nine))
+	x11 := E2{A0: *x110, A1: x.A9}
+	x120 := e.fp.Add(&x.A5, e.fp.MulConst(&x.A11, nine))
+	x12 := E2{A0: *x120, A1: x.A11}
+
+	t0 := e.Ext2.Square(&x11)
+	t1 := e.Ext2.Square(&x00)
+	t6 := e.Ext2.Add(&x11, &x00)
+	t6 = e.Ext2.Square(t6)
+	t6 = e.Ext2.Sub(t6, t0)
+	t6 = e.Ext2.Sub(t6, t1)
+	t2 := e.Ext2.Square(&x02)
+	t3 := e.Ext2.Square(&x10)
+	t7 := e.Ext2.Add(&x02, &x10)
+	t7 = e.Ext2.Square(t7)
+	t7 = e.Ext2.Sub(t7, t2)
+	t7 = e.Ext2.Sub(t7, t3)
+	t4 := e.Ext2.Square(&x12)
+	t5 := e.Ext2.Square(&x01)
+	t8 := e.Ext2.Add(&x12, &x01)
+	t8 = e.Ext2.Square(t8)
+	t8 = e.Ext2.Sub(t8, t4)
+	t8 = e.Ext2.Sub(t8, t5)
+	t8 = e.Ext2.MulByNonResidue(t8)
+	t0 = e.Ext2.MulByNonResidue(t0)
+	t0 = e.Ext2.Add(t0, t1)
+	t2 = e.Ext2.MulByNonResidue(t2)
+	t2 = e.Ext2.Add(t2, t3)
+	t4 = e.Ext2.MulByNonResidue(t4)
+	t4 = e.Ext2.Add(t4, t5)
+	z00 := e.Ext2.Sub(t0, &x00)
+	z00 = e.Ext2.Double(z00)
+	z00 = e.Ext2.Add(z00, t0)
+	z01 := e.Ext2.Sub(t2, &x01)
+	z01 = e.Ext2.Double(z01)
+	z01 = e.Ext2.Add(z01, t2)
+	z02 := e.Ext2.Sub(t4, &x02)
+	z02 = e.Ext2.Double(z02)
+	z02 = e.Ext2.Add(z02, t4)
+	z10 := e.Ext2.Add(t8, &x10)
+	z10 = e.Ext2.Double(z10)
+	z10 = e.Ext2.Add(z10, t8)
+	z11 := e.Ext2.Add(t6, &x11)
+	z11 = e.Ext2.Double(z11)
+	z11 = e.Ext2.Add(z11, t6)
+	z12 := e.Ext2.Add(t7, &x12)
+	z12 = e.Ext2.Double(z12)
+	z12 = e.Ext2.Add(z12, t7)
+
+	A0 := e.fp.Sub(&z00.A0, e.fp.MulConst(&z00.A1, nine))
+	A1 := e.fp.Sub(&z10.A0, e.fp.MulConst(&z10.A1, nine))
+	A2 := e.fp.Sub(&z01.A0, e.fp.MulConst(&z01.A1, nine))
+	A3 := e.fp.Sub(&z11.A0, e.fp.MulConst(&z11.A1, nine))
+	A4 := e.fp.Sub(&z02.A0, e.fp.MulConst(&z02.A1, nine))
+	A5 := e.fp.Sub(&z12.A0, e.fp.MulConst(&z12.A1, nine))
+
+	return &E12{
+		A0:  *A0,
+		A1:  *A1,
+		A2:  *A2,
+		A3:  *A3,
+		A4:  *A4,
+		A5:  *A5,
+		A6:  z00.A1,
+		A7:  z10.A1,
+		A8:  z01.A1,
+		A9:  z11.A1,
+		A10: z02.A1,
+		A11: z12.A1,
+	}
 }
 
 func (e Ext12) Inverse(x *E12) *E12 {
@@ -630,129 +714,6 @@ func (e Ext12) Copy(x *E12) *E12 {
 	}
 }
 
-// tower to direct extension conversion
-func FromE12(a *bn254.E12) E12 {
-	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
-	// The two towers are isomorphic and the coefficients are permuted as follows:
-	// 		a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
-	//      a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
-	//
-	//     A0  =  a000 - 9 * a001
-	//     A1  =  a100 - 9 * a101
-	//     A2  =  a010 - 9 * a011
-	//     A3  =  a110 - 9 * a111
-	//     A4  =  a020 - 9 * a021
-	//     A5  =  a120 - 9 * a121
-	//     A6  =  a001
-	//     A7  =  a101
-	//     A8  =  a011
-	//     A9  =  a111
-	//     A10 =  a021
-	//     A11 =  a121
-
-	var c0, c1, c2, c3, c4, c5, t fp_bn.Element
-	t.SetUint64(9).Mul(&t, &a.C0.B0.A1)
-	c0.Sub(&a.C0.B0.A0, &t)
-	t.SetUint64(9).Mul(&t, &a.C1.B0.A1)
-	c1.Sub(&a.C1.B0.A0, &t)
-	t.SetUint64(9).Mul(&t, &a.C0.B1.A1)
-	c2.Sub(&a.C0.B1.A0, &t)
-	t.SetUint64(9).Mul(&t, &a.C1.B1.A1)
-	c3.Sub(&a.C1.B1.A0, &t)
-	t.SetUint64(9).Mul(&t, &a.C0.B2.A1)
-	c4.Sub(&a.C0.B2.A0, &t)
-	t.SetUint64(9).Mul(&t, &a.C1.B2.A1)
-	c5.Sub(&a.C1.B2.A0, &t)
-
-	return E12{
-		A0:  emulated.ValueOf[emulated.BN254Fp](c0),
-		A1:  emulated.ValueOf[emulated.BN254Fp](c1),
-		A2:  emulated.ValueOf[emulated.BN254Fp](c2),
-		A3:  emulated.ValueOf[emulated.BN254Fp](c3),
-		A4:  emulated.ValueOf[emulated.BN254Fp](c4),
-		A5:  emulated.ValueOf[emulated.BN254Fp](c5),
-		A6:  emulated.ValueOf[emulated.BN254Fp](a.C0.B0.A1),
-		A7:  emulated.ValueOf[emulated.BN254Fp](a.C1.B0.A1),
-		A8:  emulated.ValueOf[emulated.BN254Fp](a.C0.B1.A1),
-		A9:  emulated.ValueOf[emulated.BN254Fp](a.C1.B1.A1),
-		A10: emulated.ValueOf[emulated.BN254Fp](a.C0.B2.A1),
-		A11: emulated.ValueOf[emulated.BN254Fp](a.C1.B2.A1),
-	}
-}
-
-func (e Ext12) e12RoundTrip(a *E12) *E12 {
-	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
-	// The two towers are isomorphic and the coefficients are permuted as follows:
-	// 		a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
-	//      a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
-
-	//     a000 = A0  +  9 * A6
-	//     a001 = A6
-	//     a010 = A2  +  9 * A8
-	//     a011 = A8
-	//     a020 = A4  +  9 * A10
-	//     a021 = A10
-	//     a100 = A1  +  9 * A7
-	//     a101 = A7
-	//     a110 = A3  +  9 * A9
-	//     a111 = A9
-	//     a120 = A5  +  9 * A11
-	//     a121 = A11
-	nine := big.NewInt(9)
-	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := a.A6
-	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := a.A8
-	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := a.A10
-	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := a.A7
-	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := a.A9
-	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := a.A11
-
-	//     A0  =  a000 - 9 * a001
-	//     A1  =  a100 - 9 * a101
-	//     A2  =  a010 - 9 * a011
-	//     A3  =  a110 - 9 * a111
-	//     A4  =  a020 - 9 * a021
-	//     A5  =  a120 - 9 * a121
-	//     A6  =  a001
-	//     A7  =  a101
-	//     A8  =  a011
-	//     A9  =  a111
-	//     A10 =  a021
-	//     A11 =  a121
-	A0 := e.fp.Sub(a000, e.fp.MulConst(&a001, nine))
-	A1 := e.fp.Sub(a100, e.fp.MulConst(&a101, nine))
-	A2 := e.fp.Sub(a010, e.fp.MulConst(&a011, nine))
-	A3 := e.fp.Sub(a110, e.fp.MulConst(&a111, nine))
-	A4 := e.fp.Sub(a020, e.fp.MulConst(&a021, nine))
-	A5 := e.fp.Sub(a120, e.fp.MulConst(&a121, nine))
-	A6 := a001
-	A7 := a101
-	A8 := a011
-	A9 := a111
-	A10 := a021
-	A11 := a121
-
-	return &E12{
-		A0:  *A0,
-		A1:  *A1,
-		A2:  *A2,
-		A3:  *A3,
-		A4:  *A4,
-		A5:  *A5,
-		A6:  A6,
-		A7:  A7,
-		A8:  A8,
-		A9:  A9,
-		A10: A10,
-		A11: A11,
-	}
-}
-
 func (e Ext12) Frobenius(a *E12) *E12 {
 	nine := big.NewInt(9)
 	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
@@ -882,5 +843,128 @@ func (e Ext12) FrobeniusCube(a *E12) *E12 {
 		A9:  t4.A1,
 		A10: t2.A1,
 		A11: t5.A1,
+	}
+}
+
+// tower to direct extension conversion
+func FromE12(a *bn254.E12) E12 {
+	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
+	// The two towers are isomorphic and the coefficients are permuted as follows:
+	// 		a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
+	//      a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
+	//
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  a100 - 9 * a101
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  a110 - 9 * a111
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  a120 - 9 * a121
+	//     A6  =  a001
+	//     A7  =  a101
+	//     A8  =  a011
+	//     A9  =  a111
+	//     A10 =  a021
+	//     A11 =  a121
+
+	var c0, c1, c2, c3, c4, c5, t fp_bn.Element
+	t.SetUint64(9).Mul(&t, &a.C0.B0.A1)
+	c0.Sub(&a.C0.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B0.A1)
+	c1.Sub(&a.C1.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B1.A1)
+	c2.Sub(&a.C0.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B1.A1)
+	c3.Sub(&a.C1.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B2.A1)
+	c4.Sub(&a.C0.B2.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B2.A1)
+	c5.Sub(&a.C1.B2.A0, &t)
+
+	return E12{
+		A0:  emulated.ValueOf[emulated.BN254Fp](c0),
+		A1:  emulated.ValueOf[emulated.BN254Fp](c1),
+		A2:  emulated.ValueOf[emulated.BN254Fp](c2),
+		A3:  emulated.ValueOf[emulated.BN254Fp](c3),
+		A4:  emulated.ValueOf[emulated.BN254Fp](c4),
+		A5:  emulated.ValueOf[emulated.BN254Fp](c5),
+		A6:  emulated.ValueOf[emulated.BN254Fp](a.C0.B0.A1),
+		A7:  emulated.ValueOf[emulated.BN254Fp](a.C1.B0.A1),
+		A8:  emulated.ValueOf[emulated.BN254Fp](a.C0.B1.A1),
+		A9:  emulated.ValueOf[emulated.BN254Fp](a.C1.B1.A1),
+		A10: emulated.ValueOf[emulated.BN254Fp](a.C0.B2.A1),
+		A11: emulated.ValueOf[emulated.BN254Fp](a.C1.B2.A1),
+	}
+}
+
+func (e Ext12) e12RoundTrip(a *E12) *E12 {
+	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
+	// The two towers are isomorphic and the coefficients are permuted as follows:
+	// 		a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
+	//      a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
+
+	//     a000 = A0  +  9 * A6
+	//     a001 = A6
+	//     a010 = A2  +  9 * A8
+	//     a011 = A8
+	//     a020 = A4  +  9 * A10
+	//     a021 = A10
+	//     a100 = A1  +  9 * A7
+	//     a101 = A7
+	//     a110 = A3  +  9 * A9
+	//     a111 = A9
+	//     a120 = A5  +  9 * A11
+	//     a121 = A11
+	nine := big.NewInt(9)
+	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
+	a001 := a.A6
+	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
+	a011 := a.A8
+	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
+	a021 := a.A10
+	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
+	a101 := a.A7
+	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
+	a111 := a.A9
+	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
+	a121 := a.A11
+
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  a100 - 9 * a101
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  a110 - 9 * a111
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  a120 - 9 * a121
+	//     A6  =  a001
+	//     A7  =  a101
+	//     A8  =  a011
+	//     A9  =  a111
+	//     A10 =  a021
+	//     A11 =  a121
+	A0 := e.fp.Sub(a000, e.fp.MulConst(&a001, nine))
+	A1 := e.fp.Sub(a100, e.fp.MulConst(&a101, nine))
+	A2 := e.fp.Sub(a010, e.fp.MulConst(&a011, nine))
+	A3 := e.fp.Sub(a110, e.fp.MulConst(&a111, nine))
+	A4 := e.fp.Sub(a020, e.fp.MulConst(&a021, nine))
+	A5 := e.fp.Sub(a120, e.fp.MulConst(&a121, nine))
+	A6 := a001
+	A7 := a101
+	A8 := a011
+	A9 := a111
+	A10 := a021
+	A11 := a121
+
+	return &E12{
+		A0:  *A0,
+		A1:  *A1,
+		A2:  *A2,
+		A3:  *A3,
+		A4:  *A4,
+		A5:  *A5,
+		A6:  A6,
+		A7:  A7,
+		A8:  A8,
+		A9:  A9,
+		A10: A10,
+		A11: A11,
 	}
 }
