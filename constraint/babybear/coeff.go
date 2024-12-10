@@ -23,7 +23,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 
-	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
+	fr "github.com/consensys/gnark/internal/smallfields/babybear"
 )
 
 // CoeffTable ensure we store unique coefficients in the constraint system

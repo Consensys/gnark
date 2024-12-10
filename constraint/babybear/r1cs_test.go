@@ -28,9 +28,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	cs "github.com/consensys/gnark/constraint/tinyfield"
+	cs "github.com/consensys/gnark/constraint/babybear"
 
-	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
+	fr "github.com/consensys/gnark/internal/smallfields/babybear"
 )
 
 func TestSerialization(t *testing.T) {
@@ -40,9 +40,6 @@ func TestSerialization(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
-			if name == "range_constant" {
-				return
-			}
 
 			r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {

@@ -103,6 +103,14 @@ type BN254Fp struct{ fourLimbPrimeField }
 
 func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }
 
+func (BN254Fp) BitsPerLimb() uint {
+	return 10
+}
+
+func (BN254Fp) NbLimbs() uint {
+	return 26
+}
+
 // BN254Fr provides type parametrization for field emulation:
 //   - limbs: 4
 //   - limb width: 64 bits
@@ -116,6 +124,14 @@ func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }
 type BN254Fr struct{ fourLimbPrimeField }
 
 func (fp BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
+
+func (BN254Fr) BitsPerLimb() uint {
+	return 10
+}
+
+func (BN254Fr) NbLimbs() uint {
+	return 26
+}
 
 // BLS12377Fp provides type parametrization for field emulation:
 //   - limbs: 6
