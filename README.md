@@ -86,6 +86,7 @@ You can also get in touch directly: gnark@consensys.net
 * [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
 * [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
 * [LeastAuthority - September 2024 - gnark general and GKR](audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
+* [LeastAuthority - November 2024 - Linea zkEVM](audits/2024-11%20-%20Least%20Authority%20-%20Linea%20zkEVM.pdf)
 
 ## Proving schemes and curves
 
@@ -197,7 +198,7 @@ Please use the following BibTeX to cite the most recent release.
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.11.0},
+  title        = {Consensys/gnark: v0.11.0},
   month        = sep,
   year         = 2024,
   publisher    = {Zenodo},
@@ -213,16 +214,16 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our [code of condu
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/consensys/gnark/tags).
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/Consensys/gnark/tags).
 
 ## License
 
 This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE) file for details
 
-[`gnark` Issues]: https://github.com/consensys/gnark/issues
+[`gnark` Issues]: https://github.com/Consensys/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/
-[GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
+[GitHub discussions]: https://github.com/Consensys/gnark/discussions
 [Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
 [@gnark_team]: https://twitter.com/gnark_team
