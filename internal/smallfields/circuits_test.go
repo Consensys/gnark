@@ -142,12 +142,12 @@ func TestCompileEmulatedCircuit(t *testing.T) {
 	f := babybear.Modulus()
 
 	circuit := &EmulatedCircuit[smallBN]{}
-	assignemnt := &EmulatedCircuit[smallBN]{A: emulated.ValueOf[smallBN](2), B: emulated.ValueOf[smallBN](4)}
+	assignment := &EmulatedCircuit[smallBN]{A: emulated.ValueOf[smallBN](2), B: emulated.ValueOf[smallBN](4)}
 
 	ccs, err := frontend.CompileU32(f, scs.NewBuilder, circuit)
 	assert.NoError(err)
 
-	w, err := frontend.NewWitness(assignemnt, f)
+	w, err := frontend.NewWitness(assignment, f)
 	assert.NoError(err)
 
 	res, err := ccs.Solve(w)
