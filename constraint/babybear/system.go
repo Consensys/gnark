@@ -27,7 +27,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 
-	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
+	fr "github.com/consensys/gnark/internal/smallfields/babybear"
 )
 
 type R1CS = system

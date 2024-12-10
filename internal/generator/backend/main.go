@@ -62,21 +62,22 @@ func main() {
 		CurveID:  "BW6_633",
 	}
 	tiny_field := templateData{
-		RootPath:  "../../../internal/tinyfield/",
-		CSPath:    "../../../constraint/tinyfield",
-		Curve:     "tinyfield",
-		CurveID:   "UNKNOWN",
-		noBackend: true,
-		NoGKR:     true,
+		RootPath:          "../../../internal/smallfields/tinyfield/",
+		CSPath:            "../../../constraint/tinyfield",
+		Curve:             "tinyfield",
+		CurveID:           "UNKNOWN",
+		noBackend:         true,
+		NoGKR:             true,
+		AutoGenerateField: "0x2f",
 	}
-
-	// autogenerate tinyfield
-	tinyfieldConf, err := config.NewFieldConfig("tinyfield", "Element", "0x2f", false)
-	if err != nil {
-		panic(err)
-	}
-	if err := generator.GenerateFF(tinyfieldConf, tiny_field.RootPath, "", ""); err != nil {
-		panic(err)
+	baby_bear_field := templateData{
+		RootPath:          "../../../internal/smallfields/babybear/",
+		CSPath:            "../../../constraint/babybear",
+		Curve:             "babybear",
+		CurveID:           "UNKNOWN",
+		noBackend:         true,
+		NoGKR:             true,
+		AutoGenerateField: "0x78000001",
 	}
 
 	datas := []templateData{
@@ -88,6 +89,7 @@ func main() {
 		bls24_317,
 		bw6_633,
 		tiny_field,
+		baby_bear_field,
 	}
 
 	const importCurve = "../imports.go.tmpl"
@@ -100,6 +102,16 @@ func main() {
 
 		go func(d templateData) {
 			defer wg.Done()
+			// auto-generate small fields
+			if d.AutoGenerateField != "" {
+				conf, err := config.NewFieldConfig(d.Curve, "Element", d.AutoGenerateField, false)
+				if err != nil {
+					panic(err)
+				}
+				if err := generator.GenerateFF(conf, d.RootPath, "", ""); err != nil {
+					panic(err)
+				}
+			}
 
 			var (
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
@@ -128,7 +140,7 @@ func main() {
 			}
 
 			// gkr backend
-			if d.Curve != "tinyfield" {
+			if !d.NoGKR {
 				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
 				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
 					panic(err)
@@ -218,10 +230,12 @@ func main() {
 }
 
 type templateData struct {
-	RootPath  string
-	CSPath    string
-	Curve     string
-	CurveID   string
-	noBackend bool
-	NoGKR     bool
+	RootPath string
+	CSPath   string
+	Curve    string
+	CurveID  string
+
+	AutoGenerateField string
+	noBackend         bool
+	NoGKR             bool
 }
