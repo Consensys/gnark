@@ -174,9 +174,16 @@ sudo cp libblst.a libzeknox.a /usr/local/lib/
 If you want to build from source, see guide in https://github.com/okx/zeknox.
 
 ##### Enjoy GPU
-Run `groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
+
+`groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
+
+```sh
+go run -tags=zeknox examples/zeknox/main.go
+# (place -tags before the filename)
+```
 
 ##### Test
+Add following code to [mimc_test.go](examples/mimc/mimc_test.go)
 ```go
 assert.ProverSucceeded(&mimcCircuit, &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
@@ -185,9 +192,6 @@ assert.ProverSucceeded(&mimcCircuit, &Circuit{
 ```
 
 ```sh
-go run -tags=zeknox examples/main.go
-# (place -tags before the filename)
-
 go test github.com/consensys/gnark/examples/mimc -tags=prover_checks,zeknox
 ```
 
