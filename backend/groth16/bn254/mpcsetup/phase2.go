@@ -17,9 +17,10 @@
 package mpcsetup
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
+	"fmt"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"math/big"
 	"slices"
@@ -32,9 +33,10 @@ import (
 
 type Phase2Evaluations struct {
 	G1 struct {
-		A   []curve.G1Affine // A are the left coefficient polynomials for each witness element, evaluated at τ
-		B   []curve.G1Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
-		VKK []curve.G1Affine // VKK are the coefficients of the public witness (and commitments)
+		A   []curve.G1Affine   // A are the left coefficient polynomials for each witness element, evaluated at τ
+		B   []curve.G1Affine   // B are the right coefficient polynomials for each witness element, evaluated at τ
+		VKK []curve.G1Affine   // VKK are the coefficients of the public witness and commitments
+		CKK [][]curve.G1Affine // CKK are the coefficients of the committed values
 	}
 	G2 struct {
 		B []curve.G2Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
@@ -44,19 +46,111 @@ type Phase2Evaluations struct {
 type Phase2 struct {
 	Parameters struct {
 		G1 struct {
-			Delta curve.G1Affine
-			Z     []curve.G1Affine // Z is the domain vanishing polynomial
-			PKK   []curve.G1Affine // PKK are the coefficients of the private witness
+			Delta    curve.G1Affine
+			Z        []curve.G1Affine   // Z are multiples of the domain vanishing polynomial
+			PKK      []curve.G1Affine   // PKK are the coefficients of the private witness
+			SigmaCKK [][]curve.G1Affine // Commitment bases
 		}
 		G2 struct {
 			Delta curve.G2Affine
-			Sigma curve.G2Affine
+			Sigma []curve.G2Affine
 		}
-		CommitmentKeys []pedersen.ProvingKey
 	}
-	Sigmas []valueUpdate // commitment key secrets
-	Delta  valueUpdate   // updates to delta
-	Hash   []byte
+
+	// Proofs of update correctness
+	Sigmas []valueUpdate
+	Delta  valueUpdate
+
+	// Challenge is the hash of the PREVIOUS contribution
+	Challenge []byte
+}
+
+func (c *Phase2) Verify(next *Phase2) error {
+	if challenge := c.hash(); len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
+		return errors.New("the challenge does not match the previous phase's hash")
+	}
+
+	if err := next.Delta.verify(
+		pair{c.Parameters.G1.Delta, &c.Parameters.G2.Delta},
+		pair{next.Parameters.G1.Delta, &next.Parameters.G2.Delta},
+		next.Challenge, 1); err != nil {
+		return fmt.Errorf("failed to verify contribution to δ: %w", err)
+	}
+
+	for i := range c.Sigmas {
+		if err := next.Sigmas[i].verify(
+			pair{c.Parameters.G1.SigmaCKK[i][0], &c.Parameters.G2.Sigma[i]},
+			pair{next.Parameters.G1.SigmaCKK[i][0], &next.Parameters.G2.Sigma[i]},
+			next.Challenge, byte(2+i)); err != nil {
+			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
+		}
+		if !areInSubGroupG1(next.Parameters.G1.SigmaCKK[i][1:]) {
+			return errors.New("commitment proving key subgroup check failed")
+		}
+	}
+
+	if !areInSubGroupG1(next.Parameters.G1.Z) || !areInSubGroupG1(next.Parameters.G1.PKK) {
+		return errors.New("derived values 𝔾₁ subgroup check failed")
+	}
+
+	r := linearCombCoeffs(len(next.Parameters.G1.Z))
+
+	for i := range c.Sigmas {
+		prevComb, nextComb := linearCombination(c.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], r)
+		if !sameRatioUnsafe(nextComb, prevComb, next.Parameters.G2.Sigma[i], c.Parameters.G2.Sigma[i]) {
+			return fmt.Errorf("failed to verify contribution to σ[%d]", i)
+		}
+	}
+
+	linearCombination()
+}
+
+func (c *Phase2) Contribute() {
+	// Sample toxic δ
+	var delta, deltaInv fr.Element
+	var deltaBI, deltaInvBI big.Int
+
+	c.Challenge = c.hash()
+
+	if len(c.Parameters.G1.SigmaCKK) > 255 {
+		panic("too many commitments") // DST collision
+	}
+	for i := range c.Parameters.G1.SigmaCKK {
+		var (
+			sigmaContribution  fr.Element
+			sigmaContributionI big.Int
+		)
+
+		pk := c.Parameters.G1.SigmaCKK[i]
+		c.Sigmas[i], sigmaContribution = updateValue(&pk[0], c.Challenge, byte(2+i))
+		sigmaContribution.BigInt(&sigmaContributionI)
+		for j := 1; j < len(pk); j++ {
+			pk[j].ScalarMultiplication(&pk[j], &sigmaContributionI)
+		}
+		c.Parameters.G2.Sigma[i].ScalarMultiplication(&c.Parameters.G2.Sigma[i], &sigmaContributionI)
+	}
+
+	c.Delta, delta = updateValue(&c.Parameters.G1.Delta, c.Challenge, 1)
+
+	deltaInv.Inverse(&delta)
+	delta.BigInt(&deltaBI)
+	deltaInv.BigInt(&deltaInvBI)
+
+	// Update [δ]₂
+	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
+
+	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
+	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
+
+	// Update Z using δ⁻¹
+	for i := 0; i < len(c.Parameters.G1.Z); i++ {
+		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
+	}
+
+	// Update PKK using δ⁻¹
+	for i := 0; i < len(c.Parameters.G1.PKK); i++ {
+		c.Parameters.G1.PKK[i].ScalarMultiplication(&c.Parameters.G1.PKK[i], &deltaInvBI)
+	}
 }
 
 // Init is to be run by the coordinator
@@ -161,24 +255,29 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	_, _, g1, g2 := curve.Generators()
 	c2.Parameters.G1.Delta = g1
 	c2.Parameters.G2.Delta = g2
-	c2.Parameters.G2.Sigma = g2
 
 	// Build Z in PK as τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	n := len(srs.G1.AlphaTau)
 	c2.Parameters.G1.Z = make([]curve.G1Affine, n)
-	for i := 0; i < n-1; i++ {
+	for i := 0; i < n-1; i++ { // TODO @Tabaie why is the last element always 0?
 		c2.Parameters.G1.Z[i].Sub(&srs.G1.Tau[i+n], &srs.G1.Tau[i])
 	}
 	bitReverse(c2.Parameters.G1.Z)
 	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
 
 	commitments := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+
+	evals.G1.CKK = make([][]curve.G1Affine, len(commitments))
 	c2.Sigmas = make([]valueUpdate, len(commitments))
-	c2.Parameters.CommitmentKeys = make([]pedersen.ProvingKey, len(commitments))
+	c2.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, len(commitments))
+	c2.Parameters.G2.Sigma = make([]curve.G2Affine, len(commitments))
+
 	for j := range commitments {
-		c2.Parameters.CommitmentKeys[i].Basis = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
+		evals.G1.CKK[i] = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
+		c2.Parameters.G2.Sigma[j] = g2
 	}
+
 	nbCommitted := internal.NbElements(commitments.GetPrivateCommitted())
 
 	// Evaluate PKK
@@ -187,16 +286,16 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	evals.G1.VKK = make([]curve.G1Affine, 0, nbPublic+len(commitments))
 	committedIterator := internal.NewMergeIterator(commitments.GetPrivateCommitted())
 	nbCommitmentsSeen := 0
-	for i := 0; i < nWires; i++ {
+	for j := 0; j < nWires; j++ {
 		// since as yet δ, γ = 1, the VKK and PKK are computed identically, as βA + αB + C
 		var tmp curve.G1Affine
-		tmp.Add(&bA[i], &aB[i])
-		tmp.Add(&tmp, &C[i])
-		commitmentIndex := committedIterator.IndexIfNext(i)
-		isCommitment := nbCommitmentsSeen < len(commitments) && commitments[nbCommitmentsSeen].CommitmentIndex == i
+		tmp.Add(&bA[j], &aB[j])
+		tmp.Add(&tmp, &C[j])
+		commitmentIndex := committedIterator.IndexIfNext(j)
+		isCommitment := nbCommitmentsSeen < len(commitments) && commitments[nbCommitmentsSeen].CommitmentIndex == j
 		if commitmentIndex != -1 {
-			c2.Parameters.CommitmentKeys[commitmentIndex].Basis = append(c2.Parameters.CommitmentKeys[commitmentIndex].Basis, tmp)
-		} else if i < nbPublic || isCommitment {
+			evals.G1.CKK[commitmentIndex] = append(evals.G1.CKK[commitmentIndex], tmp)
+		} else if j < nbPublic || isCommitment {
 			evals.G1.VKK = append(evals.G1.VKK, tmp)
 		} else {
 			c2.Parameters.G1.PKK = append(c2.Parameters.G1.PKK, tmp)
@@ -206,48 +305,13 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 		}
 	}
 
-	for i := range commitments {
-		c2.Parameters.CommitmentKeys[i].BasisExpSigma = slices.Clone(c2.Parameters.CommitmentKeys[i].Basis)
+	for j := range commitments {
+		c2.Parameters.G1.SigmaCKK[j] = slices.Clone(evals.G1.CKK[j])
 	}
 
 	// Hash initial contribution
-	c2.Hash = c2.hash() // TODO remove
+	c2.Challenge = c2.hash() // TODO remove
 	return c2, evals
-}
-
-func (c *Phase2) Contribute() {
-	// Sample toxic δ
-	var delta, deltaInv fr.Element
-	var sigma fr.Element
-	var deltaBI, deltaInvBI big.Int
-
-	updateValue()
-
-	delta.SetRandom()
-	deltaInv.Inverse(&delta)
-
-	delta.BigInt(&deltaBI)
-	deltaInv.BigInt(&deltaInvBI)
-
-	// Set δ public key
-	c.PublicKey = newPublicKey(delta, c.Hash, 1)
-
-	// Update δ
-	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
-	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
-
-	// Update Z using δ⁻¹
-	for i := 0; i < len(c.Parameters.G1.Z); i++ {
-		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
-	}
-
-	// Update PKK using δ⁻¹
-	for i := 0; i < len(c.Parameters.G1.PKK); i++ {
-		c.Parameters.G1.PKK[i].ScalarMultiplication(&c.Parameters.G1.PKK[i], &deltaInvBI)
-	}
-
-	// 4. Hash contribution
-	c.Hash = c.hash()
 }
 
 func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
@@ -262,7 +326,7 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 
 func verifyPhase2(current, contribution *Phase2) error {
 	// Compute R for δ
-	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
+	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Challenge[:], 1)
 
 	// Check for knowledge of δ
 	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
@@ -278,21 +342,13 @@ func verifyPhase2(current, contribution *Phase2) error {
 	}
 
 	// Check for valid updates of PKK and Z using
-	L, prevL := merge(contribution.Parameters.G1.PKK, current.Parameters.G1.PKK)
+	L, prevL := linearCombination(contribution.Parameters.G1.PKK, current.Parameters.G1.PKK)
 	if !sameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
 		return errors.New("couldn't verify valid updates of PKK using δ⁻¹")
 	}
-	Z, prevZ := merge(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
+	Z, prevZ := linearCombination(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
 	if !sameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
 		return errors.New("couldn't verify valid updates of PKK using δ⁻¹")
-	}
-
-	// Check hash of the contribution
-	h := contribution.hash()
-	for i := 0; i < len(h); i++ {
-		if h[i] != contribution.Hash[i] {
-			return errors.New("couldn't verify hash of contribution")
-		}
 	}
 
 	return nil

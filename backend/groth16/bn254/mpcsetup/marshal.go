@@ -81,7 +81,7 @@ func (phase2 *Phase2) WriteTo(writer io.Writer) (int64, error) {
 	if err != nil {
 		return n, err
 	}
-	nBytes, err := writer.Write(phase2.Hash)
+	nBytes, err := writer.Write(phase2.Challenge)
 	return int64(nBytes) + n, err
 }
 
@@ -125,8 +125,8 @@ func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 		}
 	}
 
-	c.Hash = make([]byte, 32)
-	n, err := reader.Read(c.Hash)
+	c.Challenge = make([]byte, 32)
+	n, err := reader.Read(c.Challenge)
 	return int64(n) + dec.BytesRead(), err
 
 }

@@ -156,14 +156,14 @@ func sameRatioUnsafe(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
 }
 
 // returns a = ∑ rᵢAᵢ, b = ∑ rᵢBᵢ
-func merge(A, B []curve.G1Affine) (a, b curve.G1Affine) {
+func linearCombination(A, B []curve.G1Affine, r []fr.Element) (a, b curve.G1Affine) {
 	nc := runtime.NumCPU()
-	r := make([]fr.Element, len(A))
-	for i := 0; i < len(A); i++ {
-		r[i].SetRandom()
+	if _, err := a.MultiExp(A, r[:len(A)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
+		panic(err)
 	}
-	a.MultiExp(A, r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	b.MultiExp(B, r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	if _, err := b.MultiExp(B, r[:len(B)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
+		panic(err)
+	}
 	return
 }
 
@@ -172,8 +172,9 @@ func merge(A, B []curve.G1Affine) (a, b curve.G1Affine) {
 func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, shifted curve.G1Affine) {
 	// the common section, 1 to N-2
 	var common curve.G1Affine
-	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
-
+	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+		panic(err)
+	}
 	var c big.Int
 	rPowers[1].BigInt(&c)
 	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
@@ -189,8 +190,9 @@ func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, 
 func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, shifted curve.G2Affine) {
 	// the common section, 1 to N-2
 	var common curve.G2Affine
-	common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}) // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
-
+	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+		panic(err)
+	}
 	var c big.Int
 	rPowers[1].BigInt(&c)
 	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
@@ -242,7 +244,7 @@ type valueUpdate struct {
 // updateValue produces values associated with contribution to an existing value.
 // if prevCommitment contains only a 𝔾₁ value, then so will updatedCommitment
 // the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
-func updateValue(prev curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, updated curve.G1Affine, contributionValue fr.Element) {
+func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
 	if _, err := contributionValue.SetRandom(); err != nil {
 		panic(err)
 	}
@@ -251,10 +253,10 @@ func updateValue(prev curve.G1Affine, challenge []byte, dst byte) (proof valueUp
 
 	_, _, g1, _ := curve.Generators()
 	proof.contributionCommitment.ScalarMultiplication(&g1, &contributionValueI)
-	updated.ScalarMultiplication(&prev, &contributionValueI)
+	value.ScalarMultiplication(value, &contributionValueI)
 
 	// proof of knowledge to commitment. Algorithm 3 from section 3.7
-	pokBase := genR(proof.contributionCommitment, updated, challenge, dst) // r
+	pokBase := genR(proof.contributionCommitment, *value, challenge, dst) // r
 	proof.contributionPok.ScalarMultiplication(&pokBase, &contributionValueI)
 
 	return
@@ -264,46 +266,37 @@ func updateValue(prev curve.G1Affine, challenge []byte, dst byte) (proof valueUp
 // it checks the proof of knowledge of the contribution, and the fact that the product of the contribution
 // and previous commitment makes the new commitment.
 // prevCommitment is assumed to be valid. No subgroup check and the like.
-func (x *valueUpdate) verify(prev, updated pair, challenge []byte, dst byte) error {
-	noG2 := prev.g2 == nil
-	if noG2 != (updated.g2 == nil) {
+// challengePoint is normally equal to [denom]
+func (x *valueUpdate) verify(denom, num pair, challengePoint curve.G1Affine, challenge []byte, dst byte) error {
+	noG2 := denom.g2 == nil
+	if noG2 != (num.g2 == nil) {
 		return errors.New("erasing or creating g2 values")
 	}
 
-	if !x.contributionPok.IsInSubGroup() || !x.contributionCommitment.IsInSubGroup() || !updated.validUpdate() {
+	if !x.contributionPok.IsInSubGroup() || !x.contributionCommitment.IsInSubGroup() || !num.validUpdate() {
 		return errors.New("contribution values subgroup check failed")
 	}
 
 	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
-	r := genR(x.contributionCommitment, updated.g1, challenge, dst) // verification challenge in the form of a g2 base
+	r := genR(x.contributionCommitment, challengePoint, challenge, dst) // verification challenge in the form of a g2 base
 	_, _, g1, _ := curve.Generators()
 	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
 		return errors.New("contribution proof of knowledge verification failed")
 	}
 
-	// check that the updated/previous ratio is consistent between the 𝔾₁ and 𝔾₂ representations. Based on CONSISTENT, algorithm 2 in Section 3.6.
-	if !noG2 && !sameRatioUnsafe(updated.g1, prev.g1, *updated.g2, *prev.g2) {
+	// check that the num/denom ratio is consistent between the 𝔾₁ and 𝔾₂ representations. Based on CONSISTENT, algorithm 2 in Section 3.6.
+	if !noG2 && !sameRatioUnsafe(num.g1, denom.g1, *num.g2, *denom.g2) {
 		return errors.New("g2 update inconsistent")
 	}
 
-	// now verify that updated₁/previous₁ = x ( = x/g1 = π/r )
+	// now verify that num₁/denom₁ = x ( = x/g1 = π/r )
 	// have to use the latter value for the RHS because we sameRatio needs both 𝔾₁ and 𝔾₂ values
-	if !sameRatioUnsafe(updated.g1, prev.g1, x.contributionPok, r) {
+	if !sameRatioUnsafe(num.g1, denom.g1, x.contributionPok, r) {
 		return errors.New("g1 update inconsistent")
 	}
 
 	return nil
 }
-
-/*
-// setEmpty does not provide proofs, only sets the value to [1]
-func (x *valueUpdate) setEmpty(g1Only bool) {
-	_, _, g1, g2 := curve.Generators()
-	x.updatedCommitment.g1.Set(&g1)
-	if !g1Only {
-		x.updatedCommitment.g2 = &g2
-	}
-}*/
 
 func toRefs[T any](s []T) []*T {
 	res := make([]*T, len(s))

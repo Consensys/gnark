@@ -194,7 +194,7 @@ func (phase2 *Phase2) clone() Phase2 {
 	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
 	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
 	r.PublicKey = phase2.PublicKey
-	r.Hash = append(r.Hash, phase2.Hash...)
+	r.Challenge = append(r.Challenge, phase2.Challenge...)
 
 	return r
 }

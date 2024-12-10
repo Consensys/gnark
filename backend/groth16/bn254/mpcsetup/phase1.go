@@ -21,9 +21,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math/big"
+	"runtime"
 )
 
 // Phase1 represents the Phase1 of the MPC described in
@@ -47,9 +49,9 @@ func (p *Phase1) Contribute() {
 	var (
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
-	p.proofs.Tau, p.parameters.G1.Tau[1], tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
-	p.proofs.Alpha, p.parameters.G1.AlphaTau[0], alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
-	p.proofs.Beta, p.parameters.G1.BetaTau[0], betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)
+	p.proofs.Tau, tauContrib = updateValue(&p.parameters.G1.Tau[1], p.Challenge, 1)
+	p.proofs.Alpha, alphaContrib = updateValue(&p.parameters.G1.AlphaTau[0], p.Challenge, 2)
+	p.proofs.Beta, betaContrib = updateValue(&p.parameters.G1.BetaTau[0], p.Challenge, 3)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib, true)
 }
@@ -164,38 +166,55 @@ func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 }
 
 // Verify assumes previous is correct
-func (p *Phase1) Verify(previous *Phase1) error {
+func (p *Phase1) Verify(next *Phase1) error {
 
-	if prevHash := previous.hash(); !bytes.Equal(p.Challenge, previous.hash()) { // if chain-verifying contributions, challenge fields are optional as they can be computed as we go
-		if len(p.Challenge) != 0 {
+	if prevHash := p.hash(); !bytes.Equal(next.Challenge, p.hash()) { // if chain-verifying contributions, challenge fields are optional as they can be computed as we go
+		if len(next.Challenge) != 0 {
 			return errors.New("the challenge does not match the previous phase's hash")
 		}
-		p.Challenge = prevHash
+		next.Challenge = prevHash
 	}
 
-	if err := p.proofs.Tau.verify(
-		pair{previous.parameters.G1.Tau[1], &previous.parameters.G2.Tau[1]},
+	// TODO compare sizes
+
+	r := linearCombCoeffs(len(next.parameters.G1.Tau) - 1) // the longest of all lengths
+	// will be reusing the coefficients TODO @Tabaie make sure that's okay
+
+	N := len(next.parameters.G2.Tau)
+	var taus, alphaTaus, betaTaus curve.G1Affine
+	if _, err := taus.MultiExp(next.parameters.G1.Tau[1:N], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // τ¹ + r.τ² + … + rᴺ⁻².τⁿ⁻¹
+		return err
+	}
+	if _, err := alphaTaus.MultiExp(next.parameters.G1.AlphaTau[1:], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // ατ¹ + r.ατ² + … + rᴺ⁻².ατⁿ⁻¹
+		return err
+	}
+	if _, err := betaTaus.MultiExp(next.parameters.G1.BetaTau[1:], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // βτ¹ + r.βτ² + … + rᴺ⁻².βτⁿ⁻¹
+		return err
+	}
+
+	if err := next.proofs.Tau.verify(
 		pair{p.parameters.G1.Tau[1], &p.parameters.G2.Tau[1]},
-		p.Challenge, 1); err != nil {
+		pair{next.parameters.G1.Tau[1], &next.parameters.G2.Tau[1]},
+		next.Challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := p.proofs.Alpha.verify(
-		pair{previous.parameters.G1.AlphaTau[0], nil},
-		pair{p.parameters.G1.AlphaTau[0], nil},
-		p.Challenge, 2); err != nil {
+	if err := next.proofs.Alpha.verify( // TODO Get ACTUAL updated tau
+		pair{taus, nil},
+		pair{alphaTaus, nil},
+		next.Challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := p.proofs.Beta.verify(
-		pair{previous.parameters.G1.BetaTau[0], &previous.parameters.G2.Beta},
-		pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta},
-		p.Challenge, 3); err != nil {
+	if err := next.proofs.Beta.verify(
+		pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, // TODO @Tabaie combine the verification of all βτⁱ
+		pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta},
+		next.Challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
-	if !areInSubGroupG1(p.parameters.G1.Tau[2:]) || !areInSubGroupG1(p.parameters.G1.BetaTau[1:]) || !areInSubGroupG1(p.parameters.G1.AlphaTau[1:]) {
+	if !areInSubGroupG1(next.parameters.G1.Tau[2:]) || !areInSubGroupG1(next.parameters.G1.BetaTau[1:]) || !areInSubGroupG1(next.parameters.G1.AlphaTau[1:]) {
 		return errors.New("derived values 𝔾₁ subgroup check failed")
 	}
-	if !areInSubGroupG2(p.parameters.G2.Tau[2:]) {
+	if !areInSubGroupG2(next.parameters.G2.Tau[2:]) {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
 
@@ -205,19 +224,17 @@ func (p *Phase1) Verify(previous *Phase1) error {
 	// i.e. e(τⁱ⁺¹,[1]₂) = e(τⁱ,[τ]₂). Due to bi-linearity we can instead check
 	// e(∑rⁱ⁻¹τⁱ⁺¹,[1]₂) = e(∑rⁱ⁻¹τⁱ,[τ]₂), which is tantamount to the check
 	// ∑rⁱ⁻¹τⁱ⁺¹ / ∑rⁱ⁻¹τⁱ = τ
-	r := linearCombCoeffs(len(p.parameters.G1.Tau) - 1) // the longest of all lengths
-	// will be reusing the coefficient TODO @Tabaie make sure that's okay
 
-	tauT1, tauS1 := linearCombinationsG1(p.parameters.G1.Tau[1:], r)
-	tauT2, tauS2 := linearCombinationsG2(p.parameters.G2.Tau[1:], r)
-	alphaTT, alphaTS := linearCombinationsG1(p.parameters.G1.AlphaTau, r)
-	betaTT, betaTS := linearCombinationsG1(p.parameters.G1.BetaTau, r)
+	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r)
+	tauT2, tauS2 := linearCombinationsG2(next.parameters.G2.Tau[1:], r)
+	alphaTT, alphaTS := linearCombinationsG1(next.parameters.G1.AlphaTau, r)
+	betaTT, betaTS := linearCombinationsG1(next.parameters.G1.BetaTau, r)
 
-	if !sameRatioUnsafe(tauS1, tauT1, p.parameters.G2.Tau[1], g2) {
+	if !sameRatioUnsafe(tauS1, tauT1, next.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
 	}
 
-	if !sameRatioUnsafe(p.parameters.G1.Tau[1], g1, tauS2, tauT2) {
+	if !sameRatioUnsafe(next.parameters.G1.Tau[1], g1, tauS2, tauT2) {
 		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
 	}
 
@@ -226,10 +243,12 @@ func (p *Phase1) Verify(previous *Phase1) error {
 	// For 0 < i < N we check that ατⁱ/ατⁱ⁻¹ = τ, since we have a representation of τ in 𝔾₂
 	// with a similar bi-linearity argument as above we can do this with a single pairing check
 
-	if !sameRatioUnsafe(alphaTS, alphaTT, p.parameters.G2.Tau[1], g2) {
+	// TODO eliminate these by combining with update checking
+
+	if !sameRatioUnsafe(alphaTS, alphaTT, next.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify the ατⁱ")
 	}
-	if !sameRatioUnsafe(betaTS, betaTT, p.parameters.G2.Tau[1], g2) {
+	if !sameRatioUnsafe(betaTS, betaTT, next.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify the βτⁱ")
 	}
 
