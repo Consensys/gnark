@@ -464,77 +464,40 @@ func (e Ext12) squareDirect(a *E12) *E12 {
 // Granger-Scott's cyclotomic square
 // https://eprint.iacr.org/2009/565.pdf, 3.2
 func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
-	// x=(x0,x2,x4,x1,x3,x5) in E6
-	// cyclosquare(x) = 3*x4²*u + 3*x0² - 2*x0,
-	//					6*x1*x5*u + 2*x3,
-	//					3*x2²*u + 3*x3² - 2*x1,
-	//					6*x0*x4 + 2*x4,
-	//					3*x5²*u + 3*x1² - 2*x2,
-	//					6*x2*x3 + 2*x5,
 	nine := big.NewInt(9)
 	x000 := e.fp.Add(&x.A0, e.fp.MulConst(&x.A6, nine))
-	x00 := E2{A0: *x000, A1: x.A6}
+	x001 := &x.A6
 	x010 := e.fp.Add(&x.A2, e.fp.MulConst(&x.A8, nine))
-	x01 := E2{A0: *x010, A1: x.A8}
+	x011 := &x.A8
 	x020 := e.fp.Add(&x.A4, e.fp.MulConst(&x.A10, nine))
-	x02 := E2{A0: *x020, A1: x.A10}
+	x021 := &x.A10
 	x100 := e.fp.Add(&x.A1, e.fp.MulConst(&x.A7, nine))
-	x10 := E2{A0: *x100, A1: x.A7}
+	x101 := &x.A7
 	x110 := e.fp.Add(&x.A3, e.fp.MulConst(&x.A9, nine))
-	x11 := E2{A0: *x110, A1: x.A9}
+	x111 := &x.A9
 	x120 := e.fp.Add(&x.A5, e.fp.MulConst(&x.A11, nine))
-	x12 := E2{A0: *x120, A1: x.A11}
+	x121 := &x.A11
 
-	t0 := e.Ext2.Square(&x11)
-	t1 := e.Ext2.Square(&x00)
-	t6 := e.Ext2.Add(&x11, &x00)
-	t6 = e.Ext2.Square(t6)
-	t6 = e.Ext2.Sub(t6, t0)
-	t6 = e.Ext2.Sub(t6, t1)
-	t2 := e.Ext2.Square(&x02)
-	t3 := e.Ext2.Square(&x10)
-	t7 := e.Ext2.Add(&x02, &x10)
-	t7 = e.Ext2.Square(t7)
-	t7 = e.Ext2.Sub(t7, t2)
-	t7 = e.Ext2.Sub(t7, t3)
-	t4 := e.Ext2.Square(&x12)
-	t5 := e.Ext2.Square(&x01)
-	t8 := e.Ext2.Add(&x12, &x01)
-	t8 = e.Ext2.Square(t8)
-	t8 = e.Ext2.Sub(t8, t4)
-	t8 = e.Ext2.Sub(t8, t5)
-	t8 = e.Ext2.MulByNonResidue(t8)
-	t0 = e.Ext2.MulByNonResidue(t0)
-	t0 = e.Ext2.Add(t0, t1)
-	t2 = e.Ext2.MulByNonResidue(t2)
-	t2 = e.Ext2.Add(t2, t3)
-	t4 = e.Ext2.MulByNonResidue(t4)
-	t4 = e.Ext2.Add(t4, t5)
-	z00 := e.Ext2.Sub(t0, &x00)
-	z00 = e.Ext2.Double(z00)
-	z00 = e.Ext2.Add(z00, t0)
-	z01 := e.Ext2.Sub(t2, &x01)
-	z01 = e.Ext2.Double(z01)
-	z01 = e.Ext2.Add(z01, t2)
-	z02 := e.Ext2.Sub(t4, &x02)
-	z02 = e.Ext2.Double(z02)
-	z02 = e.Ext2.Add(z02, t4)
-	z10 := e.Ext2.Add(t8, &x10)
-	z10 = e.Ext2.Double(z10)
-	z10 = e.Ext2.Add(z10, t8)
-	z11 := e.Ext2.Add(t6, &x11)
-	z11 = e.Ext2.Double(z11)
-	z11 = e.Ext2.Add(z11, t6)
-	z12 := e.Ext2.Add(t7, &x12)
-	z12 = e.Ext2.Double(z12)
-	z12 = e.Ext2.Add(z12, t7)
+	mone := e.fp.NewElement(-1)
+	z000 := e.fp.Eval([][]*baseEl{{x110, x110}, {mone, x111, x111}, {mone, x110, x111}, {x000, x000}, {mone, x001, x001}, {mone, x000}}, []int{27, 27, 6, 3, 3, 2})
+	z001 := e.fp.Eval([][]*baseEl{{x110, x110}, {mone, x111, x111}, {x110, x111}, {x000, x001}, {mone, x001}}, []int{3, 3, 54, 6, 2})
+	z020 := e.fp.Eval([][]*baseEl{{x020, x020}, {mone, x021, x021}, {mone, x020, x021}, {x100, x100}, {mone, x101, x101}, {mone, x010}}, []int{27, 27, 6, 3, 3, 2})
+	z021 := e.fp.Eval([][]*baseEl{{x020, x020}, {mone, x021, x021}, {x020, x021}, {x100, x101}, {mone, x011}}, []int{3, 3, 54, 6, 2})
+	z110 := e.fp.Eval([][]*baseEl{{x120, x120}, {mone, x121, x121}, {mone, x120, x121}, {x010, x010}, {mone, x011, x011}, {mone, x020}}, []int{27, 27, 6, 3, 3, 2})
+	z111 := e.fp.Eval([][]*baseEl{{x120, x120}, {mone, x121, x121}, {x120, x121}, {x010, x011}, {mone, x021}}, []int{3, 3, 54, 6, 2})
+	z010 := e.fp.Eval([][]*baseEl{{x010, x120}, {mone, x011, x121}, {mone, x010, x121}, {mone, x011, x120}, {x100}}, []int{54, 54, 6, 6, 2})
+	z011 := e.fp.Eval([][]*baseEl{{x010, x120}, {mone, x011, x121}, {x010, x121}, {x011, x120}, {x101}}, []int{6, 6, 54, 54, 2})
+	z100 := e.fp.Eval([][]*baseEl{{x000, x110}, {mone, x001, x111}, {x110}}, []int{6, 6, 2})
+	z101 := e.fp.Eval([][]*baseEl{{x000, x111}, {x001, x110}, {x111}}, []int{6, 6, 2})
+	z120 := e.fp.Eval([][]*baseEl{{x020, x100}, {mone, x021, x101}, {x120}}, []int{6, 6, 2})
+	z121 := e.fp.Eval([][]*baseEl{{x020, x101}, {x021, x100}, {x121}}, []int{6, 6, 2})
 
-	A0 := e.fp.Sub(&z00.A0, e.fp.MulConst(&z00.A1, nine))
-	A1 := e.fp.Sub(&z10.A0, e.fp.MulConst(&z10.A1, nine))
-	A2 := e.fp.Sub(&z01.A0, e.fp.MulConst(&z01.A1, nine))
-	A3 := e.fp.Sub(&z11.A0, e.fp.MulConst(&z11.A1, nine))
-	A4 := e.fp.Sub(&z02.A0, e.fp.MulConst(&z02.A1, nine))
-	A5 := e.fp.Sub(&z12.A0, e.fp.MulConst(&z12.A1, nine))
+	A0 := e.fp.Sub(z000, e.fp.MulConst(z001, nine))
+	A1 := e.fp.Sub(z010, e.fp.MulConst(z011, nine))
+	A2 := e.fp.Sub(z020, e.fp.MulConst(z021, nine))
+	A3 := e.fp.Sub(z100, e.fp.MulConst(z101, nine))
+	A4 := e.fp.Sub(z110, e.fp.MulConst(z111, nine))
+	A5 := e.fp.Sub(z120, e.fp.MulConst(z121, nine))
 
 	return &E12{
 		A0:  *A0,
@@ -543,12 +506,12 @@ func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
 		A3:  *A3,
 		A4:  *A4,
 		A5:  *A5,
-		A6:  z00.A1,
-		A7:  z10.A1,
-		A8:  z01.A1,
-		A9:  z11.A1,
-		A10: z02.A1,
-		A11: z12.A1,
+		A6:  *z001,
+		A7:  *z011,
+		A8:  *z021,
+		A9:  *z101,
+		A10: *z111,
+		A11: *z121,
 	}
 }
 

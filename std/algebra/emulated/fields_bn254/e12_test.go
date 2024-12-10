@@ -189,6 +189,43 @@ func TestSquareFp12(t *testing.T) {
 
 }
 
+type e12SquareGS struct {
+	A, C E12
+}
+
+func (circuit *e12SquareGS) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.CyclotomicSquareGS(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestSquareGSFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	c.Square(&a)
+
+	witness := e12SquareGS{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12SquareGS{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e12Conjugate struct {
 	A E12
 	C E12 `gnark:",public"`
