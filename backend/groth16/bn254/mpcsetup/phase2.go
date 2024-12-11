@@ -20,7 +20,7 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
-type Phase2Evaluations struct {
+type Phase2Evaluations struct { // TODO @Tabaie rename
 	G1 struct {
 		A   []curve.G1Affine   // A are the left coefficient polynomials for each witness element, evaluated at τ
 		B   []curve.G1Affine   // B are the right coefficient polynomials for each witness element, evaluated at τ
@@ -36,13 +36,13 @@ type Phase2 struct {
 	Parameters struct {
 		G1 struct {
 			Delta    curve.G1Affine
-			Z        []curve.G1Affine   // Z are multiples of the domain vanishing polynomial
-			PKK      []curve.G1Affine   // PKK are the coefficients of the private witness
-			SigmaCKK [][]curve.G1Affine // Commitment bases
+			Z        []curve.G1Affine   // Z[i] = xⁱt(x)/δ where t is the domain vanishing polynomial 0 ≤ i ≤ N-2
+			PKK      []curve.G1Affine   // PKK are the coefficients of the private witness, needed for the proving key. They have a denominator of δ
+			SigmaCKK [][]curve.G1Affine // Commitment proof bases: SigmaCKK[i][j] = Cᵢⱼσᵢ where Cᵢⱼ is the commitment basis for the jᵗʰ committed element from the iᵗʰ commitment
 		}
 		G2 struct {
 			Delta curve.G2Affine
-			Sigma []curve.G2Affine
+			Sigma []curve.G2Affine // the secret σ value for each commitment
 		}
 	}
 
@@ -55,43 +55,53 @@ type Phase2 struct {
 }
 
 func (c *Phase2) Verify(next *Phase2) error {
-	if challenge := c.hash(); len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
+	challenge := c.hash()
+	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
 		return errors.New("the challenge does not match the previous phase's hash")
 	}
+	next.Challenge = challenge
 
-	if err := next.Delta.verify(
-		pair{c.Parameters.G1.Delta, &c.Parameters.G2.Delta},
-		pair{next.Parameters.G1.Delta, &next.Parameters.G2.Delta},
-		next.Challenge, 1); err != nil {
-		return fmt.Errorf("failed to verify contribution to δ: %w", err)
+	if len(next.Parameters.G1.Z) != len(c.Parameters.G1.Z) ||
+		len(next.Parameters.G1.PKK) != len(c.Parameters.G1.PKK) ||
+		len(next.Parameters.G1.SigmaCKK) != len(c.Parameters.G1.SigmaCKK) ||
+		len(next.Parameters.G2.Sigma) != len(c.Parameters.G2.Sigma) {
+		return errors.New("contribution size mismatch")
 	}
 
-	for i := range c.Sigmas {
-		if err := next.Sigmas[i].verify(
-			pair{c.Parameters.G1.SigmaCKK[i][0], &c.Parameters.G2.Sigma[i]},
-			pair{next.Parameters.G1.SigmaCKK[i][0], &next.Parameters.G2.Sigma[i]},
-			next.Challenge, byte(2+i)); err != nil {
-			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
-		}
-		if !areInSubGroupG1(next.Parameters.G1.SigmaCKK[i][1:]) {
+	r := linearCombCoeffs(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1) // TODO @Tabaie If all contributions are being verified in one go, we could reuse r
+
+	verifyContribution := func(update *valueUpdate, g1Denominator, g1Numerator []curve.G1Affine, g2Denominator, g2Numerator *curve.G2Affine, dst byte) error {
+		g1Num := linearCombination(g1Numerator, r)
+		g1Denom := linearCombination(g1Denominator, r)
+
+		return update.verify(pair{g1Denom, g2Denominator}, pair{g1Num, g2Denominator}, challenge, dst)
+	}
+
+	// verify proof of knowledge of contributions to the σᵢ
+	// and the correctness of updates to Parameters.G2.Sigma[i] and the Parameters.G1.SigmaCKK[i]
+	for i := range c.Sigmas { // match the first commitment basis elem against the contribution commitment
+		if !areInSubGroupG1(next.Parameters.G1.SigmaCKK[i]) {
 			return errors.New("commitment proving key subgroup check failed")
 		}
+
+		if err := verifyContribution(&c.Sigmas[i], c.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &c.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
+			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
+		}
 	}
 
+	// verify proof of knowledge of contribution to δ
+	// and the correctness of updates to Parameters.Gi.Delta, PKK[i], and Z[i]
 	if !areInSubGroupG1(next.Parameters.G1.Z) || !areInSubGroupG1(next.Parameters.G1.PKK) {
 		return errors.New("derived values 𝔾₁ subgroup check failed")
 	}
 
-	r := linearCombCoeffs(len(next.Parameters.G1.Z))
-
-	for i := range c.Sigmas {
-		prevComb, nextComb := linearCombination(c.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], r)
-		if !sameRatioUnsafe(nextComb, prevComb, next.Parameters.G2.Sigma[i], c.Parameters.G2.Sigma[i]) {
-			return fmt.Errorf("failed to verify contribution to σ[%d]", i)
-		}
+	denom := cloneAppend([]curve.G1Affine{c.Parameters.G1.Delta}, next.Parameters.G1.Z, next.Parameters.G1.PKK)
+	num := cloneAppend([]curve.G1Affine{next.Parameters.G1.Delta}, c.Parameters.G1.Z, c.Parameters.G1.PKK)
+	if err := verifyContribution(&c.Delta, denom, num, &c.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
+		return fmt.Errorf("failed to verify contribution to δ: %w", err)
 	}
 
-	linearCombination()
+	return nil
 }
 
 func (c *Phase2) Contribute() {
@@ -315,7 +325,7 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 
 func verifyPhase2(current, contribution *Phase2) error {
 	// Compute R for δ
-	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Challenge[:], 1)
+	deltaR := genR(contribution.PublicKey.SG, current.Challenge[:], 1)
 
 	// Check for knowledge of δ
 	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
@@ -347,4 +357,16 @@ func (c *Phase2) hash() []byte {
 	sha := sha256.New()
 	c.writeTo(sha)
 	return sha.Sum(nil)
+}
+
+func cloneAppend(s ...[]curve.G1Affine) []curve.G1Affine {
+	l := 0
+	for _, s := range s {
+		l += len(s)
+	}
+	res := make([]curve.G1Affine, 0, l)
+	for _, s := range s {
+		res = append(res, s...)
+	}
+	return res
 }

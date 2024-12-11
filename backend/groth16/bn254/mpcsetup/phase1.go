@@ -47,14 +47,15 @@ func (p *Phase1) Contribute() {
 
 // SrsCommons are the circuit-independent components of the Groth16 SRS,
 // computed by the first phase.
+// in all that follows, N is the domain size
 type SrsCommons struct {
 	G1 struct {
-		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
-		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
-		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
+		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ᴺ⁻²]₁}
+		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τᴺ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τᴺ⁻¹]₁}
 	}
 	G2 struct {
-		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
+		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τᴺ⁻¹]₂}
 		Beta curve.G2Affine   // [β]₂
 	}
 }
@@ -181,22 +182,13 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return err
 	}
 
-	if err := next.proofs.Tau.verify(
-		pair{p.parameters.G1.Tau[1], &p.parameters.G2.Tau[1]},
-		pair{next.parameters.G1.Tau[1], &next.parameters.G2.Tau[1]},
-		next.Challenge, 1); err != nil {
+	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], &p.parameters.G2.Tau[1]}, pair{next.parameters.G1.Tau[1], &next.parameters.G2.Tau[1]}, next.Challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := next.proofs.Alpha.verify( // TODO Get ACTUAL updated tau
-		pair{taus, nil},
-		pair{alphaTaus, nil},
-		next.Challenge, 2); err != nil {
+	if err := next.proofs.Alpha.verify(pair{taus, nil}, pair{alphaTaus, nil}, next.Challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := next.proofs.Beta.verify(
-		pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, // TODO @Tabaie combine the verification of all βτⁱ
-		pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta},
-		next.Challenge, 3); err != nil {
+	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, next.Challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 

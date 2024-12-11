@@ -41,7 +41,7 @@ func newPublicKey(x fr.Element, challenge []byte, dst byte) PublicKey {
 	pk.SXG.ScalarMultiplication(&pk.SG, &xBi)
 
 	// generate R based on sG1, sxG1, challenge, and domain separation tag (tau, alpha or beta)
-	R := genR(pk.SG, pk.SXG, challenge, dst)
+	R := genR(pk.SG, challenge, dst)
 
 	// compute x*spG2
 	pk.XR.ScalarMultiplication(&R, &xBi)
@@ -74,7 +74,7 @@ func powersI(a *big.Int, n int) []fr.Element {
 	return powers(&aMont, n)
 }
 
-// Returns [1, a, a², ..., aⁿ⁻¹ ]
+// Returns [1, a, a², ..., aᴺ⁻¹ ]
 func powers(a *fr.Element, n int) []fr.Element {
 
 	result := make([]fr.Element, n)
@@ -144,20 +144,19 @@ func sameRatioUnsafe(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
 	return res
 }
 
-// returns a = ∑ rᵢAᵢ, b = ∑ rᵢBᵢ
-func linearCombination(A, B []curve.G1Affine, r []fr.Element) (a, b curve.G1Affine) {
+// returns ∑ rᵢAᵢ
+func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 	nc := runtime.NumCPU()
-	if _, err := a.MultiExp(A, r[:len(A)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
+	var res curve.G1Affine
+	if _, err := res.MultiExp(A, r[:len(A)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
 		panic(err)
 	}
-	if _, err := b.MultiExp(B, r[:len(B)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
-		panic(err)
-	}
-	return
+	return res
 }
 
 // linearCombinationsG1 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
 // Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
 func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, shifted curve.G1Affine) {
 	// the common section, 1 to N-2
 	var common curve.G1Affine
@@ -176,6 +175,7 @@ func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, 
 
 // linearCombinationsG2 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
 // Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
 func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, shifted curve.G2Affine) {
 	// the common section, 1 to N-2
 	var common curve.G2Affine
@@ -195,11 +195,10 @@ func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, 
 // Generate R∈𝔾₂ as Hash(gˢ, gˢˣ, challenge, dst)
 // it is to be used as a challenge for generating a proof of knowledge to x
 // π ≔ x.r; e([1]₁, π) =﹖ e([x]₁, r)
-func genR(sG1, sxG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
+func genR(sG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
 	var buf bytes.Buffer
 	buf.Grow(len(challenge) + curve.SizeOfG1AffineUncompressed*2)
 	buf.Write(sG1.Marshal())
-	buf.Write(sxG1.Marshal())
 	buf.Write(challenge)
 	spG2, err := curve.HashToG2(buf.Bytes(), []byte{dst})
 	if err != nil {
@@ -227,7 +226,6 @@ func (p *pair) validUpdate() bool {
 type valueUpdate struct {
 	contributionCommitment curve.G1Affine // x or [Xⱼ]₁
 	contributionPok        curve.G2Affine // π ≔ x.r ∈ 𝔾₂
-	//updatedCommitment      pair           // [X₁..Xⱼ]
 }
 
 // updateValue produces values associated with contribution to an existing value.
@@ -245,7 +243,7 @@ func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof value
 	value.ScalarMultiplication(value, &contributionValueI)
 
 	// proof of knowledge to commitment. Algorithm 3 from section 3.7
-	pokBase := genR(proof.contributionCommitment, *value, challenge, dst) // r
+	pokBase := genR(proof.contributionCommitment, challenge, dst) // r
 	proof.contributionPok.ScalarMultiplication(&pokBase, &contributionValueI)
 
 	return
@@ -255,8 +253,7 @@ func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof value
 // it checks the proof of knowledge of the contribution, and the fact that the product of the contribution
 // and previous commitment makes the new commitment.
 // prevCommitment is assumed to be valid. No subgroup check and the like.
-// challengePoint is normally equal to [denom]
-func (x *valueUpdate) verify(denom, num pair, challengePoint curve.G1Affine, challenge []byte, dst byte) error {
+func (x *valueUpdate) verify(denom, num pair, challenge []byte, dst byte) error {
 	noG2 := denom.g2 == nil
 	if noG2 != (num.g2 == nil) {
 		return errors.New("erasing or creating g2 values")
@@ -267,7 +264,7 @@ func (x *valueUpdate) verify(denom, num pair, challengePoint curve.G1Affine, cha
 	}
 
 	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
-	r := genR(x.contributionCommitment, challengePoint, challenge, dst) // verification challenge in the form of a g2 base
+	r := genR(x.contributionCommitment, challenge, dst) // verification challenge in the form of a g2 base
 	_, _, g1, _ := curve.Generators()
 	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
 		return errors.New("contribution proof of knowledge verification failed")
