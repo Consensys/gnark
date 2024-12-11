@@ -34,5 +34,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *groth16_bn254.VerifyingKey) error 
 }
 
 func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
+	warmUpDevice()
 	return groth16_bn254.DummySetup(r1cs, &pk.ProvingKey)
 }
