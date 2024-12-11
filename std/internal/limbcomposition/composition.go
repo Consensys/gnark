@@ -1,7 +1,7 @@
 package limbs
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 )
 
@@ -13,7 +13,7 @@ import (
 //	res = \sum_{i=0}^{len(inputs)} inputs[i] * 2^{nbBits * i}
 func Recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 	if res == nil {
-		return fmt.Errorf("result not initialized")
+		return errors.New("result not initialized")
 	}
 	res.SetUint64(0)
 	for i := range inputs {
@@ -34,11 +34,11 @@ func Recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 func Decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	// limb modulus
 	if input.BitLen() > len(res)*int(nbBits) {
-		return fmt.Errorf("decomposed integer does not fit into res")
+		return errors.New("decomposed integer does not fit into res")
 	}
 	for _, r := range res {
 		if r == nil {
-			return fmt.Errorf("result slice element uninitialized")
+			return errors.New("result slice element uninitialized")
 		}
 	}
 	base := new(big.Int).Lsh(big.NewInt(1), nbBits)
