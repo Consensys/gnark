@@ -262,6 +262,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
 	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
+	privateCommittedValuesDevice := make([]icicle_core.DeviceSlice, len(commitmentInfo))
 
 	// override hints
 	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
@@ -275,20 +276,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			privateCommittedValues[i][j].SetBigInt(inJ)
 		}
 
-		privateCommittedValuesDevice := new(icicle_core.DeviceSlice)
-		commitmentBasisDevice := new(icicle_core.DeviceSlice)
 		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		ckBasisMsmDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			// TODO see if we can initialize outside of the `RunOnDevice` routine
 			privateCommittedValuesHost := icicle_core.HostSliceFromElements(privateCommittedValues[i])
-			commitmentBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
-			privateCommittedValuesDevice := privateCommittedValuesHost.CopyToDevice(privateCommittedValuesDevice, true)
-			commitmentBasisDevice := commitmentBasisHost.CopyToDevice(commitmentBasisDevice, true)
-			if err := icicle_msm.Msm(*privateCommittedValuesDevice, *commitmentBasisDevice, &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
+			privateCommittedValuesHost.CopyToDevice(&privateCommittedValuesDevice[i], true)
+			if err := icicle_msm.Msm(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.Basis[i], &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
 				panic(fmt.Sprintf("commitment: %s", err.AsString()))
 			}
 			close(ckBasisMsmDone)
@@ -324,33 +320,25 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	// if there are CommitmentKeys, run a batch MSM for pederson Proof of Knowledge
 	if numCommitmentKeys > 0 {
 		startPoKBatch := time.Now()
-		var basisExpSigmas []curve.G1Affine
-		var committedValues []fr.Element
-		for i := range pk.CommitmentKeys {
-			basisExpSigmas = append(basisExpSigmas, pk.CommitmentKeys[i].BasisExpSigma...)
-			committedValues = append(committedValues, privateCommittedValues[i]...)
+		poksIcicle := make([]icicle_core.HostSlice[icicle_bn254.Projective], numCommitmentKeys)
+		for i := range poksIcicle {
+			poksIcicle[i] = make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		}
-
-		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], numCommitmentKeys)
-		committedValuesDevice := new(icicle_core.DeviceSlice)
-		basisExpSigmasDevice := new(icicle_core.DeviceSlice)
 		ckBasisExpSigmaMsmBatchDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			committedValuesHost := icicle_core.HostSliceFromElements(committedValues)
-			basisExpSigmasHost := icicle_core.HostSliceFromElements(basisExpSigmas)
-			committedValuesDevice = committedValuesHost.CopyToDevice(committedValuesDevice, true)
-			basisExpSigmasDevice = basisExpSigmasHost.CopyToDevice(basisExpSigmasDevice, true)
-			if err := icicle_msm.Msm(*committedValuesDevice, *basisExpSigmasDevice, &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
-				panic(fmt.Sprintf("commitment POK: %s", err.AsString()))
+			for i := range pk.CommitmentKeysDevice.BasisExpSigma {
+				if err := icicle_msm.Msm(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.BasisExpSigma[i], &cfg, poksIcicle[i]); err != icicle_runtime.Success {
+					panic(fmt.Sprintf("commitment POK: %s", err.AsString()))
+				}
 			}
 			close(ckBasisExpSigmaMsmBatchDone)
 		})
 		<-ckBasisExpSigmaMsmBatchDone
 		for i := range pk.CommitmentKeys {
-			poks[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[i])
+			poks[i] = *projectiveToGnarkAffine(poksIcicle[i][0])
 		}
 		if isProfileMode {
 			log.Debug().Dur("took", time.Since(startPoKBatch)).Msg("ICICLE Batch Proof of Knowledge")
