@@ -13,7 +13,7 @@
 package logderivprecomp
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 	"reflect"
 
@@ -53,7 +53,7 @@ func New(api frontend.API, fn solver.Hint, rets []uint) (*Precomputed, error) {
 		s += v
 	}
 	if s >= uint(api.Compiler().FieldBitLen()) {
-		return nil, fmt.Errorf("result doesn't fit into field element")
+		return nil, errors.New("result doesn't fit into field element")
 	}
 	t := &Precomputed{
 		api:     api,
