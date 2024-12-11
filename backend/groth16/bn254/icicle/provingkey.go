@@ -16,6 +16,11 @@ type deviceInfo struct {
 		B icicle_core.DeviceSlice
 	}
 	DenDevice icicle_core.DeviceSlice
+
+	CommitmentKeysDevice struct {
+		Basis         []icicle_core.DeviceSlice
+		BasisExpSigma []icicle_core.DeviceSlice // we compute in batch
+	}
 }
 
 type ProvingKey struct {

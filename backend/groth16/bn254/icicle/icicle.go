@@ -151,6 +151,22 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	})
 	/*************************  End G2 Device Setup  ***************************/
 
+	/*************************  Commitment Keys Device Setup  ***************************/
+
+	commitmentKeysDeviceDone := make(chan struct{})
+	pk.CommitmentKeysDevice.Basis = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
+	pk.CommitmentKeysDevice.BasisExpSigma = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
+	icicle_runtime.RunOnDevice(device, func(args ...any) {
+		for i := range pk.CommitmentKeys {
+			commitmentKeyBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
+			commitmentKeyBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
+			commitmentKeyBasisHost.CopyToDevice(&pk.CommitmentKeysDevice.Basis[i], true)
+			commitmentKeyBasisExpSigmaHost.CopyToDevice(&pk.CommitmentKeysDevice.BasisExpSigma[i], true)
+		}
+		close(commitmentKeysDeviceDone)
+	})
+	/*************************  End Commitment Keys Device Setup  ***************************/
+
 	/*************************  Wait for all data tranfsers  ***************************/
 	<-initDomain
 	<-copyDenDone
@@ -159,6 +175,7 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	<-copyKDone
 	<-copyZDone
 	<-copyG2BDone
+	<-commitmentKeysDeviceDone
 
 	return nil
 }
