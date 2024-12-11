@@ -271,7 +271,7 @@ func (e *Ext12) Mul01379By01379(e3, e4, c3, c4 *E2) [10]*baseEl {
 	return [10]*baseEl{d0, d1, d2, d3, d4, d6, d7, d8, d9, d10}
 }
 
-// MulBy01379 multiplies a by an E12 sparse element b of the form
+// MulBy012346789 multiplies a by an E12 sparse element b of the form
 //
 //	b.A0  =  b[0]
 //	b.A1  =  b[1]
