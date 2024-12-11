@@ -176,8 +176,7 @@ func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bn254.E
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
 	left = pr.Ext2.Square(&Q.P.Y)
-	right = pr.Ext2.Square(&Q.P.X)
-	right = pr.Ext2.Mul(right, &Q.P.X)
+	right = pr.Ext2.Cube(&Q.P.X)
 	right = pr.Ext2.Add(right, b)
 	return left, right
 }
