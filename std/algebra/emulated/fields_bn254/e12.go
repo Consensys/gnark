@@ -31,24 +31,6 @@ func NewExt12(api frontend.API) *Ext12 {
 	}
 }
 
-func (e Ext12) Reduce(x *E12) *E12 {
-	var z E12
-	z.A0 = *e.fp.Reduce(&x.A0)
-	z.A1 = *e.fp.Reduce(&x.A1)
-	z.A2 = *e.fp.Reduce(&x.A2)
-	z.A3 = *e.fp.Reduce(&x.A3)
-	z.A4 = *e.fp.Reduce(&x.A4)
-	z.A5 = *e.fp.Reduce(&x.A5)
-	z.A6 = *e.fp.Reduce(&x.A6)
-	z.A7 = *e.fp.Reduce(&x.A7)
-	z.A8 = *e.fp.Reduce(&x.A8)
-	z.A9 = *e.fp.Reduce(&x.A9)
-	z.A10 = *e.fp.Reduce(&x.A10)
-	z.A11 = *e.fp.Reduce(&x.A11)
-
-	return &z
-}
-
 func (e Ext12) Zero() *E12 {
 	zero := e.fp.Zero()
 	return &E12{
@@ -207,66 +189,6 @@ func (e Ext12) Double(x *E12) *E12 {
 	}
 }
 
-func (e Ext12) MulByElement(x *E12, y *baseEl) *E12 {
-	a0 := e.fp.Mul(&x.A0, y)
-	a1 := e.fp.Mul(&x.A1, y)
-	a2 := e.fp.Mul(&x.A2, y)
-	a3 := e.fp.Mul(&x.A3, y)
-	a4 := e.fp.Mul(&x.A4, y)
-	a5 := e.fp.Mul(&x.A5, y)
-	a6 := e.fp.Mul(&x.A6, y)
-	a7 := e.fp.Mul(&x.A7, y)
-	a8 := e.fp.Mul(&x.A8, y)
-	a9 := e.fp.Mul(&x.A9, y)
-	a10 := e.fp.Mul(&x.A10, y)
-	a11 := e.fp.Mul(&x.A11, y)
-
-	return &E12{
-		A0:  *a0,
-		A1:  *a1,
-		A2:  *a2,
-		A3:  *a3,
-		A4:  *a4,
-		A5:  *a5,
-		A6:  *a6,
-		A7:  *a7,
-		A8:  *a8,
-		A9:  *a9,
-		A10: *a10,
-		A11: *a11,
-	}
-}
-
-func (e Ext12) MulByConstElement(x *E12, y *big.Int) *E12 {
-	a0 := e.fp.MulConst(&x.A0, y)
-	a1 := e.fp.MulConst(&x.A1, y)
-	a2 := e.fp.MulConst(&x.A2, y)
-	a3 := e.fp.MulConst(&x.A3, y)
-	a4 := e.fp.MulConst(&x.A4, y)
-	a5 := e.fp.MulConst(&x.A5, y)
-	a6 := e.fp.MulConst(&x.A6, y)
-	a7 := e.fp.MulConst(&x.A7, y)
-	a8 := e.fp.MulConst(&x.A8, y)
-	a9 := e.fp.MulConst(&x.A9, y)
-	a10 := e.fp.MulConst(&x.A10, y)
-	a11 := e.fp.MulConst(&x.A11, y)
-
-	return &E12{
-		A0:  *a0,
-		A1:  *a1,
-		A2:  *a2,
-		A3:  *a3,
-		A4:  *a4,
-		A5:  *a5,
-		A6:  *a6,
-		A7:  *a7,
-		A8:  *a8,
-		A9:  *a9,
-		A10: *a10,
-		A11: *a11,
-	}
-}
-
 func (e Ext12) Conjugate(x *E12) *E12 {
 	return &E12{
 		A0:  x.A0,
@@ -402,6 +324,7 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 		A11: *d11,
 	}
 }
+
 func (e Ext12) Square(x *E12) *E12 {
 	return e.squareDirect(x)
 }
@@ -520,66 +443,6 @@ func (e Ext12) DivUnchecked(x, y *E12) *E12 {
 
 }
 
-func (e Ext12) Select(selector frontend.Variable, z1, z0 *E12) *E12 {
-	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
-	a1 := e.fp.Select(selector, &z1.A1, &z0.A1)
-	a2 := e.fp.Select(selector, &z1.A2, &z0.A2)
-	a3 := e.fp.Select(selector, &z1.A3, &z0.A3)
-	a4 := e.fp.Select(selector, &z1.A4, &z0.A4)
-	a5 := e.fp.Select(selector, &z1.A5, &z0.A5)
-	a6 := e.fp.Select(selector, &z1.A6, &z0.A6)
-	a7 := e.fp.Select(selector, &z1.A7, &z0.A7)
-	a8 := e.fp.Select(selector, &z1.A8, &z0.A8)
-	a9 := e.fp.Select(selector, &z1.A9, &z0.A9)
-	a10 := e.fp.Select(selector, &z1.A10, &z0.A10)
-	a11 := e.fp.Select(selector, &z1.A11, &z0.A11)
-
-	return &E12{
-		A0:  *a0,
-		A1:  *a1,
-		A2:  *a2,
-		A3:  *a3,
-		A4:  *a4,
-		A5:  *a5,
-		A6:  *a6,
-		A7:  *a7,
-		A8:  *a8,
-		A9:  *a9,
-		A10: *a10,
-		A11: *a11,
-	}
-}
-
-func (e Ext12) Lookup2(s1, s2 frontend.Variable, z0, z1, z2, z3 *E12) *E12 {
-	a0 := e.fp.Lookup2(s1, s2, &z0.A0, &z1.A0, &z2.A0, &z3.A0)
-	a1 := e.fp.Lookup2(s1, s2, &z0.A1, &z1.A1, &z2.A1, &z3.A1)
-	a2 := e.fp.Lookup2(s1, s2, &z0.A2, &z1.A2, &z2.A2, &z3.A2)
-	a3 := e.fp.Lookup2(s1, s2, &z0.A3, &z1.A3, &z2.A3, &z3.A3)
-	a4 := e.fp.Lookup2(s1, s2, &z0.A4, &z1.A4, &z2.A4, &z3.A4)
-	a5 := e.fp.Lookup2(s1, s2, &z0.A5, &z1.A5, &z2.A5, &z3.A5)
-	a6 := e.fp.Lookup2(s1, s2, &z0.A6, &z1.A6, &z2.A6, &z3.A6)
-	a7 := e.fp.Lookup2(s1, s2, &z0.A7, &z1.A7, &z2.A7, &z3.A7)
-	a8 := e.fp.Lookup2(s1, s2, &z0.A8, &z1.A8, &z2.A8, &z3.A8)
-	a9 := e.fp.Lookup2(s1, s2, &z0.A9, &z1.A9, &z2.A9, &z3.A9)
-	a10 := e.fp.Lookup2(s1, s2, &z0.A10, &z1.A10, &z2.A10, &z3.A10)
-	a11 := e.fp.Lookup2(s1, s2, &z0.A11, &z1.A11, &z2.A11, &z3.A11)
-
-	return &E12{
-		A0:  *a0,
-		A1:  *a1,
-		A2:  *a2,
-		A3:  *a3,
-		A4:  *a4,
-		A5:  *a5,
-		A6:  *a6,
-		A7:  *a7,
-		A8:  *a8,
-		A9:  *a9,
-		A10: *a10,
-		A11: *a11,
-	}
-}
-
 func (e Ext12) AssertIsEqual(a, b *E12) {
 	e.fp.AssertIsEqual(&a.A0, &b.A0)
 	e.fp.AssertIsEqual(&a.A1, &b.A1)
@@ -648,27 +511,23 @@ func (e Ext12) Copy(x *E12) *E12 {
 }
 
 func (e Ext12) Frobenius(a *E12) *E12 {
+	tower := e.ToTower(a)
+
+	tower[1] = e.fp.Neg(tower[1])
+	tower[3] = e.fp.Neg(tower[3])
+	tower[5] = e.fp.Neg(tower[5])
+	tower[7] = e.fp.Neg(tower[7])
+	tower[9] = e.fp.Neg(tower[9])
+	tower[11] = e.fp.Neg(tower[11])
+
+	t1 := e.Ext2.MulByNonResidue1Power2(&E2{A0: *tower[2], A1: *tower[3]})
+	t2 := e.Ext2.MulByNonResidue1Power4(&E2{A0: *tower[4], A1: *tower[5]})
+	t3 := e.Ext2.MulByNonResidue1Power1(&E2{A0: *tower[6], A1: *tower[7]})
+	t4 := e.Ext2.MulByNonResidue1Power3(&E2{A0: *tower[8], A1: *tower[9]})
+	t5 := e.Ext2.MulByNonResidue1Power5(&E2{A0: *tower[10], A1: *tower[11]})
+
 	nine := big.NewInt(9)
-	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := e.fp.Neg(&a.A6)
-	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := e.fp.Neg(&a.A8)
-	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := e.fp.Neg(&a.A10)
-	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := e.fp.Neg(&a.A7)
-	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := e.fp.Neg(&a.A9)
-	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := e.fp.Neg(&a.A11)
-
-	t1 := e.Ext2.MulByNonResidue1Power2(&E2{A0: *a010, A1: *a011})
-	t2 := e.Ext2.MulByNonResidue1Power4(&E2{A0: *a020, A1: *a021})
-	t3 := e.Ext2.MulByNonResidue1Power1(&E2{A0: *a100, A1: *a101})
-	t4 := e.Ext2.MulByNonResidue1Power3(&E2{A0: *a110, A1: *a111})
-	t5 := e.Ext2.MulByNonResidue1Power5(&E2{A0: *a120, A1: *a121})
-
-	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A0 := e.fp.Sub(tower[0], e.fp.MulConst(tower[1], nine))
 	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
 	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
 	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
@@ -682,7 +541,7 @@ func (e Ext12) Frobenius(a *E12) *E12 {
 		A3:  *A3,
 		A4:  *A4,
 		A5:  *A5,
-		A6:  *a001,
+		A6:  *tower[1],
 		A7:  t3.A1,
 		A8:  t1.A1,
 		A9:  t4.A1,
@@ -692,27 +551,16 @@ func (e Ext12) Frobenius(a *E12) *E12 {
 }
 
 func (e Ext12) FrobeniusSquare(a *E12) *E12 {
+	tower := e.ToTower(a)
+
+	t1 := e.Ext2.MulByNonResidue2Power2(&E2{A0: *tower[2], A1: *tower[3]})
+	t2 := e.Ext2.MulByNonResidue2Power4(&E2{A0: *tower[4], A1: *tower[5]})
+	t3 := e.Ext2.MulByNonResidue2Power1(&E2{A0: *tower[6], A1: *tower[7]})
+	t4 := e.Ext2.MulByNonResidue2Power3(&E2{A0: *tower[8], A1: *tower[9]})
+	t5 := e.Ext2.MulByNonResidue2Power5(&E2{A0: *tower[10], A1: *tower[11]})
+
 	nine := big.NewInt(9)
-	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := &a.A6
-	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := &a.A8
-	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := &a.A10
-	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := &a.A7
-	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := &a.A9
-	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := &a.A11
-
-	t1 := e.Ext2.MulByNonResidue2Power2(&E2{A0: *a010, A1: *a011})
-	t2 := e.Ext2.MulByNonResidue2Power4(&E2{A0: *a020, A1: *a021})
-	t3 := e.Ext2.MulByNonResidue2Power1(&E2{A0: *a100, A1: *a101})
-	t4 := e.Ext2.MulByNonResidue2Power3(&E2{A0: *a110, A1: *a111})
-	t5 := e.Ext2.MulByNonResidue2Power5(&E2{A0: *a120, A1: *a121})
-
-	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A0 := e.fp.Sub(tower[0], e.fp.MulConst(tower[1], nine))
 	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
 	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
 	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
@@ -726,7 +574,7 @@ func (e Ext12) FrobeniusSquare(a *E12) *E12 {
 		A3:  *A3,
 		A4:  *A4,
 		A5:  *A5,
-		A6:  *a001,
+		A6:  *tower[1],
 		A7:  t3.A1,
 		A8:  t1.A1,
 		A9:  t4.A1,
@@ -736,27 +584,23 @@ func (e Ext12) FrobeniusSquare(a *E12) *E12 {
 }
 
 func (e Ext12) FrobeniusCube(a *E12) *E12 {
+	tower := e.ToTower(a)
+
+	tower[1] = e.fp.Neg(tower[1])
+	tower[3] = e.fp.Neg(tower[3])
+	tower[5] = e.fp.Neg(tower[5])
+	tower[7] = e.fp.Neg(tower[7])
+	tower[9] = e.fp.Neg(tower[9])
+	tower[11] = e.fp.Neg(tower[11])
+
+	t1 := e.Ext2.MulByNonResidue3Power2(&E2{A0: *tower[2], A1: *tower[3]})
+	t2 := e.Ext2.MulByNonResidue3Power4(&E2{A0: *tower[4], A1: *tower[5]})
+	t3 := e.Ext2.MulByNonResidue3Power1(&E2{A0: *tower[6], A1: *tower[7]})
+	t4 := e.Ext2.MulByNonResidue3Power3(&E2{A0: *tower[8], A1: *tower[9]})
+	t5 := e.Ext2.MulByNonResidue3Power5(&E2{A0: *tower[10], A1: *tower[11]})
+
 	nine := big.NewInt(9)
-	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := e.fp.Neg(&a.A6)
-	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := e.fp.Neg(&a.A8)
-	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := e.fp.Neg(&a.A10)
-	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := e.fp.Neg(&a.A7)
-	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := e.fp.Neg(&a.A9)
-	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := e.fp.Neg(&a.A11)
-
-	t1 := e.Ext2.MulByNonResidue3Power2(&E2{A0: *a010, A1: *a011})
-	t2 := e.Ext2.MulByNonResidue3Power4(&E2{A0: *a020, A1: *a021})
-	t3 := e.Ext2.MulByNonResidue3Power1(&E2{A0: *a100, A1: *a101})
-	t4 := e.Ext2.MulByNonResidue3Power3(&E2{A0: *a110, A1: *a111})
-	t5 := e.Ext2.MulByNonResidue3Power5(&E2{A0: *a120, A1: *a121})
-
-	A0 := e.fp.Sub(a000, e.fp.MulConst(a001, nine))
+	A0 := e.fp.Sub(tower[0], e.fp.MulConst(tower[1], nine))
 	A1 := e.fp.Sub(&t3.A0, e.fp.MulConst(&t3.A1, nine))
 	A2 := e.fp.Sub(&t1.A0, e.fp.MulConst(&t1.A1, nine))
 	A3 := e.fp.Sub(&t4.A0, e.fp.MulConst(&t4.A1, nine))
@@ -770,7 +614,7 @@ func (e Ext12) FrobeniusCube(a *E12) *E12 {
 		A3:  *A3,
 		A4:  *A4,
 		A5:  *A5,
-		A6:  *a001,
+		A6:  *tower[1],
 		A7:  t3.A1,
 		A8:  t1.A1,
 		A9:  t4.A1,

@@ -5,7 +5,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
-	fp_bn "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -20,11 +19,6 @@ func GetHints() []solver.Hint {
 		// E2
 		divE2Hint,
 		inverseE2Hint,
-		// E6
-		divE6Hint,
-		inverseE6Hint,
-		squareTorusHint,
-		divE6By6Hint,
 		// E12
 		divE12Hint,
 		inverseE12Hint,
@@ -63,121 +57,6 @@ func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 
 			c.A0.BigInt(outputs[0])
 			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
-// E6 hints
-func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			c.Inverse(&a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			b.B0.A0.SetBigInt(inputs[6])
-			b.B0.A1.SetBigInt(inputs[7])
-			b.B1.A0.SetBigInt(inputs[8])
-			b.B1.A1.SetBigInt(inputs[9])
-			b.B2.A0.SetBigInt(inputs[10])
-			b.B2.A1.SetBigInt(inputs[11])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func squareTorusHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			_c := a.DecompressTorus()
-			_c.CyclotomicSquare(&_c)
-			c, _ = _c.CompressTorus()
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func divE6By6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			var sixInv fp.Element
-			sixInv.SetString("6")
-			sixInv.Inverse(&sixInv)
-			c.B0.MulByElement(&a.B0, &sixInv)
-			c.B1.MulByElement(&a.B1, &sixInv)
-			c.B2.MulByElement(&a.B2, &sixInv)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
 
 			return nil
 		})
@@ -223,7 +102,7 @@ func inverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) 
 
 			c.Inverse(&a)
 
-			var c0, c1, c2, c3, c4, c5, t2 fp_bn.Element
+			var c0, c1, c2, c3, c4, c5, t2 fp.Element
 			t2.SetUint64(9).Mul(&t2, &c.C0.B0.A1)
 			c0.Sub(&c.C0.B0.A0, &t2)
 			t2.SetUint64(9).Mul(&t2, &c.C1.B0.A1)
@@ -325,7 +204,7 @@ func divE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) erro
 
 			c.Inverse(&b).Mul(&c, &a)
 
-			var c0, c1, c2, c3, c4, c5, t2 fp_bn.Element
+			var c0, c1, c2, c3, c4, c5, t2 fp.Element
 			t2.SetUint64(9).Mul(&t2, &c.C0.B0.A1)
 			c0.Sub(&c.C0.B0.A0, &t2)
 			t2.SetUint64(9).Mul(&t2, &c.C1.B0.A1)
