@@ -24,7 +24,6 @@ type Pairing struct {
 	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
 	bTwist *fields_bn254.E2
-	g2gen  *G2Affine
 }
 
 func NewGTEl(a bn254.GT) GTEl {
@@ -80,15 +79,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		g2:     NewG2(api),
 		bTwist: &bTwist,
 	}, nil
-}
-
-func (pr Pairing) generators() *G2Affine {
-	if pr.g2gen == nil {
-		_, _, _, g2gen := bn254.Generators()
-		cg2gen := NewG2AffineFixed(g2gen)
-		pr.g2gen = &cg2gen
-	}
-	return pr.g2gen
 }
 
 // Pair calculates the reduced pairing for a set of points
@@ -535,40 +525,15 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 // millerLoopAndFinalExpResult computes the Miller loop between P and Q,
 // multiplies it in 𝔽p¹² by previous and returns the result.
 func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
-	nine := big.NewInt(9)
-	a000 := pr.curveF.Add(&previous.A0, pr.curveF.MulConst(&previous.A6, nine))
-	a001 := &previous.A6
-	a010 := pr.curveF.Add(&previous.A2, pr.curveF.MulConst(&previous.A8, nine))
-	a011 := &previous.A8
-	a020 := pr.curveF.Add(&previous.A4, pr.curveF.MulConst(&previous.A10, nine))
-	a021 := &previous.A10
-	a100 := pr.curveF.Add(&previous.A1, pr.curveF.MulConst(&previous.A7, nine))
-	a101 := &previous.A7
-	a110 := pr.curveF.Add(&previous.A3, pr.curveF.MulConst(&previous.A9, nine))
-	a111 := &previous.A9
-	a120 := pr.curveF.Add(&previous.A5, pr.curveF.MulConst(&previous.A11, nine))
-	a121 := &previous.A11
+	tower := pr.ToTower(previous)
 
 	// hint the non-residue witness
-	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, a000, a001, a010, a011, a020, a021, a100, a101, a110, a111, a120, a121)
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	residueWitness := GTEl{
-		A0:  *pr.curveF.Sub(hint[0], pr.curveF.MulConst(hint[1], nine)),
-		A1:  *pr.curveF.Sub(hint[6], pr.curveF.MulConst(hint[7], nine)),
-		A2:  *pr.curveF.Sub(hint[2], pr.curveF.MulConst(hint[3], nine)),
-		A3:  *pr.curveF.Sub(hint[8], pr.curveF.MulConst(hint[9], nine)),
-		A4:  *pr.curveF.Sub(hint[4], pr.curveF.MulConst(hint[5], nine)),
-		A5:  *pr.curveF.Sub(hint[10], pr.curveF.MulConst(hint[11], nine)),
-		A6:  *hint[1],
-		A7:  *hint[7],
-		A8:  *hint[3],
-		A9:  *hint[9],
-		A10: *hint[5],
-		A11: *hint[11],
-	}
+	residueWitness := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
@@ -585,6 +550,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 	//     A9  =  0
 	//     A10 =  a021
 	//     A11 =  0
+	nine := big.NewInt(9)
 	cubicNonResiduePower := GTEl{
 		A0:  *pr.curveF.Sub(hint[12], pr.curveF.MulConst(hint[13], nine)),
 		A1:  *pr.curveF.Zero(),
@@ -601,7 +567,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 	}
 
 	// residueWitnessInv = 1 / residueWitness
-	residueWitnessInv := pr.Ext12.Inverse(&residueWitness)
+	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
 
 	if Q.Lines == nil {
 		Qlines := pr.computeLines(&Q.P)
@@ -645,7 +611,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 			res = pr.Ext12.MulBy012346789(res, prodLines)
 		case -1:
 			// multiply by residueWitness when bit=-1
-			res = pr.Ext12.Mul(res, &residueWitness)
+			res = pr.Ext12.Mul(res, residueWitness)
 			// lines evaluations at P
 			// and ℓ × ℓ
 			prodLines := pr.Mul01379By01379(

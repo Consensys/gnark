@@ -346,40 +346,16 @@ func (e *Ext12) MulBy012346789(a *E12, b [10]*baseEl) *E12 {
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (e Ext12) AssertFinalExponentiationIsOne(a *E12) {
-	nine := big.NewInt(9)
-	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := &a.A6
-	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := &a.A8
-	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := &a.A10
-	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := &a.A7
-	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := &a.A9
-	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := &a.A11
+	tower := e.ToTower(a)
 
-	res, err := e.fp.NewHint(finalExpHint, 24, a000, a001, a010, a011, a020, a021, a100, a101, a110, a111, a120, a121)
+	res, err := e.fp.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 
-	residueWitness := E12{
-		A0:  *e.fp.Sub(res[0], e.fp.MulConst(res[1], nine)),
-		A1:  *e.fp.Sub(res[6], e.fp.MulConst(res[7], nine)),
-		A2:  *e.fp.Sub(res[2], e.fp.MulConst(res[3], nine)),
-		A3:  *e.fp.Sub(res[8], e.fp.MulConst(res[9], nine)),
-		A4:  *e.fp.Sub(res[4], e.fp.MulConst(res[5], nine)),
-		A5:  *e.fp.Sub(res[10], e.fp.MulConst(res[11], nine)),
-		A6:  *res[1],
-		A7:  *res[7],
-		A8:  *res[3],
-		A9:  *res[9],
-		A10: *res[5],
-		A11: *res[11],
-	}
+	nine := big.NewInt(9)
+	residueWitness := e.FromTower([12]*baseEl{res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11]})
 
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
@@ -416,14 +392,14 @@ func (e Ext12) AssertFinalExponentiationIsOne(a *E12) {
 	// and residueWitness, cubicNonResiduePower from the hint.
 	t2 := e.Mul(&cubicNonResiduePower, a)
 
-	t1 := e.FrobeniusCube(&residueWitness)
-	t0 := e.FrobeniusSquare(&residueWitness)
+	t1 := e.FrobeniusCube(residueWitness)
+	t0 := e.FrobeniusSquare(residueWitness)
 	t1 = e.DivUnchecked(t1, t0)
-	t0 = e.Frobenius(&residueWitness)
+	t0 = e.Frobenius(residueWitness)
 	t1 = e.Mul(t1, t0)
 
 	// exponentiation by U=6u+2
-	t0 = e.ExpByU(&residueWitness)
+	t0 = e.ExpByU(residueWitness)
 
 	t0 = e.Mul(t0, t1)
 

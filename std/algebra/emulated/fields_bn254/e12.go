@@ -464,55 +464,25 @@ func (e Ext12) squareDirect(a *E12) *E12 {
 // Granger-Scott's cyclotomic square
 // https://eprint.iacr.org/2009/565.pdf, 3.2
 func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
-	nine := big.NewInt(9)
-	x000 := e.fp.Add(&x.A0, e.fp.MulConst(&x.A6, nine))
-	x001 := &x.A6
-	x010 := e.fp.Add(&x.A2, e.fp.MulConst(&x.A8, nine))
-	x011 := &x.A8
-	x020 := e.fp.Add(&x.A4, e.fp.MulConst(&x.A10, nine))
-	x021 := &x.A10
-	x100 := e.fp.Add(&x.A1, e.fp.MulConst(&x.A7, nine))
-	x101 := &x.A7
-	x110 := e.fp.Add(&x.A3, e.fp.MulConst(&x.A9, nine))
-	x111 := &x.A9
-	x120 := e.fp.Add(&x.A5, e.fp.MulConst(&x.A11, nine))
-	x121 := &x.A11
+	tower := e.ToTower(x)
 
 	mone := e.fp.NewElement(-1)
-	z000 := e.fp.Eval([][]*baseEl{{x110, x110}, {mone, x111, x111}, {mone, x110, x111}, {x000, x000}, {mone, x001, x001}, {mone, x000}}, []int{27, 27, 6, 3, 3, 2})
-	z001 := e.fp.Eval([][]*baseEl{{x110, x110}, {mone, x111, x111}, {x110, x111}, {x000, x001}, {mone, x001}}, []int{3, 3, 54, 6, 2})
-	z020 := e.fp.Eval([][]*baseEl{{x020, x020}, {mone, x021, x021}, {mone, x020, x021}, {x100, x100}, {mone, x101, x101}, {mone, x010}}, []int{27, 27, 6, 3, 3, 2})
-	z021 := e.fp.Eval([][]*baseEl{{x020, x020}, {mone, x021, x021}, {x020, x021}, {x100, x101}, {mone, x011}}, []int{3, 3, 54, 6, 2})
-	z110 := e.fp.Eval([][]*baseEl{{x120, x120}, {mone, x121, x121}, {mone, x120, x121}, {x010, x010}, {mone, x011, x011}, {mone, x020}}, []int{27, 27, 6, 3, 3, 2})
-	z111 := e.fp.Eval([][]*baseEl{{x120, x120}, {mone, x121, x121}, {x120, x121}, {x010, x011}, {mone, x021}}, []int{3, 3, 54, 6, 2})
-	z010 := e.fp.Eval([][]*baseEl{{x010, x120}, {mone, x011, x121}, {mone, x010, x121}, {mone, x011, x120}, {x100}}, []int{54, 54, 6, 6, 2})
-	z011 := e.fp.Eval([][]*baseEl{{x010, x120}, {mone, x011, x121}, {x010, x121}, {x011, x120}, {x101}}, []int{6, 6, 54, 54, 2})
-	z100 := e.fp.Eval([][]*baseEl{{x000, x110}, {mone, x001, x111}, {x110}}, []int{6, 6, 2})
-	z101 := e.fp.Eval([][]*baseEl{{x000, x111}, {x001, x110}, {x111}}, []int{6, 6, 2})
-	z120 := e.fp.Eval([][]*baseEl{{x020, x100}, {mone, x021, x101}, {x120}}, []int{6, 6, 2})
-	z121 := e.fp.Eval([][]*baseEl{{x020, x101}, {x021, x100}, {x121}}, []int{6, 6, 2})
+	z000 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {mone, tower[9], tower[9]}, {mone, tower[8], tower[9]}, {tower[0], tower[0]}, {mone, tower[1], tower[1]}, {mone, tower[0]}}, []int{27, 27, 6, 3, 3, 2})
+	z001 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {mone, tower[9], tower[9]}, {tower[8], tower[9]}, {tower[0], tower[1]}, {mone, tower[1]}}, []int{3, 3, 54, 6, 2})
+	z010 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {mone, tower[5], tower[5]}, {mone, tower[4], tower[5]}, {tower[6], tower[6]}, {mone, tower[7], tower[7]}, {mone, tower[2]}}, []int{27, 27, 6, 3, 3, 2})
+	z011 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {mone, tower[5], tower[5]}, {tower[4], tower[5]}, {tower[6], tower[7]}, {mone, tower[3]}}, []int{3, 3, 54, 6, 2})
+	z020 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {mone, tower[11], tower[11]}, {mone, tower[10], tower[11]}, {tower[2], tower[2]}, {mone, tower[3], tower[3]}, {mone, tower[4]}}, []int{27, 27, 6, 3, 3, 2})
+	z021 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {mone, tower[11], tower[11]}, {tower[10], tower[11]}, {tower[2], tower[3]}, {mone, tower[5]}}, []int{3, 3, 54, 6, 2})
+	z100 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {mone, tower[3], tower[11]}, {mone, tower[2], tower[11]}, {mone, tower[3], tower[10]}, {tower[6]}}, []int{54, 54, 6, 6, 2})
+	z101 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {mone, tower[3], tower[11]}, {tower[2], tower[11]}, {tower[3], tower[10]}, {tower[7]}}, []int{6, 6, 54, 54, 2})
+	z110 := e.fp.Eval([][]*baseEl{{tower[0], tower[8]}, {mone, tower[1], tower[9]}, {tower[8]}}, []int{6, 6, 2})
+	z111 := e.fp.Eval([][]*baseEl{{tower[0], tower[9]}, {tower[1], tower[8]}, {tower[9]}}, []int{6, 6, 2})
+	z120 := e.fp.Eval([][]*baseEl{{tower[4], tower[6]}, {mone, tower[5], tower[7]}, {tower[10]}}, []int{6, 6, 2})
+	z121 := e.fp.Eval([][]*baseEl{{tower[4], tower[7]}, {tower[5], tower[6]}, {tower[11]}}, []int{6, 6, 2})
 
-	A0 := e.fp.Sub(z000, e.fp.MulConst(z001, nine))
-	A1 := e.fp.Sub(z010, e.fp.MulConst(z011, nine))
-	A2 := e.fp.Sub(z020, e.fp.MulConst(z021, nine))
-	A3 := e.fp.Sub(z100, e.fp.MulConst(z101, nine))
-	A4 := e.fp.Sub(z110, e.fp.MulConst(z111, nine))
-	A5 := e.fp.Sub(z120, e.fp.MulConst(z121, nine))
+	direct := e.FromTower([12]*baseEl{z000, z001, z010, z011, z020, z021, z100, z101, z110, z111, z120, z121})
 
-	return &E12{
-		A0:  *A0,
-		A1:  *A1,
-		A2:  *A2,
-		A3:  *A3,
-		A4:  *A4,
-		A5:  *A5,
-		A6:  *z001,
-		A7:  *z011,
-		A8:  *z021,
-		A9:  *z101,
-		A10: *z111,
-		A11: *z121,
-	}
+	return direct
 }
 
 func (e Ext12) Inverse(x *E12) *E12 {
@@ -859,12 +829,13 @@ func FromE12(a *bn254.E12) E12 {
 	}
 }
 
-func (e Ext12) e12RoundTrip(a *E12) *E12 {
+func (e Ext12) ToTower(a *E12) [12]*baseEl {
 	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
 	// The two towers are isomorphic and the coefficients are permuted as follows:
-	// 		a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
-	//      a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
-
+	//
+	//	   tower  =  a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
+	// 	   direct = a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
+	//
 	//     a000 = A0  +  9 * A6
 	//     a001 = A6
 	//     a010 = A2  +  9 * A8
@@ -879,18 +850,29 @@ func (e Ext12) e12RoundTrip(a *E12) *E12 {
 	//     a121 = A11
 	nine := big.NewInt(9)
 	a000 := e.fp.Add(&a.A0, e.fp.MulConst(&a.A6, nine))
-	a001 := a.A6
+	a001 := &a.A6
 	a010 := e.fp.Add(&a.A2, e.fp.MulConst(&a.A8, nine))
-	a011 := a.A8
+	a011 := &a.A8
 	a020 := e.fp.Add(&a.A4, e.fp.MulConst(&a.A10, nine))
-	a021 := a.A10
+	a021 := &a.A10
 	a100 := e.fp.Add(&a.A1, e.fp.MulConst(&a.A7, nine))
-	a101 := a.A7
+	a101 := &a.A7
 	a110 := e.fp.Add(&a.A3, e.fp.MulConst(&a.A9, nine))
-	a111 := a.A9
+	a111 := &a.A9
 	a120 := e.fp.Add(&a.A5, e.fp.MulConst(&a.A11, nine))
-	a121 := a.A11
+	a121 := &a.A11
 
+	tower := [12]*baseEl{a000, a001, a010, a011, a020, a021, a100, a101, a110, a111, a120, a121}
+	return tower
+}
+
+func (e Ext12) FromTower(tower [12]*baseEl) *E12 {
+	// gnark-crypto uses a quadratic over cubic over quadratic 12th extension of Fp.
+	// The two towers are isomorphic and the coefficients are permuted as follows:
+	//
+	//	   tower  =  a000 a001 a010 a011 a020 a021 a100 a101 a110 a111 a120 a121
+	// 	   direct = a0   a1   a2   a3   a4   a5   a6   a7   a8   a9   a10  a11
+	//
 	//     A0  =  a000 - 9 * a001
 	//     A1  =  a100 - 9 * a101
 	//     A2  =  a010 - 9 * a011
@@ -903,18 +885,13 @@ func (e Ext12) e12RoundTrip(a *E12) *E12 {
 	//     A9  =  a111
 	//     A10 =  a021
 	//     A11 =  a121
-	A0 := e.fp.Sub(a000, e.fp.MulConst(&a001, nine))
-	A1 := e.fp.Sub(a100, e.fp.MulConst(&a101, nine))
-	A2 := e.fp.Sub(a010, e.fp.MulConst(&a011, nine))
-	A3 := e.fp.Sub(a110, e.fp.MulConst(&a111, nine))
-	A4 := e.fp.Sub(a020, e.fp.MulConst(&a021, nine))
-	A5 := e.fp.Sub(a120, e.fp.MulConst(&a121, nine))
-	A6 := a001
-	A7 := a101
-	A8 := a011
-	A9 := a111
-	A10 := a021
-	A11 := a121
+	nine := big.NewInt(9)
+	A0 := e.fp.Sub(tower[0], e.fp.MulConst(tower[1], nine))
+	A1 := e.fp.Sub(tower[6], e.fp.MulConst(tower[7], nine))
+	A2 := e.fp.Sub(tower[2], e.fp.MulConst(tower[3], nine))
+	A3 := e.fp.Sub(tower[8], e.fp.MulConst(tower[9], nine))
+	A4 := e.fp.Sub(tower[4], e.fp.MulConst(tower[5], nine))
+	A5 := e.fp.Sub(tower[10], e.fp.MulConst(tower[11], nine))
 
 	return &E12{
 		A0:  *A0,
@@ -923,11 +900,11 @@ func (e Ext12) e12RoundTrip(a *E12) *E12 {
 		A3:  *A3,
 		A4:  *A4,
 		A5:  *A5,
-		A6:  A6,
-		A7:  A7,
-		A8:  A8,
-		A9:  A9,
-		A10: A10,
-		A11: A11,
+		A6:  *tower[1],
+		A7:  *tower[7],
+		A8:  *tower[3],
+		A9:  *tower[9],
+		A10: *tower[5],
+		A11: *tower[11],
 	}
 }

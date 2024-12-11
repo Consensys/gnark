@@ -15,7 +15,8 @@ type e12Convert struct {
 
 func (circuit *e12Convert) Define(api frontend.API) error {
 	e := NewExt12(api)
-	expected := e.e12RoundTrip(&circuit.A)
+	tower := e.ToTower(&circuit.A)
+	expected := e.FromTower(tower)
 	e.AssertIsEqual(expected, &circuit.A)
 	return nil
 }
