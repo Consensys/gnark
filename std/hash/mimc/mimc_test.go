@@ -17,6 +17,8 @@ limitations under the License.
 package mimc
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -92,4 +94,74 @@ func TestMimcAll(t *testing.T) {
 			test.WithCurves(curve))
 	}
 
+}
+
+// stateStoreCircuit checks that SetState works as expected. The circuit, however
+// does not check the correctness of the hashes returned by the MiMC function
+// as there is another test already testing this property.
+type stateStoreTestCircuit struct {
+	X frontend.Variable
+}
+
+func (s *stateStoreTestCircuit) Define(api frontend.API) error {
+
+	hsh1, err1 := NewMiMC(api)
+	hsh2, err2 := NewMiMC(api)
+
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("could not instantiate the MIMC hasher: %w", errors.Join(err1, err2))
+	}
+
+	// This pre-shuffle the hasher state so that the test does not start from
+	// a zero state.
+	hsh1.Write(s.X)
+
+	state := hsh1.State()
+	hsh2.SetState(state)
+
+	hsh1.Write(s.X)
+	hsh2.Write(s.X)
+
+	var (
+		dig1      = hsh1.Sum()
+		dig2      = hsh2.Sum()
+		newState1 = hsh1.State()
+		newState2 = hsh2.State()
+	)
+
+	api.AssertIsEqual(dig1, dig2)
+
+	for i := range newState1 {
+		api.AssertIsEqual(newState1[i], newState2[i])
+	}
+
+	return nil
+}
+
+func TestStateStoreMiMC(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	curves := map[ecc.ID]hash.Hash{
+		ecc.BN254:     hash.MIMC_BN254,
+		ecc.BLS12_381: hash.MIMC_BLS12_381,
+		ecc.BLS12_377: hash.MIMC_BLS12_377,
+		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
+		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
+	}
+
+	for curve := range curves {
+
+		// minimal cs res = hash(data)
+		var (
+			circuit    = &stateStoreTestCircuit{}
+			assignment = &stateStoreTestCircuit{X: 2}
+		)
+
+		assert.CheckCircuit(circuit,
+			test.WithValidAssignment(assignment),
+			test.WithCurves(curve))
+	}
 }

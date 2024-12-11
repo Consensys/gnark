@@ -40,6 +40,21 @@ type FieldHasher interface {
 	Reset()
 }
 
+// StateStorer allows to store and retrieve the state of a hash function.
+type StateStorer interface {
+	FieldHasher
+	// State retrieves the current state of the hash function. Calling this
+	// method should not destroy the current state and allow continue the use of
+	// the current hasher. The number of returned Variable is implementation
+	// dependent.
+	State() []frontend.Variable
+	// SetState sets the state of the hash function from a previously stored
+	// state retrieved using [StateStorer.State] method. The implementation
+	// returns an error if the number of supplied Variable does not match the
+	// number of Variable expected.
+	SetState(state []frontend.Variable) error
+}
+
 var (
 	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
 	lock            sync.RWMutex
