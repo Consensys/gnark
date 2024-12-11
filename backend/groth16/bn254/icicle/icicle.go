@@ -258,13 +258,20 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			privateCommittedValues[i][j].SetBigInt(inJ)
 		}
 
+		privateCommittedValuesDevice := new(icicle_core.DeviceSlice)
+		commitmentBasisDevice := new(icicle_core.DeviceSlice)
 		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		ckBasisMsmDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			if err := icicle_msm.Msm(icicle_core.HostSliceFromElements(privateCommittedValues[i]), icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis), &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
+			// TODO see if we can initialize outside of the `RunOnDevice` routine
+			privateCommittedValuesHost := icicle_core.HostSliceFromElements(privateCommittedValues[i])
+			commitmentBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
+			privateCommittedValuesDevice := privateCommittedValuesHost.CopyToDevice(privateCommittedValuesDevice, true)
+			commitmentBasisDevice := commitmentBasisHost.CopyToDevice(commitmentBasisDevice, true)
+			if err := icicle_msm.Msm(*privateCommittedValuesDevice, *commitmentBasisDevice, &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
 				panic(fmt.Sprintf("commitment: %s", err.AsString()))
 			}
 			close(ckBasisMsmDone)
@@ -308,12 +315,18 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 
 		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bn254.Projective], numCommitmentKeys)
+		committedValuesDevice := new(icicle_core.DeviceSlice)
+		basisExpSigmasDevice := new(icicle_core.DeviceSlice)
 		ckBasisExpSigmaMsmBatchDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			if err := icicle_msm.Msm(icicle_core.HostSliceFromElements(committedValues), icicle_core.HostSliceFromElements(basisExpSigmas), &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
+			committedValuesHost := icicle_core.HostSliceFromElements(committedValues)
+			basisExpSigmasHost := icicle_core.HostSliceFromElements(basisExpSigmas)
+			committedValuesDevice = committedValuesHost.CopyToDevice(committedValuesDevice, true)
+			basisExpSigmasDevice = basisExpSigmasHost.CopyToDevice(basisExpSigmasDevice, true)
+			if err := icicle_msm.Msm(*committedValuesDevice, *basisExpSigmasDevice, &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
 				panic(fmt.Sprintf("commitment POK: %s", err.AsString()))
 			}
 			close(ckBasisExpSigmaMsmBatchDone)
