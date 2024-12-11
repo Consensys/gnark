@@ -29,12 +29,13 @@ func TestSetupCircuit(t *testing.T) {
 
 	assert := require.New(t)
 
-	srs1 := InitPhase1(power)
+	var srs1 Phase1
+	srs1.Initialize(1 << power)
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase1; i++ {
 		// we clone test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
+		// add its contribution and send back to coordinator.
 		prev := srs1.clone()
 
 		srs1.Contribute()
@@ -55,7 +56,7 @@ func TestSetupCircuit(t *testing.T) {
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase2; i++ {
 		// we clone for test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
+		// add its contribution and send back to coordinator.
 		prev := srs2.clone()
 
 		srs2.Contribute()
@@ -92,13 +93,15 @@ func BenchmarkPhase1(b *testing.B) {
 
 	b.Run("init", func(b *testing.B) {
 		b.ResetTimer()
+		var srs1 Phase1
 		for i := 0; i < b.N; i++ {
-			_ = InitPhase1(power)
+			srs1.Initialize(1 << power)
 		}
 	})
 
 	b.Run("contrib", func(b *testing.B) {
-		srs1 := InitPhase1(power)
+		var srs1 Phase1
+		srs1.Initialize(1 << power)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			srs1.Contribute()
@@ -109,7 +112,8 @@ func BenchmarkPhase1(b *testing.B) {
 
 func BenchmarkPhase2(b *testing.B) {
 	const power = 14
-	srs1 := InitPhase1(power)
+	var srs1 Phase1
+	srs1.Initialize(1 << power)
 	srs1.Contribute()
 
 	var myCircuit Circuit
@@ -157,17 +161,17 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func (phase1 *Phase1) clone() Phase1 {
+func (p *Phase1) clone() Phase1 {
 	r := Phase1{}
-	r.Parameters.G1.Tau = append(r.Parameters.G1.Tau, phase1.Parameters.G1.Tau...)
-	r.Parameters.G1.AlphaTau = append(r.Parameters.G1.AlphaTau, phase1.Parameters.G1.AlphaTau...)
-	r.Parameters.G1.BetaTau = append(r.Parameters.G1.BetaTau, phase1.Parameters.G1.BetaTau...)
+	r.Parameters.G1.Tau = append(r.Parameters.G1.Tau, p.Parameters.G1.Tau...)
+	r.Parameters.G1.AlphaTau = append(r.Parameters.G1.AlphaTau, p.Parameters.G1.AlphaTau...)
+	r.Parameters.G1.BetaTau = append(r.Parameters.G1.BetaTau, p.Parameters.G1.BetaTau...)
 
-	r.Parameters.G2.Tau = append(r.Parameters.G2.Tau, phase1.Parameters.G2.Tau...)
-	r.Parameters.G2.Beta = phase1.Parameters.G2.Beta
+	r.Parameters.G2.Tau = append(r.Parameters.G2.Tau, p.Parameters.G2.Tau...)
+	r.Parameters.G2.Beta = p.Parameters.G2.Beta
 
-	r.PublicKeys = phase1.PublicKeys
-	r.Hash = append(r.Hash, phase1.Hash...)
+	r.PublicKeys = p.PublicKeys
+	r.Hash = append(r.Hash, p.Hash...)
 
 	return r
 }
@@ -175,11 +179,11 @@ func (phase1 *Phase1) clone() Phase1 {
 func (phase2 *Phase2) clone() Phase2 {
 	r := Phase2{}
 	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
-	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
+	r.Parameters.G1.PKK = append(r.Parameters.G1.PKK, phase2.Parameters.G1.PKK...)
 	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
 	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
 	r.PublicKey = phase2.PublicKey
-	r.Hash = append(r.Hash, phase2.Hash...)
+	r.Challenge = append(r.Challenge, phase2.Challenge...)
 
 	return r
 }

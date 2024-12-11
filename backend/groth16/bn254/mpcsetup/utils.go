@@ -7,9 +7,11 @@ package mpcsetup
 
 import (
 	"bytes"
+	"errors"
 	"math/big"
 	"math/bits"
 	"runtime"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
@@ -20,7 +22,7 @@ import (
 type PublicKey struct {
 	SG  curve.G1Affine
 	SXG curve.G1Affine
-	XR  curve.G2Affine
+	XR  curve.G2Affine // XR = X.R ∈ 𝔾₂ proof of knowledge
 }
 
 func newPublicKey(x fr.Element, challenge []byte, dst byte) PublicKey {
@@ -39,7 +41,7 @@ func newPublicKey(x fr.Element, challenge []byte, dst byte) PublicKey {
 	pk.SXG.ScalarMultiplication(&pk.SG, &xBi)
 
 	// generate R based on sG1, sxG1, challenge, and domain separation tag (tau, alpha or beta)
-	R := genR(pk.SG, pk.SXG, challenge, dst)
+	R := genR(pk.SG, challenge, dst)
 
 	// compute x*spG2
 	pk.XR.ScalarMultiplication(&R, &xBi)
@@ -58,18 +60,43 @@ func bitReverse[T any](a []T) {
 	}
 }
 
-// Returns [1, a, a², ..., aⁿ⁻¹ ] in Montgomery form
-func powers(a fr.Element, n int) []fr.Element {
+func linearCombCoeffs(n int) []fr.Element {
+	var a fr.Element
+	if _, err := a.SetRandom(); err != nil {
+		panic(err)
+	}
+	return powers(&a, n)
+}
+
+func powersI(a *big.Int, n int) []fr.Element {
+	var aMont fr.Element
+	aMont.SetBigInt(a)
+	return powers(&aMont, n)
+}
+
+// Returns [1, a, a², ..., aᴺ⁻¹ ]
+func powers(a *fr.Element, n int) []fr.Element {
+
 	result := make([]fr.Element, n)
-	result[0] = fr.NewElement(1)
-	for i := 1; i < n; i++ {
-		result[i].Mul(&result[i-1], &a)
+	if n >= 1 {
+		result[0] = fr.NewElement(1)
+	}
+	if n >= 2 {
+		result[1].Set(a)
+	}
+	for i := 2; i < n; i++ {
+		result[i].Mul(&result[i-1], a)
 	}
 	return result
 }
 
-// Returns [aᵢAᵢ, ...] in G1
+// Returns [aᵢAᵢ, ...]∈𝔾₁
+// it assumes len(A) ≤ len(a)
 func scaleG1InPlace(A []curve.G1Affine, a []fr.Element) {
+	/*if a[0].IsOne() {
+		A = A[1:]
+		a = a[1:]
+	}*/
 	utils.Parallelize(len(A), func(start, end int) {
 		var tmp big.Int
 		for i := start; i < end; i++ {
@@ -79,8 +106,13 @@ func scaleG1InPlace(A []curve.G1Affine, a []fr.Element) {
 	})
 }
 
-// Returns [aᵢAᵢ, ...] in G2
+// Returns [aᵢAᵢ, ...]∈𝔾₂
+// it assumes len(A) ≤ len(a)
 func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
+	/*if a[0].IsOne() {
+		A = A[1:]
+		a = a[1:]
+	}*/
 	utils.Parallelize(len(A), func(start, end int) {
 		var tmp big.Int
 		for i := start; i < end; i++ {
@@ -90,70 +122,193 @@ func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
 	})
 }
 
+/*
 // Check e(a₁, a₂) = e(b₁, b₂)
 func sameRatio(a1, b1 curve.G1Affine, a2, b2 curve.G2Affine) bool {
 	if !a1.IsInSubGroup() || !b1.IsInSubGroup() || !a2.IsInSubGroup() || !b2.IsInSubGroup() {
 		panic("invalid point not in subgroup")
 	}
-	var na2 curve.G2Affine
-	na2.Neg(&a2)
+	return sameRatioUnsafe(a1, b1, a2, b2)
+}*/
+
+// Check n₁/d₁ = n₂/d₂ i.e. e(n₁, d₂) = e(d₁, n₂). No subgroup checks.
+func sameRatioUnsafe(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
+	var nd1 curve.G1Affine
+	nd1.Neg(&d1)
 	res, err := curve.PairingCheck(
-		[]curve.G1Affine{a1, b1},
-		[]curve.G2Affine{na2, b2})
+		[]curve.G1Affine{n1, nd1},
+		[]curve.G2Affine{d2, n2})
 	if err != nil {
 		panic(err)
 	}
 	return res
 }
 
-// returns a = ∑ rᵢAᵢ, b = ∑ rᵢBᵢ
-func merge(A, B []curve.G1Affine) (a, b curve.G1Affine) {
+// returns ∑ rᵢAᵢ
+func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 	nc := runtime.NumCPU()
-	r := make([]fr.Element, len(A))
-	for i := 0; i < len(A); i++ {
-		r[i].SetRandom()
+	var res curve.G1Affine
+	if _, err := res.MultiExp(A, r[:len(A)], ecc.MultiExpConfig{NbTasks: nc}); err != nil {
+		panic(err)
 	}
-	a.MultiExp(A, r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	b.MultiExp(B, r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	return res
+}
+
+// linearCombinationsG1 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
+// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
+func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, shifted curve.G1Affine) {
+	// the common section, 1 to N-2
+	var common curve.G1Affine
+	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+		panic(err)
+	}
+	var c big.Int
+	rPowers[1].BigInt(&c)
+	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
+
+	rPowers[len(A)-1].BigInt(&c)
+	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+
 	return
 }
 
-// L1 = ∑ rᵢAᵢ, L2 = ∑ rᵢAᵢ₊₁ in G1
-func linearCombinationG1(A []curve.G1Affine) (L1, L2 curve.G1Affine) {
-	nc := runtime.NumCPU()
-	n := len(A)
-	r := make([]fr.Element, n-1)
-	for i := 0; i < n-1; i++ {
-		r[i].SetRandom()
+// linearCombinationsG2 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
+// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
+// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
+func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, shifted curve.G2Affine) {
+	// the common section, 1 to N-2
+	var common curve.G2Affine
+	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+		panic(err)
 	}
-	L1.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	L2.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
+	var c big.Int
+	rPowers[1].BigInt(&c)
+	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
+
+	rPowers[len(A)-1].BigInt(&c)
+	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+
 	return
 }
 
-// L1 = ∑ rᵢAᵢ, L2 = ∑ rᵢAᵢ₊₁ in G2
-func linearCombinationG2(A []curve.G2Affine) (L1, L2 curve.G2Affine) {
-	nc := runtime.NumCPU()
-	n := len(A)
-	r := make([]fr.Element, n-1)
-	for i := 0; i < n-1; i++ {
-		r[i].SetRandom()
-	}
-	L1.MultiExp(A[:n-1], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	L2.MultiExp(A[1:], r, ecc.MultiExpConfig{NbTasks: nc / 2})
-	return
-}
-
-// Generate R in G₂ as Hash(gˢ, gˢˣ, challenge, dst)
-func genR(sG1, sxG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
+// Generate R∈𝔾₂ as Hash(gˢ, gˢˣ, challenge, dst)
+// it is to be used as a challenge for generating a proof of knowledge to x
+// π ≔ x.r; e([1]₁, π) =﹖ e([x]₁, r)
+func genR(sG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
 	var buf bytes.Buffer
 	buf.Grow(len(challenge) + curve.SizeOfG1AffineUncompressed*2)
 	buf.Write(sG1.Marshal())
-	buf.Write(sxG1.Marshal())
 	buf.Write(challenge)
 	spG2, err := curve.HashToG2(buf.Bytes(), []byte{dst})
 	if err != nil {
 		panic(err)
 	}
 	return spG2
+}
+
+type RandomBeacon func(time.Time) []byte
+
+// func (rb RandomBeacon) GenerateChallenge(...) []byte {}
+
+type pair struct {
+	g1 curve.G1Affine
+	g2 *curve.G2Affine // optional; some values expect to have a 𝔾₂ representation, some don't.
+}
+
+// check that g1, g2 are valid as updated values, i.e. in their subgroups, and non-zero
+func (p *pair) validUpdate() bool {
+	// if the contribution is 0 the product is doomed to be 0.
+	// no need to check this for g2 independently because if g1 is 0 and g2 is not, consistency checks will fail
+	return !p.g1.IsInfinity() && p.g1.IsInSubGroup() && (p.g2 == nil || p.g2.IsInSubGroup())
+}
+
+type valueUpdate struct {
+	contributionCommitment curve.G1Affine // x or [Xⱼ]₁
+	contributionPok        curve.G2Affine // π ≔ x.r ∈ 𝔾₂
+}
+
+// updateValue produces values associated with contribution to an existing value.
+// if prevCommitment contains only a 𝔾₁ value, then so will updatedCommitment
+// the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
+func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
+	if _, err := contributionValue.SetRandom(); err != nil {
+		panic(err)
+	}
+	var contributionValueI big.Int
+	contributionValue.BigInt(&contributionValueI)
+
+	_, _, g1, _ := curve.Generators()
+	proof.contributionCommitment.ScalarMultiplication(&g1, &contributionValueI)
+	value.ScalarMultiplication(value, &contributionValueI)
+
+	// proof of knowledge to commitment. Algorithm 3 from section 3.7
+	pokBase := genR(proof.contributionCommitment, challenge, dst) // r
+	proof.contributionPok.ScalarMultiplication(&pokBase, &contributionValueI)
+
+	return
+}
+
+// verify corresponds with verification steps {i, i+3} with 1 ≤ i ≤ 3 in section 7.1 of Bowe-Gabizon17
+// it checks the proof of knowledge of the contribution, and the fact that the product of the contribution
+// and previous commitment makes the new commitment.
+// prevCommitment is assumed to be valid. No subgroup check and the like.
+func (x *valueUpdate) verify(denom, num pair, challenge []byte, dst byte) error {
+	noG2 := denom.g2 == nil
+	if noG2 != (num.g2 == nil) {
+		return errors.New("erasing or creating g2 values")
+	}
+
+	if !x.contributionPok.IsInSubGroup() || !x.contributionCommitment.IsInSubGroup() || !num.validUpdate() {
+		return errors.New("contribution values subgroup check failed")
+	}
+
+	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
+	r := genR(x.contributionCommitment, challenge, dst) // verification challenge in the form of a g2 base
+	_, _, g1, _ := curve.Generators()
+	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
+		return errors.New("contribution proof of knowledge verification failed")
+	}
+
+	// check that the num/denom ratio is consistent between the 𝔾₁ and 𝔾₂ representations. Based on CONSISTENT, algorithm 2 in Section 3.6.
+	if !noG2 && !sameRatioUnsafe(num.g1, denom.g1, *num.g2, *denom.g2) {
+		return errors.New("g2 update inconsistent")
+	}
+
+	// now verify that num₁/denom₁ = x ( = x/g1 = π/r )
+	// have to use the latter value for the RHS because we sameRatio needs both 𝔾₁ and 𝔾₂ values
+	if !sameRatioUnsafe(num.g1, denom.g1, x.contributionPok, r) {
+		return errors.New("g1 update inconsistent")
+	}
+
+	return nil
+}
+
+func toRefs[T any](s []T) []*T {
+	res := make([]*T, len(s))
+	for i := range s {
+		res[i] = &s[i]
+	}
+	return res
+}
+
+func areInSubGroup[T interface{ IsInSubGroup() bool }](s []T) bool {
+	for i := range s {
+		if !s[i].IsInSubGroup() {
+			return false
+		}
+	}
+	return true
+}
+
+func areInSubGroupG1(s []curve.G1Affine) bool {
+	return areInSubGroup(toRefs(s))
+}
+
+func areInSubGroupG2(s []curve.G2Affine) bool {
+	return areInSubGroup(toRefs(s))
+}
+
+func truncate[T any](s []T) []T {
+	return s[:len(s)-1]
 }
