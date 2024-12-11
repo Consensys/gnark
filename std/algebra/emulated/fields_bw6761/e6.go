@@ -136,24 +136,6 @@ func (e Ext6) Double(x *E6) *E6 {
 	}
 }
 
-func (e Ext6) MulByElement(x *E6, y *baseEl) *E6 {
-	a0 := e.fp.Mul(&x.A0, y)
-	a1 := e.fp.Mul(&x.A1, y)
-	a2 := e.fp.Mul(&x.A2, y)
-	a3 := e.fp.Mul(&x.A3, y)
-	a4 := e.fp.Mul(&x.A4, y)
-	a5 := e.fp.Mul(&x.A5, y)
-	z := &E6{
-		A0: *a0,
-		A1: *a1,
-		A2: *a2,
-		A3: *a3,
-		A4: *a4,
-		A5: *a5,
-	}
-	return z
-}
-
 func (e Ext6) MulByConstElement(x *E6, y *big.Int) *E6 {
 	a0 := e.fp.MulConst(&x.A0, y)
 	a1 := e.fp.MulConst(&x.A1, y)

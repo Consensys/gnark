@@ -705,13 +705,10 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 		},
 	}
 	// constrain cubicNonResiduePower to be in Fp6
-	cubicNonResiduePower := fields_bn254.E12{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
-			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
-			B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
-		},
-		C1: (*pr.Ext6.Zero()),
+	cubicNonResiduePower := fields_bn254.E6{
+		B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
+		B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
+		B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
 	}
 
 	// residueWitnessInv = 1 / residueWitness
@@ -795,7 +792,10 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 	// and residueWitnessInv, cubicNonResiduePower from the hint.
 	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{6x₀+2} since
 	// we initialized the Miller loop accumulator with residueWitnessInv.
-	t2 := pr.Mul(&cubicNonResiduePower, res)
+	t2 := &fields_bn254.E12{
+		C0: *pr.Ext6.Mul(&res.C0, &cubicNonResiduePower),
+		C1: *pr.Ext6.Mul(&res.C1, &cubicNonResiduePower),
+	}
 
 	t1 := pr.FrobeniusCube(residueWitnessInv)
 	t0 := pr.FrobeniusSquare(residueWitnessInv)
