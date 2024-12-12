@@ -313,6 +313,16 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+// DoublePairingCheck calculates the reduced pairing for a 2 pairs of points and asserts if the result is One
+//
+//	e(P0, Q0) * e(P1, Q1) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See
+// [Pairing.AssertIsOnG1] and [Pairing.AssertIsOnG2].
+func (p *Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
+	return p.PairingCheck(P[:], Q[:])
+}
+
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
