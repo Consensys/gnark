@@ -25,29 +25,6 @@ type PublicKey struct {
 	XR  curve.G2Affine // XR = X.R ∈ 𝔾₂ proof of knowledge
 }
 
-func newPublicKey(x fr.Element, challenge []byte, dst byte) PublicKey {
-	var pk PublicKey
-	_, _, g1, _ := curve.Generators()
-
-	var s fr.Element
-	var sBi big.Int
-	s.SetRandom()
-	s.BigInt(&sBi)
-	pk.SG.ScalarMultiplication(&g1, &sBi)
-
-	// compute x*sG1
-	var xBi big.Int
-	x.BigInt(&xBi)
-	pk.SXG.ScalarMultiplication(&pk.SG, &xBi)
-
-	// generate R based on sG1, sxG1, challenge, and domain separation tag (tau, alpha or beta)
-	R := genR(pk.SG, challenge, dst)
-
-	// compute x*spG2
-	pk.XR.ScalarMultiplication(&R, &xBi)
-	return pk
-}
-
 func bitReverse[T any](a []T) {
 	n := uint64(len(a))
 	nn := uint64(64 - bits.TrailingZeros64(n))
@@ -61,17 +38,7 @@ func bitReverse[T any](a []T) {
 }
 
 func linearCombCoeffs(n int) []fr.Element {
-	var a fr.Element
-	if _, err := a.SetRandom(); err != nil {
-		panic(err)
-	}
-	return powers(&a, n)
-}
-
-func powersI(a *big.Int, n int) []fr.Element {
-	var aMont fr.Element
-	aMont.SetBigInt(a)
-	return powers(&aMont, n)
+	return bivariateRandomMonomials(n)
 }
 
 // Returns [1, a, a², ..., aᴺ⁻¹ ]
@@ -79,7 +46,7 @@ func powers(a *fr.Element, n int) []fr.Element {
 
 	result := make([]fr.Element, n)
 	if n >= 1 {
-		result[0] = fr.NewElement(1)
+		result[0].SetOne()
 	}
 	if n >= 2 {
 		result[1].Set(a)
@@ -121,15 +88,6 @@ func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
 		}
 	})
 }
-
-/*
-// Check e(a₁, a₂) = e(b₁, b₂)
-func sameRatio(a1, b1 curve.G1Affine, a2, b2 curve.G2Affine) bool {
-	if !a1.IsInSubGroup() || !b1.IsInSubGroup() || !a2.IsInSubGroup() || !b2.IsInSubGroup() {
-		panic("invalid point not in subgroup")
-	}
-	return sameRatioUnsafe(a1, b1, a2, b2)
-}*/
 
 // Check n₁/d₁ = n₂/d₂ i.e. e(n₁, d₂) = e(d₁, n₂). No subgroup checks.
 func sameRatioUnsafe(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
@@ -309,6 +267,54 @@ func areInSubGroupG2(s []curve.G2Affine) bool {
 	return areInSubGroup(toRefs(s))
 }
 
-func truncate[T any](s []T) []T {
-	return s[:len(s)-1]
+// bivariateRandomMonomials returns 1, x, ..., xˣᴰ⁰; y, xy, ..., xˣᴰ¹y; ...
+// all concatenated in the same slice
+func bivariateRandomMonomials(xD ...int) []fr.Element {
+	if len(xD) == 0 {
+		return nil
+	}
+	totalSize := xD[0]
+	for i := 1; i < len(xD); i++ {
+		totalSize += xD[i]
+		if xD[i] > xD[0] {
+			panic("implementation detail: first max degree must be the largest")
+		}
+	}
+
+	res := make([]fr.Element, totalSize)
+	if _, err := res[1].SetRandom(); err != nil {
+		panic(err)
+	}
+	setPowers(res[:xD[0]])
+
+	if len(xD) == 1 {
+		return res
+	}
+
+	y := make([]fr.Element, len(xD))
+	if _, err := y[1].SetRandom(); err != nil {
+		panic(err)
+	}
+	setPowers(y)
+
+	totalSize = xD[0]
+	for d := 1; d < len(xD); d++ {
+		for i := range res[:xD[d]] {
+			res[totalSize+i].Mul(&res[i], &y[d])
+		}
+		totalSize += xD[d]
+	}
+
+	return res
+}
+
+// sets x[i] = x[1]ⁱ
+func setPowers(x []fr.Element) {
+	if len(x) == 0 {
+		return
+	}
+	x[0].SetOne()
+	for i := 2; i < len(x); i++ {
+		x[i].Mul(&x[i-1], &x[1])
+	}
 }

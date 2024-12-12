@@ -195,20 +195,20 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 	// lemma: let R be an integral domain and
 	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
-	// G = ∑ gᵢⱼ ZⁱTʲ     G' = ∑ g'ᵢⱼ ZⁱTʲ
-	// polynomials in R[X,Y,Z,T].
+	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
+	// polynomials in R[X,Y,Z].
 	// if F/F' = G/G'
 	// then F/F' = G/G' ∈ FracR
 	//
-	// view our polynomials in FracR[X,Y,Z,T]
+	// view our polynomials in FracR[X,Y,Z]
 	// By multiplying out the polynomials we get
-	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖₗ XᶦYʲZᵏTˡ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏTˡ
-	// pick i0 ,j0 , k0, l0 where f'ᵢ₀ⱼ₀, g'ₖ₀ₗ₀ ≠ 0
-	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀ₗ₀/g'ₖ₀ₗ₀
-	// now for any i,j: fᵢⱼg'ₖ₀ₗ₀ = f'ᵢⱼgₖ₀ₗ₀ ⇒
+	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖ XᶦYʲZᵏ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏ
+	// pick i0 ,j0 , k0 where f'ᵢ₀ⱼ₀, g'ₖ₀ ≠ 0
+	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀/g'ₖ₀
+	// now for any i,j: fᵢⱼg'ₖ₀ = f'ᵢⱼgₖ₀ ⇒
 	// fᵢⱼ = x f'ᵢⱼ
-	// likewise for any i,j: fᵢ₀ⱼ₀g'ᵢⱼ = f'ᵢ₀ⱼ₀gᵢⱼ ⇒
-	// gᵢⱼ = x g'ᵢⱼ
+	// likewise for any i: fᵢ₀ⱼ₀g'ᵢ = f'ᵢ₀ⱼ₀gᵢ ⇒
+	// gᵢ = x g'ᵢ
 
 	// now we use this to check that:
 	//    1. aᵢ ≔ G1.Tau[i]      = [τⁱ]₁
@@ -216,58 +216,21 @@ func (p *Phase1) Verify(next *Phase1) error {
 	//    3. cᵢ ≔ G1.AlphaTau[i] = [ατⁱ]₁
 	//    4. dᵢ ≔ G1.BetaTau[i]  = [βτⁱ]₁
 
-	//
-	// we already know that a₀ = 1, a₁ = τ,
-	// c₀ = α, d₀ = β, b₀ = 1,
 	// construct the polynomials
 	// F  ≔ a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³ + c₀Y + c₁XY + ... + cₙ₋₂Xᴺ⁻²Y + d₀Y² + d₁XY² + ... + dₙ₋₂Xᴺ⁻²Y²
 	// F' ≔ a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³ + c₁Y + c₂XY + ... + cₙ₋₁Xᴺ⁻²Y + d₁Y² + d₂XY² + ... + dₙ₋₁Xᴺ⁻²Y²
-	// G  ≔ b
+	// G  ≔ b₀ + b₁Z + ... + bₙ₋₂Zᴺ⁻²
+	// G' ≔ b₁ + b₂Z + ... + bₙ₋₁Zᴺ⁻²
 
-	// we want to establish G1.AlphaTau[i] = [ατⁱ]₁,
-	// already known for i = 0 from the contribution checks
-	// let [cᵢ]₁ = G1.AlphaTau[i]
-	// let C1 ≔ c₀ + rc₁ + ... + rᴺ⁻²cₙ₋₂
-	//     C2 ≔ c₁ + rc₂ + ... + rᴺ⁻²cₙ₋₁
-	// then if indeed cᵢ = ατⁱ, we get
-	// C1/C2 = 1/τ
-	// conversely, from C1/C2 = 1/τ we get
-	// c₁ + rc₂ + ... + rᴺ⁻²cₙ₋₁ = τc₀ + rτc₁ + ... + rᴺ⁻²τcₙ₋₂
-	// which by the Schwartz-Zippel lemma and a simple induction
-	// implies the desired result with overwhelming probability.
+	// if F/F' = G/G' we get F/F' = G/G' = a₀/a₁ = 1/τ, which yields:
+	// for 0 ≤ i ≤ N-2:  bᵢ = bᵢ₊₁/τ, cᵢ = cᵢ₊₁/τ, dᵢ = dᵢ₊₁/τ
+	// for 0 ≤ i ≤ 2N-3: aᵢ = aᵢ₊₁/τ
 
-	// The same argument works for G1.BetaTau[i]
-
-	// we also want to establish Gⱼ.Tau[i] = [τⁱ]ⱼ
-	// let [aᵢ]₁ = G1.Tau[i] and [bᵢ]₂ = G2.Tau[i]
-	// let A1 ≔ a₀ + ra₁ + ... + r²ᴺ⁻³a₂ₙ₋₃
-	//     A2 ≔ a₁ + ra₂ + ... + r²ᴺ⁻³a₂ₙ₋₂
-	//     B1 ≔ b₀ + sb₁ + ... + sᴺ⁻²bₙ₋₂
-	//     B2 ≔ b₁ + sb₂ + ... + sᴺ⁻²bₙ₋₁
-	//  for random r,s
-	// if the values are correct clearly we get A1/A2 = B1/B2
-	//
-	// if A1/A2 = B1/B2, by the bivariate Schwartz-Zippel we get
-	// (a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³)(b₁ + b₂Y + ... + bₙ₋₁Yᴺ⁻²) =
-	// (a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³)(b₀ + b₁Y + ... + bₙ₋₂Yᴺ⁻²)
-	// furthermore by previous checks we already know that
-	// a₀=1, a₁= τ
-	// Assume by induction that for all i < m ≤ N-1: bᵢ = τⁱ
-	// Then modulo (X, Yᵐ) we get
-	// τ + τ²Y + ... + τᵐ⁻¹Yᵐ⁻² + bₘYᵐ⁻¹ =
-	// τ (1 + τ²Y + ... + τᵐ⁻¹Yᵐ⁻¹)
-	// which gives bₘ = τᵐ
-	// We then get A1/A2 = 1/τ which by the previous lemma gives
-	// aᵢ = τⁱ
-
-	// now to combine all the above
-
-	// verify monomials
-
-	// for 1 ≤ i ≤ 2N-3 we want to check τⁱ⁺¹/τⁱ = τ
-	// i.e. e(τⁱ⁺¹,[1]₂) = e(τⁱ,[τ]₂). Due to bi-linearity we can instead check
-	// e(∑rⁱ⁻¹τⁱ⁺¹,[1]₂) = e(∑rⁱ⁻¹τⁱ,[τ]₂), which is tantamount to the check
-	// ∑rⁱ⁻¹τⁱ⁺¹ / ∑rⁱ⁻¹τⁱ = τ
+	// from previous checks we already know:
+	//    1. a₀ = 1
+	//    2. b₀ = 1
+	//    3. c₀ = α
+	//    4. d₀ = β
 
 	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r)
 	tauT2, tauS2 := linearCombinationsG2(next.parameters.G2.Tau[1:], r)
