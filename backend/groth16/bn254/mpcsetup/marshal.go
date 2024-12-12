@@ -17,51 +17,42 @@ func appendRefs[T any](s []interface{}, v []T) []interface{} {
 	return s
 }
 
-// proofRefsSlice produces a slice consisting of references to all proof sub-elements
-// prepended by the size parameter, to be used in WriteTo and ReadFrom functions
-func (p *Phase1) proofRefsSlice() []interface{} {
-	return []interface{}{
-		&p.proofs.Tau.contributionCommitment,
-		&p.proofs.Tau.contributionPok,
-		&p.proofs.Alpha.contributionCommitment,
-		&p.proofs.Alpha.contributionPok,
-		&p.proofs.Beta.contributionCommitment,
-		&p.proofs.Beta.contributionPok,
-	}
-}
-
 // WriteTo implements io.WriterTo
 // It does not write the Challenge from the previous contribution
 func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
-
-	if n, err = p.parameters.WriteTo(writer); err != nil {
-		return
-	}
-
-	enc := curve.NewEncoder(writer)
-	for _, v := range p.proofRefsSlice() {
-		if err = enc.Encode(v); err != nil {
-			return n + enc.BytesWritten(), err
+	var dn int64
+	for _, v := range []io.WriterTo{
+		&p.proofs.Tau,
+		&p.proofs.Alpha,
+		&p.proofs.Beta,
+		&p.parameters,
+	} {
+		dn, err = v.WriteTo(writer)
+		n += dn
+		if err != nil {
+			return
 		}
 	}
-	return n + enc.BytesWritten(), nil
+	return
 }
 
 // ReadFrom implements io.ReaderFrom
 // It does not read the Challenge from the previous contribution
 func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
-
-	if n, err = p.parameters.ReadFrom(reader); err != nil {
-		return
-	}
-
-	dec := curve.NewDecoder(reader)
-	for _, v := range p.proofRefsSlice() { // we've already decoded N
-		if err = dec.Decode(v); err != nil {
-			return n + dec.BytesRead(), err
+	var dn int64
+	for _, v := range []io.ReaderFrom{
+		&p.proofs.Tau,
+		&p.proofs.Alpha,
+		&p.proofs.Beta,
+		&p.parameters,
+	} {
+		dn, err = v.ReadFrom(reader)
+		n += dn
+		if err != nil {
+			return
 		}
 	}
-	return n + dec.BytesRead(), nil
+	return
 }
 
 // WriteTo implements io.WriterTo
@@ -162,7 +153,7 @@ func (c *SrsCommons) refsSlice() []interface{} {
 	N := len(c.G2.Tau)
 	estimatedNbElems := 5*N - 1
 	// size N                                                                    1
-	// 𝔾₂ representation for β                                                   1
+	// [β]₂                                                                      1
 	// [τⁱ]₁  for 1 ≤ i ≤ 2N-2                                                2N-2
 	// [τⁱ]₂  for 1 ≤ i ≤ N-1                                                  N-1
 	// [ατⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
@@ -208,4 +199,22 @@ func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
 		}
 	}
 	return dec.BytesRead(), nil
+}
+
+func (x *valueUpdate) WriteTo(writer io.Writer) (n int64, err error) {
+	enc := curve.NewEncoder(writer)
+	if err = enc.Encode(&x.contributionCommitment); err != nil {
+		return enc.BytesWritten(), err
+	}
+	err = enc.Encode(&x.contributionPok)
+	return enc.BytesWritten(), err
+}
+
+func (x *valueUpdate) ReadFrom(reader io.Reader) (n int64, err error) {
+	dec := curve.NewDecoder(reader)
+	if err = dec.Decode(&x.contributionCommitment); err != nil {
+		return dec.BytesRead(), err
+	}
+	err = dec.Decode(&x.contributionPok)
+	return dec.BytesRead(), err
 }

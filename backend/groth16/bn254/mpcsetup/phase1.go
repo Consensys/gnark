@@ -10,14 +10,27 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math/big"
-	"runtime"
 )
 
-// Phase1 represents the Phase1 of the MPC described in
+// SrsCommons are the circuit-independent components of the Groth16 SRS,
+// computed by the first phase.
+// in all that follows, N is the domain size
+type SrsCommons struct {
+	G1 struct {
+		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ᴺ⁻²]₁}
+		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τᴺ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τᴺ⁻¹]₁}
+	}
+	G2 struct {
+		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τᴺ⁻¹]₂}
+		Beta curve.G2Affine   // [β]₂
+	}
+}
+
+// Phase1 in line with Phase1 of the MPC described in
 // https://eprint.iacr.org/2017/1050.pdf
 //
 // Also known as "Powers of Tau"
@@ -43,21 +56,6 @@ func (p *Phase1) Contribute() {
 	p.proofs.Beta, betaContrib = updateValue(&p.parameters.G1.BetaTau[0], p.Challenge, 3)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib, true)
-}
-
-// SrsCommons are the circuit-independent components of the Groth16 SRS,
-// computed by the first phase.
-// in all that follows, N is the domain size
-type SrsCommons struct {
-	G1 struct {
-		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ᴺ⁻²]₁}
-		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τᴺ⁻¹]₁}
-		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τᴺ⁻¹]₁}
-	}
-	G2 struct {
-		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τᴺ⁻¹]₂}
-		Beta curve.G2Affine   // [β]₂
-	}
 }
 
 // setZero instantiates the parameters, and sets all contributions to zero
@@ -122,7 +120,7 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element, prin
 // that it produces the same values.
 // The inner workings of the random beacon are out of scope.
 // WARNING: Seal modifies p, just as Contribute does.
-// The result will be an INVALID Phase1 object.
+// The result will be an INVALID Phase1 object, since no proof of correctness is produced.
 func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
 	var (
 		bb  bytes.Buffer
@@ -158,37 +156,31 @@ func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 // Verify assumes previous is correct
 func (p *Phase1) Verify(next *Phase1) error {
 
-	if prevHash := p.hash(); !bytes.Equal(next.Challenge, p.hash()) { // if chain-verifying contributions, challenge fields are optional as they can be computed as we go
-		if len(next.Challenge) != 0 {
-			return errors.New("the challenge does not match the previous phase's hash")
-		}
-		next.Challenge = prevHash
+	challenge := p.hash()
+	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
+		return errors.New("the challenge does not match the previous phase's hash")
 	}
+	next.Challenge = challenge
 
-	// TODO compare sizes
-
-	r := linearCombCoeffs(len(next.parameters.G1.Tau) - 1) // the longest of all lengths
-	// will be reusing the coefficients TODO @Tabaie make sure that's okay
-
+	// the internal consistency of the vector sizes in next is assumed
+	// so is its well-formedness i.e. Tau[0] = 1
+	// it remains to check it is consistent with p
 	N := len(next.parameters.G2.Tau)
-	var taus, alphaTaus, betaTaus curve.G1Affine
-	if _, err := taus.MultiExp(next.parameters.G1.Tau[1:N], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // τ¹ + r.τ² + … + rᴺ⁻².τⁿ⁻¹
-		return err
-	}
-	if _, err := alphaTaus.MultiExp(next.parameters.G1.AlphaTau[1:], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // ατ¹ + r.ατ² + … + rᴺ⁻².ατⁿ⁻¹
-		return err
-	}
-	if _, err := betaTaus.MultiExp(next.parameters.G1.BetaTau[1:], r, ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // βτ¹ + r.βτ² + … + rᴺ⁻².βτⁿ⁻¹
-		return err
+	if N != len(p.parameters.G2.Tau) {
+		return errors.New("domain size mismatch")
 	}
 
-	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], &p.parameters.G2.Tau[1]}, pair{next.parameters.G1.Tau[1], &next.parameters.G2.Tau[1]}, next.Challenge, 1); err != nil {
+	r := linearCombCoeffs(len(next.parameters.G1.Tau) + len(next.parameters.G1.AlphaTau) + len(next.parameters.G1.BetaTau) - 1) // the longest of all lengths
+	// will be reusing the coefficients
+
+	// verify updates to τ, α, β
+	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], nil}, pair{next.parameters.G1.Tau[1], nil}, challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := next.proofs.Alpha.verify(pair{taus, nil}, pair{alphaTaus, nil}, next.Challenge, 2); err != nil {
+	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{p.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, next.Challenge, 3); err != nil {
+	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
@@ -201,6 +193,77 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 	_, _, g1, g2 := curve.Generators()
 
+	// lemma: let R be an integral domain and
+	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
+	// G = ∑ gᵢⱼ ZⁱTʲ     G' = ∑ g'ᵢⱼ ZⁱTʲ
+	// polynomials in R[X,Y,Z,T].
+	// if F/F' = G/G'
+	// then F/F' = G/G' ∈ FracR
+	//
+	// view our polynomials in FracR[X,Y,Z,T]
+	// By multiplying out the polynomials we get
+	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖₗ XᶦYʲZᵏTˡ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏTˡ
+	// pick i0 ,j0 , k0, l0 where f'ᵢ₀ⱼ₀, g'ₖ₀ₗ₀ ≠ 0
+	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀ₗ₀/g'ₖ₀ₗ₀
+	// now for any i,j: fᵢⱼg'ₖ₀ₗ₀ = f'ᵢⱼgₖ₀ₗ₀ ⇒
+	// fᵢⱼ = x f'ᵢⱼ
+	// likewise for any i,j: fᵢ₀ⱼ₀g'ᵢⱼ = f'ᵢ₀ⱼ₀gᵢⱼ ⇒
+	// gᵢⱼ = x g'ᵢⱼ
+
+	// now we use this to check that:
+	//    1. aᵢ ≔ G1.Tau[i]      = [τⁱ]₁
+	//    2. bᵢ ≔ G2.Tau[i]      = [τⁱ]₂
+	//    3. cᵢ ≔ G1.AlphaTau[i] = [ατⁱ]₁
+	//    4. dᵢ ≔ G1.BetaTau[i]  = [βτⁱ]₁
+
+	//
+	// we already know that a₀ = 1, a₁ = τ,
+	// c₀ = α, d₀ = β, b₀ = 1,
+	// construct the polynomials
+	// F  ≔ a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³ + c₀Y + c₁XY + ... + cₙ₋₂Xᴺ⁻²Y + d₀Y² + d₁XY² + ... + dₙ₋₂Xᴺ⁻²Y²
+	// F' ≔ a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³ + c₁Y + c₂XY + ... + cₙ₋₁Xᴺ⁻²Y + d₁Y² + d₂XY² + ... + dₙ₋₁Xᴺ⁻²Y²
+	// G  ≔ b
+
+	// we want to establish G1.AlphaTau[i] = [ατⁱ]₁,
+	// already known for i = 0 from the contribution checks
+	// let [cᵢ]₁ = G1.AlphaTau[i]
+	// let C1 ≔ c₀ + rc₁ + ... + rᴺ⁻²cₙ₋₂
+	//     C2 ≔ c₁ + rc₂ + ... + rᴺ⁻²cₙ₋₁
+	// then if indeed cᵢ = ατⁱ, we get
+	// C1/C2 = 1/τ
+	// conversely, from C1/C2 = 1/τ we get
+	// c₁ + rc₂ + ... + rᴺ⁻²cₙ₋₁ = τc₀ + rτc₁ + ... + rᴺ⁻²τcₙ₋₂
+	// which by the Schwartz-Zippel lemma and a simple induction
+	// implies the desired result with overwhelming probability.
+
+	// The same argument works for G1.BetaTau[i]
+
+	// we also want to establish Gⱼ.Tau[i] = [τⁱ]ⱼ
+	// let [aᵢ]₁ = G1.Tau[i] and [bᵢ]₂ = G2.Tau[i]
+	// let A1 ≔ a₀ + ra₁ + ... + r²ᴺ⁻³a₂ₙ₋₃
+	//     A2 ≔ a₁ + ra₂ + ... + r²ᴺ⁻³a₂ₙ₋₂
+	//     B1 ≔ b₀ + sb₁ + ... + sᴺ⁻²bₙ₋₂
+	//     B2 ≔ b₁ + sb₂ + ... + sᴺ⁻²bₙ₋₁
+	//  for random r,s
+	// if the values are correct clearly we get A1/A2 = B1/B2
+	//
+	// if A1/A2 = B1/B2, by the bivariate Schwartz-Zippel we get
+	// (a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³)(b₁ + b₂Y + ... + bₙ₋₁Yᴺ⁻²) =
+	// (a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³)(b₀ + b₁Y + ... + bₙ₋₂Yᴺ⁻²)
+	// furthermore by previous checks we already know that
+	// a₀=1, a₁= τ
+	// Assume by induction that for all i < m ≤ N-1: bᵢ = τⁱ
+	// Then modulo (X, Yᵐ) we get
+	// τ + τ²Y + ... + τᵐ⁻¹Yᵐ⁻² + bₘYᵐ⁻¹ =
+	// τ (1 + τ²Y + ... + τᵐ⁻¹Yᵐ⁻¹)
+	// which gives bₘ = τᵐ
+	// We then get A1/A2 = 1/τ which by the previous lemma gives
+	// aᵢ = τⁱ
+
+	// now to combine all the above
+
+	// verify monomials
+
 	// for 1 ≤ i ≤ 2N-3 we want to check τⁱ⁺¹/τⁱ = τ
 	// i.e. e(τⁱ⁺¹,[1]₂) = e(τⁱ,[τ]₂). Due to bi-linearity we can instead check
 	// e(∑rⁱ⁻¹τⁱ⁺¹,[1]₂) = e(∑rⁱ⁻¹τⁱ,[τ]₂), which is tantamount to the check
@@ -208,8 +271,6 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r)
 	tauT2, tauS2 := linearCombinationsG2(next.parameters.G2.Tau[1:], r)
-	alphaTT, alphaTS := linearCombinationsG1(next.parameters.G1.AlphaTau, r)
-	betaTT, betaTS := linearCombinationsG1(next.parameters.G1.BetaTau, r)
 
 	if !sameRatioUnsafe(tauS1, tauT1, next.parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
@@ -218,6 +279,9 @@ func (p *Phase1) Verify(next *Phase1) error {
 	if !sameRatioUnsafe(next.parameters.G1.Tau[1], g1, tauS2, tauT2) {
 		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
 	}
+
+	alphaTT, alphaTS := linearCombinationsG1(next.parameters.G1.AlphaTau, r)
+	betaTT, betaTS := linearCombinationsG1(next.parameters.G1.BetaTau, r)
 
 	// for 0 ≤ i < N we want to check the ατⁱ
 	// By well-formedness checked by ReadFrom, we assume that ατ⁰ = α
@@ -234,6 +298,10 @@ func (p *Phase1) Verify(next *Phase1) error {
 	}
 
 	// TODO @Tabaie combine all pairing checks except the second one
+
+	taus := linearCombination(next.parameters.G1.Tau[:N], r)       // 1 + r.τ¹ + r.τ² + … + rᴺ⁻¹.τᴺ⁻¹
+	alphaTaus := linearCombination(next.parameters.G1.AlphaTau, r) // α + r.ατ¹ + r.ατ² + … + rᴺ⁻¹.ατᴺ⁻¹
+	betaTaus := linearCombination(next.parameters.G1.BetaTau, r)   // β + r.τ¹ + r.βτ² + … + rᴺ⁻¹.βτᴺ⁻¹
 
 	return nil
 }
