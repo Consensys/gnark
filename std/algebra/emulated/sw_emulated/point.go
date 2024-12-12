@@ -215,8 +215,7 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
 
 	left := c.baseApi.Mul(&p.Y, &p.Y)
-	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
-	right = c.baseApi.Add(right, b)
+	right := c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {b}}, []int{1, 1})
 	if c.addA {
 		ax := c.baseApi.Mul(&c.a, &p.X)
 		right = c.baseApi.Add(right, ax)
