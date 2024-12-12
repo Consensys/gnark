@@ -1,6 +1,7 @@
 package algebra
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
@@ -58,7 +59,7 @@ func GetCurve[FR emulated.FieldParams, G1El G1ElementT](api frontend.API) (Curve
 		}
 		*s = c
 	default:
-		return ret, fmt.Errorf("unknown type parametrisation")
+		return ret, errors.New("unknown type parametrisation")
 	}
 	return ret, nil
 }
@@ -94,7 +95,7 @@ func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT](api frontend.
 		p := sw_bls24315.NewPairing(api)
 		*s = p
 	default:
-		return ret, fmt.Errorf("unknown type parametrisation")
+		return ret, errors.New("unknown type parametrisation")
 	}
 	return ret, nil
 }
