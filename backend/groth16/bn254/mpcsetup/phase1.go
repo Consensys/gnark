@@ -188,17 +188,17 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
 
-	// lemma: let R be an integral domain and
+	// lemma: let K be a field and
 	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
 	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
-	// polynomials in R[X,Y,Z].
+	// polynomials in K[X,Y,Z].
 	// if F/F' = G/G'
-	// then F/F' = G/G' ∈ FracR
+	// then F/F' = G/G' ∈ K
 	//
-	// view our polynomials in FracR[X,Y,Z]
+	// view our polynomials in K[X,Y,Z]
 	// By multiplying out the polynomials we get
 	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖ XᶦYʲZᵏ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏ
-	// pick i0 ,j0 , k0 where f'ᵢ₀ⱼ₀, g'ₖ₀ ≠ 0
+	// pick i₀ ,j₀ , k₀ where f'ᵢ₀ⱼ₀, g'ₖ₀ ≠ 0
 	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀/g'ₖ₀
 	// now for any i,j: fᵢⱼg'ₖ₀ = f'ᵢⱼgₖ₀ ⇒
 	// fᵢⱼ = x f'ᵢⱼ
@@ -226,6 +226,7 @@ func (p *Phase1) Verify(next *Phase1) error {
 	//    2. b₀ = 1
 	//    3. c₀ = α
 	//    4. d₀ = β
+	// and so the desired results follow
 
 	ends := partialSums(len(next.parameters.G1.Tau), len(next.parameters.G1.AlphaTau), len(next.parameters.G1.BetaTau))
 

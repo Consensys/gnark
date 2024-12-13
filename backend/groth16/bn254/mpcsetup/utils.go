@@ -122,7 +122,7 @@ func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 //	  + powers[ends[0]].A[ends[0]+1]  + ... + powers[ends[1]-2].A[ends[1]-1]
 //	    ....       (shifted)
 //
-// It assumes without checking that powers[i+1] = powers[i]*powers[1] unless i or i+1 is a partial sum of sizes
+// It is assumed without checking that powers[i+1] = powers[i]*powers[1] unless i+1 is a partial sum of sizes
 // the slices powers and A will be modified
 func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (truncated, shifted curve.G1Affine) {
 	if ends[len(ends)-1] != len(A) || len(A) != len(powers) {
@@ -141,6 +141,11 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 		panic(err)
 	}
 
+	// compute truncated as
+	//                r.shifted
+	//              + powers[0].A[0] + powers[ends[0].A[ends[0]] + ...
+	//              - powers[ends[0]-1].A[ends[0]-1] - powers[ends[1]-1].A[ends[1]-1] - ...
+	r := powers[1]
 	prevEnd := 0
 	for i := range ends {
 		if ends[i] <= prevEnd {
@@ -155,11 +160,13 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 
 		prevEnd = ends[i]
 	}
+	powers[len(ends)*2] = r
+	A[len(ends)*2] = shifted
+
 	// TODO @Tabaie O(1) MSM worth it?
-	if _, err := truncated.MultiExp(A[:2*len(ends)], powers[:2*len(ends)], msmCfg); err != nil {
+	if _, err := truncated.MultiExp(A[:2*len(ends)+1], powers[:2*len(ends)+1], msmCfg); err != nil {
 		panic(err)
 	}
-	truncated.Add(&truncated, &shifted)
 
 	return
 }
