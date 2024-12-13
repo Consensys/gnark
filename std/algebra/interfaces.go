@@ -105,4 +105,7 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 
 	// AssertIsOnG2 asserts that the input is on the G2 curve.
 	AssertIsOnG2(*G2El)
+
+	MuxG2(sel frontend.Variable, inputs ...*G2El) *G2El
+	MuxGt(sel frontend.Variable, inputs ...*GtEl) *GtEl
 }
