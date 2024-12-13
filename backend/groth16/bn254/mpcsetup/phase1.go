@@ -170,9 +170,6 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return errors.New("domain size mismatch")
 	}
 
-	r := linearCombCoeffs(len(next.parameters.G1.Tau) + len(next.parameters.G1.AlphaTau) + len(next.parameters.G1.BetaTau) - 1) // the longest of all lengths
-	// will be reusing the coefficients
-
 	// verify updates to τ, α, β
 	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], nil}, pair{next.parameters.G1.Tau[1], nil}, challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
@@ -190,8 +187,6 @@ func (p *Phase1) Verify(next *Phase1) error {
 	if !areInSubGroupG2(next.parameters.G2.Tau[2:]) {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
-
-	_, _, g1, g2 := curve.Generators()
 
 	// lemma: let R be an integral domain and
 	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
@@ -234,48 +229,17 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 	ends := partialSums(len(next.parameters.G1.Tau), len(next.parameters.G1.AlphaTau), len(next.parameters.G1.BetaTau))
 
-	coeffs := bivariateRandomMonomials(ends...)
-
 	g1s := make([]curve.G1Affine, 0, ends[len(ends)-1])
 	g1s = append(g1s, next.parameters.G1.Tau...)
 	g1s = append(g1s, next.parameters.G1.AlphaTau...)
 	g1s = append(g1s, next.parameters.G1.BetaTau...)
 
-	g1Num, g1Denom := linearCombinationsG1(g1s, coeffs, ends)
+	g1Num, g1Denom := linearCombinationsG1(g1s, bivariateRandomMonomials(ends...), ends)
+	g2Num, g2Denom := linearCombinationsG2(next.parameters.G2.Tau, linearCombCoeffs(len(next.parameters.G2.Tau)))
 
-	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r, ends)
-	tauT2, tauS2 := linearCombinationsG2(next.parameters.G2.Tau[1:], r)
-
-	if !sameRatioUnsafe(tauS1, tauT1, next.parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify 𝔾₁ representations of the τⁱ")
+	if !sameRatioUnsafe(g1Num, g1Denom, g2Num, g2Denom) {
+		return errors.New("value update check failed")
 	}
-
-	if !sameRatioUnsafe(next.parameters.G1.Tau[1], g1, tauS2, tauT2) {
-		return errors.New("couldn't verify 𝔾₂ representations of the τⁱ")
-	}
-
-	alphaTT, alphaTS := linearCombinationsG1(next.parameters.G1.AlphaTau, r)
-	betaTT, betaTS := linearCombinationsG1(next.parameters.G1.BetaTau, r)
-
-	// for 0 ≤ i < N we want to check the ατⁱ
-	// By well-formedness checked by ReadFrom, we assume that ατ⁰ = α
-	// For 0 < i < N we check that ατⁱ/ατⁱ⁻¹ = τ, since we have a representation of τ in 𝔾₂
-	// with a similar bi-linearity argument as above we can do this with a single pairing check
-
-	// TODO eliminate these by combining with update checking
-
-	if !sameRatioUnsafe(alphaTS, alphaTT, next.parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify the ατⁱ")
-	}
-	if !sameRatioUnsafe(betaTS, betaTT, next.parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify the βτⁱ")
-	}
-
-	// TODO @Tabaie combine all pairing checks except the second one
-
-	taus := linearCombination(next.parameters.G1.Tau[:N], r)       // 1 + r.τ¹ + r.τ² + … + rᴺ⁻¹.τᴺ⁻¹
-	alphaTaus := linearCombination(next.parameters.G1.AlphaTau, r) // α + r.ατ¹ + r.ατ² + … + rᴺ⁻¹.ατᴺ⁻¹
-	betaTaus := linearCombination(next.parameters.G1.BetaTau, r)   // β + r.τ¹ + r.βτ² + … + rᴺ⁻¹.βτᴺ⁻¹
 
 	return nil
 }
