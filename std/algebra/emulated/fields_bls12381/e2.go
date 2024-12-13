@@ -184,16 +184,10 @@ func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
 }
 
 func (e Ext2) Mul(x, y *E2) *E2 {
-
-	v0 := e.fp.Mul(&x.A0, &y.A0)
-	v1 := e.fp.Mul(&x.A1, &y.A1)
-
-	b0 := e.fp.Sub(v0, v1)
-	b1 := e.fp.Add(&x.A0, &x.A1)
-	tmp := e.fp.Add(&y.A0, &y.A1)
-	b1 = e.fp.Mul(b1, tmp)
-	tmp = e.fp.Add(v0, v1)
-	b1 = e.fp.Sub(b1, tmp)
+	// b0 = x0*y0 - x1*y1
+	b0 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A0}, {e.fp.NewElement(-1), &x.A1, &y.A1}}, []int{1, 1})
+	// b1 = x0*y1 + x1*y0
+	b1 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A1}, {&x.A1, &y.A0}}, []int{1, 1})
 
 	return &E2{
 		A0: *b0,
@@ -262,17 +256,27 @@ func (e Ext2) NonResidue() *E2 {
 }
 
 func (e Ext2) Square(x *E2) *E2 {
-	a := e.fp.Add(&x.A0, &x.A1)
-	b := e.fp.Sub(&x.A0, &x.A1)
-	a = e.fp.Mul(a, b)
-	b = e.fp.Mul(&x.A0, &x.A1)
-	b = e.fp.MulConst(b, big.NewInt(2))
+	// a = (x0+x1)(x0-x1) = x0^2 - x1^2
+	a := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0}, {e.fp.NewElement(-1), &x.A1, &x.A1}}, []int{1, 1})
+	// b = 2*x0*x1
+	b := e.fp.Eval([][]*baseEl{{&x.A0, &x.A1}}, []int{2})
 	return &E2{
 		A0: *a,
 		A1: *b,
 	}
 }
 
+func (e Ext2) Cube(x *E2) *E2 {
+	mone := e.fp.NewElement(-1)
+	// a = x0^3 - 3*x0*x1^2
+	a := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0, &x.A0}, {mone, &x.A0, &x.A1, &x.A1}}, []int{1, 3})
+	// b = 3*x1*x0^2 - x1^3
+	b := e.fp.Eval([][]*baseEl{{&x.A1, &x.A0, &x.A0}, {mone, &x.A1, &x.A1, &x.A1}}, []int{3, 1})
+	return &E2{
+		A0: *a,
+		A1: *b,
+	}
+}
 func (e Ext2) Double(x *E2) *E2 {
 	two := big.NewInt(2)
 	z0 := e.fp.MulConst(&x.A0, two)
