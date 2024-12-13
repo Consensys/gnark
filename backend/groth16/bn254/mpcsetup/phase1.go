@@ -232,7 +232,18 @@ func (p *Phase1) Verify(next *Phase1) error {
 	//    3. c₀ = α
 	//    4. d₀ = β
 
-	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r)
+	ends := partialSums(len(next.parameters.G1.Tau), len(next.parameters.G1.AlphaTau), len(next.parameters.G1.BetaTau))
+
+	coeffs := bivariateRandomMonomials(ends...)
+
+	g1s := make([]curve.G1Affine, 0, ends[len(ends)-1])
+	g1s = append(g1s, next.parameters.G1.Tau...)
+	g1s = append(g1s, next.parameters.G1.AlphaTau...)
+	g1s = append(g1s, next.parameters.G1.BetaTau...)
+
+	g1Num, g1Denom := linearCombinationsG1(g1s, coeffs, ends)
+
+	tauT1, tauS1 := linearCombinationsG1(next.parameters.G1.Tau[1:], r, ends)
 	tauT2, tauS2 := linearCombinationsG2(next.parameters.G2.Tau[1:], r)
 
 	if !sameRatioUnsafe(tauS1, tauT1, next.parameters.G2.Tau[1], g2) {

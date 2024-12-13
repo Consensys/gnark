@@ -112,21 +112,54 @@ func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 	return res
 }
 
-// linearCombinationsG1 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
-// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
-// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
-func linearCombinationsG1(A []curve.G1Affine, rPowers []fr.Element) (truncated, shifted curve.G1Affine) {
-	// the common section, 1 to N-2
-	var common curve.G1Affine
-	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+// linearCombinationsG1 returns
+//
+//		powers[0].A[0] + powers[1].A[1] + ... + powers[ends[0]-2].A[ends[0]-2]
+//	  + powers[ends[0]].A[ends[0]] + ... + powers[ends[1]-2].A[ends[1]-2]
+//	    ....       (truncated)
+//
+//		powers[0].A[1] + powers[1].A[2] + ... + powers[ends[0]-2].A[ends[0]-1]
+//	  + powers[ends[0]].A[ends[0]+1]  + ... + powers[ends[1]-2].A[ends[1]-1]
+//	    ....       (shifted)
+//
+// It assumes without checking that powers[i+1] = powers[i]*powers[1] unless i or i+1 is a partial sum of sizes
+// the slices powers and A will be modified
+func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (truncated, shifted curve.G1Affine) {
+	if ends[len(ends)-1] != len(A) || len(A) != len(powers) {
+		panic("lengths mismatch")
+	}
+
+	largeCoeffs := make([]fr.Element, len(ends))
+	for i := range ends {
+		largeCoeffs[i].Neg(&powers[ends[i]-1])
+		powers[ends[i]-1].SetZero()
+	}
+
+	msmCfg := ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}
+
+	if _, err := shifted.MultiExp(A, powers, msmCfg); err != nil {
 		panic(err)
 	}
-	var c big.Int
-	rPowers[1].BigInt(&c)
-	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
 
-	rPowers[len(A)-1].BigInt(&c)
-	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+	prevEnd := 0
+	for i := range ends {
+		if ends[i] <= prevEnd {
+			panic("non-increasing ends")
+		}
+
+		powers[2*i] = powers[prevEnd]
+		powers[2*i+1] = largeCoeffs[i]
+
+		A[2*i] = A[prevEnd]
+		A[2*i+1] = A[ends[i]-1]
+
+		prevEnd = ends[i]
+	}
+	// TODO @Tabaie O(1) MSM worth it?
+	if _, err := truncated.MultiExp(A[:2*len(ends)], powers[:2*len(ends)], msmCfg); err != nil {
+		panic(err)
+	}
+	truncated.Add(&truncated, &shifted)
 
 	return
 }
@@ -267,42 +300,38 @@ func areInSubGroupG2(s []curve.G2Affine) bool {
 	return areInSubGroup(toRefs(s))
 }
 
-// bivariateRandomMonomials returns 1, x, ..., xˣᴰ⁰; y, xy, ..., xˣᴰ¹y; ...
+// bivariateRandomMonomials returns 1, x, ..., x^{ends[0]-1}; y, xy, ..., x^{ends[1]-ends[0]-1}y; ...
 // all concatenated in the same slice
-func bivariateRandomMonomials(xD ...int) []fr.Element {
-	if len(xD) == 0 {
+func bivariateRandomMonomials(ends ...int) []fr.Element {
+	if len(ends) == 0 {
 		return nil
 	}
-	totalSize := xD[0]
-	for i := 1; i < len(xD); i++ {
-		totalSize += xD[i]
-		if xD[i] > xD[0] {
-			panic("implementation detail: first max degree must be the largest")
-		}
-	}
 
-	res := make([]fr.Element, totalSize)
+	res := make([]fr.Element, ends[])
 	if _, err := res[1].SetRandom(); err != nil {
 		panic(err)
 	}
-	setPowers(res[:xD[0]])
+	setPowers(res[:ends[0]])
 
-	if len(xD) == 1 {
+	if len(ends) == 1 {
 		return res
 	}
 
-	y := make([]fr.Element, len(xD))
+	y := make([]fr.Element, len(ends))
 	if _, err := y[1].SetRandom(); err != nil {
 		panic(err)
 	}
 	setPowers(y)
 
-	totalSize = xD[0]
-	for d := 1; d < len(xD); d++ {
-		for i := range res[:xD[d]] {
-			res[totalSize+i].Mul(&res[i], &y[d])
+	for d := 1; d < len(ends); d++ {
+		xdeg := ends[d] - ends[d-1]
+		if xdeg > ends[0] {
+			panic("impl detail: first maximum degree for x must be the greatest")
 		}
-		totalSize += xD[d]
+
+		for i := range xdeg {
+			res[ends[d-1]+i].Mul(&res[i], &y[d])
+		}
 	}
 
 	return res
@@ -317,4 +346,16 @@ func setPowers(x []fr.Element) {
 	for i := 2; i < len(x); i++ {
 		x[i].Mul(&x[i-1], &x[1])
 	}
+}
+
+func partialSums(s ...int) []int {
+	if len(s) == 0 {
+		return nil
+	}
+	sums := make([]int, len(s))
+	sums[0] = s[0]
+	for i := 1; i < len(s); i++ {
+		sums[i] = sums[i-1] + s[i]
+	}
+	return sums
 }
