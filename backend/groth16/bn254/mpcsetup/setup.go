@@ -12,7 +12,14 @@ import (
 	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
 )
 
-func (srs2 *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+// Seal performs the final contribution and outputs the proving and verifying keys.
+// No randomization is performed at this step.
+// A verifier should simply re-run this and check
+// that it produces the same values.
+// The inner workings of the random beacon are out of scope.
+// WARNING: Seal modifies p, just as Contribute does.
+// The result will be an INVALID Phase1 object, since no proof of correctness is produced.
+func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
 
 	// TODO @Tabaie beacon contribution
 
@@ -22,13 +29,13 @@ func (srs2 *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstra
 	pk.Domain = *fft.NewDomain(uint64(nConstraints))
 	pk.G1.Alpha.Set(&commons.G1.AlphaTau[0])
 	pk.G1.Beta.Set(&commons.G1.BetaTau[0])
-	pk.G1.Delta.Set(&srs2.Parameters.G1.Delta)
-	pk.G1.Z = srs2.Parameters.G1.Z
+	pk.G1.Delta.Set(&p.Parameters.G1.Delta)
+	pk.G1.Z = p.Parameters.G1.Z
 	bitReverse(pk.G1.Z)
 
-	pk.G1.K = srs2.Parameters.G1.PKK
+	pk.G1.K = p.Parameters.G1.PKK
 	pk.G2.Beta.Set(&commons.G2.Beta)
-	pk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
+	pk.G2.Delta.Set(&p.Parameters.G2.Delta)
 
 	// Filter out infinity points
 	nWires := len(evals.G1.A)
@@ -75,9 +82,9 @@ func (srs2 *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstra
 	// Initialize VK
 	vk.G1.Alpha.Set(&commons.G1.AlphaTau[0])
 	vk.G1.Beta.Set(&commons.G1.BetaTau[0])
-	vk.G1.Delta.Set(&srs2.Parameters.G1.Delta)
+	vk.G1.Delta.Set(&p.Parameters.G1.Delta)
 	vk.G2.Beta.Set(&commons.G2.Beta)
-	vk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
+	vk.G2.Delta.Set(&p.Parameters.G2.Delta)
 	vk.G2.Gamma.Set(&g2)
 	vk.G1.K = evals.G1.VKK
 
@@ -85,10 +92,10 @@ func (srs2 *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstra
 	pk.CommitmentKeys = make([]pedersen.ProvingKey, len(evals.G1.CKK))
 	for i := range vk.CommitmentKeys {
 		vk.CommitmentKeys[i].G = g2
-		vk.CommitmentKeys[i].GSigmaNeg.Neg(&srs2.Parameters.G2.Sigma[i])
+		vk.CommitmentKeys[i].GSigmaNeg.Neg(&p.Parameters.G2.Sigma[i])
 
 		pk.CommitmentKeys[i].Basis = evals.G1.CKK[i]
-		pk.CommitmentKeys[i].BasisExpSigma = srs2.Parameters.G1.SigmaCKK[i]
+		pk.CommitmentKeys[i].BasisExpSigma = p.Parameters.G1.SigmaCKK[i]
 	}
 
 	// sets e, -[δ]2, -[γ]2

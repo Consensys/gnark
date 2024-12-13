@@ -54,17 +54,17 @@ type Phase2 struct {
 	Challenge []byte
 }
 
-func (c *Phase2) Verify(next *Phase2) error {
-	challenge := c.hash()
+func (p *Phase2) Verify(next *Phase2) error {
+	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
 		return errors.New("the challenge does not match the previous phase's hash")
 	}
 	next.Challenge = challenge
 
-	if len(next.Parameters.G1.Z) != len(c.Parameters.G1.Z) ||
-		len(next.Parameters.G1.PKK) != len(c.Parameters.G1.PKK) ||
-		len(next.Parameters.G1.SigmaCKK) != len(c.Parameters.G1.SigmaCKK) ||
-		len(next.Parameters.G2.Sigma) != len(c.Parameters.G2.Sigma) {
+	if len(next.Parameters.G1.Z) != len(p.Parameters.G1.Z) ||
+		len(next.Parameters.G1.PKK) != len(p.Parameters.G1.PKK) ||
+		len(next.Parameters.G1.SigmaCKK) != len(p.Parameters.G1.SigmaCKK) ||
+		len(next.Parameters.G2.Sigma) != len(p.Parameters.G2.Sigma) {
 		return errors.New("contribution size mismatch")
 	}
 
@@ -79,12 +79,12 @@ func (c *Phase2) Verify(next *Phase2) error {
 
 	// verify proof of knowledge of contributions to the σᵢ
 	// and the correctness of updates to Parameters.G2.Sigma[i] and the Parameters.G1.SigmaCKK[i]
-	for i := range c.Sigmas { // match the first commitment basis elem against the contribution commitment
+	for i := range p.Sigmas { // match the first commitment basis elem against the contribution commitment
 		if !areInSubGroupG1(next.Parameters.G1.SigmaCKK[i]) {
 			return errors.New("commitment proving key subgroup check failed")
 		}
 
-		if err := verifyContribution(&c.Sigmas[i], c.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &c.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
+		if err := verifyContribution(&p.Sigmas[i], p.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &p.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
 			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
 		}
 	}
@@ -95,60 +95,60 @@ func (c *Phase2) Verify(next *Phase2) error {
 		return errors.New("derived values 𝔾₁ subgroup check failed")
 	}
 
-	denom := cloneAppend([]curve.G1Affine{c.Parameters.G1.Delta}, next.Parameters.G1.Z, next.Parameters.G1.PKK)
-	num := cloneAppend([]curve.G1Affine{next.Parameters.G1.Delta}, c.Parameters.G1.Z, c.Parameters.G1.PKK)
-	if err := verifyContribution(&c.Delta, denom, num, &c.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
+	denom := cloneAppend([]curve.G1Affine{p.Parameters.G1.Delta}, next.Parameters.G1.Z, next.Parameters.G1.PKK)
+	num := cloneAppend([]curve.G1Affine{next.Parameters.G1.Delta}, p.Parameters.G1.Z, p.Parameters.G1.PKK)
+	if err := verifyContribution(&p.Delta, denom, num, &p.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to δ: %w", err)
 	}
 
 	return nil
 }
 
-func (c *Phase2) Contribute() {
+func (p *Phase2) Contribute() {
 	// Sample toxic δ
 	var delta, deltaInv fr.Element
 	var deltaBI, deltaInvBI big.Int
 
-	c.Challenge = c.hash()
+	p.Challenge = p.hash()
 
-	if len(c.Parameters.G1.SigmaCKK) > 255 {
+	if len(p.Parameters.G1.SigmaCKK) > 255 {
 		panic("too many commitments") // DST collision
 	}
-	for i := range c.Parameters.G1.SigmaCKK {
+	for i := range p.Parameters.G1.SigmaCKK {
 		var (
 			sigmaContribution  fr.Element
 			sigmaContributionI big.Int
 		)
 
-		pk := c.Parameters.G1.SigmaCKK[i]
-		c.Sigmas[i], sigmaContribution = updateValue(&pk[0], c.Challenge, byte(2+i))
+		pk := p.Parameters.G1.SigmaCKK[i]
+		p.Sigmas[i], sigmaContribution = updateValue(&pk[0], p.Challenge, byte(2+i))
 		sigmaContribution.BigInt(&sigmaContributionI)
 		for j := 1; j < len(pk); j++ {
 			pk[j].ScalarMultiplication(&pk[j], &sigmaContributionI)
 		}
-		c.Parameters.G2.Sigma[i].ScalarMultiplication(&c.Parameters.G2.Sigma[i], &sigmaContributionI)
+		p.Parameters.G2.Sigma[i].ScalarMultiplication(&p.Parameters.G2.Sigma[i], &sigmaContributionI)
 	}
 
-	c.Delta, delta = updateValue(&c.Parameters.G1.Delta, c.Challenge, 1)
+	p.Delta, delta = updateValue(&p.Parameters.G1.Delta, p.Challenge, 1)
 
 	deltaInv.Inverse(&delta)
 	delta.BigInt(&deltaBI)
 	deltaInv.BigInt(&deltaInvBI)
 
 	// Update [δ]₂
-	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
+	p.Parameters.G2.Delta.ScalarMultiplication(&p.Parameters.G2.Delta, &deltaBI)
 
-	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
-	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
+	p.Parameters.G1.Delta.ScalarMultiplication(&p.Parameters.G1.Delta, &deltaBI)
+	p.Parameters.G2.Delta.ScalarMultiplication(&p.Parameters.G2.Delta, &deltaBI)
 
 	// Update Z using δ⁻¹
-	for i := 0; i < len(c.Parameters.G1.Z); i++ {
-		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
+	for i := 0; i < len(p.Parameters.G1.Z); i++ {
+		p.Parameters.G1.Z[i].ScalarMultiplication(&p.Parameters.G1.Z[i], &deltaInvBI)
 	}
 
 	// Update PKK using δ⁻¹
-	for i := 0; i < len(c.Parameters.G1.PKK); i++ {
-		c.Parameters.G1.PKK[i].ScalarMultiplication(&c.Parameters.G1.PKK[i], &deltaInvBI)
+	for i := 0; i < len(p.Parameters.G1.PKK); i++ {
+		p.Parameters.G1.PKK[i].ScalarMultiplication(&p.Parameters.G1.PKK[i], &deltaInvBI)
 	}
 }
 
@@ -319,9 +319,9 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 	return nil
 }
 
-func (c *Phase2) hash() []byte {
+func (p *Phase2) hash() []byte {
 	sha := sha256.New()
-	c.writeTo(sha)
+	p.writeTo(sha)
 	return sha.Sum(nil)
 }
 

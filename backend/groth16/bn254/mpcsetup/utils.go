@@ -19,12 +19,6 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-type PublicKey struct {
-	SG  curve.G1Affine
-	SXG curve.G1Affine
-	XR  curve.G2Affine // XR = X.R ∈ 𝔾₂ proof of knowledge
-}
-
 func bitReverse[T any](a []T) {
 	n := uint64(len(a))
 	nn := uint64(64 - bits.TrailingZeros64(n))

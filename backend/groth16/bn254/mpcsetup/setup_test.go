@@ -176,14 +176,14 @@ func (p *Phase1) clone() Phase1 {
 	return r
 }
 
-func (phase2 *Phase2) clone() Phase2 {
+func (p *Phase2) clone() Phase2 {
 	r := Phase2{}
-	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
-	r.Parameters.G1.PKK = append(r.Parameters.G1.PKK, phase2.Parameters.G1.PKK...)
-	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
-	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
-	r.PublicKey = phase2.PublicKey
-	r.Challenge = append(r.Challenge, phase2.Challenge...)
+	r.Parameters.G1.Delta = p.Parameters.G1.Delta
+	r.Parameters.G1.PKK = append(r.Parameters.G1.PKK, p.Parameters.G1.PKK...)
+	r.Parameters.G1.Z = append(r.Parameters.G1.Z, p.Parameters.G1.Z...)
+	r.Parameters.G2.Delta = p.Parameters.G2.Delta
+	r.PublicKey = p.PublicKey
+	r.Challenge = append(r.Challenge, p.Challenge...)
 
 	return r
 }

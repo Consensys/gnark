@@ -56,25 +56,25 @@ func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
 }
 
 // WriteTo implements io.WriterTo
-func (phase2 *Phase2) WriteTo(writer io.Writer) (int64, error) {
-	n, err := phase2.writeTo(writer)
+func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
+	n, err := p.writeTo(writer)
 	if err != nil {
 		return n, err
 	}
-	nBytes, err := writer.Write(phase2.Challenge)
+	nBytes, err := writer.Write(p.Challenge)
 	return int64(nBytes) + n, err
 }
 
-func (c *Phase2) writeTo(writer io.Writer) (int64, error) {
+func (p *Phase2) writeTo(writer io.Writer) (int64, error) {
 	enc := curve.NewEncoder(writer)
 	toEncode := []interface{}{
-		&c.PublicKey.SG,
-		&c.PublicKey.SXG,
-		&c.PublicKey.XR,
-		&c.Parameters.G1.Delta,
-		c.Parameters.G1.PKK,
-		c.Parameters.G1.Z,
-		&c.Parameters.G2.Delta,
+		&p.PublicKey.SG,
+		&p.PublicKey.SXG,
+		&p.PublicKey.XR,
+		&p.Parameters.G1.Delta,
+		p.Parameters.G1.PKK,
+		p.Parameters.G1.Z,
+		&p.Parameters.G2.Delta,
 	}
 
 	for _, v := range toEncode {
@@ -87,16 +87,16 @@ func (c *Phase2) writeTo(writer io.Writer) (int64, error) {
 }
 
 // ReadFrom implements io.ReaderFrom
-func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
+func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 	dec := curve.NewDecoder(reader)
 	toEncode := []interface{}{
-		&c.PublicKey.SG,
-		&c.PublicKey.SXG,
-		&c.PublicKey.XR,
-		&c.Parameters.G1.Delta,
-		&c.Parameters.G1.PKK,
-		&c.Parameters.G1.Z,
-		&c.Parameters.G2.Delta,
+		&p.PublicKey.SG,
+		&p.PublicKey.SXG,
+		&p.PublicKey.XR,
+		&p.Parameters.G1.Delta,
+		&p.Parameters.G1.PKK,
+		&p.Parameters.G1.Z,
+		&p.Parameters.G2.Delta,
 	}
 
 	for _, v := range toEncode {
@@ -105,8 +105,8 @@ func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 		}
 	}
 
-	c.Challenge = make([]byte, 32)
-	n, err := reader.Read(c.Challenge)
+	p.Challenge = make([]byte, 32)
+	n, err := reader.Read(p.Challenge)
 	return int64(n) + dec.BytesRead(), err
 
 }
