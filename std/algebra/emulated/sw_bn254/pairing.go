@@ -313,6 +313,120 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	for i := 1; i < len(inputs); i++ {
+		if (inputs[0].Lines == nil) != (inputs[i].Lines == nil) {
+			panic("muxing points with and without precomputed lines")
+		}
+	}
+	var ret G2Affine
+	XA0 := make([]*emulated.Element[BaseField], len(inputs))
+	XA1 := make([]*emulated.Element[BaseField], len(inputs))
+	YA0 := make([]*emulated.Element[BaseField], len(inputs))
+	YA1 := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		XA0[i] = &inputs[i].P.X.A0
+		XA1[i] = &inputs[i].P.X.A1
+		YA0[i] = &inputs[i].P.Y.A0
+		YA1[i] = &inputs[i].P.Y.A1
+	}
+	ret.P.X.A0 = *pr.curveF.Mux(sel, XA0...)
+	ret.P.X.A1 = *pr.curveF.Mux(sel, XA1...)
+	ret.P.Y.A0 = *pr.curveF.Mux(sel, YA0...)
+	ret.P.Y.A1 = *pr.curveF.Mux(sel, YA1...)
+
+	if inputs[0].Lines == nil {
+		return &ret
+	}
+
+	// switch precomputed lines
+	ret.Lines = new(lineEvaluations)
+	for j := range inputs[0].Lines[0] {
+		lineR0A0 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR0A1 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR1A0 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR1A1 := make([]*emulated.Element[BaseField], len(inputs))
+		for k := 0; k < 2; k++ {
+			for i := range inputs {
+				lineR0A0[i] = &inputs[i].Lines[k][j].R0.A0
+				lineR0A1[i] = &inputs[i].Lines[k][j].R0.A1
+				lineR1A0[i] = &inputs[i].Lines[k][j].R1.A0
+				lineR1A1[i] = &inputs[i].Lines[k][j].R1.A1
+			}
+			le := &lineEvaluation{
+				R0: fields_bn254.E2{
+					A0: *pr.curveF.Mux(sel, lineR0A0...),
+					A1: *pr.curveF.Mux(sel, lineR0A1...),
+				},
+				R1: fields_bn254.E2{
+					A0: *pr.curveF.Mux(sel, lineR1A0...),
+					A1: *pr.curveF.Mux(sel, lineR1A1...),
+				},
+			}
+			ret.Lines[k][j] = le
+		}
+	}
+
+	return &ret
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	var ret GTEl
+	C0B0A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C0B0A1s := make([]*emulated.Element[BaseField], len(inputs))
+	C0B1A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C0B1A1s := make([]*emulated.Element[BaseField], len(inputs))
+	C0B2A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C0B2A1s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B0A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B0A1s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B1A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B1A1s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B2A0s := make([]*emulated.Element[BaseField], len(inputs))
+	C1B2A1s := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		C0B0A0s[i] = &inputs[i].C0.B0.A0
+		C0B0A1s[i] = &inputs[i].C0.B0.A1
+		C0B1A0s[i] = &inputs[i].C0.B1.A0
+		C0B1A1s[i] = &inputs[i].C0.B1.A1
+		C0B2A0s[i] = &inputs[i].C0.B2.A0
+		C0B2A1s[i] = &inputs[i].C0.B2.A1
+		C1B0A0s[i] = &inputs[i].C1.B0.A0
+		C1B0A1s[i] = &inputs[i].C1.B0.A1
+		C1B1A0s[i] = &inputs[i].C1.B1.A0
+		C1B1A1s[i] = &inputs[i].C1.B1.A1
+		C1B2A0s[i] = &inputs[i].C1.B2.A0
+		C1B2A1s[i] = &inputs[i].C1.B2.A1
+	}
+	ret.C0.B0.A0 = *pr.curveF.Mux(sel, C0B0A0s...)
+	ret.C0.B0.A1 = *pr.curveF.Mux(sel, C0B0A1s...)
+	ret.C0.B1.A0 = *pr.curveF.Mux(sel, C0B1A0s...)
+	ret.C0.B1.A1 = *pr.curveF.Mux(sel, C0B1A1s...)
+	ret.C0.B2.A0 = *pr.curveF.Mux(sel, C0B2A0s...)
+	ret.C0.B2.A1 = *pr.curveF.Mux(sel, C0B2A1s...)
+	ret.C1.B0.A0 = *pr.curveF.Mux(sel, C1B0A0s...)
+	ret.C1.B0.A1 = *pr.curveF.Mux(sel, C1B0A1s...)
+	ret.C1.B1.A0 = *pr.curveF.Mux(sel, C1B1A0s...)
+	ret.C1.B1.A1 = *pr.curveF.Mux(sel, C1B1A1s...)
+	ret.C1.B2.A0 = *pr.curveF.Mux(sel, C1B2A0s...)
+	ret.C1.B2.A1 = *pr.curveF.Mux(sel, C1B2A1s...)
+	return &ret
+}
+
 func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bn254.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)

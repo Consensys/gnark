@@ -227,6 +227,14 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
 
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	panic("not implemented")
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
+	panic("not implemented")
+}
+
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
