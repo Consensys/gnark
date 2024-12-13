@@ -11,13 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark/backend/groth16/internal"
+	cs "github.com/consensys/gnark/constraint/bn254"
 	"math/big"
 	"slices"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/constraint"
-	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
 type Phase2Evaluations struct { // TODO @Tabaie rename
@@ -155,19 +155,12 @@ func (c *Phase2) Contribute() {
 // Init is to be run by the coordinator
 // It involves no coin tosses. A verifier should
 // simply rerun all the steps
-func (p *Phase2) Init(commons SrsCommons) {
+func (p *Phase2) Init(r1cs *cs.R1CS, commons SrsCommons) Phase2Evaluations {
 
-}
-
-func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
-
-	srs := srs1.parameters
-	size := len(srs.G1.AlphaTau)
+	size := len(commons.G1.AlphaTau)
 	if size < r1cs.GetNbConstraints() {
 		panic("Number of constraints is larger than expected")
 	}
-
-	var c2 Phase2
 
 	accumulateG1 := func(res *curve.G1Affine, t constraint.Term, value *curve.G1Affine) {
 		cID := t.CoeffID()
@@ -210,10 +203,10 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	}
 
 	// Prepare Lagrange coefficients of [τ...]₁, [τ...]₂, [ατ...]₁, [βτ...]₁
-	coeffTau1 := lagrangeCoeffsG1(srs.G1.Tau, size)           // [L_{ω⁰}(τ)]₁, [L_{ω¹}(τ)]₁, ... where ω is a primitive sizeᵗʰ root of unity
-	coeffTau2 := lagrangeCoeffsG2(srs.G2.Tau, size)           // [L_{ω⁰}(τ)]₂, [L_{ω¹}(τ)]₂, ...
-	coeffAlphaTau1 := lagrangeCoeffsG1(srs.G1.AlphaTau, size) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
-	coeffBetaTau1 := lagrangeCoeffsG1(srs.G1.BetaTau, size)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
+	coeffTau1 := lagrangeCoeffsG1(commons.G1.Tau, size)           // [L_{ω⁰}(τ)]₁, [L_{ω¹}(τ)]₁, ... where ω is a primitive sizeᵗʰ root of unity
+	coeffTau2 := lagrangeCoeffsG2(commons.G2.Tau, size)           // [L_{ω⁰}(τ)]₂, [L_{ω¹}(τ)]₂, ...
+	coeffAlphaTau1 := lagrangeCoeffsG1(commons.G1.AlphaTau, size) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
+	coeffBetaTau1 := lagrangeCoeffsG1(commons.G1.BetaTau, size)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
 
 	nbInternal, nbSecret, nbPublic := r1cs.GetNbVariables()
 	nWires := nbInternal + nbSecret + nbPublic
@@ -252,36 +245,36 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 
 	// Prepare default contribution
 	_, _, g1, g2 := curve.Generators()
-	c2.Parameters.G1.Delta = g1
-	c2.Parameters.G2.Delta = g2
+	p.Parameters.G1.Delta = g1
+	p.Parameters.G2.Delta = g2
 
 	// Build Z in PK as τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
-	n := len(srs.G1.AlphaTau)
-	c2.Parameters.G1.Z = make([]curve.G1Affine, n)
+	n := len(commons.G1.AlphaTau)
+	p.Parameters.G1.Z = make([]curve.G1Affine, n)
 	for i := 0; i < n-1; i++ { // TODO @Tabaie why is the last element always 0?
-		c2.Parameters.G1.Z[i].Sub(&srs.G1.Tau[i+n], &srs.G1.Tau[i])
+		p.Parameters.G1.Z[i].Sub(&commons.G1.Tau[i+n], &commons.G1.Tau[i])
 	}
-	bitReverse(c2.Parameters.G1.Z)
-	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
+	bitReverse(p.Parameters.G1.Z)
+	p.Parameters.G1.Z = p.Parameters.G1.Z[:n-1]
 
 	commitments := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 
 	evals.G1.CKK = make([][]curve.G1Affine, len(commitments))
-	c2.Sigmas = make([]valueUpdate, len(commitments))
-	c2.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, len(commitments))
-	c2.Parameters.G2.Sigma = make([]curve.G2Affine, len(commitments))
+	p.Sigmas = make([]valueUpdate, len(commitments))
+	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, len(commitments))
+	p.Parameters.G2.Sigma = make([]curve.G2Affine, len(commitments))
 
 	for j := range commitments {
 		evals.G1.CKK[i] = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
-		c2.Parameters.G2.Sigma[j] = g2
+		p.Parameters.G2.Sigma[j] = g2
 	}
 
 	nbCommitted := internal.NbElements(commitments.GetPrivateCommitted())
 
 	// Evaluate PKK
 
-	c2.Parameters.G1.PKK = make([]curve.G1Affine, 0, nbInternal+nbSecret-nbCommitted-len(commitments))
+	p.Parameters.G1.PKK = make([]curve.G1Affine, 0, nbInternal+nbSecret-nbCommitted-len(commitments))
 	evals.G1.VKK = make([]curve.G1Affine, 0, nbPublic+len(commitments))
 	committedIterator := internal.NewMergeIterator(commitments.GetPrivateCommitted())
 	nbCommitmentsSeen := 0
@@ -297,7 +290,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 		} else if j < nbPublic || isCommitment {
 			evals.G1.VKK = append(evals.G1.VKK, tmp)
 		} else {
-			c2.Parameters.G1.PKK = append(c2.Parameters.G1.PKK, tmp)
+			p.Parameters.G1.PKK = append(p.Parameters.G1.PKK, tmp)
 		}
 		if isCommitment {
 			nbCommitmentsSeen++
@@ -305,51 +298,24 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	}
 
 	for j := range commitments {
-		c2.Parameters.G1.SigmaCKK[j] = slices.Clone(evals.G1.CKK[j])
+		p.Parameters.G1.SigmaCKK[j] = slices.Clone(evals.G1.CKK[j])
 	}
 
-	// Hash initial contribution
-	c2.Challenge = c2.hash() // TODO remove
-	return c2, evals
+	p.Challenge = nil
+
+	return evals
 }
 
+// VerifyPhase2
+// c0 must be initialized with the Init method
 func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
+	// CIRITCAL TODO: Should run the "beacon" step afterwards
 	contribs := append([]*Phase2{c0, c1}, c...)
 	for i := 0; i < len(contribs)-1; i++ {
-		if err := verifyPhase2(contribs[i], contribs[i+1]); err != nil {
+		if err := contribs[i].Verify(contribs[i+1]); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func verifyPhase2(current, contribution *Phase2) error {
-	// Compute R for δ
-	deltaR := genR(contribution.PublicKey.SG, current.Challenge[:], 1)
-
-	// Check for knowledge of δ
-	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
-		return errors.New("couldn't verify knowledge of δ")
-	}
-
-	// Check for valid updates using previous parameters
-	if !sameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
-		return errors.New("couldn't verify that [δ]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
-		return errors.New("couldn't verify that [δ]₂ is based on previous contribution")
-	}
-
-	// Check for valid updates of PKK and Z using
-	L, prevL := linearCombination(contribution.Parameters.G1.PKK, current.Parameters.G1.PKK)
-	if !sameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
-		return errors.New("couldn't verify valid updates of PKK using δ⁻¹")
-	}
-	Z, prevZ := linearCombination(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
-	if !sameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
-		return errors.New("couldn't verify valid updates of PKK using δ⁻¹")
-	}
-
 	return nil
 }
 
