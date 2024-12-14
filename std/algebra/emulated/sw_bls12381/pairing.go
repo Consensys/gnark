@@ -302,6 +302,71 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	return z
 }
 
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method is inspired from [On Proving Pairings] paper by A. Novakovic and
+// L. Eagen, and is based on a personal communication with A. Novakovic.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
+	tower := pr.ToTower(x)
+
+	res, err := pr.curveF.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := pr.FromTower([12]*baseEl{res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11]})
+	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - a001
+	//     A1  =  0
+	//     A2  =  a010 - a011
+	//     A3  =  0
+	//     A4  =  a020 - a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	scalingFactor := GTEl{
+		A0:  *pr.curveF.Sub(res[12], res[13]),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(res[14], res[15]),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(res[16], res[17]),
+		A5:  *pr.curveF.Zero(),
+		A6:  *res[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *res[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *res[17],
+		A11: *pr.curveF.Zero(),
+	}
+
+	// Check that  x * scalingFactor == residueWitness^(q-u)
+	// where u=-0xd201000000010000 is the BLS12-381 seed,
+	// and residueWitness, scalingFactor from the hint.
+	t0 := pr.Frobenius(residueWitness)
+	// exponentiation by -u
+	t1 := pr.ExptNeg(residueWitness)
+	t0 = pr.Ext12.Mul(t0, t1)
+
+	t1 = pr.Ext12.Mul(x, &scalingFactor)
+
+	pr.AssertIsEqual(t0, t1)
+}
+
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates.
 // Then evaluates the lines going through p1 and p2 or -p2 (line1) and p1 and p1+p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
