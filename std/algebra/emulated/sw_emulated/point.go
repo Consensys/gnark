@@ -214,13 +214,15 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
 
-	left := c.baseApi.Mul(&p.Y, &p.Y)
-	right := c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {b}}, []int{1, 1})
-	if c.addA {
-		ax := c.baseApi.Mul(&c.a, &p.X)
-		right = c.baseApi.Add(right, ax)
+	mone := c.baseApi.NewElement(-1)
+
+	var check *emulated.Element[B]
+	if !c.addA {
+		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1})
+	} else {
+		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {&c.a, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1, 1})
 	}
-	c.baseApi.AssertIsEqual(left, right)
+	c.baseApi.AssertIsEqual(check, c.baseApi.Zero())
 }
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
