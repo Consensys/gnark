@@ -51,11 +51,11 @@ func (p *Phase1) Contribute() {
 	var (
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
-	p.proofs.Tau, tauContrib = updateValue(&p.parameters.G1.Tau[1], p.Challenge, 1)
-	p.proofs.Alpha, alphaContrib = updateValue(&p.parameters.G1.AlphaTau[0], p.Challenge, 2)
-	p.proofs.Beta, betaContrib = updateValue(&p.parameters.G1.BetaTau[0], p.Challenge, 3)
+	p.proofs.Tau, tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
+	p.proofs.Alpha, alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
+	p.proofs.Beta, betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)
 
-	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib, true)
+	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
 
 // setZero instantiates the parameters, and sets all contributions to zero
@@ -82,32 +82,28 @@ func (c *SrsCommons) setOne(N uint64) {
 }
 
 // from the fourth argument on this just gives an opportunity to avoid recomputing some scalar multiplications
-func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element, principalG1sPrecomputed bool) {
-	i0 := 0
-	if principalG1sPrecomputed {
-		i0 = 1
-	}
+func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 
 	// TODO @gbotrel working with jacobian points here will help with perf.
 
 	tauUpdates := powers(tauUpdate, len(c.G1.Tau))
 	// saving 3 exactly scalar muls among millions. Not a significant gain but might as well.
-	scaleG1InPlace(c.G1.Tau[i0+1:], tauUpdates[i0+1:]) // first element remains 1. second element may have been precomputed.
+	scaleG1InPlace(c.G1.Tau[1:], tauUpdates[1:]) // first element remains 1
 	scaleG2InPlace(c.G2.Tau[1:], tauUpdates[1:])
 
 	alphaUpdates := make([]fr.Element, len(c.G1.AlphaTau))
 	alphaUpdates[0].Set(alphaUpdate)
-	for i := i0; i < len(alphaUpdates); i++ {
+	for i := range alphaUpdates {
 		alphaUpdates[i].Mul(&tauUpdates[i], &alphaUpdates[1])
 	}
-	scaleG1InPlace(c.G1.AlphaTau[i0:], alphaUpdates[i0:]) // first element may have been precomputed
+	scaleG1InPlace(c.G1.AlphaTau, alphaUpdates)
 
 	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
 	betaUpdates[0].Set(betaUpdate)
-	for i := i0; i < len(betaUpdates); i++ {
+	for i := range betaUpdates {
 		alphaUpdates[i].Mul(&tauUpdates[i], &betaUpdates[1])
 	}
-	scaleG1InPlace(c.G1.BetaTau[i0:], betaUpdates[i0:])
+	scaleG1InPlace(c.G1.BetaTau, betaUpdates)
 
 	var betaUpdateI big.Int
 	betaUpdate.SetBigInt(&betaUpdateI)
@@ -122,24 +118,8 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element, prin
 // WARNING: Seal modifies p, just as Contribute does.
 // The result will be an INVALID Phase1 object, since no proof of correctness is produced.
 func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
-	var (
-		bb  bytes.Buffer
-		err error
-	)
-	bb.Write(p.hash())
-	bb.Write(beaconChallenge)
-
-	newContribs := make([]fr.Element, 3)
-	// cryptographically unlikely for this to be run more than once
-	for newContribs[0].IsZero() || newContribs[1].IsZero() || newContribs[2].IsZero() {
-		if newContribs, err = fr.Hash(bb.Bytes(), []byte("Groth16 SRS generation ceremony - Phase 1 Final Step"), 3); err != nil {
-			panic(err)
-		}
-		bb.WriteByte('=') // padding just so that the hash is different next time
-	}
-
-	p.parameters.update(&newContribs[0], &newContribs[1], &newContribs[2], false)
-
+	newContribs := beaconContributions(p.hash(), beaconChallenge, 3)
+	p.parameters.update(&newContribs[0], &newContribs[1], &newContribs[2])
 	return p.parameters
 }
 

@@ -19,14 +19,16 @@ import (
 // The inner workings of the random beacon are out of scope.
 // WARNING: Seal modifies p, just as Contribute does.
 // The result will be an INVALID Phase1 object, since no proof of correctness is produced.
-func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, nbConstraints int, beaconChallenge []byte) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
 
-	// TODO @Tabaie beacon contribution
+	// final contributions
+	contributions := beaconContributions(p.hash(), beaconChallenge, 1+len(p.Sigmas))
+	p.update(&contributions[0], contributions[1:])
 
 	_, _, _, g2 := curve.Generators()
 
 	// Initialize PK
-	pk.Domain = *fft.NewDomain(uint64(nConstraints))
+	pk.Domain = *fft.NewDomain(uint64(nbConstraints))
 	pk.G1.Alpha.Set(&commons.G1.AlphaTau[0])
 	pk.G1.Beta.Set(&commons.G1.BetaTau[0])
 	pk.G1.Delta.Set(&p.Parameters.G1.Delta)

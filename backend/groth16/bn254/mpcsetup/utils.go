@@ -8,15 +8,13 @@ package mpcsetup
 import (
 	"bytes"
 	"errors"
-	"math/big"
-	"math/bits"
-	"runtime"
-	"time"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/internal/utils"
+	"math/big"
+	"math/bits"
+	"runtime"
 )
 
 func bitReverse[T any](a []T) {
@@ -199,10 +197,6 @@ func genR(sG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
 	return spG2
 }
 
-type RandomBeacon func(time.Time) []byte
-
-// func (rb RandomBeacon) GenerateChallenge(...) []byte {}
-
 type pair struct {
 	g1 curve.G1Affine
 	g2 *curve.G2Affine // optional; some values expect to have a 𝔾₂ representation, some don't.
@@ -223,7 +217,7 @@ type valueUpdate struct {
 // updateValue produces values associated with contribution to an existing value.
 // if prevCommitment contains only a 𝔾₁ value, then so will updatedCommitment
 // the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
-func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
+func updateValue(value curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
 	if _, err := contributionValue.SetRandom(); err != nil {
 		panic(err)
 	}
@@ -232,7 +226,7 @@ func updateValue(value *curve.G1Affine, challenge []byte, dst byte) (proof value
 
 	_, _, g1, _ := curve.Generators()
 	proof.contributionCommitment.ScalarMultiplication(&g1, &contributionValueI)
-	value.ScalarMultiplication(value, &contributionValueI)
+	value.ScalarMultiplication(&value, &contributionValueI)
 
 	// proof of knowledge to commitment. Algorithm 3 from section 3.7
 	pokBase := genR(proof.contributionCommitment, challenge, dst) // r
@@ -359,4 +353,35 @@ func partialSums(s ...int) []int {
 		sums[i] = sums[i-1] + s[i]
 	}
 	return sums
+}
+
+func beaconContributions(hash, beaconChallenge []byte, n int) []fr.Element {
+	var (
+		bb  bytes.Buffer
+		err error
+	)
+	bb.Grow(len(hash) + len(beaconChallenge))
+	bb.Write(hash)
+	bb.Write(beaconChallenge)
+
+	res := make([]fr.Element, 1)
+
+	allNonZero := func() bool {
+		for i := range res {
+			if res[i].IsZero() {
+				return false
+			}
+		}
+		return true
+	}
+
+	// cryptographically unlikely for this to be run more than once
+	for !allNonZero() {
+		if res, err = fr.Hash(bb.Bytes(), []byte("Groth16 SRS generation ceremony - Phase 1 Final Step"), n); err != nil {
+			panic(err)
+		}
+		bb.WriteByte('=') // padding just so that the hash is different next time
+	}
+
+	return res
 }

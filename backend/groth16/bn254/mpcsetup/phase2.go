@@ -104,52 +104,60 @@ func (p *Phase2) Verify(next *Phase2) error {
 	return nil
 }
 
-func (p *Phase2) Contribute() {
-	// Sample toxic δ
-	var delta, deltaInv fr.Element
-	var deltaBI, deltaInvBI big.Int
+// update modifies delta
+func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
+	var I big.Int
 
+	scale := func(point any) {
+		switch p := point.(type) {
+		case *curve.G1Affine:
+			p.ScalarMultiplication(p, &I)
+		case *curve.G2Affine:
+			p.ScalarMultiplication(p, &I)
+		default:
+			panic("unknown type")
+		}
+	}
+
+	for i := range sigma {
+		sigma[i].BigInt(&I)
+		for j := range sigma {
+			scale(&p.Parameters.G1.SigmaCKK[i][j])
+		}
+		point := &p.Parameters.G2.Sigma[i]
+		point.ScalarMultiplicationBase(&I)
+	}
+
+	delta.BigInt(&I)
+	scale(&p.Parameters.G2.Delta)
+	scale(&p.Parameters.G1.Delta)
+
+	delta.Inverse(delta)
+	delta.BigInt(&I)
+	for i := range p.Parameters.G1.Z {
+		scale(&p.Parameters.G1.Z[i])
+	}
+	for i := range p.Parameters.G1.PKK {
+		scale(&p.Parameters.G1.PKK[i])
+	}
+}
+
+func (p *Phase2) Contribute() {
 	p.Challenge = p.hash()
 
-	if len(p.Parameters.G1.SigmaCKK) > 255 {
+	// sample value contributions and provide correctness proofs
+	var delta fr.Element
+	p.Delta, delta = updateValue(p.Parameters.G1.Delta, p.Challenge, 1)
+
+	sigma := make([]fr.Element, len(p.Parameters.G1.SigmaCKK))
+	if len(sigma) > 255 {
 		panic("too many commitments") // DST collision
 	}
-	for i := range p.Parameters.G1.SigmaCKK {
-		var (
-			sigmaContribution  fr.Element
-			sigmaContributionI big.Int
-		)
-
-		pk := p.Parameters.G1.SigmaCKK[i]
-		p.Sigmas[i], sigmaContribution = updateValue(&pk[0], p.Challenge, byte(2+i))
-		sigmaContribution.BigInt(&sigmaContributionI)
-		for j := 1; j < len(pk); j++ {
-			pk[j].ScalarMultiplication(&pk[j], &sigmaContributionI)
-		}
-		p.Parameters.G2.Sigma[i].ScalarMultiplication(&p.Parameters.G2.Sigma[i], &sigmaContributionI)
+	for i := range sigma {
+		p.Sigmas[i], sigma[i] = updateValue(p.Parameters.G1.SigmaCKK[i][0], p.Challenge, byte(2+i))
 	}
 
-	p.Delta, delta = updateValue(&p.Parameters.G1.Delta, p.Challenge, 1)
-
-	deltaInv.Inverse(&delta)
-	delta.BigInt(&deltaBI)
-	deltaInv.BigInt(&deltaInvBI)
-
-	// Update [δ]₂
-	p.Parameters.G2.Delta.ScalarMultiplication(&p.Parameters.G2.Delta, &deltaBI)
-
-	p.Parameters.G1.Delta.ScalarMultiplication(&p.Parameters.G1.Delta, &deltaBI)
-	p.Parameters.G2.Delta.ScalarMultiplication(&p.Parameters.G2.Delta, &deltaBI)
-
-	// Update Z using δ⁻¹
-	for i := 0; i < len(p.Parameters.G1.Z); i++ {
-		p.Parameters.G1.Z[i].ScalarMultiplication(&p.Parameters.G1.Z[i], &deltaInvBI)
-	}
-
-	// Update PKK using δ⁻¹
-	for i := 0; i < len(p.Parameters.G1.PKK); i++ {
-		p.Parameters.G1.PKK[i].ScalarMultiplication(&p.Parameters.G1.PKK[i], &deltaInvBI)
-	}
+	p.update(&delta, sigma)
 }
 
 // Init is to be run by the coordinator
