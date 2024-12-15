@@ -920,7 +920,7 @@
 - go generate
 - update ci script
 - update stats
-- go get gnark-crypto[@develop](https://github.com/develop)
+- go get gnark-crypto[@develop]()
 - generify hashing pi2
 - generify public var fix
 - generify verifier changes
@@ -933,7 +933,7 @@
 - generify constraint changes
 - generify mpcsetup for all curves
 - upgraded github.com/stretchr/testify v1.8.1 => v1.8.2
-- gnark-crypto[@develop](https://github.com/develop)
+- gnark-crypto[@develop]()
 - generify
 - generify bn254/gkr changes
 - reran go generate
@@ -948,8 +948,8 @@
 - document hollow, remove in-house search
 - clean up tests
 - delete unnecessary test cases
-- go get gnark-crypto[@develop](https://github.com/develop)
-- point to gnark-crypto[@develop](https://github.com/develop)
+- go get gnark-crypto[@develop]()
+- point to gnark-crypto[@develop]()
 - git ignore go workspace ([#635](https://github.com/Consensys/gnark/issues/635))
 - remove debug printing code
 - remove training wheels
@@ -2813,7 +2813,7 @@
 - make go vet happy
 - use of doubling formula instead of add(x,x) fixes [#114](https://github.com/Consensys/gnark/issues/114)
 - updated go.mod
-- go.mod points to gnark-crypto[@develop](https://github.com/develop), fixes [#96](https://github.com/Consensys/gnark/issues/96)
+- go.mod points to gnark-crypto[@develop](), fixes [#96](https://github.com/Consensys/gnark/issues/96)
 - SetupDummyCommitment calls with Proving and Verifying key in return
 - added BLS24_315 in plonk constructors
 - backend plonk bls24 process error
