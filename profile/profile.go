@@ -26,7 +26,7 @@ var (
 // Profile represents an active constraint system profiling session.
 type Profile struct {
 	// defaults to ./gnark.pprof
-	// if blank, profiile is not written to disk
+	// if blank, profile is not written to disk
 	filePath string
 
 	// actual pprof profile struct
