@@ -318,11 +318,6 @@ func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 		panic(err)
 	}
 
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
 	residueWitness := pr.FromTower([12]*baseEl{res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11]})
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
