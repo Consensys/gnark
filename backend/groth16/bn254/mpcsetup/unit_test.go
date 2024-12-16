@@ -70,15 +70,11 @@ func TestSetupBeaconOnly(t *testing.T) {
 	)
 	p1.Initialize(domainSize)
 	commons := p1.Seal([]byte("beacon 1"))
-	commons2 := commonsSmallValues(domainSize, 1, 2, 3)
-
-	require.Equal(t, len(commons.G1.Tau), len(commons2.G1.Tau))
 
 	evals := p2.Initialize(ccs, &commons)
 	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
 
 	_pk := pk.(*groth16Impl.ProvingKey)
-	//_vk := vk.(*groth16Impl.VerifyingKey)
 
 	rpk, rvk, err := groth16.Setup(ccs)
 	require.NoError(t, err)
@@ -201,14 +197,6 @@ func TestCommonsUpdate(t *testing.T) {
 	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
 }
 
-func TestPhase2Update(t *testing.T) {
-	c := commonsSmallValues(2, 2, 3, 4)
-	var p Phase2
-	p.Initialize(getTestCircuit(t), &c)
-
-	//p.update()
-}
-
 func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {
 	_, _, g1, g2 := curve.Generators()
 	assertPairingsEqual(t, p1, g2, g1, p2)
@@ -239,5 +227,4 @@ func TestPedersen(t *testing.T) {
 	for i := range p.Sigmas {
 		assertPairingsEqual(t, evals.G1.CKK[0][i], p.Parameters.G2.Sigma[i], p.Parameters.G1.SigmaCKK[0][i], g2)
 	}
-
 }
