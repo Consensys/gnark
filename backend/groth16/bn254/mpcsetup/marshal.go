@@ -210,9 +210,9 @@ func (c *SrsCommons) refsSlice() []any {
 	// [τⁱ]₂  for 1 ≤ i ≤ N-1                                                  N-1
 	// [ατⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
 	// [βτⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
-	refs := make([]any, 1, expectedLen)
+	refs := make([]any, 2, expectedLen)
 	refs[0] = N
-
+	refs[1] = &c.G2.Beta
 	refs = appendRefs(refs, c.G1.Tau[1:])
 	refs = appendRefs(refs, c.G2.Tau[1:])
 	refs = appendRefs(refs, c.G1.BetaTau)

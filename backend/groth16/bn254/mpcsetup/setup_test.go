@@ -78,6 +78,7 @@ func TestSetupCircuit(t *testing.T) {
 
 	// Verify contributions for phase 1 and generate non-circuit-specific parameters
 	srsCommons, err := VerifyPhase1(domainSize, []byte("testing phase1"), phase1[:]...)
+	assert.NoError(err)
 	{
 		var commonsRead SrsCommons
 		deserialize(&commonsRead, serialize(&srsCommons))

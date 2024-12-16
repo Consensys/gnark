@@ -215,7 +215,6 @@ type valueUpdate struct {
 }
 
 // updateValue produces values associated with contribution to an existing value.
-// if prevCommitment contains only a 𝔾₁ value, then so will updatedCommitment
 // the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
 func updateValue(value curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
 	if _, err := contributionValue.SetRandom(); err != nil {

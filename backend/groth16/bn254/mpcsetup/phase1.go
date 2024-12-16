@@ -61,7 +61,7 @@ func (p *Phase1) Contribute() {
 
 // setZero instantiates the parameters, and sets all contributions to zero
 func (c *SrsCommons) setZero(N uint64) {
-	c.G1.Tau = make([]curve.G1Affine, 2*N-2)
+	c.G1.Tau = make([]curve.G1Affine, 2*N-1)
 	c.G2.Tau = make([]curve.G2Affine, N)
 	c.G1.AlphaTau = make([]curve.G1Affine, N)
 	c.G1.BetaTau = make([]curve.G1Affine, N)
@@ -232,9 +232,6 @@ func (p *Phase1) Verify(next *Phase1) error {
 }
 
 func (p *Phase1) hash() []byte {
-	if len(p.Challenge) == 0 {
-		panic("challenge field missing")
-	}
 	sha := sha256.New()
 	p.WriteTo(sha)
 	sha.Write(p.Challenge)
