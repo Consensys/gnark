@@ -73,15 +73,23 @@ func (c *SrsCommons) setZero(N uint64) {
 // setOne instantiates the parameters, and sets all contributions to one
 func (c *SrsCommons) setOne(N uint64) {
 	c.setZero(N)
-	for i := range c.G1.Tau {
-		c.G1.Tau[i] = c.G1.Tau[0]
+	g1, g2 := &c.G1.Tau[0], &c.G2.Tau[0]
+	setG1 := func(s []curve.G1Affine) {
+		for i := range s {
+			s[i].Set(g1)
+		}
 	}
-	for i := range c.G1.AlphaTau {
-		c.G1.AlphaTau[i] = c.G1.AlphaTau[0]
-		c.G1.BetaTau[i] = c.G1.AlphaTau[0]
-		c.G2.Tau[i] = c.G2.Tau[0]
+	setG2 := func(s []curve.G2Affine) {
+		for i := range s {
+			s[i].Set(g2)
+		}
 	}
-	c.G2.Beta = c.G2.Tau[0]
+
+	setG1(c.G1.Tau[1:])
+	setG2(c.G2.Tau[1:])
+	setG1(c.G1.AlphaTau)
+	setG1(c.G1.BetaTau)
+	c.G2.Beta.Set(g2)
 }
 
 // from the fourth argument on this just gives an opportunity to avoid recomputing some scalar multiplications
