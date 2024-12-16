@@ -33,6 +33,7 @@ type Phase2Evaluations struct { // TODO @Tabaie rename
 	G2 struct {
 		B []curve.G2Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
 	}
+	PublicAndCommitmentCommitted [][]int
 }
 
 type Phase2 struct {
@@ -222,6 +223,8 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	nbInternal, nbSecret, nbPublic := r1cs.GetNbVariables()
 	nWires := nbInternal + nbSecret + nbPublic
 	var evals Phase2Evaluations
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	evals.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentInfo.CommitmentIndexes(), nbPublic)
 	evals.G1.A = make([]curve.G1Affine, nWires) // recall: A are the left coefficients in DIZK parlance
 	evals.G1.B = make([]curve.G1Affine, nWires) // recall: B are the right coefficients in DIZK parlance
 	evals.G2.B = make([]curve.G2Affine, nWires) // recall: A only appears in 𝔾₁ elements in the proof, but B needs to appear in a 𝔾₂ element so the verifier can compute something resembling (A.x).(B.x) via pairings

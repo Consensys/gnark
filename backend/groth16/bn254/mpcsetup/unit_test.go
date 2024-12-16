@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/backend/groth16"
+	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
@@ -70,5 +72,25 @@ func TestSetupBeaconOnly(t *testing.T) {
 	evals := p2.Initialize(ccs, &commons)
 	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
 
+	_pk := pk.(*groth16Impl.ProvingKey)
+	//_vk := vk.(*groth16Impl.VerifyingKey)
+
+	rpk, rvk, err := groth16.Setup(ccs)
+	require.NoError(t, err)
+	_rpk := rpk.(*groth16Impl.ProvingKey)
+
+	// assert everything is of the same size
+	require.Equal(t, len(_rpk.G1.A), len(_pk.G1.A))
+	require.Equal(t, len(_rpk.G1.B), len(_pk.G1.B))
+	require.Equal(t, len(_rpk.G1.K), len(_pk.G1.K))
+	require.Equal(t, len(_rpk.G1.Z), len(_pk.G1.Z))
+	require.Equal(t, len(_rpk.G2.B), len(_pk.G2.B))
+	require.Equal(t, len(_rpk.CommitmentKeys), len(_pk.CommitmentKeys))
+	for i := range _rpk.CommitmentKeys {
+		require.Equal(t, len(_rpk.CommitmentKeys[i].BasisExpSigma), len(_pk.CommitmentKeys[i].BasisExpSigma))
+		require.Equal(t, len(_rpk.CommitmentKeys[i].Basis), len(_pk.CommitmentKeys[i].Basis))
+	}
+
 	proveVerifyCircuit(t, pk, vk)
+	proveVerifyCircuit(t, rpk, rvk)
 }

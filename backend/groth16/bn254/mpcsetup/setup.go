@@ -105,6 +105,7 @@ func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChall
 		pk.CommitmentKeys[i].Basis = evals.G1.CKK[i]
 		pk.CommitmentKeys[i].BasisExpSigma = p.Parameters.G1.SigmaCKK[i]
 	}
+	vk.PublicAndCommitmentCommitted = evals.PublicAndCommitmentCommitted
 
 	// sets e, -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
