@@ -105,14 +105,16 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 	alphaUpdates := make([]fr.Element, len(c.G1.AlphaTau))
 	alphaUpdates[0].Set(alphaUpdate)
 	for i := range alphaUpdates {
-		alphaUpdates[i].Mul(&tauUpdates[i], &alphaUpdates[1])
+		// let α₁ = α₀.α', τ₁ = τ₀.τ'
+		// then α₁τ₁ⁱ = (α₀τ₀ⁱ)α'τ'ⁱ
+		alphaUpdates[i].Mul(&tauUpdates[i], alphaUpdate)
 	}
 	scaleG1InPlace(c.G1.AlphaTau, alphaUpdates)
 
 	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
 	betaUpdates[0].Set(betaUpdate)
 	for i := range betaUpdates {
-		alphaUpdates[i].Mul(&tauUpdates[i], &betaUpdates[1])
+		alphaUpdates[i].Mul(&tauUpdates[i], betaUpdate)
 	}
 	scaleG1InPlace(c.G1.BetaTau, betaUpdates)
 

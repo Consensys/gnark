@@ -2,6 +2,7 @@ package mpcsetup
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/backend/groth16"
@@ -80,6 +81,7 @@ func TestSetupBeaconOnly(t *testing.T) {
 	_rpk := rpk.(*groth16Impl.ProvingKey)
 
 	// assert everything is of the same size
+	require.Equal(t, _rpk.Domain.Cardinality, _pk.Domain.Cardinality)
 	require.Equal(t, len(_rpk.G1.A), len(_pk.G1.A))
 	require.Equal(t, len(_rpk.G1.B), len(_pk.G1.B))
 	require.Equal(t, len(_rpk.G1.K), len(_pk.G1.K))
@@ -91,6 +93,7 @@ func TestSetupBeaconOnly(t *testing.T) {
 		require.Equal(t, len(_rpk.CommitmentKeys[i].Basis), len(_pk.CommitmentKeys[i].Basis))
 	}
 
-	proveVerifyCircuit(t, pk, vk)
 	proveVerifyCircuit(t, rpk, rvk)
+	fmt.Println("regular proof verified")
+	proveVerifyCircuit(t, pk, vk)
 }

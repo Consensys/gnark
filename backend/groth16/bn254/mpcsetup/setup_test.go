@@ -183,7 +183,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 func getTestCircuit(t *testing.T) *cs.R1CS {
 	return sync.OnceValue(func() *cs.R1CS {
-		var circuit Circuit
+		var circuit superSimpleCircuit //Circuit
 		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &circuit)
 		require.NoError(t, err)
 		return ccs.(*cs.R1CS)
@@ -199,7 +199,10 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 		hash.SetBytes(m.Sum(nil))
 	}
 
-	witness, err := frontend.NewWitness(&Circuit{PreImage: preImage, Hash: hash}, curve.ID.ScalarField())
+	//assignment :=Circuit{PreImage: preImage, Hash: hash}
+	assignment := superSimpleCircuit{A: 42}
+
+	witness, err := frontend.NewWitness(&assignment, curve.ID.ScalarField())
 	require.NoError(t, err)
 
 	pubWitness, err := witness.Public()
@@ -211,4 +214,13 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 
 	err = groth16.Verify(proof, vk, pubWitness)
 	require.NoError(t, err)
+}
+
+type superSimpleCircuit struct {
+	A frontend.Variable `gnark:",public"`
+}
+
+func (circuit *superSimpleCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(circuit.A, 42)
+	return nil
 }
