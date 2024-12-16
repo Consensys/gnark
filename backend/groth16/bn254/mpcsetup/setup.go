@@ -24,6 +24,11 @@ func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChall
 
 	// final contributions
 	contributions := beaconContributions(p.hash(), beaconChallenge, 1+len(p.Sigmas))
+	for i := range len(contributions) {
+		contributions[i].SetOne()
+	}
+	//contributions[0].SetUint64(2)
+	contributions[1].SetUint64(0)
 	p.update(&contributions[0], contributions[1:])
 
 	_, _, _, g2 := curve.Generators()

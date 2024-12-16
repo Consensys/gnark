@@ -191,8 +191,8 @@ func assignCircuit() frontend.Circuit {
 			hash.SetBytes(m.Sum(nil))
 		}
 
-		//return &Circuit{PreImage: preImage, Hash: hash}
-		return &superSimpleCircuit{A: 42}
+		return &Circuit{PreImage: preImage, Hash: hash}
+		//return &superSimpleCircuit{A: 42}
 	})()
 }
 

@@ -126,8 +126,9 @@ func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 
 	for i := range sigma {
 		sigma[i].BigInt(&I)
-		for j := range sigma {
-			scale(&p.Parameters.G1.SigmaCKK[i][j])
+		s := p.Parameters.G1.SigmaCKK[i]
+		for j := range s {
+			scale(&s[j])
 		}
 		point := &p.Parameters.G2.Sigma[i]
 		point.ScalarMultiplicationBase(&I)

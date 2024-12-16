@@ -70,6 +70,9 @@ func TestSetupBeaconOnly(t *testing.T) {
 	)
 	p1.Initialize(domainSize)
 	commons := p1.Seal([]byte("beacon 1"))
+	commons2 := commonsSmallValues(domainSize, 1, 2, 3)
+
+	require.Equal(t, len(commons.G1.Tau), len(commons2.G1.Tau))
 
 	evals := p2.Initialize(ccs, &commons)
 	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
@@ -198,10 +201,40 @@ func TestCommonsUpdate(t *testing.T) {
 	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
 }
 
+func TestPhase2Update(t *testing.T) {
+	c := commonsSmallValues(2, 2, 3, 4)
+	var p Phase2
+	p.Initialize(getTestCircuit(t), &c)
+
+	//p.update()
+}
+
 func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {
 	_, _, g1, g2 := curve.Generators()
-	p2.Neg(&p2)
-	ok, err := curve.PairingCheck([]curve.G1Affine{p1, g1}, []curve.G2Affine{g2, p2})
+	assertPairingsEqual(t, p1, g2, g1, p2)
+}
+
+// asserts e(p1, q1) = r(p2, q2)
+func assertPairingsEqual(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine, q1 curve.G1Affine, q2 curve.G2Affine) {
+	q1.Neg(&q1)
+	ok, err := curve.PairingCheck([]curve.G1Affine{p1, q1}, []curve.G2Affine{p2, q2})
 	require.NoError(t, err)
 	require.True(t, ok)
+}
+
+func TestPedersen(t *testing.T) {
+	cs := getTestCircuit(t)
+	domainSize := ecc.NextPowerOfTwo(uint64(cs.GetNbConstraints()))
+
+	commons := commonsSmallValues(domainSize, 2, 3, 4)
+	var p Phase2
+	evals := p.Initialize(cs, &commons)
+	contributions := make([]fr.Element, 1+len(p.Sigmas))
+	for i := range contributions {
+		contributions[i].SetOne()
+	}
+	contributions[1].SetUint64(2)
+	p.update(&contributions[0], contributions[1:])
+	_, _, _, g2 := curve.Generators()
+	assertPairingsEqual(t, evals.G1.CKK[0][0], p.Parameters.G2.Sigma[0], p.Parameters.G1.SigmaCKK[0][0], g2)
 }
