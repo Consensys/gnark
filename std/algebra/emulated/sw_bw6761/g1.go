@@ -137,18 +137,17 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 	x2 := g1.curveF.Eval([][]*baseEl{{λ1, λ1}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
 
 	// omit y1 computation
-	// compute λ1 = -λ1-1*p.y/(x1-p.x)
+	// compute -λ1 = λ1+2*p.y/(x1-p.x)
 	ypyp := g1.curveF.Add(&p.Y, &p.Y)
 	x2xp := g1.curveF.Sub(x2, &p.X)
 	λ2 := g1.curveF.Div(ypyp, x2xp)
 	λ2 = g1.curveF.Add(λ1, λ2)
-	λ2 = g1.curveF.Neg(λ2)
 
-	// compute x3 =λ2²-p.x-x3
+	// compute x3 = (-λ2)²-p.x-x3
 	x3 := g1.curveF.Eval([][]*baseEl{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = λ2*(p.x - x3)-p.y
-	y3 := g1.curveF.Eval([][]*baseEl{{λ2, &p.X}, {mone, λ2, x3}, {mone, &p.Y}}, []int{1, 1, 1})
+	// compute y3 = -λ2*(x3 - p.x)-p.y
+	y3 := g1.curveF.Eval([][]*baseEl{{mone, λ2, &p.X}, {λ2, x3}, {mone, &p.Y}}, []int{1, 1, 1})
 
 	return &G1Affine{
 		X: *x3,
