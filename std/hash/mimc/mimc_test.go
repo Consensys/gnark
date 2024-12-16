@@ -4,6 +4,7 @@
 package mimc
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -150,5 +151,60 @@ func TestStateStoreMiMC(t *testing.T) {
 		assert.CheckCircuit(circuit,
 			test.WithValidAssignment(assignment),
 			test.WithCurves(curve))
+	}
+}
+
+type recoveredStateTestCircuit struct {
+	State    []frontend.Variable
+	Input    frontend.Variable
+	Expected frontend.Variable `gnark:",public"`
+}
+
+func (c *recoveredStateTestCircuit) Define(api frontend.API) error {
+	h, err := NewMiMC(api)
+	if err != nil {
+		return fmt.Errorf("initialize hash: %w", err)
+	}
+	if err = h.SetState(c.State); err != nil {
+		return fmt.Errorf("set state: %w", err)
+	}
+	h.Write(c.Input)
+	res := h.Sum()
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func TestHasherFromState(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	hashes := map[ecc.ID]hash.Hash{
+		ecc.BN254:     hash.MIMC_BN254,
+		ecc.BLS12_381: hash.MIMC_BLS12_381,
+		ecc.BLS12_377: hash.MIMC_BLS12_377,
+		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
+		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
+	}
+
+	for cc, hh := range hashes {
+		hasher := hh.New()
+		ss, ok := hasher.(hash.StateStorer)
+		assert.True(ok)
+		_, err := ss.Write([]byte("hello world"))
+		assert.NoError(err)
+		state := ss.State()
+		nbBytes := cc.ScalarField().BitLen() / 8
+		buf := make([]byte, nbBytes)
+		_, err = rand.Read(buf)
+		assert.NoError(err)
+		ss.Write(buf)
+		expected := ss.Sum(nil)
+		bstate := new(big.Int).SetBytes(state)
+		binput := new(big.Int).SetBytes(buf)
+		assert.CheckCircuit(
+			&recoveredStateTestCircuit{State: make([]frontend.Variable, 1)},
+			test.WithValidAssignment(&recoveredStateTestCircuit{State: []frontend.Variable{bstate}, Input: binput, Expected: expected}),
+			test.WithCurves(cc))
 	}
 }
