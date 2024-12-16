@@ -1,18 +1,5 @@
-/*
-Copyright © 2022 ConsenSys Software Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2024 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package schema
 
@@ -22,6 +9,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/consensys/gnark/logger"
 )
 
 // Schema represents the structure of a gnark circuit (/ witness)
@@ -322,7 +311,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	if tValue.Kind() == reflect.Slice || tValue.Kind() == reflect.Array {
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
-				fmt.Printf("ignoring uninitialized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
+				log := logger.Logger()
+				log.Warn().Str("slice name", parentGoName).Str("slice type", reflect.SliceOf(target).String()).Msg("ignoring uninitialized slice")
 			}
 			return r, nil
 		}

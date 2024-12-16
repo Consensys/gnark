@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2024 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package sw_bls24315
 
@@ -225,7 +212,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// hence have the same X coordinates.
 
 	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
-	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS24-315 of order 2
 	// to it to avoid incomplete additions in the loop by forcing Acc to be
 	// different than the stored B.  Normally, the point H should be "killed
 	// out" by the first doubling in the loop and the result will remain

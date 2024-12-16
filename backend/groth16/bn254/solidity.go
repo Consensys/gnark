@@ -427,7 +427,7 @@ contract Verifier {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
-            {{- if eq $numWitness 1 }}
+            {{- if eq $numCommitments 1 }}
             mstore(g, mload(commitments))
             mstore(add(g, 0x20), mload(add(commitments, 0x20)))
             {{- else }}

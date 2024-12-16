@@ -845,7 +845,7 @@ func TestIssue348UnconstrainedLimbs(t *testing.T) {
 	// for freshly initialised elements (using NewElement, or directly by
 	// constructing the structure), we do not automatically enforce the widths.
 	//
-	// The bug is tracked in https://github.com/ConsenSys/gnark/issues/348
+	// The bug is tracked in https://github.com/Consensys/gnark/issues/348
 	a := big.NewInt(5)
 	b, _ := new(big.Int).SetString("21888242871839275222246405745257275088548364400416034343698204186575808495612", 10)
 	assert := test.NewAssert(t)
@@ -1276,4 +1276,224 @@ func TestIsZeroEdgeCases(t *testing.T) {
 	testIsZeroEdgeCases[Goldilocks](t)
 	testIsZeroEdgeCases[BN254Fr](t)
 	testIsZeroEdgeCases[emparams.Mod1e512](t)
+}
+
+type PolyEvalCircuit[T FieldParams] struct {
+	Inputs         []Element[T]
+	TermsByIndices [][]int
+	Coeffs         []int
+	Expected       Element[T]
+}
+
+func (c *PolyEvalCircuit[T]) Define(api frontend.API) error {
+	// withEval
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// reconstruct the terms from the inputs and the indices
+	terms := make([][]*Element[T], len(c.TermsByIndices))
+	for i := range terms {
+		terms[i] = make([]*Element[T], len(c.TermsByIndices[i]))
+		for j := range terms[i] {
+			terms[i][j] = &c.Inputs[c.TermsByIndices[i][j]]
+		}
+	}
+	resEval := f.Eval(terms, c.Coeffs)
+
+	// withSum
+	addTerms := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.Mul(termVal, &c.Inputs[term[j]])
+		}
+		addTerms[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
+	}
+	resSum := f.Sum(addTerms...)
+
+	// mul no reduce
+	addTerms2 := make([]*Element[T], len(c.TermsByIndices))
+	for i, term := range c.TermsByIndices {
+		termVal := f.One()
+		for j := range term {
+			termVal = f.MulNoReduce(termVal, &c.Inputs[term[j]])
+		}
+		addTerms2[i] = f.MulConst(termVal, big.NewInt(int64(c.Coeffs[i])))
+	}
+	resNoReduce := f.Sum(addTerms2...)
+	resReduced := f.Reduce(resNoReduce)
+
+	// assertions
+	f.AssertIsEqual(resEval, &c.Expected)
+	f.AssertIsEqual(resSum, &c.Expected)
+	f.AssertIsEqual(resNoReduce, &c.Expected)
+	f.AssertIsEqual(resReduced, &c.Expected)
+
+	return nil
+}
+
+func TestPolyEval(t *testing.T) {
+	testPolyEval[Goldilocks](t)
+	testPolyEval[BN254Fr](t)
+	testPolyEval[emparams.Mod1e512](t)
+}
+
+func testPolyEval[T FieldParams](t *testing.T) {
+	const nbInputs = 2
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	// 2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 assuming we have inputs w=[x, y], then
+	// we can represent by the indices of the inputs:
+	//    2*x^3 + 3*x^2 y + 4*x y^2 + 5*y^3 -> 2*x*x*x + 3*x*x*y + 4*x*y*y + 5*y*y*y -> 2*w[0]*w[0]*w[0] + 3*w[0]*w[0]*w[1] + 4*w[0]*w[1]*w[1] + 5*w[1]*w[1]*w[1]
+	// the following variable gives the indices of the inputs. For givin the
+	// circuit this is better as then we can easily reference to the inputs by
+	// index.
+	toMulByIndex := [][]int{{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}}
+	coefficients := []int{2, 3, 4, 5}
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int)
+	for i, term := range toMulByIndex {
+		termVal := new(big.Int).SetInt64(int64(coefficients[i]))
+		for j := range term {
+			termVal.Mul(termVal, inputs[term[j]])
+		}
+		expected.Add(expected, termVal)
+	}
+	expected.Mod(expected, fp.Modulus())
+
+	assignment := &PolyEvalCircuit[T]{
+		Inputs:   assignmentInput,
+		Expected: ValueOf[T](expected),
+	}
+	assert.CheckCircuit(&PolyEvalCircuit[T]{Inputs: make([]Element[T], nbInputs), TermsByIndices: toMulByIndex, Coeffs: coefficients}, test.WithValidAssignment(assignment))
+}
+
+type PolyEvalNegativeCoefficient[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegativeCoefficient[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// x - y
+	coefficients := []int{1, -1}
+	res := f.Eval([][]*Element[T]{{&c.Inputs[0]}, {&c.Inputs[1]}}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegativeCoefficient(t *testing.T) {
+	testPolyEvalNegativeCoefficient[Goldilocks](t)
+	testPolyEvalNegativeCoefficient[BN254Fr](t)
+	testPolyEvalNegativeCoefficient[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
+	t.Skip("not implemented yet")
+	assert := test.NewAssert(t)
+	var fp T
+	fmt.Println("modulus", fp.Modulus())
+	var err error
+	const nbInputs = 2
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		fmt.Println("input", i, inputs[i])
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	expected := new(big.Int).Sub(inputs[0], inputs[1])
+	expected.Mod(expected, fp.Modulus())
+	fmt.Println("expected", expected)
+	assignment := &PolyEvalNegativeCoefficient[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegativeCoefficient[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type FastPathsCircuit[T FieldParams] struct {
+	Rand Element[T]
+	Zero Element[T]
+}
+
+func (c *FastPathsCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// instead of using witness values, we need to create the elements
+	// in-circuit. In witness creation we always create elements with full
+	// number of limbs.
+
+	zero := f.Zero()
+
+	// mul
+	res := f.Mul(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.Mul(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	res = f.MulMod(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.MulMod(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	res = f.MulNoReduce(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+	res = f.MulNoReduce(&c.Rand, zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// div
+	res = f.Div(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// square root
+	res = f.Sqrt(zero)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	// exp
+	res = f.Exp(zero, &c.Rand)
+	f.AssertIsEqual(res, &c.Zero)
+	f.AssertIsEqual(res, zero)
+
+	return nil
+}
+
+func TestFasthPaths(t *testing.T) {
+	testFastPaths[Goldilocks](t)
+	testFastPaths[BN254Fr](t)
+	testFastPaths[emparams.Mod1e512](t)
+}
+
+func testFastPaths[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	randVal, _ := rand.Int(rand.Reader, fp.Modulus())
+	circuit := &FastPathsCircuit[T]{}
+	assignment := &FastPathsCircuit[T]{Rand: ValueOf[T](randVal), Zero: ValueOf[T](0)}
+
+	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
 }

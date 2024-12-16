@@ -136,24 +136,6 @@ func (e Ext6) Double(x *E6) *E6 {
 	}
 }
 
-func (e Ext6) MulByElement(x *E6, y *baseEl) *E6 {
-	a0 := e.fp.Mul(&x.A0, y)
-	a1 := e.fp.Mul(&x.A1, y)
-	a2 := e.fp.Mul(&x.A2, y)
-	a3 := e.fp.Mul(&x.A3, y)
-	a4 := e.fp.Mul(&x.A4, y)
-	a5 := e.fp.Mul(&x.A5, y)
-	z := &E6{
-		A0: *a0,
-		A1: *a1,
-		A2: *a2,
-		A3: *a3,
-		A4: *a4,
-		A5: *a5,
-	}
-	return z
-}
-
 func (e Ext6) MulByConstElement(x *E6, y *big.Int) *E6 {
 	a0 := e.fp.MulConst(&x.A0, y)
 	a1 := e.fp.MulConst(&x.A1, y)
@@ -190,9 +172,7 @@ func (e Ext6) mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 }
 
 func (e Ext6) Mul(x, y *E6) *E6 {
-	x = e.Reduce(x)
-	y = e.Reduce(y)
-	return e.mulToomCook6(x, y)
+	return e.mulDirect(x, y)
 }
 
 func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
@@ -415,6 +395,37 @@ func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
 	s2 = e.fp.MulConst(v7, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
+func (e Ext6) mulDirect(x, y *E6) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+	// c0 = a0b0 + β(a1b5 + a2b4 + a3b3 + a4b2 + a5b1)
+	c0 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A0}, {nonResidue, &x.A1, &y.A5}, {nonResidue, &x.A2, &y.A4}, {nonResidue, &x.A3, &y.A3}, {nonResidue, &x.A4, &y.A2}, {nonResidue, &x.A5, &y.A1}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c1 = a0b1 + a1b0 + β(a2b5 + a3b4 + a4b3 + a5b2)
+	c1 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A1}, {&x.A1, &y.A0}, {nonResidue, &x.A2, &y.A5}, {nonResidue, &x.A3, &y.A4}, {nonResidue, &x.A4, &y.A3}, {nonResidue, &x.A5, &y.A2}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c2 = a0b2 + a1b1 + a2b0 + β(a3b5 + a4b4 + a5b3)
+	c2 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A2}, {&x.A1, &y.A1}, {&x.A2, &y.A0}, {nonResidue, &x.A3, &y.A5}, {nonResidue, &x.A4, &y.A4}, {nonResidue, &x.A5, &y.A3}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c3 = a0b3 + a1b2 + a2b1 + a3b0 + β(a4b5 + a5b4)
+	c3 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A3}, {&x.A1, &y.A2}, {&x.A2, &y.A1}, {&x.A3, &y.A0}, {nonResidue, &x.A4, &y.A5}, {nonResidue, &x.A5, &y.A4}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c4 = a0b4 + a1b3 + a2b2 + a3b1 + a4b0 + βa5b5
+	c4 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A4}, {&x.A1, &y.A3}, {&x.A2, &y.A2}, {&x.A3, &y.A1}, {&x.A4, &y.A0}, {nonResidue, &x.A5, &y.A5}},
+		[]int{1, 1, 1, 1, 1, 1})
+	// c5 = a0b5 + a1b4 + a2b3 + a3b2 + a4b1 + a5b0,
+	c5 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A5}, {&x.A1, &y.A4}, {&x.A2, &y.A3}, {&x.A3, &y.A2}, {&x.A4, &y.A1}, {&x.A5, &y.A0}},
+		[]int{1, 1, 1, 1, 1, 1})
 
 	return &E6{
 		A0: *c0,
@@ -704,6 +715,42 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 }
 
 func (e Ext6) Square(x *E6) *E6 {
+	return e.squareDirect(x)
+}
+
+// squareDirect computes the square of an element in E6 using schoolbook multiplication.
+func (e Ext6) squareDirect(x *E6) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+	// c0 = a0a0 + β(2*a1a5 + 2*a2a4 + a3a3)
+	c0 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0}, {nonResidue, &x.A1, &x.A5}, {nonResidue, &x.A2, &x.A4}, {nonResidue, &x.A3, &x.A3}},
+		[]int{1, 2, 2, 1})
+	// c1 = 2*a0a1 + β(2*a2a5 + 2*a3a4)
+	c1 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A1}, {nonResidue, &x.A2, &x.A5}, {nonResidue, &x.A3, &x.A4}},
+		[]int{2, 2, 2})
+	// c2 = 2*a0a2 + a1a1 + β(2*a3a5 + a4a4)
+	c2 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A2}, {&x.A1, &x.A1}, {nonResidue, &x.A3, &x.A5}, {nonResidue, &x.A4, &x.A4}},
+		[]int{2, 1, 2, 1})
+	// c3 = 2*a0a3 + 2*a1a2 + β(2*a4a5)
+	c3 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A3}, {&x.A1, &x.A2}, {nonResidue, &x.A5, &x.A4}},
+		[]int{2, 2, 2})
+	// c4 = 2*a0a4 + 2*a1a3 + a2a2 + βa5a5
+	c4 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A4}, {&x.A1, &x.A3}, {&x.A2, &x.A2}, {nonResidue, &x.A5, &x.A5}},
+		[]int{2, 2, 1, 1})
+	// c5 = 2*a0a5 + 2*a1a4 + 2*a2a3,
+	c5 := e.fp.Eval([][]*baseEl{{&x.A0, &x.A5}, {&x.A1, &x.A4}, {&x.A2, &x.A3}},
+		[]int{2, 2, 2})
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
+func (e Ext6) squareEmulatedTower(x *E6) *E6 {
 	// We don't use Montgomery-6 or Toom-Cook-6 for the squaring but instead we
 	// simulate a quadratic over cubic extension tower because Karatsuba over
 	// Chung-Hasan SQR2 is better constraint wise.
@@ -788,10 +835,94 @@ func (e Ext6) Square(x *E6) *E6 {
 	}
 }
 
+// Granger-Scott's cyclotomic square
+// https://eprint.iacr.org/2009/565.pdf, 3.2
+func (e Ext6) CyclotomicSquareGS(x *E6) *E6 {
+	return e.cyclotomicSquareGSEval(x)
+}
+
+// cyclotomicSquareGSEval computes [Ext6.CyclotomicSquareGS] but with the non-native Eval method.
+func (e Ext6) cyclotomicSquareGSEval(x *E6) *E6 {
+	// x=(x0,x2,x4,x1,x3,x5) in E6
+	// cyclosquare(x) = 3*x4²*u + 3*x0² - 2*x0,
+	//					6*x1*x5*u + 2*x3,
+	//					3*x2²*u + 3*x3² - 2*x1,
+	//					6*x0*x4 + 2*x4,
+	//					3*x5²*u + 3*x1² - 2*x2,
+	//					6*x2*x3 + 2*x5,
+	u := e.fp.NewElement(-4)
+	mone := e.fp.NewElement(-1)
+	g0 := x.A0
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h0 = 3*x4²*u + 3*x0² - 2*x0
+	h0 := e.fp.Eval([][]*baseEl{{u, &g4, &g4}, {&g0, &g0}, {mone, &g0}}, []int{3, 3, 2})
+	// h1 = 3*x2²*u + 3*x3² - 2*x1
+	h1 := e.fp.Eval([][]*baseEl{{u, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	// h2 = 3*x5²*u + 3*x1² - 2*x2
+	h2 := e.fp.Eval([][]*baseEl{{u, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	// h3 = 6*x1*x5*u + 2*x3
+	h3 := e.fp.Eval([][]*baseEl{{u, &g1, &g5}, {&g3}}, []int{6, 2})
+	// h4 = 6*x0*x4 + 2*x4
+	h4 := e.fp.Eval([][]*baseEl{{&g0, &g4}, {&g4}}, []int{6, 2})
+	// h5 = 6*x2*x3 + 2*x5
+	h5 := e.fp.Eval([][]*baseEl{{&g2, &g3}, {&g5}}, []int{6, 2})
+	return &E6{
+		A0: *h0,
+		A1: *h3,
+		A2: *h1,
+		A3: *h4,
+		A4: *h2,
+		A5: *h5,
+	}
+}
+
 // Karabina's compressed cyclotomic square SQR12345
 // https://eprint.iacr.org/2010/542.pdf
 // Sec. 5.6 with minor modifications to fit our tower
 func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
+	return e.cyclotomicSquareKarabina12345Eval(x)
+}
+
+// cyclotomicSquareKarabina12345Eval computes
+// [Ext6.cyclotomicSquareKarabina12345] but with the non-native Eval method.
+func (e Ext6) cyclotomicSquareKarabina12345Eval(x *E6) *E6 {
+	c := e.fp.NewElement(-4)
+	mone := e.fp.NewElement(-1)
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h1 = 3*c*g2^2 + 3*g3^2 - 2*g1
+	h1 := e.fp.Eval([][]*baseEl{{c, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	// h2 = 3*c*g5^2 + 3*g1^2 - 2*g2
+	h2 := e.fp.Eval([][]*baseEl{{c, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	// h3 = 6*c*g1*g5 + 2*g3
+	h3 := e.fp.Eval([][]*baseEl{{c, &g1, &g5}, {&g3}}, []int{6, 2})
+	// h4 = 3*c*g2*g5 + 3*g1*g3 - g4
+	h4 := e.fp.Eval([][]*baseEl{{c, &g2, &g5}, {&g1, &g3}, {mone, &g4}}, []int{3, 3, 1})
+	// h5 = 6*g2*g3 + 2*g5
+	h5 := e.fp.Eval([][]*baseEl{{&g2, &g3}, {&g5}}, []int{6, 2})
+
+	return &E6{
+		A0: x.A0,
+		A1: *h3,
+		A2: *h1,
+		A3: *h4,
+		A4: *h2,
+		A5: *h5,
+	}
+
+}
+
+// Karabina's compressed cyclotomic square SQR12345
+// https://eprint.iacr.org/2010/542.pdf
+// Sec. 5.6 with minor modifications to fit our tower
+func (e Ext6) cyclotomicSquareKarabina12345(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	// h4 = -g4 + 3((g3+g5)(g1+c*g2)-g1g5-c*g3g2)
@@ -852,6 +983,31 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 
 // DecompressKarabina12345 decompresses Karabina's cyclotomic square result SQR12345
 func (e Ext6) DecompressKarabina12345(x *E6) *E6 {
+	return e.decompressKarabina12345Eval(x)
+}
+
+// decompressKarabina12345Eval computes [Ext6.DecompressKarabina12345] but with the non-native Eval method.
+func (e Ext6) decompressKarabina12345Eval(x *E6) *E6 {
+	c := e.fp.NewElement(-4)
+	g1 := x.A2
+	g2 := x.A4
+	g3 := x.A1
+	g4 := x.A3
+	g5 := x.A5
+	// h0 = -3*c*g1*g2 + 2*c*g4^2 + c*g3*g5 + 1
+	h0 := e.fp.Eval([][]*baseEl{{&g1, &g2}, {c, &g4, &g4}, {c, &g3, &g5}, {e.fp.One()}}, []int{12, 2, 1, 1})
+	return &E6{
+		A0: *h0,
+		A1: g3,
+		A2: g1,
+		A3: g4,
+		A4: g2,
+		A5: g5,
+	}
+}
+
+// DecompressKarabina12345 decompresses Karabina's cyclotomic square result SQR12345
+func (e Ext6) decompressKarabina12345(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	// h0 = (2g4^2 + g3g5 - 3g2g1)*c + 1
