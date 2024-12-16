@@ -236,5 +236,8 @@ func TestPedersen(t *testing.T) {
 	contributions[1].SetUint64(2)
 	p.update(&contributions[0], contributions[1:])
 	_, _, _, g2 := curve.Generators()
-	assertPairingsEqual(t, evals.G1.CKK[0][0], p.Parameters.G2.Sigma[0], p.Parameters.G1.SigmaCKK[0][0], g2)
+	for i := range p.Sigmas {
+		assertPairingsEqual(t, evals.G1.CKK[0][i], p.Parameters.G2.Sigma[i], p.Parameters.G1.SigmaCKK[0][i], g2)
+	}
+
 }
