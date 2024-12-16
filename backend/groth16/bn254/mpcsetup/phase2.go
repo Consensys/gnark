@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"math/big"
@@ -20,6 +21,8 @@ import (
 	"github.com/consensys/gnark/constraint"
 )
 
+// Phase2Evaluations components of the circuit keys
+// not depending on Phase2 randomisations
 type Phase2Evaluations struct { // TODO @Tabaie rename
 	G1 struct {
 		A   []curve.G1Affine   // A are the left coefficient polynomials for each witness element, evaluated at τ
@@ -160,10 +163,10 @@ func (p *Phase2) Contribute() {
 	p.update(&delta, sigma)
 }
 
-// Init is to be run by the coordinator
+// Initialize is to be run by the coordinator
 // It involves no coin tosses. A verifier should
 // simply rerun all the steps
-func (p *Phase2) Init(r1cs *cs.R1CS, commons SrsCommons) Phase2Evaluations {
+func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluations {
 
 	size := len(commons.G1.AlphaTau)
 	if size < r1cs.GetNbConstraints() {
@@ -314,22 +317,28 @@ func (p *Phase2) Init(r1cs *cs.R1CS, commons SrsCommons) Phase2Evaluations {
 	return evals
 }
 
-// VerifyPhase2
-// c0 must be initialized with the Init method
-func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
-	// CIRITCAL TODO: Should run the "beacon" step afterwards
-	contribs := append([]*Phase2{c0, c1}, c...)
-	for i := 0; i < len(contribs)-1; i++ {
-		if err := contribs[i].Verify(contribs[i+1]); err != nil {
-			return err
+// VerifyPhase2 for circuit described by r1cs
+// using parameters from commons
+// beaconChallenge is the output of the random beacon
+// and c are the output from the contributors
+// WARNING: the last contribution object will be modified
+func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c ...*Phase2) (groth16.ProvingKey, groth16.VerifyingKey, error) {
+	prev := new(Phase2)
+	evals := prev.Initialize(r1cs, commons)
+	for i := range c {
+		if err := prev.Verify(c[i]); err != nil {
+			return nil, nil, err
 		}
+		prev = c[i]
 	}
-	return nil
+
+	pk, vk := prev.Seal(commons, &evals, beaconChallenge)
+	return &pk, &vk, nil
 }
 
 func (p *Phase2) hash() []byte {
 	sha := sha256.New()
-	p.writeTo(sha)
+	p.WriteTo(sha)
 	return sha.Sum(nil)
 }
 

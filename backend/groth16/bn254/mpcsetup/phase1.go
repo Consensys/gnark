@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math/big"
@@ -123,14 +124,19 @@ func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
 	return p.parameters
 }
 
-func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
-	contribs := append([]*Phase1{c0, c1}, c...)
-	for i := 0; i < len(contribs)-1; i++ {
-		if err := contribs[i].Verify(contribs[i+1]); err != nil {
-			return err
+// VerifyPhase1 and return the SRS parameters usable for any circuit of domain size N
+// beaconChallenge is the output of the random beacon
+// and c are the output from the contributors
+// WARNING: the last contribution object will be modified
+func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, error) {
+	prev := NewPhase1(N)
+	for i := range c {
+		if err := prev.Verify(c[i]); err != nil {
+			return SrsCommons{}, err
 		}
+		prev = c[i]
 	}
-	return nil
+	return prev.Seal(beaconChallenge), nil
 }
 
 // Verify assumes previous is correct
@@ -233,4 +239,23 @@ func (p *Phase1) hash() []byte {
 	p.WriteTo(sha)
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
+}
+
+// Initialize an empty Phase1 contribution object
+// to be used by the first contributor or the verifier
+// N is the FFT domain size
+func (p *Phase1) Initialize(N uint64) {
+	if ecc.NextPowerOfTwo(N) != N {
+		panic("N must be a power of 2")
+	}
+	p.parameters.setOne(N)
+}
+
+// NewPhase1 creates an empty Phase1 contribution object
+// to be used by the first contributor or the verifier
+// N is the FFT domain size
+func NewPhase1(N uint64) *Phase1 {
+	res := new(Phase1)
+	res.Initialize(N)
+	return res
 }
