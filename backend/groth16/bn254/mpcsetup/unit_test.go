@@ -71,8 +71,6 @@ func TestSetupBeaconOnly(t *testing.T) {
 	p1.Initialize(domainSize)
 	commons := p1.Seal([]byte("beacon 1"))
 
-	commons = commonsSmallValues(domainSize, 2, 3, 4)
-
 	evals := p2.Initialize(ccs, &commons)
 	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
 
