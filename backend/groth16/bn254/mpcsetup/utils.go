@@ -302,7 +302,7 @@ func bivariateRandomMonomials(ends ...int) []fr.Element {
 		return nil
 	}
 
-	res := make([]fr.Element, ends[])
+	res := make([]fr.Element, ends[len(ends)-1])
 	if _, err := res[1].SetRandom(); err != nil {
 		panic(err)
 	}

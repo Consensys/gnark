@@ -6,11 +6,12 @@
 package mpcsetup
 
 import (
+	"encoding/binary"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"io"
 )
 
-func appendRefs[T any](s []interface{}, v []T) []interface{} {
+func appendRefs[T any](s []any, v []T) []any {
 	for i := range v {
 		s = append(s, &v[i])
 	}
@@ -55,110 +56,161 @@ func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
 	return
 }
 
-// WriteTo implements io.WriterTo
-func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
-	n, err := p.writeTo(writer)
-	if err != nil {
-		return n, err
+// slice of references for the parameters of p
+func (p *Phase2) refsSlice() []any {
+	nbCommitments := len(p.Parameters.G2.Sigma)
+	if nbCommitments > 65535 {
+		panic("nbCommitments not fitting in 16 bits")
 	}
-	nBytes, err := writer.Write(p.Challenge)
-	return int64(nBytes) + n, err
+
+	expectedLen := 2*nbCommitments + 5
+	refs := make([]any, 5, expectedLen)
+	refs[0] = uint16(nbCommitments)
+	refs[1] = &p.Parameters.G1.Delta
+	refs[2] = &p.Parameters.G1.PKK // unique size: private input size, excluding those committed to
+	refs[3] = &p.Parameters.G1.Z   // unique size: N-1
+	refs[4] = &p.Parameters.G2.Delta
+
+	refs = appendRefs(refs, p.Parameters.G1.SigmaCKK)
+	refs = appendRefs(refs, p.Parameters.G2.Sigma)
+
+	if len(refs) != expectedLen {
+		panic("incorrect length estimate")
+	}
+
+	return refs
 }
 
-func (p *Phase2) writeTo(writer io.Writer) (int64, error) {
-	enc := curve.NewEncoder(writer)
-	toEncode := []interface{}{
-		&p.PublicKey.SG,
-		&p.PublicKey.SXG,
-		&p.PublicKey.XR,
-		&p.Parameters.G1.Delta,
-		p.Parameters.G1.PKK,
-		p.Parameters.G1.Z,
-		&p.Parameters.G2.Delta,
-	}
+// WriteTo implements io.WriterTo
+func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
 
-	for _, v := range toEncode {
+	// write the parameters
+	enc := curve.NewEncoder(writer)
+	for _, v := range p.refsSlice() {
 		if err := enc.Encode(v); err != nil {
 			return enc.BytesWritten(), err
 		}
 	}
 
-	return enc.BytesWritten(), nil
+	//write the proofs
+	dn, err := p.Delta.WriteTo(writer)
+	n := enc.BytesWritten() + dn
+	if err != nil {
+		return n, err
+	}
+
+	for i := range p.Sigmas {
+		dn, err = p.Sigmas[i].WriteTo(writer)
+		n += dn
+		if err != nil {
+			return n, err
+		}
+	}
+
+	return n, nil
 }
 
 // ReadFrom implements io.ReaderFrom
 func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
+	var nbCommitments uint16
+
+	if err := binary.Read(reader, binary.BigEndian, &nbCommitments); err != nil {
+		return -1, err // binary.Read doesn't return the number of bytes read
+	}
+	n := int64(2) // we've definitely successfully read 2 bytes
+
+	p.Sigmas = make([]valueUpdate, nbCommitments)
+	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, nbCommitments)
+	p.Parameters.G2.Sigma = make([]curve.G2Affine, nbCommitments)
+
 	dec := curve.NewDecoder(reader)
-	toEncode := []interface{}{
-		&p.PublicKey.SG,
-		&p.PublicKey.SXG,
-		&p.PublicKey.XR,
-		&p.Parameters.G1.Delta,
-		&p.Parameters.G1.PKK,
-		&p.Parameters.G1.Z,
-		&p.Parameters.G2.Delta,
+	for _, v := range p.refsSlice()[1:] { // nbCommitments already read
+		if err := dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
+		}
+	}
+	n += dec.BytesRead()
+
+	dn, err := p.Delta.ReadFrom(reader)
+	n += dn
+	if err != nil {
+		return n, err
 	}
 
-	for _, v := range toEncode {
-		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+	for i := range p.Sigmas {
+		dn, err = p.Sigmas[i].ReadFrom(reader)
+		n += dn
+		if err != nil {
+			return n, err
 		}
 	}
 
-	p.Challenge = make([]byte, 32)
-	n, err := reader.Read(p.Challenge)
-	return int64(n) + dec.BytesRead(), err
+	return n, nil
+}
 
+func (c *Phase2Evaluations) refsSlice() []any {
+	N := uint64(len(c.G1.A))
+	expectedLen := 3*N + 2
+	refs := make([]any, 2, expectedLen)
+	refs[0] = &c.G1.CKK
+	refs[1] = &c.G1.VKK
+	refs = appendRefs(refs, c.G1.A)
+	refs = appendRefs(refs, c.G1.B)
+	refs = appendRefs(refs, c.G2.B)
+
+	if uint64(len(refs)) != expectedLen {
+		panic("incorrect length estimate")
+	}
+
+	return refs
 }
 
 // WriteTo implements io.WriterTo
 func (c *Phase2Evaluations) WriteTo(writer io.Writer) (int64, error) {
 	enc := curve.NewEncoder(writer)
-	toEncode := []interface{}{
-		c.G1.A,
-		c.G1.B,
-		c.G2.B,
-	}
 
-	for _, v := range toEncode {
+	for _, v := range c.refsSlice() {
 		if err := enc.Encode(v); err != nil {
 			return enc.BytesWritten(), err
 		}
 	}
-
 	return enc.BytesWritten(), nil
 }
 
 // ReadFrom implements io.ReaderFrom
 func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
-	dec := curve.NewDecoder(reader)
-	toEncode := []interface{}{
-		&c.G1.A,
-		&c.G1.B,
-		&c.G2.B,
+	var N uint64
+	if err := binary.Read(reader, binary.BigEndian, &N); err != nil {
+		return -1, err // binary.Read doesn't return the number of bytes read
 	}
+	n := int64(8)
 
-	for _, v := range toEncode {
+	c.G1.A = make([]curve.G1Affine, N)
+	c.G1.B = make([]curve.G1Affine, N)
+	c.G2.B = make([]curve.G2Affine, N)
+
+	dec := curve.NewDecoder(reader)
+	for _, v := range c.refsSlice()[1:] {
 		if err := dec.Decode(v); err != nil {
-			return dec.BytesRead(), err
+			return n + dec.BytesRead(), err
 		}
 	}
 
-	return dec.BytesRead(), nil
+	return n + dec.BytesRead(), nil
 }
 
 // refsSlice produces a slice consisting of references to all sub-elements
 // prepended by the size parameter, to be used in WriteTo and ReadFrom functions
-func (c *SrsCommons) refsSlice() []interface{} {
-	N := len(c.G2.Tau)
-	estimatedNbElems := 5*N - 1
+func (c *SrsCommons) refsSlice() []any {
+	N := uint64(len(c.G2.Tau))
+	expectedLen := 5*N - 1
 	// size N                                                                    1
 	// [β]₂                                                                      1
 	// [τⁱ]₁  for 1 ≤ i ≤ 2N-2                                                2N-2
 	// [τⁱ]₂  for 1 ≤ i ≤ N-1                                                  N-1
 	// [ατⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
 	// [βτⁱ]₁ for 0 ≤ i ≤ N-1                                                  N
-	refs := make([]interface{}, 1, estimatedNbElems)
+	refs := make([]any, 1, expectedLen)
 	refs[0] = N
 
 	refs = appendRefs(refs, c.G1.Tau[1:])
@@ -166,7 +218,7 @@ func (c *SrsCommons) refsSlice() []interface{} {
 	refs = appendRefs(refs, c.G1.BetaTau)
 	refs = appendRefs(refs, c.G1.AlphaTau)
 
-	if len(refs) != estimatedNbElems {
+	if uint64(len(refs)) != expectedLen {
 		panic("incorrect length estimate")
 	}
 
