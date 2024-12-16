@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,8 @@ func TestSetupBeaconOnly(t *testing.T) {
 	p1.Initialize(domainSize)
 	commons := p1.Seal([]byte("beacon 1"))
 
+	commons = commonsSmallValues(domainSize, 2, 3, 4)
+
 	evals := p2.Initialize(ccs, &commons)
 	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
 
@@ -96,4 +99,111 @@ func TestSetupBeaconOnly(t *testing.T) {
 	proveVerifyCircuit(t, rpk, rvk)
 	fmt.Println("regular proof verified")
 	proveVerifyCircuit(t, pk, vk)
+	fmt.Println("mpc proof verified")
+}
+
+func TestPhase1Contribute(t *testing.T) {
+
+}
+
+func TestPhase1Seal(t *testing.T) {
+
+}
+
+func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
+	var (
+		res   SrsCommons
+		I     big.Int
+		coeff fr.Element
+	)
+	_, _, g1, g2 := curve.Generators()
+	tauPowers := powersI(tau, int(2*N-1))
+	res.G1.Tau = make([]curve.G1Affine, 2*N-1)
+	for i := range res.G1.Tau {
+		tauPowers[i].BigInt(&I)
+		res.G1.Tau[i].ScalarMultiplication(&g1, &I)
+	}
+
+	res.G2.Tau = make([]curve.G2Affine, N)
+	for i := range res.G2.Tau {
+		tauPowers[i].BigInt(&I)
+		res.G2.Tau[i].ScalarMultiplication(&g2, &I)
+	}
+
+	res.G1.AlphaTau = make([]curve.G1Affine, N)
+	coeff.SetUint64(alpha)
+	for i := range res.G1.AlphaTau {
+		var x fr.Element
+		x.Mul(&tauPowers[i], &coeff)
+		x.BigInt(&I)
+		res.G1.AlphaTau[i].ScalarMultiplication(&g1, &I)
+	}
+
+	res.G1.BetaTau = make([]curve.G1Affine, N)
+	coeff.SetUint64(beta)
+	for i := range res.G1.BetaTau {
+		var x fr.Element
+		x.Mul(&tauPowers[i], &coeff)
+		x.BigInt(&I)
+		res.G1.BetaTau[i].ScalarMultiplication(&g1, &I)
+	}
+
+	I.SetUint64(beta)
+	res.G2.Beta.ScalarMultiplication(&g2, &I)
+
+	return res
+}
+
+func powersI(x uint64, n int) []fr.Element {
+	var y fr.Element
+	y.SetUint64(x)
+	return powers(&y, n)
+}
+
+func TestPowers(t *testing.T) {
+	var x fr.Element
+	x.SetUint64(2)
+	x2 := powers(&x, 10)
+	for i := range x2 {
+		require.True(t, x2[i].IsUint64())
+		require.Equal(t, x2[i].Uint64(), uint64(1<<i))
+	}
+}
+
+func TestCommons(t *testing.T) {
+
+	// Compile the circuit
+	ccs := getTestCircuit(t)
+	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
+
+	var p1 Phase1
+	p1.Initialize(domainSize)
+
+	assertG1G2Equal(t, p1.parameters.G1.BetaTau[0], p1.parameters.G2.Beta)
+
+	commons := p1.Seal([]byte("beacon 1"))
+
+	for i := range commons.G2.Tau {
+		assertG1G2Equal(t, commons.G1.Tau[i], commons.G2.Tau[i])
+	}
+
+	assertG1G2Equal(t, commons.G1.BetaTau[0], commons.G2.Beta)
+}
+
+func TestCommonsUpdate(t *testing.T) {
+	var c SrsCommons
+	c.setOne(1)
+	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
+	one := fr.One()
+	var zero fr.Element
+	c.update(&zero, &zero, &one)
+	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
+}
+
+func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {
+	_, _, g1, g2 := curve.Generators()
+	p2.Neg(&p2)
+	ok, err := curve.PairingCheck([]curve.G1Affine{p1, g1}, []curve.G2Affine{g2, p2})
+	require.NoError(t, err)
+	require.True(t, ok)
 }

@@ -34,7 +34,7 @@ func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChall
 	)
 
 	// Initialize PK
-	pk.Domain = *fft.NewDomain(uint64(len(evals.G1.A)))
+	pk.Domain = *fft.NewDomain(evals.NbConstraints)
 	pk.G1.Alpha.Set(&commons.G1.AlphaTau[0])
 	pk.G1.Beta.Set(&commons.G1.BetaTau[0])
 	pk.G1.Delta.Set(&p.Parameters.G1.Delta)

@@ -150,11 +150,12 @@ func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 
 func (c *Phase2Evaluations) refsSlice() []any {
 	N := uint64(len(c.G1.A))
-	expectedLen := 3*N + 3
-	refs := make([]any, 3, expectedLen)
+	expectedLen := 3*N + 4
+	refs := make([]any, 4, expectedLen)
 	refs[0] = &c.G1.CKK
 	refs[1] = &c.G1.VKK
 	refs[2] = &c.PublicAndCommitmentCommitted
+	refs[3] = &c.NbConstraints
 	refs = appendRefs(refs, c.G1.A)
 	refs = appendRefs(refs, c.G1.B)
 	refs = appendRefs(refs, c.G2.B)

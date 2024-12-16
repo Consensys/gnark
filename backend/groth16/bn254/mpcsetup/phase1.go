@@ -114,12 +114,12 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
 	betaUpdates[0].Set(betaUpdate)
 	for i := range betaUpdates {
-		alphaUpdates[i].Mul(&tauUpdates[i], betaUpdate)
+		betaUpdates[i].Mul(&tauUpdates[i], betaUpdate)
 	}
 	scaleG1InPlace(c.G1.BetaTau, betaUpdates)
 
 	var betaUpdateI big.Int
-	betaUpdate.SetBigInt(&betaUpdateI)
+	betaUpdate.BigInt(&betaUpdateI)
 	c.G2.Beta.ScalarMultiplication(&c.G2.Beta, &betaUpdateI)
 }
 
