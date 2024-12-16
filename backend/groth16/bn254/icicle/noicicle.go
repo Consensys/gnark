@@ -1,6 +1,6 @@
 //go:build !icicle
 
-package icicle
+package icicle_bn254
 
 import (
 	"fmt"

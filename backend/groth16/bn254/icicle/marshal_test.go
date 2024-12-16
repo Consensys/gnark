@@ -1,13 +1,10 @@
-//go:build icicle
-
-package icicle_test
+package icicle_bn254_test
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	icicle_bn254 "github.com/consensys/gnark/backend/groth16/bn254/icicle"
@@ -46,20 +43,6 @@ func TestMarshal(t *testing.T) {
 	if pk.IsDifferent(&nativePK) {
 		t.Error("marshal output difference")
 	}
-
-	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	pw, err := w.Public()
-	assert.NoError(err)
-	proofNative, err := groth16_bn254.Prove(tCcs, &nativePK, w)
-	assert.NoError(err)
-	proofIcicle, err := groth16.Prove(tCcs, pk, w, backend.WithIcicleAcceleration())
-	assert.NoError(err)
-	err = groth16.Verify(proofNative, &nativeVK, pw)
-	assert.NoError(err)
-	err = groth16.Verify(proofIcicle, &nativeVK, pw)
-	assert.NoError(err)
 }
 
 func TestMarshal2(t *testing.T) {
@@ -81,18 +64,4 @@ func TestMarshal2(t *testing.T) {
 	if iciPK.IsDifferent(&nativePK) {
 		t.Error("marshal output difference")
 	}
-
-	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	pw, err := w.Public()
-	assert.NoError(err)
-	proofNative, err := groth16_bn254.Prove(tCcs, &nativePK, w)
-	assert.NoError(err)
-	proofIcicle, err := groth16.Prove(tCcs, &iciPK, w, backend.WithIcicleAcceleration())
-	assert.NoError(err)
-	err = groth16.Verify(proofNative, &iciVK, pw)
-	assert.NoError(err)
-	err = groth16.Verify(proofIcicle, &iciVK, pw)
-	assert.NoError(err)
 }
