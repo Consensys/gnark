@@ -731,6 +731,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(idx frontend.Vari
 			cmtBexs[j] = &vks[j].CommitmentKeys[i].GSigmaNeg
 		}
 		ret.CommitmentKeys[i].G = *v.pairing.MuxG2(idx, cmtBss...)
+		ret.CommitmentKeys[i].GSigmaNeg = *v.pairing.MuxG2(idx, cmtBexs...)
 	}
 	// switch E
 	Es := make([]*GtEl, len(vks))
