@@ -181,28 +181,32 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return err
 }
 
+func assignCircuit() frontend.Circuit {
+	return sync.OnceValue(func() frontend.Circuit {
+		// Build the witness
+		var preImage, hash fr.Element
+		{
+			m := native_mimc.NewMiMC()
+			m.Write(preImage.Marshal())
+			hash.SetBytes(m.Sum(nil))
+		}
+
+		//return &Circuit{PreImage: preImage, Hash: hash}
+		return &superSimpleCircuit{A: 42}
+	})()
+}
+
 func getTestCircuit(t *testing.T) *cs.R1CS {
 	return sync.OnceValue(func() *cs.R1CS {
-		var circuit superSimpleCircuit //Circuit
-		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &circuit)
+		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, assignCircuit())
 		require.NoError(t, err)
 		return ccs.(*cs.R1CS)
 	})()
 }
 
 func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.VerifyingKey) {
-	// Build the witness
-	var preImage, hash fr.Element
-	{
-		m := native_mimc.NewMiMC()
-		m.Write(preImage.Marshal())
-		hash.SetBytes(m.Sum(nil))
-	}
 
-	//assignment :=Circuit{PreImage: preImage, Hash: hash}
-	assignment := superSimpleCircuit{A: 42}
-
-	witness, err := frontend.NewWitness(&assignment, curve.ID.ScalarField())
+	witness, err := frontend.NewWitness(assignCircuit(), curve.ID.ScalarField())
 	require.NoError(t, err)
 
 	pubWitness, err := witness.Public()
