@@ -57,6 +57,9 @@ func (i *MergeIterator) findLeast() {
 // Peek returns the next smallest value and the index of the slice it came from
 // If the iterator is empty, Peek returns (math.MaxInt, -1)
 func (i *MergeIterator) Peek() (value, index int) {
+	if i.leastIndex == -1 {
+		return math.MaxInt, -1
+	}
 	return i.slices[i.leastIndex][0], i.leastIndex
 }
 
@@ -64,8 +67,8 @@ func (i *MergeIterator) Peek() (value, index int) {
 // If the iterator is empty, Next returns (math.MaxInt, -1)
 func (i *MergeIterator) Next() (value, index int) {
 	value, index = i.Peek()
-	i.findLeast()
 	i.slices[i.leastIndex] = i.slices[i.leastIndex][1:]
+	i.findLeast()
 	return
 }
 

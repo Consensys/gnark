@@ -277,7 +277,7 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	p.Parameters.G2.Sigma = make([]curve.G2Affine, len(commitments))
 
 	for j := range commitments {
-		evals.G1.CKK[i] = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
+		evals.G1.CKK[j] = make([]curve.G1Affine, 0, len(commitments[j].PrivateCommitted))
 		p.Parameters.G2.Sigma[j] = g2
 	}
 
