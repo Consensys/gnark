@@ -251,20 +251,19 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	x2 := &fields_bls12381.E2{A0: *x20, A1: *x21}
 
 	// omit y2 computation
-	// compute λ2 = -λ1-2*p.y/(x2-p.x)
+	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := g2.Ext2.Add(&p.P.Y, &p.P.Y)
 	x2xp := g2.Ext2.Sub(x2, &p.P.X)
 	λ2 := g2.Ext2.DivUnchecked(ypyp, x2xp)
 	λ2 = g2.Ext2.Add(λ1, λ2)
-	λ2 = g2.Ext2.Neg(λ2)
 
-	// compute x3 =λ2²-p.x-x2
+	// compute x3 = (-λ2)²-p.x-x2
 	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p.P.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
 	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p.P.X.A1}, {mone, x21}}, []int{2, 1, 1})
 	x3 := &fields_bls12381.E2{A0: *x30, A1: *x31}
 
-	// compute y3 = λ2*(p.x - x3)-p.y
-	y3 := g2.Ext2.Sub(&p.P.X, x3)
+	// compute y3 = -λ2*(x3 - p.x)-p.y
+	y3 := g2.Ext2.Sub(x3, &p.P.X)
 	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {mone, &λ2.A1, &y3.A1}, {mone, &p.P.Y.A0}}, []int{1, 1, 1})
 	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {mone, &p.P.Y.A1}}, []int{1, 1, 1})
 	y3 = &fields_bls12381.E2{A0: *y30, A1: *y31}
