@@ -333,7 +333,7 @@ func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c 
 	}
 
 	pk, vk := prev.Seal(commons, &evals, beaconChallenge)
-	return &pk, &vk, nil
+	return pk, vk, nil
 }
 
 func (p *Phase2) hash() []byte {

@@ -52,6 +52,8 @@ func (p *Phase1) Contribute() {
 	var (
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
+	fmt.Println("initial tau", p.parameters.G1.Tau[1].String())
+	fmt.Println("challenge", p.Challenge)
 	p.proofs.Tau, tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
 	p.proofs.Alpha, alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
 	p.proofs.Beta, betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)

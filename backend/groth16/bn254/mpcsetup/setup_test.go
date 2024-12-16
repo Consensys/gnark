@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
@@ -23,8 +24,8 @@ import (
 	native_mimc "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 )
 
-// TestSetupCircuit a full integration test of the MPC setup
-func TestSetupCircuit(t *testing.T) {
+// TestAll a full integration test of the MPC setup
+func TestAll(t *testing.T) {
 	const (
 		nbContributionsPhase1 = 3
 		nbContributionsPhase2 = 3
@@ -33,9 +34,7 @@ func TestSetupCircuit(t *testing.T) {
 	assert := require.New(t)
 
 	// Compile the circuit
-	var circuit Circuit
-	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &circuit)
-	assert.NoError(err)
+	ccs := getTestCircuit(t)
 
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
@@ -50,7 +49,7 @@ func TestSetupCircuit(t *testing.T) {
 
 	serialize := func(v io.WriterTo) []byte {
 		bb.Reset()
-		_, err = v.WriteTo(&bb)
+		_, err := v.WriteTo(&bb)
 		assert.NoError(err)
 		return bb.Bytes()
 	}
@@ -85,12 +84,10 @@ func TestSetupCircuit(t *testing.T) {
 		srsCommons = commonsRead
 	}
 
-	r1cs := ccs.(*cs.R1CS)
-
 	// Prepare for phase-2
 	for i := range phase2 {
 		if i == 0 {
-			p2.Initialize(r1cs, &srsCommons)
+			p2.Initialize(ccs, &srsCommons)
 		}
 		p2.Contribute()
 		serialized[i] = serialize(&p2)
@@ -101,29 +98,10 @@ func TestSetupCircuit(t *testing.T) {
 		deserialize(phase2[i], serialized[i])
 	}
 
-	pk, vk, err := VerifyPhase2(r1cs, &srsCommons, []byte("testing phase2"), phase2[:]...)
+	pk, vk, err := VerifyPhase2(ccs, &srsCommons, []byte("testing phase2"), phase2[:]...)
 	assert.NoError(err)
 
-	// Build the witness
-	var preImage, hash fr.Element
-	{
-		m := native_mimc.NewMiMC()
-		m.Write(preImage.Marshal())
-		hash.SetBytes(m.Sum(nil))
-	}
-
-	witness, err := frontend.NewWitness(&Circuit{PreImage: preImage, Hash: hash}, curve.ID.ScalarField())
-	assert.NoError(err)
-
-	pubWitness, err := witness.Public()
-	assert.NoError(err)
-
-	// groth16: ensure proof is verified
-	proof, err := groth16.Prove(ccs, pk, witness)
-	assert.NoError(err)
-
-	err = groth16.Verify(proof, vk, pubWitness)
-	assert.NoError(err)
+	proveVerifyCircuit(t, pk, vk)
 }
 
 /*
@@ -201,4 +179,36 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	api.AssertIsDifferent(c, 0)
 
 	return err
+}
+
+func getTestCircuit(t *testing.T) *cs.R1CS {
+	return sync.OnceValue(func() *cs.R1CS {
+		var circuit Circuit
+		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &circuit)
+		require.NoError(t, err)
+		return ccs.(*cs.R1CS)
+	})()
+}
+
+func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+	// Build the witness
+	var preImage, hash fr.Element
+	{
+		m := native_mimc.NewMiMC()
+		m.Write(preImage.Marshal())
+		hash.SetBytes(m.Sum(nil))
+	}
+
+	witness, err := frontend.NewWitness(&Circuit{PreImage: preImage, Hash: hash}, curve.ID.ScalarField())
+	require.NoError(t, err)
+
+	pubWitness, err := witness.Public()
+	require.NoError(t, err)
+
+	// groth16: ensure proof is verified
+	proof, err := groth16.Prove(getTestCircuit(t), pk, witness)
+	require.NoError(t, err)
+
+	err = groth16.Verify(proof, vk, pubWitness)
+	require.NoError(t, err)
 }

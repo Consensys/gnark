@@ -2,6 +2,7 @@ package mpcsetup
 
 import (
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -48,4 +49,26 @@ func TestContributionPok(t *testing.T) {
 
 	require.NoError(t, proofBack.verify(pair{x0, nil}, pair{x1, nil}, []byte(pokChallenge), pokDst))
 	require.NoError(t, proofBack.verify(pair{x0, &y0}, pair{x1, &y1}, []byte(pokChallenge), pokDst))
+}
+
+// TestSetupBeaconOnly tests the setup/key extraction
+// as well as the random beacon contribution
+// without any untrusted contributors
+func TestSetupBeaconOnly(t *testing.T) {
+
+	// Compile the circuit
+	ccs := getTestCircuit(t)
+	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
+
+	var (
+		p1 Phase1
+		p2 Phase2
+	)
+	p1.Initialize(domainSize)
+	commons := p1.Seal([]byte("beacon 1"))
+
+	evals := p2.Initialize(ccs, &commons)
+	pk, vk := p2.Seal(&commons, &evals, []byte("beacon 2"))
+
+	proveVerifyCircuit(t, pk, vk)
 }

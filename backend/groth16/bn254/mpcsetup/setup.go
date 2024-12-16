@@ -9,7 +9,8 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
-	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/backend/groth16"
+	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 )
 
 // Seal performs the final contribution and outputs the proving and verifying keys.
@@ -19,13 +20,18 @@ import (
 // The inner workings of the random beacon are out of scope.
 // WARNING: Seal modifies p, just as Contribute does.
 // The result will be an INVALID Phase1 object, since no proof of correctness is produced.
-func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChallenge []byte) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChallenge []byte) (groth16.ProvingKey, groth16.VerifyingKey) {
 
 	// final contributions
 	contributions := beaconContributions(p.hash(), beaconChallenge, 1+len(p.Sigmas))
 	p.update(&contributions[0], contributions[1:])
 
 	_, _, _, g2 := curve.Generators()
+
+	var (
+		pk groth16Impl.ProvingKey
+		vk groth16Impl.VerifyingKey
+	)
 
 	// Initialize PK
 	pk.Domain = *fft.NewDomain(uint64(len(evals.G1.A)))
@@ -105,5 +111,5 @@ func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChall
 		panic(err)
 	}
 
-	return pk, vk
+	return &pk, &vk
 }
