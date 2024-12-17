@@ -99,8 +99,13 @@ func TestSetupBeaconOnly(t *testing.T) {
 	fmt.Println("mpc proof verified")
 }
 
-func TestPhase1Contribute(t *testing.T) {
+// TestNoContributors tests the beacon and some of the serialization
+func TestNoContributors(t *testing.T) {
+	testAll(t, 0, 0)
+}
 
+func TestOnePhase1Contribute(t *testing.T) {
+	testAll(t, 1, 0)
 }
 
 func TestPhase1Seal(t *testing.T) {

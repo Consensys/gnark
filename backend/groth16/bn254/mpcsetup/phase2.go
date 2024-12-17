@@ -169,6 +169,7 @@ func (p *Phase2) Contribute() {
 // Initialize is to be run by the coordinator
 // It involves no coin tosses. A verifier should
 // simply rerun all the steps
+// TODO @Tabaie option to only compute the phase 2 info and not the evaluations, for a contributor
 func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluations {
 
 	size := len(commons.G1.AlphaTau)

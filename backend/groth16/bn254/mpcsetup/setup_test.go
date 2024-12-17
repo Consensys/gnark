@@ -26,11 +26,10 @@ import (
 
 // TestAll a full integration test of the MPC setup
 func TestAll(t *testing.T) {
-	const (
-		nbContributionsPhase1 = 3
-		nbContributionsPhase2 = 3
-	)
+	testAll(t, 3, 3)
+}
 
+func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 	assert := require.New(t)
 
 	// Compile the circuit
@@ -39,13 +38,13 @@ func TestAll(t *testing.T) {
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
 	var (
-		bb         bytes.Buffer // simulating network communications
-		serialized [max(nbContributionsPhase1, nbContributionsPhase2)][]byte
-		phase1     [nbContributionsPhase1]*Phase1
-		p1         Phase1
-		phase2     [nbContributionsPhase2]*Phase2
-		p2         Phase2
+		bb bytes.Buffer // simulating network communications
+		p1 Phase1
+		p2 Phase2
 	)
+	serialized := make([][]byte, max(nbContributionsPhase1, nbContributionsPhase2))
+	phase1 := make([]*Phase1, nbContributionsPhase1)
+	phase2 := make([]*Phase2, nbContributionsPhase2)
 
 	serialize := func(v io.WriterTo) []byte {
 		bb.Reset()
@@ -192,7 +191,6 @@ func assignCircuit() frontend.Circuit {
 		}
 
 		return &Circuit{PreImage: preImage, Hash: hash}
-		//return &superSimpleCircuit{A: 42}
 	})()
 }
 
@@ -218,13 +216,4 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 
 	err = groth16.Verify(proof, vk, pubWitness)
 	require.NoError(t, err)
-}
-
-type superSimpleCircuit struct {
-	A frontend.Variable `gnark:",public"`
-}
-
-func (circuit *superSimpleCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(circuit.A, 42)
-	return nil
 }
