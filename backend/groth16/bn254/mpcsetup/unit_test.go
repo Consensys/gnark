@@ -291,13 +291,13 @@ func TestLinearCombinationsG1(t *testing.T) {
 
 		var res curve.G1Affine
 
-		_, err := res.MultiExp(A, shiftedPowers, multiExpConfig)
+		_, err := res.MultiExp(A, truncatedPowers, multiExpConfig)
 		require.NoError(t, err)
-		require.Equal(t, res, shifted)
+		require.Equal(t, res, truncated, "truncated")
 
-		_, err = res.MultiExp(A, truncatedPowers, multiExpConfig)
+		_, err = res.MultiExp(A, shiftedPowers, multiExpConfig)
 		require.NoError(t, err)
-		require.Equal(t, res, truncated)
+		require.Equal(t, res, shifted, "shifted")
 	}
 
 	_, _, g1, _ := curve.Generators()
@@ -312,6 +312,14 @@ func TestLinearCombinationsG1(t *testing.T) {
 		fmt.Printf("%dg: %d 0x%x\n", i, acc.X[0], acc.X[0])
 		acc.Add(&acc, &g1)
 	}
+
+	testLinearCombinationsG1(
+		[]int{3},
+		frs(1, 1, 1),
+		frs(1, 1, 0),
+		frs(0, 1, 1),
+		infty, infty, g1,
+	)
 
 	testLinearCombinationsG1(
 		[]int{3},

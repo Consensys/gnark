@@ -128,7 +128,6 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 	for i := range ends {
 		powers[ends[i]-1].SetZero()
 	}
-	copy(powers[1:], powers)
 
 	msmCfg := ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}
 
@@ -160,7 +159,7 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 	A[2*len(ends)] = A[prevEnd]
 
 	// TODO @Tabaie O(1) MSM worth it?
-	if _, err := truncated.MultiExp(A[:2*len(ends)+1], powers[:2*len(ends)+1], msmCfg); err != nil {
+	if _, err := shifted.MultiExp(A[:2*len(ends)+1], powers[:2*len(ends)+1], msmCfg); err != nil {
 		panic(err)
 	}
 
