@@ -154,6 +154,7 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 		powers[2*i+1] = powers[ends[i]-2]
 		A[2*i] = A[prevEnd]
 		A[2*i+1] = A[ends[i]-1]
+		prevEnd = ends[i]
 	}
 	powers[2*len(ends)].Neg(&rInvNeg) // r⁻¹: coefficient for truncated
 	A[2*len(ends)] = truncated

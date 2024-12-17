@@ -304,14 +304,24 @@ func TestLinearCombinationsG1(t *testing.T) {
 	var infty curve.G1Affine
 
 	for i := range 10 {
-		x0 := fr.NewElement(uint64(i - 5))[0]
-		fmt.Printf("%d: %d 0x%x\n", i-5, x0, x0)
+		var x0 fr.Element
+		x0.SetInt64(int64(i - 5))
+		fmt.Printf("%d: %d 0x%x\n", i-5, x0[0], x0[0])
 	}
 	var acc curve.G1Affine
-	for i := range 5 {
-		fmt.Printf("%dg: %d 0x%x\n", i, acc.X[0], acc.X[0])
+	acc.Neg(&g1)
+	for i := range 6 {
+		fmt.Printf("%dg: %d 0x%x\n", i-1, acc.Y[0], acc.Y[0])
 		acc.Add(&acc, &g1)
 	}
+	
+	testLinearCombinationsG1(
+		[]int{3},
+		frs(1, -1, 1),
+		frs(1, -1, 0),
+		frs(0, 1, -1),
+		infty, g1, infty,
+	)
 
 	testLinearCombinationsG1(
 		[]int{3},
@@ -345,6 +355,22 @@ func TestLinearCombinationsG1(t *testing.T) {
 	)
 
 	testLinearCombinationsG1(
+		[]int{3, 6},
+		frs(1, 1, 1, 1, 1, 1),
+		frs(1, 1, 0, 1, 1, 0),
+		frs(0, 1, 1, 0, 1, 1),
+		g1, infty, infty, infty, infty, infty,
+	)
+
+	testLinearCombinationsG1(
+		[]int{3, 6},
+		frs(1, -1, 1, 1, -1, 1),
+		frs(1, -1, 0, 1, -1, 0),
+		frs(0, 1, -1, 0, 1, -1),
+		g1, infty, infty, infty, infty, infty,
+	)
+
+	testLinearCombinationsG1(
 		[]int{4, 7},
 		frs(1, 2, 4, 8, 3, 6, 12),
 		frs(1, 2, 4, 0, 3, 6, 0),
@@ -355,7 +381,7 @@ func TestLinearCombinationsG1(t *testing.T) {
 func frs(x ...int) []fr.Element {
 	res := make([]fr.Element, len(x))
 	for i := range res {
-		res[i].SetUint64(uint64(x[i]))
+		res[i].SetInt64(int64(x[i]))
 	}
 	return res
 }
