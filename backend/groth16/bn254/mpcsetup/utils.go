@@ -156,7 +156,7 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 		A[2*i+1] = A[ends[i]-1]
 	}
 	powers[2*len(ends)].Neg(&rInvNeg) // r⁻¹: coefficient for truncated
-	A[2*len(ends)] = A[prevEnd]
+	A[2*len(ends)] = truncated
 
 	// TODO @Tabaie O(1) MSM worth it?
 	if _, err := shifted.MultiExp(A[:2*len(ends)+1], powers[:2*len(ends)+1], msmCfg); err != nil {

@@ -318,6 +318,14 @@ func TestLinearCombinationsG1(t *testing.T) {
 		frs(1, 1, 1),
 		frs(1, 1, 0),
 		frs(0, 1, 1),
+		infty, g1, infty,
+	)
+
+	testLinearCombinationsG1(
+		[]int{3},
+		frs(1, 1, 1),
+		frs(1, 1, 0),
+		frs(0, 1, 1),
 		infty, infty, g1,
 	)
 
