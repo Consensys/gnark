@@ -303,18 +303,6 @@ func TestLinearCombinationsG1(t *testing.T) {
 	_, _, g1, _ := curve.Generators()
 	var infty curve.G1Affine
 
-	for i := range 10 {
-		var x0 fr.Element
-		x0.SetInt64(int64(i - 5))
-		fmt.Printf("%d: %d 0x%x\n", i-5, x0[0], x0[0])
-	}
-	var acc curve.G1Affine
-	acc.Neg(&g1)
-	for i := range 6 {
-		fmt.Printf("%dg: %d 0x%x\n", i-1, acc.Y[0], acc.Y[0])
-		acc.Add(&acc, &g1)
-	}
-	
 	testLinearCombinationsG1(
 		[]int{3},
 		frs(1, -1, 1),
