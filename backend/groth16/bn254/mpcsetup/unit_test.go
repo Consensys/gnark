@@ -108,8 +108,11 @@ func TestOnePhase1Contribute(t *testing.T) {
 	testAll(t, 1, 0)
 }
 
-func TestPhase1Seal(t *testing.T) {
-
+func TestUpdateCheck(t *testing.T) {
+	_, _, g1, g2 := curve.Generators()
+	g1Slice := []curve.G1Affine{g1, g1, g1}
+	g2Slice := []curve.G2Affine{g2, g2}
+	require.NoError(t, multiValueUpdateCheck(g1Slice, g2Slice, g1Slice, g1Slice))
 }
 
 func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {

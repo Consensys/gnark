@@ -187,6 +187,17 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
 
+	return multiValueUpdateCheck(
+		p.parameters.G1.Tau,
+		p.parameters.G2.Tau,
+		p.parameters.G1.AlphaTau,
+		p.parameters.G1.BetaTau,
+	)
+}
+
+// multiValueUpdateCheck checks that aᵢ₊₁/aᵢ = bⱼ₊₁/bⱼ = cₖ₊₁/cₖ = dₗ₊₁/dₗ for all applicable i,j,k,l
+// in other words it checks that there is x such that aᵢ = xʲa₀, bⱼ = xʲb₀, cₖ = xʲc₀, dₗ = xʲd₀
+func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c []curve.G1Affine, d []curve.G1Affine) error {
 	// lemma: let K be a field and
 	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
 	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
@@ -227,21 +238,22 @@ func (p *Phase1) Verify(next *Phase1) error {
 	//    4. d₀ = β
 	// and so the desired results follow
 
-	ends := partialSums(len(next.parameters.G1.Tau), len(next.parameters.G1.AlphaTau), len(next.parameters.G1.BetaTau))
+	ends := partialSums(len(a), len(c), len(d))
 
 	g1s := make([]curve.G1Affine, 0, ends[len(ends)-1])
-	g1s = append(g1s, next.parameters.G1.Tau...)
-	g1s = append(g1s, next.parameters.G1.AlphaTau...)
-	g1s = append(g1s, next.parameters.G1.BetaTau...)
+	g1s = append(g1s, a...)
+	g1s = append(g1s, c...)
+	g1s = append(g1s, d...)
 
 	g1Num, g1Denom := linearCombinationsG1(g1s, bivariateRandomMonomials(ends...), ends)
-	g2Num, g2Denom := linearCombinationsG2(next.parameters.G2.Tau, linearCombCoeffs(len(next.parameters.G2.Tau)))
+	g2Num, g2Denom := linearCombinationsG2(b, linearCombCoeffs(len(b)))
 
 	if !sameRatioUnsafe(g1Num, g1Denom, g2Num, g2Denom) {
-		return errors.New("value update check failed")
+		return errors.New("multi-value update check failed")
 	}
 
 	return nil
+
 }
 
 func (p *Phase1) hash() []byte {
