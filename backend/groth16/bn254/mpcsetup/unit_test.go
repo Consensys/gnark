@@ -272,7 +272,7 @@ func TestBivariateRandomMonomials(t *testing.T) {
 
 func TestLinearCombinationsG1(t *testing.T) {
 
-	testLinearCombinationsG1 := func(ends []int, powers, truncatedPowers, shiftedPowers []fr.Element, A ...curve.G1Affine) {
+	test := func(ends []int, powers, truncatedPowers, shiftedPowers []fr.Element, A ...curve.G1Affine) {
 
 		multiExpConfig := ecc.MultiExpConfig{
 			NbTasks: 1,
@@ -300,65 +300,65 @@ func TestLinearCombinationsG1(t *testing.T) {
 		require.Equal(t, res, shifted, "shifted")
 	}
 
-	_, _, g1, _ := curve.Generators()
+	_, _, g, _ := curve.Generators()
 	var infty curve.G1Affine
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3},
 		frs(1, -1, 1),
 		frs(1, -1, 0),
 		frs(0, 1, -1),
-		infty, g1, infty,
+		infty, g, infty,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3},
 		frs(1, 1, 1),
 		frs(1, 1, 0),
 		frs(0, 1, 1),
-		infty, g1, infty,
+		infty, g, infty,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3},
 		frs(1, 1, 1),
 		frs(1, 1, 0),
 		frs(0, 1, 1),
-		infty, infty, g1,
+		infty, infty, g,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3},
 		frs(1, 1, 1),
 		frs(1, 1, 0),
 		frs(0, 1, 1),
-		g1, infty, infty,
+		g, infty, infty,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3},
 		frs(1, 2, 4),
 		frs(1, 2, 0),
 		frs(0, 1, 2),
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3, 6},
 		frs(1, 1, 1, 1, 1, 1),
 		frs(1, 1, 0, 1, 1, 0),
 		frs(0, 1, 1, 0, 1, 1),
-		g1, infty, infty, infty, infty, infty,
+		g, infty, infty, infty, infty, infty,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{3, 6},
 		frs(1, -1, 1, 1, -1, 1),
 		frs(1, -1, 0, 1, -1, 0),
 		frs(0, 1, -1, 0, 1, -1),
-		g1, infty, infty, infty, infty, infty,
+		g, infty, infty, infty, infty, infty,
 	)
 
-	testLinearCombinationsG1(
+	test(
 		[]int{4, 7},
 		frs(1, 2, 4, 8, 3, 6, 12),
 		frs(1, 2, 4, 0, 3, 6, 0),
@@ -366,10 +366,53 @@ func TestLinearCombinationsG1(t *testing.T) {
 	)
 }
 
-func frs(x ...int) []fr.Element {
-	res := make([]fr.Element, len(x))
-	for i := range res {
-		res[i].SetInt64(int64(x[i]))
+func TestLinearCombinationsG2(t *testing.T) {
+	test := func(powers []fr.Element, A ...curve.G2Affine) {
+
+		multiExpConfig := ecc.MultiExpConfig{
+			NbTasks: 1,
+		}
+
+		if len(A) == 0 {
+			A = make([]curve.G2Affine, len(powers))
+			var err error
+			for i := range A {
+				A[i], err = curve.RandomOnG2()
+				require.NoError(t, err)
+			}
+		}
+
+		truncated, shifted := linearCombinationsG2(slices.Clone(A), powers)
+
+		truncatedPowers := make([]fr.Element, len(powers))
+		copy(truncatedPowers[:len(truncatedPowers)-1], powers)
+		shiftedPowers := make([]fr.Element, len(powers))
+		copy(shiftedPowers[1:], powers)
+
+		var res curve.G2Affine
+
+		_, err := res.MultiExp(A, truncatedPowers, multiExpConfig)
+		require.NoError(t, err)
+		require.Equal(t, res, truncated, "truncated")
+
+		_, err = res.MultiExp(A, shiftedPowers, multiExpConfig)
+		require.NoError(t, err)
+		require.Equal(t, res, shifted, "shifted")
 	}
-	return res
+
+	_, _, _, g := curve.Generators()
+	var infty curve.G2Affine
+
+	test(
+		frs(1, 2, 4),
+		infty, infty, g,
+	)
+
+	test(
+		frs(1, -1, 1),
+	)
+
+	test(
+		frs(1, 3, 9, 27, 81),
+	)
 }

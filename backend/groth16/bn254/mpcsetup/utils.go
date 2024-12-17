@@ -168,20 +168,31 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 }
 
 // linearCombinationsG2 assumes, and does not check, that rPowers[i+1] = rPowers[1].rPowers[i] for all applicable i
-// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers)
-// the results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
+// Also assumed that 3 ≤ N ≔ len(A) ≤ len(rPowers).
+// The results are truncated = ∑_{i=0}^{N-2} rⁱAᵢ, shifted = ∑_{i=1}^{N-1} rⁱAᵢ
 func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, shifted curve.G2Affine) {
-	// the common section, 1 to N-2
-	var common curve.G2Affine
-	if _, err := common.MultiExp(A[1:len(A)-1], rPowers[:len(A)-2], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil { // A[1] + r.A[2] + ... + rᴺ⁻³.A[N-2]
+
+	N := len(A)
+
+	if _, err := shifted.MultiExp(A[1:], rPowers[:N-1], ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}); err != nil {
 		panic(err)
 	}
-	var c big.Int
-	rPowers[1].BigInt(&c)
-	truncated.ScalarMultiplication(&common, &c).Add(&truncated, &A[0]) // A[0] + r.A[1] + r².A[2] + ... + rᴺ⁻².A[N-2]
 
-	rPowers[len(A)-1].BigInt(&c)
-	shifted.ScalarMultiplication(&A[len(A)-1], &c).Add(&shifted, &common)
+	// truncated = r.shifted - rᴺ⁻¹.A[N-1] + A[0]
+	var (
+		x fr.Element
+		i big.Int
+	)
+	x.Neg(&rPowers[N-2])
+	x.BigInt(&i)
+	truncated.
+		ScalarMultiplication(&A[N-1], &i). // - rᴺ⁻².A[N-1]
+		Add(&truncated, &shifted)          // shifted - rᴺ⁻².A[N-1]
+
+	rPowers[1].BigInt(&i)
+	truncated.
+		ScalarMultiplication(&truncated, &i). // r.shifted - rᴺ⁻¹.A[N-1]
+		Add(&truncated, &A[0])                // r.shifted - rᴺ⁻¹.A[N-1] + A[0]
 
 	return
 }
