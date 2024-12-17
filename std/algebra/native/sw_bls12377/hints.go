@@ -1,7 +1,7 @@
 package sw_bls12377
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -27,10 +27,10 @@ func init() {
 
 func decomposeScalarG1Simple(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 1 {
-		return fmt.Errorf("expecting one input")
+		return errors.New("expecting one input")
 	}
 	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
+		return errors.New("expecting two outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
@@ -42,10 +42,10 @@ func decomposeScalarG1Simple(scalarField *big.Int, inputs []*big.Int, outputs []
 
 func decomposeScalarG1(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 1 {
-		return fmt.Errorf("expecting one input")
+		return errors.New("expecting one input")
 	}
 	if len(outputs) != 3 {
-		return fmt.Errorf("expecting three outputs")
+		return errors.New("expecting three outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
@@ -69,10 +69,10 @@ func decomposeScalarG1(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 
 func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 1 {
-		return fmt.Errorf("expecting one input")
+		return errors.New("expecting one input")
 	}
 	if len(outputs) != 3 {
-		return fmt.Errorf("expecting three outputs")
+		return errors.New("expecting three outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
@@ -96,10 +96,10 @@ func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 
 func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 3 {
-		return fmt.Errorf("expecting three inputs")
+		return errors.New("expecting three inputs")
 	}
 	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
+		return errors.New("expecting two outputs")
 	}
 
 	// compute the resulting point [s]Q
@@ -114,10 +114,10 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 
 func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return fmt.Errorf("expecting two input")
+		return errors.New("expecting two input")
 	}
 	if len(outputs) != 5 {
-		return fmt.Errorf("expecting five outputs")
+		return errors.New("expecting five outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	glvBasis := new(ecc.Lattice)
@@ -168,10 +168,10 @@ func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 
 func halfGCDEisensteinSigns(scalarField *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return fmt.Errorf("expecting two input")
+		return errors.New("expecting two input")
 	}
 	if len(outputs) != 5 {
-		return fmt.Errorf("expecting five outputs")
+		return errors.New("expecting five outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	glvBasis := new(ecc.Lattice)

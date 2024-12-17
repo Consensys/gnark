@@ -2,7 +2,6 @@ package twistededwards
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 
@@ -69,10 +68,10 @@ func decomposeScalar(scalarField *big.Int, inputs []*big.Int, res []*big.Int) er
 
 func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return fmt.Errorf("expecting two inputs")
+		return errors.New("expecting two inputs")
 	}
 	if len(outputs) != 4 {
-		return fmt.Errorf("expecting four outputs")
+		return errors.New("expecting four outputs")
 	}
 	glvBasis := new(ecc.Lattice)
 	ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
@@ -96,10 +95,10 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 
 func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 4 {
-		return fmt.Errorf("expecting four inputs")
+		return errors.New("expecting four inputs")
 	}
 	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
+		return errors.New("expecting two outputs")
 	}
 	// compute the resulting point [s]Q
 	if field.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
@@ -162,7 +161,7 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 		P.X.BigInt(outputs[0])
 		P.Y.BigInt(outputs[1])
 	} else {
-		return fmt.Errorf("scalarMulHint: unknown curve")
+		return errors.New("scalarMulHint: unknown curve")
 	}
 	return nil
 }

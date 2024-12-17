@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
-// MultipleCommitmentCircuit is an example circuit showing usage of multiple
+// MultipleCommitmentsCircuit is an example circuit showing usage of multiple
 // independent commitments in-circuit.
 type MultipleCommitmentsCircuit struct {
 	Secrets [4]frontend.Variable
