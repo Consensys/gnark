@@ -453,3 +453,231 @@ func TestBW6InBN254Commitment(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type innerDummyCircuit struct {
+	nbConstraints int
+	SecretInput   frontend.Variable `gnark:",secret"`
+	PublicInputs  frontend.Variable `gnark:",public"`
+}
+
+func (c *innerDummyCircuit) Define(api frontend.API) error {
+	res := api.Mul(c.SecretInput, c.SecretInput)
+	for i := 2; i < c.nbConstraints; i++ {
+		res = api.Mul(res, c.SecretInput)
+	}
+	api.AssertIsEqual(c.PublicInputs, res)
+	return nil
+}
+
+func getInnerDummy(assert *test.Assert, main constraint.ConstraintSystem, field *big.Int) (
+	constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof,
+) {
+	dummyCcs, err := frontend.Compile(field, r1cs.NewBuilder, &innerDummyCircuit{
+		nbConstraints: main.GetNbConstraints(),
+	})
+	assert.NoError(err)
+	dummyPK, dummyVK, err := groth16.Setup(dummyCcs)
+	assert.NoError(err)
+
+	// dummy proof
+	dummyAssignment := &innerDummyCircuit{
+		SecretInput:  1,
+		PublicInputs: 1,
+	}
+	dummyWitness, err := frontend.NewWitness(dummyAssignment, field)
+	assert.NoError(err)
+	dummyProof, err := groth16.Prove(dummyCcs, dummyPK, dummyWitness)
+	assert.NoError(err)
+	dummyPubWitness, err := dummyWitness.Public()
+	assert.NoError(err)
+	err = groth16.Verify(dummyProof, dummyVK, dummyPubWitness)
+	assert.NoError(err)
+	return dummyCcs, dummyVK, dummyPubWitness, dummyProof
+}
+
+func getInnersWithDummies(assert *test.Assert, main constraint.ConstraintSystem, selectors []int, field *big.Int) (
+	[]constraint.ConstraintSystem, []groth16.VerifyingKey, []witness.Witness, []groth16.Proof,
+) {
+	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, field)
+	dummyCcs, dummyVK, dummyWitness, dummyProof := getInnerDummy(assert, main, field)
+	var (
+		ccss      []constraint.ConstraintSystem
+		witnesses []witness.Witness
+		proofs    []groth16.Proof
+	)
+	for _, selector := range selectors {
+		if selector == 1 {
+			ccss = append(ccss, innerCcs)
+			witnesses = append(witnesses, innerWitness)
+			proofs = append(proofs, innerProof)
+		} else {
+			ccss = append(ccss, dummyCcs)
+			witnesses = append(witnesses, dummyWitness)
+			proofs = append(proofs, dummyProof)
+		}
+	}
+	return ccss, []groth16.VerifyingKey{dummyVK, innerVK}, witnesses, proofs
+}
+
+type OuterCircuitMulti[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Selectors      []frontend.Variable
+	Proofs         []Proof[G1El, G2El]
+	vks            []VerifyingKey[G1El, G2El, GtEl] `gnark:"-"`
+	InnerWitnesses []Witness[FR]
+}
+
+func (c *OuterCircuitMulti[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	for i, selector := range c.Selectors {
+		vk, err := verifier.SwitchVerificationKey(selector, c.vks)
+		if err != nil {
+			return fmt.Errorf("switch vk: %w", err)
+		}
+		if err := verifier.AssertProof(vk, c.Proofs[i], c.InnerWitnesses[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestMultipleBN254InBN254(t *testing.T) {
+	assert := test.NewAssert(t)
+	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &InnerCircuit{})
+	assert.NoError(err)
+	// generate four circuits with two inner and two dummy (1 = inner, 0 = dummy)
+	selector := []int{1, 0, 0, 1}
+	innerCcss, innerVks, innerWitnesses, innerProofs := getInnersWithDummies(assert, innerCcs, selector, ecc.BN254.ScalarField())
+	// generate outer and dummy vks
+	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVks[1])
+	assert.NoError(err)
+	circuitDummyVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVks[0])
+	assert.NoError(err)
+	// parse the placeholders, witnesses and proofs
+	var (
+		placeholders []Witness[sw_bn254.ScalarField]
+		witnesses    []Witness[sw_bn254.ScalarField]
+		proofs       []Proof[sw_bn254.G1Affine, sw_bn254.G2Affine]
+	)
+	for i, ccs := range innerCcss {
+		placeholders = append(placeholders, PlaceholderWitness[sw_bn254.ScalarField](ccs))
+		circuiWitness, err := ValueOfWitness[sw_bn254.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+		witnesses = append(witnesses, circuiWitness)
+		proof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerProofs[i])
+		assert.NoError(err)
+		proofs = append(proofs, proof)
+	}
+	// construct the outer circuit with the placeholders and fixed vks
+	outerCircuit := &OuterCircuitMulti[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		InnerWitnesses: placeholders,
+		vks: []VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+			circuitDummyVk,
+			circuitVk,
+		},
+	}
+	// construct the outer assignment with the witnesses, proofs and circuit selectors
+	outerAssignment := &OuterCircuitMulti[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Selectors:      []frontend.Variable{1, 0, 0, 1},
+		InnerWitnesses: witnesses,
+		Proofs:         proofs,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestMultipleBLS12InBW6(t *testing.T) {
+	assert := test.NewAssert(t)
+	innerCcs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &InnerCircuit{})
+	assert.NoError(err)
+	// generate four circuits with two inner and two dummy (1 = inner, 0 = dummy)
+	selector := []int{1, 0, 0, 1}
+	innerCcss, innerVks, innerWitnesses, innerProofs := getInnersWithDummies(assert, innerCcs, selector, ecc.BLS12_377.ScalarField())
+	// generate outer and dummy vks
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVks[1])
+	assert.NoError(err)
+	circuitDummyVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVks[0])
+	assert.NoError(err)
+	// parse the placeholders, witnesses and proofs
+	var (
+		placeholders []Witness[sw_bls12377.ScalarField]
+		witnesses    []Witness[sw_bls12377.ScalarField]
+		proofs       []Proof[sw_bls12377.G1Affine, sw_bls12377.G2Affine]
+	)
+	for i, ccs := range innerCcss {
+		placeholders = append(placeholders, PlaceholderWitness[sw_bls12377.ScalarField](ccs))
+		circuiWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+		witnesses = append(witnesses, circuiWitness)
+		proof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProofs[i])
+		assert.NoError(err)
+		proofs = append(proofs, proof)
+	}
+	// construct the outer circuit with the placeholders and fixed vks
+	outerCircuit := &OuterCircuitMulti[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitnesses: placeholders,
+		vks: []VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			circuitDummyVk,
+			circuitVk,
+		},
+	}
+	// construct the outer assignment with the witnesses, proofs and circuit selectors
+	outerAssignment := &OuterCircuitMulti[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Selectors:      []frontend.Variable{1, 0, 0, 1},
+		InnerWitnesses: witnesses,
+		Proofs:         proofs,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+}
+
+func TestMultipleBW6InBN254(t *testing.T) {
+	assert := test.NewAssert(t)
+	innerCcs, err := frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &InnerCircuit{})
+	assert.NoError(err)
+
+	// generate four circuits with two inner and two dummy (1 = inner, 0 = dummy)
+	selector := []int{1, 0, 0, 1}
+	innerCcss, innerVks, innerWitnesses, innerProofs := getInnersWithDummies(assert, innerCcs, selector, ecc.BW6_761.ScalarField())
+
+	// generate outer and dummy vks
+	circuitVk, err := ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl](innerVks[1])
+	assert.NoError(err)
+	circuitDummyVk, err := ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl](innerVks[0])
+	assert.NoError(err)
+
+	// parse the placeholders, witnesses and proofs
+	var (
+		placeholders []Witness[sw_bw6761.ScalarField]
+		witnesses    []Witness[sw_bw6761.ScalarField]
+		proofs       []Proof[sw_bw6761.G1Affine, sw_bw6761.G2Affine]
+	)
+	for i, ccs := range innerCcss {
+		placeholders = append(placeholders, PlaceholderWitness[sw_bw6761.ScalarField](ccs))
+		circuiWitness, err := ValueOfWitness[sw_bw6761.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+		witnesses = append(witnesses, circuiWitness)
+		proof, err := ValueOfProof[sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProofs[i])
+		assert.NoError(err)
+		proofs = append(proofs, proof)
+	}
+	// construct the outer circuit with the placeholders and fixed vks
+	outerCircuit := &OuterCircuitMulti[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitnesses: placeholders,
+		vks: []VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+			circuitDummyVk,
+			circuitVk,
+		},
+	}
+	// construct the outer assignment with the witnesses, proofs and circuit selectors
+	outerAssignment := &OuterCircuitMulti[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		Selectors:      []frontend.Variable{1, 0, 0, 1},
+		InnerWitnesses: witnesses,
+		Proofs:         proofs,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
