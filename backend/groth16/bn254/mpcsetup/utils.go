@@ -17,6 +17,8 @@ import (
 	"runtime"
 )
 
+// TODO @Tabaie use batch scalar multiplication whenever applicable
+
 func bitReverse[T any](a []T) {
 	n := uint64(len(a))
 	nn := uint64(64 - bits.TrailingZeros64(n))
@@ -114,8 +116,8 @@ func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 //	  + powers[ends[0]].A[ends[0]+1]  + ... + powers[ends[1]-2].A[ends[1]-1]
 //	    ....       (shifted)
 //
-// It is assumed without checking that powers[i+1] = powers[i]*powers[1] unless i+1 is a partial sum of sizes
-// the slices powers and A will be modified
+// It is assumed without checking that powers[i+1] = powers[i]*powers[1] unless i+1 is a partial sum of sizes.
+// The slices powers and A will be modified
 func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (truncated, shifted curve.G1Affine) {
 	if ends[len(ends)-1] != len(A) || len(A) != len(powers) {
 		panic("lengths mismatch")

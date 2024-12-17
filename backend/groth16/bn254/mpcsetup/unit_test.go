@@ -269,3 +269,67 @@ func TestBivariateRandomMonomials(t *testing.T) {
 		prevEnd = ends[i]
 	}
 }
+
+func TestLinearCombinationsG1(t *testing.T) {
+
+	testLinearCombinationsG1 := func(ends []int, powers, truncatedPowers, shiftedPowers []fr.Element, A ...curve.G1Affine) {
+
+		multiExpConfig := ecc.MultiExpConfig{
+			NbTasks: 1,
+		}
+
+		if len(A) == 0 {
+			A = make([]curve.G1Affine, ends[len(ends)-1])
+			var err error
+			for i := range A {
+				A[i], err = curve.HashToG1([]byte{byte(i)}, nil)
+				require.NoError(t, err)
+			}
+		}
+
+		truncated, shifted := linearCombinationsG1(slices.Clone(A), powers, ends)
+
+		var res curve.G1Affine
+
+		_, err := res.MultiExp(A, truncatedPowers, multiExpConfig)
+		require.NoError(t, err)
+		require.Equal(t, truncated, res)
+
+		_, err = res.MultiExp(A, shiftedPowers, multiExpConfig)
+		require.NoError(t, err)
+		require.Equal(t, shifted, res)
+	}
+
+	_, _, g1, _ := curve.Generators()
+	var infty curve.G1Affine
+
+	testLinearCombinationsG1(
+		[]int{3},
+		frs(1, 1, 1),
+		frs(1, 1, 1),
+		frs(1, 1, 1),
+		g1, infty, g1,
+	)
+
+	testLinearCombinationsG1(
+		[]int{3},
+		frs(1, 2, 4),
+		frs(1, 2, 0),
+		frs(0, 1, 2),
+	)
+
+	testLinearCombinationsG1(
+		[]int{4, 7},
+		frs(1, 2, 4, 8, 3, 6, 12),
+		frs(1, 2, 4, 0, 3, 6, 0),
+		frs(0, 1, 2, 4, 0, 3, 6),
+	)
+}
+
+func frs(x ...int) []fr.Element {
+	res := make([]fr.Element, len(x))
+	for i := range res {
+		res[i].SetUint64(uint64(x[i]))
+	}
+	return res
+}

@@ -59,6 +59,8 @@ type Phase2 struct {
 	Challenge []byte
 }
 
+// TODO @Tabaie use batch scalar multiplication whenever applicable
+
 func (p *Phase2) Verify(next *Phase2) error {
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {

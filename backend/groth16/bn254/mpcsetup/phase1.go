@@ -44,6 +44,8 @@ type Phase1 struct {
 	Challenge  []byte // Hash of the transcript PRIOR to this participant
 }
 
+// TODO @Tabaie use batch scalar multiplication whenever applicable
+
 // Contribute contributes randomness to the Phase1 object. This mutates Phase1.
 // p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
 func (p *Phase1) Contribute() {

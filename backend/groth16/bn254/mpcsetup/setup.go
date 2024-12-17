@@ -13,6 +13,8 @@ import (
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 )
 
+// TODO @Tabaie use batch scalar multiplication whenever applicable
+
 // Seal performs the final contribution and outputs the proving and verifying keys.
 // No randomization is performed at this step.
 // A verifier should simply re-run this and check
