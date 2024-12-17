@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"io"
+	"slices"
 	"sync"
 	"testing"
 
@@ -50,7 +51,7 @@ func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 		bb.Reset()
 		_, err := v.WriteTo(&bb)
 		assert.NoError(err)
-		return bb.Bytes()
+		return slices.Clone(bb.Bytes())
 	}
 	deserialize := func(v io.ReaderFrom, b []byte) {
 		n, err := v.ReadFrom(bytes.NewReader(b))

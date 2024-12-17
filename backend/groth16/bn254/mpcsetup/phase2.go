@@ -34,7 +34,7 @@ type Phase2Evaluations struct { // TODO @Tabaie rename
 		B []curve.G2Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
 	}
 	PublicAndCommitmentCommitted [][]int
-	NbConstraints                uint64
+	NbConstraints                uint64 // TODO unnecessary. len(Z) has that information (domain size)
 }
 
 type Phase2 struct {
@@ -348,6 +348,7 @@ func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c 
 func (p *Phase2) hash() []byte {
 	sha := sha256.New()
 	p.WriteTo(sha)
+	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }
 

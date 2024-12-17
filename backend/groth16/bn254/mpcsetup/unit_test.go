@@ -8,6 +8,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"slices"
@@ -106,7 +111,7 @@ func TestNoContributors(t *testing.T) {
 }
 
 func TestOnePhase1Contribute(t *testing.T) {
-	testAll(t, 1, 0)
+	testAll(t, 2, 0)
 }
 
 func TestUpdateCheck(t *testing.T) {
@@ -415,4 +420,98 @@ func TestLinearCombinationsG2(t *testing.T) {
 	test(
 		frs(1, 3, 9, 27, 81),
 	)
+}
+
+func ones(N int) []fr.Element {
+	res := make([]fr.Element, N)
+	for i := range res {
+		res[i].SetOne()
+	}
+	return res
+}
+
+func frs(x ...int) []fr.Element {
+	res := make([]fr.Element, len(x))
+	for i := range res {
+		res[i].SetInt64(int64(x[i]))
+	}
+	return res
+}
+
+func TestSerialization(t *testing.T) {
+
+	testRoundtrip := func(_cs constraint.ConstraintSystem) {
+		var (
+			p1 Phase1
+			p2 Phase2
+		)
+		p1.Initialize(ecc.NextPowerOfTwo(uint64(_cs.GetNbConstraints())))
+		commons := p1.Seal([]byte("beacon 1"))
+
+		p2.Initialize(_cs.(*cs.R1CS), &commons)
+		p2.Contribute()
+		require.NoError(t, gnarkio.RoundTripCheck(&p2, func() interface{} { return new(Phase2) }))
+	}
+
+	/*var p Phase2
+	const b64 = "AACNaN0mCOtKUAD0aEvRP0h7pXctaB+w5Mwsb+skm2yDuPzlwTs+qCFf/3INR+fP/lHY6BLnqXyBjAIgCoPxOcSIEG0tcty/TAiaCN3lHCRacU+upLP+WpngByrrxbN9KrhmQLY3mhOHaV5Jo3W9pI2lTpLK9ZjkQpYKd92YCRKkJ9LyX3wqeYR4jQFf1mxtfJSNgluSZUUn3AoUSDmvh8m87TRh/JRcRZnq40BgnhkJ5nHs9siMSmhWGFjGgW/mOqpyrFoZEoK2rP+AT6ylkNGYxMmOBUj0meoeI2FB7RDqcuSxQOL1XK+Pm1dhxND33cykwpTF4oCrqQzSonxQGn+wFNzaYREOmkjCS9i12NbpXNyN2b9YpmujAL/GSD5LAwKNaN0mCOtKUAD0aEvRP0h7pXctaB+w5Mwsb+skm2yDuJ8HrqP1uckhSJCcTOeHMHyh0VqJtnoMhkRAWRPEWcsqIP3sH81riS5ARP1Pv172lVAmfoXnCzwFPNFPnvdSGFk="
+	b, err := base64.StdEncoding.DecodeString(b64)
+	require.NoError(t, err)
+	n, err := p.ReadFrom(bytes.NewReader(b))
+	require.NoError(t, err)
+	require.Equal(t, int64(len(b)), n)*/
+
+	_cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &tinyCircuit{})
+	require.NoError(t, err)
+	testRoundtrip(_cs)
+
+	testRoundtrip(getTestCircuit(t))
+}
+
+type tinyCircuit struct {
+	X [4]frontend.Variable `gnark:",public"`
+}
+
+func (c *tinyCircuit) Define(api frontend.API) error {
+	for i := range c.X {
+		api.AssertIsEqual(c.X[i], i)
+	}
+	return nil
+}
+
+func (p *Phase2) Equal(o *Phase2) bool {
+
+	if p.Parameters.G2.Delta != o.Parameters.G2.Delta {
+		print("g2 delta")
+	}
+
+	if p.Delta != o.Delta {
+		print("proof delta")
+	}
+
+	if p.Parameters.G1.Delta != o.Parameters.G1.Delta {
+		print("g1 delta")
+	}
+
+	return p.Parameters.G2.Delta == o.Parameters.G2.Delta &&
+		slices.Equal(p.Sigmas, o.Sigmas) &&
+		// bytes.Equal(p.Challenge, o.Challenge) && This function is used in serialization round-trip testing, and we deliberately don't write the challenges
+		p.Delta == o.Delta &&
+		sliceSliceEqual(p.Parameters.G1.SigmaCKK, o.Parameters.G1.SigmaCKK) &&
+		p.Parameters.G1.Delta == o.Parameters.G1.Delta &&
+		slices.Equal(p.Parameters.G1.Z, o.Parameters.G1.Z) &&
+		slices.Equal(p.Parameters.G1.PKK, o.Parameters.G1.PKK) &&
+		slices.Equal(p.Parameters.G2.Sigma, o.Parameters.G2.Sigma)
+}
+
+func sliceSliceEqual[T comparable](a, b [][]T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !slices.Equal(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }

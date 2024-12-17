@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 )
@@ -21,8 +22,8 @@ func RoundTripCheck(from any, to func() any) error {
 			if err != nil {
 				return err
 			}
-			if !reflect.DeepEqual(from, r) {
-				return errors.New("reconstructed object don't match original (ReadFrom)")
+			if err = equal(from, r); err != nil {
+				return fmt.Errorf("ReadFrom: %w", err)
 			}
 			if written != read {
 				return errors.New("bytes written / read don't match")
@@ -35,8 +36,8 @@ func RoundTripCheck(from any, to func() any) error {
 			if err != nil {
 				return err
 			}
-			if !reflect.DeepEqual(from, r) {
-				return errors.New("reconstructed object don't match original (UnsafeReadFrom)")
+			if err = equal(from, r); err != nil {
+				return fmt.Errorf("UnsafeReadFrom: %w", err)
 			}
 			if written != read {
 				return errors.New("bytes written / read don't match")
@@ -51,6 +52,8 @@ func RoundTripCheck(from any, to func() any) error {
 		if err != nil {
 			return err
 		}
+
+		//fmt.Println(base64.StdEncoding.EncodeToString(buf.Bytes()[:written]))
 
 		if err := reconstruct(written); err != nil {
 			return err
@@ -85,8 +88,28 @@ func DumpRoundTripCheck(from any, to func() any) error {
 	if err := r.ReadDump(bytes.NewReader(buf.Bytes())); err != nil {
 		return err
 	}
-	if !reflect.DeepEqual(from, r) {
-		return errors.New("reconstructed object don't match original (ReadDump)")
+	if err := equal(from, r); err != nil {
+		return fmt.Errorf("ReadDump: %w", err)
 	}
 	return nil
+}
+
+func equal(a, b any) error {
+	// check for a custom Equal method
+	aV := reflect.ValueOf(a)
+	eq := aV.MethodByName("Equal")
+	if eq.IsValid() {
+		res := eq.Call([]reflect.Value{reflect.ValueOf(b)})
+		if len(res) != 1 {
+			return errors.New("`Equal` method must return a single bool")
+		}
+		if res[0].Bool() {
+			return nil
+		}
+		return errors.New("reconstructed object does not match the original (custom Equal)")
+	}
+	if reflect.DeepEqual(a, b) {
+		return nil
+	}
+	return errors.New("reconstructed object does not match the original (reflect.DeepEqual)")
 }
