@@ -12,7 +12,6 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/internal/utils/test_utils"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -230,7 +229,6 @@ func updateValue(value curve.G1Affine, challenge []byte, dst byte) (proof valueU
 
 	// proof of knowledge to commitment. Algorithm 3 from section 3.7
 	pokBase := genR(proof.contributionCommitment, challenge, dst) // r
-	test_utils.ConditionalLog("pok base", pokBase.String())
 	proof.contributionPok.ScalarMultiplication(&pokBase, &contributionValueI)
 
 	return

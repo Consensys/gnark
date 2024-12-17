@@ -53,13 +53,9 @@ func (p *Phase1) Contribute() {
 	var (
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
-	fmt.Printf("challenge %x\n", p.Challenge)
 
 	p.proofs.Tau, tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
-	fmt.Println("initial alpha", p.parameters.G1.AlphaTau[0].String())
-	test_utils.ConditionalLoggerEnabled = true
 	p.proofs.Alpha, alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
-	test_utils.ConditionalLoggerEnabled = false
 	p.proofs.Beta, betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
@@ -172,14 +168,14 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return errors.New("domain size mismatch")
 	}
 
-	fmt.Println("verifying tau")
 	// verify updates to τ, α, β
 	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], nil}, pair{next.parameters.G1.Tau[1], nil}, challenge, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{p.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
+	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{next.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
+	test_utils.ConditionalLoggerEnabled = false
 	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
