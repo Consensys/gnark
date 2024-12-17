@@ -469,6 +469,10 @@ func (c *innerDummyCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+// getInnerDummy method returns a dummy circuit with the number of constraints
+// of the main one provided as argument, it also generates a proof for this
+// circuit and verifies it. It returns the circuit, the verifying key, the
+// public witness and the proof.
 func getInnerDummy(assert *test.Assert, main constraint.ConstraintSystem, field *big.Int) (
 	constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof,
 ) {
@@ -495,6 +499,13 @@ func getInnerDummy(assert *test.Assert, main constraint.ConstraintSystem, field 
 	return dummyCcs, dummyVK, dummyPubWitness, dummyProof
 }
 
+// getInnersWithDummies method returns a list of constraint systems, verifying
+// keys, witnesses and proofs based on the selectors provided. It generates
+// the lists based on the selectors provided, where it includes a 1, it will
+// generate an inner circuit, where it includes a 0, it will generate a dummy
+// circuit. It returns the resulting lists of assests in the same way as the
+// selectors, unless the verification keys, which include in the first place
+// the dummy vk and in the second place the inner vk.
 func getInnersWithDummies(assert *test.Assert, main constraint.ConstraintSystem, selectors []int, field *big.Int) (
 	[]constraint.ConstraintSystem, []groth16.VerifyingKey, []witness.Witness, []groth16.Proof,
 ) {
@@ -520,17 +531,24 @@ func getInnersWithDummies(assert *test.Assert, main constraint.ConstraintSystem,
 }
 
 type OuterCircuitMulti[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	Selectors      []frontend.Variable
-	Proofs         []Proof[G1El, G2El]
+	// selectors include a 1 for inner and 0 for dummy verification keys
+	// it allows to switch between the two vks to use the right one for each
+	// proof and witness
+	Selectors []frontend.Variable
+	Proofs    []Proof[G1El, G2El]
+	// vks includes the dummy vk in the first place and the inner vk in the
+	// second place
 	vks            []VerifyingKey[G1El, G2El, GtEl] `gnark:"-"`
 	InnerWitnesses []Witness[FR]
 }
 
 func (c *OuterCircuitMulti[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	// init the verifier
 	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
+	// switch between vkeys based on each selector
 	for i, selector := range c.Selectors {
 		vk, err := verifier.SwitchVerificationKey(selector, c.vks)
 		if err != nil {
