@@ -117,45 +117,47 @@ func linearCombination(A []curve.G1Affine, r []fr.Element) curve.G1Affine {
 //	    ....       (shifted)
 //
 // It is assumed without checking that powers[i+1] = powers[i]*powers[1] unless i+1 is a partial sum of sizes.
+// Also assumed that powers[0] = 1.
 // The slices powers and A will be modified
 func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (truncated, shifted curve.G1Affine) {
 	if ends[len(ends)-1] != len(A) || len(A) != len(powers) {
 		panic("lengths mismatch")
 	}
 
-	largeCoeffs := make([]fr.Element, len(ends))
+	// zero out the large coefficients
 	for i := range ends {
-		largeCoeffs[i].Neg(&powers[ends[i]-1])
 		powers[ends[i]-1].SetZero()
 	}
+	copy(powers[1:], powers)
 
 	msmCfg := ecc.MultiExpConfig{NbTasks: runtime.NumCPU()}
 
-	if _, err := shifted.MultiExp(A, powers, msmCfg); err != nil {
+	if _, err := truncated.MultiExp(A, powers, msmCfg); err != nil {
 		panic(err)
 	}
 
-	// compute truncated as
-	//                r.shifted
-	//              + powers[0].A[0] + powers[ends[0].A[ends[0]] + ...
-	//              - powers[ends[0]-1].A[ends[0]-1] - powers[ends[1]-1].A[ends[1]-1] - ...
-	r := powers[1]
+	var rInvNeg fr.Element
+	rInvNeg.Inverse(&powers[1])
+	rInvNeg.Neg(&rInvNeg)
 	prevEnd := 0
+
+	// r⁻¹.truncated =
+	//		r⁻¹.powers[0].A[0] + powers[0].A[1] + ... + powers[ends[0]-3].A[ends[0]-2]
+	//	  + r⁻¹.powers[ends[0]].A[ends[0]] + ... + powers[ends[1]-3].A[ends[1]-2]
+	//	    ...
+	//
+	// compute shifted as
+	//    - r⁻¹.powers[0].A[0] - r⁻¹.powers[ends[0]].A[ends[0]] - ...
+	//    + powers[ends[0]-2].A[ends[0]-1] + powers[ends[1]-2].A[ends[1]-1] + ...
+	//    + r⁻¹.truncated
 	for i := range ends {
-		if ends[i] <= prevEnd {
-			panic("non-increasing ends")
-		}
-
-		powers[2*i] = powers[prevEnd]
-		powers[2*i+1] = largeCoeffs[i]
-
+		powers[2*i].Mul(&powers[prevEnd+1], &rInvNeg)
+		powers[2*i+1] = powers[ends[i]-1]
 		A[2*i] = A[prevEnd]
 		A[2*i+1] = A[ends[i]-1]
-
-		prevEnd = ends[i]
 	}
-	powers[len(ends)*2] = r
-	A[len(ends)*2] = shifted
+	powers[2*len(ends)].Neg(&rInvNeg) // r⁻¹: coefficient for truncated
+	A[2*len(ends)] = A[prevEnd]
 
 	// TODO @Tabaie O(1) MSM worth it?
 	if _, err := truncated.MultiExp(A[:2*len(ends)+1], powers[:2*len(ends)+1], msmCfg); err != nil {
