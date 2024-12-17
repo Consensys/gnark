@@ -150,8 +150,8 @@ func linearCombinationsG1(A []curve.G1Affine, powers []fr.Element, ends []int) (
 	//    + powers[ends[0]-2].A[ends[0]-1] + powers[ends[1]-2].A[ends[1]-1] + ...
 	//    + r⁻¹.truncated
 	for i := range ends {
-		powers[2*i].Mul(&powers[prevEnd+1], &rInvNeg)
-		powers[2*i+1] = powers[ends[i]-1]
+		powers[2*i].Mul(&powers[prevEnd], &rInvNeg)
+		powers[2*i+1] = powers[ends[i]-2]
 		A[2*i] = A[prevEnd]
 		A[2*i+1] = A[ends[i]-1]
 	}
