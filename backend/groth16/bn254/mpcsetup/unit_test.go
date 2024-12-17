@@ -10,6 +10,7 @@ import (
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/stretchr/testify/require"
 	"math/big"
+	"slices"
 	"testing"
 )
 
@@ -234,5 +235,37 @@ func TestPedersen(t *testing.T) {
 	_, _, _, g2 := curve.Generators()
 	for i := range p.Sigmas {
 		assertPairingsEqual(t, evals.G1.CKK[0][i], p.Parameters.G2.Sigma[i], p.Parameters.G1.SigmaCKK[0][i], g2)
+	}
+}
+
+func TestBivariateRandomMonomials(t *testing.T) {
+	xDeg := []int{3, 2, 3}
+	ends := partialSums(xDeg...)
+	values := bivariateRandomMonomials(ends...)
+	//extract the variables
+	x := make([]fr.Element, slices.Max(xDeg))
+	y := make([]fr.Element, len(ends))
+	x[1].Div(&values[1], &values[0])
+	y[1].Div(&values[xDeg[0]], &values[0])
+
+	x[0].SetOne()
+	y[0].SetOne()
+
+	for i := range x[:len(x)-1] {
+		x[i+1].Mul(&x[i], &x[1])
+	}
+
+	for i := range y[:len(x)-1] {
+		y[i+1].Mul(&y[i], &y[1])
+	}
+
+	prevEnd := 0
+	for i := range ends {
+		for j := range xDeg[i] {
+			var z fr.Element
+			z.Mul(&y[i], &x[j])
+			require.Equal(t, z.String(), values[prevEnd+j].String(), "X^%d Y^%d: expected %s, encountered %s", j, i)
+		}
+		prevEnd = ends[i]
 	}
 }

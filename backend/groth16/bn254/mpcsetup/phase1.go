@@ -197,7 +197,7 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 // multiValueUpdateCheck checks that aᵢ₊₁/aᵢ = bⱼ₊₁/bⱼ = cₖ₊₁/cₖ = dₗ₊₁/dₗ for all applicable i,j,k,l
 // in other words it checks that there is x such that aᵢ = xʲa₀, bⱼ = xʲb₀, cₖ = xʲc₀, dₗ = xʲd₀
-func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c []curve.G1Affine, d []curve.G1Affine) error {
+func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c, d []curve.G1Affine) error {
 	// lemma: let K be a field and
 	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
 	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
