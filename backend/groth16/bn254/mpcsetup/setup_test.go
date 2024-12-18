@@ -104,7 +104,6 @@ func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 	proveVerifyCircuit(t, pk, vk)
 }
 
-/*
 func BenchmarkPhase1(b *testing.B) {
 	const power = 14
 
@@ -129,9 +128,10 @@ func BenchmarkPhase1(b *testing.B) {
 
 func BenchmarkPhase2(b *testing.B) {
 	const power = 14
-	var srs1 Phase1
-	srs1.Initialize(1 << power)
-	srs1.Contribute()
+	var p1 Phase1
+	p1.Initialize(1 << power)
+	p1.Contribute()
+	commons := p1.Seal([]byte("testing"))
 
 	var myCircuit Circuit
 	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
@@ -142,22 +142,24 @@ func BenchmarkPhase2(b *testing.B) {
 	r1cs := ccs.(*cs.R1CS)
 
 	b.Run("init", func(b *testing.B) {
+		var p Phase2
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, _ = InitPhase2(r1cs, &srs1)
+			p.Initialize(r1cs, &commons)
 		}
 	})
 
 	b.Run("contrib", func(b *testing.B) {
-		srs2, _ := InitPhase2(r1cs, &srs1)
+		var p Phase2
+		p.Initialize(r1cs, &commons)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			srs2.Contribute()
+			p.Contribute()
 		}
 	})
 
 }
-*/
+
 // Circuit defines a pre-image knowledge proof
 // mimc(secret preImage) = public hash
 type Circuit struct {
