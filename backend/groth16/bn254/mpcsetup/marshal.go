@@ -8,15 +8,9 @@ package mpcsetup
 import (
 	"encoding/binary"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/internal/utils"
 	"io"
 )
-
-func appendRefs[T any](s []any, v []T) []any {
-	for i := range v {
-		s = append(s, &v[i])
-	}
-	return s
-}
 
 // WriteTo implements io.WriterTo
 // It does not write the Challenge from the previous contribution
@@ -71,8 +65,8 @@ func (p *Phase2) refsSlice() []any {
 	refs[3] = &p.Parameters.G1.Z   // unique size: N-1
 	refs[4] = &p.Parameters.G2.Delta
 
-	refs = appendRefs(refs, p.Parameters.G1.SigmaCKK)
-	refs = appendRefs(refs, p.Parameters.G2.Sigma)
+	refs = utils.AppendRefs(refs, p.Parameters.G1.SigmaCKK)
+	refs = utils.AppendRefs(refs, p.Parameters.G2.Sigma)
 
 	if len(refs) != expectedLen {
 		panic("incorrect length estimate")
@@ -155,9 +149,9 @@ func (c *Phase2Evaluations) refsSlice() []any {
 	refs[0] = &c.G1.CKK
 	refs[1] = &c.G1.VKK
 	refs[2] = &c.PublicAndCommitmentCommitted
-	refs = appendRefs(refs, c.G1.A)
-	refs = appendRefs(refs, c.G1.B)
-	refs = appendRefs(refs, c.G2.B)
+	refs = utils.AppendRefs(refs, c.G1.A)
+	refs = utils.AppendRefs(refs, c.G1.B)
+	refs = utils.AppendRefs(refs, c.G2.B)
 
 	if uint64(len(refs)) != expectedLen {
 		panic("incorrect length estimate")
@@ -214,10 +208,10 @@ func (c *SrsCommons) refsSlice() []any {
 	refs := make([]any, 2, expectedLen)
 	refs[0] = N
 	refs[1] = &c.G2.Beta
-	refs = appendRefs(refs, c.G1.Tau[1:])
-	refs = appendRefs(refs, c.G2.Tau[1:])
-	refs = appendRefs(refs, c.G1.BetaTau)
-	refs = appendRefs(refs, c.G1.AlphaTau)
+	refs = utils.AppendRefs(refs, c.G1.Tau[1:])
+	refs = utils.AppendRefs(refs, c.G2.Tau[1:])
+	refs = utils.AppendRefs(refs, c.G1.BetaTau)
+	refs = utils.AppendRefs(refs, c.G1.AlphaTau)
 
 	if uint64(len(refs)) != expectedLen {
 		panic("incorrect length estimate")
