@@ -10,15 +10,14 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/internal"
+	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"math/big"
 	"slices"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/constraint"
 )
 
 // Phase2Evaluations components of the circuit keys
