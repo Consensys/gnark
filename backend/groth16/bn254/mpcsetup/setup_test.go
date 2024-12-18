@@ -182,22 +182,21 @@ func (circuit *Circuit) Define(api frontend.API) error {
 }
 
 func assignCircuit() frontend.Circuit {
-	return sync.OnceValue(func() frontend.Circuit {
-		// Build the witness
-		var preImage, hash fr.Element
-		{
-			m := native_mimc.NewMiMC()
-			m.Write(preImage.Marshal())
-			hash.SetBytes(m.Sum(nil))
-		}
 
-		return &Circuit{PreImage: preImage, Hash: hash}
-	})()
+	// Build the witness
+	var preImage, hash fr.Element
+
+	m := native_mimc.NewMiMC()
+	m.Write(preImage.Marshal())
+	hash.SetBytes(m.Sum(nil))
+
+	return &Circuit{PreImage: preImage, Hash: hash}
+
 }
 
 func getTestCircuit(t *testing.T) *cs.R1CS {
 	return sync.OnceValue(func() *cs.R1CS {
-		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, assignCircuit())
+		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &Circuit{})
 		require.NoError(t, err)
 		return ccs.(*cs.R1CS)
 	})()

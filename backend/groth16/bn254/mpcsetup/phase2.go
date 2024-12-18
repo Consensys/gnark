@@ -34,7 +34,6 @@ type Phase2Evaluations struct { // TODO @Tabaie rename
 		B []curve.G2Affine // B are the right coefficient polynomials for each witness element, evaluated at τ
 	}
 	PublicAndCommitmentCommitted [][]int
-	NbConstraints                uint64 // TODO unnecessary. len(Z) has that information (domain size)
 }
 
 type Phase2 struct {
@@ -59,12 +58,10 @@ type Phase2 struct {
 	Challenge []byte
 }
 
-// TODO @Tabaie use batch scalar multiplication whenever applicable
-
 func (p *Phase2) Verify(next *Phase2) error {
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
-		return errors.New("the challenge does not match the previous phase's hash")
+		return errors.New("the challenge does not match the previous contribution's hash")
 	}
 	next.Challenge = challenge
 
@@ -75,13 +72,13 @@ func (p *Phase2) Verify(next *Phase2) error {
 		return errors.New("contribution size mismatch")
 	}
 
-	r := linearCombCoeffs(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1) // TODO @Tabaie If all contributions are being verified in one go, we could reuse r
+	r := linearCombCoeffs(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1)
 
 	verifyContribution := func(update *valueUpdate, g1Denominator, g1Numerator []curve.G1Affine, g2Denominator, g2Numerator *curve.G2Affine, dst byte) error {
 		g1Num := linearCombination(g1Numerator, r)
 		g1Denom := linearCombination(g1Denominator, r)
 
-		return update.verify(pair{g1Denom, g2Denominator}, pair{g1Num, g2Denominator}, challenge, dst)
+		return update.verify(pair{g1Denom, g2Denominator}, pair{g1Num, g2Numerator}, challenge, dst)
 	}
 
 	// verify proof of knowledge of contributions to the σᵢ
@@ -91,7 +88,7 @@ func (p *Phase2) Verify(next *Phase2) error {
 			return errors.New("commitment proving key subgroup check failed")
 		}
 
-		if err := verifyContribution(&p.Sigmas[i], p.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &p.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
+		if err := verifyContribution(&next.Sigmas[i], p.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &p.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
 			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
 		}
 	}
@@ -104,7 +101,7 @@ func (p *Phase2) Verify(next *Phase2) error {
 
 	denom := cloneAppend([]curve.G1Affine{p.Parameters.G1.Delta}, next.Parameters.G1.Z, next.Parameters.G1.PKK)
 	num := cloneAppend([]curve.G1Affine{next.Parameters.G1.Delta}, p.Parameters.G1.Z, p.Parameters.G1.PKK)
-	if err := verifyContribution(&p.Delta, denom, num, &p.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
+	if err := verifyContribution(&next.Delta, denom, num, &p.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
 		return fmt.Errorf("failed to verify contribution to δ: %w", err)
 	}
 
@@ -132,8 +129,7 @@ func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 		for j := range s {
 			scale(&s[j])
 		}
-		point := &p.Parameters.G2.Sigma[i]
-		point.ScalarMultiplicationBase(&I)
+		scale(&p.Parameters.G2.Sigma[i])
 	}
 
 	delta.BigInt(&I)
@@ -155,14 +151,14 @@ func (p *Phase2) Contribute() {
 
 	// sample value contributions and provide correctness proofs
 	var delta fr.Element
-	p.Delta, delta = updateValue(p.Parameters.G1.Delta, p.Challenge, 1)
+	p.Delta, delta = newValueUpdate(p.Challenge, 1)
 
 	sigma := make([]fr.Element, len(p.Parameters.G1.SigmaCKK))
 	if len(sigma) > 255 {
 		panic("too many commitments") // DST collision
 	}
 	for i := range sigma {
-		p.Sigmas[i], sigma[i] = updateValue(p.Parameters.G1.SigmaCKK[i][0], p.Challenge, byte(2+i))
+		p.Sigmas[i], sigma[i] = newValueUpdate(p.Challenge, byte(2+i))
 	}
 
 	p.update(&delta, sigma)
@@ -230,7 +226,6 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	var evals Phase2Evaluations
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 	evals.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentInfo.CommitmentIndexes(), nbPublic)
-	evals.NbConstraints = uint64(r1cs.GetNbConstraints())
 	evals.G1.A = make([]curve.G1Affine, nWires) // recall: A are the left coefficients in DIZK parlance
 	evals.G1.B = make([]curve.G1Affine, nWires) // recall: B are the right coefficients in DIZK parlance
 	evals.G2.B = make([]curve.G2Affine, nWires) // recall: A only appears in 𝔾₁ elements in the proof, but B needs to appear in a 𝔾₂ element so the verifier can compute something resembling (A.x).(B.x) via pairings
@@ -272,7 +267,7 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	n := len(commons.G1.AlphaTau)
 	p.Parameters.G1.Z = make([]curve.G1Affine, n)
-	for i := 0; i < n-1; i++ { // TODO @Tabaie why is the last element always 0?
+	for i := range n - 1 {
 		p.Parameters.G1.Z[i].Sub(&commons.G1.Tau[i+n], &commons.G1.Tau[i])
 	}
 	bitReverse(p.Parameters.G1.Z)

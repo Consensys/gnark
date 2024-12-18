@@ -13,8 +13,6 @@ import (
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 )
 
-// TODO @Tabaie use batch scalar multiplication whenever applicable
-
 // Seal performs the final contribution and outputs the proving and verifying keys.
 // No randomization is performed at this step.
 // A verifier should simply re-run this and check
@@ -36,7 +34,7 @@ func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChall
 	)
 
 	// Initialize PK
-	pk.Domain = *fft.NewDomain(evals.NbConstraints) // TODO @Tabaie replace with len(Z)+1
+	pk.Domain = *fft.NewDomain(uint64(len(commons.G1.AlphaTau)))
 	pk.G1.Alpha.Set(&commons.G1.AlphaTau[0])
 	pk.G1.Beta.Set(&commons.G1.BetaTau[0])
 	pk.G1.Delta.Set(&p.Parameters.G1.Delta)

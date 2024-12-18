@@ -44,8 +44,6 @@ type Phase1 struct {
 	Challenge  []byte // Hash of the transcript PRIOR to this participant
 }
 
-// TODO @Tabaie use batch scalar multiplication whenever applicable
-
 // Contribute contributes randomness to the Phase1 object. This mutates Phase1.
 // p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
 func (p *Phase1) Contribute() {
@@ -56,9 +54,9 @@ func (p *Phase1) Contribute() {
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
 
-	p.proofs.Tau, tauContrib = updateValue(p.parameters.G1.Tau[1], p.Challenge, 1)
-	p.proofs.Alpha, alphaContrib = updateValue(p.parameters.G1.AlphaTau[0], p.Challenge, 2)
-	p.proofs.Beta, betaContrib = updateValue(p.parameters.G1.BetaTau[0], p.Challenge, 3)
+	p.proofs.Tau, tauContrib = newValueUpdate(p.Challenge, 1)
+	p.proofs.Alpha, alphaContrib = newValueUpdate(p.Challenge, 2)
+	p.proofs.Beta, betaContrib = newValueUpdate(p.Challenge, 3)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
@@ -158,7 +156,7 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
-		return errors.New("the challenge does not match the previous phase's hash")
+		return errors.New("the challenge does not match the previous contribution's hash")
 	}
 	next.Challenge = challenge
 

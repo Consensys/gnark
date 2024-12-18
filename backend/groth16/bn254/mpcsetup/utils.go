@@ -17,8 +17,6 @@ import (
 	"runtime"
 )
 
-// TODO @Tabaie use batch scalar multiplication whenever applicable
-
 func bitReverse[T any](a []T) {
 	n := uint64(len(a))
 	nn := uint64(64 - bits.TrailingZeros64(n))
@@ -229,18 +227,17 @@ type valueUpdate struct {
 	contributionPok        curve.G2Affine // π ≔ x.r ∈ 𝔾₂
 }
 
-// updateValue produces values associated with contribution to an existing value.
+// newValueUpdate produces values associated with contribution to an existing value.
 // the second output is toxic waste. It is the caller's responsibility to safely "dispose" of it.
-func updateValue(value curve.G1Affine, challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
+func newValueUpdate(challenge []byte, dst byte) (proof valueUpdate, contributionValue fr.Element) {
 	if _, err := contributionValue.SetRandom(); err != nil {
 		panic(err)
 	}
 	var contributionValueI big.Int
 	contributionValue.BigInt(&contributionValueI)
 
-	_, _, g1, _ := curve.Generators()
-	proof.contributionCommitment.ScalarMultiplication(&g1, &contributionValueI)
-	value.ScalarMultiplication(&value, &contributionValueI)
+	_, _, gen1, _ := curve.Generators()
+	proof.contributionCommitment.ScalarMultiplication(&gen1, &contributionValueI)
 
 	// proof of knowledge to commitment. Algorithm 3 from section 3.7
 	pokBase := genR(proof.contributionCommitment, challenge, dst) // r
@@ -248,6 +245,9 @@ func updateValue(value curve.G1Affine, challenge []byte, dst byte) (proof valueU
 
 	return
 }
+
+// TODO @Tabaie batchVerify(denomG1, numG1 []G1Affine, denomG2, numG2 []G2Affine, challenge, dst)
+// option for linear combination vector
 
 // verify corresponds with verification steps {i, i+3} with 1 ≤ i ≤ 3 in section 7.1 of Bowe-Gabizon17
 // it checks the proof of knowledge of the contribution, and the fact that the product of the contribution

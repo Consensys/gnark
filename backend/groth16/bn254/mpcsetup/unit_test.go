@@ -12,6 +12,7 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/internal/utils/test_utils"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -29,7 +30,7 @@ func TestContributionPok(t *testing.T) {
 	)
 	x0, err := curve.HashToG1([]byte("contribution test"), nil)
 	require.NoError(t, err)
-	proof, d := updateValue(x0, []byte(pokChallenge), pokDst)
+	proof, d := newValueUpdate([]byte(pokChallenge), pokDst)
 	var (
 		x1 curve.G1Affine
 		dI big.Int
@@ -438,7 +439,7 @@ func frs(x ...int) []fr.Element {
 	return res
 }
 
-func TestSerialization(t *testing.T) {
+func TestPhase2Serialization(t *testing.T) {
 
 	testRoundtrip := func(_cs constraint.ConstraintSystem) {
 		var (
@@ -453,15 +454,7 @@ func TestSerialization(t *testing.T) {
 		require.NoError(t, gnarkio.RoundTripCheck(&p2, func() interface{} { return new(Phase2) }))
 	}
 
-	/*var p Phase2
-	const b64 = "AACNaN0mCOtKUAD0aEvRP0h7pXctaB+w5Mwsb+skm2yDuPzlwTs+qCFf/3INR+fP/lHY6BLnqXyBjAIgCoPxOcSIEG0tcty/TAiaCN3lHCRacU+upLP+WpngByrrxbN9KrhmQLY3mhOHaV5Jo3W9pI2lTpLK9ZjkQpYKd92YCRKkJ9LyX3wqeYR4jQFf1mxtfJSNgluSZUUn3AoUSDmvh8m87TRh/JRcRZnq40BgnhkJ5nHs9siMSmhWGFjGgW/mOqpyrFoZEoK2rP+AT6ylkNGYxMmOBUj0meoeI2FB7RDqcuSxQOL1XK+Pm1dhxND33cykwpTF4oCrqQzSonxQGn+wFNzaYREOmkjCS9i12NbpXNyN2b9YpmujAL/GSD5LAwKNaN0mCOtKUAD0aEvRP0h7pXctaB+w5Mwsb+skm2yDuJ8HrqP1uckhSJCcTOeHMHyh0VqJtnoMhkRAWRPEWcsqIP3sH81riS5ARP1Pv172lVAmfoXnCzwFPNFPnvdSGFk="
-	b, err := base64.StdEncoding.DecodeString(b64)
-	require.NoError(t, err)
-	n, err := p.ReadFrom(bytes.NewReader(b))
-	require.NoError(t, err)
-	require.Equal(t, int64(len(b)), n)*/
-
-	_cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &tinyCircuit{})
+	_cs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &tinyCircuit{})
 	require.NoError(t, err)
 	testRoundtrip(_cs)
 
@@ -514,4 +507,25 @@ func sliceSliceEqual[T comparable](a, b [][]T) bool {
 		}
 	}
 	return true
+}
+
+func getSimplePhase2(t *testing.T, circuit frontend.Circuit) Phase2 {
+	_cs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, circuit)
+	require.NoError(t, err)
+	cs := _cs.(*cs.R1CS)
+	var commons SrsCommons
+	commons.setOne(ecc.NextPowerOfTwo(uint64(cs.GetNbConstraints())))
+	var p Phase2
+	p.Initialize(cs, &commons)
+	return p
+}
+
+func TestPhase2(t *testing.T) {
+	p0 := getSimplePhase2(t, &Circuit{})
+
+	var p1 Phase2
+	test_utils.CopyThruSerialization(t, &p1, &p0)
+	p1.Contribute()
+
+	require.NoError(t, p0.Verify(&p1))
 }
