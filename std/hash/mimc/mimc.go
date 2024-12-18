@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2024 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package mimc
 
@@ -59,6 +46,31 @@ func (h *MiMC) Write(data ...frontend.Variable) {
 func (h *MiMC) Reset() {
 	h.data = nil
 	h.h = 0
+}
+
+// SetState manually sets the state of the hasher to the provided value. In the
+// case of MiMC only a single frontend variable is expected to represent the
+// state.
+func (h *MiMC) SetState(newState []frontend.Variable) error {
+
+	if len(h.data) > 0 {
+		return errors.New("the hasher is not in an initial state")
+	}
+
+	if len(newState) != 1 {
+		return errors.New("the MiMC hasher expects a single field element to represent the state")
+	}
+
+	h.h = newState[0]
+	h.data = nil
+	return nil
+}
+
+// State returns the inner-state of the hasher. In the context of MiMC only a
+// single field element is returned.
+func (h *MiMC) State() []frontend.Variable {
+	h.Sum() // this flushes the unsummed data
+	return []frontend.Variable{h.h}
 }
 
 // Sum hash using [Miyaguchi–Preneel] where the XOR operation is replaced by
