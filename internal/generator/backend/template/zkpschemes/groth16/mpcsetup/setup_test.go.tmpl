@@ -2,14 +2,14 @@ import (
 	"testing"
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc"
+	"io"
+	"slices"
+	"sync"
 
 	{{- template "import_fr" . }}
 	{{- template "import_curve" . }}
 	{{- template "import_backend_cs" . }}
 
-	"io"
-	"slices"
-	"sync"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -19,76 +19,83 @@ import (
 	native_mimc "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/mimc"
 )
 
-func TestSetupCircuit(t *testing.T) {
-	{{- if ne (toLower .Curve) "bn254" }}
-	if testing.Short() {
-		t.Skip()
-	}
-	{{- end}}
-	const (
-		nContributionsPhase1 = 3
-		nContributionsPhase2 = 3
-		power                = 9
-	)
+// TestAll a full integration test of the MPC setup
+func TestAll(t *testing.T) {
+	testAll(t, 3, 3)
+}
 
+func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 	assert := require.New(t)
 
-	srs1 := InitPhase1(power)
+	// Compile the circuit
+	ccs := getTestCircuit(t)
 
-	// Make and verify contributions for phase1
-	for i := 1; i < nContributionsPhase1; i++ {
-		// we clone test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
-		prev := srs1.clone()
+	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
-		srs1.Contribute()
-		assert.NoError(VerifyPhase1(&prev, &srs1))
+	var (
+		bb bytes.Buffer // simulating network communications
+		p1 Phase1
+		p2 Phase2
+	)
+	serialized := make([][]byte, max(nbContributionsPhase1, nbContributionsPhase2))
+	phase1 := make([]*Phase1, nbContributionsPhase1)
+	phase2 := make([]*Phase2, nbContributionsPhase2)
+
+	serialize := func(v io.WriterTo) []byte {
+		bb.Reset()
+		_, err := v.WriteTo(&bb)
+		assert.NoError(err)
+		return slices.Clone(bb.Bytes())
+	}
+	deserialize := func(v io.ReaderFrom, b []byte) {
+		n, err := v.ReadFrom(bytes.NewReader(b))
+		assert.NoError(err)
+		assert.Equal(len(b), int(n))
 	}
 
-	// Compile the circuit
-	var myCircuit Circuit
-	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
-	assert.NoError(err)
+	// Make contributions for serialized
+	for i := range phase1 {
+		if i == 0 { // no "predecessor" to the first contribution
+			p1.Initialize(domainSize)
+		}
 
-	var evals Phase2Evaluations
-	r1cs := ccs.(*cs.R1CS)
+		p1.Contribute()
+		serialized[i] = serialize(&p1)
+	}
+
+	// read all Phase1 objects
+	for i := range phase1 {
+		phase1[i] = new(Phase1)
+		deserialize(phase1[i], serialized[i])
+	}
+
+	// Verify contributions for phase 1 and generate non-circuit-specific parameters
+	srsCommons, err := VerifyPhase1(domainSize, []byte("testing phase1"), phase1[:]...)
+	assert.NoError(err)
+	{
+		var commonsRead SrsCommons
+		deserialize(&commonsRead, serialize(&srsCommons))
+		srsCommons = commonsRead
+	}
 
 	// Prepare for phase-2
-	srs2, evals := InitPhase2(r1cs, &srs1)
-
-	// Make and verify contributions for phase1
-	for i := 1; i < nContributionsPhase2; i++ {
-		// we clone for test purposes; but in practice, participant will receive a []byte, deserialize it,
-		// add his contribution and send back to coordinator.
-		prev := srs2.clone()
-
-		srs2.Contribute()
-		assert.NoError(VerifyPhase2(&prev, &srs2))
+	for i := range phase2 {
+		if i == 0 {
+			p2.Initialize(ccs, &srsCommons)
+		}
+		p2.Contribute()
+		serialized[i] = serialize(&p2)
 	}
 
-	// Extract the proving and verifying keys
-	pk, vk := ExtractKeys(&srs1, &srs2, &evals, ccs.GetNbConstraints())
-
-	// Build the witness
-	var preImage, hash fr.Element
-	{
-		m := native_mimc.NewMiMC()
-		m.Write(preImage.Marshal())
-		hash.SetBytes(m.Sum(nil))
+	for i := range phase2 {
+		phase2[i] = new(Phase2)
+		deserialize(phase2[i], serialized[i])
 	}
-	
-	witness, err := frontend.NewWitness(&Circuit{PreImage: preImage, Hash: hash}, curve.ID.ScalarField())
+
+	pk, vk, err := VerifyPhase2(ccs, &srsCommons, []byte("testing phase2"), phase2[:]...)
 	assert.NoError(err)
 
-	pubWitness, err := witness.Public()
-	assert.NoError(err)
-
-	// groth16: ensure proof is verified
-	proof, err := groth16.Prove(ccs, &pk, witness)
-	assert.NoError(err)
-
-	err = groth16.Verify(proof, &vk, pubWitness)
-	assert.NoError(err)
+	proveVerifyCircuit(t, pk, vk)
 }
 
 func BenchmarkPhase1(b *testing.B) {
@@ -96,13 +103,15 @@ func BenchmarkPhase1(b *testing.B) {
 
 	b.Run("init", func(b *testing.B) {
 		b.ResetTimer()
+		var srs1 Phase1
 		for i := 0; i < b.N; i++ {
-			_ = InitPhase1(power)
+			srs1.Initialize(1 << power)
 		}
 	})
 
 	b.Run("contrib", func(b *testing.B) {
-		srs1 := InitPhase1(power)
+		var srs1 Phase1
+		srs1.Initialize(1 << power)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			srs1.Contribute()
@@ -113,8 +122,10 @@ func BenchmarkPhase1(b *testing.B) {
 
 func BenchmarkPhase2(b *testing.B) {
 	const power = 14
-	srs1 := InitPhase1(power)
-	srs1.Contribute()
+	var p1 Phase1
+	p1.Initialize(1 << power)
+	p1.Contribute()
+	commons := p1.Seal([]byte("testing"))
 
 	var myCircuit Circuit
 	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
@@ -125,17 +136,19 @@ func BenchmarkPhase2(b *testing.B) {
 	r1cs := ccs.(*cs.R1CS)
 
 	b.Run("init", func(b *testing.B) {
+		var p Phase2
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, _ = InitPhase2(r1cs, &srs1)
+			p.Initialize(r1cs, &commons)
 		}
 	})
 
 	b.Run("contrib", func(b *testing.B) {
-		srs2, _ := InitPhase2(r1cs, &srs1)
+		var p Phase2
+		p.Initialize(r1cs, &commons)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			srs2.Contribute()
+			p.Contribute()
 		}
 	})
 
@@ -158,32 +171,45 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	mimc.Write(circuit.PreImage)
 	api.AssertIsEqual(circuit.Hash, mimc.Sum())
 
-	return nil
+	c, err := api.(frontend.Committer).Commit(circuit.PreImage, circuit.Hash)
+	api.AssertIsDifferent(c, 0)
+
+	return err
 }
 
-func (phase1 *Phase1) clone() Phase1 {
-	r := Phase1{}
-	r.Parameters.G1.Tau = append(r.Parameters.G1.Tau, phase1.Parameters.G1.Tau...)
-	r.Parameters.G1.AlphaTau = append(r.Parameters.G1.AlphaTau, phase1.Parameters.G1.AlphaTau...)
-	r.Parameters.G1.BetaTau = append(r.Parameters.G1.BetaTau, phase1.Parameters.G1.BetaTau...)
+func assignCircuit() frontend.Circuit {
 
-	r.Parameters.G2.Tau = append(r.Parameters.G2.Tau, phase1.Parameters.G2.Tau...)
-	r.Parameters.G2.Beta = phase1.Parameters.G2.Beta
+	// Build the witness
+	var preImage, hash fr.Element
 
-	r.PublicKeys = phase1.PublicKeys
-	r.Hash = append(r.Hash, phase1.Hash...)
+	m := native_mimc.NewMiMC()
+	m.Write(preImage.Marshal())
+	hash.SetBytes(m.Sum(nil))
 
-	return r
+	return &Circuit{PreImage: preImage, Hash: hash}
+
 }
 
-func (phase2 *Phase2) clone() Phase2 {
-	r := Phase2{}
-	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
-	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
-	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
-	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
-	r.PublicKey = phase2.PublicKey
-	r.Hash = append(r.Hash, phase2.Hash...)
+func getTestCircuit(t *testing.T) *cs.R1CS {
+	return sync.OnceValue(func() *cs.R1CS {
+		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &Circuit{})
+		require.NoError(t, err)
+		return ccs.(*cs.R1CS)
+	})()
+}
 
-	return r
+func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+
+	witness, err := frontend.NewWitness(assignCircuit(), curve.ID.ScalarField())
+	require.NoError(t, err)
+
+	pubWitness, err := witness.Public()
+	require.NoError(t, err)
+
+	// groth16: ensure proof is verified
+	proof, err := groth16.Prove(getTestCircuit(t), pk, witness)
+	require.NoError(t, err)
+
+	err = groth16.Verify(proof, vk, pubWitness)
+	require.NoError(t, err)
 }
