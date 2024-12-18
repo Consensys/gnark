@@ -214,14 +214,15 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
 
-	left := c.baseApi.Mul(&p.Y, &p.Y)
-	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
-	right = c.baseApi.Add(right, b)
-	if c.addA {
-		ax := c.baseApi.Mul(&c.a, &p.X)
-		right = c.baseApi.Add(right, ax)
+	mone := c.baseApi.NewElement(-1)
+
+	var check *emulated.Element[B]
+	if !c.addA {
+		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1})
+	} else {
+		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {&c.a, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1, 1})
 	}
-	c.baseApi.AssertIsEqual(left, right)
+	c.baseApi.AssertIsEqual(check, c.baseApi.Zero())
 }
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
@@ -382,16 +383,17 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
 
 	// omit y2 computation
-	// compute λ2 = λ1+2*p.y/(x2-p.x)
+
+	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &p.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
-	// compute x3 =λ2²-p.x-x2
+	// compute x3 = (-λ2)²-p.x-x2
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = λ2*(-p.x + x3)-p.y
+	// compute y3 = -λ2*(x3 - p.x)-p.y
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(x3, &p.X)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
@@ -424,16 +426,16 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	// conditional second addition
 	t := c.Select(b, p, q)
 
-	// compute λ2 = λ1+2*t.y/(x2-t.x)
+	// compute -λ2 = λ1+2*t.y/(x2-t.x)
 	ypyp := c.baseApi.MulConst(&t.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &t.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
-	// compute x3 =λ2²-t.x-x2
+	// compute x3 = (-λ2)²-t.x-x2
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &t.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = -λ2*(t.x - x3)-t.y
+	// compute y3 = -λ2*(x3 - t.x)-t.y
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, x3}, {mone, λ2, &t.X}, {mone, &t.Y}}, []int{1, 1, 1})
 
 	return &AffinePoint[B]{
