@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/internal/utils/test_utils"
 	"math/big"
 )
 
@@ -175,7 +174,6 @@ func (p *Phase1) Verify(next *Phase1) error {
 	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{next.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	test_utils.ConditionalLoggerEnabled = false
 	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, challenge, 3); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}

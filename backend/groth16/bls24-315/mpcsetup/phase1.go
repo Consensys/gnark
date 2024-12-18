@@ -6,187 +6,276 @@
 package mpcsetup
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"math"
 	"math/big"
 )
 
-// Phase1 represents the Phase1 of the MPC described in
+// SrsCommons are the circuit-independent components of the Groth16 SRS,
+// computed by the first phase.
+// in all that follows, N is the domain size
+type SrsCommons struct {
+	G1 struct {
+		Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ᴺ⁻²]₁}
+		AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τᴺ⁻¹]₁}
+		BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τᴺ⁻¹]₁}
+	}
+	G2 struct {
+		Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τᴺ⁻¹]₂}
+		Beta curve.G2Affine   // [β]₂
+	}
+}
+
+// Phase1 in line with Phase1 of the MPC described in
 // https://eprint.iacr.org/2017/1050.pdf
 //
 // Also known as "Powers of Tau"
 type Phase1 struct {
-	Parameters struct {
-		G1 struct {
-			Tau      []curve.G1Affine // {[τ⁰]₁, [τ¹]₁, [τ²]₁, …, [τ²ⁿ⁻²]₁}
-			AlphaTau []curve.G1Affine // {α[τ⁰]₁, α[τ¹]₁, α[τ²]₁, …, α[τⁿ⁻¹]₁}
-			BetaTau  []curve.G1Affine // {β[τ⁰]₁, β[τ¹]₁, β[τ²]₁, …, β[τⁿ⁻¹]₁}
-		}
-		G2 struct {
-			Tau  []curve.G2Affine // {[τ⁰]₂, [τ¹]₂, [τ²]₂, …, [τⁿ⁻¹]₂}
-			Beta curve.G2Affine   // [β]₂
-		}
+	proofs struct { // "main" contributions
+		Tau, Alpha, Beta valueUpdate
 	}
-	PublicKeys struct {
-		Tau, Alpha, Beta PublicKey
-	}
-	Hash []byte // sha256 hash
+	parameters SrsCommons
+	Challenge  []byte // Hash of the transcript PRIOR to this participant
 }
 
-// InitPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
-// any randomness contribution is made (see Contribute()).
-func InitPhase1(power int) (phase1 Phase1) {
-	N := int(math.Pow(2, float64(power)))
+// Contribute contributes randomness to the Phase1 object. This mutates Phase1.
+// p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
+func (p *Phase1) Contribute() {
+	p.Challenge = p.hash()
 
-	// Generate key pairs
-	var tau, alpha, beta fr.Element
-	tau.SetOne()
-	alpha.SetOne()
-	beta.SetOne()
-	phase1.PublicKeys.Tau = newPublicKey(tau, nil, 1)
-	phase1.PublicKeys.Alpha = newPublicKey(alpha, nil, 2)
-	phase1.PublicKeys.Beta = newPublicKey(beta, nil, 3)
+	// Generate main value updates
+	var (
+		tauContrib, alphaContrib, betaContrib fr.Element
+	)
 
-	// First contribution use generators
-	_, _, g1, g2 := curve.Generators()
-	phase1.Parameters.G2.Beta.Set(&g2)
-	phase1.Parameters.G1.Tau = make([]curve.G1Affine, 2*N-1)
-	phase1.Parameters.G2.Tau = make([]curve.G2Affine, N)
-	phase1.Parameters.G1.AlphaTau = make([]curve.G1Affine, N)
-	phase1.Parameters.G1.BetaTau = make([]curve.G1Affine, N)
-	for i := 0; i < len(phase1.Parameters.G1.Tau); i++ {
-		phase1.Parameters.G1.Tau[i].Set(&g1)
-	}
-	for i := 0; i < len(phase1.Parameters.G2.Tau); i++ {
-		phase1.Parameters.G2.Tau[i].Set(&g2)
-		phase1.Parameters.G1.AlphaTau[i].Set(&g1)
-		phase1.Parameters.G1.BetaTau[i].Set(&g1)
-	}
+	p.proofs.Tau, tauContrib = newValueUpdate(p.Challenge, 1)
+	p.proofs.Alpha, alphaContrib = newValueUpdate(p.Challenge, 2)
+	p.proofs.Beta, betaContrib = newValueUpdate(p.Challenge, 3)
 
-	phase1.Parameters.G2.Beta.Set(&g2)
-
-	// Compute hash of Contribution
-	phase1.Hash = phase1.hash()
-
-	return
+	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
 
-// Contribute contributes randomness to the phase1 object. This mutates phase1.
-func (phase1 *Phase1) Contribute() {
-	N := len(phase1.Parameters.G2.Tau)
+// setZero instantiates the parameters, and sets all contributions to zero
+func (c *SrsCommons) setZero(N uint64) {
+	c.G1.Tau = make([]curve.G1Affine, 2*N-1)
+	c.G2.Tau = make([]curve.G2Affine, N)
+	c.G1.AlphaTau = make([]curve.G1Affine, N)
+	c.G1.BetaTau = make([]curve.G1Affine, N)
+	_, _, c.G1.Tau[0], c.G2.Tau[0] = curve.Generators()
+}
 
-	// Generate key pairs
-	var tau, alpha, beta fr.Element
-	tau.SetRandom()
-	alpha.SetRandom()
-	beta.SetRandom()
-	phase1.PublicKeys.Tau = newPublicKey(tau, phase1.Hash[:], 1)
-	phase1.PublicKeys.Alpha = newPublicKey(alpha, phase1.Hash[:], 2)
-	phase1.PublicKeys.Beta = newPublicKey(beta, phase1.Hash[:], 3)
-
-	// Compute powers of τ, ατ, and βτ
-	taus := powers(tau, 2*N-1)
-	alphaTau := make([]fr.Element, N)
-	betaTau := make([]fr.Element, N)
-	for i := 0; i < N; i++ {
-		alphaTau[i].Mul(&taus[i], &alpha)
-		betaTau[i].Mul(&taus[i], &beta)
+// setOne instantiates the parameters, and sets all contributions to one
+func (c *SrsCommons) setOne(N uint64) {
+	c.setZero(N)
+	g1, g2 := &c.G1.Tau[0], &c.G2.Tau[0]
+	setG1 := func(s []curve.G1Affine) {
+		for i := range s {
+			s[i].Set(g1)
+		}
+	}
+	setG2 := func(s []curve.G2Affine) {
+		for i := range s {
+			s[i].Set(g2)
+		}
 	}
 
-	// Update using previous parameters
+	setG1(c.G1.Tau[1:])
+	setG2(c.G2.Tau[1:])
+	setG1(c.G1.AlphaTau)
+	setG1(c.G1.BetaTau)
+	c.G2.Beta.Set(g2)
+}
+
+// from the fourth argument on this just gives an opportunity to avoid recomputing some scalar multiplications
+func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
+
 	// TODO @gbotrel working with jacobian points here will help with perf.
-	scaleG1InPlace(phase1.Parameters.G1.Tau, taus)
-	scaleG2InPlace(phase1.Parameters.G2.Tau, taus[0:N])
-	scaleG1InPlace(phase1.Parameters.G1.AlphaTau, alphaTau)
-	scaleG1InPlace(phase1.Parameters.G1.BetaTau, betaTau)
-	var betaBI big.Int
-	beta.BigInt(&betaBI)
-	phase1.Parameters.G2.Beta.ScalarMultiplication(&phase1.Parameters.G2.Beta, &betaBI)
 
-	// Compute hash of Contribution
-	phase1.Hash = phase1.hash()
+	tauUpdates := powers(tauUpdate, len(c.G1.Tau))
+	// saving 3 exactly scalar muls among millions. Not a significant gain but might as well.
+	scaleG1InPlace(c.G1.Tau[1:], tauUpdates[1:]) // first element remains 1
+	scaleG2InPlace(c.G2.Tau[1:], tauUpdates[1:])
+
+	alphaUpdates := make([]fr.Element, len(c.G1.AlphaTau))
+	alphaUpdates[0].Set(alphaUpdate)
+	for i := range alphaUpdates {
+		// let α₁ = α₀.α', τ₁ = τ₀.τ'
+		// then α₁τ₁ⁱ = (α₀τ₀ⁱ)α'τ'ⁱ
+		alphaUpdates[i].Mul(&tauUpdates[i], alphaUpdate)
+	}
+	scaleG1InPlace(c.G1.AlphaTau, alphaUpdates)
+
+	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
+	betaUpdates[0].Set(betaUpdate)
+	for i := range betaUpdates {
+		betaUpdates[i].Mul(&tauUpdates[i], betaUpdate)
+	}
+	scaleG1InPlace(c.G1.BetaTau, betaUpdates)
+
+	var betaUpdateI big.Int
+	betaUpdate.BigInt(&betaUpdateI)
+	c.G2.Beta.ScalarMultiplication(&c.G2.Beta, &betaUpdateI)
 }
 
-func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
-	contribs := append([]*Phase1{c0, c1}, c...)
-	for i := 0; i < len(contribs)-1; i++ {
-		if err := verifyPhase1(contribs[i], contribs[i+1]); err != nil {
-			return err
+// Seal performs the final contribution and outputs the final parameters.
+// No randomization is performed at this step.
+// A verifier should simply re-run this and check
+// that it produces the same values.
+// The inner workings of the random beacon are out of scope.
+// WARNING: Seal modifies p, just as Contribute does.
+// The result will be an INVALID Phase1 object, since no proof of correctness is produced.
+func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
+	newContribs := beaconContributions(p.hash(), beaconChallenge, 3)
+	p.parameters.update(&newContribs[0], &newContribs[1], &newContribs[2])
+	return p.parameters
+}
+
+// VerifyPhase1 and return the SRS parameters usable for any circuit of domain size N
+// beaconChallenge is the output of the random beacon
+// and c are the output from the contributors
+// WARNING: the last contribution object will be modified
+func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, error) {
+	prev := NewPhase1(N)
+	for i := range c {
+		if err := prev.Verify(c[i]); err != nil {
+			return SrsCommons{}, err
 		}
+		prev = c[i]
 	}
-	return nil
+	return prev.Seal(beaconChallenge), nil
 }
 
-// verifyPhase1 checks that a contribution is based on a known previous Phase1 state.
-func verifyPhase1(current, contribution *Phase1) error {
-	// Compute R for τ, α, β
-	tauR := genR(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, current.Hash[:], 1)
-	alphaR := genR(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, current.Hash[:], 2)
-	betaR := genR(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, current.Hash[:], 3)
+// Verify assumes previous is correct
+func (p *Phase1) Verify(next *Phase1) error {
 
-	// Check for knowledge of toxic parameters
-	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.PublicKeys.Tau.XR, tauR) {
-		return errors.New("couldn't verify public key of τ")
+	challenge := p.hash()
+	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
+		return errors.New("the challenge does not match the previous contribution's hash")
 	}
-	if !sameRatio(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, contribution.PublicKeys.Alpha.XR, alphaR) {
-		return errors.New("couldn't verify public key of α")
-	}
-	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.PublicKeys.Beta.XR, betaR) {
-		return errors.New("couldn't verify public key of β")
-	}
+	next.Challenge = challenge
 
-	// Check for valid updates using previous parameters
-	if !sameRatio(contribution.Parameters.G1.Tau[1], current.Parameters.G1.Tau[1], tauR, contribution.PublicKeys.Tau.XR) {
-		return errors.New("couldn't verify that [τ]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.Parameters.G1.AlphaTau[0], current.Parameters.G1.AlphaTau[0], alphaR, contribution.PublicKeys.Alpha.XR) {
-		return errors.New("couldn't verify that [α]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.Parameters.G1.BetaTau[0], current.Parameters.G1.BetaTau[0], betaR, contribution.PublicKeys.Beta.XR) {
-		return errors.New("couldn't verify that [β]₁ is based on previous contribution")
-	}
-	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.Parameters.G2.Tau[1], current.Parameters.G2.Tau[1]) {
-		return errors.New("couldn't verify that [τ]₂ is based on previous contribution")
-	}
-	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.Parameters.G2.Beta, current.Parameters.G2.Beta) {
-		return errors.New("couldn't verify that [β]₂ is based on previous contribution")
+	// the internal consistency of the vector sizes in next is assumed
+	// so is its well-formedness i.e. Tau[0] = 1
+	// it remains to check it is consistent with p
+	N := len(next.parameters.G2.Tau)
+	if N != len(p.parameters.G2.Tau) {
+		return errors.New("domain size mismatch")
 	}
 
-	// Check for valid updates using powers of τ
-	_, _, g1, g2 := curve.Generators()
-	tauL1, tauL2 := linearCombinationG1(contribution.Parameters.G1.Tau)
-	if !sameRatio(tauL1, tauL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of τ in G₁")
+	// verify updates to τ, α, β
+	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], nil}, pair{next.parameters.G1.Tau[1], nil}, challenge, 1); err != nil {
+		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	alphaL1, alphaL2 := linearCombinationG1(contribution.Parameters.G1.AlphaTau)
-	if !sameRatio(alphaL1, alphaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
+	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{next.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
+		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	betaL1, betaL2 := linearCombinationG1(contribution.Parameters.G1.BetaTau)
-	if !sameRatio(betaL1, betaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
-	}
-	tau2L1, tau2L2 := linearCombinationG2(contribution.Parameters.G2.Tau)
-	if !sameRatio(contribution.Parameters.G1.Tau[1], g1, tau2L1, tau2L2) {
-		return errors.New("couldn't verify valid powers of τ in G₂")
+	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, challenge, 3); err != nil {
+		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
-	// Check hash of the contribution
-	h := contribution.hash()
-	for i := 0; i < len(h); i++ {
-		if h[i] != contribution.Hash[i] {
-			return errors.New("couldn't verify hash of contribution")
-		}
+	if !areInSubGroupG1(next.parameters.G1.Tau[2:]) || !areInSubGroupG1(next.parameters.G1.BetaTau[1:]) || !areInSubGroupG1(next.parameters.G1.AlphaTau[1:]) {
+		return errors.New("derived values 𝔾₁ subgroup check failed")
+	}
+	if !areInSubGroupG2(next.parameters.G2.Tau[2:]) {
+		return errors.New("derived values 𝔾₂ subgroup check failed")
+	}
+
+	return multiValueUpdateCheck(
+		p.parameters.G1.Tau,
+		p.parameters.G2.Tau,
+		p.parameters.G1.AlphaTau,
+		p.parameters.G1.BetaTau,
+	)
+}
+
+// multiValueUpdateCheck checks that aᵢ₊₁/aᵢ = bⱼ₊₁/bⱼ = cₖ₊₁/cₖ = dₗ₊₁/dₗ for all applicable i,j,k,l
+// in other words it checks that there is x such that aᵢ = xʲa₀, bⱼ = xʲb₀, cₖ = xʲc₀, dₗ = xʲd₀
+func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c, d []curve.G1Affine) error {
+	// lemma: let K be a field and
+	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
+	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
+	// polynomials in K[X,Y,Z].
+	// if F/F' = G/G'
+	// then F/F' = G/G' ∈ K
+	//
+	// view our polynomials in K[X,Y,Z]
+	// By multiplying out the polynomials we get
+	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖ XᶦYʲZᵏ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏ
+	// pick i₀ ,j₀ , k₀ where f'ᵢ₀ⱼ₀, g'ₖ₀ ≠ 0
+	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀/g'ₖ₀
+	// now for any i,j: fᵢⱼg'ₖ₀ = f'ᵢⱼgₖ₀ ⇒
+	// fᵢⱼ = x f'ᵢⱼ
+	// likewise for any i: fᵢ₀ⱼ₀g'ᵢ = f'ᵢ₀ⱼ₀gᵢ ⇒
+	// gᵢ = x g'ᵢ
+
+	// now we use this to check that:
+	//    1. aᵢ ≔ G1.Tau[i]      = [τⁱ]₁
+	//    2. bᵢ ≔ G2.Tau[i]      = [τⁱ]₂
+	//    3. cᵢ ≔ G1.AlphaTau[i] = [ατⁱ]₁
+	//    4. dᵢ ≔ G1.BetaTau[i]  = [βτⁱ]₁
+
+	// construct the polynomials
+	// F  ≔ a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³ + c₀Y + c₁XY + ... + cₙ₋₂Xᴺ⁻²Y + d₀Y² + d₁XY² + ... + dₙ₋₂Xᴺ⁻²Y²
+	// F' ≔ a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³ + c₁Y + c₂XY + ... + cₙ₋₁Xᴺ⁻²Y + d₁Y² + d₂XY² + ... + dₙ₋₁Xᴺ⁻²Y²
+	// G  ≔ b₀ + b₁Z + ... + bₙ₋₂Zᴺ⁻²
+	// G' ≔ b₁ + b₂Z + ... + bₙ₋₁Zᴺ⁻²
+
+	// if F/F' = G/G' we get F/F' = G/G' = a₀/a₁ = 1/τ, which yields:
+	// for 0 ≤ i ≤ N-2:  bᵢ = bᵢ₊₁/τ, cᵢ = cᵢ₊₁/τ, dᵢ = dᵢ₊₁/τ
+	// for 0 ≤ i ≤ 2N-3: aᵢ = aᵢ₊₁/τ
+
+	// from previous checks we already know:
+	//    1. a₀ = 1
+	//    2. b₀ = 1
+	//    3. c₀ = α
+	//    4. d₀ = β
+	// and so the desired results follow
+
+	ends := partialSums(len(a), len(c), len(d))
+
+	g1s := make([]curve.G1Affine, 0, ends[len(ends)-1])
+	g1s = append(g1s, a...)
+	g1s = append(g1s, c...)
+	g1s = append(g1s, d...)
+
+	g1Num, g1Denom := linearCombinationsG1(g1s, bivariateRandomMonomials(ends...), ends)
+	g2Num, g2Denom := linearCombinationsG2(b, linearCombCoeffs(len(b)))
+
+	if !sameRatioUnsafe(g1Num, g1Denom, g2Num, g2Denom) {
+		return errors.New("multi-value update check failed")
 	}
 
 	return nil
+
 }
 
-func (phase1 *Phase1) hash() []byte {
+func (p *Phase1) hash() []byte {
 	sha := sha256.New()
-	phase1.writeTo(sha)
+	p.WriteTo(sha)
+	sha.Write(p.Challenge)
 	return sha.Sum(nil)
+}
+
+// Initialize an empty Phase1 contribution object
+// to be used by the first contributor or the verifier
+// N is the FFT domain size
+func (p *Phase1) Initialize(N uint64) {
+	if ecc.NextPowerOfTwo(N) != N {
+		panic("N must be a power of 2")
+	}
+	p.parameters.setOne(N)
+}
+
+// NewPhase1 creates an empty Phase1 contribution object
+// to be used by the first contributor or the verifier
+// N is the FFT domain size
+func NewPhase1(N uint64) *Phase1 {
+	res := new(Phase1)
+	res.Initialize(N)
+	return res
 }
