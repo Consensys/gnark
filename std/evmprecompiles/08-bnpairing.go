@@ -47,7 +47,7 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	}
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
-	ml := pair.One()
+	ml := pair.Ext12.One()
 	for i := 0; i < n-1; i++ {
 		// fixed circuit 1
 		ml, err = pair.MillerLoopAndMul(P[i], Q[i], ml)
