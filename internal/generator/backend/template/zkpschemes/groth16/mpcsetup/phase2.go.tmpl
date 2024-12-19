@@ -36,7 +36,7 @@ type Phase2 struct {
 			Delta    curve.G1Affine
 			Z        []curve.G1Affine   // Z[i] = xⁱt(x)/δ where t is the domain vanishing polynomial 0 ≤ i ≤ N-2
 			PKK      []curve.G1Affine   // PKK are the coefficients of the private witness, needed for the proving key. They have a denominator of δ
-			SigmaCKK [][]curve.G1Affine // Commitment proof bases: SigmaCKK[i][j] = Cᵢⱼσᵢ where Cᵢⱼ is the commitment basis for the jᵗʰ committed element from the iᵗʰ commitment
+			SigmaCKK [][]curve.G1Affine // Commitment proof bases: SigmaCKK[i][j] = σᵢCᵢⱼ where Cᵢⱼ is the commitment basis for the jᵗʰ committed element from the iᵗʰ commitment
 		}
 		G2 struct {
 			Delta curve.G2Affine
