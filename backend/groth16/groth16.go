@@ -347,7 +347,7 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	case ecc.BN254:
 		pk = &groth16_bn254.ProvingKey{}
 		if icicle_bn254.HasIcicle {
-			pk = &icicle_bn254.ProvingKey{}
+			pk = icicle_bn254.NewProvingKey()
 		}
 	case ecc.BLS12_377:
 		pk = &groth16_bls12377.ProvingKey{}
