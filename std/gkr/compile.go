@@ -1,7 +1,7 @@
 package gkr
 
 import (
-	"fmt"
+	"errors"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -71,11 +71,11 @@ func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, 
 	nbInstances := len(assignment)
 	logNbInstances := log2(uint(nbInstances))
 	if logNbInstances == -1 {
-		return -1, fmt.Errorf("number of assignments must be a power of 2")
+		return -1, errors.New("number of assignments must be a power of 2")
 	}
 
 	if currentNbInstances := api.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
-		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
+		return -1, errors.New("number of assignments must be consistent across all variables")
 	}
 	newVar := api.toStore.NewInputVariable()
 	api.assignments = append(api.assignments, assignment)

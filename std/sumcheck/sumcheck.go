@@ -1,7 +1,7 @@
 package sumcheck
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
@@ -87,7 +87,7 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 	for j := 0; j < claims.VarsNum(); j++ {
 		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
 		if len(partialSumPoly) != claims.Degree(j) {
-			return fmt.Errorf("malformed proof") //Malformed proof
+			return errors.New("malformed proof") //Malformed proof
 		}
 		copy(gJ[1:], partialSumPoly)
 		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)

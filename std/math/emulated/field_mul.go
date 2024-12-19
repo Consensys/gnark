@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -262,7 +263,7 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 	return a
 }
 
-// performMulChecks should be deferred to actually perform all the
+// performDeferredChecks should be deferred to actually perform all the
 // multiplication checks.
 func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
@@ -889,7 +890,7 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 // handles the input packing and output unpacking.
 func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) < 7 {
-		return fmt.Errorf("not enough inputs")
+		return errors.New("not enough inputs")
 	}
 	var (
 		nbBits       = int(inputs[0].Int64())
@@ -901,7 +902,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		nbCarryLimbs = int(inputs[5].Int64())
 	)
 	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs {
-		return fmt.Errorf("output length mismatch")
+		return errors.New("output length mismatch")
 	}
 	outPtr := 0
 	quoLimbs := outputs[outPtr : outPtr+nbQuoLimbs]
@@ -943,7 +944,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		}
 	}
 	if ptr != len(inputs) {
-		return fmt.Errorf("inputs not exhausted")
+		return errors.New("inputs not exhausted")
 	}
 	// recompose the inputs in limb-form to *big.Int form
 	vars := make([]*big.Int, nbVars)
