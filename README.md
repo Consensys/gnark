@@ -162,9 +162,9 @@ func main() {
 
 ### GPU Support
 
-#### Icicle Library
+#### ICICLE Library
 
-The following schemes and curves support experimental use of Ingonyama's Icicle GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
+The following schemes and curves support experimental use of Ingonyama's ICICLE GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
 
 - [x] [Groth16](https://eprint.iacr.org/2016/260)
 
@@ -184,7 +184,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```
 
-For more information about prerequisites see the [Icicle repo](https://github.com/ingonyama-zk/icicle).
+For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle). **NB! ICICLE CUDA kernels are covered by a special license for now. Follow the instructions to download and set up the kernels.**
 
 ## Citing
 
