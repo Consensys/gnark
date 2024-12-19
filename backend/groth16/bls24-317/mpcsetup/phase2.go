@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls24-317"
+	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"slices"
 )
@@ -121,14 +122,18 @@ func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 			panic("unknown type")
 		}
 	}
+	scaleG1Slice := func(s []curve.G1Affine) {
+		utils.Parallelize(len(s), func(start, end int) {
+			for i := start; i < end; i++ {
+				s[i].ScalarMultiplication(&s[i], &I)
+			}
+		})
+	}
 
 	for i := range sigma {
 		sigma[i].BigInt(&I)
-		s := p.Parameters.G1.SigmaCKK[i]
-		for j := range s {
-			scale(&s[j])
-		}
 		scale(&p.Parameters.G2.Sigma[i])
+		scaleG1Slice(p.Parameters.G1.SigmaCKK[i])
 	}
 
 	delta.BigInt(&I)
@@ -137,12 +142,8 @@ func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 
 	delta.Inverse(delta)
 	delta.BigInt(&I)
-	for i := range p.Parameters.G1.Z {
-		scale(&p.Parameters.G1.Z[i])
-	}
-	for i := range p.Parameters.G1.PKK {
-		scale(&p.Parameters.G1.PKK[i])
-	}
+	scaleG1Slice(p.Parameters.G1.Z)
+	scaleG1Slice(p.Parameters.G1.PKK)
 }
 
 func (p *Phase2) Contribute() {
