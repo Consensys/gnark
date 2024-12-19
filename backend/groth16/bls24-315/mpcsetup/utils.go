@@ -201,7 +201,7 @@ func linearCombinationsG2(A []curve.G2Affine, rPowers []fr.Element) (truncated, 
 // π ≔ x.r; e([1]₁, π) =﹖ e([x]₁, r)
 func genR(sG1 curve.G1Affine, challenge []byte, dst byte) curve.G2Affine {
 	var buf bytes.Buffer
-	buf.Grow(len(challenge) + curve.SizeOfG1AffineUncompressed*2)
+	buf.Grow(len(challenge) + curve.SizeOfG1AffineUncompressed)
 	buf.Write(sG1.Marshal())
 	buf.Write(challenge)
 	spG2, err := curve.HashToG2(buf.Bytes(), []byte{dst})
@@ -253,7 +253,7 @@ func newValueUpdate(challenge []byte, dst byte) (proof valueUpdate, contribution
 // verify corresponds with verification steps {i, i+3} with 1 ≤ i ≤ 3 in section 7.1 of Bowe-Gabizon17
 // it checks the proof of knowledge of the contribution, and the fact that the product of the contribution
 // and previous commitment makes the new commitment.
-// prevCommitment is assumed to be valid. No subgroup check and the like.
+// denom, num are assumed to be valid. No subgroup check and the like.
 func (x *valueUpdate) verify(denom, num pair, challenge []byte, dst byte) error {
 	noG2 := denom.g2 == nil
 	if noG2 != (num.g2 == nil) {
@@ -285,15 +285,7 @@ func (x *valueUpdate) verify(denom, num pair, challenge []byte, dst byte) error 
 	return nil
 }
 
-func toRefs[T any](s []T) []*T {
-	res := make([]*T, len(s))
-	for i := range s {
-		res[i] = &s[i]
-	}
-	return res
-}
-
-func areInSubGroup[T interface{ IsInSubGroup() bool }](s []T) bool {
+func areInSubGroupG1(s []curve.G1Affine) bool {
 	for i := range s {
 		if !s[i].IsInSubGroup() {
 			return false
@@ -302,12 +294,13 @@ func areInSubGroup[T interface{ IsInSubGroup() bool }](s []T) bool {
 	return true
 }
 
-func areInSubGroupG1(s []curve.G1Affine) bool {
-	return areInSubGroup(toRefs(s))
-}
-
 func areInSubGroupG2(s []curve.G2Affine) bool {
-	return areInSubGroup(toRefs(s))
+	for i := range s {
+		if !s[i].IsInSubGroup() {
+			return false
+		}
+	}
+	return true
 }
 
 // bivariateRandomMonomials returns 1, x, ..., x^{ends[0]-1}; y, xy, ..., x^{ends[1]-ends[0]-1}y; ...
