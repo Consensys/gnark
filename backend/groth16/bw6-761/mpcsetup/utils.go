@@ -29,21 +29,22 @@ func bitReverse[T any](a []T) {
 	}
 }
 
-func linearCombCoeffs(n int) []fr.Element {
-	return bivariateRandomMonomials(n)
+// Returns [1, a, a², ..., aᴺ⁻¹ ] for random a
+func randomMonomials(N int) []fr.Element {
+	return bivariateRandomMonomials(N)
 }
 
 // Returns [1, a, a², ..., aᴺ⁻¹ ]
-func powers(a *fr.Element, n int) []fr.Element {
+func powers(a *fr.Element, N int) []fr.Element {
 
-	result := make([]fr.Element, n)
-	if n >= 1 {
+	result := make([]fr.Element, N)
+	if N >= 1 {
 		result[0].SetOne()
 	}
-	if n >= 2 {
+	if N >= 2 {
 		result[1].Set(a)
 	}
-	for i := 2; i < n; i++ {
+	for i := 2; i < N; i++ {
 		result[i].Mul(&result[i-1], a)
 	}
 	return result

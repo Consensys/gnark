@@ -66,7 +66,7 @@ func (p *Phase2) Verify(next *Phase2) error {
 		return errors.New("contribution size mismatch")
 	}
 
-	r := linearCombCoeffs(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1)
+	r := randomMonomials(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1)
 
 	verifyContribution := func(update *valueUpdate, g1Denominator, g1Numerator []curve.G1Affine, g2Denominator, g2Numerator *curve.G2Affine, dst byte) error {
 		g1Num := linearCombination(g1Numerator, r)
