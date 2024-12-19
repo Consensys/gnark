@@ -10,11 +10,11 @@ import (
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		divE2Hint,
-		divE6Hint,
-		divE12Hint,
 		inverseE2Hint,
 		inverseE6Hint,
+		divE6Hint,
 		inverseE12Hint,
+		divE12Hint,
 		finalExpHint,
 	}
 }
@@ -57,26 +57,26 @@ func divE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls12377.E6
 
 	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
+	a.B1.A0.SetBigInt(inputs[1])
+	a.B2.A0.SetBigInt(inputs[2])
+	a.B0.A1.SetBigInt(inputs[3])
+	a.B1.A1.SetBigInt(inputs[4])
 	a.B2.A1.SetBigInt(inputs[5])
 
 	b.B0.A0.SetBigInt(inputs[6])
-	b.B0.A1.SetBigInt(inputs[7])
-	b.B1.A0.SetBigInt(inputs[8])
-	b.B1.A1.SetBigInt(inputs[9])
-	b.B2.A0.SetBigInt(inputs[10])
+	b.B1.A0.SetBigInt(inputs[7])
+	b.B2.A0.SetBigInt(inputs[8])
+	b.B0.A1.SetBigInt(inputs[9])
+	b.B1.A1.SetBigInt(inputs[10])
 	b.B2.A1.SetBigInt(inputs[11])
 
 	c.Inverse(&b).Mul(&c, &a)
 
 	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
+	c.B1.A0.BigInt(res[1])
+	c.B2.A0.BigInt(res[2])
+	c.B0.A1.BigInt(res[3])
+	c.B1.A1.BigInt(res[4])
 	c.B2.A1.BigInt(res[5])
 
 	return nil
@@ -86,19 +86,19 @@ func inverseE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E6
 
 	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
+	a.B1.A0.SetBigInt(inputs[1])
+	a.B2.A0.SetBigInt(inputs[2])
+	a.B0.A1.SetBigInt(inputs[3])
+	a.B1.A1.SetBigInt(inputs[4])
 	a.B2.A1.SetBigInt(inputs[5])
 
 	c.Inverse(&a)
 
 	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
+	c.B1.A0.BigInt(res[1])
+	c.B2.A0.BigInt(res[2])
+	c.B0.A1.BigInt(res[3])
+	c.B1.A1.BigInt(res[4])
 	c.B2.A1.BigInt(res[5])
 
 	return nil

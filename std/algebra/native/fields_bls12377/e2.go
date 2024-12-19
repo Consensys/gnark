@@ -4,8 +4,6 @@
 package fields_bls12377
 
 import (
-	"math/big"
-
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
@@ -203,74 +201,4 @@ func (e *E2) Lookup2(api frontend.API, b1, b2 frontend.Variable, r1, r2, r3, r4 
 	e.A1 = api.Lookup2(b1, b2, r1.A1, r2.A1, r3.A1, r4.A1)
 
 	return e
-}
-
-// --
-var ext = getBLS12377ExtensionFp12()
-
-// return big.Int from base10 input
-func newInt(in string) *big.Int {
-	r := new(big.Int)
-	_, ok := r.SetString(in, 10)
-	if !ok {
-		panic("invalid base10 big.Int: " + in)
-	}
-	return r
-}
-
-// getBLS12377ExtensionFp12 get extension field parameters for bls12377
-func getBLS12377ExtensionFp12() Extension {
-
-	res := Extension{}
-
-	res.uSquare = newInt("-5")
-
-	res.frobv = newInt("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946")
-	res.frobv2 = newInt("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945")
-	res.frobw = newInt("92949345220277864758624960506473182677953048909283248980960104381795901929519566951595905490535835115111760994353")
-	res.frobvw = newInt("216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499")
-	res.frobv2w = newInt("123516416119946754630746545296132064952198520638002533875843642777304321125866014634106496325844844051843001220146")
-
-	res.frob2v = newInt("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945")
-	res.frob2v2 = newInt("258664426012969093929703085429980814127835149614277183275038967946009968870203535512256352201271898244626862047231")
-	res.frob2w = newInt("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946")
-	res.frob2vw = newInt("258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458176")
-	res.frob2v2w = newInt("258664426012969093929703085429980814127835149614277183275038967946009968870203535512256352201271898244626862047232")
-
-	res.frob3v = newInt("258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458176")
-	res.frob3v2 = newInt("1")
-	res.frob3w = newInt("216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499")
-	res.frob3vw = newInt("42198664672744474621281227892288285906241943207628877683080515507620245292955241189266486323192680957485559243678")
-	res.frob3v2w = newInt("216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499")
-
-	return res
-}
-
-// Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp6->Fp12 (Fp2 = Fp(u), Fp6 = Fp2(v), Fp12 = Fp6(w))
-type Extension struct {
-
-	// generators of each sub field
-	uSquare *big.Int
-
-	// frobenius applied to generators
-	frobv   *big.Int // v**p  = (v**6)**(p-1/6)*v, frobv=(v**6)**(p-1/6), belongs to Fp)
-	frobv2  *big.Int // frobv2 = (v**6)**(p-1/3)
-	frobw   *big.Int // frobw = (w**12)**(p-1/12)
-	frobvw  *big.Int // frobvw = (v**6)**(p-1/6)*(w*12)**(p-1/12)
-	frobv2w *big.Int // frobv2w = (v**6)**(2*(p-1)/6)*(w*12)**(p-1/12)
-
-	// frobenius square applied to generators
-	frob2v   *big.Int // v**(p**2)  = (v**6)**(p**2-1/6)*v, frobv=(v**6)**(p**2-1/6), belongs to Fp)
-	frob2v2  *big.Int // frobv2 = (v**6)**(2*(p**2-1)/6)
-	frob2w   *big.Int // frobw = (w**12)**(p**2-1/12)
-	frob2vw  *big.Int // frobvw = (v**6)**(p**2-1/6)*(w*12)**(p**2-1/12)
-	frob2v2w *big.Int // frobv2w = (v**6)**(2*(p**2-1)/6)*(w*12)**(p**2-1/12)
-
-	// frobenius cube applied to generators
-	frob3v   *big.Int // v**(p**3)  = (v**6)**(p**3-1/6)*v, frobv=(v**6)**(p**3-1/6), belongs to Fp)
-	frob3v2  *big.Int // frobv2 = (v**6)**(2*(p**3-1)/6)
-	frob3w   *big.Int // frobw = (w**12)**(p**3-1/12)
-	frob3vw  *big.Int // frobvw = (v**6)**(p**3-1/6)*(w*12)**(p**3-1/12)
-	frob3v2w *big.Int // frobv2w = (v**6)**(2*(p**3-1)/6)*(w*12)**(p**3-1/12)
-
 }

@@ -1052,7 +1052,7 @@ func (e Ext6) Inverse(x *E6) *E6 {
 }
 
 func (e Ext6) DivUnchecked(x, y *E6) *E6 {
-	res, err := e.fp.NewHint(divE6Hint, 12, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5)
+	res, err := e.fp.NewHint(divE6Hint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5, &y.A0, &y.A1, &y.A2, &y.A3, &y.A4, &y.A5)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
