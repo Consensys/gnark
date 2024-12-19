@@ -75,7 +75,7 @@ func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
 }
 
 // Check n₁/d₁ = n₂/d₂ i.e. e(n₁, d₂) = e(d₁, n₂). No subgroup checks.
-func sameRatioUnsafe(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
+func sameRatio(n1, d1 curve.G1Affine, n2, d2 curve.G2Affine) bool {
 	var nd1 curve.G1Affine
 	nd1.Neg(&d1)
 	res, err := curve.PairingCheck(
@@ -259,18 +259,18 @@ func (x *valueUpdate) verify(denom, num pair, challenge []byte, dst byte) error 
 	// verify commitment proof of knowledge. CheckPOK, algorithm 4 from section 3.7
 	r := genR(x.contributionCommitment, challenge, dst) // verification challenge in the form of a g2 base
 	_, _, g1, _ := curve.Generators()
-	if !sameRatioUnsafe(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
+	if !sameRatio(x.contributionCommitment, g1, x.contributionPok, r) { // π =? x.r i.e. x/g1 =? π/r
 		return errors.New("contribution proof of knowledge verification failed")
 	}
 
 	// check that the num/denom ratio is consistent between the 𝔾₁ and 𝔾₂ representations. Based on CONSISTENT, algorithm 2 in Section 3.6.
-	if !noG2 && !sameRatioUnsafe(num.g1, denom.g1, *num.g2, *denom.g2) {
+	if !noG2 && !sameRatio(num.g1, denom.g1, *num.g2, *denom.g2) {
 		return errors.New("g2 update inconsistent")
 	}
 
 	// now verify that num₁/denom₁ = x ( = x/g1 = π/r )
 	// have to use the latter value for the RHS because we sameRatio needs both 𝔾₁ and 𝔾₂ values
-	if !sameRatioUnsafe(num.g1, denom.g1, x.contributionPok, r) {
+	if !sameRatio(num.g1, denom.g1, x.contributionPok, r) {
 		return errors.New("g1 update inconsistent")
 	}
 

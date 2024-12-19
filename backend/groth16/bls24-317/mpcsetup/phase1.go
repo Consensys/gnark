@@ -246,7 +246,7 @@ func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c, d []curve.
 	g1Num, g1Denom := linearCombinationsG1(g1s, bivariateRandomMonomials(ends...), ends)
 	g2Num, g2Denom := linearCombinationsG2(b, linearCombCoeffs(len(b)))
 
-	if !sameRatioUnsafe(g1Num, g1Denom, g2Num, g2Denom) {
+	if !sameRatio(g1Num, g1Denom, g2Num, g2Denom) {
 		return errors.New("multi-value update check failed")
 	}
 
