@@ -36,7 +36,7 @@ type SrsCommons struct {
 //
 // Also known as "Powers of Tau"
 type Phase1 struct {
-	proofs struct { // "main" contributions
+	proofs struct {
 		Tau, Alpha, Beta valueUpdate
 	}
 	parameters SrsCommons
@@ -97,7 +97,7 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 	// TODO @gbotrel working with jacobian points here will help with perf.
 
 	tauUpdates := powers(tauUpdate, len(c.G1.Tau))
-	// saving 3 exactly scalar muls among millions. Not a significant gain but might as well.
+
 	scaleG1InPlace(c.G1.Tau[1:], tauUpdates[1:]) // first element remains 1
 	scaleG2InPlace(c.G2.Tau[1:], tauUpdates[1:])
 
