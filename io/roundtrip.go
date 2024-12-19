@@ -53,8 +53,6 @@ func RoundTripCheck(from any, to func() any) error {
 			return err
 		}
 
-		//fmt.Println(base64.StdEncoding.EncodeToString(buf.Bytes()[:written]))
-
 		if err := reconstruct(written); err != nil {
 			return err
 		}
