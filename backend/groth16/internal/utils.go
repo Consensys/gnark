@@ -51,7 +51,6 @@ func (i *MergeIterator) findLeast() {
 			i.leastIndex = j
 		}
 	}
-	return
 }
 
 // Peek returns the next smallest value and the index of the slice it came from
