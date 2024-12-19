@@ -59,12 +59,8 @@ func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 		assert.Equal(len(b), int(n))
 	}
 
-	// Make contributions for serialized
+	p1.Initialize(domainSize)
 	for i := range phase1 {
-		if i == 0 { // no "predecessor" to the first contribution
-			p1.Initialize(domainSize)
-		}
-
 		p1.Contribute()
 		serialized[i] = serialize(&p1)
 	}
@@ -84,11 +80,8 @@ func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 		srsCommons = commonsRead
 	}
 
-	// Prepare for phase-2
+	p2.Initialize(ccs, &srsCommons)
 	for i := range phase2 {
-		if i == 0 {
-			p2.Initialize(ccs, &srsCommons)
-		}
 		p2.Contribute()
 		serialized[i] = serialize(&p2)
 	}
