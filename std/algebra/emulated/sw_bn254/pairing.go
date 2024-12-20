@@ -753,8 +753,8 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 	t2 := pr.Ext12.Mul(&cubicNonResiduePower, res)
 
 	t1 := pr.FrobeniusCube(residueWitnessInv)
-	t0 := pr.FrobeniusSquare(residueWitnessInv)
-	t1 = pr.Ext12.DivUnchecked(t1, t0)
+	t0 := pr.FrobeniusSquare(residueWitness)
+	t1 = pr.Ext12.Mul(t1, t0)
 	t0 = pr.Frobenius(residueWitnessInv)
 	t1 = pr.Ext12.Mul(t1, t0)
 
