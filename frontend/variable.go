@@ -13,7 +13,7 @@ import (
 type Variable interface{}
 
 // IsCanonical returns true if the Variable has been normalized in a (internal) LinearExpression
-// by one of the constraint system builder. In other words, if the Variable is a circuit input OR
+// by one of the constraint system builders. In other words, if the Variable is a circuit input OR
 // returned by the API.
 func IsCanonical(v Variable) bool {
 	switch v.(type) {
