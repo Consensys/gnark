@@ -33,11 +33,6 @@ func randomG1G2Affines() (bn254.G1Affine, bn254.G2Affine) {
 	return p, q
 }
 
-type FinalExponentiation struct {
-	InGt GTEl
-	Res  GTEl
-}
-
 type MillerLoopCircuit struct {
 	In1G1, In2G1 G1Affine
 	In1G2, In2G2 G2Affine
@@ -77,6 +72,11 @@ func TestMillerLoopTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type FinalExponentiation struct {
+	InGt GTEl
+	Res  GTEl
 }
 
 func (c *FinalExponentiation) Define(api frontend.API) error {
