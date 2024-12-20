@@ -147,7 +147,7 @@ func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
 // (4 6 1 1)
 // (1 3 5 7)
 // (1 1 4 6)
-// on chunks of 4 elemts on each part of the buffer
+// on chunks of 4 elements on each part of the buffer
 // see https://eprint.iacr.org/2023/323.pdf appendix B for the addition chain
 func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 	c := len(s) / 4
