@@ -43,10 +43,8 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res1 := pairing.FinalExponentiation(&c.InGt)
-	pairing.AssertIsEqual(res1, &c.Res)
-	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
-	pairing.AssertIsEqual(res2, &c.Res)
+	res := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -60,6 +58,40 @@ func TestFinalExponentiationTestSolve(t *testing.T) {
 		Res:  NewGTEl(res),
 	}
 	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FinalExponentiationIsOne struct {
+	InGt GTEl
+}
+
+func (c *FinalExponentiationIsOne) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	pairing.AssertFinalExponentiationIsOne(&c.InGt)
+	return nil
+}
+
+func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bls12381.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bls12381.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	ml, err := bls12381.MillerLoop(
+		[]bls12381.G1Affine{p1, p2},
+		[]bls12381.G2Affine{q1, q2},
+	)
+	assert.NoError(err)
+	witness := FinalExponentiationIsOne{
+		InGt: NewGTEl(ml),
+	}
+	err = test.IsSolved(&FinalExponentiationIsOne{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -275,67 +307,6 @@ func BenchmarkPairing(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	buf.Reset()
-	_, err = ccs.WriteTo(&buf)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
-
-	b.Run("solve r1cs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if _, err := ccs.Solve(w); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-}
-
-func BenchmarkFinalExponentiation(b *testing.B) {
-	// e(a,2b) * e(-2a,b) == 1
-	var gt bls12381.GT
-	gt.SetRandom()
-	res := bls12381.FinalExponentiation(&gt)
-	witness := FinalExponentiationCircuit{
-		InGt: NewGTEl(gt),
-		Res:  NewGTEl(res),
-	}
-	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-	if err != nil {
-		b.Fatal(err)
-	}
-	var ccs constraint.ConstraintSystem
-	b.Run("compile scs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	var buf bytes.Buffer
-	_, err = ccs.WriteTo(&buf)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
-	b.Run("solve scs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if _, err := ccs.Solve(w); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	b.Run("compile r1cs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &FinalExponentiationCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}
