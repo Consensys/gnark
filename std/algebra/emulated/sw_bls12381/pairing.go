@@ -100,14 +100,122 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.MillerLoop(P, Q)
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return nil
+	}
+	// hint the non-residue witness
+	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
+	for _, p := range P {
+		inputs = append(inputs, &p.X, &p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
+	}
+	hint, err := pr.curveF.NewHint(pairingCheckHint, 18, inputs...)
 	if err != nil {
-		return err
-
+		// err is non-nil only for invalid number of inputs
+		panic(err)
 	}
 
-	pr.AssertFinalExponentiationIsOne(f)
+	residueWitness := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - a001
+	//     A1  =  0
+	//     A2  =  a010 - a011
+	//     A3  =  0
+	//     A4  =  a020 - a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	scalingFactor := GTEl{
+		A0:  *pr.curveF.Sub(hint[12], hint[13]),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(hint[14], hint[15]),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(hint[16], hint[17]),
+		A5:  *pr.curveF.Zero(),
+		A6:  *hint[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *hint[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *hint[17],
+		A11: *pr.curveF.Zero(),
+	}
 
+	lines := make([]lineEvaluations, nQ)
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	// precomputations
+	yInv := make([]*baseEl, nP)
+	xNegOverY := make([]*baseEl, nP)
+
+	for k := 0; k < nP; k++ {
+		// P are supposed to be on G1 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
+		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
+	}
+
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{x₀}
+	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
+	res := residueWitnessInv
+
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	for i := 62; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res = pr.Ext12.Square(res)
+
+		if loopCounter[i] == 0 {
+			for k := 0; k < nP; k++ {
+				res = pr.MulBy02368(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+			}
+		} else {
+			// multiply by residueWitnessInv when bit=1
+			res = pr.Ext12.Mul(res, residueWitnessInv)
+			for k := 0; k < nP; k++ {
+				res = pr.MulBy02368(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+				res = pr.MulBy02368(res,
+					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+			}
+		}
+	}
+
+	// Check that  res * scalingFactor == residueWitness^(q)
+	// where u=-0xd201000000010000 is the BLS12-381 seed,
+	// and residueWitness, scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{-x₀} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t0 := pr.Frobenius(residueWitness)
+	t1 := pr.Ext12.Mul(res, &scalingFactor)
+
+	pr.AssertIsEqual(t0, t1)
 	return nil
 }
 
@@ -312,7 +420,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 	tower := pr.ToTower(x)
 
-	res, err := pr.curveF.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	res, err := pr.curveF.NewHint(finalExpHint, 18, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
