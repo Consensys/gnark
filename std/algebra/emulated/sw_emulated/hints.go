@@ -2,6 +2,7 @@ package sw_emulated
 
 import (
 	"crypto/elliptic"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -42,10 +43,10 @@ func GetHints() []solver.Hint {
 func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two inputs")
+			return errors.New("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -71,10 +72,10 @@ func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big
 func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two inputs")
+			return errors.New("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -97,10 +98,10 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		if field.Cmp(elliptic.P256().Params().P) == 0 {
 			var fp emparams.P256Fp
@@ -282,7 +283,7 @@ func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			P.Y.BigInt(outputs[1])
 
 		} else {
-			return fmt.Errorf("unsupported curve")
+			return errors.New("unsupported curve")
 		}
 
 		return nil
