@@ -70,7 +70,7 @@ overflow. The total maximal bitwidth of the limbs is then
 	w+f.
 
 Keep in mind that parameter w is global for all emulated elements and f is
-individual for every individual element.
+individual for each individual element.
 
 To compute the overflow for the operations, we consider the arithmetic
 operations which affect the overflow. In this implementation only addition is
@@ -125,7 +125,7 @@ through the following identity:
 # Subtraction
 
 We perform subtraction limb-wise between the elements x and y. However, we have
-to ensure than any limb in the result does not result in overflow, i.e.
+to ensure that any limb in the result does not result in overflow, i.e.
 
 	x_i ≥ y_i, ∀ 0≤i<k.
 
