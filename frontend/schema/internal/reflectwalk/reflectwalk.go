@@ -110,7 +110,7 @@ func walk(v reflect.Value, w interface{}) (err error) {
 		if pointerV.Kind() == reflect.Interface {
 			if iw, ok := w.(InterfaceWalker); ok {
 				if err = iw.Interface(pointerV); err != nil {
-					if err == ErrSkipEntry {
+					if errors.Is(err, ErrSkipEntry) {
 						// Skip the rest of this entry but clear the error
 						return nil
 					}
@@ -124,7 +124,7 @@ func walk(v reflect.Value, w interface{}) (err error) {
 		if pointerV.Kind() == reflect.Ptr {
 			if pw, ok := w.(PointerValueWalker); ok {
 				if err = pw.Pointer(pointerV); err != nil {
-					if err == ErrSkipEntry {
+					if errors.Is(err, ErrSkipEntry) {
 						// Skip the rest of this entry but clear the error
 						return nil
 					}
@@ -271,7 +271,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 	skip := false
 	if sw, ok := w.(StructWalker); ok {
 		err = sw.Struct(v)
-		if err == ErrSkipEntry {
+		if errors.Is(err, ErrSkipEntry) {
 			skip = true
 			err = nil
 		}
@@ -297,7 +297,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 				err = sw.StructField(sf, f)
 
 				// SkipEntry just pretends this field doesn't even exist
-				if err == ErrSkipEntry {
+				if errors.Is(err, ErrSkipEntry) {
 					continue
 				}
 
