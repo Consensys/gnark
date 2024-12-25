@@ -9,6 +9,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
+	"github.com/consensys/gnark-crypto/ecc/bn254/mpcsetup"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 )
@@ -23,7 +24,7 @@ import (
 func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChallenge []byte) (groth16.ProvingKey, groth16.VerifyingKey) {
 
 	// final contributions
-	contributions := beaconContributions(p.hash(), beaconChallenge, 1+len(p.Sigmas))
+	contributions := mpcsetup.BeaconContributions(p.hash(), []byte("Groth16 MPC Setup - Phase2"), beaconChallenge, 1+len(p.Sigmas))
 	p.update(&contributions[0], contributions[1:])
 
 	_, _, _, g2 := curve.Generators()

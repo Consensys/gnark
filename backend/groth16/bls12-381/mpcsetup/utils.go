@@ -6,15 +6,11 @@
 package mpcsetup
 
 import (
-	"bytes"
-	"errors"
-	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"math/bits"
-	"runtime"
 )
 
 func bitReverse[T any](a []T) {

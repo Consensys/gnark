@@ -8,6 +8,7 @@ package mpcsetup
 import (
 	"encoding/binary"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/mpcsetup"
 	"github.com/consensys/gnark/internal/utils"
 	"io"
 )
@@ -113,7 +114,7 @@ func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 	}
 	n := int64(2) // we've definitely successfully read 2 bytes
 
-	p.Sigmas = make([]valueUpdate, nbCommitments)
+	p.Sigmas = make([]mpcsetup.UpdateProof, nbCommitments)
 	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, nbCommitments)
 	p.Parameters.G2.Sigma = make([]curve.G2Affine, nbCommitments)
 
@@ -246,22 +247,4 @@ func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
 		}
 	}
 	return dec.BytesRead(), nil
-}
-
-func (x *valueUpdate) WriteTo(writer io.Writer) (n int64, err error) {
-	enc := curve.NewEncoder(writer)
-	if err = enc.Encode(&x.contributionCommitment); err != nil {
-		return enc.BytesWritten(), err
-	}
-	err = enc.Encode(&x.contributionPok)
-	return enc.BytesWritten(), err
-}
-
-func (x *valueUpdate) ReadFrom(reader io.Reader) (n int64, err error) {
-	dec := curve.NewDecoder(reader)
-	if err = dec.Decode(&x.contributionCommitment); err != nil {
-		return dec.BytesRead(), err
-	}
-	err = dec.Decode(&x.contributionPok)
-	return dec.BytesRead(), err
 }
