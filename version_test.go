@@ -18,8 +18,8 @@ func TestVersion(t *testing.T) {
 	stdout, err := cmd.Output()
 	assert.NoError(err)
 
-	split := strings.Split(string(stdout), "/")
-	lastTag := split[len(split)-1]
+	splitted := strings.Split(string(stdout), "/")
+	lastTag := splitted[len(splitted)-1]
 
 	// lastTag := strings.TrimSpace(string(stdout))
 	lastVersion, err := semver.ParseTolerant(lastTag)
