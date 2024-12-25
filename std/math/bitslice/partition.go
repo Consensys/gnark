@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
-// Partition partitions v into two parts splitted at bit numbered split. The
+// Partition partitions v into two parts split at bit numbered split. The
 // following holds
 //
 //	v = lower + 2^split * upper.
