@@ -22,7 +22,7 @@ assignees: ''
 <!--- Not obligatory, but suggest a fix or reason for the bug -->
 
 ## Steps to Reproduce
-<!--- Provide an unambiguous set of steps to reproduce this bug. -->
+<!--- Provide an unambigous set of steps to reproduce this bug. -->
 <!--- Include code to reproduce, if relevant -->
 <!--- or include https://play.gnark.io snippet, if relevant -->
 1.
