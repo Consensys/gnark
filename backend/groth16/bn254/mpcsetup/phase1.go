@@ -199,7 +199,9 @@ func (p *Phase1) Verify(next *Phase1) error {
 
 func (p *Phase1) hash() []byte {
 	sha := sha256.New()
-	p.WriteTo(sha)
+	if _, err := p.WriteTo(sha); err != nil {
+		panic(err)
+	}
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }

@@ -339,7 +339,9 @@ func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c 
 
 func (p *Phase2) hash() []byte {
 	sha := sha256.New()
-	p.WriteTo(sha)
+	if _, err := p.WriteTo(sha); err != nil {
+		panic(err)
+	}
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }
