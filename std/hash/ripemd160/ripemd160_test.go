@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
-	"golang.org/x/crypto/ripemd160" //nolint staticcheck, backwards compatiblity
+	"golang.org/x/crypto/ripemd160" //nolint staticcheck, backwards compatibility
 )
 
 type ripemd160Circuit struct {
