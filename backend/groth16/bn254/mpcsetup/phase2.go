@@ -345,15 +345,3 @@ func (p *Phase2) hash() []byte {
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }
-
-func cloneAppend(s ...[]curve.G1Affine) []curve.G1Affine {
-	l := 0
-	for _, s := range s {
-		l += len(s)
-	}
-	res := make([]curve.G1Affine, 0, l)
-	for _, s := range s {
-		res = append(res, s...)
-	}
-	return res
-}

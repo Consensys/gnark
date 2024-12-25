@@ -90,15 +90,3 @@ func areInSubGroupG2(s []curve.G2Affine) bool {
 	}
 	return true
 }
-
-func partialSums(s ...int) []int {
-	if len(s) == 0 {
-		return nil
-	}
-	sums := make([]int, len(s))
-	sums[0] = s[0]
-	for i := 1; i < len(s); i++ {
-		sums[i] = sums[i-1] + s[i]
-	}
-	return sums
-}
