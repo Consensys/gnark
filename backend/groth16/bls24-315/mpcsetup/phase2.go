@@ -12,6 +12,7 @@ import (
 	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/mpcsetup"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
@@ -51,8 +52,8 @@ type Phase2 struct {
 	}
 
 	// Proofs of update correctness
-	Sigmas []valueUpdate
-	Delta  valueUpdate
+	Sigmas []mpcsetup.UpdateProof
+	Delta  mpcsetup.UpdateProof
 
 	// Challenge is the hash of the PREVIOUS contribution
 	Challenge []byte
@@ -72,15 +73,6 @@ func (p *Phase2) Verify(next *Phase2) error {
 		return errors.New("contribution size mismatch")
 	}
 
-	r := randomMonomials(len(next.Parameters.G1.Z) + len(next.Parameters.G1.PKK) + 1)
-
-	verifyContribution := func(update *valueUpdate, g1Denominator, g1Numerator []curve.G1Affine, g2Denominator, g2Numerator *curve.G2Affine, dst byte) error {
-		g1Num := linearCombination(g1Numerator, r)
-		g1Denom := linearCombination(g1Denominator, r)
-
-		return update.verify(pair{g1Denom, g2Denominator}, pair{g1Num, g2Numerator}, challenge, dst)
-	}
-
 	// verify proof of knowledge of contributions to the σᵢ
 	// and the correctness of updates to Parameters.G2.Sigma[i] and the Parameters.G1.SigmaCKK[i]
 	for i := range p.Sigmas { // match the first commitment basis elem against the contribution commitment
@@ -88,7 +80,9 @@ func (p *Phase2) Verify(next *Phase2) error {
 			return errors.New("commitment proving key subgroup check failed")
 		}
 
-		if err := verifyContribution(&next.Sigmas[i], p.Parameters.G1.SigmaCKK[i], next.Parameters.G1.SigmaCKK[i], &p.Parameters.G2.Sigma[i], &next.Parameters.G2.Sigma[i], 2+byte(i)); err != nil {
+		if err := next.Sigmas[i].Verify(challenge, 2+byte(i),
+			mpcsetup.ValueUpdate{Previous: p.Parameters.G1.SigmaCKK[i], Next: next.Parameters.G1.SigmaCKK[i]},
+			mpcsetup.ValueUpdate{Previous: &p.Parameters.G2.Sigma[i], Next: &next.Parameters.G2.Sigma[i]}); err != nil {
 			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
 		}
 	}
@@ -99,9 +93,12 @@ func (p *Phase2) Verify(next *Phase2) error {
 		return errors.New("derived values 𝔾₁ subgroup check failed")
 	}
 
-	denom := cloneAppend([]curve.G1Affine{p.Parameters.G1.Delta}, next.Parameters.G1.Z, next.Parameters.G1.PKK)
-	num := cloneAppend([]curve.G1Affine{next.Parameters.G1.Delta}, p.Parameters.G1.Z, p.Parameters.G1.PKK)
-	if err := verifyContribution(&next.Delta, denom, num, &p.Parameters.G2.Delta, &next.Parameters.G2.Delta, 1); err != nil {
+	if err := next.Delta.Verify(challenge, 1, []mpcsetup.ValueUpdate{
+		{&p.Parameters.G1.Delta, &next.Parameters.G1.Delta},
+		{&p.Parameters.G2.Delta, &next.Parameters.G2.Delta},
+		{next.Parameters.G1.Z, p.Parameters.G1.Z}, // since these have δ in their denominator, we will do it "backwards"
+		{next.Parameters.G1.PKK, p.Parameters.G1.PKK},
+	}...); err != nil {
 		return fmt.Errorf("failed to verify contribution to δ: %w", err)
 	}
 
@@ -151,14 +148,14 @@ func (p *Phase2) Contribute() {
 
 	// sample value contributions and provide correctness proofs
 	var delta fr.Element
-	p.Delta, delta = newValueUpdate(p.Challenge, 1)
+	p.Delta = mpcsetup.UpdateValues(&delta, p.Challenge, 1)
 
 	sigma := make([]fr.Element, len(p.Parameters.G1.SigmaCKK))
 	if len(sigma) > 255 {
 		panic("too many commitments") // DST collision
 	}
 	for i := range sigma {
-		p.Sigmas[i], sigma[i] = newValueUpdate(p.Challenge, byte(2+i))
+		p.Sigmas[i] = mpcsetup.UpdateValues(&sigma[i], p.Challenge, byte(2+i))
 	}
 
 	p.update(&delta, sigma)
@@ -276,7 +273,7 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	commitments := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 
 	evals.G1.CKK = make([][]curve.G1Affine, len(commitments))
-	p.Sigmas = make([]valueUpdate, len(commitments))
+	p.Sigmas = make([]mpcsetup.UpdateProof, len(commitments))
 	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, len(commitments))
 	p.Parameters.G2.Sigma = make([]curve.G2Affine, len(commitments))
 
@@ -342,19 +339,9 @@ func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c 
 
 func (p *Phase2) hash() []byte {
 	sha := sha256.New()
-	p.WriteTo(sha)
+	if _, err := p.WriteTo(sha); err != nil {
+		panic(err)
+	}
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
-}
-
-func cloneAppend(s ...[]curve.G1Affine) []curve.G1Affine {
-	l := 0
-	for _, s := range s {
-		l += len(s)
-	}
-	res := make([]curve.G1Affine, 0, l)
-	for _, s := range s {
-		res = append(res, s...)
-	}
-	return res
 }

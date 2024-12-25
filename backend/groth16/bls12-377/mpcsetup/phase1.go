@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/mpcsetup"
 	"math/big"
 )
 
@@ -37,7 +38,7 @@ type SrsCommons struct {
 // Also known as "Powers of Tau"
 type Phase1 struct {
 	proofs struct {
-		Tau, Alpha, Beta valueUpdate
+		Tau, Alpha, Beta mpcsetup.UpdateProof
 	}
 	parameters SrsCommons
 	Challenge  []byte // Hash of the transcript PRIOR to this participant
@@ -53,9 +54,9 @@ func (p *Phase1) Contribute() {
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
 
-	p.proofs.Tau, tauContrib = newValueUpdate(p.Challenge, 1)
-	p.proofs.Alpha, alphaContrib = newValueUpdate(p.Challenge, 2)
-	p.proofs.Beta, betaContrib = newValueUpdate(p.Challenge, 3)
+	p.proofs.Tau = mpcsetup.UpdateValues(&tauContrib, p.Challenge, 1)
+	p.proofs.Alpha = mpcsetup.UpdateValues(&alphaContrib, p.Challenge, 2)
+	p.proofs.Beta = mpcsetup.UpdateValues(&betaContrib, p.Challenge, 3)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
@@ -130,7 +131,7 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 // WARNING: Seal modifies p, just as Contribute does.
 // The result will be an INVALID Phase1 object, since no proof of correctness is produced.
 func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
-	newContribs := beaconContributions(p.hash(), beaconChallenge, 3)
+	newContribs := mpcsetup.BeaconContributions(p.hash(), []byte("Groth16 MPC Setup - Phase 1"), beaconChallenge, 3)
 	p.parameters.update(&newContribs[0], &newContribs[1], &newContribs[2])
 	return p.parameters
 }
@@ -168,13 +169,16 @@ func (p *Phase1) Verify(next *Phase1) error {
 	}
 
 	// verify updates to τ, α, β
-	if err := next.proofs.Tau.verify(pair{p.parameters.G1.Tau[1], nil}, pair{next.parameters.G1.Tau[1], nil}, challenge, 1); err != nil {
+	if err := next.proofs.Tau.Verify(challenge, 1, mpcsetup.ValueUpdate{Previous: &p.parameters.G1.Tau[1], Next: &next.parameters.G1.Tau[1]}); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := next.proofs.Alpha.verify(pair{p.parameters.G1.AlphaTau[0], nil}, pair{next.parameters.G1.AlphaTau[0], nil}, challenge, 2); err != nil {
+	if err := next.proofs.Alpha.Verify(challenge, 2, mpcsetup.ValueUpdate{Previous: p.parameters.G1.AlphaTau[0], Next: next.parameters.G1.AlphaTau[0]}); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := next.proofs.Beta.verify(pair{p.parameters.G1.BetaTau[0], &p.parameters.G2.Beta}, pair{next.parameters.G1.BetaTau[0], &next.parameters.G2.Beta}, challenge, 3); err != nil {
+	if err := next.proofs.Beta.Verify(challenge, 3, []mpcsetup.ValueUpdate{
+		{&p.parameters.G1.BetaTau[0], &next.parameters.G1.BetaTau[0]},
+		{&p.parameters.G2.Beta, &next.parameters.G2.Beta},
+	}...); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
@@ -185,7 +189,7 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return errors.New("derived values 𝔾₂ subgroup check failed")
 	}
 
-	return multiValueUpdateCheck(
+	return mpcsetup.SameRatioMany(
 		p.parameters.G1.Tau,
 		p.parameters.G2.Tau,
 		p.parameters.G1.AlphaTau,
@@ -193,70 +197,11 @@ func (p *Phase1) Verify(next *Phase1) error {
 	)
 }
 
-// multiValueUpdateCheck checks that aᵢ₊₁/aᵢ = bⱼ₊₁/bⱼ = cₖ₊₁/cₖ = dₗ₊₁/dₗ for all applicable i,j,k,l
-// in other words it checks that there is x such that aᵢ = xʲa₀, bⱼ = xʲb₀, cₖ = xʲc₀, dₗ = xʲd₀
-func multiValueUpdateCheck(a []curve.G1Affine, b []curve.G2Affine, c, d []curve.G1Affine) error {
-	// lemma: let K be a field and
-	// F = ∑ fᵢⱼ XⁱYʲ     F' = ∑ f'ᵢⱼ XⁱYʲ
-	// G = ∑ gᵢ Zⁱ        G' = ∑ g'ᵢ Zⁱ
-	// polynomials in K[X,Y,Z].
-	// if F/F' = G/G'
-	// then F/F' = G/G' ∈ K
-	//
-	// view our polynomials in K[X,Y,Z]
-	// By multiplying out the polynomials we get
-	// FG' = F'G ⇒ ∑ fᵢⱼg'ₖ XᶦYʲZᵏ = ∑ f'ᵢⱼgₖₗ XᶦYʲZᵏ
-	// pick i₀ ,j₀ , k₀ where f'ᵢ₀ⱼ₀, g'ₖ₀ ≠ 0
-	// let x ≔ fᵢ₀ⱼ₀/f'ᵢ₀ⱼ₀ = gₖ₀/g'ₖ₀
-	// now for any i,j: fᵢⱼg'ₖ₀ = f'ᵢⱼgₖ₀ ⇒
-	// fᵢⱼ = x f'ᵢⱼ
-	// likewise for any i: fᵢ₀ⱼ₀g'ᵢ = f'ᵢ₀ⱼ₀gᵢ ⇒
-	// gᵢ = x g'ᵢ
-
-	// now we use this to check that:
-	//    1. aᵢ ≔ G1.Tau[i]      = [τⁱ]₁
-	//    2. bᵢ ≔ G2.Tau[i]      = [τⁱ]₂
-	//    3. cᵢ ≔ G1.AlphaTau[i] = [ατⁱ]₁
-	//    4. dᵢ ≔ G1.BetaTau[i]  = [βτⁱ]₁
-
-	// construct the polynomials
-	// F  ≔ a₀ + a₁X + ... + a₂ₙ₋₃X²ᴺ⁻³ + c₀Y + c₁XY + ... + cₙ₋₂Xᴺ⁻²Y + d₀Y² + d₁XY² + ... + dₙ₋₂Xᴺ⁻²Y²
-	// F' ≔ a₁ + a₂X + ... + a₂ₙ₋₂X²ᴺ⁻³ + c₁Y + c₂XY + ... + cₙ₋₁Xᴺ⁻²Y + d₁Y² + d₂XY² + ... + dₙ₋₁Xᴺ⁻²Y²
-	// G  ≔ b₀ + b₁Z + ... + bₙ₋₂Zᴺ⁻²
-	// G' ≔ b₁ + b₂Z + ... + bₙ₋₁Zᴺ⁻²
-
-	// if F/F' = G/G' we get F/F' = G/G' = a₀/a₁ = 1/τ, which yields:
-	// for 0 ≤ i ≤ N-2:  bᵢ = bᵢ₊₁/τ, cᵢ = cᵢ₊₁/τ, dᵢ = dᵢ₊₁/τ
-	// for 0 ≤ i ≤ 2N-3: aᵢ = aᵢ₊₁/τ
-
-	// from previous checks we already know:
-	//    1. a₀ = 1
-	//    2. b₀ = 1
-	//    3. c₀ = α
-	//    4. d₀ = β
-	// and so the desired results follow
-
-	ends := partialSums(len(a), len(c), len(d))
-
-	g1s := make([]curve.G1Affine, 0, ends[len(ends)-1])
-	g1s = append(g1s, a...)
-	g1s = append(g1s, c...)
-	g1s = append(g1s, d...)
-
-	g1Num, g1Denom := linearCombinationsG1(g1s, bivariateRandomMonomials(ends...), ends)
-	g2Num, g2Denom := linearCombinationsG2(b, randomMonomials(len(b)))
-
-	if !sameRatio(g1Num, g1Denom, g2Num, g2Denom) {
-		return errors.New("multi-value update check failed")
-	}
-
-	return nil
-
-}
-
 func (p *Phase1) hash() []byte {
 	sha := sha256.New()
-	p.WriteTo(sha)
+	if _, err := p.WriteTo(sha); err != nil {
+		panic(err)
+	}
 	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }
