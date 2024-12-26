@@ -539,6 +539,37 @@ func (builder *builder) Println(a ...frontend.Variable) {
 	builder.cs.AddLog(log)
 }
 
+func (builder *builder) Printf(format string, args ...frontend.Variable) {
+	var log constraint.LogEntry
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	}
+
+	var sbb strings.Builder
+
+	for i, arg := range args {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		if v, ok := arg.(expr.Term); ok {
+
+			sbb.WriteString("%s")
+			// we set limits to the linear expression, so that the log printer
+			// can evaluate it before printing it
+			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(v.Coeff, v.VID)})
+		} else {
+			builder.printArg(&log, &sbb, arg)
+		}
+	}
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	log.Format = sbb.String()
+
+	builder.cs.AddLog(log)
+}
+
 func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	leafCount, err := schema.Walk(a, tVariable, nil)

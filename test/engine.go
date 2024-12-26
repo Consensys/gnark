@@ -515,6 +515,25 @@ func (e *engine) print(sbb *strings.Builder, x interface{}) {
 	}
 }
 
+func (e *engine) Printf(format string, args ...frontend.Variable) {
+	var sbb strings.Builder
+	sbb.WriteString("(test.engine) ")
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	for i := 0; i < len(args); i++ {
+		e.print(&sbb, args[i])
+		sbb.WriteByte(' ')
+	}
+	fmt.Println(sbb.String())
+}
+
 func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
 	if nbOutputs <= 0 {
