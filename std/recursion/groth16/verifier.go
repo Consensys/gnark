@@ -13,7 +13,6 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
@@ -635,7 +634,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 	maxNbPublicCommitted := 0
 	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
-		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+		maxNbPublicCommitted = max(maxNbPublicCommitted, len(s))
 	}
 
 	commitmentAuxData := make([]*emulated.Element[FR], len(vk.PublicAndCommitmentCommitted))

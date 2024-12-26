@@ -16,7 +16,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
@@ -64,7 +63,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	maxNbPublicCommitted := 0
 	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
-		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+		maxNbPublicCommitted = max(maxNbPublicCommitted, len(s))
 	}
 	commitmentsSerialized := make([]byte, len(vk.PublicAndCommitmentCommitted)*fr.Bytes)
 	commitmentPrehashSerialized := make([]byte, curve.SizeOfG1AffineUncompressed+maxNbPublicCommitted*fr.Bytes)
