@@ -88,10 +88,10 @@ func (p *Phase2) Verify(next *Phase2) error {
 	}
 
 	if err := next.Delta.Verify(challenge, 1, []mpcsetup.ValueUpdate{
-		{&p.Parameters.G1.Delta, &next.Parameters.G1.Delta},
-		{&p.Parameters.G2.Delta, &next.Parameters.G2.Delta},
-		{next.Parameters.G1.Z, p.Parameters.G1.Z}, // since these have δ in their denominator, we will do it "backwards"
-		{next.Parameters.G1.PKK, p.Parameters.G1.PKK},
+		{Previous: &p.Parameters.G1.Delta, Next: &next.Parameters.G1.Delta},
+		{Previous: &p.Parameters.G2.Delta, Next: &next.Parameters.G2.Delta},
+		{Previous: next.Parameters.G1.Z, Next: p.Parameters.G1.Z}, // since these have δ in their denominator, we will do it "backwards"
+		{Previous: next.Parameters.G1.PKK, Next: p.Parameters.G1.PKK},
 	}...); err != nil {
 		return fmt.Errorf("failed to verify contribution to δ: %w", err)
 	}
