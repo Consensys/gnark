@@ -230,7 +230,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
-	merkleRootAfer, proofInclusionSenderAfter, _, err := merkletree.BuildReaderProof(&buf, o.h, segmentSize, posSender)
+	merkleRootAfter, proofInclusionSenderAfter, _, err := merkletree.BuildReaderProof(&buf, o.h, segmentSize, posSender)
 	if err != nil {
 		return err
 	}
@@ -247,9 +247,9 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 	// merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
-	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfer
-	o.witnesses.MerkleProofReceiverAfter[numTransfer].RootHash = merkleRootAfer
-	o.witnesses.MerkleProofSenderAfter[numTransfer].RootHash = merkleRootAfer
+	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfter
+	o.witnesses.MerkleProofReceiverAfter[numTransfer].RootHash = merkleRootAfter
+	o.witnesses.MerkleProofSenderAfter[numTransfer].RootHash = merkleRootAfter
 
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {
 		o.witnesses.MerkleProofReceiverAfter[numTransfer].Path[i] = proofInclusionReceiverAfter[i]
