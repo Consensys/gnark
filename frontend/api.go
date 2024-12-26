@@ -24,7 +24,7 @@ type API interface {
 	// doing:
 	//
 	//     acopy := api.Mul(a, 1)
-	//     acopy = MulAcc(acopy, b, c)
+	//     acopy = api.MulAcc(acopy, b, c)
 	//
 	// ! But it may not modify a, always use MulAcc(...) result for correctness.
 	MulAcc(a, b, c Variable) Variable
@@ -146,7 +146,7 @@ type API interface {
 	ConstantValue(v Variable) (*big.Int, bool)
 }
 
-// BatchInvert returns a slice of variables containing the inverse of each element in i1
+// BatchInverter returns a slice of variables containing the inverse of each element in i1
 // This is a temporary API, do not use it in your circuit
 type BatchInverter interface {
 	// BatchInvert returns a slice of variables containing the inverse of each element in i1
