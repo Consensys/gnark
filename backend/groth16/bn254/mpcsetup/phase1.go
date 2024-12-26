@@ -176,8 +176,8 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
 	if err := next.proofs.Beta.Verify(challenge, 3, []mpcsetup.ValueUpdate{
-		{&p.parameters.G1.BetaTau[0], &next.parameters.G1.BetaTau[0]},
-		{&p.parameters.G2.Beta, &next.parameters.G2.Beta},
+		{Previous: &p.parameters.G1.BetaTau[0], Next: &next.parameters.G1.BetaTau[0]},
+		{Previous: &p.parameters.G2.Beta, Next: &next.parameters.G2.Beta},
 	}...); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
