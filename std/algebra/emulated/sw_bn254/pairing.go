@@ -148,7 +148,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 func (pr Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
 	tower := pr.Ext12.ToTower(a)
 
-	res, err := pr.curveF.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	res, err := pr.curveF.NewHint(finalExpHint, 18, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -211,13 +211,160 @@ func (pr Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
 //
 // This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.MillerLoop(P, Q)
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return nil
+	}
+	// hint the non-residue witness
+	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
+	for _, p := range P {
+		inputs = append(inputs, &p.X, &p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
+	}
+	hint, err := pr.curveF.NewHint(pairingCheckHint, 18, inputs...)
 	if err != nil {
-		return err
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	residueWitness := pr.Ext12.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 
+	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  0
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  0
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	nine := big.NewInt(9)
+	cubicNonResiduePower := GTEl{
+		A0:  *pr.curveF.Sub(hint[12], pr.curveF.MulConst(hint[13], nine)),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(hint[14], pr.curveF.MulConst(hint[15], nine)),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(hint[16], pr.curveF.MulConst(hint[17], nine)),
+		A5:  *pr.curveF.Zero(),
+		A6:  *hint[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *hint[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *hint[17],
+		A11: *pr.curveF.Zero(),
 	}
 
-	pr.AssertFinalExponentiationIsOne(f)
+	lines := make([]lineEvaluations, nQ)
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	// precomputations
+	yInv := make([]*baseEl, nP)
+	xNegOverY := make([]*baseEl, nP)
+
+	for k := 0; k < nP; k++ {
+		// P are supposed to be on G1 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
+		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
+	}
+
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{6x₀+2}
+	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
+	res := residueWitnessInv
+
+	// Compute f_{6x₀+2,Q}(P)
+	for i := 64; i >= 0; i-- {
+		res = pr.Ext12.Square(res)
+
+		switch loopCounter[i] {
+		case 0:
+			for k := 0; k < nP; k++ {
+				res = pr.MulBy01379(
+					res,
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+				)
+			}
+		case 1:
+			// multiply by residueWitnessInv when bit=1
+			res = pr.Ext12.Mul(res, residueWitnessInv)
+			// ℓ × ℓ
+			for k := 0; k < nP; k++ {
+				prodLines := pr.Mul01379By01379(
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
+				)
+				// (ℓ × ℓ) × res
+				res = pr.Ext12.MulBy012346789(res, prodLines)
+			}
+		case -1:
+			// multiply by residueWitness when bit=-1
+			res = pr.Ext12.Mul(res, residueWitness)
+			for k := 0; k < nP; k++ {
+				// ℓ × ℓ
+				prodLines := pr.Mul01379By01379(
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
+				)
+				// (ℓ × ℓ) × res
+				res = pr.Ext12.MulBy012346789(res, prodLines)
+			}
+		default:
+			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
+		}
+	}
+
+	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
+	// lines evaluations at P
+	// and ℓ × ℓ
+	for k := 0; k < nP; k++ {
+		prodLines := pr.Mul01379By01379(
+			pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
+			pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
+			pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
+			pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
+		)
+		res = pr.Ext12.MulBy012346789(res, prodLines)
+	}
+
+	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
+	// where λ' = q^3 - q^2 + q, with u the BN254 seed
+	// and residueWitnessInv, cubicNonResiduePower from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{6x₀+2} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t2 := pr.Ext12.Mul(&cubicNonResiduePower, res)
+
+	t1 := pr.FrobeniusCube(residueWitnessInv)
+	t0 := pr.FrobeniusSquare(residueWitness)
+	t1 = pr.Ext12.Mul(t1, t0)
+	t0 = pr.Frobenius(residueWitnessInv)
+	t1 = pr.Ext12.Mul(t1, t0)
+
+	t2 = pr.Ext12.Mul(t2, t1)
+
+	pr.AssertIsEqual(t2, pr.Ext12.One())
 
 	return nil
 }
@@ -638,7 +785,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	residueWitness := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	residueWitness := pr.Ext12.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
