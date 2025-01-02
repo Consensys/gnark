@@ -163,11 +163,11 @@ func verifyPhase1(current, contribution *Phase1) error {
 	}
 	alphaL1, alphaL2 := linearCombinationG1(contribution.Parameters.G1.AlphaTau)
 	if !sameRatio(alphaL1, alphaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
+		return errors.New("couldn't verify valid powers of β(τ) in G₁")
 	}
 	betaL1, betaL2 := linearCombinationG1(contribution.Parameters.G1.BetaTau)
 	if !sameRatio(betaL1, betaL2, contribution.Parameters.G2.Tau[1], g2) {
-		return errors.New("couldn't verify valid powers of α(τ) in G₁")
+		return errors.New("couldn't verify valid powers of β(τ) in G₁")
 	}
 	tau2L1, tau2L2 := linearCombinationG2(contribution.Parameters.G2.Tau)
 	if !sameRatio(contribution.Parameters.G1.Tau[1], g1, tau2L1, tau2L2) {
