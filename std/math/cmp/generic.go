@@ -7,6 +7,13 @@ import (
 	"math/big"
 )
 
+// IsEqual returns 1 if a = b, and returns 0 if a != b. a and b should be
+// integers in range [0, P-1], where P is the order of the underlying field used
+// by the proof system.
+func IsEqual(api frontend.API, a, b frontend.Variable) frontend.Variable {
+	return api.IsZero(api.Sub(a, b))
+}
+
 // IsLess returns 1 if a < b, and returns 0 if a >= b. a and b should be
 // integers in range [0, P-1], where P is the order of the underlying field used
 // by the proof system.
