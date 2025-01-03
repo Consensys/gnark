@@ -1,11 +1,15 @@
 package sha3
 
 import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/permutation/keccakf"
+	"math/big"
 )
 
 type digest struct {
+	api       frontend.API
 	uapi      *uints.BinaryField[uints.U64]
 	state     [25]uints.U64 // 1600 bits state: 25 x 64
 	in        []uints.U8    // input to be digested
@@ -27,8 +31,65 @@ func (d *digest) Reset() {
 
 func (d *digest) Sum() []uints.U8 {
 	padded := d.padding()
+
 	blocks := d.composeBlocks(padded)
 	d.absorbing(blocks)
+	return d.squeezeBlocks()
+}
+
+func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
+	// padding
+	padded := make([]uints.U8, len(d.in))
+	copy(padded[:], d.in[:])
+	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
+	numberOfBlocks := frontend.Variable(0)
+
+	for i := 0; i < len(padded)-d.rate; i++ {
+		reachEnd := cmp.IsEqual(d.api, i+1, length)
+		switch q := d.rate - ((i + 1) % d.rate); q {
+		case 1:
+			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i+1].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
+		case 2:
+			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte, padded[i+1].Val)
+			padded[i+2].Val = d.api.Select(reachEnd, 0x80, padded[i+2].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+3)/d.rate, numberOfBlocks)
+		default:
+			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte, padded[i+1].Val)
+			for j := 0; j < q-2; j++ {
+				padded[i+2+j].Val = d.api.Select(reachEnd, 0, padded[i+2+j].Val)
+			}
+			padded[i+q].Val = d.api.Select(reachEnd, 0x80, padded[i+q].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+1+q)/d.rate, numberOfBlocks)
+		}
+	}
+
+	// compose blocks
+	blocks := d.composeBlocks(padded)
+
+	// absorbing
+	var state [25]uints.U64
+	var resultState [25]uints.U64
+	copy(resultState[:], d.state[:])
+	copy(state[:], d.state[:])
+
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(blocks))), false)
+
+	for i, block := range blocks {
+		for j := range block {
+			state[j] = d.uapi.Xor(state[j], block[j])
+		}
+		state = keccakf.Permute(d.uapi, state)
+		isInRange := comparator.IsLess(i, numberOfBlocks)
+		for j := 0; j < 25; j++ {
+			for k := 0; k < 8; k++ {
+				resultState[j][k].Val = d.api.Select(isInRange, state[j][k].Val, resultState[j][k].Val)
+			}
+		}
+	}
+	copy(d.state[:], resultState[:])
+
+	// squeeze blocks
 	return d.squeezeBlocks()
 }
 
