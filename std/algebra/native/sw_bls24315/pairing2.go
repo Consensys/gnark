@@ -319,6 +319,14 @@ func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
 }
 
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	panic("not implemented")
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+	panic("not implemented")
+}
+
 func (p *Pairing) AssertIsOnG1(P *G1Affine) {
 	panic("not implemented")
 }
