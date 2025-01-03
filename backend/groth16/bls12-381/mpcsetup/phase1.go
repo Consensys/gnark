@@ -36,7 +36,7 @@ type Phase1 struct {
 	Hash []byte // sha256 hash
 }
 
-// InitPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
+// InitPhase1 initializes phase 1 of the MPC. This is called once by the coordinator before
 // any randomness contribution is made (see Contribute()).
 func InitPhase1(power int) (phase1 Phase1) {
 	N := int(math.Pow(2, float64(power)))
