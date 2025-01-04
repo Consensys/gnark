@@ -228,11 +228,11 @@ func verifyPhase2(current, contribution *Phase2) error {
 	// Check for valid updates of L and Z using
 	L, prevL := merge(contribution.Parameters.G1.L, current.Parameters.G1.L)
 	if !sameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
-		return errors.New("couldn't verify valid updates of L using δ⁻¹")
+		return errors.New("couldn't verify valid updates of Z using δ⁻¹")
 	}
 	Z, prevZ := merge(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
 	if !sameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
-		return errors.New("couldn't verify valid updates of L using δ⁻¹")
+		return errors.New("couldn't verify valid updates of Z using δ⁻¹")
 	}
 
 	// Check hash of the contribution
