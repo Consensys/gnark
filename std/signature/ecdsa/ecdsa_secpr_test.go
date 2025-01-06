@@ -10,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 	"golang.org/x/crypto/cryptobyte"
@@ -107,5 +111,28 @@ func TestEcdsaP384PreHashed(t *testing.T) {
 	assert := test.NewAssert(t)
 	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+
+}
+
+var ccsBench constraint.ConstraintSystem
+
+func BenchmarkCompile(b *testing.B) {
+	// create an empty cs
+	var circuit EcdsaCircuit[emulated.P384Fp, emulated.P384Fr]
+
+	var ccs constraint.ConstraintSystem
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	b.Log("scs constraints", ccs.GetNbConstraints())
+
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &circuit)
+		}
+
+	})
+	b.Log("r1cs constraints", ccsBench.GetNbConstraints())
 
 }
