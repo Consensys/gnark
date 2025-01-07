@@ -1564,7 +1564,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// The hint returns u1, u2, v1, v2.
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
-	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 5, _s, c.eigenvalue)
+	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 4, _s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -1574,7 +1574,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 5, _s, c.eigenvalue)
+	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 4, _s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
