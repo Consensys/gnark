@@ -1,7 +1,7 @@
 package bitslice
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -19,13 +19,13 @@ func GetHints() []solver.Hint {
 
 func partitionHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return fmt.Errorf("expecting two inputs")
+		return errors.New("expecting two inputs")
 	}
 	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
+		return errors.New("expecting two outputs")
 	}
 	if !inputs[0].IsUint64() {
-		return fmt.Errorf("split location must be int")
+		return errors.New("split location must be int")
 	}
 	split := uint(inputs[0].Uint64())
 	div := new(big.Int).Lsh(big.NewInt(1), split)
