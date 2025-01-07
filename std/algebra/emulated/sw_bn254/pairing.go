@@ -84,7 +84,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+// This function checks that the Qᵢ are in the correct subgroupsi, but does not check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -209,7 +209,7 @@ func (pr Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+// This function checks that the Qᵢ are in the correct subgroupsi, but does not check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -278,7 +278,7 @@ func (pr Pairing) computeG2ShortVector(Q *G2Affine) (_Q *G2Affine) {
 	psi3xxQ = pr.g2.psi(psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q = pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(psi3xxQ, psi2xQ)
 	_Q = pr.g2.sub(_Q, psixQ)
 	_Q = pr.g2.sub(_Q, xQ)
 	return _Q

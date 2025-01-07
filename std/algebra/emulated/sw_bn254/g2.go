@@ -101,7 +101,7 @@ func (g2 *G2) phi(q *G2Affine) *G2Affine {
 	return &G2Affine{
 		P: g2AffP{
 			X: *x,
-			Y: q.P.Y,
+			Y: *g2.Ext2.Neg(&q.P.Y),
 		},
 	}
 }
