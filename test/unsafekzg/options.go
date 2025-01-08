@@ -13,7 +13,7 @@ import (
 // Option allows changing the behaviour of the unsafe KZG SRS generation.
 type Option func(*config) error
 
-// WithFSCache enables the filesystem cache and sets the cache directory
+// WithCacheDir enables the filesystem cache and sets the cache directory
 // to ~/.gnark/kzg by default.
 func WithFSCache() Option {
 	return func(opt *config) error {

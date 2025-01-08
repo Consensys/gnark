@@ -1,7 +1,7 @@
 package sw_bls24315
 
 import (
-	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -26,10 +26,10 @@ func init() {
 func decomposeScalarSimple(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(nativeInputs, nativeOutputs, func(nnMod *big.Int, nninputs, nnOutputs []*big.Int) error {
 		if len(nninputs) != 1 {
-			return errors.New("expecting one input")
+			return fmt.Errorf("expecting one input")
 		}
 		if len(nnOutputs) != 2 {
-			return errors.New("expecting two outputs")
+			return fmt.Errorf("expecting two outputs")
 		}
 		cc := getInnerCurveConfig(nativeMod)
 		sp := ecc.SplitScalar(nninputs[0], cc.glvBasis)
@@ -43,10 +43,10 @@ func decomposeScalarSimple(nativeMod *big.Int, nativeInputs, nativeOutputs []*bi
 func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(nativeInputs, nativeOutputs, func(nnMod *big.Int, nninputs, nnOutputs []*big.Int) error {
 		if len(nninputs) != 1 {
-			return errors.New("expecting one input")
+			return fmt.Errorf("expecting one input")
 		}
 		if len(nnOutputs) != 2 {
-			return errors.New("expecting two outputs")
+			return fmt.Errorf("expecting two outputs")
 		}
 		cc := getInnerCurveConfig(nativeMod)
 		sp := ecc.SplitScalar(nninputs[0], cc.glvBasis)
@@ -115,7 +115,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 
 func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 1 && len(outputs) != 4 {
-		return errors.New("input/output length mismatch")
+		return fmt.Errorf("input/output length mismatch")
 	}
 	tmp := new(big.Int).Set(inputs[0])
 	mask := new(big.Int).SetUint64(^uint64(0))

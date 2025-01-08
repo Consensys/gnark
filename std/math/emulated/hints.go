@@ -1,7 +1,6 @@
 package emulated
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -55,15 +54,15 @@ func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable) (inverseLimbs
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
 func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 2 {
-		return errors.New("input must be at least two elements")
+		return fmt.Errorf("input must be at least two elements")
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
 	if len(inputs[2:]) < 2*nbLimbs {
-		return errors.New("inputs missing")
+		return fmt.Errorf("inputs missing")
 	}
 	if len(outputs) != nbLimbs {
-		return errors.New("result does not fit into output")
+		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
 	if err := limbs.Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
@@ -74,7 +73,7 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("recompose value: %w", err)
 	}
 	if x.ModInverse(x, p) == nil {
-		return errors.New("input and modulus not relatively primes")
+		return fmt.Errorf("input and modulus not relatively primes")
 	}
 	if err := limbs.Decompose(x, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
@@ -102,7 +101,7 @@ func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable)
 // outputs.
 func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
-		return errors.New("input must be at least three elements")
+		return fmt.Errorf("input must be at least three elements")
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
@@ -111,10 +110,10 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	// Denominator and order have to be nbLimbs long.
 	nbNomLimbs := int(inputs[3].Int64())
 	if len(inputs[4:]) != nbLimbs+nbNomLimbs+nbDenomLimbs {
-		return errors.New("input length mismatch")
+		return fmt.Errorf("input length mismatch")
 	}
 	if len(outputs) != nbLimbs {
-		return errors.New("result does not fit into output")
+		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
 	if err := limbs.Recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
@@ -130,7 +129,7 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	res := new(big.Int).ModInverse(denominator, p)
 	if res == nil {
-		return errors.New("no modular inverse")
+		return fmt.Errorf("no modular inverse")
 	}
 	res.Mul(res, nominator)
 	res.Mod(res, p)
@@ -144,14 +143,14 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 1 {
-			return errors.New("expecting single input")
+			return fmt.Errorf("expecting single input")
 		}
 		if len(outputs) != 1 {
-			return errors.New("expecting single output")
+			return fmt.Errorf("expecting single output")
 		}
 		res := new(big.Int)
 		if res.ModSqrt(inputs[0], field) == nil {
-			return errors.New("no square root")
+			return fmt.Errorf("no square root")
 		}
 		outputs[0].Set(res)
 		return nil

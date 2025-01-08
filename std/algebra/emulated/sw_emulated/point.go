@@ -214,15 +214,14 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
 
-	mone := c.baseApi.NewElement(-1)
-
-	var check *emulated.Element[B]
-	if !c.addA {
-		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1})
-	} else {
-		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {&c.a, &p.X}, {b}, {mone, &p.Y, &p.Y}}, []int{1, 1, 1, 1})
+	left := c.baseApi.Mul(&p.Y, &p.Y)
+	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
+	right = c.baseApi.Add(right, b)
+	if c.addA {
+		ax := c.baseApi.Mul(&c.a, &p.X)
+		right = c.baseApi.Add(right, ax)
 	}
-	c.baseApi.AssertIsEqual(check, c.baseApi.Zero())
+	c.baseApi.AssertIsEqual(left, right)
 }
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
@@ -383,17 +382,16 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
 
 	// omit y2 computation
-
-	// compute -λ2 = λ1+2*p.y/(x2-p.x)
+	// compute λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &p.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
-	// compute x3 = (-λ2)²-p.x-x2
+	// compute x3 =λ2²-p.x-x2
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = -λ2*(x3 - p.x)-p.y
+	// compute y3 = λ2*(-p.x + x3)-p.y
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(x3, &p.X)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
@@ -426,16 +424,16 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	// conditional second addition
 	t := c.Select(b, p, q)
 
-	// compute -λ2 = λ1+2*t.y/(x2-t.x)
+	// compute λ2 = λ1+2*t.y/(x2-t.x)
 	ypyp := c.baseApi.MulConst(&t.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &t.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
-	// compute x3 = (-λ2)²-t.x-x2
+	// compute x3 =λ2²-t.x-x2
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &t.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = -λ2*(x3 - t.x)-t.y
+	// compute y3 = -λ2*(t.x - x3)-t.y
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, x3}, {mone, λ2, &t.X}, {mone, &t.Y}}, []int{1, 1, 1})
 
 	return &AffinePoint[B]{
@@ -1564,7 +1562,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// The hint returns u1, u2, v1, v2.
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
-	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 4, _s, c.eigenvalue)
+	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 5, _s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -1574,7 +1572,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 4, _s, c.eigenvalue)
+	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 5, _s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}

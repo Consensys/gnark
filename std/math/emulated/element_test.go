@@ -1482,7 +1482,7 @@ func (c *FastPathsCircuit[T]) Define(api frontend.API) error {
 	return nil
 }
 
-func TestFastPaths(t *testing.T) {
+func TestFasthPaths(t *testing.T) {
 	testFastPaths[Goldilocks](t)
 	testFastPaths[BN254Fr](t)
 	testFastPaths[emparams.Mod1e512](t)
