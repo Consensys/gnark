@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"time"
 
@@ -13,13 +14,14 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash/sha3"
 	"github.com/consensys/gnark/std/math/uints"
 	cryptosha3 "golang.org/x/crypto/sha3"
 )
 
 type sha3Circuit struct {
-	In       []uints.U8 `gnark:",secret"`
+	In       []uints.U8   `gnark:",secret"`
 	Expected [32]uints.U8 `gnark:",public"`
 }
 
@@ -71,6 +73,12 @@ func generateWitness() (witness.Witness, error) {
 }
 
 func main() {
+	logger.Disable()
+
+	nRuns := flag.Int("r", 5, "number of runs")
+	flag.Parse()
+	log.Printf("Number of runs: %d", *nRuns)
+
 	r1cs, err := compileCircuit(r1cs.NewBuilder)
 	if err != nil {
 		panic(err)
@@ -91,24 +99,54 @@ func main() {
 	}
 
 	// GPU Prove & Verify
-	start := time.Now()
+	// Warmup GPU
 	proofZeknox, err := groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("zeknox GPU prove: %d ms", time.Since(start).Milliseconds())
 	if err := groth16.Verify(proofZeknox, vk, publicWitness); err != nil {
 		panic(err)
 	}
+	// Actual run
+	tgpu := float64(0)
+	for i := 0; i < *nRuns; i++ {
+		start := time.Now()
+		proofZeknox, err = groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())
+		if err != nil {
+			panic(err)
+		}
+		tgpu += float64(time.Since(start).Milliseconds())
+		if err := groth16.Verify(proofZeknox, vk, publicWitness); err != nil {
+			panic(err)
+		}
+	}
+	tgpu /= float64(*nRuns)
+	log.Printf("zeknox GPU prove average time: %v ms", tgpu)
 
 	// CPU Prove & Verify
-	start = time.Now()
+	// Warmup CPU
 	proof, err := groth16.Prove(r1cs, pk, witnessData)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("CPU prove: %d ms", time.Since(start).Milliseconds())
 	if err := groth16.Verify(proof, vk, publicWitness); err != nil {
 		panic(err)
 	}
+	// Actual run
+	tcpu := float64(0)
+	for i := 0; i < *nRuns; i++ {
+		start := time.Now()
+		proof, err = groth16.Prove(r1cs, pk, witnessData)
+		if err != nil {
+			panic(err)
+		}
+		tcpu += float64(time.Since(start).Milliseconds())
+		if err := groth16.Verify(proof, vk, publicWitness); err != nil {
+			panic(err)
+		}
+	}
+	tcpu /= float64(*nRuns)
+	log.Printf("CPU prove average time: %v ms", tcpu)
+
+	log.Printf("Speedup: %f", tcpu/tgpu)
 }
