@@ -316,17 +316,12 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	if err != nil {
 		return err
 	}
-	// We perform the easy part of the final exp to push res to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// res = res^(p⁶-1)(p²+1)
-	var buf GT
-	buf.Conjugate(p.api, res)
-	buf.DivUnchecked(p.api, buf, res)
-	res.FrobeniusSquare(p.api, buf).Mul(p.api, res, buf)
 
-	res.AssertFinalExponentiationIsOne(p.api)
+	fe := FinalExponentiation(p.api, res)
+	var one GT
+	one.SetOne()
+	fe.AssertIsEqual(p.api, one)
+
 	return nil
 }
 
@@ -461,32 +456,20 @@ func NewG2AffineFixedPlaceholder() G2Affine {
 func NewGTEl(v bls12377.GT) GT {
 	return GT{
 		C0: fields_bls12377.E6{
-			B0: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C0.B0.A0),
-				A1: (fr_bw6761.Element)(v.C0.B0.A1),
-			},
-			B1: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C0.B1.A0),
-				A1: (fr_bw6761.Element)(v.C0.B1.A1),
-			},
-			B2: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C0.B2.A0),
-				A1: (fr_bw6761.Element)(v.C0.B2.A1),
-			},
+			A0: (fr_bw6761.Element)(v.C0.B0.A0),
+			A1: (fr_bw6761.Element)(v.C0.B1.A0),
+			A2: (fr_bw6761.Element)(v.C0.B2.A0),
+			A3: (fr_bw6761.Element)(v.C0.B0.A1),
+			A4: (fr_bw6761.Element)(v.C0.B1.A1),
+			A5: (fr_bw6761.Element)(v.C0.B2.A1),
 		},
 		C1: fields_bls12377.E6{
-			B0: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C1.B0.A0),
-				A1: (fr_bw6761.Element)(v.C1.B0.A1),
-			},
-			B1: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C1.B1.A0),
-				A1: (fr_bw6761.Element)(v.C1.B1.A1),
-			},
-			B2: fields_bls12377.E2{
-				A0: (fr_bw6761.Element)(v.C1.B2.A0),
-				A1: (fr_bw6761.Element)(v.C1.B2.A1),
-			},
+			A0: (fr_bw6761.Element)(v.C1.B0.A0),
+			A1: (fr_bw6761.Element)(v.C1.B1.A0),
+			A2: (fr_bw6761.Element)(v.C1.B2.A0),
+			A3: (fr_bw6761.Element)(v.C1.B0.A1),
+			A4: (fr_bw6761.Element)(v.C1.B1.A1),
+			A5: (fr_bw6761.Element)(v.C1.B2.A1),
 		},
 	}
 }

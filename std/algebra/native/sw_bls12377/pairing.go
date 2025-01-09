@@ -48,8 +48,7 @@ func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (G
 
 	var res GT
 	res.SetOne()
-	var prodLines [5]fields_bls12377.E2
-	var l0, l1 lineEvaluation
+	var l0 lineEvaluation
 
 	// precomputations
 	yInv := make([]frontend.Variable, n)
@@ -61,125 +60,26 @@ func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (G
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 62, separately to avoid an E12 Square
-	// (Square(res) = 1² = 1)
-
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
-	// (assign line to res)
-	// line evaluation at P[0]
-	res.C1.B0.MulByFp(api, lines[0][0][62].R0, xNegOverY[0])
-	res.C1.B1.MulByFp(api, lines[0][0][62].R1, yInv[0])
-
-	if n >= 2 {
-		// k = 1, separately to avoid MulBy034 (res × ℓ)
-		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
-		// line evaluation at P[1]
-
-		// ℓ × res
-		prodLines = *fields_bls12377.Mul034By034(api,
-			*l0.R0.MulByFp(api, lines[1][0][62].R0, xNegOverY[1]),
-			*l0.R1.MulByFp(api, lines[1][0][62].R1, yInv[1]),
-			res.C1.B0,
-			res.C1.B1,
-		)
-		res.C0.B0 = prodLines[0]
-		res.C0.B1 = prodLines[1]
-		res.C0.B2 = prodLines[2]
-		res.C1.B0 = prodLines[3]
-		res.C1.B1 = prodLines[4]
-
-	}
-
-	if n >= 3 {
-		// k = 2, separately to avoid MulBy034 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01234By034)
-		// line evaluation at P[1]
-
-		// ℓ × res
-		res = *fields_bls12377.Mul01234By034(api,
-			prodLines,
-			*l0.R0.MulByFp(api, lines[2][0][62].R0, xNegOverY[2]),
-			*l0.R1.MulByFp(api, lines[2][0][62].R1, yInv[2]),
-		)
-
-		// k >= 3
-		for k := 3; k < n; k++ {
-			// line evaluation at P[k]
-
-			// ℓ × res
-			res.MulBy034(api,
-				*l0.R0.MulByFp(api, lines[k][0][62].R0, xNegOverY[k]),
-				*l0.R1.MulByFp(api, lines[k][0][62].R1, yInv[k]),
-			)
-		}
-	}
-
-	// i = 61, separately to use a special E12 Square
-	// k = 0
-	// line evaluation at P[0]
-
-	if n == 1 {
-		res.Square034(api, res)
-		prodLines[0] = res.C0.B0
-		prodLines[1] = res.C0.B1
-		prodLines[2] = res.C0.B2
-		prodLines[3] = res.C1.B0
-		prodLines[4] = res.C1.B1
-		// ℓ × res
-		res = *fields_bls12377.Mul01234By034(api,
-			prodLines,
-			*l0.R0.MulByFp(api, lines[0][0][61].R0, xNegOverY[0]),
-			*l0.R1.MulByFp(api, lines[0][0][61].R1, yInv[0]),
-		)
-
-	} else {
-		res.Square(api, res)
-		// ℓ × res
-		res.MulBy034(api,
-			*l0.R0.MulByFp(api, lines[0][0][61].R0, xNegOverY[0]),
-			*l0.R1.MulByFp(api, lines[0][0][61].R1, yInv[0]),
-		)
-
-	}
-
-	for k := 1; k < n; k++ {
-		// line evaluation at P[k]
-		// ℓ × res
-		res.MulBy034(api,
-			*l0.R0.MulByFp(api, lines[k][0][61].R0, xNegOverY[k]),
-			*l0.R1.MulByFp(api, lines[k][0][61].R1, yInv[k]),
-		)
-	}
-
-	for i := 60; i >= 0; i-- {
+	for i := 62; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
 		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
-				// line evaluation at P
-
-				// ℓ × res
-				res.MulBy034(api,
-					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
-					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
-				)
-				continue
-
-			}
-
-			// lines evaluation at P
-
-			// ℓ × ℓ
-			prodLines = *fields_bls12377.Mul034By034(api,
+			// line evaluation at P
+			// ℓ × res
+			res.MulBy034(api,
 				*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
 				*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
-				*l1.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
-				*l1.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
 			)
-			// (ℓ × ℓ) × res
-			res.MulBy01234(api, prodLines)
+			if loopCounter[i] == 1 {
+				// lines evaluation at P
+				// ℓ × res
+				res.MulBy034(api,
+					*l0.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
+				)
+			}
 		}
 	}
 	return res, nil
@@ -244,18 +144,11 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	if err != nil {
 		return err
 	}
-	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// f = f^(p⁶-1)(p²+1)
-	var buf GT
-	buf.Conjugate(api, f)
-	buf.DivUnchecked(api, buf, f)
-	f.FrobeniusSquare(api, buf).
-		Mul(api, f, buf)
 
-	f.AssertFinalExponentiationIsOne(api)
+	fe := FinalExponentiation(api, f)
+	var one GT
+	one.SetOne()
+	fe.AssertIsEqual(api, one)
 
 	return nil
 }

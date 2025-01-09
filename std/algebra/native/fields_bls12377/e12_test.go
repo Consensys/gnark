@@ -254,3 +254,124 @@ func TestConjugateFp12(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
+
+type fp12Frobenius struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *fp12Frobenius) Define(api frontend.API) error {
+
+	fb := E12{}
+	fb.Frobenius(api, circuit.A)
+	fb.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestFrobeniusFp12(t *testing.T) {
+
+	var circuit, witness fp12Frobenius
+
+	// witness values
+	var a, c bls12377.E12
+	_, _ = a.SetRandom()
+	c.Frobenius(&a)
+
+	witness.A.Assign(&a)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type fp12FrobeniusSquare struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *fp12FrobeniusSquare) Define(api frontend.API) error {
+
+	fbSquare := E12{}
+	fbSquare.FrobeniusSquare(api, circuit.A)
+	fbSquare.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestFrobeniusSqFp12(t *testing.T) {
+
+	var circuit, witness fp12FrobeniusSquare
+
+	// witness values
+	var a, c bls12377.E12
+	_, _ = a.SetRandom()
+	c.FrobeniusSquare(&a)
+
+	witness.A.Assign(&a)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type fp12Inverse struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *fp12Inverse) Define(api frontend.API) error {
+	expected := E12{}
+
+	expected.Inverse(api, circuit.A)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestInverseFp12(t *testing.T) {
+
+	var circuit, witness fp12Inverse
+
+	// witness values
+	var a, c bls12377.E12
+	_, _ = a.SetRandom()
+	c.Inverse(&a)
+
+	witness.A.Assign(&a)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type e12Div struct {
+	A, B, C E12
+}
+
+func (circuit *e12Div) Define(api frontend.API) error {
+	var expected E12
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp12(t *testing.T) {
+
+	// witness values
+	var a, b, c bls12377.E12
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e12Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_761))
+}

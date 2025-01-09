@@ -212,6 +212,102 @@ func (e *E12) Conjugate(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
+// Inverse e12 elmts
+func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
+
+	res, err := api.NewHint(inverseE12Hint, 12, e1.C0.A0, e1.C0.A1, e1.C0.A2, e1.C0.A3, e1.C0.A4, e1.C0.A5, e1.C1.A0, e1.C1.A1, e1.C1.A2, e1.C1.A3, e1.C1.A4, e1.C1.A5)
+
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3, one E12
+	e3.C0.assign(res[:6])
+	e3.C1.assign(res[6:12])
+	one.SetOne()
+
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.AssertIsEqual(api, one)
+
+	e.C0.assign(res[:6])
+	e.C1.assign(res[6:12])
+
+	return e
+}
+
+// DivUnchecked e12 elmts
+func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
+
+	res, err := api.NewHint(divE12Hint, 12, e1.C0.A0, e1.C0.A1, e1.C0.A2, e1.C0.A3, e1.C0.A4, e1.C0.A5, e1.C1.A0, e1.C1.A1, e1.C1.A2, e1.C1.A3, e1.C1.A4, e1.C1.A5, e2.C0.A0, e2.C0.A1, e2.C0.A2, e2.C0.A3, e2.C0.A4, e2.C0.A5, e2.C1.A0, e2.C1.A1, e2.C1.A2, e2.C1.A3, e2.C1.A4, e2.C1.A5)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E12
+	e3.C0.assign(res[:6])
+	e3.C1.assign(res[6:12])
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.AssertIsEqual(api, e1)
+
+	e.C0.assign(res[:6])
+	e.C1.assign(res[6:12])
+
+	return e
+}
+
+// Frobenius applies frob to an fp12 elmt
+func (e *E12) Frobenius(api frontend.API, e1 E12) *E12 {
+
+	e.C0.A0 = e1.C0.A0
+	e.C0.A3 = api.Neg(e1.C0.A3)
+	e.C0.A1 = e1.C0.A1
+	e.C0.A4 = api.Neg(e1.C0.A4)
+	e.C0.A1 = api.Mul(e.C0.A1, ext.frobv)
+	e.C0.A4 = api.Mul(e.C0.A4, ext.frobv)
+	e.C0.A2 = e1.C0.A2
+	e.C0.A5 = api.Neg(e1.C0.A5)
+	e.C0.A2 = api.Mul(e.C0.A2, ext.frobv2)
+	e.C0.A5 = api.Mul(e.C0.A5, ext.frobv2)
+	e.C1.A0 = e1.C1.A0
+	e.C1.A3 = api.Neg(e1.C1.A3)
+	e.C1.A0 = api.Mul(e.C1.A0, ext.frobw)
+	e.C1.A3 = api.Mul(e.C1.A3, ext.frobw)
+	e.C1.A1 = e1.C1.A1
+	e.C1.A4 = api.Neg(e1.C1.A4)
+	e.C1.A1 = api.Mul(e.C1.A1, ext.frobvw)
+	e.C1.A4 = api.Mul(e.C1.A4, ext.frobvw)
+	e.C1.A2 = e1.C1.A2
+	e.C1.A5 = api.Neg(e1.C1.A5)
+	e.C1.A2 = api.Mul(e.C1.A2, ext.frobv2w)
+	e.C1.A5 = api.Mul(e.C1.A5, ext.frobv2w)
+
+	return e
+
+}
+
+// FrobeniusSquare applies frob**2 to an fp12 elmt
+func (e *E12) FrobeniusSquare(api frontend.API, e1 E12) *E12 {
+
+	e.C0.A0 = e1.C0.A0
+	e.C0.A3 = e1.C0.A3
+	e.C0.A1 = api.Mul(e1.C0.A1, ext.frob2v)
+	e.C0.A4 = api.Mul(e1.C0.A4, ext.frob2v)
+	e.C0.A2 = api.Mul(e1.C0.A2, ext.frob2v2)
+	e.C0.A5 = api.Mul(e1.C0.A5, ext.frob2v2)
+	e.C1.A0 = api.Mul(e1.C1.A0, ext.frob2w)
+	e.C1.A3 = api.Mul(e1.C1.A3, ext.frob2w)
+	e.C1.A1 = api.Mul(e1.C1.A1, ext.frob2vw)
+	e.C1.A4 = api.Mul(e1.C1.A4, ext.frob2vw)
+	e.C1.A2 = api.Mul(e1.C1.A2, ext.frob2v2w)
+	e.C1.A5 = api.Mul(e1.C1.A5, ext.frob2v2w)
+	return e
+}
+
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
