@@ -2,10 +2,11 @@ package solver
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/internal/hints"
+	"maps"
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark/internal/hints"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -61,11 +62,7 @@ func GetRegisteredHints() []Hint {
 }
 
 func cloneMap[K comparable, V any](src map[K]V) map[K]V {
-	res := make(map[K]V, len(registry))
-	for k, v := range src {
-		res[k] = v
-	}
-	return res
+	return maps.Clone(src)
 }
 
 func cloneHintRegistry() map[HintID]Hint {
