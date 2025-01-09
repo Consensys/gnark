@@ -104,7 +104,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	nP := len(P)
 	nQ := len(Q)
 	if nP == 0 || nP != nQ {
-		return nil
+		return errors.New("invalid inputs sizes")
 	}
 	// hint the non-residue witness
 	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
