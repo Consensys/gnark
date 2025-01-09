@@ -5,19 +5,19 @@ import (
 )
 
 // nSquareKarabina2345 repeated compressed cyclotmic square
-// TODO: implement
 func (e *E12) nSquareKarabina2345(api frontend.API, n int) {
 	for i := 0; i < n; i++ {
-		e.Square(api, *e)
+		e.CyclotomicSquareKarabina2345(api, *e)
 	}
+	e.DecompressKarabina2345(api, *e)
 }
 
 // nSquareKarabina12345 repeated compressed cyclotmic square
-// TODO: implement
 func (e *E12) nSquareKarabina12345(api frontend.API, n int) {
 	for i := 0; i < n; i++ {
-		e.Square(api, *e)
+		e.CyclotomicSquareKarabina12345(api, *e)
 	}
+	e.DecompressKarabina12345(api, *e)
 }
 
 // MulBy034 multiplication by sparse element
@@ -56,6 +56,29 @@ func Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *[5]E2 {
 	x00.A0 = api.Add(x00.A0, 1)
 
 	return &[5]E2{x00, x3, x34, x03, x04}
+}
+
+func (e *E12) MulBy01234(api frontend.API, x [5]E2) *E12 {
+	var a, c, z1, z0 E6
+	c0 := E6{A0: x[0].A0, A1: x[1].A0, A2: x[2].A0, A3: x[0].A1, A4: x[1].A1, A5: x[2].A1}
+	a.Add(api, e.C0, e.C1)
+	var b0, b1 E2
+	b0.Add(api, x[0], x[3])
+	b1.Add(api, x[1], x[4])
+	b2 := x[2]
+	b := E6{A0: b0.A0, A1: b1.A0, A2: b2.A0, A3: b0.A1, A4: b1.A1, A5: b2.A1}
+	a.Mul(api, a, b)
+	b.Mul(api, e.C0, c0)
+	c = e.C1
+	c.MulBy01(api, x[3], x[4])
+	z1.Sub(api, a, b)
+	z1.Sub(api, z1, c)
+	z0.MulByNonResidue(api, c)
+	z0.Add(api, z0, b)
+
+	e.C0 = z0
+	e.C1 = z1
+	return e
 }
 
 // ExpX0 compute e1^X0, where X0=0x8508c00000000001

@@ -60,7 +60,31 @@ func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (G
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	for i := 62; i >= 0; i-- {
+	// i = 62, separately to avoid an E12 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line to res)
+	// line evaluation at P[0]
+	res.C1.A0 = api.Mul(lines[0][0][62].R0.A0, xNegOverY[0])
+	res.C1.A3 = api.Mul(lines[0][0][62].R0.A1, xNegOverY[0])
+	res.C1.A1 = api.Mul(lines[0][0][62].R1.A0, yInv[0])
+	res.C1.A4 = api.Mul(lines[0][0][62].R1.A1, yInv[0])
+
+	if n >= 2 {
+		// k >= 1
+		for k := 1; k < n; k++ {
+			// line evaluation at P[k]
+
+			// ℓ × res
+			res.MulBy034(api,
+				*l0.R0.MulByFp(api, lines[k][0][62].R0, xNegOverY[k]),
+				*l0.R1.MulByFp(api, lines[k][0][62].R1, yInv[k]),
+			)
+		}
+	}
+
+	for i := 61; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
