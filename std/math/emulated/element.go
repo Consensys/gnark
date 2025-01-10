@@ -43,14 +43,23 @@ type Element[T FieldParams] struct {
 	evaluation  frontend.Variable `gnark:"-"`
 }
 
-// ValueOf returns an Element[T] from a constant value.
-// The input is converted to *big.Int and decomposed into limbs and packed into new Element[T].
+// ValueOf returns an Element[T] from a constant value. This method is used for
+// witness assignment. For in-circuit constant assignment use the
+// [Field.NewElement] method.
+//
+// The input is converted into limbs according to the parameters of the field
+// and returned as a new [Element[T]]. Note that it returns the value, not a
+// reference, which is more convenient for witness assignment.
 func ValueOf[T FieldParams](constant interface{}) Element[T] {
+	// in this method we set the isWitness flag to true, because we do not know
+	// the width of the input value. Even though it is valid to call this method
+	// in circuit without reference to `Field`, then the canonical way would be
+	// to call [Field.NewElement] method (which would set isWitness to false).
 	if constant == nil {
-		r := newConstElement[T](0)
+		r := newConstElement[T](0, true)
 		return *r
 	}
-	r := newConstElement[T](constant)
+	r := newConstElement[T](constant, true)
 	return *r
 }
 
@@ -58,7 +67,7 @@ func ValueOf[T FieldParams](constant interface{}) Element[T] {
 // taking pointer to it. We only want to have a public method for initialising
 // an element which return a value because the user uses this only for witness
 // creation and it mess up schema parsing.
-func newConstElement[T FieldParams](v interface{}) *Element[T] {
+func newConstElement[T FieldParams](v interface{}, isWitness bool) *Element[T] {
 	var fp T
 	// convert to big.Int
 	bValue := utils.FromInterface(v)
@@ -68,9 +77,18 @@ func newConstElement[T FieldParams](v interface{}) *Element[T] {
 		bValue.Mod(&bValue, fp.Modulus())
 	}
 
-	// decompose into limbs
+	// decompose into limbs. When set with isWitness, then we do not know at
+	// compile time the width of the input, so we allocate the maximum number of
+	// limbs. However, in-circuit we already do (we set it from actual
+	// constant), thus we can allocate the exact number of limbs.
+	var nbLimbs int
+	if isWitness {
+		nbLimbs = int(fp.NbLimbs())
+	} else {
+		nbLimbs = (bValue.BitLen() + int(fp.BitsPerLimb()) - 1) / int(fp.BitsPerLimb())
+	}
 	// TODO @gbotrel use big.Int pool here
-	blimbs := make([]*big.Int, fp.NbLimbs())
+	blimbs := make([]*big.Int, nbLimbs)
 	for i := range blimbs {
 		blimbs[i] = new(big.Int)
 	}

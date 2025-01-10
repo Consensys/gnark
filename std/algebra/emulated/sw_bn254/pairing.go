@@ -6,54 +6,54 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	fp_bn "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+type baseEl = emulated.Element[BaseField]
+type GTEl = fields_bn254.E12
+
 type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
+	*fields_bn254.Ext2
 	curveF *emulated.Field[BaseField]
 	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
 	bTwist *fields_bn254.E2
-	g2gen  *G2Affine
 }
 
-type GTEl = fields_bn254.E12
+func NewGTEl(a bn254.GT) GTEl {
+	var c0, c1, c2, c3, c4, c5, t fp_bn.Element
+	t.SetUint64(9).Mul(&t, &a.C0.B0.A1)
+	c0.Sub(&a.C0.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B0.A1)
+	c1.Sub(&a.C1.B0.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B1.A1)
+	c2.Sub(&a.C0.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B1.A1)
+	c3.Sub(&a.C1.B1.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C0.B2.A1)
+	c4.Sub(&a.C0.B2.A0, &t)
+	t.SetUint64(9).Mul(&t, &a.C1.B2.A1)
+	c5.Sub(&a.C1.B2.A0, &t)
 
-func NewGTEl(v bn254.GT) GTEl {
 	return GTEl{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B0.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B0.A1),
-			},
-			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B1.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B1.A1),
-			},
-			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C0.B2.A0),
-				A1: emulated.ValueOf[BaseField](v.C0.B2.A1),
-			},
-		},
-		C1: fields_bn254.E6{
-			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B0.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B0.A1),
-			},
-			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B1.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B1.A1),
-			},
-			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[BaseField](v.C1.B2.A0),
-				A1: emulated.ValueOf[BaseField](v.C1.B2.A1),
-			},
-		},
+		A0:  emulated.ValueOf[emulated.BN254Fp](c0),
+		A1:  emulated.ValueOf[emulated.BN254Fp](c1),
+		A2:  emulated.ValueOf[emulated.BN254Fp](c2),
+		A3:  emulated.ValueOf[emulated.BN254Fp](c3),
+		A4:  emulated.ValueOf[emulated.BN254Fp](c4),
+		A5:  emulated.ValueOf[emulated.BN254Fp](c5),
+		A6:  emulated.ValueOf[emulated.BN254Fp](a.C0.B0.A1),
+		A7:  emulated.ValueOf[emulated.BN254Fp](a.C1.B0.A1),
+		A8:  emulated.ValueOf[emulated.BN254Fp](a.C0.B1.A1),
+		A9:  emulated.ValueOf[emulated.BN254Fp](a.C1.B1.A1),
+		A10: emulated.ValueOf[emulated.BN254Fp](a.C0.B2.A1),
+		A11: emulated.ValueOf[emulated.BN254Fp](a.C1.B2.A1),
 	}
 }
 
@@ -73,158 +73,12 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
+		Ext2:   fields_bn254.NewExt2(api),
 		curveF: ba,
 		curve:  curve,
 		g2:     NewG2(api),
 		bTwist: &bTwist,
 	}, nil
-}
-
-func (pr Pairing) generators() *G2Affine {
-	if pr.g2gen == nil {
-		_, _, _, g2gen := bn254.Generators()
-		cg2gen := NewG2AffineFixed(g2gen)
-		pr.g2gen = &cg2gen
-	}
-	return pr.g2gen
-}
-
-// FinalExponentiation computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// FinalExponentiation returns a decompressed element in E12.
-//
-// This is the safe version of the method where e may be {-1,1}. If it is known
-// that e ≠ {-1,1} then using the unsafe version of the method saves
-// considerable amount of constraints. When called with the result of
-// [MillerLoop], then current method is applicable when length of the inputs to
-// Miller loop is 1.
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, false)
-}
-
-// FinalExponentiationUnsafe computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// FinalExponentiationUnsafe returns a decompressed element in E12.
-//
-// This is the unsafe version of the method where e may NOT be {-1,1}. If e ∈
-// {-1, 1}, then there exists no valid solution to the circuit. This method is
-// applicable when called with the result of [MillerLoop] method when the length
-// of the inputs to Miller loop is 1.
-func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, true)
-}
-
-// finalExponentiation computes the exponentiation eᵈ where
-//
-//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
-//
-// We use instead d'= s ⋅ d, where s is the cofactor
-//
-//	2x₀(6x₀²+3x₀+1)
-//
-// and r does NOT divide d'
-//
-// finalExponentiation returns a decompressed element in E12
-func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
-
-	// 1. Easy part
-	// (p⁶-1)(p²+1)
-	var selector1, selector2 frontend.Variable
-	_dummy := pr.Ext6.One()
-
-	if unsafe {
-		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
-		// linearly dependent and not from G1 and G2 respectively.
-		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
-		// Nothing to do.
-
-	} else {
-		// However, for a product of Miller loops (n>=2) this might happen.  If this is
-		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
-		// and proceed further.
-		selector1 = pr.Ext6.IsZero(&e.C1)
-		e = &fields_bn254.E12{
-			C0: e.C0,
-			C1: *pr.Ext6.Select(selector1, _dummy, &e.C1),
-		}
-	}
-
-	// Torus compression absorbed:
-	// Raising e to (p⁶-1) is
-	// e^(p⁶) / e = (e.C0 - w*e.C1) / (e.C0 + w*e.C1)
-	//            = (-e.C0/e.C1 + w) / (-e.C0/e.C1 - w)
-	// So the fraction -e.C0/e.C1 is already in the torus.
-	// This absorbs the torus compression in the easy part.
-	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
-	c = pr.Ext6.Neg(c)
-	t0 := pr.FrobeniusSquareTorus(c)
-	c = pr.MulTorus(t0, c)
-
-	// 2. Hard part (up to permutation)
-	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
-	// Duquesne and Ghammam
-	// https://eprint.iacr.org/2015/192.pdf
-	// Fuentes et al. (alg. 6)
-	// performed in torus compressed form
-	t0 = pr.ExptTorus(c)
-	t0 = pr.InverseTorus(t0)
-	t0 = pr.SquareTorus(t0)
-	t1 := pr.SquareTorus(t0)
-	t1 = pr.MulTorus(t0, t1)
-	t2 := pr.ExptTorus(t1)
-	t2 = pr.InverseTorus(t2)
-	t3 := pr.InverseTorus(t1)
-	t1 = pr.MulTorus(t2, t3)
-	t3 = pr.SquareTorus(t2)
-	t4 := pr.ExptTorus(t3)
-	t4 = pr.MulTorus(t1, t4)
-	t3 = pr.MulTorus(t0, t4)
-	t0 = pr.MulTorus(t2, t4)
-	t0 = pr.MulTorus(c, t0)
-	t2 = pr.FrobeniusTorus(t3)
-	t0 = pr.MulTorus(t2, t0)
-	t2 = pr.FrobeniusSquareTorus(t4)
-	t0 = pr.MulTorus(t2, t0)
-	t2 = pr.InverseTorus(c)
-	t2 = pr.MulTorus(t2, t3)
-	t2 = pr.FrobeniusCubeTorus(t2)
-
-	var result GTEl
-	// MulTorus(t0, t2) requires t0 ≠ -t2. When t0 = -t2, it means the
-	// product is 1 in the torus.
-	if unsafe {
-		// For a single pairing, this does not happen because the pairing is non-degenerate.
-		result = *pr.DecompressTorus(pr.MulTorus(t2, t0))
-	} else {
-		// For a product of pairings this might happen when the result is expected to be 1.
-		// We assign a dummy value (1) to t0 and proceed further.
-		// Finally we do a select on both edge cases:
-		//   - Only if seletor1=0 and selector2=0, we return MulTorus(t2, t0) decompressed.
-		//   - Otherwise, we return 1.
-		_sum := pr.Ext6.Add(t0, t2)
-		selector2 = pr.Ext6.IsZero(_sum)
-		t0 = pr.Ext6.Select(selector2, _dummy, t0)
-		selector := pr.api.Mul(pr.api.Sub(1, selector1), pr.api.Sub(1, selector2))
-		result = *pr.Select(selector, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One())
-	}
-
-	return &result
 }
 
 // Pair calculates the reduced pairing for a set of points
@@ -236,8 +90,120 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.finalExponentiation(res, len(P) == 1)
+	res = pr.FinalExponentiation(res)
 	return res, nil
+}
+
+// FinalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ
+// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// where s is the cofactor 2x₀(6x₀²+3x₀+1)
+func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
+	// Easy part
+	// (p⁶-1)(p²+1)
+	t0 := pr.Ext12.Conjugate(e)
+	e = pr.Ext12.Inverse(e)
+	t0 = pr.Ext12.Mul(t0, e)
+	e = pr.Ext12.FrobeniusSquare(t0)
+	e = pr.Ext12.Mul(e, t0)
+
+	// Hard part (up to permutation)
+	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
+	// Duquesne and Ghammam
+	// https://eprint.iacr.org/2015/192.pdf
+	// Fuentes et al. (alg. 6)
+	t0 = pr.Ext12.Expt(e)
+	t0 = pr.Ext12.Conjugate(t0)
+	t0 = pr.Ext12.CyclotomicSquareGS(t0)
+	t1 := pr.Ext12.CyclotomicSquareGS(t0)
+	t1 = pr.Ext12.Mul(t0, t1)
+	t2 := pr.Ext12.Expt(t1)
+	t2 = pr.Ext12.Conjugate(t2)
+	t3 := pr.Ext12.Conjugate(t1)
+	t1 = pr.Ext12.Mul(t2, t3)
+	t3 = pr.Ext12.CyclotomicSquareGS(t2)
+	t4 := pr.Ext12.Expt(t3)
+	t4 = pr.Ext12.Mul(t1, t4)
+	t3 = pr.Ext12.Mul(t0, t4)
+	t0 = pr.Ext12.Mul(t2, t4)
+	t0 = pr.Ext12.Mul(e, t0)
+	t2 = pr.Ext12.Frobenius(t3)
+	t0 = pr.Ext12.Mul(t2, t0)
+	t2 = pr.Ext12.FrobeniusSquare(t4)
+	t0 = pr.Ext12.Mul(t2, t0)
+	t2 = pr.Ext12.Conjugate(e)
+	t2 = pr.Ext12.Mul(t2, t3)
+	t2 = pr.Ext12.FrobeniusCube(t2)
+	t0 = pr.Ext12.Mul(t2, t0)
+
+	return t0
+}
+
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
+	tower := pr.Ext12.ToTower(a)
+
+	res, err := pr.curveF.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	nine := big.NewInt(9)
+	residueWitness := pr.Ext12.FromTower([12]*baseEl{res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11]})
+
+	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  0
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  0
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	cubicNonResiduePower := GTEl{
+		A0:  *pr.curveF.Sub(res[12], pr.curveF.MulConst(res[13], nine)),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(res[14], pr.curveF.MulConst(res[15], nine)),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(res[16], pr.curveF.MulConst(res[17], nine)),
+		A5:  *pr.curveF.Zero(),
+		A6:  *res[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *res[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *res[17],
+		A11: *pr.curveF.Zero(),
+	}
+
+	// Check that  x * cubicNonResiduePower == residueWitness^λ
+	// where λ = 6u + 2 + q^3 - q^2 + q, with u the BN254 seed
+	// and residueWitness, cubicNonResiduePower from the hint.
+	t2 := pr.Ext12.Mul(&cubicNonResiduePower, a)
+
+	t1 := pr.Ext12.FrobeniusCube(residueWitness)
+	t0 := pr.Ext12.FrobeniusSquare(residueWitness)
+	t1 = pr.Ext12.DivUnchecked(t1, t0)
+	t0 = pr.Ext12.Frobenius(residueWitness)
+	t1 = pr.Ext12.Mul(t1, t0)
+
+	// exponentiation by U=6u+2
+	t0 = pr.Ext12.ExpByU(residueWitness)
+
+	t0 = pr.Ext12.Mul(t0, t1)
+
+	pr.AssertIsEqual(t0, t2)
 }
 
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
@@ -250,15 +216,6 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		return err
 
 	}
-	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// f = f^(p⁶-1)(p²+1)
-	buf := pr.Conjugate(f)
-	buf = pr.DivUnchecked(buf, f)
-	f = pr.FrobeniusSquare(buf)
-	f = pr.Mul(f, buf)
 
 	pr.AssertFinalExponentiationIsOne(f)
 
@@ -286,8 +243,7 @@ func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bn254.E
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
 	left = pr.Ext2.Square(&Q.P.Y)
-	right = pr.Ext2.Square(&Q.P.X)
-	right = pr.Ext2.Mul(right, &Q.P.X)
+	right = pr.Ext2.Cube(&Q.P.X)
 	right = pr.Ext2.Add(right, b)
 	return left, right
 }
@@ -393,8 +349,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[BaseField], n)
-	xNegOverY := make([]*emulated.Element[BaseField], n)
+	yInv := make([]*baseEl, n)
+	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.
@@ -405,114 +361,89 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	var prodLines [5]*fields_bn254.E2
-	res := pr.Ext12.One()
+	var prodLines [10]*baseEl
 
 	// Compute f_{6x₀+2,Q}(P)
-	// i = 64, separately to avoid an E12 Square
-	// (Square(res) = 1² = 1)
-
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
-	// (assign line to res)
-	// line evaluation at P[0]
-	res = &fields_bn254.E12{
-		C0: res.C0,
-		C1: fields_bn254.E6{
-			B0: *pr.MulByElement(&lines[0][0][64].R0, xNegOverY[0]),
-			B1: *pr.MulByElement(&lines[0][0][64].R1, yInv[0]),
-			B2: res.C1.B2,
-		},
+	// i = 64
+	//
+	// k = 0
+	c3 := pr.Ext2.MulByElement(&lines[0][0][64].R0, xNegOverY[0])
+	c4 := pr.Ext2.MulByElement(&lines[0][0][64].R1, yInv[0])
+	nine := big.NewInt(9)
+	res := &GTEl{
+		A0:  *pr.curveF.One(),
+		A1:  *pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
+		A2:  *pr.curveF.Zero(),
+		A3:  *pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
+		A4:  *pr.curveF.Zero(),
+		A5:  *pr.curveF.Zero(),
+		A6:  *pr.curveF.Zero(),
+		A7:  c3.A1,
+		A8:  *pr.curveF.Zero(),
+		A9:  c4.A1,
+		A10: *pr.curveF.Zero(),
+		A11: *pr.curveF.Zero(),
 	}
 
 	if n >= 2 {
-		// k = 1, separately to avoid MulBy034 (res × ℓ)
-		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
+		// k = 1, separately to avoid MulBy01379 (res × ℓ)
+		// (res is also a line at this point, so we use Mul01379By01379 ℓ × ℓ)
 		// line evaluation at P[1]
-		// ℓ × res
-		prodLines = pr.Mul034By034(
-			pr.MulByElement(&lines[1][0][64].R0, xNegOverY[1]),
-			pr.MulByElement(&lines[1][0][64].R1, yInv[1]),
-			&res.C1.B0,
-			&res.C1.B1,
+		prodLines = pr.Mul01379By01379(
+			pr.Ext2.MulByElement(&lines[1][0][64].R0, xNegOverY[1]),
+			pr.Ext2.MulByElement(&lines[1][0][64].R1, yInv[1]),
+			c3,
+			c4,
 		)
-		res = &fields_bn254.E12{
-			C0: fields_bn254.E6{
-				B0: *prodLines[0],
-				B1: *prodLines[1],
-				B2: *prodLines[2],
-			},
-			C1: fields_bn254.E6{
-				B0: *prodLines[3],
-				B1: *prodLines[4],
-				B2: res.C1.B2,
-			},
+		res = &GTEl{
+			A0:  *prodLines[0],
+			A1:  *prodLines[1],
+			A2:  *prodLines[2],
+			A3:  *prodLines[3],
+			A4:  *prodLines[4],
+			A5:  *pr.curveF.Zero(),
+			A6:  *prodLines[5],
+			A7:  *prodLines[6],
+			A8:  *prodLines[7],
+			A9:  *prodLines[8],
+			A10: *prodLines[9],
+			A11: *pr.curveF.Zero(),
 		}
 	}
 
 	if n >= 3 {
-		// k = 2, separately to avoid MulBy034 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01234By034)
-		// line evaluation at P[1]
-		// ℓ × res
-		res = pr.Mul01234By034(
-			prodLines,
-			pr.MulByElement(&lines[2][0][64].R0, xNegOverY[2]),
-			pr.MulByElement(&lines[2][0][64].R1, yInv[2]),
-		)
-
-		// k >= 3
-		for k := 3; k < n; k++ {
+		// k >= 2
+		for k := 2; k < n; k++ {
 			// line evaluation at P[k]
 			// ℓ × res
-			res = pr.MulBy034(
+			res = pr.MulBy01379(
 				res,
-				pr.MulByElement(&lines[k][0][64].R0, xNegOverY[k]),
-				pr.MulByElement(&lines[k][0][64].R1, yInv[k]),
+				pr.Ext2.MulByElement(&lines[k][0][64].R0, xNegOverY[k]),
+				pr.Ext2.MulByElement(&lines[k][0][64].R1, yInv[k]),
 			)
 		}
 	}
 
 	for i := 63; i >= 0; i-- {
-		res = pr.Square(res)
+		res = pr.Ext12.Square(res)
 
-		if loopCounter[i] == 0 {
-			// if number of lines is odd, mul last line by res
-			// works for n=1 as well
-			if n%2 != 0 {
-				// ℓ × res
-				res = pr.MulBy034(
+		for k := 0; k < n; k++ {
+			if loopCounter[i] == 0 {
+				res = pr.MulBy01379(
 					res,
-					pr.MulByElement(&lines[n-1][0][i].R0, xNegOverY[n-1]),
-					pr.MulByElement(&lines[n-1][0][i].R1, yInv[n-1]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
 				)
-			}
-
-			// mul lines 2-by-2
-			for k := 1; k < n; k += 2 {
+			} else {
 				// ℓ × ℓ
-				prodLines = pr.Mul034By034(
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
-					pr.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+				prodLines = pr.Mul01379By01379(
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
 				)
 				// (ℓ × ℓ) × res
-				res = pr.MulBy01234(res, prodLines)
-			}
-
-		} else {
-			for k := 0; k < n; k++ {
-				// lines evaluations at P
-				// and ℓ × ℓ
-				prodLines := pr.Mul034By034(
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
-					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
-				)
-				// (ℓ × ℓ) × res
-				res = pr.MulBy01234(res, prodLines)
-
+				res = pr.Ext12.MulBy012346789(res, prodLines)
 			}
 		}
 	}
@@ -521,14 +452,13 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// lines evaluations at P
 	// and ℓ × ℓ
 	for k := 0; k < n; k++ {
-		prodLines := pr.Mul034By034(
-			pr.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
-			pr.MulByElement(&lines[k][0][65].R1, yInv[k]),
-			pr.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
-			pr.MulByElement(&lines[k][1][65].R1, yInv[k]),
+		prodLines = pr.Mul01379By01379(
+			pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
+			pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
+			pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
+			pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
 		)
-		// (ℓ × ℓ) × res
-		res = pr.MulBy01234(res, prodLines)
+		res = pr.Ext12.MulBy012346789(res, prodLines)
 	}
 
 	return res, nil
@@ -541,6 +471,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
+	mone := pr.curveF.NewElement(-1)
 
 	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
 	var n *fields_bn254.E2
@@ -553,15 +484,16 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 	λ1 := pr.Ext2.DivUnchecked(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x3 := pr.Ext2.Square(λ1)
-	x3 = pr.Ext2.Sub(x3, pr.Ext2.Add(&p1.X, &p2.X))
+	x30 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p1.X.A0}, {mone, &p2.X.A0}}, []int{1, 1, 1, 1})
+	x31 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p1.X.A1}, {mone, &p2.X.A1}}, []int{2, 1, 1})
+	x3 := &fields_bn254.E2{A0: *x30, A1: *x31}
 
 	// omit y3 computation
 
 	// compute line1
 	line1.R0 = *λ1
-	line1.R1 = *pr.Ext2.Mul(λ1, &p1.X)
-	line1.R1 = *pr.Ext2.Sub(&line1.R1, &p1.Y)
+	line1.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A0}, {mone, &λ1.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	line1.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A1}, {&λ1.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
 	n = pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
@@ -571,21 +503,23 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 	λ2 = pr.Ext2.Neg(λ2)
 
 	// compute x4 = λ2²-x1-x3
-	x4 := pr.Ext2.Square(λ2)
-	x4 = pr.Ext2.Sub(x4, pr.Ext2.Add(&p1.X, x3))
+	x40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p1.X.A0}, {mone, x30}}, []int{1, 1, 1, 1})
+	x41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p1.X.A1}, {mone, x31}}, []int{2, 1, 1})
+	x4 := &fields_bn254.E2{A0: *x40, A1: *x41}
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.Ext2.Sub(&p1.X, x4)
-	y4 = pr.Ext2.Mul(λ2, y4)
-	y4 = pr.Ext2.Sub(y4, &p1.Y)
+	y40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A0}, {mone, &λ2.A1, &y4.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	y41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A1}, {&λ2.A1, &y4.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	y4 = &fields_bn254.E2{A0: *y40, A1: *y41}
 
 	p.X = *x4
 	p.Y = *y4
 
 	// compute line2
 	line2.R0 = *λ2
-	line2.R1 = *pr.Ext2.Mul(λ2, &p1.X)
-	line2.R1 = *pr.Ext2.Sub(&line2.R1, &p1.Y)
+	line2.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A0}, {mone, &λ2.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	line2.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A1}, {&λ2.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
 
 	return &p, &line1, &line2
 }
@@ -596,6 +530,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var p g2AffP
 	var line lineEvaluation
+	mone := pr.curveF.NewElement(-1)
 
 	// λ = 3x²/2y
 	n := pr.Ext2.Square(&p1.X)
@@ -604,20 +539,22 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 	λ := pr.Ext2.DivUnchecked(n, d)
 
 	// xr = λ²-2x
-	xr := pr.Ext2.Square(λ)
-	xr = pr.Ext2.Sub(xr, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
+	xr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {mone, &λ.A1, &λ.A1}, {mone, &p1.X.A0}}, []int{1, 1, 2})
+	xr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {mone, &p1.X.A1}}, []int{2, 2})
+	xr := &fields_bn254.E2{A0: *xr0, A1: *xr1}
 
 	// yr = λ(x-xr)-y
 	yr := pr.Ext2.Sub(&p1.X, xr)
-	yr = pr.Ext2.Mul(λ, yr)
-	yr = pr.Ext2.Sub(yr, &p1.Y)
+	yr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {mone, &λ.A1, &yr.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	yr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	yr = &fields_bn254.E2{A0: *yr0, A1: *yr1}
 
 	p.X = *xr
 	p.Y = *yr
 
 	line.R0 = *λ
-	line.R1 = *pr.Ext2.Mul(λ, &p1.X)
-	line.R1 = *pr.Ext2.Sub(&line.R1, &p1.Y)
+	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {mone, &λ.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
 
 	return &p, &line
 
@@ -627,19 +564,23 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
 
+	mone := pr.curveF.NewElement(-1)
+
 	// compute λ = (y2-y1)/(x2-x1)
 	p2ypy := pr.Ext2.Sub(&p2.Y, &p1.Y)
 	p2xpx := pr.Ext2.Sub(&p2.X, &p1.X)
 	λ := pr.Ext2.DivUnchecked(p2ypy, p2xpx)
 
 	// xr = λ²-x1-x2
-	xr := pr.Ext2.Square(λ)
-	xr = pr.Ext2.Sub(xr, pr.Ext2.Add(&p1.X, &p2.X))
+	xr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {mone, &λ.A1, &λ.A1}, {mone, &p1.X.A0}, {mone, &p2.X.A0}}, []int{1, 1, 1, 1})
+	xr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {mone, &p1.X.A1}, {mone, &p2.X.A1}}, []int{2, 1, 1})
+	xr := &fields_bn254.E2{A0: *xr0, A1: *xr1}
 
 	// yr = λ(x1-xr) - y1
-	pxrx := pr.Ext2.Sub(&p1.X, xr)
-	λpxrx := pr.Ext2.Mul(λ, pxrx)
-	yr := pr.Ext2.Sub(λpxrx, &p1.Y)
+	yr := pr.Ext2.Sub(&p1.X, xr)
+	yr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {mone, &λ.A1, &yr.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	yr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	yr = &fields_bn254.E2{A0: *yr0, A1: *yr1}
 
 	var res g2AffP
 	res.X = *xr
@@ -647,8 +588,8 @@ func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var line lineEvaluation
 	line.R0 = *λ
-	line.R1 = *pr.Ext2.Mul(λ, &p1.X)
-	line.R1 = *pr.Ext2.Sub(&line.R1, &p1.Y)
+	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {mone, &λ.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
 
 	return &res, &line
 
@@ -657,6 +598,8 @@ func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
 // lineCompute computes the line through p1 and p2, but does not compute p1+p2.
 func (pr Pairing) lineCompute(p1, p2 *g2AffP) *lineEvaluation {
 
+	mone := pr.curveF.NewElement(-1)
+
 	// compute λ = (y2+y1)/(x2-x1)
 	qypy := pr.Ext2.Add(&p1.Y, &p2.Y)
 	qxpx := pr.Ext2.Sub(&p1.X, &p2.X)
@@ -664,8 +607,8 @@ func (pr Pairing) lineCompute(p1, p2 *g2AffP) *lineEvaluation {
 
 	var line lineEvaluation
 	line.R0 = *λ
-	line.R1 = *pr.Ext2.Mul(λ, &p1.X)
-	line.R1 = *pr.Ext2.Sub(&line.R1, &p1.Y)
+	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {mone, &λ.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
+	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
 
 	return &line
 
@@ -680,45 +623,56 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.Mul(res, previous)
+	res = pr.Ext12.Mul(res, previous)
 	return res, err
 }
 
 // millerLoopAndFinalExpResult computes the Miller loop between P and Q,
 // multiplies it in 𝔽p¹² by previous and returns the result.
 func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
+	tower := pr.ToTower(previous)
 
 	// hint the non-residue witness
-	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
+	residueWitness := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 
-	residueWitness := fields_bn254.E12{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[0], A1: *hint[1]},
-			B1: fields_bn254.E2{A0: *hint[2], A1: *hint[3]},
-			B2: fields_bn254.E2{A0: *hint[4], A1: *hint[5]},
-		},
-		C1: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[6], A1: *hint[7]},
-			B1: fields_bn254.E2{A0: *hint[8], A1: *hint[9]},
-			B2: fields_bn254.E2{A0: *hint[10], A1: *hint[11]},
-		},
-	}
 	// constrain cubicNonResiduePower to be in Fp6
-	cubicNonResiduePower := fields_bn254.E12{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
-			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
-			B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
-		},
-		C1: (*pr.Ext6.Zero()),
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - 9 * a001
+	//     A1  =  0
+	//     A2  =  a010 - 9 * a011
+	//     A3  =  0
+	//     A4  =  a020 - 9 * a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	nine := big.NewInt(9)
+	cubicNonResiduePower := GTEl{
+		A0:  *pr.curveF.Sub(hint[12], pr.curveF.MulConst(hint[13], nine)),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(hint[14], pr.curveF.MulConst(hint[15], nine)),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(hint[16], pr.curveF.MulConst(hint[17], nine)),
+		A5:  *pr.curveF.Zero(),
+		A6:  *hint[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *hint[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *hint[17],
+		A11: *pr.curveF.Zero(),
 	}
 
 	// residueWitnessInv = 1 / residueWitness
-	residueWitnessInv := pr.Inverse(&residueWitness)
+	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
 
 	if Q.Lines == nil {
 		Qlines := pr.computeLines(&Q.P)
@@ -737,42 +691,42 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 
 	// Compute f_{6x₀+2,Q}(P)
 	for i := 64; i >= 0; i-- {
-		res = pr.Square(res)
+		res = pr.Ext12.Square(res)
 
 		switch loopCounter[i] {
 		case 0:
 			// ℓ × res
-			res = pr.MulBy034(
+			res = pr.MulBy01379(
 				res,
-				pr.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.MulByElement(&lines[0][i].R1, yInv),
+				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
 			)
 		case 1:
 			// multiply by residueWitnessInv when bit=1
-			res = pr.Mul(res, residueWitnessInv)
+			res = pr.Ext12.Mul(res, residueWitnessInv)
 			// lines evaluations at P
 			// and ℓ × ℓ
-			prodLines := pr.Mul034By034(
-				pr.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.MulByElement(&lines[0][i].R1, yInv),
-				pr.MulByElement(&lines[1][i].R0, xNegOverY),
-				pr.MulByElement(&lines[1][i].R1, yInv),
+			prodLines := pr.Mul01379By01379(
+				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
+				pr.Ext2.MulByElement(&lines[1][i].R0, xNegOverY),
+				pr.Ext2.MulByElement(&lines[1][i].R1, yInv),
 			)
 			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
+			res = pr.Ext12.MulBy012346789(res, prodLines)
 		case -1:
 			// multiply by residueWitness when bit=-1
-			res = pr.Mul(res, &residueWitness)
+			res = pr.Ext12.Mul(res, residueWitness)
 			// lines evaluations at P
 			// and ℓ × ℓ
-			prodLines := pr.Mul034By034(
-				pr.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.MulByElement(&lines[0][i].R1, yInv),
-				pr.MulByElement(&lines[1][i].R0, xNegOverY),
-				pr.MulByElement(&lines[1][i].R1, yInv),
+			prodLines := pr.Mul01379By01379(
+				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
+				pr.Ext2.MulByElement(&lines[1][i].R0, xNegOverY),
+				pr.Ext2.MulByElement(&lines[1][i].R1, yInv),
 			)
 			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
+			res = pr.Ext12.MulBy012346789(res, prodLines)
 		default:
 			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
@@ -780,33 +734,31 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 
 	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
 	// lines evaluations at P
-	// and ℓ × ℓ
-	prodLines := pr.Mul034By034(
-		pr.MulByElement(&lines[0][65].R0, xNegOverY),
-		pr.MulByElement(&lines[0][65].R1, yInv),
-		pr.MulByElement(&lines[1][65].R0, xNegOverY),
-		pr.MulByElement(&lines[1][65].R1, yInv),
+	prodLines := pr.Mul01379By01379(
+		pr.Ext2.MulByElement(&lines[0][65].R0, xNegOverY),
+		pr.Ext2.MulByElement(&lines[0][65].R1, yInv),
+		pr.Ext2.MulByElement(&lines[1][65].R0, xNegOverY),
+		pr.Ext2.MulByElement(&lines[1][65].R1, yInv),
 	)
-	// (ℓ × ℓ) × res
-	res = pr.MulBy01234(res, prodLines)
+	res = pr.Ext12.MulBy012346789(res, prodLines)
 
 	// multiply by previous multi-Miller function
-	res = pr.Mul(res, previous)
+	res = pr.Ext12.Mul(res, previous)
 
 	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
 	// where λ' = q^3 - q^2 + q, with u the BN254 seed
 	// and residueWitnessInv, cubicNonResiduePower from the hint.
 	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{6x₀+2} since
 	// we initialized the Miller loop accumulator with residueWitnessInv.
-	t2 := pr.Mul(&cubicNonResiduePower, res)
+	t2 := pr.Ext12.Mul(&cubicNonResiduePower, res)
 
 	t1 := pr.FrobeniusCube(residueWitnessInv)
-	t0 := pr.FrobeniusSquare(residueWitnessInv)
-	t1 = pr.DivUnchecked(t1, t0)
+	t0 := pr.FrobeniusSquare(residueWitness)
+	t1 = pr.Ext12.Mul(t1, t0)
 	t0 = pr.Frobenius(residueWitnessInv)
-	t1 = pr.Mul(t1, t0)
+	t1 = pr.Ext12.Mul(t1, t0)
 
-	t2 = pr.Mul(t2, t1)
+	t2 = pr.Ext12.Mul(t2, t1)
 
 	return t2
 }
@@ -824,7 +776,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 func (pr Pairing) IsMillerLoopAndFinalExpOne(P *G1Affine, Q *G2Affine, previous *GTEl) frontend.Variable {
 	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
 
-	res := pr.IsEqual(t2, pr.One())
+	res := pr.IsEqual(t2, pr.Ext12.One())
 	return res
 }
 
@@ -839,5 +791,5 @@ func (pr Pairing) IsMillerLoopAndFinalExpOne(P *G1Affine, Q *G2Affine, previous 
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (pr Pairing) AssertMillerLoopAndFinalExpIsOne(P *G1Affine, Q *G2Affine, previous *GTEl) {
 	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
-	pr.AssertIsEqual(t2, pr.One())
+	pr.AssertIsEqual(t2, pr.Ext12.One())
 }

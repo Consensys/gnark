@@ -1,6 +1,7 @@
 package polynomial
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -120,7 +121,7 @@ func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Mu
 	lenM := len(M[0])
 	for i := range M {
 		if len(M[i]) != lenM {
-			return nil, fmt.Errorf("incompatible multilinear polynomial sizes")
+			return nil, errors.New("incompatible multilinear polynomial sizes")
 		}
 	}
 	mlelems := make([][]*emulated.Element[FR], len(M))
@@ -128,11 +129,11 @@ func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Mu
 		mlelems[i] = FromSlice(M[i])
 	}
 	if bits.OnesCount(uint(lenM)) != 1 {
-		return nil, fmt.Errorf("multilinear polynomial length must be a power of 2")
+		return nil, errors.New("multilinear polynomial length must be a power of 2")
 	}
 	nbExpvars := bits.Len(uint(lenM)) - 1
 	if len(at) != nbExpvars {
-		return nil, fmt.Errorf("incompatible evaluation vector size")
+		return nil, errors.New("incompatible evaluation vector size")
 	}
 	split1 := nbExpvars / 2
 	nbSplit1Elems := 1 << split1
@@ -223,7 +224,7 @@ func (p *Polynomial[FR]) InterpolateLDE(at *emulated.Element[FR], values []*emul
 	return res
 }
 
-// EvalEquals returns the evaluation
+// EvalEqual returns the evaluation
 //
 //	eq(x, y) = \prod (1-x)*(1-y) + x*y,
 //

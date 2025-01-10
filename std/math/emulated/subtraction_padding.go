@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -25,6 +26,12 @@ import (
 func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint) []*big.Int {
 	if modulus.Cmp(big.NewInt(0)) == 0 {
 		panic("modulus is zero")
+	}
+	// we ensure that the number of padding limbs is sufficient to represent the
+	// modulus
+	requiredLimbs := (uint(modulus.BitLen()) + bitsPerLimbs - 1) / bitsPerLimbs
+	if nbLimbs < requiredLimbs {
+		nbLimbs = requiredLimbs
 	}
 	// first, we build a number nLimbs, such that nLimbs > b;
 	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
@@ -66,17 +73,17 @@ func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint
 // In case of fixed modulus use subPadding instead.
 func subPaddingHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) < 4 {
-		return fmt.Errorf("input must be at least four elements")
+		return errors.New("input must be at least four elements")
 	}
 	nbLimbs := int(inputs[0].Int64())
 	bitsPerLimbs := uint(inputs[1].Uint64())
 	overflow := uint(inputs[2].Uint64())
 	retLimbs := int(inputs[3].Int64())
 	if len(inputs[4:]) != nbLimbs {
-		return fmt.Errorf("input length mismatch")
+		return errors.New("input length mismatch")
 	}
 	if len(outputs) != retLimbs {
-		return fmt.Errorf("result does not fit into output")
+		return errors.New("result does not fit into output")
 	}
 	pLimbs := inputs[4 : 4+nbLimbs]
 	p := new(big.Int)

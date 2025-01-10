@@ -33,20 +33,18 @@ func randomG1G2Affines() (bn254.G1Affine, bn254.G2Affine) {
 	return p, q
 }
 
-type FinalExponentiationCircuit struct {
+type FinalExponentiation struct {
 	InGt GTEl
 	Res  GTEl
 }
 
-func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
+func (c *FinalExponentiation) Define(api frontend.API) error {
 	pairing, err := NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res1 := pairing.FinalExponentiation(&c.InGt)
-	pairing.AssertIsEqual(res1, &c.Res)
-	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
-	pairing.AssertIsEqual(res2, &c.Res)
+	expected := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(expected, &c.Res)
 	return nil
 }
 
@@ -55,93 +53,45 @@ func TestFinalExponentiationTestSolve(t *testing.T) {
 	var gt bn254.GT
 	gt.SetRandom()
 	res := bn254.FinalExponentiation(&gt)
-	witness := FinalExponentiationCircuit{
+	witness := FinalExponentiation{
 		InGt: NewGTEl(gt),
 		Res:  NewGTEl(res),
 	}
-	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&FinalExponentiation{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
-type MillerLoopCircuit struct {
-	InG1 G1Affine
-	InG2 G2Affine
-	Res  GTEl
+type FinalExponentiationIsOne struct {
+	InGt GTEl
 }
 
-func (c *MillerLoopCircuit) Define(api frontend.API) error {
+func (c *FinalExponentiationIsOne) Define(api frontend.API) error {
 	pairing, err := NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.MillerLoop([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Res)
+	pairing.AssertFinalExponentiationIsOne(&c.InGt)
 	return nil
 }
 
-func TestMillerLoopTestSolve(t *testing.T) {
+func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
-	lines := bn254.PrecomputeLines(q)
-	res, err := bn254.MillerLoopFixedQ(
-		[]bn254.G1Affine{p},
-		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	ml, err := bn254.MillerLoop(
+		[]bn254.G1Affine{p1, p2},
+		[]bn254.G2Affine{q1, q2},
 	)
 	assert.NoError(err)
-	witness := MillerLoopCircuit{
-		InG1: NewG1Affine(p),
-		InG2: NewG2Affine(q),
-		Res:  NewGTEl(res),
+	witness := FinalExponentiationIsOne{
+		InGt: NewGTEl(ml),
 	}
-	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type MillerLoopAndMulCircuit struct {
-	Prev    GTEl
-	P       G1Affine
-	Q       G2Affine
-	Current GTEl
-}
-
-func (c *MillerLoopAndMulCircuit) Define(api frontend.API) error {
-	pairing, err := NewPairing(api)
-	if err != nil {
-		return fmt.Errorf("new pairing: %w", err)
-	}
-	res, err := pairing.MillerLoopAndMul(&c.P, &c.Q, &c.Prev)
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Current)
-	return nil
-
-}
-
-func TestMillerLoopAndMulTestSolve(t *testing.T) {
-	assert := test.NewAssert(t)
-	var prev, curr bn254.GT
-	prev.SetRandom()
-	p, q := randomG1G2Affines()
-	lines := bn254.PrecomputeLines(q)
-	// need to use ML with precomputed lines. Otherwise, the result will be different
-	mlres, err := bn254.MillerLoopFixedQ(
-		[]bn254.G1Affine{p},
-		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
-	)
-	assert.NoError(err)
-	curr.Mul(&prev, &mlres)
-
-	witness := MillerLoopAndMulCircuit{
-		Prev:    NewGTEl(prev),
-		P:       NewG1Affine(p),
-		Q:       NewG2Affine(q),
-		Current: NewGTEl(curr),
-	}
-	err = test.IsSolved(&MillerLoopAndMulCircuit{}, &witness, ecc.BN254.ScalarField())
+	err = test.IsSolved(&FinalExponentiationIsOne{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -156,8 +106,6 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG1(&c.InG1)
-	pairing.AssertIsOnG2(&c.InG2)
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)

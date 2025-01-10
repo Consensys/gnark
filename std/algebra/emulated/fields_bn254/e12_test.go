@@ -9,6 +9,34 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type e12Convert struct {
+	A E12
+}
+
+func (circuit *e12Convert) Define(api frontend.API) error {
+	e := NewExt12(api)
+	tower := e.ToTower(&circuit.A)
+	expected := e.FromTower(tower)
+	e.AssertIsEqual(expected, &circuit.A)
+	return nil
+}
+
+func TestConvertFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a bn254.E12
+	_, _ = a.SetRandom()
+
+	witness := e12Convert{
+		A: FromE12(&a),
+	}
+
+	err := test.IsSolved(&e12Convert{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e12Add struct {
 	A, B, C E12
 }
@@ -162,6 +190,43 @@ func TestSquareFp12(t *testing.T) {
 
 }
 
+type e12SquareGS struct {
+	A, C E12
+}
+
+func (circuit *e12SquareGS) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.CyclotomicSquareGS(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestSquareGSFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	c.Square(&a)
+
+	witness := e12SquareGS{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12SquareGS{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e12Conjugate struct {
 	A E12
 	C E12 `gnark:",public"`
@@ -222,21 +287,196 @@ func TestInverseFp12(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e12ExptTorus struct {
-	A E6
+type Frobenius struct {
+	A E12
 	C E12 `gnark:",public"`
 }
 
-func (circuit *e12ExptTorus) Define(api frontend.API) error {
+func (circuit *Frobenius) Define(api frontend.API) error {
 	e := NewExt12(api)
-	z := e.ExptTorus(&circuit.A)
-	expected := e.DecompressTorus(z)
+	expected := e.Frobenius(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobenius(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	c.Frobenius(&a)
+
+	witness := Frobenius{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&Frobenius{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FrobeniusSquare struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *FrobeniusSquare) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.FrobeniusSquare(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobeniusSquare(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	c.FrobeniusSquare(&a)
+
+	witness := FrobeniusSquare{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&FrobeniusSquare{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FrobeniusCube struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *FrobeniusCube) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.FrobeniusCube(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobeniusCube(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	c.FrobeniusCube(&a)
+
+	witness := FrobeniusCube{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&FrobeniusCube{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e12MulBy01379 struct {
+	A    E12 `gnark:",public"`
+	W    E12
+	B, C E2
+}
+
+func (circuit *e12MulBy01379) Define(api frontend.API) error {
+	e := NewExt12(api)
+	res := e.MulBy01379(&circuit.A, &circuit.B, &circuit.C)
+	e.AssertIsEqual(res, &circuit.W)
+	return nil
+}
+
+func TestFp12MulBy01379(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, w bn254.E12
+	_, _ = a.SetRandom()
+	var one, b, c bn254.E2
+	one.SetOne()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	w.Set(&a)
+	w.MulBy034(&one, &b, &c)
+
+	witness := e12MulBy01379{
+		A: FromE12(&a),
+		B: FromE2(&b),
+		C: FromE2(&c),
+		W: FromE12(&w),
+	}
+
+	err := test.IsSolved(&e12MulBy01379{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12Mul01379By01379 struct {
+	A, B E2 `gnark:",public"`
+	C, D E2 `gnark:",public"`
+	W    E12
+}
+
+func (circuit *e12Mul01379By01379) Define(api frontend.API) error {
+	e := NewExt12(api)
+	res := e.Mul01379By01379(&circuit.A, &circuit.B, &circuit.C, &circuit.D)
+	e.AssertIsEqual(
+		&E12{*res[0], *res[1], *res[2], *res[3], *res[4], *e.fp.Zero(), *res[5], *res[6], *res[7], *res[8], *res[9], *e.fp.Zero()},
+		&circuit.W,
+	)
+	return nil
+}
+
+func TestFp12Mul01379By01379(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var one, a, b, c, d bn254.E2
+	one.SetOne()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	_, _ = d.SetRandom()
+	prod := Mul034By034(&one, &a, &b, &one, &c, &d)
+	var w bn254.E12
+	w.C0.B0.Set(&prod[0])
+	w.C0.B1.Set(&prod[1])
+	w.C0.B2.Set(&prod[2])
+	w.C1.B0.Set(&prod[3])
+	w.C1.B1.Set(&prod[4])
+	w.C1.B2.SetZero()
+
+	witness := e12Mul01379By01379{
+		A: FromE2(&a),
+		B: FromE2(&b),
+		C: FromE2(&c),
+		D: FromE2(&d),
+		W: FromE12(&w),
+	}
+
+	err := test.IsSolved(&e12Mul01379By01379{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12Expt struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *e12Expt) Define(api frontend.API) error {
+	e := NewExt12(api)
+	expected := e.Expt(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
 }
 
-func TestFp12ExptTorus(t *testing.T) {
+func TestFp12Expt(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
@@ -251,370 +491,40 @@ func TestFp12ExptTorus(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 
 	c.Expt(&a)
-	_a, _ := a.CompressTorus()
-	witness := e12ExptTorus{
-		A: FromE6(&_a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&e12ExptTorus{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type e12MulBy034 struct {
-	A    E12 `gnark:",public"`
-	W    E12
-	B, C E2
-}
-
-func (circuit *e12MulBy034) Define(api frontend.API) error {
-	e := NewExt12(api)
-	res := e.MulBy034(&circuit.A, &circuit.B, &circuit.C)
-	e.AssertIsEqual(res, &circuit.W)
-	return nil
-}
-
-func TestFp12MulBy034(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, w bn254.E12
-	_, _ = a.SetRandom()
-	var one, b, c bn254.E2
-	one.SetOne()
-	_, _ = b.SetRandom()
-	_, _ = c.SetRandom()
-	w.Set(&a)
-	w.MulBy034(&one, &b, &c)
-
-	witness := e12MulBy034{
-		A: FromE12(&a),
-		B: FromE2(&b),
-		C: FromE2(&c),
-		W: FromE12(&w),
-	}
-
-	err := test.IsSolved(&e12MulBy034{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
-// Torus-based arithmetic
-type torusCompress struct {
-	A E12
-	C E6 `gnark:",public"`
-}
-
-func (circuit *torusCompress) Define(api frontend.API) error {
-	e := NewExt12(api)
-	expected := e.CompressTorus(&circuit.A)
-	e.Ext6.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusCompress(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	c, _ := a.CompressTorus()
-
-	witness := torusCompress{
-		A: FromE12(&a),
-		C: FromE6(&c),
-	}
-
-	err := test.IsSolved(&torusCompress{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusDecompress struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusDecompress) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusDecompress(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	d, _ := a.CompressTorus()
-	c := d.DecompressTorus()
-
-	witness := torusDecompress{
+	witness := e12Expt{
 		A: FromE12(&a),
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&torusDecompress{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e12Expt{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
-type torusMul struct {
-	A E12
-	B E12
-	C E12 `gnark:",public"`
-}
+// utils
+// Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
+func Mul034By034(d0, d3, d4, c0, c3, c4 *bn254.E2) [5]bn254.E2 {
+	var z00, tmp, x0, x3, x4, x04, x03, x34 bn254.E2
+	x0.Mul(c0, d0)
+	x3.Mul(c3, d3)
+	x4.Mul(c4, d4)
+	tmp.Add(c0, c4)
+	x04.Add(d0, d4).
+		Mul(&x04, &tmp).
+		Sub(&x04, &x0).
+		Sub(&x04, &x4)
+	tmp.Add(c0, c3)
+	x03.Add(d0, d3).
+		Mul(&x03, &tmp).
+		Sub(&x03, &x0).
+		Sub(&x03, &x3)
+	tmp.Add(c3, c4)
+	x34.Add(d3, d4).
+		Mul(&x34, &tmp).
+		Sub(&x34, &x3).
+		Sub(&x34, &x4)
 
-func (circuit *torusMul) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressedA := e.CompressTorus(&circuit.A)
-	compressedB := e.CompressTorus(&circuit.B)
-	compressedAB := e.MulTorus(compressedA, compressedB)
-	expected := e.DecompressTorus(compressedAB)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
+	z00.MulByNonResidue(&x4).
+		Add(&z00, &x0)
 
-func TestTorusMul(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-	_, _ = b.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-	// put b in the cyclotomic subgroup
-	tmp.Conjugate(&b)
-	b.Inverse(&b)
-	tmp.Mul(&tmp, &b)
-	b.FrobeniusSquare(&tmp).Mul(&b, &tmp)
-
-	// uncompressed mul
-	c.Mul(&a, &b)
-
-	witness := torusMul{
-		A: FromE12(&a),
-		B: FromE12(&b),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusMul{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusInverse struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusInverse) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.InverseTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusInverse(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed inverse
-	c.Inverse(&a)
-
-	witness := torusInverse{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusInverse{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusFrobenius struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusFrobenius) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.FrobeniusTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusFrobenius(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed frobenius
-	c.Frobenius(&a)
-
-	witness := torusFrobenius{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusFrobenius{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusFrobeniusSquare struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusFrobeniusSquare) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.FrobeniusSquareTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusFrobeniusSquare(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed frobeniusSquare
-	c.FrobeniusSquare(&a)
-
-	witness := torusFrobeniusSquare{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusFrobeniusSquare{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusFrobeniusCube struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusFrobeniusCube) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.FrobeniusCubeTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusFrobeniusCube(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed frobeniusCube
-	c.FrobeniusCube(&a)
-
-	witness := torusFrobeniusCube{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusFrobeniusCube{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type torusSquare struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusSquare) Define(api frontend.API) error {
-	e := NewExt12(api)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.SquareTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusSquare(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed square
-	c.Square(&a)
-
-	witness := torusSquare{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusSquare{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	return [5]bn254.E2{z00, x3, x34, x03, x04}
 }
