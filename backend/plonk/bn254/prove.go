@@ -375,12 +375,7 @@ func (s *instance) completeQk() error {
 	return nil
 }
 
-// EvaluateIdentityPolynomial evaluates X at x
-func EvaluateIdentityPolynomial(x fr.Element) fr.Element {
-	return x
-}
-
-// LagrangeOne stores the data to evaluate L_0 without storing its coefficients
+// LagrangeOne stores the data to evaluate L₀ without storing its coefficients
 type LagrangeOne struct {
 	n    big.Int
 	nInv fr.Element
@@ -829,14 +824,24 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	cs.Set(&s.domain1.FrMultiplicativeGen)
 	css.Square(&cs)
 
+	// stores the current coset shifter
+	var coset fr.Element
+	coset.SetOne()
+
 	orderingConstraint := func(index int, u ...fr.Element) fr.Element {
+
 		gamma := s.gamma
 
-		var a, b, c, r, l fr.Element
+		var a, b, c, r, l, id fr.Element
+
+		// evaluation of ID at coset*ωⁱ where i:=index
+		id.Exp(s.domain0.Generator, big.NewInt(int64(index))).Mul(&id, &coset).Mul(&id, &s.beta)
 
 		a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
-		b.Mul(&u[id_ID], &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
-		c.Mul(&u[id_ID], &css).Add(&c, &u[id_O]).Add(&c, &gamma)
+		// b.Mul(&u[id_ID], &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
+		// c.Mul(&u[id_ID], &css).Add(&c, &u[id_O]).Add(&c, &gamma)
+		b.Mul(&id, &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
+		c.Mul(&id, &css).Add(&c, &u[id_O]).Add(&c, &gamma)
 		r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
 
 		a.Add(&u[id_S1], &u[id_L]).Add(&a, &gamma)
@@ -851,7 +856,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	ratioLocalConstraint := func(index int, u ...fr.Element) fr.Element {
 
-		var res fr.Element
+		var res, lone fr.Element
+		lone.Exp(s.domain0.Generator, big.NewInt(int64(index))).Mul(&lone, &coset)
+
 		res.SetOne()
 		res.Sub(&u[id_Z], &res).Mul(&res, &u[id_LOne])
 
@@ -864,10 +871,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	for i := 1; i < rho; i++ {
 		shifters[i].Set(&s.domain1.Generator)
 	}
-
-	// stores the current coset shifter
-	var coset fr.Element
-	coset.SetOne()
 
 	var tmp, one fr.Element
 	one.SetOne()
@@ -883,7 +886,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	buf := make([]fr.Element, n)
 	var wgBuf sync.WaitGroup
 
-	allConstraints := func(i int, u ...fr.Element) fr.Element {
+	allConstraints := func(index int, u ...fr.Element) fr.Element {
+
 		// scale S1, S2, S3 by β
 		u[id_S1].Mul(&u[id_S1], &s.beta)
 		u[id_S2].Mul(&u[id_S2], &s.beta)
@@ -891,22 +895,22 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		// blind L, R, O, Z, ZS
 		var y fr.Element
-		y = s.bp[id_Bl].Evaluate(twiddles0[i])
+		y = s.bp[id_Bl].Evaluate(twiddles0[index])
 		u[id_L].Add(&u[id_L], &y)
-		y = s.bp[id_Br].Evaluate(twiddles0[i])
+		y = s.bp[id_Br].Evaluate(twiddles0[index])
 		u[id_R].Add(&u[id_R], &y)
-		y = s.bp[id_Bo].Evaluate(twiddles0[i])
+		y = s.bp[id_Bo].Evaluate(twiddles0[index])
 		u[id_O].Add(&u[id_O], &y)
-		y = s.bp[id_Bz].Evaluate(twiddles0[i])
+		y = s.bp[id_Bz].Evaluate(twiddles0[index])
 		u[id_Z].Add(&u[id_Z], &y)
 
 		// ZS is shifted by 1; need to get correct twiddle
-		y = s.bp[id_Bz].Evaluate(twiddles0[(i+1)%int(n)])
+		y = s.bp[id_Bz].Evaluate(twiddles0[(index+1)%int(n)])
 		u[id_ZS].Add(&u[id_ZS], &y)
 
 		a := gateConstraint(u...)
-		b := orderingConstraint(i, u...)
-		c := ratioLocalConstraint(i, u...)
+		b := orderingConstraint(index, u...)
+		c := ratioLocalConstraint(index, u...)
 		c.Mul(&c, &s.alpha).Add(&c, &b).Mul(&c, &s.alpha).Add(&c, &a)
 		return c
 	}
