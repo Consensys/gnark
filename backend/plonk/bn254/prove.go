@@ -53,8 +53,6 @@ const (
 	id_S1
 	id_S2
 	id_S3
-	id_ID
-	id_LOne
 	id_Qci // [ .. , Qc_i, Pi_i, ...]
 )
 
@@ -524,8 +522,6 @@ func (s *instance) computeQuotient() (err error) {
 	identity := make([]fr.Element, n)
 	identity[1].Set(&s.beta)
 
-	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
 
 	numerator, err := s.computeNumerator()
@@ -1005,8 +1001,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	// scale everything back
 	go func() {
-		s.x[id_ID] = nil
-		s.x[id_LOne] = nil
 		s.x[id_ZS] = nil
 		s.x[id_Qk] = nil
 
