@@ -820,6 +820,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	var coset fr.Element
 	coset.SetOne()
 
+	// cosetExponentiatedToNMinusOne stores <coset>^n-1
 	var cosetExponentiatedToNMinusOne, one fr.Element
 	one.SetOne()
 	bn := big.NewInt(int64(n))
@@ -827,7 +828,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	orderingConstraintAndRatioLocalConstrait := func(index int, u ...fr.Element) fr.Element {
 
 		gamma := s.gamma
-		var cosetOmegai fr.Element
 
 		// ordering constraint
 		var a, b, c, r, l, id fr.Element
@@ -847,14 +847,16 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		l.Sub(&l, &r)
 
+		return l
+	}
+
+	localConstraint := func(index int, u ...fr.Element) fr.Element {
 		// local constraint
-		var res, lone fr.Element
+		var res, lone, cosetOmegai fr.Element
 		cosetOmegai.Mul(&coset, &twiddles0[index])
 		lone = s.computeLagrangeOneOnCoset(cosetExponentiatedToNMinusOne, cosetOmegai)
 		res.SetOne()
 		res.Sub(&u[id_Z], &res).Mul(&res, &lone)
-
-		res.Mul(&res, &s.alpha).Add(&res, &l)
 
 		return res
 	}
@@ -900,9 +902,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		a := gateConstraint(u...)
 		b := orderingConstraintAndRatioLocalConstrait(index, u...)
-		// c := ratioLocalConstraint(index, u...)
-		b.Mul(&b, &s.alpha).Add(&b, &a)
-		return b
+		c := localConstraint(index, u...)
+		c.Mul(&c, &s.alpha).Add(&c, &b).Mul(&c, &s.alpha).Add(&c, &a)
+		return c
 	}
 
 	// for the first iteration, the scalingVector is the coset table
