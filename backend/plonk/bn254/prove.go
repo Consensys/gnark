@@ -375,19 +375,11 @@ func (s *instance) completeQk() error {
 	return nil
 }
 
-// LagrangeOne stores the data to evaluate L₀ without storing its coefficients
-type LagrangeOne struct {
-	n    big.Int
-	nInv fr.Element
-}
-
-// Evaluate computes 1/n (x**n-1)/(x-1)
-func (l *LagrangeOne) Evaluate(x fr.Element) fr.Element {
+// evacomputeLagrangeOneOnCosetluate computes 1/n (x**n-1)/(x-1) on coset*ωⁱ
+func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne, x fr.Element) fr.Element {
 	var res, one fr.Element
 	one.SetOne()
-	res.Exp(x, &l.n).
-		Sub(&res, &one).
-		Mul(&res, &l.nInv)
+	res.Mul(&cosetExpMinusOne, &s.domain0.CardinalityInv)
 	one.Sub(&x, &one)
 	res.Div(&res, &one)
 	return res
@@ -828,14 +820,21 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	var coset fr.Element
 	coset.SetOne()
 
+	var cosetExponentiatedToNMinusOne, one fr.Element
+	one.SetOne()
+	bn := big.NewInt(int64(n))
+
 	orderingConstraintAndRatioLocalConstrait := func(index int, u ...fr.Element) fr.Element {
 
 		gamma := s.gamma
+		var omegai, cosetOmegai fr.Element
 
+		// ordering constraint
 		var a, b, c, r, l, id fr.Element
 
 		// evaluation of ID at coset*ωⁱ where i:=index
-		id.Exp(s.domain0.Generator, big.NewInt(int64(index))).Mul(&id, &coset).Mul(&id, &s.beta)
+		omegai.Exp(s.domain0.Generator, big.NewInt(int64(index)))
+		id.Mul(&omegai, &coset).Mul(&id, &s.beta)
 
 		a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
 		b.Mul(&id, &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
@@ -849,13 +848,12 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		l.Sub(&l, &r)
 
-		// return l
-
 		// local constraint
 		var res, lone fr.Element
-		lone.Exp(s.domain0.Generator, big.NewInt(int64(index))).Mul(&lone, &coset)
+		cosetOmegai.Mul(&coset, &omegai)
+		lone = s.computeLagrangeOneOnCoset(cosetExponentiatedToNMinusOne, cosetOmegai)
 		res.SetOne()
-		res.Sub(&u[id_Z], &res).Mul(&res, &u[id_LOne])
+		res.Sub(&u[id_Z], &res).Mul(&res, &lone)
 
 		res.Mul(&res, &s.alpha).Add(&res, &l)
 
@@ -868,10 +866,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	for i := 1; i < rho; i++ {
 		shifters[i].Set(&s.domain1.Generator)
 	}
-
-	var tmp, one fr.Element
-	one.SetOne()
-	bn := big.NewInt(int64(n))
 
 	cosetTable, err := s.domain0.CosetTable()
 	if err != nil {
@@ -926,12 +920,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	for i := 0; i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
-		tmp.Exp(coset, bn).Sub(&tmp, &one)
+		cosetExponentiatedToNMinusOne.Exp(coset, bn).
+			Sub(&cosetExponentiatedToNMinusOne, &one)
 
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		for _, q := range s.bp {
 			cq := q.Coefficients()
-			acc := tmp
+			acc := cosetExponentiatedToNMinusOne
 			for j := 0; j < len(cq); j++ {
 				cq[j].Mul(&cq[j], &acc)
 				acc.Mul(&acc, &shifters[i])
@@ -996,12 +991,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			wgBuf.Done()
 		}(i)
 
-		tmp.Inverse(&tmp)
-		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
+		cosetExponentiatedToNMinusOne.
+			Inverse(&cosetExponentiatedToNMinusOne)
+		// bl <- bl *( (s*ωⁱ)ⁿ-1 )**-1
 		for _, q := range s.bp {
 			cq := q.Coefficients()
 			for j := 0; j < len(cq); j++ {
-				cq[j].Mul(&cq[j], &tmp)
+				cq[j].Mul(&cq[j], &cosetExponentiatedToNMinusOne)
 			}
 		}
 	}
