@@ -827,14 +827,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	orderingConstraintAndRatioLocalConstrait := func(index int, u ...fr.Element) fr.Element {
 
 		gamma := s.gamma
-		var omegai, cosetOmegai fr.Element
+		var cosetOmegai fr.Element
 
 		// ordering constraint
 		var a, b, c, r, l, id fr.Element
 
 		// evaluation of ID at coset*ωⁱ where i:=index
-		omegai.Exp(s.domain0.Generator, big.NewInt(int64(index)))
-		id.Mul(&omegai, &coset).Mul(&id, &s.beta)
+		id.Mul(&twiddles0[index], &coset).Mul(&id, &s.beta)
 
 		a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
 		b.Mul(&id, &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
@@ -850,7 +849,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		// local constraint
 		var res, lone fr.Element
-		cosetOmegai.Mul(&coset, &omegai)
+		cosetOmegai.Mul(&coset, &twiddles0[index])
 		lone = s.computeLagrangeOneOnCoset(cosetExponentiatedToNMinusOne, cosetOmegai)
 		res.SetOne()
 		res.Sub(&u[id_Z], &res).Mul(&res, &lone)
