@@ -9,12 +9,13 @@ import (
 // New256 creates a new SHA3-256 hash.
 // Its generic security strength is 256 bits against preimage attacks,
 // and 128 bits against collision attacks.
-func New256(api frontend.API) (hash.BinaryHasher, error) {
+func New256(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, err
 	}
 	return &digest{
+		api:       api,
 		uapi:      uapi,
 		state:     newState(),
 		dsbyte:    0x06,
@@ -26,12 +27,13 @@ func New256(api frontend.API) (hash.BinaryHasher, error) {
 // New384 creates a new SHA3-384 hash.
 // Its generic security strength is 384 bits against preimage attacks,
 // and 192 bits against collision attacks.
-func New384(api frontend.API) (hash.BinaryHasher, error) {
+func New384(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, err
 	}
 	return &digest{
+		api:       api,
 		uapi:      uapi,
 		state:     newState(),
 		dsbyte:    0x06,
@@ -43,12 +45,13 @@ func New384(api frontend.API) (hash.BinaryHasher, error) {
 // New512 creates a new SHA3-512 hash.
 // Its generic security strength is 512 bits against preimage attacks,
 // and 256 bits against collision attacks.
-func New512(api frontend.API) (hash.BinaryHasher, error) {
+func New512(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, err
 	}
 	return &digest{
+		api:       api,
 		uapi:      uapi,
 		state:     newState(),
 		dsbyte:    0x06,
@@ -61,12 +64,13 @@ func New512(api frontend.API) (hash.BinaryHasher, error) {
 //
 // Only use this function if you require compatibility with an existing cryptosystem
 // that uses non-standard padding. All other users should use New256 instead.
-func NewLegacyKeccak256(api frontend.API) (hash.BinaryHasher, error) {
+func NewLegacyKeccak256(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, err
 	}
 	return &digest{
+		api:       api,
 		uapi:      uapi,
 		state:     newState(),
 		dsbyte:    0x01,
@@ -79,12 +83,13 @@ func NewLegacyKeccak256(api frontend.API) (hash.BinaryHasher, error) {
 //
 // Only use this function if you require compatibility with an existing cryptosystem
 // that uses non-standard padding. All other users should use New512 instead.
-func NewLegacyKeccak512(api frontend.API) (hash.BinaryHasher, error) {
+func NewLegacyKeccak512(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, err
 	}
 	return &digest{
+		api:       api,
 		uapi:      uapi,
 		state:     newState(),
 		dsbyte:    0x01,
