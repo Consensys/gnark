@@ -835,7 +835,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		// evaluation of ID at coset*ωⁱ where i:=index
 		id.Mul(&twiddles0[index], &coset).Mul(&id, &s.beta)
 
-		a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
+		a.Add(&gamma, &u[id_L]).Add(&a, &id)
 		b.Mul(&id, &cs).Add(&b, &u[id_R]).Add(&b, &gamma)
 		c.Mul(&id, &css).Add(&c, &u[id_O]).Add(&c, &gamma)
 		r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
