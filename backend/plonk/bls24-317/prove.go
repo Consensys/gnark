@@ -172,6 +172,7 @@ type instance struct {
 	blindedZ                  []fr.Element      // blindedZ is the blinded version of Z
 	quotientShardsRandomizers [2]fr.Element     // random elements for blinding the shards of the quotient
 
+	precomputedDenominators    []fr.Element // stores the denominators of the Lagrange polynomials
 	linearizedPolynomial       []fr.Element
 	linearizedPolynomialDigest kzg.Digest
 
@@ -376,12 +377,11 @@ func (s *instance) completeQk() error {
 }
 
 // evacomputeLagrangeOneOnCosetluate computes 1/n (x**n-1)/(x-1) on coset*ωⁱ
-func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne, x fr.Element) fr.Element {
+func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne fr.Element, index int) fr.Element {
 	var res, one fr.Element
 	one.SetOne()
-	res.Mul(&cosetExpMinusOne, &s.domain0.CardinalityInv)
-	one.Sub(&x, &one)
-	res.Div(&res, &one)
+	res.Mul(&cosetExpMinusOne, &s.domain0.CardinalityInv).
+		Mul(&res, &s.precomputedDenominators[index])
 	return res
 }
 
@@ -823,7 +823,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	one.SetOne()
 	bn := big.NewInt(int64(n))
 
-	orderingConstraintAndRatioLocalConstrait := func(index int, u ...fr.Element) fr.Element {
+	orderingConstraint := func(index int, u ...fr.Element) fr.Element {
 
 		gamma := s.gamma
 
@@ -850,9 +850,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	localConstraint := func(index int, u ...fr.Element) fr.Element {
 		// local constraint
-		var res, lone, cosetOmegai fr.Element
-		cosetOmegai.Mul(&coset, &twiddles0[index])
-		lone = s.computeLagrangeOneOnCoset(cosetExponentiatedToNMinusOne, cosetOmegai)
+		var res, lone fr.Element
+		lone = s.computeLagrangeOneOnCoset(cosetExponentiatedToNMinusOne, index)
 		res.SetOne()
 		res.Sub(&u[id_Z], &res).Mul(&res, &lone)
 
@@ -899,7 +898,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		u[id_ZS].Add(&u[id_ZS], &y)
 
 		a := gateConstraint(u...)
-		b := orderingConstraintAndRatioLocalConstrait(index, u...)
+		b := orderingConstraint(index, u...)
 		c := localConstraint(index, u...)
 		c.Mul(&c, &s.alpha).Add(&c, &b).Mul(&c, &s.alpha).Add(&c, &a)
 		return c
@@ -916,11 +915,20 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	m := uint64(s.domain1.Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
+	s.precomputedDenominators = make([]fr.Element, s.domain0.Cardinality)
+
 	for i := 0; i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
 		cosetExponentiatedToNMinusOne.Exp(coset, bn).
 			Sub(&cosetExponentiatedToNMinusOne, &one)
+
+		for j := 0; j < int(s.domain0.Cardinality); j++ {
+			s.precomputedDenominators[j].
+				Mul(&coset, &twiddles0[j]).
+				Sub(&s.precomputedDenominators[j], &one)
+		}
+		s.precomputedDenominators = fr.BatchInvert(s.precomputedDenominators)
 
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		for _, q := range s.bp {
@@ -973,6 +981,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		})
 
 		wgBuf.Wait()
+
 		if _, err := iop.Evaluate(
 			allConstraints,
 			buf,
