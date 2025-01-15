@@ -81,10 +81,10 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-// Pair calculates the reduced pairing for a set of points
-// ∏ᵢ e(Pᵢ, Qᵢ).
+// Pair calculates the reduced pairing for a set of points ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+// This function checks that the Qᵢ are in the correct subgroup, but does not
+// check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -206,10 +206,13 @@ func (pr Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
 	pr.AssertIsEqual(t0, t2)
 }
 
-// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
-// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+// PairingCheck calculates the reduced pairing for a set of points and asserts
+// if the result is one:
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+//	∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function checks that the Qᵢ are in the correct subgroup, but does not
+// check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -266,6 +269,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.AssertIsOnCurve(P)
 }
 
+// computeG2ShortVector computes ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
 func (pr Pairing) computeG2ShortVector(Q *G2Affine) (_Q *G2Affine) {
 	// [x₀]Q
 	xQ := pr.g2.scalarMulBySeed(Q)
@@ -278,7 +282,7 @@ func (pr Pairing) computeG2ShortVector(Q *G2Affine) (_Q *G2Affine) {
 	psi3xxQ = pr.g2.psi(psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q = pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(psi3xxQ, psi2xQ)
 	_Q = pr.g2.sub(_Q, psixQ)
 	_Q = pr.g2.sub(_Q, xQ)
 	return _Q
@@ -289,8 +293,10 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.AssertIsOnTwist(Q)
 
 	// 2- Check Q has the right subgroup order
+	// 		[r]Q == 0 <==>  ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q == Q
+	// This is a valid short vector since x₀ ≠ 5422 mod 2196.
+	// See Sec. 3.1.2 (Example 1) in https://eprint.iacr.org/2022/348.
 	_Q := pr.computeG2ShortVector(Q)
-	// [r]Q == 0 <==>  _Q == Q
 	pr.g2.AssertIsEqual(Q, _Q)
 }
 
