@@ -126,7 +126,6 @@ type endomorphismG2Circuit struct {
 func (c *endomorphismG2Circuit) Define(api frontend.API) error {
 	g2 := NewG2(api)
 	res1 := g2.phi(&c.In1)
-	res1 = g2.neg(res1)
 	res2 := g2.psi(&c.In1)
 	res2 = g2.psi(res2)
 	g2.AssertIsEqual(res1, res2)
