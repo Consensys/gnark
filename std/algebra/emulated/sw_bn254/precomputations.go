@@ -54,9 +54,13 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		}
 	}
 
-	// check Q is on G2 subgroup:
-	// [r]Q == 0 <==> [6x₀+2]Q + ψ(Q) + ψ³(Q) = ψ²(Q).
-	// At this point Qacc = [6x₀+2]Q
+	// Check that Q is on G2 subgroup:
+	// 		[r]Q == 0 <==> [6x₀+2]Q + ψ(Q) + ψ³(Q) = ψ²(Q).
+	// This is a valid short vector since x₀ ≠ 4 mod 13 and x₀ ≠ 92 mod 97.
+	// See Sec. 3.1.2 (Remark 2) in https://eprint.iacr.org/2022/348.
+	// This test is equivalent to [computeG2ShortVector] in [AssertIsOnG2].
+	//
+	// At this point Qacc = [6x₀+2]Q.
 	psiQ := p.g2.psi(&Qaff)  // ψ(Q)
 	psi2Q := p.g2.phi(&Qaff) // ϕ(Q)=ψ²(Q)
 	psi3Q := p.g2.psi(psi2Q) // ψ³(Q)

@@ -76,7 +76,6 @@ func ECPairMillerLoopAndMul(api frontend.API, accumulator *sw_bn254.GTEl, P *sw_
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG2(Q)
 	ml, err := pairing.MillerLoopAndMul(P, Q, accumulator)
 	if err != nil {
 		return fmt.Errorf("miller loop and mul: %w", err)
@@ -94,7 +93,6 @@ func ECPairMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bn254.GT
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG2(Q)
 
 	isSuccess := pairing.IsMillerLoopAndFinalExpOne(P, Q, accumulator)
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
