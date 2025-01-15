@@ -40,11 +40,8 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	if err != nil {
 		panic(err)
 	}
-	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️ )
-	// 2- Check that Qᵢ are on G2
-	for i := 0; i < len(Q); i++ {
-		pair.AssertIsOnG2(Q[i])
-	}
+	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️
+	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck)
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
 	ml := pair.Ext12.One()
@@ -79,7 +76,6 @@ func ECPairMillerLoopAndMul(api frontend.API, accumulator *sw_bn254.GTEl, P *sw_
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG2(Q)
 	ml, err := pairing.MillerLoopAndMul(P, Q, accumulator)
 	if err != nil {
 		return fmt.Errorf("miller loop and mul: %w", err)
@@ -97,7 +93,6 @@ func ECPairMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bn254.GT
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG2(Q)
 
 	isSuccess := pairing.IsMillerLoopAndFinalExpOne(P, Q, accumulator)
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
