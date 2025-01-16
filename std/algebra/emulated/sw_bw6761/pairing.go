@@ -247,8 +247,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case -1:
-			// multiply by frobResidueWitness
-			result = pr.Ext6.Mul(result, frobResidueWitness)
+			// multiply by residueWitness
+			result = pr.Ext6.Mul(result, residueWitness)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -279,8 +279,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 1:
-			// multiply by frobResidueWitnessInv
-			result = pr.Ext6.Mul(result, frobResidueWitnessInv)
+			// multiply by residueWitnessInv
+			result = pr.Ext6.Mul(result, residueWitnessInv)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -323,32 +323,11 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// where Λ = x₀+1+p(x₀³-x₀²-x₀) and residueWitness from the hint.
 	//
 	// Note that at this point is:
-	// 		result = MillerLoop(P,Q) * residueWitness^{-p(x₀+1+x₀³-x₀²-x₀)}
-	// since we initialized the Miller loop accumulator with residueWitness^{-p}.
+	// 		result = MillerLoop(P,Q) * residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
+	// since we initialized the Miller loop accumulator with residueWitnessInv^{p}.
 	// So we only need to check that:
-	// 		result == residueWitnessInv^{(p-1)(x₀+1)}.
-	//
-	// We perform the easy part of the final exp to push result and
-	// residueWitnessInv to the cyclotomic subgroup so that
-	// residueWitnessInv^{(p-1)(x₀+1)} is carried with optimized cyclotomic
-	// squaring (e.g. Karabina12345).
-	//
-	// residueWitnessInv^(p³-1)(p+1)
-	t0 := pr.Conjugate(residueWitnessInv)
-	t0 = pr.Mul(t0, residueWitness)
-	residueWitnessInv = pr.Frobenius(t0)
-	residueWitnessInv = pr.Mul(residueWitnessInv, t0)
-	// result^(p³-1)(p+1)
-	t0 = pr.Conjugate(result)
-	t0 = pr.DivUnchecked(t0, result)
-	result = pr.Frobenius(t0)
-	result = pr.Mul(result, t0)
-	// residueWitnessInv^{(p-1)(x₀+1)}
-	t0 = pr.Ext6.ExpByU2(residueWitnessInv)
-	t1 := pr.Ext6.Frobenius(t0)
-	t0 = pr.Ext6.DivUnchecked(t1, t0)
-
-	pr.AssertIsEqual(t0, result)
+	// 		result == 1.
+	pr.AssertIsEqual(result, pr.Ext6.One())
 
 	return nil
 }
