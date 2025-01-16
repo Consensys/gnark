@@ -115,6 +115,41 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	return result
 }
 
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
+	res, err := pr.curveF.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := GTEl{
+		A0: *res[0],
+		A1: *res[1],
+		A2: *res[2],
+		A3: *res[3],
+		A4: *res[4],
+		A5: *res[5],
+	}
+
+	// Check that x == residueWitness^Λ
+	// where Λ = x₀+1+p(x₀^3-x₀^2-x₀) and residueWitness from the hint.
+
+	// exponentiation by U1=x₀^3-x₀^2-x₀
+	t0 := pr.Ext6.ExpByU1(&residueWitness)
+	t0 = pr.Ext6.Frobenius(t0)
+	// exponentiation by U2=x₀+1
+	t1 := pr.Ext6.ExpByU2(&residueWitness)
+	t0 = pr.Ext6.Mul(t0, t1)
+
+	pr.AssertIsEqual(t0, x)
+}
+
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
@@ -185,12 +220,12 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
 	var prodLines [5]*baseEl
-	// init Miller loop accumulator to residueWitnessInv to share the squarings
-	// of residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
+	// init Miller loop accumulator to residueWitnessInv^p to share the squarings
+	// of residueWitnessInv^{p(x₀+1+x₀³-x₀²-x₀)}
 	residueWitnessInv := pr.Ext6.Inverse(residueWitness)
-	frobWitness := pr.Ext6.Frobenius(residueWitness)
-	frobWitnessInv := pr.Ext6.Frobenius(residueWitnessInv)
-	result := frobWitnessInv
+	frobResidueWitness := pr.Ext6.Frobenius(residueWitness)
+	frobResidueWitnessInv := pr.Ext6.Frobenius(residueWitnessInv)
+	result := frobResidueWitnessInv
 
 	for i := 188; i > 0; i-- {
 		// mutualize the square among nP Miller loops
@@ -200,8 +235,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		switch loopCounter1[i] + 3*loopCounter2[i] {
 		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
 		case -3:
-			// multiply by frobWitnessInv
-			result = pr.Ext6.Mul(result, frobWitness)
+			// multiply by frobResidueWitness
+			result = pr.Ext6.Mul(result, frobResidueWitness)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -212,8 +247,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case -1:
-			// multiply by residueWitness
-			result = pr.Ext6.Mul(result, frobWitness)
+			// multiply by frobResidueWitness
+			result = pr.Ext6.Mul(result, frobResidueWitness)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -244,8 +279,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 1:
-			// multiply by residueWitnessInv
-			result = pr.Ext6.Mul(result, frobWitnessInv)
+			// multiply by frobResidueWitnessInv
+			result = pr.Ext6.Mul(result, frobResidueWitnessInv)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -256,8 +291,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 3:
-			// multiply by frobWitnessInv
-			result = pr.Ext6.Mul(result, frobWitnessInv)
+			// multiply by frobResidueWitnessInv
+			result = pr.Ext6.Mul(result, frobResidueWitnessInv)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -274,8 +309,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 	// i = 0
 	result = pr.Square(result)
-	// multiply by frobWitness
-	result = pr.Ext6.Mul(result, frobWitness)
+	// multiply by frobResidueWitness
+	result = pr.Ext6.Mul(result, frobResidueWitness)
 	for k := 0; k < nP; k++ {
 		// ℓ × res
 		result = pr.MulBy023(result,
@@ -287,10 +322,11 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// Check that: MillerLoop(P,Q) == residueWitness^Λ
 	// where Λ = x₀+1+p(x₀³-x₀²-x₀) and residueWitness from the hint.
 	//
-	// Note that result is already:
-	// 		MillerLoop(P,Q) * residueWitnessInv^{p(x₀+1+x₀³-x₀²-x₀)}
-	// since we initialized the Miller loop accumulator with residueWitnessInv^p.
-	// So we only need to check that result == residueWitnessInv^{(p-1)(x₀+1)}.
+	// Note that at this point is:
+	// 		result = MillerLoop(P,Q) * residueWitness^{-p(x₀+1+x₀³-x₀²-x₀)}
+	// since we initialized the Miller loop accumulator with residueWitness^{-p}.
+	// So we only need to check that:
+	// 		result == residueWitnessInv^{(p-1)(x₀+1)}.
 	//
 	// We perform the easy part of the final exp to push result and
 	// residueWitnessInv to the cyclotomic subgroup so that
