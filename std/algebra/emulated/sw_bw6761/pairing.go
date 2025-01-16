@@ -221,7 +221,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
 	var prodLines [5]*baseEl
 	// init Miller loop accumulator to residueWitnessInv^p to share the squarings
-	// of residueWitnessInv^{p(x₀+1+x₀³-x₀²-x₀)}
+	// of residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
 	residueWitnessInv := pr.Ext6.Inverse(residueWitness)
 	frobResidueWitness := pr.Ext6.Frobenius(residueWitness)
 	frobResidueWitnessInv := pr.Ext6.Frobenius(residueWitnessInv)
@@ -232,11 +232,13 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
-		switch loopCounter1[i] + 3*loopCounter2[i] {
+		j := loopCounter1[i] + 3*loopCounter2[i]
+		switch j {
 		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
 		case -3:
-			// multiply by frobResidueWitness
+			// mul by frobResidueWitness to capture -1's in x₀³-x₀²-x₀
 			result = pr.Ext6.Mul(result, frobResidueWitness)
+			// mul by tangent and line
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -247,8 +249,9 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case -1:
-			// multiply by residueWitness
+			// mul by residueWitness to capture -1's in x₀+1
 			result = pr.Ext6.Mul(result, residueWitness)
+			// mul by tangent and line
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -259,16 +262,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 0:
-			// if number of lines is odd, mul last line by res
-			// works for nP=1 as well
-			if nP%2 != 0 {
-				// ℓ × res
-				result = pr.MulBy023(result,
-					pr.curveF.Mul(&lines[nP-1][0][i].R1, yInv[nP-1]),
-					pr.curveF.Mul(&lines[nP-1][0][i].R0, xNegOverY[nP-1]),
-				)
-			}
-			// mul lines 2-by-2
+			// mul tangents 2-by-2 and then by accumulator
 			for k := 1; k < nP; k += 2 {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -278,9 +272,19 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				)
 				result = pr.MulBy02345(result, prodLines)
 			}
+			// if number of tangents is odd, mul last line by res
+			// works for nP=1 as well
+			if nP%2 != 0 {
+				// ℓ × res
+				result = pr.MulBy023(result,
+					pr.curveF.Mul(&lines[nP-1][0][i].R1, yInv[nP-1]),
+					pr.curveF.Mul(&lines[nP-1][0][i].R0, xNegOverY[nP-1]),
+				)
+			}
 		case 1:
-			// multiply by residueWitnessInv
+			// mul by residueWitnessInv to capture 1's in x₀+1
 			result = pr.Ext6.Mul(result, residueWitnessInv)
+			// mul by line and tangent
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -291,7 +295,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 3:
-			// multiply by frobResidueWitnessInv
+			// mul by frobResidueWitnessInv to capture -1's in x₀³-x₀²-x₀
 			result = pr.Ext6.Mul(result, frobResidueWitnessInv)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
@@ -307,10 +311,11 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		}
 	}
 
-	// i = 0
+	// i = 0 (j = -3)
 	result = pr.Square(result)
-	// multiply by frobResidueWitness
+	// mul by frobResidueWitness to capture -1's in x₀³-x₀²-x₀
 	result = pr.Ext6.Mul(result, frobResidueWitness)
+	// mul by tangent
 	for k := 0; k < nP; k++ {
 		// ℓ × res
 		result = pr.MulBy023(result,
@@ -322,7 +327,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// Check that: MillerLoop(P,Q) == residueWitness^Λ
 	// where Λ = x₀+1+p(x₀³-x₀²-x₀) and residueWitness from the hint.
 	//
-	// Note that at this point is:
+	// Note that at this point:
 	// 		result = MillerLoop(P,Q) * residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
 	// since we initialized the Miller loop accumulator with residueWitnessInv^{p}.
 	// So we only need to check that:
