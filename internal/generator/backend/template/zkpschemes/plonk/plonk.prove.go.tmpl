@@ -903,6 +903,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
 	s.precomputedDenominators = make([]fr.Element, s.domain0.Cardinality)
+	bufBatchInvert := make([]fr.Element, s.domain0.Cardinality)
 
 	for i := 0; i < rho; i++ {
 
@@ -915,7 +916,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				Mul(&coset, &twiddles0[j]).
 				Sub(&s.precomputedDenominators[j], &one)
 		}
-		s.precomputedDenominators = fr.BatchInvert(s.precomputedDenominators)
+		batchInvert(s.precomputedDenominators, bufBatchInvert)
 
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		for _, q := range s.bp {
@@ -1031,6 +1032,26 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	return res, nil
 
+}
+
+// batchInvert modifies in place vec, with vec[i]<-vec[i]^{-1}, using
+// the Montgomery batch inversion trick. We don't use gnark-crypto's batchInvert
+// because we want to use a buffer preallocated, to avoid wasting memory.
+// /!\ it doesn't check that all vec's inputs or non zero, it is ensured by the size
+// of the field /!\
+func batchInvert(vec, buf []fr.Element) {
+	// local function only, vec and buf are of the same size
+	copy(buf, vec)
+	for i := 1; i<len(vec); i++ {
+		vec[i].Mul(&vec[i], &vec[i-1])
+	}
+	acc := vec[len(vec)-1]
+	acc.Inverse(&acc)
+	for i := len(vec)-1; i>0; i-- {
+		vec[i].Mul(&acc, &vec[i-1])
+		acc.Mul(&acc, &buf[i])
+	}
+	vec[0].Set(&acc)
 }
 
 func calculateNbTasks(n int) int {
