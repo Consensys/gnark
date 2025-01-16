@@ -295,7 +295,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 				result = pr.MulBy02345(result, prodLines)
 			}
 		case 3:
-			// mul by frobResidueWitnessInv to capture -1's in x₀³-x₀²-x₀
+			// mul by frobResidueWitnessInv to capture 1's in x₀³-x₀²-x₀
 			result = pr.Ext6.Mul(result, frobResidueWitnessInv)
 			for k := 0; k < nP; k++ {
 				prodLines = pr.Mul023By023(
@@ -315,12 +315,25 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	result = pr.Square(result)
 	// mul by frobResidueWitness to capture -1's in x₀³-x₀²-x₀
 	result = pr.Ext6.Mul(result, frobResidueWitness)
-	// mul by tangent
-	for k := 0; k < nP; k++ {
-		// ℓ × res
-		result = pr.MulBy023(result,
+	// x₀+1+λ(x₀³-x₀²-x₀) = 0 mod r so accQ = ∞ at the last iteration,
+	// we only mul by tangent.
+	// mul tangents 2-by-2 and then by accumulator
+	for k := 1; k < nP; k += 2 {
+		prodLines = pr.Mul023By023(
 			pr.curveF.Mul(&lines[k][0][0].R1, yInv[k]),
 			pr.curveF.Mul(&lines[k][0][0].R0, xNegOverY[k]),
+			pr.curveF.Mul(&lines[k-1][0][0].R1, yInv[k-1]),
+			pr.curveF.Mul(&lines[k-1][0][0].R0, xNegOverY[k-1]),
+		)
+		result = pr.MulBy02345(result, prodLines)
+	}
+	// if number of tangents is odd, mul last line by res
+	// works for nP=1 as well
+	if nP%2 != 0 {
+		// ℓ × res
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[nP-1][0][0].R1, yInv[nP-1]),
+			pr.curveF.Mul(&lines[nP-1][0][0].R0, xNegOverY[nP-1]),
 		)
 	}
 
