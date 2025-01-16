@@ -132,22 +132,187 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.MillerLoop(P, Q)
-	if err != nil {
-		return err
-
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return errors.New("invalid inputs sizes")
 	}
-	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// f = f^(p³-1)(p+1)
-	buf := pr.Conjugate(f)
-	buf = pr.DivUnchecked(buf, f)
-	f = pr.Frobenius(buf)
-	f = pr.Mul(f, buf)
+	// hint the non-residue witness
+	inputs := make([]*baseEl, 0, 2*nP+2*nQ)
+	for _, p := range P {
+		inputs = append(inputs, &p.X, &p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, &q.P.X, &q.P.Y)
+	}
+	hint, err := pr.curveF.NewHint(pairingCheckHint, 6, inputs...)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	pr.AssertFinalExponentiationIsOne(f)
+	residueWitness := &GTEl{
+		A0: *hint[0],
+		A1: *hint[1],
+		A2: *hint[2],
+		A3: *hint[3],
+		A4: *hint[4],
+		A5: *hint[5],
+	}
+
+	lines := make([]lineEvaluations, len(Q))
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	// precomputations
+	yInv := make([]*baseEl, nP)
+	xNegOverY := make([]*baseEl, nP)
+
+	for k := 0; k < nP; k++ {
+		// P are supposed to be on G1 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
+		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
+	}
+
+	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
+	var prodLines [5]*baseEl
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
+	residueWitnessInv := pr.Ext6.Inverse(residueWitness)
+	frobWitness := pr.Ext6.Frobenius(residueWitness)
+	frobWitnessInv := pr.Ext6.Frobenius(residueWitnessInv)
+	result := frobWitnessInv
+
+	for i := 188; i > 0; i-- {
+		// mutualize the square among nP Miller loops
+		// (∏ᵢfᵢ)²
+		result = pr.Square(result)
+
+		switch loopCounter1[i] + 3*loopCounter2[i] {
+		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
+		case -3:
+			// multiply by frobWitnessInv
+			result = pr.Ext6.Mul(result, frobWitness)
+			for k := 0; k < nP; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case -1:
+			// multiply by residueWitness
+			result = pr.Ext6.Mul(result, frobWitness)
+			for k := 0; k < nP; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case 0:
+			// if number of lines is odd, mul last line by res
+			// works for nP=1 as well
+			if nP%2 != 0 {
+				// ℓ × res
+				result = pr.MulBy023(result,
+					pr.curveF.Mul(&lines[nP-1][0][i].R1, yInv[nP-1]),
+					pr.curveF.Mul(&lines[nP-1][0][i].R0, xNegOverY[nP-1]),
+				)
+			}
+			// mul lines 2-by-2
+			for k := 1; k < nP; k += 2 {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
+					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case 1:
+			// multiply by residueWitnessInv
+			result = pr.Ext6.Mul(result, frobWitnessInv)
+			for k := 0; k < nP; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case 3:
+			// multiply by frobWitnessInv
+			result = pr.Ext6.Mul(result, frobWitnessInv)
+			for k := 0; k < nP; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		default:
+			panic("unknown case for loopCounter")
+		}
+	}
+
+	// i = 0
+	result = pr.Square(result)
+	// multiply by frobWitness
+	result = pr.Ext6.Mul(result, frobWitness)
+	for k := 0; k < nP; k++ {
+		// ℓ × res
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[k][0][0].R1, yInv[k]),
+			pr.curveF.Mul(&lines[k][0][0].R0, xNegOverY[k]),
+		)
+	}
+
+	// Check that: MillerLoop(P,Q) == residueWitness^Λ
+	// where Λ = x₀+1+p(x₀³-x₀²-x₀) and residueWitness from the hint.
+	//
+	// Note that result is already:
+	// 		MillerLoop(P,Q) * residueWitnessInv^{p(x₀+1+x₀³-x₀²-x₀)}
+	// since we initialized the Miller loop accumulator with residueWitnessInv^p.
+	// So we only need to check that result == residueWitnessInv^{(p-1)(x₀+1)}.
+	//
+	// We perform the easy part of the final exp to push result and
+	// residueWitnessInv to the cyclotomic subgroup so that
+	// residueWitnessInv^{(p-1)(x₀+1)} is carried with optimized cyclotomic
+	// squaring (e.g. Karabina12345).
+	//
+	// residueWitnessInv^(p³-1)(p+1)
+	t0 := pr.Conjugate(residueWitnessInv)
+	t0 = pr.Mul(t0, residueWitness)
+	residueWitnessInv = pr.Frobenius(t0)
+	residueWitnessInv = pr.Mul(residueWitnessInv, t0)
+	// result^(p³-1)(p+1)
+	t0 = pr.Conjugate(result)
+	t0 = pr.DivUnchecked(t0, result)
+	result = pr.Frobenius(t0)
+	result = pr.Mul(result, t0)
+	// residueWitnessInv^{(p-1)(x₀+1)}
+	t0 = pr.Ext6.ExpByU2(residueWitnessInv)
+	t1 := pr.Ext6.Frobenius(t0)
+	t0 = pr.Ext6.DivUnchecked(t1, t0)
+
+	pr.AssertIsEqual(t0, result)
 
 	return nil
 }
