@@ -36,7 +36,7 @@ type Phase1 struct {
 	Hash []byte // sha256 hash
 }
 
-// InitPhase1 initialize phase 1 of the MPC. This is called once by the coordinator before
+// InitPhase1 initializes phase 1 of the MPC. This is called once by the coordinator before
 // any randomness contribution is made (see Contribute()).
 func InitPhase1(power int) (phase1 Phase1) {
 	N := int(math.Pow(2, float64(power)))
@@ -50,7 +50,7 @@ func InitPhase1(power int) (phase1 Phase1) {
 	phase1.PublicKeys.Alpha = newPublicKey(alpha, nil, 2)
 	phase1.PublicKeys.Beta = newPublicKey(beta, nil, 3)
 
-	// First contribution use generators
+	// First contribution uses generators
 	_, _, g1, g2 := curve.Generators()
 	phase1.Parameters.G2.Beta.Set(&g2)
 	phase1.Parameters.G1.Tau = make([]curve.G1Affine, 2*N-1)
