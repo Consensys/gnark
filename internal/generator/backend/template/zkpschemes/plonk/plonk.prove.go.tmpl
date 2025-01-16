@@ -364,10 +364,9 @@ func (s *instance) completeQk() error {
 	return nil
 }
 
-// evacomputeLagrangeOneOnCosetluate computes 1/n (x**n-1)/(x-1) on coset*ωⁱ
+// computeLagrangeOneOnCoset computes 1/n (x**n-1)/(x-1) on coset*ωⁱ
 func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne fr.Element, index int) fr.Element {
-	var res, one fr.Element
-	one.SetOne()
+	var res fr.Element
 	res.Mul(&cosetExpMinusOne, &s.domain0.CardinalityInv).
 		Mul(&res, &s.precomputedDenominators[index])
 	return res
