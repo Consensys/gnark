@@ -28,7 +28,7 @@ Issues in the **PUBLIC** track affect niche configurations, have very limited im
 
 Issues in the **PRIVATE** track are violations of committed security properties.
 
-**PRIVATE** track issues are fixed in the next scheduled minor releases, and are kept private until then.
+**PRIVATE** track issues are fixed in the next scheduled minor releases , and are kept private until then.
 
 Three to seven days before the release, a pre-announcement is sent to [`gnark-announce`] and [@gnark_team], announcing the presence of a security fix in the upcoming releases, and which component in gnark is affected; compiler, constraint system or proof system (but not disclosing any more details).
 

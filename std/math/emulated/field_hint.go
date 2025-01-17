@@ -1,7 +1,6 @@
 package emulated
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -51,15 +50,15 @@ func UnwrapHintWithNativeInput(nativeInputs, nativeOutputs []*big.Int, nonnative
 
 func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	if len(nativeInputs) < 2 {
-		return errors.New("hint wrapper header is 2 elements")
+		return fmt.Errorf("hint wrapper header is 2 elements")
 	}
 	if !nativeInputs[0].IsInt64() || !nativeInputs[1].IsInt64() {
-		return errors.New("header must be castable to int64")
+		return fmt.Errorf("header must be castable to int64")
 	}
 	nbBits := int(nativeInputs[0].Int64())
 	nbLimbs := int(nativeInputs[1].Int64())
 	if len(nativeInputs) < 2+nbLimbs {
-		return errors.New("hint wrapper header is 2+nbLimbs elements")
+		return fmt.Errorf("hint wrapper header is 2+nbLimbs elements")
 	}
 	nonnativeMod := new(big.Int)
 	if err := limbs.Recompose(nativeInputs[2:2+nbLimbs], uint(nbBits), nonnativeMod); err != nil {
@@ -68,7 +67,7 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 	var nonnativeInputs []*big.Int
 	if isEmulatedInput {
 		if !nativeInputs[2+nbLimbs].IsInt64() {
-			return errors.New("number of nonnative elements must be castable to int64")
+			return fmt.Errorf("number of nonnative elements must be castable to int64")
 		}
 		nbInputs := int(nativeInputs[2+nbLimbs].Int64())
 		readPtr := 3 + nbLimbs
@@ -102,7 +101,7 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 	var nonnativeOutputs []*big.Int
 	if isEmulatedOutput {
 		if len(nativeOutputs)%nbLimbs != 0 {
-			return errors.New("output count doesn't divide limb count")
+			return fmt.Errorf("output count doesn't divide limb count")
 		}
 		nonnativeOutputs = make([]*big.Int, len(nativeOutputs)/nbLimbs)
 	} else {

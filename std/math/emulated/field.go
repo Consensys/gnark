@@ -1,7 +1,6 @@
 package emulated
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -55,7 +54,9 @@ type ctxKey[T FieldParams] struct{}
 
 // NewField returns an object to be used in-circuit to perform emulated
 // arithmetic over the field defined by type parameter [FieldParams]. The
-// operations on this type are defined on [Element].
+// operations on this type are defined on [Element]. There is also another type
+// [FieldAPI] implementing [frontend.API] which can be used in place of native
+// API for existing circuits.
 //
 // This is an experimental feature and performing emulated arithmetic in-circuit
 // is extremely costly. See package doc for more info.
@@ -76,17 +77,17 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	// ensure prime is correctly set
 	if f.fParams.IsPrime() {
 		if !f.fParams.Modulus().ProbablyPrime(20) {
-			return nil, errors.New("invalid parametrization: modulus is not prime")
+			return nil, fmt.Errorf("invalid parametrization: modulus is not prime")
 		}
 	}
 
 	if f.fParams.BitsPerLimb() < 3 {
 		// even three is way too small, but it should probably work.
-		return nil, errors.New("nbBits must be at least 3")
+		return nil, fmt.Errorf("nbBits must be at least 3")
 	}
 
 	if f.fParams.Modulus().Cmp(big.NewInt(1)) < 1 {
-		return nil, errors.New("n must be at least 2")
+		return nil, fmt.Errorf("n must be at least 2")
 	}
 
 	nbLimbs := (uint(f.fParams.Modulus().BitLen()) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
@@ -95,7 +96,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	}
 
 	if f.api == nil {
-		return f, errors.New("missing api")
+		return f, fmt.Errorf("missing api")
 	}
 
 	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {

@@ -39,7 +39,6 @@ package logderivarg
 // we have to show that all sorted values ara monotonically increasing.
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -75,14 +74,14 @@ func AsTable(vector []frontend.Variable) Table {
 // linear combinations.
 func Build(api frontend.API, table Table, queries Table) error {
 	if len(table) == 0 {
-		return errors.New("table empty")
+		return fmt.Errorf("table empty")
 	}
 	nbRow := len(table[0])
 	constTable := true
 	countInputs := []frontend.Variable{len(table), nbRow}
 	for i := range table {
 		if len(table[i]) != nbRow {
-			return errors.New("table row length mismatch")
+			return fmt.Errorf("table row length mismatch")
 		}
 		if constTable {
 			for j := range table[i] {
@@ -95,7 +94,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 	for i := range queries {
 		if len(queries[i]) != nbRow {
-			return errors.New("query row length mismatch")
+			return fmt.Errorf("query row length mismatch")
 		}
 		countInputs = append(countInputs, queries[i]...)
 	}

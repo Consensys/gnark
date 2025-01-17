@@ -75,7 +75,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if err := generator.GenerateFF(tinyfieldConf, tiny_field.RootPath); err != nil {
+	if err := generator.GenerateFF(tinyfieldConf, tiny_field.RootPath, "", ""); err != nil {
 		panic(err)
 	}
 

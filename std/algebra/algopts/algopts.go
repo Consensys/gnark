@@ -5,9 +5,7 @@
 // implementations.
 package algopts
 
-import (
-	"errors"
-)
+import "fmt"
 
 type algebraCfg struct {
 	NbScalarBits       int
@@ -26,7 +24,7 @@ type AlgebraOption func(*algebraCfg) error
 func WithNbScalarBits(bits int) AlgebraOption {
 	return func(ac *algebraCfg) error {
 		if ac.NbScalarBits != 0 {
-			return errors.New("WithNbBits already set")
+			return fmt.Errorf("WithNbBits already set")
 		}
 		ac.NbScalarBits = bits
 		return nil
@@ -41,7 +39,7 @@ func WithNbScalarBits(bits int) AlgebraOption {
 func WithFoldingScalarMul() AlgebraOption {
 	return func(ac *algebraCfg) error {
 		if ac.FoldMulti {
-			return errors.New("withFoldingScalarMul already set")
+			return fmt.Errorf("withFoldingScalarMul already set")
 		}
 		ac.FoldMulti = true
 		return nil
@@ -53,7 +51,7 @@ func WithFoldingScalarMul() AlgebraOption {
 func WithCompleteArithmetic() AlgebraOption {
 	return func(ac *algebraCfg) error {
 		if ac.CompleteArithmetic {
-			return errors.New("WithCompleteArithmetic already set")
+			return fmt.Errorf("WithCompleteArithmetic already set")
 		}
 		ac.CompleteArithmetic = true
 		return nil
@@ -72,7 +70,7 @@ func WithCompleteArithmetic() AlgebraOption {
 func WithCanonicalBitRepresentation() AlgebraOption {
 	return func(ac *algebraCfg) error {
 		if ac.ToBitsCanonical {
-			return errors.New("WithCanonicalBitRepresentation already set")
+			return fmt.Errorf("WithCanonicalBitRepresentation already set")
 		}
 		ac.ToBitsCanonical = true
 		return nil

@@ -32,8 +32,9 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 		panic(err)
 	}
 	pkpt := sw_emulated.AffinePoint[T](pk)
-	msInv := scalarApi.Div(msg, &sig.S)
-	rsInv := scalarApi.Div(&sig.R, &sig.S)
+	sInv := scalarApi.Inverse(&sig.S)
+	msInv := scalarApi.MulMod(msg, sInv)
+	rsInv := scalarApi.MulMod(&sig.R, sInv)
 
 	// q = [rsInv]pkpt + [msInv]g
 	q := cr.JointScalarMulBase(&pkpt, rsInv, msInv)

@@ -1,7 +1,6 @@
 package gkr
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -191,7 +190,7 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	o.nbVars = assignment.NumVars()
 	nbInstances := assignment.NumInstances()
 	if 1<<o.nbVars != nbInstances {
-		return o, errors.New("number of instances must be power of 2")
+		return o, fmt.Errorf("number of instances must be power of 2")
 	}
 
 	if o.sorted == nil {
@@ -329,7 +328,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
 			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
-				return errors.New("no proof allowed for input wire with a single claim")
+				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
 			if wire.NbClaims() == 1 { // input wire
