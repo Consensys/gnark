@@ -770,7 +770,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 }
 
 // IsMillerLoopAndFinalExpOne computes the Miller loop between P and Q,
-// multiplies it in 𝔽p¹² by previous and and returns a boolean indicating if
+// multiplies it in 𝔽p¹² by previous and returns a boolean indicating if
 // the result lies in the same equivalence class as the reduced pairing
 // purported to be 1. This check replaces the final exponentiation step
 // in-circuit and follows Section 4 of [On Proving Pairings] paper by A.
