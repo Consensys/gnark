@@ -797,67 +797,15 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 	}
 	lines := *Q.Lines
 
-	// precomputations
-	yInv := pr.curveF.Inverse(&P.Y)
-	xNegOverY := pr.curveF.Mul(&P.X, yInv)
-	xNegOverY = pr.curveF.Neg(xNegOverY)
-
-	// init Miller loop accumulator to residueWitnessInv to share the squarings
-	// of residueWitnessInv^{6x₀+2}
-	res := residueWitnessInv
-
-	// Compute f_{6x₀+2,Q}(P)
-	for i := 64; i >= 0; i-- {
-		res = pr.Ext12.Square(res)
-
-		switch loopCounter[i] {
-		case 0:
-			// ℓ × res
-			res = pr.MulBy01379(
-				res,
-				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
-			)
-		case 1:
-			// multiply by residueWitnessInv when bit=1
-			res = pr.Ext12.Mul(res, residueWitnessInv)
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines := pr.Mul01379By01379(
-				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
-				pr.Ext2.MulByElement(&lines[1][i].R0, xNegOverY),
-				pr.Ext2.MulByElement(&lines[1][i].R1, yInv),
-			)
-			// (ℓ × ℓ) × res
-			res = pr.Ext12.MulBy012346789(res, prodLines)
-		case -1:
-			// multiply by residueWitness when bit=-1
-			res = pr.Ext12.Mul(res, residueWitness)
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines := pr.Mul01379By01379(
-				pr.Ext2.MulByElement(&lines[0][i].R0, xNegOverY),
-				pr.Ext2.MulByElement(&lines[0][i].R1, yInv),
-				pr.Ext2.MulByElement(&lines[1][i].R0, xNegOverY),
-				pr.Ext2.MulByElement(&lines[1][i].R1, yInv),
-			)
-			// (ℓ × ℓ) × res
-			res = pr.Ext12.MulBy012346789(res, prodLines)
-		default:
-			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
-		}
-	}
-
-	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
-	// lines evaluations at P
-	prodLines := pr.Mul01379By01379(
-		pr.Ext2.MulByElement(&lines[0][65].R0, xNegOverY),
-		pr.Ext2.MulByElement(&lines[0][65].R1, yInv),
-		pr.Ext2.MulByElement(&lines[1][65].R0, xNegOverY),
-		pr.Ext2.MulByElement(&lines[1][65].R1, yInv),
+	res, err := pr.millerLoopLines(
+		[]*G1Affine{P},
+		[]lineEvaluations{lines},
+		residueWitnessInv,
+		false,
 	)
-	res = pr.Ext12.MulBy012346789(res, prodLines)
+	if err != nil {
+		return nil
+	}
 
 	// multiply by previous multi-Miller function
 	res = pr.Ext12.Mul(res, previous)
