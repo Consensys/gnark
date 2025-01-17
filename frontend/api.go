@@ -4,7 +4,9 @@
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/consensys/gnark/constraint/solver"
 )
@@ -17,16 +19,16 @@ type API interface {
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 Variable, in ...Variable) Variable
 
-	// MulAcc sets and return a = a + (b*c).
+	// MulAcc sets and returns a = a + (b*c).
 	//
 	// ! The method may mutate a without allocating a new result. If the input
-	// is used elsewhere, then first initialize new variable, for example by
+	// is used elsewhere, then first initialize a new variable, for example by
 	// doing:
 	//
 	//     acopy := api.Mul(a, 1)
 	//     acopy = api.MulAcc(acopy, b, c)
 	//
-	// ! But it may not modify a, always use MulAcc(...) result for correctness.
+	// ! But it may not modify a; always use MulAcc(...) result for correctness.
 	MulAcc(a, b, c Variable) Variable
 
 	// Neg returns -i
@@ -55,47 +57,47 @@ type API interface {
 
 	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
-	// n default value is fr.Bits the number of bits needed to represent a field element
+	// n default value is fr.Bits, the number of bits needed to represent a field element
 	//
-	// The result in little endian (first bit= lsb)
+	// The result is in little endian (first bit = lsb)
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	// This function constrain the bits b... to be boolean (0 or 1)
+	// This function constrains the bits b... to be boolean (0 or 1)
 	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b
-	// This function constrain a and b to be boolean (0 or 1)
+	// This function constrains a and b to be boolean (0 or 1)
 	Xor(a, b Variable) Variable
 
 	// Or returns a | b
-	// This function constrain a and b to be boolean (0 or 1)
+	// This function constrains a and b to be boolean (0 or 1)
 	Or(a, b Variable) Variable
 
 	// And returns a & b
-	// This function constrain a and b to be boolean (0 or 1)
+	// This function constrains a and b to be boolean (0 or 1)
 	And(a, b Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Conditionals
 
-	// Select if b is true, yields i1 else yields i2
-	// This function constrain b to be boolean (0 or 1)
+	// Select yields i1 if b is true, else yields i2
+	// This function constrains b to be boolean (0 or 1)
 	Select(b Variable, i1, i2 Variable) Variable
 
 	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
-	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1,
 	// and i3 if b0=b1=1.
-	// This function constrain b0 and b1 to be boolean (0 or 1)
+	// This function constrains b0 and b1 to be boolean (0 or 1)
 	Lookup2(b0, b1 Variable, i0, i1, i2, i3 Variable) Variable
 
 	// IsZero returns 1 if a is zero, 0 otherwise
 	IsZero(i1 Variable) Variable
 
 	// Cmp returns:
-	//  * 1 if i1>i2,
-	//  * 0 if i1=i2,
-	//  * -1 if i1<i2.
+	//  * 1 if i1 > i2,
+	//  * 0 if i1 == i2,
+	//  * -1 if i1 < i2.
 	//
 	// If the absolute difference between the variables i1 and i2 is known, then
 	// it is more efficient to use the bounded methods in package
@@ -140,6 +142,15 @@ type API interface {
 	// ConstantValue is a shortcut to api.Compiler().ConstantValue()
 	// Deprecated: use api.Compiler().ConstantValue() instead
 	ConstantValue(v Variable) (*big.Int, bool)
+
+	// Printf formats and outputs values according to the format string.
+	// Supported format specifiers:
+	// %d - output as an integer
+	// %x - output in hexadecimal format
+	// %v - standard value output
+	// %c - output coefficient ID
+	// %i - output variable ID
+	Printf(format string, args ...Variable)
 }
 
 // BatchInverter returns a slice of variables containing the inverse of each element in i1
@@ -156,4 +167,98 @@ type PlonkAPI interface {
 
 	// AddPlonkConstraint asserts qL.a + qR.b + qM.ab + qO.o + qC
 	AddPlonkConstraint(a, b, o Variable, qL, qR, qO, qM, qC int)
+}
+
+// Helper functions
+func (api *API) toString(v Variable, base int) string {
+	// Convert Variable to a string with the specified base
+	// ...
+}
+
+func (api *API) getCoeffID(v Variable) int {
+	// Get the coefficient ID
+	// ...
+}
+
+func (api *API) getVarID(v Variable) int {
+	// Get the variable ID
+	// ... 
+}
+
+func (api *API) Printf(format string, args ...Variable) {
+	if api == nil {
+		return
+	}
+	
+	var result strings.Builder
+	
+	argIndex := 0
+	for i := 0; i < len(format); i++ {
+		if format[i] != '%' {
+			result.WriteByte(format[i])
+			continue
+		}
+		
+		if i+1 >= len(format) {
+			break
+		}
+		
+		i++
+		
+		if argIndex >= len(args) {
+			continue
+		}
+		
+		v := args[argIndex]
+		switch format[i] {
+		case 'd':
+			if val, isConst := api.Compiler().ConstantValue(v); isConst {
+				if val == nil {
+					result.WriteString("<error>")
+					continue
+				}
+				result.WriteString(val.String())
+			} else {
+				result.WriteString("<var>")
+			}
+		case 'x':
+			if val, isConst := api.Compiler().ConstantValue(v); isConst {
+				if val == nil {
+					result.WriteString("<error>")
+					continue
+				}
+				result.WriteString(fmt.Sprintf("%x", val))
+			} else {
+				result.WriteString("<var>")
+			}
+		case 'v':
+			if val, isConst := api.Compiler().ConstantValue(v); isConst {
+				if val == nil {
+					result.WriteString("<error>")
+					continue
+				}
+				result.WriteString(val.String())
+			} else {
+				result.WriteString("<var>")
+			}
+		case 'c':
+			result.WriteString(fmt.Sprintf("coeff_%d", api.Compiler().GetCoefficient(v)))
+		case 'i':
+			result.WriteString(fmt.Sprintf("var_%d", api.Compiler().GetTermIndex(v)))
+		}
+		
+		argIndex++
+	}
+	
+	api.Println(result.String())
+}
+
+type Compiler interface {
+	// Existing methods...
+
+	// GetCoefficient returns the coefficient ID for the variable
+	GetCoefficient(v Variable) int
+
+	// GetTermIndex returns the term index for the variable
+	GetTermIndex(v Variable) int
 }
