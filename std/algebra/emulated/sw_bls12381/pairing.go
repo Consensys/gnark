@@ -120,7 +120,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		panic(err)
 	}
 
-	residueWitness := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	residueWitnessInv := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
 	// or
@@ -160,62 +160,24 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		lines[i] = *Q[i].Lines
 	}
 
-	// precomputations
-	yInv := make([]*baseEl, nP)
-	xNegOverY := make([]*baseEl, nP)
-
-	for k := 0; k < nP; k++ {
-		// P are supposed to be on G1 respectively of prime order r.
-		// The point (x,0) is of order 2. But this function does not check
-		// subgroup membership.
-		yInv[k] = pr.curveF.Inverse(&P[k].Y)
-		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
-		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
+	res, err := pr.millerLoopLines(P, lines, residueWitnessInv, false)
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
 	}
+	res = pr.Ext12.Conjugate(res)
 
-	// init Miller loop accumulator to residueWitnessInv to share the squarings
-	// of residueWitnessInv^{x₀}
-	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
-	res := residueWitnessInv
-
-	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	for i := 62; i >= 0; i-- {
-		// mutualize the square among n Miller loops
-		// (∏ᵢfᵢ)²
-		res = pr.Ext12.Square(res)
-
-		if loopCounter[i] == 0 {
-			for k := 0; k < nP; k++ {
-				res = pr.MulBy02368(res,
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-				)
-			}
-		} else {
-			// multiply by residueWitnessInv when bit=1
-			res = pr.Ext12.Mul(res, residueWitnessInv)
-			for k := 0; k < nP; k++ {
-				res = pr.MulBy02368(res,
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-				)
-				res = pr.MulBy02368(res,
-					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
-				)
-			}
-		}
-	}
-
-	// Check that  res * scalingFactor == residueWitness^(q)
-	// where u=-0xd201000000010000 is the BLS12-381 seed,
-	// and residueWitness, scalingFactor from the hint.
+	// Check that: MillerLoop(P,Q) * scalingFactor * residueWitnessInv^(p-x₀) == 1
+	// where u=-0xd201000000010000 is the BLS12-381 seed, and residueWitness,
+	// scalingFactor from the hint.
 	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{-x₀} since
 	// we initialized the Miller loop accumulator with residueWitnessInv.
-	t0 := pr.Frobenius(residueWitness)
-	t1 := pr.Ext12.Mul(res, &scalingFactor)
+	// So we only need to check that:
+	// 		res * scalingFactor * residueWitnessInv^p == 1
+	res = pr.Ext12.Mul(res, &scalingFactor)
+	t0 := pr.Frobenius(residueWitnessInv)
+	res = pr.Ext12.Mul(res, t0)
 
-	pr.AssertIsEqual(t0, t1)
+	pr.AssertIsEqual(res, pr.Ext12.One())
 	return nil
 }
 
@@ -299,12 +261,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 		lines[i] = *Q[i].Lines
 	}
-	return pr.millerLoopLines(P, lines)
+	return pr.millerLoopLines(P, lines, nil, true)
 
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
+func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -325,34 +287,48 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	res := pr.Ext12.One()
-
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 62, separately to avoid an E12 Square
-	// (Square(res) = 1² = 1)
-	for k := 0; k < n; k++ {
-		res = pr.MulBy02368(res,
-			pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
-		)
-		res = pr.MulBy02368(res,
-			pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
-		)
+	res := pr.Ext12.One()
+	j := len(loopCounter) - 2
+
+	if init != nil {
+		res = init
 	}
 
-	for i := 61; i >= 0; i-- {
+	if first {
+		// i = 62, separately to avoid an E12 Square
+		// (Square(res) = 1² = 1)
+		for k := 0; k < n; k++ {
+			res = pr.MulBy02368(res,
+				pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
+				pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
+			)
+			res = pr.MulBy02368(res,
+				pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
+				pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
+			)
+		}
+		j--
+	}
+
+	for i := j; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Ext12.Square(res)
 
-		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
+		if loopCounter[i] == 0 {
+			for k := 0; k < n; k++ {
 				res = pr.MulBy02368(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 				)
-			} else {
+			}
+		} else {
+			if init != nil {
+				// multiply by init when bit=1
+				res = pr.Ext12.Mul(res, init)
+			}
+			for k := 0; k < n; k++ {
 				res = pr.MulBy02368(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),

@@ -218,8 +218,9 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	nP := len(P)
 	nQ := len(Q)
 	if nP == 0 || nP != nQ {
-		return nil
+		return errors.New("invalid inputs sizes")
 	}
+
 	// hint the non-residue witness
 	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
 	for _, p := range P {
@@ -233,7 +234,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	residueWitness := pr.Ext12.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	residueWitnessInv := pr.Ext12.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
 
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
@@ -275,81 +276,9 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		lines[i] = *Q[i].Lines
 	}
 
-	// precomputations
-	yInv := make([]*baseEl, nP)
-	xNegOverY := make([]*baseEl, nP)
-
-	for k := 0; k < nP; k++ {
-		// P are supposed to be on G1 respectively of prime order r.
-		// The point (x,0) is of order 2. But this function does not check
-		// subgroup membership.
-		yInv[k] = pr.curveF.Inverse(&P[k].Y)
-		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
-		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
-	}
-
-	// init Miller loop accumulator to residueWitnessInv to share the squarings
-	// of residueWitnessInv^{6x₀+2}
-	residueWitnessInv := pr.Ext12.Inverse(residueWitness)
-	res := residueWitnessInv
-
-	// Compute f_{6x₀+2,Q}(P)
-	for i := 64; i >= 0; i-- {
-		res = pr.Ext12.Square(res)
-
-		switch loopCounter[i] {
-		case 0:
-			for k := 0; k < nP; k++ {
-				res = pr.MulBy01379(
-					res,
-					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-				)
-			}
-		case 1:
-			// multiply by residueWitnessInv when bit=1
-			res = pr.Ext12.Mul(res, residueWitnessInv)
-			// ℓ × ℓ
-			for k := 0; k < nP; k++ {
-				prodLines := pr.Mul01379By01379(
-					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
-				)
-				// (ℓ × ℓ) × res
-				res = pr.Ext12.MulBy012346789(res, prodLines)
-			}
-		case -1:
-			// multiply by residueWitness when bit=-1
-			res = pr.Ext12.Mul(res, residueWitness)
-			for k := 0; k < nP; k++ {
-				// ℓ × ℓ
-				prodLines := pr.Mul01379By01379(
-					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
-				)
-				// (ℓ × ℓ) × res
-				res = pr.Ext12.MulBy012346789(res, prodLines)
-			}
-		default:
-			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
-		}
-	}
-
-	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
-	// lines evaluations at P
-	// and ℓ × ℓ
-	for k := 0; k < nP; k++ {
-		prodLines := pr.Mul01379By01379(
-			pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
-			pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
-			pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
-			pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
-		)
-		res = pr.Ext12.MulBy012346789(res, prodLines)
+	res, err := pr.millerLoopLines(P, lines, residueWitnessInv, false)
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
 	}
 
 	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
@@ -360,8 +289,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	t2 := pr.Ext12.Mul(&cubicNonResiduePower, res)
 
 	t1 := pr.FrobeniusCube(residueWitnessInv)
-	t0 := pr.FrobeniusSquare(residueWitness)
-	t1 = pr.Ext12.Mul(t1, t0)
+	t0 := pr.FrobeniusSquare(residueWitnessInv)
+	t1 = pr.Ext12.DivUnchecked(t1, t0)
 	t0 = pr.Frobenius(residueWitnessInv)
 	t1 = pr.Ext12.Mul(t1, t0)
 
@@ -488,12 +417,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 		lines[i] = *Q[i].Lines
 	}
-	return pr.millerLoopLines(P, lines)
+	return pr.millerLoopLines(P, lines, nil, true)
 
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
+func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -514,82 +443,100 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	var prodLines [10]*baseEl
-
 	// Compute f_{6x₀+2,Q}(P)
-	// i = 64
-	//
-	// k = 0
-	c3 := pr.Ext2.MulByElement(&lines[0][0][64].R0, xNegOverY[0])
-	c4 := pr.Ext2.MulByElement(&lines[0][0][64].R1, yInv[0])
-	nine := big.NewInt(9)
-	res := &GTEl{
-		A0:  *pr.curveF.One(),
-		A1:  *pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
-		A2:  *pr.curveF.Zero(),
-		A3:  *pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
-		A4:  *pr.curveF.Zero(),
-		A5:  *pr.curveF.Zero(),
-		A6:  *pr.curveF.Zero(),
-		A7:  c3.A1,
-		A8:  *pr.curveF.Zero(),
-		A9:  c4.A1,
-		A10: *pr.curveF.Zero(),
-		A11: *pr.curveF.Zero(),
+	var prodLines [10]*baseEl
+	res := pr.Ext12.One()
+	j := len(loopCounter) - 2
+
+	var initInv GTEl
+	if init != nil {
+		res = init
+		initInv = *pr.Ext12.Inverse(init)
 	}
 
-	if n >= 2 {
-		// k = 1, separately to avoid MulBy01379 (res × ℓ)
-		// (res is also a line at this point, so we use Mul01379By01379 ℓ × ℓ)
-		// line evaluation at P[1]
-		prodLines = pr.Mul01379By01379(
-			pr.Ext2.MulByElement(&lines[1][0][64].R0, xNegOverY[1]),
-			pr.Ext2.MulByElement(&lines[1][0][64].R1, yInv[1]),
-			c3,
-			c4,
-		)
+	if first {
+		// i = 64
+		//
+		// k = 0
+		c3 := pr.Ext2.MulByElement(&lines[0][0][j].R0, xNegOverY[0])
+		c4 := pr.Ext2.MulByElement(&lines[0][0][j].R1, yInv[0])
+		nine := big.NewInt(9)
 		res = &GTEl{
-			A0:  *prodLines[0],
-			A1:  *prodLines[1],
-			A2:  *prodLines[2],
-			A3:  *prodLines[3],
-			A4:  *prodLines[4],
+			A0:  *pr.curveF.One(),
+			A1:  *pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
+			A2:  *pr.curveF.Zero(),
+			A3:  *pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
+			A4:  *pr.curveF.Zero(),
 			A5:  *pr.curveF.Zero(),
-			A6:  *prodLines[5],
-			A7:  *prodLines[6],
-			A8:  *prodLines[7],
-			A9:  *prodLines[8],
-			A10: *prodLines[9],
+			A6:  *pr.curveF.Zero(),
+			A7:  c3.A1,
+			A8:  *pr.curveF.Zero(),
+			A9:  c4.A1,
+			A10: *pr.curveF.Zero(),
 			A11: *pr.curveF.Zero(),
 		}
-	}
 
-	if n >= 3 {
-		// k >= 2
-		for k := 2; k < n; k++ {
-			// line evaluation at P[k]
-			// ℓ × res
-			res = pr.MulBy01379(
-				res,
-				pr.Ext2.MulByElement(&lines[k][0][64].R0, xNegOverY[k]),
-				pr.Ext2.MulByElement(&lines[k][0][64].R1, yInv[k]),
+		if n >= 2 {
+			// k = 1, separately to avoid MulBy01379 (res × ℓ)
+			// (res is also a line at this point, so we use Mul01379By01379 ℓ × ℓ)
+			// line evaluation at P[1]
+			prodLines = pr.Mul01379By01379(
+				pr.Ext2.MulByElement(&lines[1][0][j].R0, xNegOverY[1]),
+				pr.Ext2.MulByElement(&lines[1][0][j].R1, yInv[1]),
+				c3,
+				c4,
 			)
+			res = &GTEl{
+				A0:  *prodLines[0],
+				A1:  *prodLines[1],
+				A2:  *prodLines[2],
+				A3:  *prodLines[3],
+				A4:  *prodLines[4],
+				A5:  *pr.curveF.Zero(),
+				A6:  *prodLines[5],
+				A7:  *prodLines[6],
+				A8:  *prodLines[7],
+				A9:  *prodLines[8],
+				A10: *prodLines[9],
+				A11: *pr.curveF.Zero(),
+			}
 		}
+
+		if n >= 3 {
+			// k >= 2
+			for k := 2; k < n; k++ {
+				// line evaluation at P[k]
+				// ℓ × res
+				res = pr.MulBy01379(
+					res,
+					pr.Ext2.MulByElement(&lines[k][0][j].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][j].R1, yInv[k]),
+				)
+			}
+		}
+		j--
 	}
 
-	for i := 63; i >= 0; i-- {
+	for i := j; i >= 0; i-- {
 		res = pr.Ext12.Square(res)
 
-		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
+		switch loopCounter[i] {
+		case 0:
+			for k := 0; k < n; k++ {
 				res = pr.MulBy01379(
 					res,
 					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
 				)
-			} else {
-				// ℓ × ℓ
-				prodLines = pr.Mul01379By01379(
+			}
+		case 1:
+			if init != nil {
+				// multiply by init when bit=1
+				res = pr.Ext12.Mul(res, init)
+			}
+			// ℓ × ℓ
+			for k := 0; k < n; k++ {
+				prodLines := pr.Mul01379By01379(
 					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
@@ -598,6 +545,24 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 				// (ℓ × ℓ) × res
 				res = pr.Ext12.MulBy012346789(res, prodLines)
 			}
+		case -1:
+			if init != nil {
+				// multiply by 1/init when bit=-1
+				res = pr.Ext12.Mul(res, &initInv)
+			}
+			for k := 0; k < n; k++ {
+				// ℓ × ℓ
+				prodLines := pr.Mul01379By01379(
+					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
+				)
+				// (ℓ × ℓ) × res
+				res = pr.Ext12.MulBy012346789(res, prodLines)
+			}
+		default:
+			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
 	}
 
