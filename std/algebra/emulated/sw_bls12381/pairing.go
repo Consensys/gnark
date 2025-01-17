@@ -289,23 +289,23 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
 	res := pr.Ext12.One()
-	j := len(loopCounter) - 2
 
 	if init != nil {
 		res = init
 	}
 
+	j := len(loopCounter) - 2
 	if first {
-		// i = 62, separately to avoid an E12 Square
+		// i = j, separately to avoid an E12 Square
 		// (Square(res) = 1² = 1)
 		for k := 0; k < n; k++ {
 			res = pr.MulBy02368(res,
-				pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
-				pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
+				pr.MulByElement(&lines[k][0][j].R1, yInv[k]),
+				pr.MulByElement(&lines[k][0][j].R0, xNegOverY[k]),
 			)
 			res = pr.MulBy02368(res,
-				pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
-				pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
+				pr.MulByElement(&lines[k][1][j].R1, yInv[k]),
+				pr.MulByElement(&lines[k][1][j].R0, xNegOverY[k]),
 			)
 		}
 		j--

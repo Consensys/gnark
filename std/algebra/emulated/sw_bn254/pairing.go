@@ -446,7 +446,6 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 	// Compute f_{6x₀+2,Q}(P)
 	var prodLines [10]*baseEl
 	res := pr.Ext12.One()
-	j := len(loopCounter) - 2
 
 	var initInv GTEl
 	if init != nil {
@@ -454,9 +453,9 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 		initInv = *pr.Ext12.Inverse(init)
 	}
 
+	j := len(loopCounter) - 2
 	if first {
-		// i = 64
-		//
+		// i = j
 		// k = 0
 		c3 := pr.Ext2.MulByElement(&lines[0][0][j].R0, xNegOverY[0])
 		c4 := pr.Ext2.MulByElement(&lines[0][0][j].R1, yInv[0])
