@@ -313,7 +313,10 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	PairingCheck(p.api, inP, inQ)
+	err := PairingCheck(p.api, inP, inQ)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
