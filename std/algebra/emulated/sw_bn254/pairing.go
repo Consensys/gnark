@@ -480,8 +480,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 			// (res is also a line at this point, so we use Mul01379By01379 ℓ × ℓ)
 			// line evaluation at P[1]
 			prodLines = pr.Mul01379By01379(
-				pr.Ext2.MulByElement(&lines[1][0][j].R0, xNegOverY[1]),
-				pr.Ext2.MulByElement(&lines[1][0][j].R1, yInv[1]),
+				pr.Ext2.MulByElement(&lines[1][0][j].R0, xNegOverY[1]), //nolint: gosec // incorrectly flagged by gosec as out of bounds read (G602)
+				pr.Ext2.MulByElement(&lines[1][0][j].R1, yInv[1]),      //nolint: gosec // incorrectly flagged by gosec as out of bounds read (G602)
 				c3,
 				c4,
 			)
