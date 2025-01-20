@@ -240,22 +240,118 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups
 func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
-	f, err := MillerLoop(api, P, Q)
-	if err != nil {
-		return err
-	}
-	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// f = f^(p⁶-1)(p²+1)
-	var buf GT
-	buf.Conjugate(api, f)
-	buf.DivUnchecked(api, buf, f)
-	f.FrobeniusSquare(api, buf).
-		Mul(api, f, buf)
 
-	f.AssertFinalExponentiationIsOne(api)
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return errors.New("invalid inputs sizes")
+	}
+	// hint the non-residue witness
+	inputs := make([]frontend.Variable, 0, 2*nP+4*nQ)
+	for _, p := range P {
+		inputs = append(inputs, p.X, p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, q.P.X.A0, q.P.X.A1, q.P.Y.A0, q.P.Y.A1)
+	}
+	hint, err := api.NewHint(pairingCheckHint, 18, inputs...)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	var residueWitness GT
+	residueWitness.C0.B0.A0 = hint[0]
+	residueWitness.C0.B0.A1 = hint[1]
+	residueWitness.C0.B1.A0 = hint[2]
+	residueWitness.C0.B1.A1 = hint[3]
+	residueWitness.C0.B2.A0 = hint[4]
+	residueWitness.C0.B2.A1 = hint[5]
+	residueWitness.C1.B0.A0 = hint[6]
+	residueWitness.C1.B0.A1 = hint[7]
+	residueWitness.C1.B1.A0 = hint[8]
+	residueWitness.C1.B1.A1 = hint[9]
+	residueWitness.C1.B2.A0 = hint[10]
+	residueWitness.C1.B2.A1 = hint[11]
+
+	var scalingFactor fields_bls12377.E6
+	// constrain cubicNonResiduePower to be in Fp6
+	scalingFactor.B0.A0 = hint[12]
+	scalingFactor.B0.A1 = hint[13]
+	scalingFactor.B1.A0 = hint[14]
+	scalingFactor.B1.A1 = hint[15]
+	scalingFactor.B2.A0 = hint[16]
+	scalingFactor.B2.A1 = hint[17]
+
+	lines := make([]lineEvaluations, nQ)
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := computeLines(api, Q[i].P)
+			Q[i].Lines = Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	// precomputations
+	yInv := make([]frontend.Variable, nP)
+	xNegOverY := make([]frontend.Variable, nP)
+	for k := 0; k < nP; k++ {
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Neg(xNegOverY[k])
+	}
+
+	// init Miller loop accumulator to residueWitness to share the squarings
+	// of residueWitness^{x₀}
+	res := residueWitness
+
+	var prodLines [5]fields_bls12377.E2
+	var l0, l1 lineEvaluation
+
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	for i := 62; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res.Square(api, res)
+
+		if loopCounter[i] == 0 {
+			for k := 0; k < nP; k++ {
+				// line evaluation at P
+				// ℓ × res
+				res.MulBy034(api,
+					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
+				)
+			}
+		} else {
+			// multiply by residueWitness when bit=1
+			res.Mul(api, res, residueWitness)
+			for k := 0; k < nP; k++ {
+				// lines evaluation at P
+				// ℓ × ℓ
+				prodLines = *fields_bls12377.Mul034By034(api,
+					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
+					*l1.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
+					*l1.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
+				)
+				// (ℓ × ℓ) × res
+				res.MulBy01234(api, prodLines)
+			}
+		}
+	}
+
+	// Check that  res * scalingFactor == residueWitness^(q)
+	// where u=0x8508c00000000001 is the BLS12-377 seed,
+	// and residueWitness, scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitness^{x₀} since
+	// we initialized the Miller loop accumulator with residueWitness.
+	var t0, t1 GT
+	t1.C0.Mul(api, res.C0, scalingFactor)
+	t1.C1.Mul(api, res.C1, scalingFactor)
+	t0.Frobenius(api, residueWitness)
+
+	t0.AssertIsEqual(api, t1)
 
 	return nil
 }

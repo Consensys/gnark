@@ -423,43 +423,6 @@ func (e *Ext6) mulBy02345(z *E6, x [5]*baseEl) *E6 {
 	}
 }
 
-// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
-// same equivalence class as the reduced pairing. This replaces the final
-// exponentiation step in-circuit.
-// The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
-//
-// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (e Ext6) AssertFinalExponentiationIsOne(x *E6) {
-	res, err := e.fp.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	residueWitness := E6{
-		A0: *res[0],
-		A1: *res[1],
-		A2: *res[2],
-		A3: *res[3],
-		A4: *res[4],
-		A5: *res[5],
-	}
-
-	// Check that  x == residueWitness^λ
-	// where λ = u^3-u^2+1 - (u+1)p, with u the BW6-761 seed
-	// and residueWitness from the hint.
-
-	// exponentiation by U1=u^3-u^2+1
-	t0 := e.ExpByU1(&residueWitness)
-	// exponentiation by U2=u+1
-	t1 := e.ExpByU2(&residueWitness)
-
-	t1 = e.Frobenius(t1)
-	t0 = e.DivUnchecked(t0, t1)
-
-	e.AssertIsEqual(t0, x)
-}
-
 // ExpByU2 set z to z^(x₀+1) in E12 and return z
 // x₀+1 = 9586122913090633730
 func (e Ext6) ExpByU2(z *E6) *E6 {

@@ -100,14 +100,84 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.MillerLoop(P, Q)
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return errors.New("invalid inputs sizes")
+	}
+	// hint the non-residue witness
+	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
+	for _, p := range P {
+		inputs = append(inputs, &p.X, &p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
+	}
+	hint, err := pr.curveF.NewHint(pairingCheckHint, 18, inputs...)
 	if err != nil {
-		return err
-
+		// err is non-nil only for invalid number of inputs
+		panic(err)
 	}
 
-	pr.AssertFinalExponentiationIsOne(f)
+	residueWitnessInv := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	// constrain cubicNonResiduePower to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - a001
+	//     A1  =  0
+	//     A2  =  a010 - a011
+	//     A3  =  0
+	//     A4  =  a020 - a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	scalingFactor := GTEl{
+		A0:  *pr.curveF.Sub(hint[12], hint[13]),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(hint[14], hint[15]),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(hint[16], hint[17]),
+		A5:  *pr.curveF.Zero(),
+		A6:  *hint[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *hint[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *hint[17],
+		A11: *pr.curveF.Zero(),
+	}
 
+	lines := make([]lineEvaluations, nQ)
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	res, err := pr.millerLoopLines(P, lines, residueWitnessInv, false)
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
+	}
+	res = pr.Ext12.Conjugate(res)
+
+	// Check that: MillerLoop(P,Q) * scalingFactor * residueWitnessInv^(p-x₀) == 1
+	// where u=-0xd201000000010000 is the BLS12-381 seed, and residueWitness,
+	// scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{-x₀} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	// So we only need to check that:
+	// 		res * scalingFactor * residueWitnessInv^p == 1
+	res = pr.Ext12.Mul(res, &scalingFactor)
+	t0 := pr.Frobenius(residueWitnessInv)
+	res = pr.Ext12.Mul(res, t0)
+
+	pr.AssertIsEqual(res, pr.Ext12.One())
 	return nil
 }
 
@@ -191,12 +261,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 		lines[i] = *Q[i].Lines
 	}
-	return pr.millerLoopLines(P, lines)
+	return pr.millerLoopLines(P, lines, nil, true)
 
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
+func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -217,34 +287,48 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
 	res := pr.Ext12.One()
 
-	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 62, separately to avoid an E12 Square
-	// (Square(res) = 1² = 1)
-	for k := 0; k < n; k++ {
-		res = pr.MulBy02368(res,
-			pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
-		)
-		res = pr.MulBy02368(res,
-			pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
-		)
+	if init != nil {
+		res = init
 	}
 
-	for i := 61; i >= 0; i-- {
+	j := len(loopCounter) - 2
+	if first {
+		// i = j, separately to avoid an E12 Square
+		// (Square(res) = 1² = 1)
+		for k := 0; k < n; k++ {
+			res = pr.MulBy02368(res,
+				pr.MulByElement(&lines[k][0][j].R1, yInv[k]),
+				pr.MulByElement(&lines[k][0][j].R0, xNegOverY[k]),
+			)
+			res = pr.MulBy02368(res,
+				pr.MulByElement(&lines[k][1][j].R1, yInv[k]),
+				pr.MulByElement(&lines[k][1][j].R0, xNegOverY[k]),
+			)
+		}
+		j--
+	}
+
+	for i := j; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Ext12.Square(res)
 
-		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
+		if loopCounter[i] == 0 {
+			for k := 0; k < n; k++ {
 				res = pr.MulBy02368(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 				)
-			} else {
+			}
+		} else {
+			if init != nil {
+				// multiply by init when bit=1
+				res = pr.Ext12.Mul(res, init)
+			}
+			for k := 0; k < n; k++ {
 				res = pr.MulBy02368(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
@@ -312,7 +396,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 	tower := pr.ToTower(x)
 
-	res, err := pr.curveF.NewHint(finalExpHint, 24, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	res, err := pr.curveF.NewHint(finalExpHint, 18, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

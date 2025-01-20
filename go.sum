@@ -57,12 +57,12 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/cncf/udpa/go v0.0.0-20200629203442-efcf912fb354/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
-github.com/consensys/bavard v0.1.24 h1:Lfe+bjYbpaoT7K5JTFoMi5wo9V4REGLvQQbHmatoN2I=
-github.com/consensys/bavard v0.1.24/go.mod h1:k/zVjHHC4B+PQy1Pg7fgvG3ALicQw540Crag8qx+dZs=
+github.com/consensys/bavard v0.1.25 h1:5YcSBnp03/HvfpKaIQLr/ecspTp2k8YNR5rQLOWvUyc=
+github.com/consensys/bavard v0.1.25/go.mod h1:k/zVjHHC4B+PQy1Pg7fgvG3ALicQw540Crag8qx+dZs=
 github.com/consensys/compress v0.2.5 h1:gJr1hKzbOD36JFsF1AN8lfXz1yevnJi1YolffY19Ntk=
 github.com/consensys/compress v0.2.5/go.mod h1:pyM+ZXiNUh7/0+AUjUf9RKUM6vSH7T/fsn5LLS0j1Tk=
-github.com/consensys/gnark-crypto v0.14.1-0.20241217131346-b998989abdbe h1:WNuXPe50FqynKlUOMdsi1eCzYN8gU4sdCsW3eg3coGA=
-github.com/consensys/gnark-crypto v0.14.1-0.20241217131346-b998989abdbe/go.mod h1:ePFa23CZLMRMHxQpY5nMaiAZ3yuEIayaB8ElEvlwLEs=
+github.com/consensys/gnark-crypto v0.14.1-0.20250116204316-e7fd38b0a0a6 h1:P4DeR8HYfQGl4Vj6KEv0Eszcokroit/U1dRrUsgt+js=
+github.com/consensys/gnark-crypto v0.14.1-0.20250116204316-e7fd38b0a0a6/go.mod h1:q9s22Y0WIHd9UCBfD+xGeW8wDJ7WAGZZpMrLFqzBzrQ=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
