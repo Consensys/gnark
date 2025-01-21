@@ -33,6 +33,45 @@ func randomG1G2Affines() (bw6761.G1Affine, bw6761.G2Affine) {
 	return p, q
 }
 
+type MillerLoopCircuit struct {
+	In1G1, In2G1 G1Affine
+	In1G2, In2G2 G2Affine
+	Res          GTEl
+}
+
+func (c *MillerLoopCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.MillerLoop([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("Miller loop: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMillerLoopTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
+	res, err := bw6761.MillerLoopDirect(
+		[]bw6761.G1Affine{p1, p2},
+		[]bw6761.G2Affine{q1, q2},
+	)
+	assert.NoError(err)
+	witness := MillerLoopCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type FinalExponentiationCircuit struct {
 	InGt GTEl
 	Res  GTEl
