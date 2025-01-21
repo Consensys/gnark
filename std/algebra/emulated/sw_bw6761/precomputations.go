@@ -56,6 +56,9 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 			panic("unknown case for loopCounter")
 		}
 	}
+	// i = 0 (case -3)
+	// x₀+1+λ(x₀³-x₀²-x₀) = 0 mod r so accQ = ∞ at the last iteration,
+	// we only compute the tangent.
 	cLines[0][0] = p.tangentCompute(accQ)
 	return cLines
 }
