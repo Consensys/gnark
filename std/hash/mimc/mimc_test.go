@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Consensys Software Inc.
+// Copyright 2020-2025 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package mimc
@@ -84,7 +84,7 @@ func TestMimcAll(t *testing.T) {
 
 }
 
-// stateStoreCircuit checks that SetState works as expected. The circuit, however
+// stateStoreTestCircuit checks that SetState works as expected. The circuit, however
 // does not check the correctness of the hashes returned by the MiMC function
 // as there is another test already testing this property.
 type stateStoreTestCircuit struct {

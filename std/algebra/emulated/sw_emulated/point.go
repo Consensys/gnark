@@ -376,7 +376,8 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	mone := c.baseApi.NewElement(-1)
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
-	xqxp := c.baseApi.Sub(&q.X, &p.X)
+	xpn := c.baseApi.Neg(&p.X)
+	xqxp := c.baseApi.Add(&q.X, xpn)
 	λ1 := c.baseApi.Div(yqyp, xqxp)
 
 	// compute x2 = λ1²-p.x-q.x
@@ -386,7 +387,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	x2xp := c.baseApi.Sub(x2, &p.X)
+	x2xp := c.baseApi.Add(x2, xpn)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
@@ -394,7 +395,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	x3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
 	// compute y3 = -λ2*(x3 - p.x)-p.y
-	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(x3, &p.X)}, {mone, &p.Y}}, []int{1, 1})
+	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Add(x3, xpn)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(x3),
@@ -1564,7 +1565,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// The hint returns u1, u2, v1, v2.
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
-	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 5, _s, c.eigenvalue)
+	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 4, _s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -1574,7 +1575,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 5, _s, c.eigenvalue)
+	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 4, _s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}

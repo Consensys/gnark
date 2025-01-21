@@ -29,7 +29,7 @@ func SetOutput(w io.Writer) {
 	logger = logger.Output(w)
 }
 
-// Set allow a gnark user to overhide the global logger
+// Set allows a gnark user to overhide the global logger
 func Set(l zerolog.Logger) {
 	logger = l
 }

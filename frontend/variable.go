@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Consensys Software Inc.
+// Copyright 2020-2025 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package frontend
@@ -13,7 +13,7 @@ import (
 type Variable interface{}
 
 // IsCanonical returns true if the Variable has been normalized in a (internal) LinearExpression
-// by one of the constraint system builder. In other words, if the Variable is a circuit input OR
+// by one of the constraint system builders. In other words, if the Variable is a circuit input OR
 // returned by the API.
 func IsCanonical(v Variable) bool {
 	switch v.(type) {
