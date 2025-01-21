@@ -61,14 +61,10 @@ func GetRegisteredHints() []Hint {
 	return ret
 }
 
-func cloneMap[K comparable, V any](src map[K]V) map[K]V {
-	return maps.Clone(src)
-}
-
 func cloneHintRegistry() map[HintID]Hint {
 	registryM.Lock()
 	defer registryM.Unlock()
-	return cloneMap(registry)
+	return maps.Clone(registry)
 }
 
 // InvZeroHint computes the value 1/a for the single input a. If a == 0, returns 0.
