@@ -14,7 +14,9 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/mpcsetup"
+	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"math/big"
+	"sync"
 )
 
 // SrsCommons are the circuit-independent components of the Groth16 SRS,
@@ -142,8 +144,10 @@ func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
 // WARNING: the last contribution object will be modified
 func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, error) {
 	prev := NewPhase1(N)
+	wp := gcUtils.NewWorkerPool()
+	defer wp.Stop()
 	for i := range c {
-		if err := prev.Verify(c[i]); err != nil {
+		if err := prev.Verify(c[i], WithWorkerPool(wp)); err != nil {
 			return SrsCommons{}, err
 		}
 		prev = c[i]
@@ -152,7 +156,7 @@ func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, e
 }
 
 // Verify assumes previous is correct
-func (p *Phase1) Verify(next *Phase1) error {
+func (p *Phase1) Verify(next *Phase1, options ...verificationOption) error {
 
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
@@ -182,11 +186,39 @@ func (p *Phase1) Verify(next *Phase1) error {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
 	}
 
-	if !areInSubGroupG1(next.parameters.G1.Tau[2:]) || !areInSubGroupG1(next.parameters.G1.BetaTau[1:]) || !areInSubGroupG1(next.parameters.G1.AlphaTau[1:]) {
-		return errors.New("derived values 𝔾₁ subgroup check failed")
+	// check subgroup membership
+	var settings verificationSettings
+	for _, opt := range options {
+		opt(&settings)
 	}
-	if !areInSubGroupG2(next.parameters.G2.Tau[2:]) {
-		return errors.New("derived values 𝔾₂ subgroup check failed")
+	wp := settings.wp
+	if wp == nil {
+		wp = gcUtils.NewWorkerPool()
+		defer wp.Stop()
+	}
+
+	var (
+		err error
+		wg  [4]*sync.WaitGroup
+	)
+	wg[0] = areInSubGroupG1(wp, next.parameters.G1.Tau[2:], func(i int) {
+		err = fmt.Errorf("[τ^%d]₁ representation not in subgroup", i+2)
+	})
+	wg[1] = areInSubGroupG1(wp, next.parameters.G1.AlphaTau[1:], func(i int) {
+		err = fmt.Errorf("[ατ^%d]₁ representation not in subgroup", i+1)
+	})
+	wg[2] = areInSubGroupG1(wp, next.parameters.G1.BetaTau[1:], func(i int) {
+		err = fmt.Errorf("[βτ^%d]₁ representation not in subgroup", i+1)
+	})
+	wg[3] = areInSubGroupG2(wp, next.parameters.G2.Tau[2:], func(i int) {
+		err = fmt.Errorf("[τ^%d]₂ representation not in subgroup", i+2)
+	})
+
+	for _, wg := range wg {
+		wg.Wait()
+	}
+	if err != nil {
+		return err
 	}
 
 	return mpcsetup.SameRatioMany(

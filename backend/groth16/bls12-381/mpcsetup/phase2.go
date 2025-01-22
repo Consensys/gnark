@@ -13,6 +13,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/mpcsetup"
+	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
@@ -20,6 +21,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"slices"
+	"sync"
 )
 
 // Phase2Evaluations components of the circuit keys
@@ -59,7 +61,7 @@ type Phase2 struct {
 	Challenge []byte
 }
 
-func (p *Phase2) Verify(next *Phase2) error {
+func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
 		return errors.New("the challenge does not match the previous contribution's hash")
@@ -73,14 +75,41 @@ func (p *Phase2) Verify(next *Phase2) error {
 		return errors.New("contribution size mismatch")
 	}
 
+	// check subgroup membership
+	var settings verificationSettings
+	for _, opt := range options {
+		opt(&settings)
+	}
+	wp := settings.wp
+	if wp == nil {
+		wp = gcUtils.NewWorkerPool()
+		defer wp.Stop()
+	}
+
+	var err error
+	subGroupErrorReporterNoOffset := func(format string) func(int) {
+		return func(i int) {
+			err = fmt.Errorf(format+" representation not in subgroup", i)
+		}
+	}
+
+	wg := make([]*sync.WaitGroup, 2+len(p.Sigmas))
+	wg[0] = areInSubGroupG1(wp, next.Parameters.G1.Z, subGroupErrorReporterNoOffset("[Z[%d]]₁"))
+	wg[1] = areInSubGroupG1(wp, next.Parameters.G1.PKK, subGroupErrorReporterNoOffset("[PKK[%d]]₁"))
+	for i := range p.Sigmas {
+		wg[2+i] = areInSubGroupG1(wp, next.Parameters.G1.SigmaCKK[i], subGroupErrorReporterNoOffset("[σCKK[%d]]₁ (commitment proving key)"))
+	}
+	for _, wg := range wg {
+		wg.Wait()
+	}
+	if err != nil {
+		return err
+	}
+
 	// verify proof of knowledge of contributions to the σᵢ
 	// and the correctness of updates to Parameters.G2.Sigma[i] and the Parameters.G1.SigmaCKK[i]
 	for i := range p.Sigmas { // match the first commitment basis elem against the contribution commitment
-		if !areInSubGroupG1(next.Parameters.G1.SigmaCKK[i]) {
-			return errors.New("commitment proving key subgroup check failed")
-		}
-
-		if err := next.Sigmas[i].Verify(challenge, 2+byte(i),
+		if err = next.Sigmas[i].Verify(challenge, 2+byte(i),
 			mpcsetup.ValueUpdate{Previous: p.Parameters.G1.SigmaCKK[i], Next: next.Parameters.G1.SigmaCKK[i]},
 			mpcsetup.ValueUpdate{Previous: &p.Parameters.G2.Sigma[i], Next: &next.Parameters.G2.Sigma[i]}); err != nil {
 			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
@@ -89,11 +118,7 @@ func (p *Phase2) Verify(next *Phase2) error {
 
 	// verify proof of knowledge of contribution to δ
 	// and the correctness of updates to Parameters.Gi.Delta, PKK[i], and Z[i]
-	if !areInSubGroupG1(next.Parameters.G1.Z) || !areInSubGroupG1(next.Parameters.G1.PKK) {
-		return errors.New("derived values 𝔾₁ subgroup check failed")
-	}
-
-	if err := next.Delta.Verify(challenge, 1, []mpcsetup.ValueUpdate{
+	if err = next.Delta.Verify(challenge, 1, []mpcsetup.ValueUpdate{
 		{Previous: &p.Parameters.G1.Delta, Next: &next.Parameters.G1.Delta},
 		{Previous: &p.Parameters.G2.Delta, Next: &next.Parameters.G2.Delta},
 		{Previous: next.Parameters.G1.Z, Next: p.Parameters.G1.Z}, // since these have δ in their denominator, we will do it "backwards"
@@ -326,8 +351,10 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c ...*Phase2) (groth16.ProvingKey, groth16.VerifyingKey, error) {
 	prev := new(Phase2)
 	evals := prev.Initialize(r1cs, commons)
+	wp := gcUtils.NewWorkerPool()
+	defer wp.Stop()
 	for i := range c {
-		if err := prev.Verify(c[i]); err != nil {
+		if err := prev.Verify(c[i], WithWorkerPool(wp)); err != nil {
 			return nil, nil, err
 		}
 		prev = c[i]
