@@ -1,4 +1,4 @@
-package poseidon
+package poseidon2
 
 import (
 	"errors"
@@ -38,7 +38,7 @@ type parameters struct {
 	// number of partial rounds
 	rP int
 
-	// diagonal elements of the internal matrices, minus one
+	// diagonal elements of the internal matrices, excluding one
 	diagInternalMatrices []big.Int
 
 	// round keys
@@ -116,28 +116,36 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 
 // sBox applies the sBox on buffer[index]
 func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
-	tmp := input[index]
-	if h.params.d == 3 {
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(tmp, input[index])
-	} else if h.params.d == 5 {
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], tmp)
-	} else if h.params.d == 7 {
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], tmp)
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], tmp)
-	} else if h.params.d == 17 {
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], input[index])
-		input[index] = api.Mul(input[index], tmp)
-	} else if h.params.d == -1 {
-		input[index] = api.Inverse(input[index])
+	input[index] = power(api, input[index], h.params.d)
+}
+
+func power(api frontend.API, x frontend.Variable, n int) frontend.Variable {
+	tmp := x
+	switch n {
+	case 3:
+		x = api.Mul(x, x)
+		x = api.Mul(tmp, x)
+	case 5:
+		x = api.Mul(x, x)
+		x = api.Mul(x, x)
+		x = api.Mul(x, tmp)
+	case 7:
+		x = api.Mul(x, x)
+		x = api.Mul(x, tmp)
+		x = api.Mul(x, x)
+		x = api.Mul(x, tmp)
+	case 17:
+		x = api.Mul(x, x)
+		x = api.Mul(x, x)
+		x = api.Mul(x, x)
+		x = api.Mul(x, x)
+		x = api.Mul(x, tmp)
+	case -1:
+		x = api.Inverse(x)
+	default:
+		panic("unknown sBox degree")
 	}
+	return x
 }
 
 // matMulM4 computes
@@ -211,7 +219,7 @@ func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable
 	}
 }
 
-// when t=2,3 the matrix are respectibely [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
+// when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
 	if h.params.t == 2 {
