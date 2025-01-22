@@ -22,15 +22,12 @@ func bitReverse[T any](a []T) {
 
 // Returns [1, a, a², ..., aᴺ⁻¹ ]
 func powers(a *fr.Element, N int) []fr.Element {
-
+	if N == 0 {
+		return nil
+	}
 	result := make([]fr.Element, N)
-	if N >= 1 {
-		result[0].SetOne()
-	}
-	if N >= 2 {
-		result[1].Set(a)
-	}
-	for i := 2; i < N; i++ {
+	result[0].SetOne()
+	for i := 1; i < N; i++ {
 		result[i].Mul(&result[i-1], a)
 	}
 	return result
