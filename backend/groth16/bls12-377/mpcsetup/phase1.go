@@ -197,28 +197,29 @@ func (p *Phase1) Verify(next *Phase1, options ...verificationOption) error {
 		defer wp.Stop()
 	}
 
-	var (
-		err error
-		wg  [4]*sync.WaitGroup
-	)
+	var wg [4]*sync.WaitGroup
+	subGroupCheckErrors := make(chan error, 4)
 	wg[0] = areInSubGroupG1(wp, next.parameters.G1.Tau[2:], func(i int) {
-		err = fmt.Errorf("[τ^%d]₁ representation not in subgroup", i+2)
+		subGroupCheckErrors <- fmt.Errorf("[τ^%d]₁ representation not in subgroup", i+2)
 	})
 	wg[1] = areInSubGroupG1(wp, next.parameters.G1.AlphaTau[1:], func(i int) {
-		err = fmt.Errorf("[ατ^%d]₁ representation not in subgroup", i+1)
+		subGroupCheckErrors <- fmt.Errorf("[ατ^%d]₁ representation not in subgroup", i+1)
 	})
 	wg[2] = areInSubGroupG1(wp, next.parameters.G1.BetaTau[1:], func(i int) {
-		err = fmt.Errorf("[βτ^%d]₁ representation not in subgroup", i+1)
+		subGroupCheckErrors <- fmt.Errorf("[βτ^%d]₁ representation not in subgroup", i+1)
 	})
 	wg[3] = areInSubGroupG2(wp, next.parameters.G2.Tau[2:], func(i int) {
-		err = fmt.Errorf("[τ^%d]₂ representation not in subgroup", i+2)
+		subGroupCheckErrors <- fmt.Errorf("[τ^%d]₂ representation not in subgroup", i+2)
 	})
 
 	for _, wg := range wg {
 		wg.Wait()
 	}
-	if err != nil {
-		return err
+	close(subGroupCheckErrors)
+	for err := range subGroupCheckErrors {
+		if err != nil {
+			return err
+		}
 	}
 
 	return mpcsetup.SameRatioMany(
