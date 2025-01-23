@@ -334,7 +334,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	return ret, nil
 }
 
-// ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
+// ValueOfVerifyingKeyFixed initializes witness from the given Groth16 verifying key.
 // It returns an error if there is a mismatch between the type parameters and
 // the provided native verifying key.
 func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl], error) {

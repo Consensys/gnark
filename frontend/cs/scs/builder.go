@@ -372,7 +372,7 @@ func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, 
 
 }
 
-// returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
+// returns in split into a slice of compiledTerm and the sum of all constants in as a bigInt
 func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
 	var res expr.LinearExpression
 	if len(in) <= cap(builder.bufL) {
@@ -396,7 +396,7 @@ func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearEx
 	return res, b
 }
 
-// returns in split into a slice of compiledTerm and the product of all constants in in as a coeff
+// returns in split into a slice of compiledTerm and the product of all constants in as a coeff
 func (builder *builder) filterConstantProd(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
 	var res expr.LinearExpression
 	if len(in) <= cap(builder.bufL) {

@@ -725,7 +725,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	return r
 }
 
-// callPolyMvHint computes the multivariate evaluation given by mv at at. It
+// callPolyMvHint computes the multivariate evaluation given by mv at. It
 // returns the remainder (reduced result), the quotient and the carries. The
 // computation is performed inside a hint, so it is the callers responsibility to
 // perform the deferred multiplication check.
