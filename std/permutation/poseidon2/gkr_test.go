@@ -60,7 +60,6 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 
 	for i := range halfRf {
 		fullRound(i)
-		//api.Println("x after round", i, "sBox", x)
 	}
 
 	{ // i = halfRf: first partial round
@@ -75,7 +74,6 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 			d:        c.h.params.d,
 		}
 		x, y = x1, gate.Evaluate(api, x, y)
-		//api.Println("x after round", halfRf, "sBox", x)
 	}
 
 	for i := halfRf + 1; i < halfRf+c.h.params.rP; i++ {
@@ -90,7 +88,6 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 			d:        c.h.params.d,
 		}
 		x, y = x1, gate.Evaluate(api, x, y)
-		api.Println("y after round", i, "sBox", y)
 	}
 
 	{
@@ -106,14 +103,10 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 			d:        c.h.params.d,
 		}
 		x, y = x1, gate.Evaluate(api, x, y)
-		api.Println("x after round", i, "sBox", x)
-		api.Println("y after round", i, "sBox", y)
 	}
 
 	for i := halfRf + c.h.params.rP + 1; i < c.h.params.rP+c.h.params.rF; i++ {
 		fullRound(i)
-		api.Println("x after round", i, "sBox", x)
-		api.Println("y after round", i, "sBox", y)
 	}
 
 	x = extGate{}.Evaluate(api, x, y)

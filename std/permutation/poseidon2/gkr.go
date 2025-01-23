@@ -138,27 +138,6 @@ func (g *intKeySBoxGate2) Degree() int {
 	return g.d
 }
 
-// extKeySBoxGate applies the external matrix mul, then adds the round key, then applies the sBox, then applies the first row of the external matrix mul
-// because of its symmetry, we don't need to define distinct x1 and x2 versions of it
-type extKeySBoxExtGate struct {
-	roundKey [2]*big.Int
-	d        int
-}
-
-func (g *extKeySBoxExtGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("expected 2 inputs")
-	}
-	y0 := power(api, api.Add(api.Mul(x[0], 2), x[1], g.roundKey[0]), g.d)
-	y1 := power(api, api.Add(api.Mul(x[1], 2), x[0], g.roundKey[1]), g.d)
-
-	return api.Add(api.Mul(y0, 2), y1)
-}
-
-func (g *extKeySBoxExtGate) Degree() int {
-	return g.d
-}
-
 type extGate struct{}
 
 func (g extGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
