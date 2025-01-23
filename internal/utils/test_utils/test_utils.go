@@ -4,23 +4,8 @@ import (
 	"bytes"
 	"github.com/stretchr/testify/require"
 	"io"
-	"log"
 	"testing"
 )
-
-var ConditionalLoggerEnabled bool
-
-func ConditionalLog(v ...any) {
-	if ConditionalLoggerEnabled {
-		log.Println(v...)
-	}
-}
-
-func ConditionalLogf(format string, v ...any) {
-	if ConditionalLoggerEnabled {
-		log.Printf(format, v...)
-	}
-}
 
 // Range (n, startingPoints...) = [startingPoints[0], startingPoints[0]+1, ..., startingPoints[0]+n-1, startingPoints[1], startingPoints[1]+1, ...,]
 // or [0, 1, ..., n-1] if startingPoints is empty
