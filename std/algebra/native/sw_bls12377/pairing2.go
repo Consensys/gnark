@@ -313,21 +313,11 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := MillerLoop(p.api, inP, inQ)
+	err := PairingCheck(p.api, inP, inQ)
 	if err != nil {
 		return err
 	}
-	// We perform the easy part of the final exp to push res to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// res = res^(p⁶-1)(p²+1)
-	var buf GT
-	buf.Conjugate(p.api, res)
-	buf.DivUnchecked(p.api, buf, res)
-	res.FrobeniusSquare(p.api, buf).Mul(p.api, res, buf)
 
-	res.AssertFinalExponentiationIsOne(p.api)
 	return nil
 }
 
