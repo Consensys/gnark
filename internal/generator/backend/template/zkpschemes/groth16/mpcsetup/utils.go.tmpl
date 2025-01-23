@@ -36,10 +36,6 @@ func powers(a *fr.Element, N int) []fr.Element {
 // Returns [aᵢAᵢ, ...]∈𝔾₁
 // it assumes len(A) ≤ len(a)
 func scaleG1InPlace(A []curve.G1Affine, a []fr.Element) {
-	/*if a[0].IsOne() {
-		A = A[1:]
-		a = a[1:]
-	}*/
 	utils.Parallelize(len(A), func(start, end int) {
 		var tmp big.Int
 		for i := start; i < end; i++ {
@@ -52,10 +48,6 @@ func scaleG1InPlace(A []curve.G1Affine, a []fr.Element) {
 // Returns [aᵢAᵢ, ...]∈𝔾₂
 // it assumes len(A) ≤ len(a)
 func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
-	/*if a[0].IsOne() {
-		A = A[1:]
-		a = a[1:]
-	}*/
 	utils.Parallelize(len(A), func(start, end int) {
 		var tmp big.Int
 		for i := start; i < end; i++ {
