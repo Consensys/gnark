@@ -1,10 +1,13 @@
 <a name="v0.12.0"></a>
-## [v0.12.0] - 2025-01-21
+## [v0.12.0] - 2025-01-23
 ### Build
 - modify workflows for new CI slack bot ([#1277](https://github.com/Consensys/gnark/issues/1277))
 - **deps:** bump golang.org/x/crypto from 0.26.0 to 0.31.0 ([#1346](https://github.com/Consensys/gnark/issues/1346))
 
 ### Chore
+- use max builtin
+- go mod update
+- generate changelog
 - update citation
 - update hardcoded version
 - fix some struct names in comment ([#1370](https://github.com/Consensys/gnark/issues/1370))
@@ -42,6 +45,8 @@
 - **bls12-381:** pairing using direct Fp12 + non-native `Eval()` ([#1349](https://github.com/Consensys/gnark/issues/1349))
 
 ### Fix
+- stashed typo fixes for v0.12 ([#1398](https://github.com/Consensys/gnark/issues/1398))
+- add G2 membership check for constant points ([#1397](https://github.com/Consensys/gnark/issues/1397))
 - do not return unused sign ([#1385](https://github.com/Consensys/gnark/issues/1385))
 - typos in documentation files ([#1369](https://github.com/Consensys/gnark/issues/1369))
 - spellchecker  ([#1359](https://github.com/Consensys/gnark/issues/1359))
@@ -59,6 +64,7 @@
 - avoid div in millerLoopAndFinalExpResult ([#1363](https://github.com/Consensys/gnark/issues/1363))
 
 ### Perf
+- `PairingCheck` for BN254, BLS12-381, BLS12-377 and BW6-761 ([#1365](https://github.com/Consensys/gnark/issues/1365))
 - G1/2 membership using Eval ([#1356](https://github.com/Consensys/gnark/issues/1356))
 - using non-native Eval for curve arithmetic ([#1331](https://github.com/Consensys/gnark/issues/1331))
 - normalize the random linear combination in logderivarg ([#1333](https://github.com/Consensys/gnark/issues/1333))
