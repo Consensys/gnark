@@ -28,7 +28,7 @@ func testAll(t *testing.T, nbContributionsPhase1, nbContributionsPhase2 int) {
 	assert := require.New(t)
 
 	// Compile the circuit
-	ccs := getTestCircuit(t)
+	ccs := getTestCircuit()
 
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
@@ -183,12 +183,16 @@ func assignCircuit() frontend.Circuit {
 
 }
 
-func getTestCircuit(t *testing.T) *cs.R1CS {
-	return sync.OnceValue(func() *cs.R1CS {
-		ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &Circuit{})
-		require.NoError(t, err)
-		return ccs.(*cs.R1CS)
-	})()
+var onceCircuit = sync.OnceValue(func() *cs.R1CS {
+	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &Circuit{})
+	if err != nil {
+		panic(err)
+	}
+	return ccs.(*cs.R1CS)
+})
+
+func getTestCircuit() *cs.R1CS {
+	return onceCircuit()
 }
 
 func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.VerifyingKey) {
@@ -200,7 +204,7 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 	require.NoError(t, err)
 
 	// groth16: ensure proof is verified
-	proof, err := groth16.Prove(getTestCircuit(t), pk, witness)
+	proof, err := groth16.Prove(getTestCircuit(), pk, witness)
 	require.NoError(t, err)
 
 	err = groth16.Verify(proof, vk, pubWitness)

@@ -25,7 +25,7 @@ import (
 func TestSetupBeaconOnly(t *testing.T) {
 
 	// Compile the circuit
-	ccs := getTestCircuit(t)
+	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
 	var (
@@ -135,7 +135,7 @@ func TestPowers(t *testing.T) {
 func TestCommons(t *testing.T) {
 
 	// Compile the circuit
-	ccs := getTestCircuit(t)
+	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
 
 	var p1 Phase1
@@ -176,7 +176,7 @@ func assertPairingsEqual(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine, q1 
 }
 
 func TestPedersen(t *testing.T) {
-	cs := getTestCircuit(t)
+	cs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(cs.GetNbConstraints()))
 
 	commons := commonsSmallValues(domainSize, 2, 3, 4)
@@ -213,7 +213,7 @@ func TestPhase2Serialization(t *testing.T) {
 	require.NoError(t, err)
 	testRoundtrip(_cs)
 
-	testRoundtrip(getTestCircuit(t))
+	testRoundtrip(getTestCircuit())
 }
 
 type tinyCircuit struct {
