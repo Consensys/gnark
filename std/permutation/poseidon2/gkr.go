@@ -64,21 +64,110 @@ func (h *Hash) hash(curve ecc.ID) []byte {
 	return hasher.Sum(nil)
 }
 
-// extRoundSBox applies the external matrix mul, then adds the round key, then applies the sBox
-type extRoundSBox struct {
+// extKeySBoxGate applies the external matrix mul, then adds the round key, then applies the sBox
+// because of its symmetry, we don't need to define distinct x1 and x2 versions of it
+type extKeySBoxGate struct {
 	roundKey *big.Int
 	d        int
 }
 
-func (g *extRoundSBox) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func (g *extKeySBoxGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
-	//y := api.Add(api.Mul(x[0], 2), x[1], g.roundKey)
-	//return sBox(api, g.d)
-	return nil
+	return power(api, api.Add(api.Mul(x[0], 2), x[1], g.roundKey), g.d)
+	//var g gkr.Gate = &extKeyGate2{}
 }
 
-func (g *extRoundSBox) Degree() int {
+func (g *extKeySBoxGate) Degree() int {
 	return g.d
+}
+
+// for x1, the partial round gates are identical to full round gates
+// for x2, the partial round gates are just a linear combination
+// TODO @Tabaie eliminate the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
+
+// extKeyGate2 applies the external matrix mul, then adds the round key
+type extKeyGate2 struct {
+	roundKey *big.Int
+	d        int
+}
+
+func (g *extKeyGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return api.Add(api.Mul(x[1], 2), x[0], g.roundKey)
+}
+
+func (g *extKeyGate2) Degree() int {
+	return 1
+}
+
+// intKeyGate2 applies the internal matrix mul, then adds the round key
+type intKeyGate2 struct {
+	roundKey *big.Int
+	d        int
+}
+
+func (g *intKeyGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return api.Add(api.Mul(x[1], 3), x[0], g.roundKey)
+}
+
+func (g *intKeyGate2) Degree() int {
+	return 1
+}
+
+// intKeySBoxGate applies the second row of internal matrix mul, then adds the round key, then applies the sBox
+type intKeySBoxGate2 struct {
+	roundKey *big.Int
+	d        int
+}
+
+func (g *intKeySBoxGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return power(api, api.Add(api.Mul(x[1], 3), x[0], g.roundKey), g.d)
+}
+
+func (g *intKeySBoxGate2) Degree() int {
+	return g.d
+}
+
+// extKeySBoxGate applies the external matrix mul, then adds the round key, then applies the sBox, then applies the first row of the external matrix mul
+// because of its symmetry, we don't need to define distinct x1 and x2 versions of it
+type extKeySBoxExtGate struct {
+	roundKey [2]*big.Int
+	d        int
+}
+
+func (g *extKeySBoxExtGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	y0 := power(api, api.Add(api.Mul(x[0], 2), x[1], g.roundKey[0]), g.d)
+	y1 := power(api, api.Add(api.Mul(x[1], 2), x[0], g.roundKey[1]), g.d)
+
+	return api.Add(api.Mul(y0, 2), y1)
+}
+
+func (g *extKeySBoxExtGate) Degree() int {
+	return g.d
+}
+
+type extGate struct{}
+
+func (g extGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return api.Add(api.Mul(x[0], 2), x[1])
+}
+
+func (g extGate) Degree() int {
+	return 1
 }

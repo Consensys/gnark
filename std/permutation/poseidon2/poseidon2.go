@@ -41,7 +41,7 @@ type parameters struct {
 	// diagonal elements of the internal matrices, excluding one
 	diagInternalMatrices []big.Int
 
-	// round keys
+	// round keys: ordered by round then variable
 	roundKeys [][]big.Int
 }
 
