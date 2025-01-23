@@ -18,7 +18,10 @@ import (
 // No randomization is performed at this step.
 // A verifier should simply re-run this and check
 // that it produces the same values.
-// The inner workings of the random beacon are out of scope.
+// beaconChallenge is a random beacon of moderate entropy evaluated at a time later than the latest contribution.
+// It seeds a final "contribution" to the protocol, reproducible by any verifier.
+// For more information on random beacons, refer to https://a16zcrypto.com/posts/article/public-randomness-and-randomness-beacons/
+// Organizations such as the League of Entropy (https://leagueofentropy.com/) provide such beacons. THIS IS NOT A RECOMMENDATION OR ENDORSEMENT.
 // WARNING: Seal modifies p, just as Contribute does.
 // The result will be an INVALID Phase1 object, since no proof of correctness is produced.
 func (p *Phase2) Seal(commons *SrsCommons, evals *Phase2Evaluations, beaconChallenge []byte) (groth16.ProvingKey, groth16.VerifyingKey) {
