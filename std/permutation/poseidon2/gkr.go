@@ -76,7 +76,6 @@ func (g *extKeySBoxGate) Evaluate(api frontend.API, x ...frontend.Variable) fron
 		panic("expected 2 inputs")
 	}
 	return power(api, api.Add(api.Mul(x[0], 2), x[1], g.roundKey), g.d)
-	//var g gkr.Gate = &extKeyGate2{}
 }
 
 func (g *extKeySBoxGate) Degree() int {

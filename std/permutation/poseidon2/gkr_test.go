@@ -109,13 +109,30 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 		fullRound(i)
 	}
 
-	x = extGate{}.Evaluate(api, x, y)
+	y = extGate{}.Evaluate(api, y, x)
 
 	xCp := c.In
 	if err := c.h.Permutation(api, xCp[:]); err != nil {
 		return err
 	}
 
-	api.AssertIsEqual(xCp[0], x)
+	api.AssertIsEqual(xCp[1], y) // as a compression function, the output is the second one
+	api.Println(y)
+	return nil
+}
+
+func TestGkrPermutation(t *testing.T) {
+
+}
+
+type testGkrPermutationCircuit struct {
+	Ins  [][2]frontend.Variable
+	Outs []frontend.Variable
+}
+
+func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
+	//_gkr := gkr.NewApi()
+	//_gkr.
+
 	return nil
 }

@@ -270,6 +270,7 @@ func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 		for j := 0; j < h.params.t; j++ {
 			h.sBox(api, j, input)
 		}
+		api.Println("x after sbox at round", i, ":", input[0])
 		h.matMulExternalInPlace(api, input)
 	}
 
@@ -277,6 +278,7 @@ func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 		// one round = matMulInternal(sBox_sparse(addRoundKey))
 		h.addRoundKeyInPlace(api, i, input)
 		h.sBox(api, 0, input)
+		api.Println("x after sbox at round", i, ":", input[0])
 		h.matMulInternalInPlace(api, input)
 	}
 	for i := rf + h.params.rP; i < h.params.rF+h.params.rP; i++ {
@@ -285,6 +287,7 @@ func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 		for j := 0; j < h.params.t; j++ {
 			h.sBox(api, j, input)
 		}
+		api.Println("x after sbox at round", i, ":", input[0])
 		h.matMulExternalInPlace(api, input)
 	}
 
