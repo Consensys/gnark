@@ -13,7 +13,6 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
@@ -367,6 +366,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -394,6 +394,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -421,6 +422,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -448,6 +450,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -475,6 +478,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -630,7 +634,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 	maxNbPublicCommitted := 0
 	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
-		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+		maxNbPublicCommitted = max(maxNbPublicCommitted, len(s))
 	}
 
 	commitmentAuxData := make([]*emulated.Element[FR], len(vk.PublicAndCommitmentCommitted))

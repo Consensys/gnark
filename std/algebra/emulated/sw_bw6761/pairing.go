@@ -19,10 +19,10 @@ type Pairing struct {
 	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g1     *G1
 	g2     *G2
-	g2gen  *G2Affine
 }
 
 type GTEl = fields_bw6761.E6
+type baseEl = emulated.Element[BaseField]
 
 func NewGTEl(v bw6761.GT) GTEl {
 	return GTEl{
@@ -60,15 +60,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		g1:     g1,
 		g2:     g2,
 	}, nil
-}
-
-func (pr Pairing) generators() *G2Affine {
-	if pr.g2gen == nil {
-		_, _, _, g2gen := bw6761.Generators()
-		cg2gen := NewG2AffineFixed(g2gen)
-		pr.g2gen = &cg2gen
-	}
-	return pr.g2gen
 }
 
 // FinalExponentiation computes the exponentiation zᵈ where
@@ -124,6 +115,41 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	return result
 }
 
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
+	res, err := pr.curveF.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := GTEl{
+		A0: *res[0],
+		A1: *res[1],
+		A2: *res[2],
+		A3: *res[3],
+		A4: *res[4],
+		A5: *res[5],
+	}
+
+	// Check that x == residueWitness^Λ
+	// where Λ = x₀+1+p(x₀^3-x₀^2-x₀) and residueWitness from the hint.
+
+	// exponentiation by U1=x₀^3-x₀^2-x₀
+	t0 := pr.Ext6.ExpByU1(&residueWitness)
+	t0 = pr.Ext6.Frobenius(t0)
+	// exponentiation by U2=x₀+1
+	t1 := pr.Ext6.ExpByU2(&residueWitness)
+	t0 = pr.Ext6.Mul(t0, t1)
+
+	pr.AssertIsEqual(t0, x)
+}
+
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
@@ -141,22 +167,58 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.MillerLoop(P, Q)
-	if err != nil {
-		return err
-
+	// check input size match
+	nP := len(P)
+	nQ := len(Q)
+	if nP == 0 || nP != nQ {
+		return errors.New("invalid inputs sizes")
 	}
-	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
-	// cyclotomic squaring (e.g. Karabina12345).
-	//
-	// f = f^(p³-1)(p+1)
-	buf := pr.Conjugate(f)
-	buf = pr.DivUnchecked(buf, f)
-	f = pr.Frobenius(buf)
-	f = pr.Mul(f, buf)
+	// hint the non-residue witness
+	inputs := make([]*baseEl, 0, 2*nP+2*nQ)
+	for _, p := range P {
+		inputs = append(inputs, &p.X, &p.Y)
+	}
+	for _, q := range Q {
+		inputs = append(inputs, &q.P.X, &q.P.Y)
+	}
+	hint, err := pr.curveF.NewHint(pairingCheckHint, 6, inputs...)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	pr.AssertFinalExponentiationIsOne(f)
+	residueWitnessInv := &GTEl{
+		A0: *hint[0],
+		A1: *hint[1],
+		A2: *hint[2],
+		A3: *hint[3],
+		A4: *hint[4],
+		A5: *hint[5],
+	}
+
+	lines := make([]lineEvaluations, len(Q))
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+
+	res, err := pr.millerLoopLines(P, lines, residueWitnessInv, false)
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
+	}
+
+	// Check that: MillerLoop(P,Q) == residueWitness^Λ
+	// where Λ = x₀+1+p(x₀³-x₀²-x₀) and residueWitness from the hint.
+	//
+	// Note that at this point:
+	// 		result = MillerLoop(P,Q) * residueWitnessInv^{x₀+1+p(x₀³-x₀²-x₀)}
+	// since we initialized the Miller loop accumulator with residueWitnessInv^{p}.
+	// So we only need to check that:
+	// 		result == 1.
+	pr.AssertIsEqual(res, pr.Ext6.One())
 
 	return nil
 }
@@ -274,12 +336,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 		lines[i] = *Q[i].Lines
 	}
-	return pr.millerLoopLines(P, lines)
+	return pr.millerLoopLines(P, lines, nil, true)
 
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
+func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -288,8 +350,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[BaseField], n)
-	xNegOverY := make([]*emulated.Element[BaseField], n)
+	yInv := make([]*baseEl, n)
+	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.
@@ -300,53 +362,73 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
-	var prodLines [5]*emulated.Element[BaseField]
+	// Compute f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P)
+	var prodLines [5]*baseEl
 	result := pr.Ext6.One()
 
-	// i = 188
-	// k = 0
-	result = &fields_bw6761.E6{
-		A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
-		A1: result.A1,
-		A2: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
-		A3: *pr.curveF.One(),
-		A4: result.A4,
-		A5: result.A5,
+	var initInv, frobInit, frobInitInv GTEl
+	if init != nil {
+		initInv = *pr.Ext6.Inverse(init)
+		frobInit = *pr.Ext6.Frobenius(init)
+		frobInitInv = *pr.Ext6.Frobenius(&initInv)
+		result = &frobInit
 	}
 
-	if n >= 2 {
-		// k = 1, separately to avoid MulBy023 (res × ℓ)
-		// (res is also a line at this point, so we use Mul023By023 ℓ × ℓ)
-		prodLines = pr.Mul023By023(
-			pr.curveF.Mul(&lines[1][0][188].R1, yInv[1]),
-			pr.curveF.Mul(&lines[1][0][188].R0, xNegOverY[1]),
-			&result.A0,
-			&result.A2,
-		)
-		result = &fields_bw6761.E6{
-			A0: *prodLines[0],
+	j := len(loopCounter2) - 2
+	if first {
+		// i = j
+		// k = 0
+		result = &GTEl{
+			A0: *pr.curveF.Mul(&lines[0][0][j].R1, yInv[0]),
 			A1: result.A1,
-			A2: *prodLines[1],
-			A3: *prodLines[2],
-			A4: *prodLines[3],
-			A5: *prodLines[4],
+			A2: *pr.curveF.Mul(&lines[0][0][j].R0, xNegOverY[0]),
+			A3: *pr.curveF.One(),
+			A4: result.A4,
+			A5: result.A5,
 		}
+
+		if n >= 2 {
+			// k = 1, separately to avoid MulBy023 (res × ℓ)
+			// (res is also a line at this point, so we use Mul023By023 ℓ × ℓ)
+			prodLines = pr.Mul023By023(
+				pr.curveF.Mul(&lines[1][0][j].R1, yInv[1]),
+				pr.curveF.Mul(&lines[1][0][j].R0, xNegOverY[1]),
+				&result.A0,
+				&result.A2,
+			)
+			result = &GTEl{
+				A0: *prodLines[0],
+				A1: result.A1,
+				A2: *prodLines[1],
+				A3: *prodLines[2],
+				A4: *prodLines[3],
+				A5: *prodLines[4],
+			}
+		}
+
+		for k := 2; k < n; k++ {
+			result = pr.MulBy023(result,
+				pr.curveF.Mul(&lines[k][0][j].R1, yInv[k]),
+				pr.curveF.Mul(&lines[k][0][j].R0, xNegOverY[k]),
+			)
+		}
+		j--
 	}
 
-	for k := 2; k < n; k++ {
-		result = pr.MulBy023(result,
-			pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
-			pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
-		)
-	}
-
-	for i := 187; i >= 0; i-- {
+	for i := j; i > 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
-		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
+		j := loopCounter1[i] + 3*loopCounter2[i]
+		switch j {
+		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
+		case -3:
+			if init != nil {
+				// mul by frobInitInv to capture -1's in x₀³-x₀²-x₀
+				result = pr.Ext6.Mul(result, &frobInitInv)
+			}
+			// mul by tangent and line
 			for k := 0; k < n; k++ {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -356,17 +438,23 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 				)
 				result = pr.MulBy02345(result, prodLines)
 			}
-		} else {
-			// if number of lines is odd, mul last line by res
-			// works for n=1 as well
-			if n%2 != 0 {
-				// ℓ × res
-				result = pr.MulBy023(result,
-					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
-					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
-				)
+		case -1:
+			if init != nil {
+				// mul by initInv to capture -1's in x₀+1
+				result = pr.Ext6.Mul(result, &initInv)
 			}
-			// mul lines 2-by-2
+			// mul by tangent and line
+			for k := 0; k < n; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case 0:
+			// mul tangents 2-by-2 and then by accumulator
 			for k := 1; k < n; k += 2 {
 				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
@@ -376,7 +464,75 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 				)
 				result = pr.MulBy02345(result, prodLines)
 			}
+			// if number of tangents is odd, mul last line by res
+			// works for n=1 as well
+			if n%2 != 0 {
+				// ℓ × res
+				result = pr.MulBy023(result,
+					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
+					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
+				)
+			}
+		case 1:
+			if init != nil {
+				// mul by init to capture 1's in x₀+1
+				result = pr.Ext6.Mul(result, init)
+			}
+			// mul by line and tangent
+			for k := 0; k < n; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		case 3:
+			if init != nil {
+				// mul by frobInit to capture 1's in x₀³-x₀²-x₀
+				result = pr.Ext6.Mul(result, &frobInit)
+			}
+			for k := 0; k < n; k++ {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		default:
+			panic("unknown case for loopCounter")
 		}
+	}
+
+	// i = 0 (j = -3)
+	result = pr.Square(result)
+	if init != nil {
+		// mul by frobInitInv to capture -1's in x₀³-x₀²-x₀
+		result = pr.Ext6.Mul(result, &frobInitInv)
+	}
+	// x₀+1+λ(x₀³-x₀²-x₀) = 0 mod r so accQ = ∞ at the last iteration,
+	// we only mul by tangent.
+	// mul tangents 2-by-2 and then by accumulator
+	for k := 1; k < n; k += 2 {
+		prodLines = pr.Mul023By023(
+			pr.curveF.Mul(&lines[k][0][0].R1, yInv[k]),
+			pr.curveF.Mul(&lines[k][0][0].R0, xNegOverY[k]),
+			pr.curveF.Mul(&lines[k-1][0][0].R1, yInv[k-1]),
+			pr.curveF.Mul(&lines[k-1][0][0].R0, xNegOverY[k-1]),
+		)
+		result = pr.MulBy02345(result, prodLines)
+	}
+	// if number of tangents is odd, mul last line by res
+	// works for n=1 as well
+	if n%2 != 0 {
+		// ℓ × res
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[n-1][0][0].R1, yInv[n-1]),
+			pr.curveF.Mul(&lines[n-1][0][0].R0, xNegOverY[n-1]),
+		)
 	}
 
 	return result, nil
@@ -390,6 +546,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
+	mone := pr.curveF.NewElement(-1)
 
 	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
 	var n *emulated.Element[BaseField]
@@ -402,88 +559,32 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 	l1 := pr.curveF.Div(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x3 := pr.curveF.Mul(l1, l1)
-	x3 = pr.curveF.Sub(x3, pr.curveF.Add(&p1.X, &p2.X))
+	x3 := pr.curveF.Eval([][]*baseEl{{l1, l1}, {mone, &p1.X}, {mone, &p2.X}}, []int{1, 1, 1})
 
 	// omit y3 computation
 
 	// compute line1
 	line1.R0 = *l1
-	line1.R1 = *pr.curveF.Mul(l1, &p1.X)
-	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
+	line1.R1 = *pr.curveF.Eval([][]*baseEl{{l1, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
 
-	// compute λ2 = -λ1-2y1/(x3-x1)
-	n = pr.curveF.MulConst(&p1.Y, big.NewInt(2))
-	d = pr.curveF.Sub(&p1.X, x3)
-	l2 := pr.curveF.Div(n, d)
-	l2 = pr.curveF.Sub(l2, l1)
+	// compute -λ2 = λ1+2y1/(x3-x1)
+	ypyp := pr.curveF.MulConst(&p1.Y, big.NewInt(2))
+	x2xp := pr.curveF.Sub(x3, &p1.X)
+	l2 := pr.curveF.Div(ypyp, x2xp)
+	l2 = pr.curveF.Add(l1, l2)
 
-	// compute x4 = λ2²-x1-x3
-	x4 := pr.curveF.Mul(l2, l2)
-	x4 = pr.curveF.Sub(x4, pr.curveF.Add(&p1.X, x3))
+	// compute x4 = (-λ2)²-x1-x3
+	x4 := pr.curveF.Eval([][]*baseEl{{l2, l2}, {mone, &p1.X}, {mone, x3}}, []int{1, 1, 1})
 
-	// compute y4 = λ2(x1 - x4)-y1
-	y4 := pr.curveF.Sub(&p1.X, x4)
-	y4 = pr.curveF.Mul(l2, y4)
-	y4 = pr.curveF.Sub(y4, &p1.Y)
+	// compute y4 = -λ2(-x1 + x4)-y1
+	y4 := pr.curveF.Eval([][]*baseEl{{l2, pr.curveF.Sub(x4, &p1.X)}, {mone, &p1.Y}}, []int{1, 1})
 
 	p.X = *x4
 	p.Y = *y4
 
 	// compute line2
-	line2.R0 = *l2
-	line2.R1 = *pr.curveF.Mul(l2, &p1.X)
-	line2.R1 = *pr.curveF.Sub(&line2.R1, &p1.Y)
-
-	return &p, &line1, &line2
-}
-
-// doubleAndSubStep doubles p1 and subs p2 to the result in affine coordinates, and evaluates the line in Miller loop
-// https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
-
-	var line1, line2 lineEvaluation
-	var p g2AffP
-
-	// compute λ1 = (y2-y1)/(x2-x1)
-	n := pr.curveF.Add(&p1.Y, &p2.Y)
-	d := pr.curveF.Sub(&p1.X, &p2.X)
-	l1 := pr.curveF.Div(n, d)
-
-	// compute x3 =λ1²-x1-x2
-	x3 := pr.curveF.Mul(l1, l1)
-	x3 = pr.curveF.Sub(x3, pr.curveF.Add(&p1.X, &p2.X))
-
-	// omit y3 computation
-
-	// compute line1
-	line1.R0 = *l1
-	line1.R1 = *pr.curveF.Mul(l1, &p1.X)
-	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
-
-	// compute λ2 = -λ1-2y1/(x3-x1)
-	n = pr.curveF.MulConst(&p1.Y, big.NewInt(2))
-	d = pr.curveF.Sub(x3, &p1.X)
-	l2 := pr.curveF.Div(n, d)
-	l2 = pr.curveF.Add(l2, l1)
-	l2 = pr.curveF.Neg(l2)
-
-	// compute x4 = λ2²-x1-x3
-	x4 := pr.curveF.Mul(l2, l2)
-	x4 = pr.curveF.Sub(x4, pr.curveF.Add(&p1.X, x3))
-
-	// compute y4 = λ2(x1 - x4)-y1
-	y4 := pr.curveF.Sub(&p1.X, x4)
-	y4 = pr.curveF.Mul(l2, y4)
-	y4 = pr.curveF.Sub(y4, &p1.Y)
-
-	p.X = *x4
-	p.Y = *y4
-
-	// compute line2
-	line2.R0 = *l2
-	line2.R1 = *pr.curveF.Mul(l2, &p1.X)
-	line2.R1 = *pr.curveF.Sub(&line2.R1, &p1.Y)
+	line2.R0 = *pr.curveF.Neg(l2)
+	line2.R1 = *pr.curveF.Eval([][]*baseEl{{mone, l2, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
 
 	return &p, &line1, &line2
 }
@@ -494,6 +595,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var p g2AffP
 	var line lineEvaluation
+	mone := pr.curveF.NewElement(-1)
 
 	// λ = 3x²/2y
 	n := pr.curveF.Mul(&p1.X, &p1.X)
@@ -502,20 +604,16 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 	λ := pr.curveF.Div(n, d)
 
 	// xr = λ²-2x
-	xr := pr.curveF.Mul(λ, λ)
-	xr = pr.curveF.Sub(xr, pr.curveF.MulConst(&p1.X, big.NewInt(2)))
+	xr := pr.curveF.Eval([][]*baseEl{{λ, λ}, {mone, &p1.X}}, []int{1, 2})
 
 	// yr = λ(x-xr)-y
-	yr := pr.curveF.Sub(&p1.X, xr)
-	yr = pr.curveF.Mul(λ, yr)
-	yr = pr.curveF.Sub(yr, &p1.Y)
+	yr := pr.curveF.Eval([][]*baseEl{{λ, pr.curveF.Sub(&p1.X, xr)}, {mone, &p1.Y}}, []int{1, 1})
 
 	p.X = *xr
 	p.Y = *yr
 
 	line.R0 = *λ
-	line.R1 = *pr.curveF.Mul(λ, &p1.X)
-	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
+	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
 
 	return &p, &line
 
@@ -532,8 +630,7 @@ func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	var line lineEvaluation
 	line.R0 = *λ
-	line.R1 = *pr.curveF.Mul(λ, &p1.X)
-	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
+	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {pr.curveF.NewElement(-1), &p1.Y}}, []int{1, 1})
 
 	return &line
 

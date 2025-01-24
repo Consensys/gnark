@@ -108,7 +108,7 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// in this case the result can be either 0 or p (if it is zero).
 	//
 	// so we check that the reduced value limbs are either all zeros or
-	// corrspond to the modulus limbs.
+	// correspond to the modulus limbs.
 	ca := f.Reduce(a)
 	p := f.Modulus()
 

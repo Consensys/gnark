@@ -26,7 +26,7 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 
@@ -39,11 +39,11 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.nSquareKarabina12345(result, 3)
-	t0 := e.nSquareKarabina12345(result, 1)
+	t0 := e.CyclotomicSquareGS(result)
 	t2 := e.Mul(z, t0)
 	result = e.Mul(result, t2)
 	t0 = e.Mul(z, result)
-	t1 := e.nSquareKarabina12345(t0, 1)
+	t1 := e.CyclotomicSquareGS(t0)
 	t1 = e.Mul(t2, t1)
 	t3 := e.nSquareKarabina12345(t1, 7)
 	t2 = e.Mul(t2, t3)
@@ -65,7 +65,7 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.nSquareKarabina12345(result, 1)
+	t := e.CyclotomicSquareGS(result)
 	result = e.nSquareKarabina12345(t, 4)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
@@ -73,7 +73,7 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
@@ -86,9 +86,10 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareKarabina12345(result, 2)
+	result = e.CyclotomicSquareGS(result)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 7)
 	result = e.Mul(result, t0)
@@ -105,9 +106,10 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 func (e Ext6) ExpC1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareKarabina12345(result, 2)
+	result = e.CyclotomicSquareGS(result)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 
 	return result
@@ -118,11 +120,11 @@ func (e Ext6) ExpC1(z *E6) *E6 {
 // C2 = (ht**2+3*hy**2)/4 = 103
 func (e Ext6) ExpC2(z *E6) *E6 {
 	z = e.Reduce(z)
-	result := e.nSquareKarabina12345(z, 1)
+	result := e.CyclotomicSquareGS(z)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, t0)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 
 	return result
@@ -132,6 +134,38 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
+	return e.mulBy023Direct(z, c0, c1)
+}
+
+// mulBy023Direct multiplies z by an E6 sparse element 023 using schoolbook multiplication
+func (e Ext6) mulBy023Direct(z *E6, c0, c1 *baseEl) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+
+	// z0 = a0c0 + β(a3 + a4c1)
+	z0 := e.fp.Eval([][]*baseEl{{&z.A0, c0}, {nonResidue, &z.A3}, {nonResidue, &z.A4, c1}}, []int{1, 1, 1})
+	// z1 = a1c0 + β(a4 + a5c1)
+	z1 := e.fp.Eval([][]*baseEl{{&z.A1, c0}, {nonResidue, &z.A4}, {nonResidue, &z.A5, c1}}, []int{1, 1, 1})
+	// z2 = a0c1 + a2c0 + β(a5)
+	z2 := e.fp.Eval([][]*baseEl{{&z.A0, c1}, {&z.A2, c0}, {nonResidue, &z.A5}}, []int{1, 1, 1})
+	// c3 = a0 + a1c1 + a3c0
+	z3 := e.fp.Eval([][]*baseEl{{&z.A0}, {&z.A1, c1}, {&z.A3, c0}}, []int{1, 1, 1})
+	// c4 = a1 + a2c1 + a4c0
+	z4 := e.fp.Eval([][]*baseEl{{&z.A1}, {&z.A2, c1}, {&z.A4, c0}}, []int{1, 1, 1})
+	// c5 = a2 + a3c1 + a5c0,
+	z5 := e.fp.Eval([][]*baseEl{{&z.A2}, {&z.A3, c1}, {&z.A5, c0}}, []int{1, 1, 1})
+
+	return &E6{
+		A0: *z0,
+		A1: *z1,
+		A2: *z2,
+		A3: *z3,
+		A4: *z4,
+		A5: *z5,
+	}
+}
+
+// mulBy023 multiplies z by an E6 sparse element 023
+func (e Ext6) mulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	z = e.Reduce(z)
 
 	a := e.fp.Mul(&z.A0, c0)
@@ -198,7 +232,7 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 
 }
 
-//	Mul023By023 multiplies two E6 sparse element of the form:
+// Mul023By023 multiplies two E6 sparse element of the form:
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 //
@@ -206,6 +240,34 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	return e.mul023by023Direct(d0, d1, c0, c1)
+}
+
+// mul023by023Direct multiplies two E6 sparse element using schoolbook multiplication
+func (e Ext6) mul023by023Direct(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+	nonResidue := e.fp.NewElement(-4)
+	// c0 = d0c0 + β
+	z0 := e.fp.Eval([][]*baseEl{{d0, c0}, {nonResidue}}, []int{1, 1})
+	// c2 = d0c1 + d1c0
+	z2 := e.fp.Eval([][]*baseEl{{d0, c1}, {d1, c0}}, []int{1, 1})
+	// c3 = d0 + c0
+	z3 := e.fp.Add(d0, c0)
+	// c4 = d1c1
+	z4 := e.fp.Mul(d1, c1)
+	// c5 = d1 + c1,
+	z5 := e.fp.Add(d1, c1)
+
+	return [5]*baseEl{z0, z2, z3, z4, z5}
+}
+
+// mul023By023 multiplies two E6 sparse element of the form:
+//
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+//
+// and
+//
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+func (e Ext6) mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	x0 := e.fp.Mul(c0, d0)
 	x1 := e.fp.Mul(c1, d1)
 	x04 := e.fp.Add(c0, d0)
@@ -224,9 +286,48 @@ func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 
 // MulBy02345 multiplies z by an E6 sparse element of the form
 //
-//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
-//	}
+//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4}
 func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
+	return e.mulBy02345Direct(z, x)
+}
+
+// mulBy02345Direct multiplies z by an E6 sparse element using schoolbook multiplication
+func (e Ext6) mulBy02345Direct(z *E6, x [5]*baseEl) *E6 {
+	nonResidue := e.fp.NewElement(-4)
+
+	// c0 = a0y0 + β(a1y4 + a2y3 + a3y2 + a4y1)
+	c0 := e.fp.Eval([][]*baseEl{{&z.A0, x[0]}, {nonResidue, &z.A1, x[4]}, {nonResidue, &z.A2, x[3]}, {nonResidue, &z.A3, x[2]}, {nonResidue, &z.A4, x[1]}},
+		[]int{1, 1, 1, 1, 1})
+	// c1 =  a1y0 + β(a2y4 + a3y3 + a4y2 + a5y1)
+	c1 := e.fp.Eval([][]*baseEl{{&z.A1, x[0]}, {nonResidue, &z.A2, x[4]}, {nonResidue, &z.A3, x[3]}, {nonResidue, &z.A4, x[2]}, {nonResidue, &z.A5, x[1]}},
+		[]int{1, 1, 1, 1, 1})
+	// c2 = a0y1 + a2y0 + β(a3y4 + a4y3 + a5y2)
+	c2 := e.fp.Eval([][]*baseEl{{&z.A0, x[1]}, {&z.A2, x[0]}, {nonResidue, &z.A3, x[4]}, {nonResidue, &z.A4, x[3]}, {nonResidue, &z.A5, x[2]}},
+		[]int{1, 1, 1, 1, 1})
+	// c3 = a0y2 + a1y1 + a3y0 + β(a4y4 + a5y3)
+	c3 := e.fp.Eval([][]*baseEl{{&z.A0, x[2]}, {&z.A1, x[1]}, {&z.A3, x[0]}, {nonResidue, &z.A4, x[4]}, {nonResidue, &z.A5, x[3]}},
+		[]int{1, 1, 1, 1, 1})
+	// c4 = a0y3 + a1y2 + a2y1 + a4y0 + βa5y4
+	c4 := e.fp.Eval([][]*baseEl{{&z.A0, x[3]}, {&z.A1, x[2]}, {&z.A2, x[1]}, {&z.A4, x[0]}, {nonResidue, &z.A5, x[4]}},
+		[]int{1, 1, 1, 1, 1})
+	// c5 = a0y4 + a1y3 + a2y2 + a3y1 + a5y0,
+	c5 := e.fp.Eval([][]*baseEl{{&z.A0, x[4]}, {&z.A1, x[3]}, {&z.A2, x[2]}, {&z.A3, x[1]}, {&z.A5, x[0]}},
+		[]int{1, 1, 1, 1, 1})
+
+	return &E6{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+		A3: *c3,
+		A4: *c4,
+		A5: *c5,
+	}
+}
+
+// mulBy02345 multiplies z by an E6 sparse element of the form
+//
+//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
+func (e *Ext6) mulBy02345(z *E6, x [5]*baseEl) *E6 {
 	a0 := e.fp.Add(&z.A0, &z.A1)
 	a1 := e.fp.Add(&z.A2, &z.A3)
 	a2 := e.fp.Add(&z.A4, &z.A5)
@@ -322,49 +423,12 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	}
 }
 
-// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
-// same equivalence class as the reduced pairing. This replaces the final
-// exponentiation step in-circuit.
-// The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
-//
-// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (e Ext6) AssertFinalExponentiationIsOne(x *E6) {
-	res, err := e.fp.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	residueWitness := E6{
-		A0: *res[0],
-		A1: *res[1],
-		A2: *res[2],
-		A3: *res[3],
-		A4: *res[4],
-		A5: *res[5],
-	}
-
-	// Check that  x == residueWitness^λ
-	// where λ = u^3-u^2+1 - (u+1)p, with u the BW6-761 seed
-	// and residueWitness from the hint.
-
-	// exponentiation by U1=u^3-u^2+1
-	t0 := e.ExpByU1(&residueWitness)
-	// exponentiation by U2=u+1
-	t1 := e.ExpByU2(&residueWitness)
-
-	t1 = e.Frobenius(t1)
-	t0 = e.DivUnchecked(t0, t1)
-
-	e.AssertIsEqual(t0, x)
-}
-
 // ExpByU2 set z to z^(x₀+1) in E12 and return z
 // x₀+1 = 9586122913090633730
 func (e Ext6) ExpByU2(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.nSquareKarabina12345(result, 1)
+	t := e.CyclotomicSquareGS(result)
 	result = e.nSquareKarabina12345(t, 4)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
@@ -372,7 +436,7 @@ func (e Ext6) ExpByU2(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina12345(result, 1)
+	result = e.CyclotomicSquareGS(result)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
@@ -383,9 +447,9 @@ func (e Ext6) ExpByU2(z *E6) *E6 {
 // ExpByU1 set z to z^(x₀^3-x₀^2+1) in E12 and return z
 // x₀^3-x₀^2+1 = 880904806456922042166256752416502360965158762994674434049
 func (e Ext6) ExpByU1(x *E6) *E6 {
-	t5 := e.nSquareKarabina12345(x, 1)
+	t5 := e.CyclotomicSquareGS(x)
 	z := e.Mul(x, t5)
-	t0 := e.nSquareKarabina12345(z, 1)
+	t0 := e.CyclotomicSquareGS(z)
 	t6 := e.Mul(x, t0)
 	t8 := e.Mul(x, t6)
 	t7 := e.Mul(t5, t8)
@@ -394,7 +458,7 @@ func (e Ext6) ExpByU1(x *E6) *E6 {
 	t2 := e.Mul(x, t3)
 	t1 := e.Mul(t6, t2)
 	t0 = e.Mul(t8, t1)
-	t4 := e.nSquareKarabina12345(t0, 1)
+	t4 := e.CyclotomicSquareGS(t0)
 	t4 = e.Mul(z, t4)
 	t8 = e.Mul(t8, t4)
 	t2 = e.Mul(t2, t8)

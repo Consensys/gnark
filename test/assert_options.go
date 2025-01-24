@@ -133,7 +133,7 @@ func NoTestEngine() TestingOption {
 // When the tags are set; this requires gnark-solidity-checker to be installed, which in turns
 // requires solc and abigen to be reachable in the PATH.
 //
-// See https://github.com/ConsenSys/gnark-solidity-checker for more details.
+// See https://github.com/Consensys/gnark-solidity-checker for more details.
 func NoSolidityChecks() TestingOption {
 	return func(opt *testingConfig) error {
 		opt.checkSolidity = false

@@ -104,11 +104,11 @@ contract Verifier {
     uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr $cmtVk0.G.Y.A0) }};
     uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr $cmtVk0.G.Y.A1) }};
 
-    // Pedersen GSigma point in G2 in powers of i
-    uint256 constant PEDERSEN_GSIGMA_X_0 = {{ (fpstr $cmtVk0.GSigma.X.A0) }};
-    uint256 constant PEDERSEN_GSIGMA_X_1 = {{ (fpstr $cmtVk0.GSigma.X.A1) }};
-    uint256 constant PEDERSEN_GSIGMA_Y_0 = {{ (fpstr $cmtVk0.GSigma.Y.A0) }};
-    uint256 constant PEDERSEN_GSIGMA_Y_1 = {{ (fpstr $cmtVk0.GSigma.Y.A1) }};
+    // Pedersen GSigmaNeg point in G2 in powers of i
+    uint256 constant PEDERSEN_GSIGMANEG_X_0 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_X_1 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A1) }};
+    uint256 constant PEDERSEN_GSIGMANEG_Y_0 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_Y_1 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A1) }};
     {{- end }}
 
     // Constant and public input points
@@ -206,7 +206,7 @@ contract Verifier {
     /// @notice Will revert with InvalidProof() if
     ///   * the input is not a square,
     ///   * the hint is incorrect, or
-    ///   * the input coefficents are not reduced.
+    ///   * the input coefficients are not reduced.
     /// @param a0 The real part of the input.
     /// @param a1 The imaginary part of the input.
     /// @param hint A hint which of two possible signs to pick in the equation.
@@ -427,7 +427,7 @@ contract Verifier {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
-            {{- if eq $numWitness 1 }}
+            {{- if eq $numCommitments 1 }}
             mstore(g, mload(commitments))
             mstore(add(g, 0x20), mload(add(commitments, 0x20)))
             {{- else }}
@@ -579,10 +579,10 @@ contract Verifier {
             // Commitments
             pairings[ 0] = commitments[0];
             pairings[ 1] = commitments[1];
-            pairings[ 2] = PEDERSEN_GSIGMA_X_1;
-            pairings[ 3] = PEDERSEN_GSIGMA_X_0;
-            pairings[ 4] = PEDERSEN_GSIGMA_Y_1;
-            pairings[ 5] = PEDERSEN_GSIGMA_Y_0;
+            pairings[ 2] = PEDERSEN_GSIGMANEG_X_1;
+            pairings[ 3] = PEDERSEN_GSIGMANEG_X_0;
+            pairings[ 4] = PEDERSEN_GSIGMANEG_Y_1;
+            pairings[ 5] = PEDERSEN_GSIGMANEG_Y_0;
             pairings[ 6] = Px;
             pairings[ 7] = Py;
             pairings[ 8] = PEDERSEN_G_X_1;
@@ -730,10 +730,10 @@ contract Verifier {
             let f := mload(0x40)
 
             calldatacopy(f, commitments, 0x40) // Copy Commitments
-            mstore(add(f, 0x40), PEDERSEN_GSIGMA_X_1)
-            mstore(add(f, 0x60), PEDERSEN_GSIGMA_X_0)
-            mstore(add(f, 0x80), PEDERSEN_GSIGMA_Y_1)
-            mstore(add(f, 0xa0), PEDERSEN_GSIGMA_Y_0)
+            mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
+            mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
+            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
+            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
             calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
             mstore(add(f, 0x100), PEDERSEN_G_X_1)
             mstore(add(f, 0x120), PEDERSEN_G_X_0)

@@ -1,18 +1,5 @@
-/*
-Copyright © 2021 ConsenSys Software Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package frontend
 
@@ -37,7 +24,7 @@ type API interface {
 	// doing:
 	//
 	//     acopy := api.Mul(a, 1)
-	//     acopy = MulAcc(acopy, b, c)
+	//     acopy = api.MulAcc(acopy, b, c)
 	//
 	// ! But it may not modify a, always use MulAcc(...) result for correctness.
 	MulAcc(a, b, c Variable) Variable
@@ -51,18 +38,20 @@ type API interface {
 	// Mul returns res = i1 * i2 * ... in
 	Mul(i1, i2 Variable, in ...Variable) Variable
 
-	// DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
+	// DivUnchecked returns i1 / i2
+	// If i1 == i2 == 0, the return value (0) is unconstrained.
 	DivUnchecked(i1, i2 Variable) Variable
 
 	// Div returns i1 / i2
+	// If i2 == 0 the constraint will not be satisfied.
 	Div(i1, i2 Variable) Variable
 
 	// Inverse returns res = 1 / i1
+	// If i1 == 0 the constraint will not be satisfied.
 	Inverse(i1 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
-	// TODO @gbotrel move bit operations in std/math/bits
 
 	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
@@ -72,29 +61,32 @@ type API interface {
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
+	// This function constrain the bits b... to be boolean (0 or 1)
 	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b
-	// a and b must be 0 or 1
+	// This function constrain a and b to be boolean (0 or 1)
 	Xor(a, b Variable) Variable
 
 	// Or returns a | b
-	// a and b must be 0 or 1
+	// This function constrain a and b to be boolean (0 or 1)
 	Or(a, b Variable) Variable
 
-	// Or returns a & b
-	// a and b must be 0 or 1
+	// And returns a & b
+	// This function constrain a and b to be boolean (0 or 1)
 	And(a, b Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Conditionals
 
 	// Select if b is true, yields i1 else yields i2
+	// This function constrain b to be boolean (0 or 1)
 	Select(b Variable, i1, i2 Variable) Variable
 
 	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 	// and i3 if b0=b1=1.
+	// This function constrain b0 and b1 to be boolean (0 or 1)
 	Lookup2(b0, b1 Variable, i0, i1, i2, i3 Variable) Variable
 
 	// IsZero returns 1 if a is zero, 0 otherwise
@@ -119,8 +111,9 @@ type API interface {
 	// AssertIsDifferent fails if i1 == i2
 	AssertIsDifferent(i1, i2 Variable)
 
-	// AssertIsBoolean fails if v != 0 and v != 1
+	// AssertIsBoolean fails if v ∉ {0,1}
 	AssertIsBoolean(i1 Variable)
+
 	// AssertIsCrumb fails if v ∉ {0,1,2,3} (crumb is a 2-bit variable; see https://en.wikipedia.org/wiki/Units_of_information)
 	AssertIsCrumb(i1 Variable)
 
@@ -149,7 +142,7 @@ type API interface {
 	ConstantValue(v Variable) (*big.Int, bool)
 }
 
-// BatchInvert returns a slice of variables containing the inverse of each element in i1
+// BatchInverter returns a slice of variables containing the inverse of each element in i1
 // This is a temporary API, do not use it in your circuit
 type BatchInverter interface {
 	// BatchInvert returns a slice of variables containing the inverse of each element in i1
