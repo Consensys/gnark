@@ -111,6 +111,8 @@ func TestGkrFrGates(t *testing.T) {
 		fullRound(i)
 	}
 
+	y = extGateFr{}.Evaluate(y, x)
+
 	_, err = tmp.SetString("1414568327995419415796839718524742280557393295919067110634980642502386288678")
 	require.NoError(t, err)
 

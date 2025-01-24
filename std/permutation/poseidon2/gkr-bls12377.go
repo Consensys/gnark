@@ -62,9 +62,9 @@ func (g *intKeyGate2Fr) Evaluate(x ...fr.Element) fr.Element {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
+	x[0].Add(&x[0], &x[1])
 	x[1].
 		Double(&x[1]).
-		Add(&x[1], &x[1]).
 		Add(&x[1], &x[0]).
 		Add(&x[1], &g.roundKey)
 	return x[1]
@@ -84,9 +84,9 @@ func (g *intKeySBoxGate2Fr) Evaluate(x ...fr.Element) fr.Element {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
+	x[0].Add(&x[0], &x[1])
 	x[1].
 		Double(&x[1]).
-		Add(&x[1], &x[1]).
 		Add(&x[1], &x[0]).
 		Add(&x[1], &g.roundKey)
 
