@@ -10,12 +10,12 @@ Fixes # (issue)
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Breaking change (fix or feature that would cause existing functionality not to work as expected)
 - [ ] This change requires a documentation update
 
 # How has this been tested?
 
-<!-- Please describe the tests that you ran or implemented to verify your changes. Provide instructions so we can reproduce. -->
+<!-- Please describe the tests that you ran or implemented to verify your changes. Could you provide instructions so we can reproduce them? -->
 
 - [ ] Test A
 - [ ] Test B
@@ -24,13 +24,13 @@ Fixes # (issue)
 
 <!-- Please describe the benchmarks that you ran to verify your changes. -->
 
-- [ ] Benchmark A, on Macbook pro M1, 32GB RAM
+- [ ] Benchmark A, on Macbook Pro M1, 32GB RAM
 - [ ] Benchmark B, on x86 Intel xxx, 16GB RAM
 
 # Checklist:
 
 - [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have commented on my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] I did not modify files generated from templates
