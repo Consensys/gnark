@@ -13,7 +13,7 @@ import (
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		sqrtRatioHint,
-    finalExpHint,
+		finalExpHint,
 		pairingCheckHint,
 	}
 }
