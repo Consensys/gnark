@@ -134,7 +134,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofReceiverAfter[i].RootHash)
 		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofSenderAfter[i].RootHash)
 
-		// the leafs of the Merkle proofs must match the index of the accounts
+		// the leaves of the Merkle proofs must match the index of the accounts
 		api.AssertIsEqual(circuit.ReceiverAccountsBefore[i].Index, circuit.LeafReceiver[i])
 		api.AssertIsEqual(circuit.ReceiverAccountsAfter[i].Index, circuit.LeafReceiver[i])
 		api.AssertIsEqual(circuit.SenderAccountsBefore[i].Index, circuit.LeafSender[i])
