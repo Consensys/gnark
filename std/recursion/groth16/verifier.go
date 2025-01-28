@@ -688,6 +688,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 	return nil
 }
 
+// SwitchVerification key switches the verification key based on the provided
+// index idx. Can be used for recursive verification based on the verification
+// key index.
 func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(idx frontend.Variable, vks []VerifyingKey[G1El, G2El, GtEl]) (VerifyingKey[G1El, G2El, GtEl], error) {
 	var ret VerifyingKey[G1El, G2El, GtEl]
 	if len(vks) == 0 {
