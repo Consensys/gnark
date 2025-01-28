@@ -106,6 +106,13 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// AssertIsOnG2 asserts that the input is on the G2 curve.
 	AssertIsOnG2(*G2El)
 
+	// MuxG2 performs a lookup from the G2 inputs and returns inputs[sel]. It is
+	// most efficient for power of two lengths of the inputs, but works for any
+	// number of inputs.
 	MuxG2(sel frontend.Variable, inputs ...*G2El) *G2El
+
+	// MuxGt performs a lookup from the Gt inputs and returns inputs[sel]. It is
+	// most efficient for power of two lengths of the inputs, but works for any
+	// number of inputs.
 	MuxGt(sel frontend.Variable, inputs ...*GtEl) *GtEl
 }
