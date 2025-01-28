@@ -386,44 +386,44 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
 		return inputs[0]
 	}
 	var ret GTEl
-	C0B0A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C0B0A1s := make([]*emulated.Element[BaseField], len(inputs))
-	C0B1A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C0B1A1s := make([]*emulated.Element[BaseField], len(inputs))
-	C0B2A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C0B2A1s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B0A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B0A1s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B1A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B1A1s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B2A0s := make([]*emulated.Element[BaseField], len(inputs))
-	C1B2A1s := make([]*emulated.Element[BaseField], len(inputs))
+	A0s := make([]*emulated.Element[BaseField], len(inputs))
+	A1s := make([]*emulated.Element[BaseField], len(inputs))
+	A2s := make([]*emulated.Element[BaseField], len(inputs))
+	A3s := make([]*emulated.Element[BaseField], len(inputs))
+	A4s := make([]*emulated.Element[BaseField], len(inputs))
+	A5s := make([]*emulated.Element[BaseField], len(inputs))
+	A6s := make([]*emulated.Element[BaseField], len(inputs))
+	A7s := make([]*emulated.Element[BaseField], len(inputs))
+	A8s := make([]*emulated.Element[BaseField], len(inputs))
+	A9s := make([]*emulated.Element[BaseField], len(inputs))
+	A10s := make([]*emulated.Element[BaseField], len(inputs))
+	A11s := make([]*emulated.Element[BaseField], len(inputs))
 	for i := range inputs {
-		C0B0A0s[i] = &inputs[i].C0.B0.A0
-		C0B0A1s[i] = &inputs[i].C0.B0.A1
-		C0B1A0s[i] = &inputs[i].C0.B1.A0
-		C0B1A1s[i] = &inputs[i].C0.B1.A1
-		C0B2A0s[i] = &inputs[i].C0.B2.A0
-		C0B2A1s[i] = &inputs[i].C0.B2.A1
-		C1B0A0s[i] = &inputs[i].C1.B0.A0
-		C1B0A1s[i] = &inputs[i].C1.B0.A1
-		C1B1A0s[i] = &inputs[i].C1.B1.A0
-		C1B1A1s[i] = &inputs[i].C1.B1.A1
-		C1B2A0s[i] = &inputs[i].C1.B2.A0
-		C1B2A1s[i] = &inputs[i].C1.B2.A1
+		A0s[i] = &inputs[i].A0
+		A1s[i] = &inputs[i].A1
+		A2s[i] = &inputs[i].A2
+		A3s[i] = &inputs[i].A3
+		A4s[i] = &inputs[i].A4
+		A5s[i] = &inputs[i].A5
+		A6s[i] = &inputs[i].A6
+		A7s[i] = &inputs[i].A7
+		A8s[i] = &inputs[i].A8
+		A9s[i] = &inputs[i].A9
+		A10s[i] = &inputs[i].A10
+		A11s[i] = &inputs[i].A11
 	}
-	ret.C0.B0.A0 = *pr.curveF.Mux(sel, C0B0A0s...)
-	ret.C0.B0.A1 = *pr.curveF.Mux(sel, C0B0A1s...)
-	ret.C0.B1.A0 = *pr.curveF.Mux(sel, C0B1A0s...)
-	ret.C0.B1.A1 = *pr.curveF.Mux(sel, C0B1A1s...)
-	ret.C0.B2.A0 = *pr.curveF.Mux(sel, C0B2A0s...)
-	ret.C0.B2.A1 = *pr.curveF.Mux(sel, C0B2A1s...)
-	ret.C1.B0.A0 = *pr.curveF.Mux(sel, C1B0A0s...)
-	ret.C1.B0.A1 = *pr.curveF.Mux(sel, C1B0A1s...)
-	ret.C1.B1.A0 = *pr.curveF.Mux(sel, C1B1A0s...)
-	ret.C1.B1.A1 = *pr.curveF.Mux(sel, C1B1A1s...)
-	ret.C1.B2.A0 = *pr.curveF.Mux(sel, C1B2A0s...)
-	ret.C1.B2.A1 = *pr.curveF.Mux(sel, C1B2A1s...)
+	ret.A0 = *pr.curveF.Mux(sel, A0s...)
+	ret.A1 = *pr.curveF.Mux(sel, A1s...)
+	ret.A2 = *pr.curveF.Mux(sel, A2s...)
+	ret.A3 = *pr.curveF.Mux(sel, A3s...)
+	ret.A4 = *pr.curveF.Mux(sel, A4s...)
+	ret.A5 = *pr.curveF.Mux(sel, A5s...)
+	ret.A6 = *pr.curveF.Mux(sel, A6s...)
+	ret.A7 = *pr.curveF.Mux(sel, A7s...)
+	ret.A8 = *pr.curveF.Mux(sel, A8s...)
+	ret.A9 = *pr.curveF.Mux(sel, A9s...)
+	ret.A10 = *pr.curveF.Mux(sel, A10s...)
+	ret.A11 = *pr.curveF.Mux(sel, A11s...)
 	return &ret
 }
 
