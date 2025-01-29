@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/algo_utils"
 )
@@ -102,7 +101,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 		oldW := d.Circuit[oldI]
 
 		if !oldW.IsInput() {
-			d.MaxNIns = utils.Max(d.MaxNIns, len(oldW.Inputs))
+			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
 		}
 
 		for j := range oldW.Dependencies {
