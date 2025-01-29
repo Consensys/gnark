@@ -3,11 +3,17 @@ package poseidon2
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	gkrFr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	"hash"
 	"math/big"
+	"sync"
 )
 
 // Gkr implements a GKR version of the Poseidon2 permutation with fan-in 2
@@ -149,3 +155,275 @@ func (g extGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Var
 func (g extGate) Degree() int {
 	return 1
 }
+
+type gkrPermutations struct {
+	api  frontend.API
+	ins1 []frontend.Variable
+	ins2 []frontend.Variable
+	outs []frontend.Variable
+}
+
+func newGkrPermutations(api frontend.API) *gkrPermutations {
+	res := gkrPermutations{
+		api: api,
+	}
+	api.Compiler().Defer(res.finalize)
+	return &res
+}
+
+func (p *gkrPermutations) permute(a, b frontend.Variable) frontend.Variable {
+	s, err := p.api.Compiler().NewHint(permuteHint, 1, a, b)
+	if err != nil {
+		panic(err)
+	}
+	p.ins1 = append(p.ins1, a)
+	p.ins2 = append(p.ins2, b)
+	p.outs = append(p.outs, s[0])
+	return s[0]
+}
+
+func frToInt(x *fr.Element) *big.Int {
+	var res big.Int
+	x.BigInt(&res)
+	return &res
+}
+
+// TODO find better name
+// these are the fr gatea
+func AddGkrGatesSolution() {
+
+	roundKeysFr := bls12377RoundKeys()
+	const halfRf = rF / 2
+
+	gateNameBase := fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%x", rF, rP, d, seed)
+
+	gateNameX := func(i int) string {
+		return fmt.Sprintf("x;round=%d%s", i, gateNameBase)
+	}
+	gateNameY := func(i int) string {
+		return fmt.Sprintf("y;round=%d%s", i, gateNameBase)
+	}
+
+	fullRound := func(i int) {
+		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		gkrFr.Gates[gateNameY(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	for i := range halfRf {
+		fullRound(i)
+	}
+
+	{ // i = halfRf: first partial round
+		const i = halfRf
+		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		gkrFr.Gates[gateNameY(i)] = &extKeyGate2Fr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	for i := halfRf + 1; i < halfRf+rP; i++ {
+		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{ // for x1, intKeySBox is identical to extKeySBox
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		gkrFr.Gates[gateNameY(i)] = &intKeyGate2Fr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	{
+		const i = halfRf + rP
+		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		gkrFr.Gates[gateNameY(i)] = &intKeySBoxGate2Fr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	for i := halfRf + rP + 1; i < rP+rF; i++ {
+		fullRound(i)
+	}
+
+	gkrFr.Gates[gateNameY(rP+rF)] = extGateFr{}
+}
+
+func (p *gkrPermutations) finalize(api frontend.API) error {
+	if p.api != api {
+		panic("unexpected API")
+	}
+
+	roundKeysFr := bls12377RoundKeys()
+	const halfRf = rF / 2
+
+	gateNameBase := fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%x", rF, rP, d, seed)
+
+	gateNameX := func(i int) string {
+		return fmt.Sprintf("x;round=%d%s", i, gateNameBase)
+	}
+	gateNameY := func(i int) string {
+		return fmt.Sprintf("y;round=%d%s", i, gateNameBase)
+	}
+
+	// build GKR circuit
+	gkrApi := gkr.NewApi()
+
+	x, err := gkrApi.Import(p.ins1)
+	if err != nil {
+		return err
+	}
+	y, err := gkrApi.Import(p.ins2)
+	if err != nil {
+		return err
+	}
+
+	fullRound := func(i int) {
+		gateName := gateNameX(i)
+		gkr.Gates[gateName] = &extKeySBoxGate{
+			roundKey: frToInt(&roundKeysFr[i][0]),
+			d:        d,
+		}
+		x1 := gkrApi.NamedGate(gateName, x, y)
+
+		gateName = gateNameY(i)
+		gkr.Gates[gateName] = &extKeySBoxGate{
+			roundKey: frToInt(&roundKeysFr[i][1]),
+			d:        d,
+		}
+		x, y = x1, gkrApi.NamedGate(gateName, y, x)
+	}
+
+	for i := range halfRf {
+		fullRound(i)
+	}
+
+	{ // i = halfRf: first partial round
+		gateName := gateNameX(halfRf)
+		gkr.Gates[gateName] = &extKeySBoxGate{
+			roundKey: frToInt(&roundKeysFr[halfRf][0]),
+			d:        d,
+		}
+		x1 := gkrApi.NamedGate(gateName, x, y)
+
+		gateName = gateNameY(halfRf)
+		gkr.Gates[gateName] = &extKeyGate2{
+			roundKey: frToInt(&roundKeysFr[halfRf][1]),
+			d:        d,
+		}
+		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+	}
+
+	for i := halfRf + 1; i < halfRf+rP; i++ {
+		gateName := gateNameX(i)
+		gkr.Gates[gateName] = &extKeySBoxGate{ // for x1, intKeySBox is identical to extKeySBox
+			roundKey: frToInt(&roundKeysFr[i][0]),
+			d:        d,
+		}
+		x1 := gkrApi.NamedGate(gateName, x, y)
+
+		gateName = gateNameY(i)
+		gkr.Gates[gateName] = &intKeyGate2{
+			roundKey: frToInt(&roundKeysFr[i][1]),
+			d:        d,
+		}
+		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+	}
+
+	{
+		i := halfRf + rP
+		gateName := gateNameX(i)
+		gkr.Gates[gateName] = &extKeySBoxGate{
+			roundKey: frToInt(&roundKeysFr[i][0]),
+			d:        d,
+		}
+		x1 := gkrApi.NamedGate(gateName, x, y)
+
+		gateName = gateNameY(i)
+		gkr.Gates[gateName] = &intKeySBoxGate2{
+			roundKey: frToInt(&roundKeysFr[i][1]),
+			d:        d,
+		}
+		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+	}
+
+	for i := halfRf + rP + 1; i < rP+rF; i++ {
+		fullRound(i)
+	}
+
+	gateName := gateNameY(rP + rF)
+	gkr.Gates[gateName] = extGate{}
+	y = gkrApi.NamedGate(gateName, y, x)
+
+	// connect to output
+	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
+	solution, err := gkrApi.Solve(api)
+	if err != nil {
+		return err
+	}
+	yVals := solution.Export(y)
+	for i := range p.outs {
+		api.AssertIsEqual(yVals[i], p.outs[i])
+	}
+
+	// verify GKR proof
+	allVals := make([]frontend.Variable, 0, 3*len(p.ins1))
+	allVals = append(allVals, p.ins1...)
+	allVals = append(allVals, p.ins2...)
+	allVals = append(allVals, p.outs...)
+	challenge, err := p.api.(frontend.Committer).Commit(allVals...)
+	if err != nil {
+		return err
+	}
+	return solution.Verify("mimc", challenge)
+}
+
+func permuteHint(m *big.Int, ins, outs []*big.Int) error {
+	if m.Cmp(ecc.BLS12_377.ScalarField()) != 0 {
+		return errors.New("only bls12-377 supported")
+	}
+	if len(ins) != 2 || len(outs) != 1 {
+		return errors.New("expected 2 inputs and 1 output")
+	}
+	var x [2]fr.Element
+	x[0].SetBigInt(ins[0])
+	x[1].SetBigInt(ins[1])
+
+	err := bls12377Params().Permutation(x[:])
+	x[1].BigInt(outs[0])
+	return err
+}
+
+// TODO CRITICAL @Tabaie increase round numbers
+const (
+	rF   = 4
+	rP   = 2
+	d    = 17
+	seed = "TODO"
+)
+
+var (
+	bls12377Params = sync.OnceValue(func() *poseidon2.Hash {
+		p := poseidon2.NewHash(2, rF, rP, seed)
+		return &p
+	})
+	bls12377RoundKeys = sync.OnceValue(func() [][]fr.Element {
+		return poseidon2.InitRC(seed, rF, rP, 2)
+	})
+)

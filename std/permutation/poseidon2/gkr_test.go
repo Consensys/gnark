@@ -2,10 +2,13 @@ package poseidon2
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
 )
@@ -122,7 +125,30 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 }
 
 func TestGkrPermutation(t *testing.T) {
+	pos2Fr := poseidon2.NewHash(2, rF, rP, seed)
+	const n = 1
+	var k int64
+	ins := make([][2]frontend.Variable, n)
+	outs := make([]frontend.Variable, n)
+	for i := range n {
+		var x [2]fr.Element
+		ins[i] = [2]frontend.Variable{k, k + 1}
 
+		x[0].SetInt64(k)
+		x[1].SetInt64(k + 1)
+
+		require.NoError(t, pos2Fr.Permutation(x[:]))
+		outs[i] = x[1]
+
+		k += 2
+	}
+
+	circuit := testGkrPermutationCircuit{
+		Ins:  ins,
+		Outs: outs,
+	}
+
+	require.NoError(t, test.IsSolved(&circuit, &circuit, ecc.BLS12_377.ScalarField()))
 }
 
 type testGkrPermutationCircuit struct {
@@ -131,8 +157,13 @@ type testGkrPermutationCircuit struct {
 }
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
-	//_gkr := gkr.NewApi()
-	//_gkr.
+
+	pos2 := newGkrPermutations(api)
+	api.AssertIsEqual(len(c.Ins), len(c.Outs))
+	for i := range c.Ins {
+		api.AssertIsEqual(c.Outs[i], pos2.permute(c.Ins[i][0], c.Ins[i][1]))
+
+	}
 
 	return nil
 }
