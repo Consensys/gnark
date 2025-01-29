@@ -160,10 +160,10 @@ type testGkrPermutationCircuit struct {
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 
-	pos2 := newGkrPermutations(api)
+	pos2 := NewGkrPermutations(api)
 	api.AssertIsEqual(len(c.Ins), len(c.Outs))
 	for i := range c.Ins {
-		api.AssertIsEqual(c.Outs[i], pos2.permute(c.Ins[i][0], c.Ins[i][1]))
+		api.AssertIsEqual(c.Outs[i], pos2.Permute(c.Ins[i][0], c.Ins[i][1]))
 
 	}
 

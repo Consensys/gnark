@@ -158,22 +158,22 @@ func (g extGate) Degree() int {
 	return 1
 }
 
-type gkrPermutations struct {
+type GkrPermutations struct {
 	api  frontend.API
 	ins1 []frontend.Variable
 	ins2 []frontend.Variable
 	outs []frontend.Variable
 }
 
-func newGkrPermutations(api frontend.API) *gkrPermutations {
-	res := gkrPermutations{
+func NewGkrPermutations(api frontend.API) *GkrPermutations {
+	res := GkrPermutations{
 		api: api,
 	}
 	api.Compiler().Defer(res.finalize)
 	return &res
 }
 
-func (p *gkrPermutations) permute(a, b frontend.Variable) frontend.Variable {
+func (p *GkrPermutations) Permute(a, b frontend.Variable) frontend.Variable {
 	s, err := p.api.Compiler().NewHint(permuteHint, 1, a, b)
 	if err != nil {
 		panic(err)
@@ -190,7 +190,7 @@ func frToInt(x *fr.Element) *big.Int {
 	return &res
 }
 
-func (p *gkrPermutations) finalize(api frontend.API) error {
+func (p *GkrPermutations) finalize(api frontend.API) error {
 	if p.api != api {
 		panic("unexpected API")
 	}
