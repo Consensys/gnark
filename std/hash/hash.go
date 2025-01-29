@@ -5,7 +5,7 @@
 package hash
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
@@ -58,7 +58,7 @@ func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
 	defer lock.RUnlock()
 	builder, ok := builderRegistry[name]
 	if !ok {
-		return nil, errors.New("hash function not found")
+		return nil, fmt.Errorf("hash function \"%s\" not registered", name)
 	}
 	return builder(api)
 }

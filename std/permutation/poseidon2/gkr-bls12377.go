@@ -1,7 +1,12 @@
 package poseidon2
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	frGkr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
+	frMiMC "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
+	constraint "github.com/consensys/gnark/constraint/bls12-377"
+	"hash"
 )
 
 // extKeySBoxGateFr applies the external matrix mul, then adds the round key, then applies the sBox
@@ -130,4 +135,85 @@ func powerFr(x fr.Element, n int) fr.Element {
 		panic("unknown sBox degree")
 	}
 	return x
+}
+
+// TODO find better name
+// these are the fr gatea
+func AddGkrGatesSolution() {
+
+	constraint.RegisterHashBuilder("mimc", func() hash.Hash {
+		return frMiMC.NewMiMC()
+	})
+
+	roundKeysFr := bls12377RoundKeys()
+	const halfRf = rF / 2
+
+	gateNameBase := gateNameBase()
+
+	gateNameX := func(i int) string {
+		return fmt.Sprintf("x-round=%d%s", i, gateNameBase)
+	}
+	gateNameY := func(i int) string {
+		return fmt.Sprintf("y-round=%d%s", i, gateNameBase)
+	}
+
+	fullRound := func(i int) {
+		frGkr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		frGkr.Gates[gateNameY(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	for i := range halfRf {
+		fullRound(i)
+	}
+
+	{ // i = halfRf: first partial round
+		const i = halfRf
+		frGkr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		frGkr.Gates[gateNameY(i)] = &extKeyGate2Fr{ // TODO replace with extGateFr
+			//roundKey: roundKeysFr[i][1],
+			d: d,
+		}
+	}
+
+	for i := halfRf + 1; i < halfRf+rP; i++ {
+		frGkr.Gates[gateNameX(i)] = &extKeySBoxGateFr{ // for x1, intKeySBox is identical to extKeySBox
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		frGkr.Gates[gateNameY(i)] = &intKeyGate2Fr{ // TODO replace with intGateFr
+			//roundKey: roundKeysFr[i][1],
+			d: d,
+		}
+	}
+
+	{
+		const i = halfRf + rP
+		frGkr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
+			roundKey: roundKeysFr[i][0],
+			d:        d,
+		}
+
+		frGkr.Gates[gateNameY(i)] = &intKeySBoxGate2Fr{
+			roundKey: roundKeysFr[i][1],
+			d:        d,
+		}
+	}
+
+	for i := halfRf + rP + 1; i < rP+rF; i++ {
+		fullRound(i)
+	}
+
+	frGkr.Gates[gateNameY(rP+rF)] = extGateFr{}
 }

@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	gkrFr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
+	stdHash "github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"hash"
 	"math/big"
 	"sync"
@@ -189,87 +190,15 @@ func frToInt(x *fr.Element) *big.Int {
 	return &res
 }
 
-// TODO find better name
-// these are the fr gatea
-func AddGkrGatesSolution() {
-
-	roundKeysFr := bls12377RoundKeys()
-	const halfRf = rF / 2
-
-	gateNameBase := gateNameBase()
-
-	gateNameX := func(i int) string {
-		return fmt.Sprintf("x-round=%d%s", i, gateNameBase)
-	}
-	gateNameY := func(i int) string {
-		return fmt.Sprintf("y-round=%d%s", i, gateNameBase)
-	}
-
-	fullRound := func(i int) {
-		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
-			roundKey: roundKeysFr[i][0],
-			d:        d,
-		}
-
-		gkrFr.Gates[gateNameY(i)] = &extKeySBoxGateFr{
-			roundKey: roundKeysFr[i][1],
-			d:        d,
-		}
-	}
-
-	for i := range halfRf {
-		fullRound(i)
-	}
-
-	{ // i = halfRf: first partial round
-		const i = halfRf
-		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
-			roundKey: roundKeysFr[i][0],
-			d:        d,
-		}
-
-		gkrFr.Gates[gateNameY(i)] = &extKeyGate2Fr{ // TODO replace with extGateFr
-			//roundKey: roundKeysFr[i][1],
-			d: d,
-		}
-	}
-
-	for i := halfRf + 1; i < halfRf+rP; i++ {
-		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{ // for x1, intKeySBox is identical to extKeySBox
-			roundKey: roundKeysFr[i][0],
-			d:        d,
-		}
-
-		gkrFr.Gates[gateNameY(i)] = &intKeyGate2Fr{ // TODO replace with intGateFr
-			//roundKey: roundKeysFr[i][1],
-			d: d,
-		}
-	}
-
-	{
-		const i = halfRf + rP
-		gkrFr.Gates[gateNameX(i)] = &extKeySBoxGateFr{
-			roundKey: roundKeysFr[i][0],
-			d:        d,
-		}
-
-		gkrFr.Gates[gateNameY(i)] = &intKeySBoxGate2Fr{
-			roundKey: roundKeysFr[i][1],
-			d:        d,
-		}
-	}
-
-	for i := halfRf + rP + 1; i < rP+rF; i++ {
-		fullRound(i)
-	}
-
-	gkrFr.Gates[gateNameY(rP+rF)] = extGateFr{}
-}
-
 func (p *gkrPermutations) finalize(api frontend.API) error {
 	if p.api != api {
 		panic("unexpected API")
 	}
+
+	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
+		m, err := mimc.NewMiMC(api)
+		return &m, err
+	})
 
 	roundKeysFr := bls12377RoundKeys()
 	zero := new(big.Int)

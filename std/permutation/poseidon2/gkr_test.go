@@ -126,7 +126,7 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 
 func TestGkrPermutation(t *testing.T) {
 	pos2Fr := poseidon2.NewHash(2, rF, rP, seed)
-	const n = 1
+	const n = 2
 	var k int64
 	ins := make([][2]frontend.Variable, n)
 	outs := make([]frontend.Variable, n)
