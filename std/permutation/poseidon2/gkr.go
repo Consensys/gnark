@@ -2,6 +2,7 @@ package poseidon2
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -195,13 +196,13 @@ func AddGkrGatesSolution() {
 	roundKeysFr := bls12377RoundKeys()
 	const halfRf = rF / 2
 
-	gateNameBase := fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%x", rF, rP, d, seed)
+	gateNameBase := gateNameBase()
 
 	gateNameX := func(i int) string {
-		return fmt.Sprintf("x;round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("x-round=%d%s", i, gateNameBase)
 	}
 	gateNameY := func(i int) string {
-		return fmt.Sprintf("y;round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("y-round=%d%s", i, gateNameBase)
 	}
 
 	fullRound := func(i int) {
@@ -227,9 +228,9 @@ func AddGkrGatesSolution() {
 			d:        d,
 		}
 
-		gkrFr.Gates[gateNameY(i)] = &extKeyGate2Fr{
-			roundKey: roundKeysFr[i][1],
-			d:        d,
+		gkrFr.Gates[gateNameY(i)] = &extKeyGate2Fr{ // TODO replace with extGateFr
+			//roundKey: roundKeysFr[i][1],
+			d: d,
 		}
 	}
 
@@ -239,9 +240,9 @@ func AddGkrGatesSolution() {
 			d:        d,
 		}
 
-		gkrFr.Gates[gateNameY(i)] = &intKeyGate2Fr{
-			roundKey: roundKeysFr[i][1],
-			d:        d,
+		gkrFr.Gates[gateNameY(i)] = &intKeyGate2Fr{ // TODO replace with intGateFr
+			//roundKey: roundKeysFr[i][1],
+			d: d,
 		}
 	}
 
@@ -271,15 +272,16 @@ func (p *gkrPermutations) finalize(api frontend.API) error {
 	}
 
 	roundKeysFr := bls12377RoundKeys()
+	zero := new(big.Int)
 	const halfRf = rF / 2
 
-	gateNameBase := fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%x", rF, rP, d, seed)
+	gateNameBase := gateNameBase()
 
 	gateNameX := func(i int) string {
-		return fmt.Sprintf("x;round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("x-round=%d%s", i, gateNameBase)
 	}
 	gateNameY := func(i int) string {
-		return fmt.Sprintf("y;round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("y-round=%d%s", i, gateNameBase)
 	}
 
 	// build GKR circuit
@@ -323,8 +325,8 @@ func (p *gkrPermutations) finalize(api frontend.API) error {
 		x1 := gkrApi.NamedGate(gateName, x, y)
 
 		gateName = gateNameY(halfRf)
-		gkr.Gates[gateName] = &extKeyGate2{
-			roundKey: frToInt(&roundKeysFr[halfRf][1]),
+		gkr.Gates[gateName] = &extKeyGate2{ // TODO remove the key: this will be just an extGate
+			roundKey: zero,
 			d:        d,
 		}
 		x, y = x1, gkrApi.NamedGate(gateName, x, y)
@@ -339,8 +341,8 @@ func (p *gkrPermutations) finalize(api frontend.API) error {
 		x1 := gkrApi.NamedGate(gateName, x, y)
 
 		gateName = gateNameY(i)
-		gkr.Gates[gateName] = &intKeyGate2{
-			roundKey: frToInt(&roundKeysFr[i][1]),
+		gkr.Gates[gateName] = &intKeyGate2{ // TODO replace with extGate
+			roundKey: zero,
 			d:        d,
 		}
 		x, y = x1, gkrApi.NamedGate(gateName, x, y)
@@ -427,3 +429,7 @@ var (
 		return poseidon2.InitRC(seed, rF, rP, 2)
 	})
 )
+
+func gateNameBase() string {
+	return fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%s", rF, rP, d, base64.StdEncoding.EncodeToString([]byte(seed)))
+}

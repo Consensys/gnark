@@ -202,7 +202,7 @@ func GetHashBuilder(name string) (func() hash.Hash, error) {
 	defer hasBuilderLock.RUnlock()
 	builder, ok := hashBuilderRegistry[name]
 	if !ok {
-		return nil, fmt.Errorf("hash function not found")
+		return nil, fmt.Errorf("hash function \"%s\" not found for curve bls12-377", name)
 	}
 	return builder, nil
 }
