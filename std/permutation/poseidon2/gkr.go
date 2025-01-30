@@ -216,11 +216,21 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	// build GKR circuit
 	gkrApi := gkr.NewApi()
 
-	x, err := gkrApi.Import(p.ins1)
+	// TODO @Tabaie gkr to auto pad?
+	ins1Padded := make([]frontend.Variable, ecc.NextPowerOfTwo(uint64(len(p.ins1))))
+	ins2Padded := make([]frontend.Variable, len(ins1Padded))
+	copy(ins1Padded, p.ins1)
+	copy(ins2Padded, p.ins2)
+	for i := len(p.ins1); i < len(ins1Padded); i++ {
+		ins1Padded[i] = 0
+		ins2Padded[i] = 0
+	}
+
+	x, err := gkrApi.Import(ins1Padded)
 	if err != nil {
 		return err
 	}
-	y, err := gkrApi.Import(p.ins2)
+	y, err := gkrApi.Import(ins2Padded)
 	if err != nil {
 		return err
 	}
@@ -343,8 +353,8 @@ func permuteHint(m *big.Int, ins, outs []*big.Int) error {
 
 // TODO CRITICAL @Tabaie increase round numbers
 const (
-	rF   = 4
-	rP   = 2
+	rF   = 6
+	rP   = 32 - rF
 	d    = 17
 	seed = "TODO"
 )

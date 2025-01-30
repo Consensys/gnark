@@ -120,7 +120,6 @@ func (c *testGkrGatesCircuit) Define(api frontend.API) error {
 	}
 
 	api.AssertIsEqual(xCp[1], y) // as a compression function, the output is the second one
-	api.Println(y)
 	return nil
 }
 

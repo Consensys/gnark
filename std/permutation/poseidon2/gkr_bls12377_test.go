@@ -1,7 +1,6 @@
 package poseidon2
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	gkrFr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
 	"github.com/stretchr/testify/require"
@@ -47,7 +46,6 @@ func TestGkrFrGates(t *testing.T) {
 		gate.roundKey = roundKeys[i][1]
 		x, y = x1, gate.Evaluate(y, x)
 
-		fmt.Println("x after sbox at round", i, ":", x.String())
 	}
 
 	for i := range halfRf {
@@ -69,7 +67,6 @@ func TestGkrFrGates(t *testing.T) {
 			d:        d,
 		}
 		x, y = x1, gate.Evaluate(x, y)
-		fmt.Println("x after sbox at round", halfRf, ":", x.String())
 	}
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
@@ -86,7 +83,6 @@ func TestGkrFrGates(t *testing.T) {
 			d:        d,
 		}
 		x, y = x1, gate.Evaluate(x, y)
-		fmt.Println("x after sbox at round", i, ":", x.String())
 	}
 
 	{
@@ -104,7 +100,6 @@ func TestGkrFrGates(t *testing.T) {
 			d:        d,
 		}
 		x, y = x1, gate.Evaluate(x, y)
-		fmt.Println("x after sbox at round", i, ":", x.String())
 	}
 
 	for i := halfRf + rP + 1; i < rP+rF; i++ {
