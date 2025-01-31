@@ -5,7 +5,7 @@
 package hash
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
@@ -58,7 +58,7 @@ func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
 	defer lock.RUnlock()
 	builder, ok := builderRegistry[name]
 	if !ok {
-		return nil, errors.New("hash function not found")
+		return nil, fmt.Errorf("hash function \"%s\" not registered", name)
 	}
 	return builder(api)
 }
@@ -86,4 +86,42 @@ type BinaryFixedLengthHasher interface {
 	BinaryHasher
 	// FixedLengthSum returns digest of the first length bytes.
 	FixedLengthSum(length frontend.Variable) []uints.U8
+}
+
+// CompressionFunction is a 2 to 1 function
+type CompressionFunction interface {
+	Apply(frontend.API, frontend.Variable, frontend.Variable) frontend.Variable // TODO @Tabaie @ThomasPiellard better name
+}
+
+// Merkle-Damgard is a generic transformation that turns
+type merkleDamgardHasher struct {
+	state frontend.Variable
+	iv    frontend.Variable
+	f     CompressionFunction
+	api   frontend.API
+}
+
+// NewMerkleDamgardHasher transforms a 2-1 one-way function into a hash
+// initialState is a value whose preimage is not known
+func NewMerkleDamgardHasher(api frontend.API, f CompressionFunction, initialState frontend.Variable) FieldHasher {
+	return &merkleDamgardHasher{
+		state: initialState,
+		iv:    initialState,
+		f:     f,
+		api:   api,
+	}
+}
+
+func (h *merkleDamgardHasher) Reset() {
+	h.state = h.iv
+}
+
+func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
+	for _, d := range data {
+		h.state = h.f.Apply(h.api, h.state, d)
+	}
+}
+
+func (h *merkleDamgardHasher) Sum() frontend.Variable {
+	return h.state
 }

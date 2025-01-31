@@ -282,3 +282,12 @@ func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 
 	return nil
 }
+
+// Apply aliases Permutation in the t=2 case
+// implements hash.CompressionFunction
+func (h *Hash) Apply(api frontend.API, l, r frontend.Variable) frontend.Variable {
+	if h.params.t != 2 {
+		panic("poseidon2: Apply can only be used when t=2")
+	}
+	return h.Permutation(api, []frontend.Variable{l, r})
+}
