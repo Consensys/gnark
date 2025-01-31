@@ -289,5 +289,9 @@ func (h *Hash) Apply(api frontend.API, l, r frontend.Variable) frontend.Variable
 	if h.params.t != 2 {
 		panic("poseidon2: Apply can only be used when t=2")
 	}
-	return h.Permutation(api, []frontend.Variable{l, r})
+	vars := [2]frontend.Variable{l, r}
+	if err := h.Permutation(api, vars[:]); err != nil {
+		panic(err) // this would never happen
+	}
+	return vars[1]
 }
