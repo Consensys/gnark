@@ -62,21 +62,13 @@ func main() {
 		CurveID:  "BW6_633",
 	}
 	tiny_field := templateData{
-		RootPath:  "../../../internal/smallfields/tinyfield/",
-		CSPath:    "../../../constraint/tinyfield",
-		Curve:     "tinyfield",
-		CurveID:   "UNKNOWN",
-		noBackend: true,
-		NoGKR:     true,
-	}
-
-	// autogenerate tinyfield
-	tinyfieldConf, err := config.NewFieldConfig("tinyfield", "Element", "0x2f", false)
-	if err != nil {
-		panic(err)
-	}
-	if err := generator.GenerateFF(tinyfieldConf, tiny_field.RootPath); err != nil {
-		panic(err)
+		RootPath:          "../../../internal/smallfields/tinyfield/",
+		CSPath:            "../../../constraint/tinyfield",
+		Curve:             "tinyfield",
+		CurveID:           "UNKNOWN",
+		noBackend:         true,
+		NoGKR:             true,
+		autoGenerateField: "0x2f",
 	}
 
 	datas := []templateData{
@@ -100,6 +92,16 @@ func main() {
 
 		go func(d templateData) {
 			defer wg.Done()
+			// auto-generate small fields
+			if d.autoGenerateField != "" {
+				conf, err := config.NewFieldConfig(d.Curve, "Element", d.autoGenerateField, false)
+				if err != nil {
+					panic(err)
+				}
+				if err := generator.GenerateFF(conf, d.RootPath); err != nil {
+					panic(err)
+				}
+			}
 
 			var (
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
@@ -128,7 +130,7 @@ func main() {
 			}
 
 			// gkr backend
-			if d.Curve != "tinyfield" {
+			if !d.NoGKR {
 				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
 				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
 					panic(err)
@@ -216,10 +218,12 @@ func main() {
 }
 
 type templateData struct {
-	RootPath  string
-	CSPath    string
-	Curve     string
-	CurveID   string
-	noBackend bool
-	NoGKR     bool
+	RootPath string
+	CSPath   string
+	Curve    string
+	CurveID  string
+
+	autoGenerateField string
+	noBackend         bool
+	NoGKR             bool
 }
