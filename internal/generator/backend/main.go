@@ -70,6 +70,14 @@ func main() {
 		NoGKR:             true,
 		AutoGenerateField: "0x2f",
 	}
+	baby_bear_field := templateData{
+		CSPath:    "../../../constraint/babybear/",
+		Curve:     "babybear",
+		CurveID:   "UNKNOWN",
+		OnlyField: true,
+		noBackend: true,
+		NoGKR:     true,
+	}
 
 	datas := []templateData{
 		bls12_377,
@@ -80,6 +88,7 @@ func main() {
 		bls24_317,
 		bw6_633,
 		tiny_field,
+		baby_bear_field,
 	}
 
 	const importCurve = "../imports.go.tmpl"
@@ -223,7 +232,8 @@ type templateData struct {
 	Curve    string
 	CurveID  string
 
-	AutoGenerateField string
+	AutoGenerateField string // the field implementation will be generated. Field value should be field modulus in hex (starting with 0x prefix)
+	OnlyField         bool   // use field from gnark-crypto. Import package is deduced from Curve field
 	noBackend         bool
 	NoGKR             bool
 }

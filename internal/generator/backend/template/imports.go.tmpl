@@ -1,6 +1,8 @@
 {{- define "import_fr" }}
     {{- if ne .AutoGenerateField "" }}
-	fr "github.com/consensys/gnark/internal/smallfields/{{ .Curve }}"
+	fr "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fr "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 	{{- end}}
@@ -8,7 +10,9 @@
 
 {{- define "import_fp" }}
     {{- if ne .AutoGenerateField "" }}
-	fp "github.com/consensys/gnark/internal/smallfields/{{ .Curve }}"
+	fp "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fp "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fp"
 	{{- end}}
@@ -28,11 +32,7 @@
 {{- end }}
 
 {{- define "import_backend_cs" }}
-    {{- if ne .AutoGenerateField "" }}
-	cs "github.com/consensys/gnark/constraint/{{ .Curve }}"
-	{{- else}}
-	cs "github.com/consensys/gnark/constraint/{{toLower .Curve}}"
-	{{- end}}
+	cs "github.com/consensys/gnark/constraint/{{toLower .Curve }}"
 {{- end }}
 
 {{- define "import_fft" }}
@@ -40,7 +40,7 @@
 {{- end }}
 
 {{- define "import_witness" }}
-    {{- if ne .AutoGenerateField "" }}
+    {{- if ne .AutoGenerateField "" | or .OnlyField}}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/smallfields/{{ .Curve }}/witness"
 	{{- else}}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
