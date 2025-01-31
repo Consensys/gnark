@@ -118,13 +118,6 @@ func main() {
 				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
 			)
 
-			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
-				panic(err)
-			}
-			if err := os.MkdirAll(plonkDir, 0700); err != nil {
-				panic(err)
-			}
-
 			csDir := d.CSPath
 
 			// constraint systems
