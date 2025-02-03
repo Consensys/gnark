@@ -183,17 +183,13 @@ func assignCircuit() frontend.Circuit {
 
 }
 
-var onceCircuit = sync.OnceValue(func() *cs.R1CS {
+var getTestCircuit = sync.OnceValue(func() *cs.R1CS {
 	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &Circuit{})
 	if err != nil {
 		panic(err)
 	}
 	return ccs.(*cs.R1CS)
 })
-
-func getTestCircuit() *cs.R1CS {
-	return onceCircuit()
-}
 
 func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.VerifyingKey) {
 
