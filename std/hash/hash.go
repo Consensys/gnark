@@ -93,7 +93,6 @@ type CompressionFunction interface {
 	Apply(frontend.API, frontend.Variable, frontend.Variable) frontend.Variable // TODO @Tabaie @ThomasPiellard better name
 }
 
-// Merkle-Damgard is a generic transformation that turns
 type merkleDamgardHasher struct {
 	state frontend.Variable
 	iv    frontend.Variable
