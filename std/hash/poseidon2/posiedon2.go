@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/hash"
 	poseidon2 "github.com/consensys/gnark/std/permutation/poseidon2"
+	"strings"
 )
 
 func NewPoseidon2(api frontend.API) (hash.FieldHasher, error) {
@@ -15,7 +16,7 @@ func NewPoseidon2(api frontend.API) (hash.FieldHasher, error) {
 	if !ok {
 		return nil, fmt.Errorf("poseidon2 hash for curve \"%s\" not yet supported", curve.String())
 	}
-	seed := fmt.Sprintf("Poseidon2 hash: curve=%s-rF=%d-rP=%d-t=2", curve.String(), params.rF, params.rP)
+	seed := fmt.Sprintf("Poseidon2 hash for %s with t=2, rF=%d, rP=%d, d=%d", strings.ToUpper(curve.String()), params.rF, params.rP, params.d)
 	f := poseidon2.NewHash(2, params.d, params.rF, params.rP, seed, curve)
 	return hash.NewMerkleDamgardHasher(api, &f, 0), nil
 }
