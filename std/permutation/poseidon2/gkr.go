@@ -2,13 +2,14 @@ package poseidon2
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
+	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
@@ -164,7 +165,7 @@ func (p *GkrPermutations) Permute(a, b frontend.Variable) frontend.Variable {
 	return s[0]
 }
 
-func frToInt(x *fr.Element) *big.Int {
+func frToInt(x *frBls12377.Element) *big.Int {
 	var res big.Int
 	x.BigInt(&res)
 	return &res
@@ -184,13 +185,11 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	zero := new(big.Int)
 	const halfRf = rF / 2
 
-	gateNameBase := gateNameBase()
-
 	gateNameX := func(i int) string {
-		return fmt.Sprintf("x-round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("x-round=%d%s", i, seed)
 	}
 	gateNameY := func(i int) string {
-		return fmt.Sprintf("y-round=%d%s", i, gateNameBase)
+		return fmt.Sprintf("y-round=%d%s", i, seed)
 	}
 
 	// build GKR circuit
@@ -290,7 +289,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	gateName := gateNameY(rP + rF)
 	gkr.Gates[gateName] = extGate{}
 	y = gkrApi.NamedGate(gateName, y, x)
-
+	
 	// connect to output
 	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
 	solution, err := gkrApi.Solve(api)
@@ -321,7 +320,7 @@ func permuteHint(m *big.Int, ins, outs []*big.Int) error {
 	if len(ins) != 2 || len(outs) != 1 {
 		return errors.New("expected 2 inputs and 1 output")
 	}
-	var x [2]fr.Element
+	var x [2]frBls12377.Element
 	x[0].SetBigInt(ins[0])
 	x[1].SetBigInt(ins[1])
 
@@ -334,19 +333,25 @@ const (
 	rF   = 6
 	rP   = 32 - rF
 	d    = 17
-	seed = "TODO"
+	seed = "Poseidon2 hash for BLS12_377 with t=2, rF=6, rP=26, d=17"
 )
 
 var (
-	bls12377Params = sync.OnceValue(func() *poseidon2.Hash {
-		p := poseidon2.NewHash(2, rF, rP, seed)
+	bls12377Params = sync.OnceValue(func() *poseidon2Bls12377.Hash {
+		p := poseidon2Bls12377.NewHash(2, rF, rP, seed)
+
 		return &p
 	})
-	bls12377RoundKeys = sync.OnceValue(func() [][]fr.Element {
-		return poseidon2.InitRC(seed, rF, rP, 2)
+	bls12377RoundKeys = sync.OnceValue(func() [][]frBls12377.Element {
+		return poseidon2Bls12377.InitRC(seed, rF, rP, 2)
 	})
 )
 
-func gateNameBase() string {
-	return fmt.Sprintf("-poseidon2-bls12377;rF=%d;rP=%d;d=%d;seed=%s", rF, rP, d, base64.StdEncoding.EncodeToString([]byte(seed)))
+// TODO find better name
+// these are the fr gates
+func AddGkrGatesSolution() {
+	csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
+		return mimcBls12377.NewMiMC()
+	})
+	poseidon2Bls12377.DefineGkrGates()
 }
