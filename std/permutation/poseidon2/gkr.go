@@ -26,25 +26,6 @@ type Gkr struct {
 	plainHasher hash.Hash
 }
 
-type gkrGate struct {
-}
-
-func (g gkrGate) Evaluate(api frontend.API, variable ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (g gkrGate) Degree() int {
-	//TODO implement me
-	panic("implement me")
-}
-
-func gkrPermutation(api *gkr.API, h *Hash) {
-
-}
-
-type gkrMatMulExternalInPlaceGate *Hash
-
 // SHA256 hash of the hash parameters - as a unique identifier
 // Note that the identifier is only unique with respect to the size parameters
 // t, d, rF, rP
@@ -94,20 +75,19 @@ func (g *extKeySBoxGate) Degree() int {
 // for x2, the partial round gates are just a linear combination
 // TODO @Tabaie eliminate the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
 
-// extKeyGate2 applies the external matrix mul, then adds the round key
-type extKeyGate2 struct {
-	roundKey *big.Int
-	d        int
+// extGate2 applies the external matrix mul, outputting the second element of the result
+type extGate2 struct {
+	d int
 }
 
-func (g *extKeyGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func (g *extGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
-	return api.Add(api.Mul(x[1], 2), x[0], g.roundKey)
+	return api.Add(api.Mul(x[1], 2), x[0])
 }
 
-func (g *extKeyGate2) Degree() int {
+func (g *extGate2) Degree() int {
 	return 1
 }
 
@@ -264,9 +244,8 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		x1 := gkrApi.NamedGate(gateName, x, y)
 
 		gateName = gateNameY(halfRf)
-		gkr.Gates[gateName] = &extKeyGate2{ // TODO remove the key: this will be just an extGate
-			roundKey: zero,
-			d:        d,
+		gkr.Gates[gateName] = &extGate2{
+			d: d,
 		}
 		x, y = x1, gkrApi.NamedGate(gateName, x, y)
 	}
@@ -351,7 +330,6 @@ func permuteHint(m *big.Int, ins, outs []*big.Int) error {
 	return err
 }
 
-// TODO CRITICAL @Tabaie increase round numbers
 const (
 	rF   = 6
 	rP   = 32 - rF

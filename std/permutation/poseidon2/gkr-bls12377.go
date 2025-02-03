@@ -36,24 +36,22 @@ func (g *extKeySBoxGateFr) Degree() int {
 // for x2, the partial round gates are just a linear combination
 // TODO @Tabaie eliminate the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
 
-// extKeyGate2Fr applies the external matrix mul, then adds the round key
-type extKeyGate2Fr struct {
-	roundKey fr.Element
-	d        int
+// extGate2 applies the external matrix mul, outputting the second element of the result
+type extGate2Fr struct {
+	d int
 }
 
-func (g *extKeyGate2Fr) Evaluate(x ...fr.Element) fr.Element {
+func (g *extGate2Fr) Evaluate(x ...fr.Element) fr.Element {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
 	x[1].
 		Double(&x[1]).
-		Add(&x[1], &x[0]).
-		Add(&x[1], &g.roundKey)
+		Add(&x[1], &x[0])
 	return x[1]
 }
 
-func (g *extKeyGate2Fr) Degree() int {
+func (g *extGate2Fr) Degree() int {
 	return 1
 }
 
@@ -180,8 +178,7 @@ func AddGkrGatesSolution() {
 			d:        d,
 		}
 
-		frGkr.Gates[gateNameY(i)] = &extKeyGate2Fr{ // TODO replace with extGateFr
-			//roundKey: roundKeysFr[i][1],
+		frGkr.Gates[gateNameY(i)] = &extGate2Fr{
 			d: d,
 		}
 	}
