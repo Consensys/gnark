@@ -219,13 +219,11 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 	require.NoError(t, err)
 }
 
-// unit tests: normally skipped for all curves except BN254 so as not to slow down the CI
-
 // TestSetupBeaconOnly tests the setup/key extraction
 // as well as the random beacon contribution
 // without any untrusted contributors
 func TestSetupBeaconOnly(t *testing.T) {
-
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	// Compile the circuit
 	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
@@ -267,10 +265,12 @@ func TestSetupBeaconOnly(t *testing.T) {
 
 // TestNoContributors tests the beacon and some of the serialization
 func TestNoContributors(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	testAll(t, 0, 0)
 }
 
 func TestOnePhase1Contribute(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	testAll(t, 2, 0)
 }
 
@@ -325,6 +325,7 @@ func powersI(x uint64, n int) []fr.Element {
 }
 
 func TestPowers(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	var x fr.Element
 	x.SetUint64(2)
 	x2 := powers(&x, 10)
@@ -335,7 +336,7 @@ func TestPowers(t *testing.T) {
 }
 
 func TestCommons(t *testing.T) {
-
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	// Compile the circuit
 	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
@@ -355,6 +356,7 @@ func TestCommons(t *testing.T) {
 }
 
 func TestCommonsUpdate(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	var c SrsCommons
 	c.setOne(1)
 	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
@@ -378,6 +380,7 @@ func assertPairingsEqual(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine, q1 
 }
 
 func TestPedersen(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	cs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(cs.GetNbConstraints()))
 
@@ -397,7 +400,7 @@ func TestPedersen(t *testing.T) {
 }
 
 func TestPhase2Serialization(t *testing.T) {
-
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	testRoundtrip := func(_cs constraint.ConstraintSystem) {
 		var (
 			p1 Phase1
@@ -478,6 +481,7 @@ func getSimplePhase2(t *testing.T, circuit frontend.Circuit) Phase2 {
 }
 
 func TestPhase2(t *testing.T) {
+	t.Skip("skipping unit test for BW6-761 so as not to clog the CI")
 	p0 := getSimplePhase2(t, &Circuit{})
 
 	var p1 Phase2

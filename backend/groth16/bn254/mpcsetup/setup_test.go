@@ -223,7 +223,6 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 // as well as the random beacon contribution
 // without any untrusted contributors
 func TestSetupBeaconOnly(t *testing.T) {
-
 	// Compile the circuit
 	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
@@ -333,7 +332,6 @@ func TestPowers(t *testing.T) {
 }
 
 func TestCommons(t *testing.T) {
-
 	// Compile the circuit
 	ccs := getTestCircuit()
 	domainSize := ecc.NextPowerOfTwo(uint64(ccs.GetNbConstraints()))
@@ -395,7 +393,6 @@ func TestPedersen(t *testing.T) {
 }
 
 func TestPhase2Serialization(t *testing.T) {
-
 	testRoundtrip := func(_cs constraint.ConstraintSystem) {
 		var (
 			p1 Phase1
