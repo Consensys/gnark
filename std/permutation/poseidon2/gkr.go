@@ -9,7 +9,6 @@ import (
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
@@ -18,8 +17,6 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"hash"
 	"math/big"
-	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -189,8 +186,8 @@ func frToInt(x *frBls12377.Element) *big.Int {
 	return &res
 }
 
-func gateName(prefix string, i ...int) string {
-	return fmt.Sprintf("%s-round=%s;%s", prefix, strings.Join(utils.Map(i, strconv.Itoa), "-"), seed)
+func gateName(prefix string, i int) string {
+	return fmt.Sprintf("%s-linear-op-round=%d;%s", prefix, i, seed)
 }
 
 func varIndex(varName string) int {
@@ -241,17 +238,17 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	sBox := func(round int, varName string, p1 constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateName(varName, round, 1)
+		gate := "pow4"
 		gkr.Gates[gate] = pow4Gate{}
 		p4 := gkrApi.NamedGate(gate, p1)
 
-		gate = gateName(varName, round, 2)
+		gate = "pow4Times"
 		gkr.Gates[gate] = pow4TimesGate{}
 		return gkrApi.NamedGate(gate, p4, p1)
 	}
 
 	extKeySBox := func(round int, varName string, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateName(varName, round, 0)
+		gate := gateName(varName, round)
 		gkr.Gates[gate] = &extKeyGate{
 			roundKey: frToInt(&roundKeysFr[round][varIndex(varName)]),
 		}
@@ -259,7 +256,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateName("y", round, 0)
+		gate := gateName("y", round)
 		gkr.Gates[gate] = &intKeyGate2{
 			roundKey: frToInt(&roundKeysFr[round][1]),
 		}
