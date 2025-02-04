@@ -29,12 +29,6 @@ func (cc *innerConfig) phi1(api frontend.API, res, P *G1Affine) *G1Affine {
 	return res
 }
 
-func (cc *innerConfig) phi2Neg(api frontend.API, res, P *G1Affine) *G1Affine {
-	res.X = api.Mul(P.X, cc.thirdRootOne2)
-	res.Y = api.Sub(0, P.Y)
-	return res
-}
-
 // getInnerCurveConfig returns the configuration of the inner elliptic curve
 // which can be defined on the scalars of outer curve.
 func getInnerCurveConfig(outerCurveScalarField *big.Int) *innerConfig {
