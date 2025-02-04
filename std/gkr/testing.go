@@ -13,8 +13,10 @@ import (
 
 // SolveAll IS A TEST FUNCTION USED ONLY TO DEBUG a GKR circuit
 // The output is the values of all variables, across all instances
+// TODO find better name
 func (api *API) SolveAll(parentApi frontend.API) [][]frontend.Variable {
 	res := make([][]frontend.Variable, len(api.toStore.Circuit))
+	degreeTestedGates := make(map[string]struct{})
 	for i, w := range api.toStore.Circuit { // TODO use assignments
 		res[i] = make([]frontend.Variable, api.nbInstances())
 		copy(res[i], api.assignments[i])
@@ -57,7 +59,7 @@ func (api *API) SolveAll(parentApi frontend.API) [][]frontend.Variable {
 				for i, in := range w.Inputs {
 					ins[i] = res[in][instanceI]
 				}
-				expectedV, err := parentApi.Compiler().NewHint(frGateHint(w.Gate), 1, ins...)
+				expectedV, err := parentApi.Compiler().NewHint(frGateHint(w.Gate, degreeTestedGates), 1, ins...)
 				if err != nil {
 					panic(err)
 				}
@@ -70,7 +72,7 @@ func (api *API) SolveAll(parentApi frontend.API) [][]frontend.Variable {
 	return res
 }
 
-func frGateHint(gateName string) hint.Hint {
+func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
 		if len(outs) != 1 {
 			return errors.New("gate must have one output")
@@ -81,6 +83,13 @@ func frGateHint(gateName string) hint.Hint {
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
+			if _, ok := degreeTestedGates[gateName]; !ok {
+				if err := gkrBls12377.TestGateDegree(gate, len(ins)); err != nil {
+					return fmt.Errorf("gate %s: %w", gateName, err)
+				}
+				degreeTestedGates[gateName] = struct{}{}
+			}
+
 			x := make([]frBls12377.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
