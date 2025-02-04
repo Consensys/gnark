@@ -1,8 +1,8 @@
 package gkr
 
 import (
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/algo_utils"
 )
 
 func frontendVarToInt(a constraint.GkrVariable) int {
@@ -12,7 +12,7 @@ func frontendVarToInt(a constraint.GkrVariable) int {
 func (api *API) NamedGate(gate string, in ...constraint.GkrVariable) constraint.GkrVariable {
 	api.toStore.Circuit = append(api.toStore.Circuit, constraint.GkrWire{
 		Gate:   gate,
-		Inputs: algo_utils.Map(in, frontendVarToInt),
+		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
 	return constraint.GkrVariable(len(api.toStore.Circuit) - 1)

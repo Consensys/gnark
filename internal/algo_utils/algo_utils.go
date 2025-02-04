@@ -24,14 +24,6 @@ func Permute[T any](slice []T, permutation []int) {
 	}
 }
 
-func Map[T, S any](in []T, f func(T) S) []S {
-	out := make([]S, len(in))
-	for i, t := range in {
-		out[i] = f(t)
-	}
-	return out
-}
-
 func MapRange[S any](begin, end int, f func(int) S) []S {
 	out := make([]S, end-begin)
 	for i := begin; i < end; i++ {

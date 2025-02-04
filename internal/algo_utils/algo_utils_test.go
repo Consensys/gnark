@@ -1,6 +1,7 @@
 package algo_utils
 
 import (
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -11,7 +12,7 @@ func SliceLen[T any](slice []T) int {
 
 func testTopSort(t *testing.T, inputs [][]int, expectedSorted, expectedNbUniqueOuts []int) {
 	sorted, uniqueOuts := TopologicalSort(inputs)
-	nbUniqueOut := Map(uniqueOuts, SliceLen[int])
+	nbUniqueOut := utils.Map(uniqueOuts, SliceLen[int])
 	assert.Equal(t, expectedSorted, sorted)
 	assert.Equal(t, expectedNbUniqueOuts, nbUniqueOut)
 }

@@ -9,6 +9,8 @@ import (
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/constraint"
 	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
@@ -16,6 +18,8 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"hash"
 	"math/big"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -54,22 +58,55 @@ func (h *Hash) hash(curve ecc.ID) []byte {
 	return hasher.Sum(nil)
 }
 
-// extKeySBoxGate applies the external matrix mul, then adds the round key, then applies the sBox
+// extKeyGate applies the external matrix mul, then adds the round key
 // because of its symmetry, we don't need to define distinct x1 and x2 versions of it
-type extKeySBoxGate struct {
+type extKeyGate struct {
 	roundKey *big.Int
-	d        int
 }
 
-func (g *extKeySBoxGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func (g *extKeyGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
-	return power(api, api.Add(api.Mul(x[0], 2), x[1], g.roundKey), g.d)
+	return api.Add(api.Mul(x[0], 2), x[1], g.roundKey)
 }
 
-func (g *extKeySBoxGate) Degree() int {
-	return g.d
+func (g *extKeyGate) Degree() int {
+	return 1
+}
+
+// pow4Gate computes a -> a^4
+type pow4Gate struct{}
+
+func (g pow4Gate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 1 {
+		panic("expected 1 input")
+	}
+	y := api.Mul(x[0], x[0])
+	y = api.Mul(y, y)
+
+	return y
+}
+
+func (g pow4Gate) Degree() int {
+	return 4
+}
+
+// pow4Gate computes a, b -> a^4 * b
+type pow4TimesGate struct{}
+
+func (g pow4TimesGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 1 input")
+	}
+	y := api.Mul(x[0], x[0])
+	y = api.Mul(y, y)
+
+	return api.Mul(y, x[1])
+}
+
+func (g pow4TimesGate) Degree() int {
+	return 5
 }
 
 // for x1, the partial round gates are identical to full round gates
@@ -78,7 +115,6 @@ func (g *extKeySBoxGate) Degree() int {
 
 // extGate2 applies the external matrix mul, outputting the second element of the result
 type extGate2 struct {
-	d int
 }
 
 func (g *extGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
@@ -95,7 +131,6 @@ func (g *extGate2) Degree() int {
 // intKeyGate2 applies the internal matrix mul, then adds the round key
 type intKeyGate2 struct {
 	roundKey *big.Int
-	d        int
 }
 
 func (g *intKeyGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
@@ -107,23 +142,6 @@ func (g *intKeyGate2) Evaluate(api frontend.API, x ...frontend.Variable) fronten
 
 func (g *intKeyGate2) Degree() int {
 	return 1
-}
-
-// intKeySBoxGate applies the second row of internal matrix mul, then adds the round key, then applies the sBox
-type intKeySBoxGate2 struct {
-	roundKey *big.Int
-	d        int
-}
-
-func (g *intKeySBoxGate2) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("expected 2 inputs")
-	}
-	return power(api, api.Add(api.Mul(x[1], 3), x[0], g.roundKey), g.d)
-}
-
-func (g *intKeySBoxGate2) Degree() int {
-	return g.d
 }
 
 type extGate struct{}
@@ -171,6 +189,21 @@ func frToInt(x *frBls12377.Element) *big.Int {
 	return &res
 }
 
+func gateName(prefix string, i ...int) string {
+	return fmt.Sprintf("%s-round=%s;%s", prefix, strings.Join(utils.Map(i, strconv.Itoa), "-"), seed)
+}
+
+func varIndex(varName string) int {
+	switch varName {
+	case "x":
+		return 0
+	case "y":
+		return 1
+	default:
+		panic("unexpected varName")
+	}
+}
+
 func (p *GkrPermutations) finalize(api frontend.API) error {
 	if p.api != api {
 		panic("unexpected API")
@@ -184,13 +217,6 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	roundKeysFr := bls12377RoundKeys()
 	zero := new(big.Int)
 	const halfRf = rF / 2
-
-	gateNameX := func(i int) string {
-		return fmt.Sprintf("x-round=%d%s", i, seed)
-	}
-	gateNameY := func(i int) string {
-		return fmt.Sprintf("y-round=%d%s", i, seed)
-	}
 
 	// build GKR circuit
 	gkrApi := gkr.NewApi()
@@ -214,20 +240,35 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return err
 	}
 
-	fullRound := func(i int) {
-		gateName := gateNameX(i)
-		gkr.Gates[gateName] = &extKeySBoxGate{
-			roundKey: frToInt(&roundKeysFr[i][0]),
-			d:        d,
-		}
-		x1 := gkrApi.NamedGate(gateName, x, y)
+	sBox := func(round int, varName string, p1 constraint.GkrVariable) constraint.GkrVariable {
+		gate := gateName(varName, round, 1)
+		gkr.Gates[gate] = pow4Gate{}
+		p4 := gkrApi.NamedGate(gate, p1)
 
-		gateName = gateNameY(i)
-		gkr.Gates[gateName] = &extKeySBoxGate{
-			roundKey: frToInt(&roundKeysFr[i][1]),
-			d:        d,
+		gate = gateName(varName, round, 2)
+		gkr.Gates[gate] = pow4TimesGate{}
+		return gkrApi.NamedGate(gate, p4, p1)
+	}
+
+	extKeySBox := func(round int, varName string, a, b constraint.GkrVariable) constraint.GkrVariable {
+		gate := gateName(varName, round, 0)
+		gkr.Gates[gate] = &extKeyGate{
+			roundKey: frToInt(&roundKeysFr[round][varIndex(varName)]),
 		}
-		x, y = x1, gkrApi.NamedGate(gateName, y, x)
+		return sBox(round, varName, gkrApi.NamedGate(gate, a, b))
+	}
+
+	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
+		gate := gateName("y", round, 0)
+		gkr.Gates[gate] = &intKeyGate2{
+			roundKey: frToInt(&roundKeysFr[round][1]),
+		}
+		return sBox(round, "y", gkrApi.NamedGate(gate, a, b))
+	}
+
+	fullRound := func(i int) {
+		x1 := extKeySBox(i, "x", x, y) // TODO inline this
+		x, y = x1, extKeySBox(i, "y", y, x)
 	}
 
 	for i := range halfRf {
@@ -235,61 +276,38 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	{ // i = halfRf: first partial round
-		gateName := gateNameX(halfRf)
-		gkr.Gates[gateName] = &extKeySBoxGate{
-			roundKey: frToInt(&roundKeysFr[halfRf][0]),
-			d:        d,
-		}
-		x1 := gkrApi.NamedGate(gateName, x, y)
+		x1 := extKeySBox(halfRf, "x", x, y)
 
-		gateName = gateNameY(halfRf)
-		gkr.Gates[gateName] = &extGate2{
-			d: d,
-		}
-		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+		gate := gateName("y", halfRf)
+		gkr.Gates[gate] = &extGate2{}
+		x, y = x1, gkrApi.NamedGate(gate, x, y)
 	}
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
-		gateName := gateNameX(i)
-		gkr.Gates[gateName] = &extKeySBoxGate{ // for x1, intKeySBox is identical to extKeySBox
-			roundKey: frToInt(&roundKeysFr[i][0]),
-			d:        d,
-		}
-		x1 := gkrApi.NamedGate(gateName, x, y)
+		x1 := extKeySBox(i, "x", x, y)
 
-		gateName = gateNameY(i)
-		gkr.Gates[gateName] = &intKeyGate2{ // TODO replace with extGate
+		gate := gateName("y", i)
+		gkr.Gates[gate] = &intKeyGate2{ // TODO replace with extGate
 			roundKey: zero,
-			d:        d,
 		}
-		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+		x, y = x1, gkrApi.NamedGate(gate, x, y)
 	}
 
 	{
 		i := halfRf + rP
-		gateName := gateNameX(i)
-		gkr.Gates[gateName] = &extKeySBoxGate{
-			roundKey: frToInt(&roundKeysFr[i][0]),
-			d:        d,
-		}
-		x1 := gkrApi.NamedGate(gateName, x, y)
-
-		gateName = gateNameY(i)
-		gkr.Gates[gateName] = &intKeySBoxGate2{
-			roundKey: frToInt(&roundKeysFr[i][1]),
-			d:        d,
-		}
-		x, y = x1, gkrApi.NamedGate(gateName, x, y)
+		x1 := extKeySBox(i, "x", x, y)
+		
+		x, y = x1, intKeySBox2(i, x, y)
 	}
 
 	for i := halfRf + rP + 1; i < rP+rF; i++ {
 		fullRound(i)
 	}
 
-	gateName := gateNameY(rP + rF)
-	gkr.Gates[gateName] = extGate{}
-	y = gkrApi.NamedGate(gateName, y, x)
-	
+	gate := gateName("y", rP+rF)
+	gkr.Gates[gate] = extGate{}
+	y = gkrApi.NamedGate(gate, y, x)
+
 	// connect to output
 	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
 	solution, err := gkrApi.Solve(api)
