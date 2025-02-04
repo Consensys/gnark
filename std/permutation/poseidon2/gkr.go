@@ -106,6 +106,32 @@ func (g pow4TimesGate) Degree() int {
 	return 5
 }
 
+type pow2Gate struct{}
+
+func (g pow2Gate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 1 {
+		panic("expected 1 input")
+	}
+	return api.Mul(x[0], x[0])
+}
+
+func (g pow2Gate) Degree() int {
+	return 2
+}
+
+type pow2TimesGate struct{}
+
+func (g pow2TimesGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return api.Mul(x[0], x[0], x[1])
+}
+
+func (g pow2TimesGate) Degree() int {
+	return 3
+}
+
 // for x1, the partial round gates are identical to full round gates
 // for x2, the partial round gates are just a linear combination
 // TODO @Tabaie eliminate the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
@@ -237,14 +263,12 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return err
 	}
 
-	sBox := func(round int, varName string, p1 constraint.GkrVariable) constraint.GkrVariable {
-		gate := "pow4"
-		gkr.Gates[gate] = pow4Gate{}
-		p4 := gkrApi.NamedGate(gate, p1)
+	gkr.Gates["pow4"] = pow4Gate{}
+	gkr.Gates["pow4Times"] = pow4TimesGate{}
 
-		gate = "pow4Times"
-		gkr.Gates[gate] = pow4TimesGate{}
-		return gkrApi.NamedGate(gate, p4, p1)
+	sBox := func(round int, varName string, u constraint.GkrVariable) constraint.GkrVariable {
+		v := gkrApi.NamedGate("pow4", u)           // u^4
+		return gkrApi.NamedGate("pow4Times", v, u) // u^17
 	}
 
 	extKeySBox := func(round int, varName string, a, b constraint.GkrVariable) constraint.GkrVariable {
