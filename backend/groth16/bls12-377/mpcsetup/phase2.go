@@ -375,6 +375,5 @@ func (p *Phase2) hash() []byte {
 	if _, err := p.WriteTo(sha); err != nil {
 		panic(err)
 	}
-	sha.Write(p.Challenge)
 	return sha.Sum(nil)
 }

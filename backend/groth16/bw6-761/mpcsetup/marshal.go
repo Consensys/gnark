@@ -10,11 +10,11 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/mpcsetup"
 	"github.com/consensys/gnark/internal/utils"
+	gIo "github.com/consensys/gnark/io"
 	"io"
 )
 
 // WriteTo implements io.WriterTo
-// It does not write the Challenge from the previous contribution
 func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
 	var dn int64
 	for _, v := range []io.WriterTo{
@@ -29,11 +29,12 @@ func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
 			return
 		}
 	}
-	return
+
+	dn, err = gIo.WriteBytesShort(p.Challenge, writer)
+	return n + dn, err
 }
 
 // ReadFrom implements io.ReaderFrom
-// It does not read the Challenge from the previous contribution
 func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
 	var dn int64
 	for _, v := range []io.ReaderFrom{
@@ -48,7 +49,10 @@ func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
 			return
 		}
 	}
-	return
+
+	challenge, dn, err := gIo.ReadBytesShort(reader)
+	p.Challenge = challenge
+	return n + dn, err
 }
 
 // slice of references for the parameters of p
@@ -77,8 +81,7 @@ func (p *Phase2) refsSlice() []any {
 }
 
 // WriteTo implements io.WriterTo
-func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
-
+func (p *Phase2) WriteTo(writer io.Writer) (n int64, err error) {
 	// write the parameters
 	enc := curve.NewEncoder(writer)
 	for _, v := range p.refsSlice() {
@@ -89,7 +92,7 @@ func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
 
 	//write the proofs
 	dn, err := p.Delta.WriteTo(writer)
-	n := enc.BytesWritten() + dn
+	n = enc.BytesWritten() + dn
 	if err != nil {
 		return n, err
 	}
@@ -102,17 +105,18 @@ func (p *Phase2) WriteTo(writer io.Writer) (int64, error) {
 		}
 	}
 
-	return n, nil
+	dn, err = gIo.WriteBytesShort(p.Challenge, writer)
+	return n + dn, err
 }
 
 // ReadFrom implements io.ReaderFrom
-func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
+func (p *Phase2) ReadFrom(reader io.Reader) (n int64, err error) {
 	var nbCommitments uint16
 
-	if err := binary.Read(reader, binary.BigEndian, &nbCommitments); err != nil {
+	if err = binary.Read(reader, binary.BigEndian, &nbCommitments); err != nil {
 		return -1, err // binary.Read doesn't return the number of bytes read
 	}
-	n := int64(2) // we've definitely successfully read 2 bytes
+	n = int64(2) // we've definitely successfully read 2 bytes
 
 	p.Sigmas = make([]mpcsetup.UpdateProof, nbCommitments)
 	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, nbCommitments)
@@ -120,7 +124,7 @@ func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(reader)
 	for _, v := range p.refsSlice()[1:] { // nbCommitments already read
-		if err := dec.Decode(v); err != nil {
+		if err = dec.Decode(v); err != nil {
 			return n + dec.BytesRead(), err
 		}
 	}
@@ -140,7 +144,9 @@ func (p *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 		}
 	}
 
-	return n, nil
+	challenge, dn, err := gIo.ReadBytesShort(reader)
+	p.Challenge = challenge
+	return n + dn, err
 }
 
 func (c *Phase2Evaluations) refsSlice() []any {
