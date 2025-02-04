@@ -447,31 +447,29 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, sBits []frontend.
 		P.Select(api, selector, G1Affine{X: 1, Y: 1}, *P)
 	}
 
-	var Rb, R0, R1 G1Affine
+	var temp, doubles G1Affine
+	doubles.Double(api, *P)
 
-	// i = 1
-	Rb.Double(api, *P).AddAssign(api, *P)
-	R0.Select(api, sBits[1], Rb, *P)
-	R1.Select(api, sBits[1], *P, Rb)
-
-	nBits := len(sBits)
-	for i := 2; i < nBits-1; i++ {
-		Rb.DoubleAndAddSelect(api, sBits[i], &R0, &R1)
-		R0.Select(api, sBits[i], Rb, R0)
-		R1.Select(api, sBits[i], R1, Rb)
+	nBits := 254
+	for i := 1; i < nBits-1; i++ {
+		temp = *P
+		temp.AddAssign(api, doubles)
+		P.Select(api, sBits[i], temp, *P)
+		doubles.Double(api, doubles)
 	}
 
-	// i = n-1
-	Rb.DoubleAndAddSelect(api, sBits[nBits-1], &R0, &R1)
-	R0.Select(api, sBits[nBits-1], Rb, R0)
+	// i = nBits - 1
+	temp = *P
+	temp.AddAssign(api, doubles)
+	P.Select(api, sBits[nBits-1], temp, *P)
 
 	// i = 0
 	// we use AddUnified instead of Add. This is because:
 	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
-	Rb = R0
-	R0.AddUnified(api, *P.Neg(api, *P))
-	P.Select(api, sBits[0], Rb, R0)
+	temp = *P
+	temp.AddUnified(api, *doubles.Neg(api, Q))
+	P.Select(api, sBits[0], *P, temp)
 
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0), return (0,0)
