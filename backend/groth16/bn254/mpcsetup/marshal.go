@@ -7,37 +7,12 @@ package mpcsetup
 
 import (
 	"encoding/binary"
-	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/mpcsetup"
 	"github.com/consensys/gnark/internal/utils"
+	gIo "github.com/consensys/gnark/io"
 	"io"
-	"math"
 )
-
-func writeChallenge(challenge []byte, writer io.Writer) (int64, error) {
-	if len(challenge) > 65535 {
-		return 0, fmt.Errorf("challenge too long %d > 65535", len(challenge))
-	}
-	if err := binary.Write(writer, binary.BigEndian, uint16(len(challenge))); err != nil {
-		return math.MinInt, err // in this case we're not sure how many bytes were written
-	}
-	n, err := writer.Write(challenge)
-	return int64(n) + 2, err
-}
-
-func readChallenge(reader io.Reader) ([]byte, int64, error) {
-	var length uint16
-	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
-		return nil, math.MinInt, err // in this case we're not sure how many bytes were read
-	}
-	if length == 0 {
-		return nil, 2, nil
-	}
-	challenge := make([]byte, length)
-	dn, err := reader.Read(challenge)
-	return challenge, 2 + int64(dn), err
-}
 
 // WriteTo implements io.WriterTo
 func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
@@ -55,7 +30,7 @@ func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
 		}
 	}
 
-	dn, err = writeChallenge(p.Challenge, writer)
+	dn, err = gIo.WriteBytesShort(p.Challenge, writer)
 	return n + dn, err
 }
 
@@ -75,7 +50,7 @@ func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
 		}
 	}
 
-	challenge, dn, err := readChallenge(reader)
+	challenge, dn, err := gIo.ReadBytesShort(reader)
 	p.Challenge = challenge
 	return n + dn, err
 }
@@ -130,7 +105,7 @@ func (p *Phase2) WriteTo(writer io.Writer) (n int64, err error) {
 		}
 	}
 
-	dn, err = writeChallenge(p.Challenge, writer)
+	dn, err = gIo.WriteBytesShort(p.Challenge, writer)
 	return n + dn, err
 }
 
@@ -169,7 +144,7 @@ func (p *Phase2) ReadFrom(reader io.Reader) (n int64, err error) {
 		}
 	}
 
-	challenge, dn, err := readChallenge(reader)
+	challenge, dn, err := gIo.ReadBytesShort(reader)
 	p.Challenge = challenge
 	return n + dn, err
 }
