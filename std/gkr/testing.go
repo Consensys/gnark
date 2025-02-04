@@ -74,7 +74,7 @@ func frGateHint(gateName string) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
 		if len(outs) != 1 {
 			return errors.New("gate must have one output")
-		}
+		} // TODO @Tabaie implement other fields
 		if ecc.BLS12_377.ScalarField().Cmp(mod) == 0 {
 
 			gate := gkrBls12377.Gates[gateName]

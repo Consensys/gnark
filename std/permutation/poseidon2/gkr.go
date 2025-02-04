@@ -296,7 +296,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	{
 		i := halfRf + rP
 		x1 := extKeySBox(i, "x", x, y)
-		
+
 		x, y = x1, intKeySBox2(i, x, y)
 	}
 
