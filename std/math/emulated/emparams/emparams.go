@@ -117,6 +117,34 @@ type BN254Fr struct{ fourLimbPrimeField }
 
 func (fp BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 
+// GRUMPKINFp provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001 (base 16)
+//	21888242871839275222246405745257275088548364400416034343698204186575808495617 (base 10)
+//
+// This is the base field of the GRUMPKIN curve.
+type GRUMPKINFp struct{ fourLimbPrimeField }
+
+func (fp GRUMPKINFp) Modulus() *big.Int { return ecc.GRUMPKIN.BaseField() }
+
+// GRUMPKINFr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47 (base 16)
+//	21888242871839275222246405745257275088696311157297823662689037894645226208583 (base 10)
+//
+// This is the scalar field of the GRUMPKIN curve.
+type GRUMPKINFr struct{ fourLimbPrimeField }
+
+func (fp GRUMPKINFr) Modulus() *big.Int { return ecc.GRUMPKIN.ScalarField() }
+
 // BLS12377Fp provides type parametrization for field emulation:
 //   - limbs: 6
 //   - limb width: 64 bits
