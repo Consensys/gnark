@@ -136,16 +136,6 @@ func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 	var I big.Int
 
-	scale := func(point any) {
-		switch p := point.(type) {
-		case *curve.G1Affine:
-			p.ScalarMultiplication(p, &I)
-		case *curve.G2Affine:
-			p.ScalarMultiplication(p, &I)
-		default:
-			panic("unknown type")
-		}
-	}
 	scaleG1Slice := func(s []curve.G1Affine) {
 		utils.Parallelize(len(s), func(start, end int) {
 			for i := start; i < end; i++ {
@@ -156,13 +146,13 @@ func (p *Phase2) update(delta *fr.Element, sigma []fr.Element) {
 
 	for i := range sigma {
 		sigma[i].BigInt(&I)
-		scale(&p.Parameters.G2.Sigma[i])
+		p.Parameters.G2.Sigma[i].ScalarMultiplication(&p.Parameters.G2.Sigma[i], &I)
 		scaleG1Slice(p.Parameters.G1.SigmaCKK[i])
 	}
 
 	delta.BigInt(&I)
-	scale(&p.Parameters.G2.Delta)
-	scale(&p.Parameters.G1.Delta)
+	p.Parameters.G2.Delta.ScalarMultiplication(&p.Parameters.G2.Delta, &I)
+	p.Parameters.G1.Delta.ScalarMultiplication(&p.Parameters.G1.Delta, &I)
 
 	delta.Inverse(delta)
 	delta.BigInt(&I)
@@ -191,11 +181,11 @@ func (p *Phase2) Contribute() {
 // Initialize is to be run by the coordinator
 // It involves no coin tosses. A verifier should
 // simply rerun all the steps
-// TODO @Tabaie option to only compute the phase 2 info and not the evaluations, for a contributor
 func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluations {
+	// TODO @Tabaie option to only compute the phase 2 info and not the evaluations, for a contributor
 
-	size := len(commons.G1.AlphaTau)
-	if size < r1cs.GetNbConstraints() {
+	n := len(commons.G1.AlphaTau)
+	if n < r1cs.GetNbConstraints() {
 		panic("Number of constraints is larger than expected")
 	}
 
@@ -240,10 +230,10 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	}
 
 	// Prepare Lagrange coefficients of [τ...]₁, [τ...]₂, [ατ...]₁, [βτ...]₁
-	coeffTau1 := lagrangeCoeffsG1(commons.G1.Tau, size)           // [L_{ω⁰}(τ)]₁, [L_{ω¹}(τ)]₁, ... where ω is a primitive sizeᵗʰ root of unity
-	coeffTau2 := lagrangeCoeffsG2(commons.G2.Tau, size)           // [L_{ω⁰}(τ)]₂, [L_{ω¹}(τ)]₂, ...
-	coeffAlphaTau1 := lagrangeCoeffsG1(commons.G1.AlphaTau, size) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
-	coeffBetaTau1 := lagrangeCoeffsG1(commons.G1.BetaTau, size)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
+	coeffTau1 := lagrangeCoeffsG1(commons.G1.Tau, n)           // [L_{ω⁰}(τ)]₁, [L_{ω¹}(τ)]₁, ... where ω is a primitive sizeᵗʰ root of unity
+	coeffTau2 := lagrangeCoeffsG2(commons.G2.Tau, n)           // [L_{ω⁰}(τ)]₂, [L_{ω¹}(τ)]₂, ...
+	coeffAlphaTau1 := lagrangeCoeffsG1(commons.G1.AlphaTau, n) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
+	coeffBetaTau1 := lagrangeCoeffsG1(commons.G1.BetaTau, n)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
 
 	nbInternal, nbSecret, nbPublic := r1cs.GetNbVariables()
 	nWires := nbInternal + nbSecret + nbPublic
@@ -289,7 +279,6 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 
 	// Build Z in PK as τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
-	n := len(commons.G1.AlphaTau)
 	p.Parameters.G1.Z = make([]curve.G1Affine, n)
 	for i := range n - 1 {
 		p.Parameters.G1.Z[i].Sub(&commons.G1.Tau[i+n], &commons.G1.Tau[i])
