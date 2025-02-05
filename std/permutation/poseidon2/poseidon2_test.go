@@ -44,7 +44,7 @@ type circuitParams struct {
 }
 
 func (c *Poseidon2Circuit) Define(api frontend.API) error {
-	h := NewHash(c.params.t, c.params.d, c.params.rf, c.params.rp, c.params.id)
+	h := NewPoseidon2(c.params.t, c.params.d, c.params.rf, c.params.rp, c.params.id)
 	h.Permutation(api, c.Input)
 	for i := 0; i < len(c.Input); i++ {
 		api.AssertIsEqual(c.Output[i], c.Input[i])

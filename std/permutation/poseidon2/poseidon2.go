@@ -46,7 +46,7 @@ type parameters struct {
 	roundKeys [][]big.Int
 }
 
-func NewHash(t, d, rf, rp int, curve ecc.ID) Permutation {
+func NewPoseidon2(t, d, rf, rp int, curve ecc.ID) Permutation {
 	params := parameters{t: t, d: d, rF: rf, rP: rp}
 	if curve == ecc.BN254 {
 		concreteParams := poseidonbn254.NewParameters(t, rf, rp)

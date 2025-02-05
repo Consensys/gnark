@@ -15,7 +15,7 @@ func NewPoseidon2(api frontend.API) (hash.FieldHasher, error) {
 	if !ok {
 		return nil, fmt.Errorf("poseidon2 hash for curve \"%s\" not yet supported", curve.String())
 	}
-	f := poseidon2.NewHash(2, params.d, params.rF, params.rP, curve)
+	f := poseidon2.NewPoseidon2(2, params.d, params.rF, params.rP, curve)
 	return hash.NewMerkleDamgardHasher(api, &f, 0), nil
 }
 
