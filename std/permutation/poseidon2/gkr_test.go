@@ -13,7 +13,7 @@ import (
 )
 
 func TestGkrPermutation(t *testing.T) {
-	pos2Fr := poseidon2.NewHash(2, rF, rP, seed)
+	pos2Fr := poseidon2.NewPermutation(2, rF, rP)
 	const n = 2
 	var k int64
 	ins := make([][2]frontend.Variable, n)

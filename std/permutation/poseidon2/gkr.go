@@ -9,6 +9,7 @@ import (
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	gkrPoseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2/gkrgates"
 	"github.com/consensys/gnark/constraint"
 	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
@@ -22,7 +23,7 @@ import (
 
 // Gkr implements a GKR version of the Poseidon2 permutation with fan-in 2
 type Gkr struct {
-	Hash
+	Permutation
 	Ins         []frontend.Variable
 	Outs        []frontend.Variable
 	plainHasher hash.Hash
@@ -31,7 +32,7 @@ type Gkr struct {
 // SHA256 hash of the hash parameters - as a unique identifier
 // Note that the identifier is only unique with respect to the size parameters
 // t, d, rF, rP
-func (h *Hash) hash(curve ecc.ID) []byte {
+func (h *Permutation) hash(curve ecc.ID) []byte {
 	hasher := sha256.New()
 	writeAsByte := func(i int) {
 		if i > 255 || i < 0 {
@@ -212,10 +213,6 @@ func frToInt(x *frBls12377.Element) *big.Int {
 	return &res
 }
 
-func gateName(prefix string, i int) string {
-	return fmt.Sprintf("%s-linear-op-round=%d;%s", prefix, i, seed)
-}
-
 func varIndex(varName string) int {
 	switch varName {
 	case "x":
@@ -237,7 +234,8 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return &m, err
 	})
 
-	roundKeysFr := bls12377RoundKeys()
+	roundKeysFr := bls12377Permutation().Parameters.RoundKeys
+	params := bls12377Permutation().Parameters.String()
 	zero := new(big.Int)
 	const halfRf = rF / 2
 
@@ -263,6 +261,10 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return err
 	}
 
+	gateNameLinear := func(varName string, i int) string {
+		return fmt.Sprintf("%s-l-op-round=%d;%s", varName, i, params)
+	}
+
 	gkr.Gates["pow4"] = pow4Gate{}
 	gkr.Gates["pow4Times"] = pow4TimesGate{}
 
@@ -272,7 +274,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	extKeySBox := func(round int, varName string, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateName(varName, round)
+		gate := gateNameLinear(varName, round)
 		gkr.Gates[gate] = &extKeyGate{
 			roundKey: frToInt(&roundKeysFr[round][varIndex(varName)]),
 		}
@@ -280,7 +282,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateName("y", round)
+		gate := gateNameLinear("y", round)
 		gkr.Gates[gate] = &intKeyGate2{
 			roundKey: frToInt(&roundKeysFr[round][1]),
 		}
@@ -299,7 +301,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	{ // i = halfRf: first partial round
 		x1 := extKeySBox(halfRf, "x", x, y)
 
-		gate := gateName("y", halfRf)
+		gate := gateNameLinear("y", halfRf)
 		gkr.Gates[gate] = &extGate2{}
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
 	}
@@ -307,7 +309,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, "x", x, y)
 
-		gate := gateName("y", i)
+		gate := gateNameLinear("y", i)
 		gkr.Gates[gate] = &intKeyGate2{ // TODO replace with extGate
 			roundKey: zero,
 		}
@@ -325,7 +327,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		fullRound(i)
 	}
 
-	gate := gateName("y", rP+rF)
+	gate := gateNameLinear("y", rP+rF)
 	gkr.Gates[gate] = extGate{}
 	y = gkrApi.NamedGate(gate, y, x)
 
@@ -363,26 +365,20 @@ func permuteHint(m *big.Int, ins, outs []*big.Int) error {
 	x[0].SetBigInt(ins[0])
 	x[1].SetBigInt(ins[1])
 
-	err := bls12377Params().Permutation(x[:])
+	err := bls12377Permutation().Permutation(x[:])
 	x[1].BigInt(outs[0])
 	return err
 }
 
 const (
-	rF   = 6
-	rP   = 32 - rF
-	d    = 17
-	seed = "Poseidon2 hash for BLS12_377 with t=2, rF=6, rP=26, d=17"
+	rF = 6
+	rP = 32 - rF
+	d  = 17
 )
 
 var (
-	bls12377Params = sync.OnceValue(func() *poseidon2Bls12377.Hash {
-		p := poseidon2Bls12377.NewHash(2, rF, rP, seed)
-
-		return &p
-	})
-	bls12377RoundKeys = sync.OnceValue(func() [][]frBls12377.Element {
-		return poseidon2Bls12377.InitRC(seed, rF, rP, 2)
+	bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
+		return poseidon2Bls12377.NewPermutation(2, rF, rP)
 	})
 )
 
@@ -392,5 +388,5 @@ func AddGkrGatesSolution() {
 	csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
 		return mimcBls12377.NewMiMC()
 	})
-	poseidon2Bls12377.DefineGkrGates()
+	gkrPoseidon2Bls12377.RegisterGkrGates()
 }

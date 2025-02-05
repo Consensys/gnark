@@ -19,7 +19,7 @@ var (
 	ErrInvalidSizebuffer = errors.New("the size of the input should match the size of the hash buffer")
 )
 
-type Hash struct {
+type Permutation struct {
 	params parameters
 }
 
@@ -45,10 +45,10 @@ type parameters struct {
 	roundKeys [][]big.Int
 }
 
-func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
+func NewPermutation(t, d, rf, rp int, curve ecc.ID) Permutation {
 	params := parameters{t: t, d: d, rF: rf, rP: rp}
 	if curve == ecc.BN254 {
-		rc := poseidonbn254.InitRC(seed, rf, rp, t)
+		rc := poseidonbn254.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -57,7 +57,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS12_381 {
-		rc := poseidonbls12381.InitRC(seed, rf, rp, t)
+		rc := poseidonbls12381.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -66,7 +66,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS12_377 {
-		rc := poseidonbls12377.InitRC(seed, rf, rp, t)
+		rc := poseidonbls12377.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -75,7 +75,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BW6_761 {
-		rc := poseidonbw6761.InitRC(seed, rf, rp, t)
+		rc := poseidonbw6761.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -84,7 +84,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BW6_633 {
-		rc := poseidonbw6633.InitRC(seed, rf, rp, t)
+		rc := poseidonbw6633.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -93,7 +93,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS24_315 {
-		rc := poseidonbls24315.InitRC(seed, rf, rp, t)
+		rc := poseidonbls24315.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -102,7 +102,7 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	} else if curve == ecc.BLS24_317 {
-		rc := poseidonbls24317.InitRC(seed, rf, rp, t)
+		rc := poseidonbls24317.NewParameters(t, rf, rp).RoundKeys
 		params.roundKeys = make([][]big.Int, len(rc))
 		for i := 0; i < len(rc); i++ {
 			params.roundKeys[i] = make([]big.Int, len(rc[i]))
@@ -111,11 +111,11 @@ func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
 			}
 		}
 	}
-	return Hash{params: params}
+	return Permutation{params: params}
 }
 
 // sBox applies the sBox on buffer[index]
-func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
+func (h *Permutation) sBox(api frontend.API, index int, input []frontend.Variable) {
 	input[index] = power(api, input[index], h.params.d)
 }
 
@@ -157,7 +157,7 @@ func power(api frontend.API, x frontend.Variable, n int) frontend.Variable {
 // (1 1 4 6)
 // on chunks of 4 elements on each part of the buffer
 // see https://eprint.iacr.org/2023/323.pdf appendix B for the addition chain
-func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
+func (h *Permutation) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 	c := len(s) / 4
 	for i := 0; i < c; i++ {
 		t0 := api.Add(s[4*i], s[4*i+1])   // s0+s1
@@ -184,7 +184,7 @@ func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 //
 // when t=0[4], the buffer is multiplied by circ(2M4,M4,..,M4)
 // see https://eprint.iacr.org/2023/323.pdf
-func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
+func (h *Permutation) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
 
 	if h.params.t == 2 {
 		tmp := api.Add(input[0], input[1])
@@ -221,7 +221,7 @@ func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable
 
 // when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
-func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
+func (h *Permutation) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
 	if h.params.t == 2 {
 		sum := api.Add(input[0], input[1])
 		input[0] = api.Add(input[0], sum)
@@ -249,13 +249,13 @@ func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable
 }
 
 // addRoundKeyInPlace adds the round-th key to the buffer
-func (h *Hash) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
+func (h *Permutation) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
 	for i := 0; i < len(h.params.roundKeys[round]); i++ {
 		input[i] = api.Add(input[i], h.params.roundKeys[round][i])
 	}
 }
 
-func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
+func (h *Permutation) Permutation(api frontend.API, input []frontend.Variable) error {
 	if len(input) != h.params.t {
 		return ErrInvalidSizebuffer
 	}
