@@ -41,6 +41,12 @@ type Phase1 struct {
 	Challenge  []byte // Hash of the transcript PRIOR to this participant
 }
 
+const (
+	DST_TAU = iota
+	DST_ALPHA
+	DST_BETA
+)
+
 // Contribute contributes randomness to the Phase1 object. This mutates Phase1.
 // p is trusted to be well-formed. The ReadFrom function performs such basic sanity checks.
 func (p *Phase1) Contribute() {
@@ -51,9 +57,9 @@ func (p *Phase1) Contribute() {
 		tauContrib, alphaContrib, betaContrib fr.Element
 	)
 
-	p.proofs.Tau = mpcsetup.UpdateValues(&tauContrib, p.Challenge, 1)
-	p.proofs.Alpha = mpcsetup.UpdateValues(&alphaContrib, p.Challenge, 2)
-	p.proofs.Beta = mpcsetup.UpdateValues(&betaContrib, p.Challenge, 3)
+	p.proofs.Tau = mpcsetup.UpdateValues(&tauContrib, p.Challenge, DST_TAU)
+	p.proofs.Alpha = mpcsetup.UpdateValues(&alphaContrib, p.Challenge, DST_ALPHA)
+	p.proofs.Beta = mpcsetup.UpdateValues(&betaContrib, p.Challenge, DST_BETA)
 
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
@@ -174,13 +180,13 @@ func (p *Phase1) Verify(next *Phase1, options ...verificationOption) error {
 	}
 
 	// verify updates to τ, α, β
-	if err := next.proofs.Tau.Verify(challenge, 1, mpcsetup.ValueUpdate{Previous: &p.parameters.G1.Tau[1], Next: &next.parameters.G1.Tau[1]}); err != nil {
+	if err := next.proofs.Tau.Verify(challenge, DST_TAU, mpcsetup.ValueUpdate{Previous: &p.parameters.G1.Tau[1], Next: &next.parameters.G1.Tau[1]}); err != nil {
 		return fmt.Errorf("failed to verify contribution to τ: %w", err)
 	}
-	if err := next.proofs.Alpha.Verify(challenge, 2, mpcsetup.ValueUpdate{Previous: p.parameters.G1.AlphaTau[0], Next: next.parameters.G1.AlphaTau[0]}); err != nil {
+	if err := next.proofs.Alpha.Verify(challenge, DST_ALPHA, mpcsetup.ValueUpdate{Previous: p.parameters.G1.AlphaTau[0], Next: next.parameters.G1.AlphaTau[0]}); err != nil {
 		return fmt.Errorf("failed to verify contribution to α: %w", err)
 	}
-	if err := next.proofs.Beta.Verify(challenge, 3, []mpcsetup.ValueUpdate{
+	if err := next.proofs.Beta.Verify(challenge, DST_BETA, []mpcsetup.ValueUpdate{
 		{Previous: &p.parameters.G1.BetaTau[0], Next: &next.parameters.G1.BetaTau[0]},
 		{Previous: &p.parameters.G2.Beta, Next: &next.parameters.G2.Beta},
 	}...); err != nil {

@@ -61,6 +61,11 @@ type Phase2 struct {
 	Challenge []byte
 }
 
+const (
+	DST_DELTA = iota
+	DST_SIGMA
+)
+
 func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
@@ -112,7 +117,7 @@ func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 	// verify proof of knowledge of contributions to the σᵢ
 	// and the correctness of updates to Parameters.G2.Sigma[i] and the Parameters.G1.SigmaCKK[i]
 	for i := range p.Sigmas { // match the first commitment basis elem against the contribution commitment
-		if err := next.Sigmas[i].Verify(challenge, 2+byte(i),
+		if err := next.Sigmas[i].Verify(challenge, DST_SIGMA+byte(i),
 			mpcsetup.ValueUpdate{Previous: p.Parameters.G1.SigmaCKK[i], Next: next.Parameters.G1.SigmaCKK[i]},
 			mpcsetup.ValueUpdate{Previous: &p.Parameters.G2.Sigma[i], Next: &next.Parameters.G2.Sigma[i]}); err != nil {
 			return fmt.Errorf("failed to verify contribution to σ[%d]: %w", i, err)
@@ -121,7 +126,7 @@ func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 
 	// verify proof of knowledge of contribution to δ
 	// and the correctness of updates to Parameters.Gi.Delta, PKK[i], and Z[i]
-	if err := next.Delta.Verify(challenge, 1, []mpcsetup.ValueUpdate{
+	if err := next.Delta.Verify(challenge, DST_DELTA, []mpcsetup.ValueUpdate{
 		{Previous: &p.Parameters.G1.Delta, Next: &next.Parameters.G1.Delta},
 		{Previous: &p.Parameters.G2.Delta, Next: &next.Parameters.G2.Delta},
 		{Previous: next.Parameters.G1.Z, Next: p.Parameters.G1.Z}, // since these have δ in their denominator, we will do it "backwards"
@@ -176,14 +181,14 @@ func (p *Phase2) Contribute() {
 
 	// sample value contributions and provide correctness proofs
 	var delta fr.Element
-	p.Delta = mpcsetup.UpdateValues(&delta, p.Challenge, 1)
+	p.Delta = mpcsetup.UpdateValues(&delta, p.Challenge, DST_DELTA)
 
 	sigma := make([]fr.Element, len(p.Parameters.G1.SigmaCKK))
 	if len(sigma) > 255 {
 		panic("too many commitments") // DST collision
 	}
 	for i := range sigma {
-		p.Sigmas[i] = mpcsetup.UpdateValues(&sigma[i], p.Challenge, byte(2+i))
+		p.Sigmas[i] = mpcsetup.UpdateValues(&sigma[i], p.Challenge, DST_SIGMA+byte(i))
 	}
 
 	p.update(&delta, sigma)
