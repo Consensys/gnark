@@ -44,7 +44,7 @@ type circuitParams struct {
 }
 
 func (c *Poseidon2Circuit) Define(api frontend.API) error {
-	h := NewHash(c.params.t, c.params.d, c.params.rf, c.params.rp, c.params.seed, c.params.id)
+	h := NewHash(c.params.t, c.params.d, c.params.rf, c.params.rp, c.params.id)
 	h.Permutation(api, c.Input)
 	for i := 0; i < len(c.Input); i++ {
 		api.AssertIsEqual(c.Output[i], c.Input[i])
@@ -68,11 +68,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbn254.NewHash(
+		h := poseidonbn254.NewPermutation(
 			params[ecc.BN254].t,
 			params[ecc.BN254].rf,
 			params[ecc.BN254].rp,
-			"seed")
+		)
 		var in, out [3]frbn254.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -101,11 +101,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbls12377.NewHash(
+		h := poseidonbls12377.NewPermutation(
 			params[ecc.BLS12_377].t,
 			params[ecc.BLS12_377].rf,
 			params[ecc.BLS12_377].rp,
-			"seed")
+		)
 		var in, out [3]frbls12377.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -134,11 +134,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbls12381.NewHash(
+		h := poseidonbls12381.NewPermutation(
 			params[ecc.BLS12_381].t,
 			params[ecc.BLS12_381].rf,
 			params[ecc.BLS12_381].rp,
-			"seed")
+		)
 		var in, out [3]frbls12381.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -167,11 +167,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbw6633.NewHash(
+		h := poseidonbw6633.NewPermutation(
 			params[ecc.BW6_633].t,
 			params[ecc.BW6_633].rf,
 			params[ecc.BW6_633].rp,
-			"seed")
+		)
 		var in, out [3]frbw6633.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -200,11 +200,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbw6633.NewHash(
+		h := poseidonbw6633.NewPermutation(
 			params[ecc.BW6_633].t,
 			params[ecc.BW6_633].rf,
 			params[ecc.BW6_633].rp,
-			"seed")
+		)
 		var in, out [3]frbw6633.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -233,11 +233,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbw6761.NewHash(
+		h := poseidonbw6761.NewPermutation(
 			params[ecc.BW6_761].t,
 			params[ecc.BW6_761].rf,
 			params[ecc.BW6_761].rp,
-			"seed")
+		)
 		var in, out [3]frbw6761.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -266,11 +266,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbls24315.NewHash(
+		h := poseidonbls24315.NewPermutation(
 			params[ecc.BLS24_315].t,
 			params[ecc.BLS24_315].rf,
 			params[ecc.BLS24_315].rp,
-			"seed")
+		)
 		var in, out [3]frbls24315.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()
@@ -299,11 +299,11 @@ func TestPoseidon2(t *testing.T) {
 	{
 		var circuit, validWitness Poseidon2Circuit
 
-		h := poseidonbls24317.NewHash(
+		h := poseidonbls24317.NewPermutation(
 			params[ecc.BLS24_317].t,
 			params[ecc.BLS24_317].rf,
 			params[ecc.BLS24_317].rp,
-			"seed")
+		)
 		var in, out [3]frbls24317.Element
 		for i := 0; i < 3; i++ {
 			in[i].SetRandom()

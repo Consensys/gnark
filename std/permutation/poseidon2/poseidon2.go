@@ -2,6 +2,7 @@ package poseidon
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -19,7 +20,7 @@ var (
 	ErrInvalidSizebuffer = errors.New("the size of the input should match the size of the hash buffer")
 )
 
-type Hash struct {
+type Permutation struct {
 	params parameters
 }
 
@@ -45,77 +46,79 @@ type parameters struct {
 	roundKeys [][]big.Int
 }
 
-func NewHash(t, d, rf, rp int, seed string, curve ecc.ID) Hash {
+func NewHash(t, d, rf, rp int, curve ecc.ID) Permutation {
 	params := parameters{t: t, d: d, rF: rf, rP: rp}
 	if curve == ecc.BN254 {
-		rc := poseidonbn254.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbn254.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BLS12_381 {
-		rc := poseidonbls12381.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbls12381.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BLS12_377 {
-		rc := poseidonbls12377.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbls12377.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BW6_761 {
-		rc := poseidonbw6761.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbw6761.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BW6_633 {
-		rc := poseidonbw6633.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbw6633.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BLS24_315 {
-		rc := poseidonbls24315.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbls24315.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
 	} else if curve == ecc.BLS24_317 {
-		rc := poseidonbls24317.InitRC(seed, rf, rp, t)
-		params.roundKeys = make([][]big.Int, len(rc))
-		for i := 0; i < len(rc); i++ {
-			params.roundKeys[i] = make([]big.Int, len(rc[i]))
-			for j := 0; j < len(rc[i]); j++ {
-				rc[i][j].BigInt(&params.roundKeys[i][j])
+		concreteParams := poseidonbls24317.NewParameters(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.roundKeys {
+			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.roundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+	} else {
+		panic(fmt.Errorf("curve %s not supported", curve.String()))
 	}
-	return Hash{params: params}
+	return Permutation{params: params}
 }
 
 // sBox applies the sBox on buffer[index]
-func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
+func (h *Permutation) sBox(api frontend.API, index int, input []frontend.Variable) {
 	tmp := input[index]
 	if h.params.d == 3 {
 		input[index] = api.Mul(input[index], input[index])
@@ -149,7 +152,7 @@ func (h *Hash) sBox(api frontend.API, index int, input []frontend.Variable) {
 // (1 1 4 6)
 // on chunks of 4 elements on each part of the buffer
 // see https://eprint.iacr.org/2023/323.pdf appendix B for the addition chain
-func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
+func (h *Permutation) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 	c := len(s) / 4
 	for i := 0; i < c; i++ {
 		t0 := api.Add(s[4*i], s[4*i+1])   // s0+s1
@@ -176,7 +179,7 @@ func (h *Hash) matMulM4InPlace(api frontend.API, s []frontend.Variable) {
 //
 // when t=0[4], the buffer is multiplied by circ(2M4,M4,..,M4)
 // see https://eprint.iacr.org/2023/323.pdf
-func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
+func (h *Permutation) matMulExternalInPlace(api frontend.API, input []frontend.Variable) {
 
 	if h.params.t == 2 {
 		tmp := api.Add(input[0], input[1])
@@ -213,7 +216,7 @@ func (h *Hash) matMulExternalInPlace(api frontend.API, input []frontend.Variable
 
 // when t=2,3 the matrix are respectibely [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
-func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
+func (h *Permutation) matMulInternalInPlace(api frontend.API, input []frontend.Variable) {
 	if h.params.t == 2 {
 		sum := api.Add(input[0], input[1])
 		input[0] = api.Add(input[0], sum)
@@ -241,13 +244,13 @@ func (h *Hash) matMulInternalInPlace(api frontend.API, input []frontend.Variable
 }
 
 // addRoundKeyInPlace adds the round-th key to the buffer
-func (h *Hash) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
+func (h *Permutation) addRoundKeyInPlace(api frontend.API, round int, input []frontend.Variable) {
 	for i := 0; i < len(h.params.roundKeys[round]); i++ {
 		input[i] = api.Add(input[i], h.params.roundKeys[round][i])
 	}
 }
 
-func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
+func (h *Permutation) Permutation(api frontend.API, input []frontend.Variable) error {
 	if len(input) != h.params.t {
 		return ErrInvalidSizebuffer
 	}
@@ -283,11 +286,11 @@ func (h *Hash) Permutation(api frontend.API, input []frontend.Variable) error {
 	return nil
 }
 
-// Apply aliases Permutation in the t=2 case
+// Compress aliases Permutation in the t=2 case
 // implements hash.CompressionFunction
-func (h *Hash) Apply(api frontend.API, l, r frontend.Variable) frontend.Variable {
+func (h *Permutation) Compress(api frontend.API, l, r frontend.Variable) frontend.Variable {
 	if h.params.t != 2 {
-		panic("poseidon2: Apply can only be used when t=2")
+		panic("poseidon2: Compress can only be used when t=2")
 	}
 	vars := [2]frontend.Variable{l, r}
 	if err := h.Permutation(api, vars[:]); err != nil {

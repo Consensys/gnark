@@ -90,7 +90,7 @@ type BinaryFixedLengthHasher interface {
 
 // CompressionFunction is a 2 to 1 function
 type CompressionFunction interface {
-	Apply(frontend.API, frontend.Variable, frontend.Variable) frontend.Variable // TODO @Tabaie @ThomasPiellard better name
+	Compress(frontend.API, frontend.Variable, frontend.Variable) frontend.Variable
 }
 
 type merkleDamgardHasher struct {
@@ -117,7 +117,7 @@ func (h *merkleDamgardHasher) Reset() {
 
 func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 	for _, d := range data {
-		h.state = h.f.Apply(h.api, h.state, d)
+		h.state = h.f.Compress(h.api, h.state, d)
 	}
 }
 

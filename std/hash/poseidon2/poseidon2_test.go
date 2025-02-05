@@ -11,7 +11,7 @@ import (
 
 func TestPoseidon2Hash(t *testing.T) {
 	// prepare expected output
-	h := poseidon2.NewPoseidon2()
+	h := poseidon2.NewMerkleDamgardHasher()
 	for i := range 5 {
 		_, err := h.Write([]byte{byte(i)})
 		require.NoError(t, err)
