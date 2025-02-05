@@ -163,7 +163,8 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	var Acc, negQ, negPhiQ, phiQ G1Affine
 	cc := getInnerCurveConfig(api.Compiler().Field())
 	s.Mod(s, cc.fr)
-	cc.phi1(api, &phiQ, &Q)
+	cc.phi1Neg(api, &phiQ, &Q)
+	phiQ.Neg(api, phiQ)
 
 	k := ecc.SplitScalar(s, cc.glvBasis)
 	if k[0].Sign() == -1 {
@@ -236,12 +237,119 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	return P
 }
 
-// varScalarMul sets P = [s] Q and returns P.
+// endoarScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [Halo]: https://eprint.iacr.org/2019/1021.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	}
+
+	// We use the endomorphism à la GLV to compute [s]Q as
+	// 		[s1]Q + [s2]Φ(Q)
+	//
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	s1, s2 := callDecomposeScalar(api, s, true)
+
+	nbits := 127
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1Neg(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + Φ(Q)
+	var Acc, B G1Affine
+	Acc = Q
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± Φ(Q).
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + Φ(Q)
+	B1 := Acc
+	// 		B2 = -Q - Φ(Q)
+	B2 := G1Affine{}
+	B2.Neg(api, B1)
+	// 		B3 = +Q - Φ(Q)
+	B3 := tableQ[1]
+	B3.AddAssign(api, tablePhiQ[0])
+	// 		B4 = -Q + Φ(Q)
+	B4 := G1Affine{}
+	B4.Neg(api, B3)
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// We add G (the base point) to Acc to avoid incomplete additions in the
+	// loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it might
+	// happen that Acc==Bi or Acc==-Bi. But now we force Acc to be different
+	// than the stored Bi. However, at the end, we need to subtract [2^nbits]G.
+	mPoints := getCurvePoints()
+	Acc.AddAssign(api, G1Affine{X: mPoints.G1x, Y: mPoints.G1y})
+
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
+		B.Y = api.Lookup2(s1bits[i], s2bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	// i = 0
+	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.CompleteArithmetic {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
+
+	// subtract H=[2^N]G since we added G at the beginning
+	negH := G1Affine{X: mPoints.G1m[nbits-1][0], Y: api.Neg(mPoints.G1m[nbits-1][1])}
+	Acc.AddUnified(api, negH)
+	if cfg.CompleteArithmetic {
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	}
+	*P = Acc
+
+	return P
+}
+
+// genericScalarMul sets P = [s] Q and returns P.
 // It computes the standard little-endian double-and-add algorithm
 // (Algorithm 3.26, Guide to Elliptic Curve Cryptography)
-//
-// TODO: @yelhousni implement endomorphism-based optimization
-func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (P *G1Affine) genericScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
@@ -386,14 +494,12 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 		tmp.ScalarMul(api, R, t, opts...)
 		P.AddUnified(api, tmp)
 	} else {
-		P.jointScalarMulUnsafe(api, Q, R, s, t)
+		P.jointScalarMulGLVUnsafe(api, Q, R, s, t)
 	}
 	return P
 }
 
 // P = [s]Q + [t]R using Shamir's trick
-//
-// TODO: @yelhousni implement endomorphism-based optimization
 func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	var Acc, B1, QNeg, RNeg G1Affine
 	QNeg.Neg(api, Q)
@@ -430,50 +536,170 @@ func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t fr
 	return P
 }
 
-// scalarBitsMul computes [s]Q and returns it where sBits is the bit decomposition of s. It doesn't modify Q nor sBits.
-// The method is similar to varScalarMul.
-//
-// TODO: @yelhousni implement endomorphism-based optimization
-func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, sBits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	*P = Q
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		// if Q=(0,0) we assign a dummy (1,1) to P and continue
-		selector = api.And(api.IsZero(P.X), api.IsZero(P.Y))
-		P.Select(api, selector, G1Affine{X: 1, Y: 1}, *P)
-	}
+// P = [s]Q + [t]R using Shamir's trick and endomorphism
+func (P *G1Affine) jointScalarMulGLVUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	s1, s2 := callDecomposeScalar(api, s, false)
+	t1, t2 := callDecomposeScalar(api, t, false)
+	nbits := cc.fr.BitLen()>>1 + 1
 
-	var temp, doubles G1Affine
-	doubles.Double(api, *P)
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+	t1bits := api.ToBinary(t1, nbits)
+	t2bits := api.ToBinary(t2, nbits)
 
-	nBits := 254
-	for i := 1; i < nBits-1; i++ {
-		temp = *P
-		temp.AddAssign(api, doubles)
-		P.Select(api, sBits[i], temp, *P)
-		doubles.Double(api, doubles)
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1Neg(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+	// precompute -R, -Φ(R), Φ(R)
+	var tableR, tablePhiR [2]G1Affine
+	tableR[1] = R
+	tableR[0].Neg(api, R)
+	cc.phi1Neg(api, &tablePhiR[1], &R)
+	tablePhiR[0].Neg(api, tablePhiR[1])
+	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
+	var tableS, tablePhiS [4]G1Affine
+	tableS[0] = tableQ[0]
+	tableS[0].AddAssign(api, tableR[0])
+	tableS[1].Neg(api, tableS[0])
+	tableS[2] = Q
+	tableS[2].AddAssign(api, tableR[0])
+	tableS[3].Neg(api, tableS[2])
+	cc.phi1Neg(api, &tablePhiS[0], &tableS[0])
+	cc.phi1Neg(api, &tablePhiS[1], &tableS[1])
+	cc.phi1Neg(api, &tablePhiS[2], &tableS[2])
+	cc.phi1Neg(api, &tablePhiS[3], &tableS[3])
+
+	// suppose first bit is 1 and set:
+	// Acc = Q + R + Φ(Q) + Φ(R)
+	Acc := tableS[1]
+	Acc.AddAssign(api, tablePhiS[1])
+
+	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+	var B G1Affine
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], t1bits[i]), tableS[2].X, tableS[0].X)
+		B.Y = api.Lookup2(s1bits[i], t1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+		B.X = api.Select(api.Xor(s2bits[i], t2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
+		B.Y = api.Lookup2(s2bits[i], t2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
+		Acc.AddAssign(api, B)
 	}
-
-	// i = nBits - 1
-	temp = *P
-	temp.AddAssign(api, doubles)
-	P.Select(api, sBits[nBits-1], temp, *P)
 
 	// i = 0
-	// we use AddUnified instead of Add. This is because:
-	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
-	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
-	temp = *P
-	temp.AddUnified(api, *doubles.Neg(api, Q))
-	P.Select(api, sBits[0], *P, temp)
+	// subtract the initial point from the accumulator when first bit was 0
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	tableR[0].AddAssign(api, Acc)
+	Acc.Select(api, t1bits[0], Acc, tableR[0])
+	tablePhiR[0].AddAssign(api, Acc)
+	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
+
+	P.X = Acc.X
+	P.Y = Acc.Y
+
+	return P
+}
+
+// scalarBitsMul computes [s]Q and returns it where sBits is the bit decomposition of s. It doesn't modify Q nor sBits.
+// The method is similar to varScalarMul.
+func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	}
+
+	// We use the endomorphism à la GLV to compute [s]Q as
+	// 		[s1]Q + [s2]Φ(Q)
+	//
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	nbits := 127
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1Neg(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + Φ(Q)
+	var Acc, B G1Affine
+	Acc = Q
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± Φ(Q).
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + Φ(Q)
+	B1 := Acc
+	// 		B2 = -Q - Φ(Q)
+	B2 := G1Affine{}
+	B2.Neg(api, B1)
+	// 		B3 = +Q - Φ(Q)
+	B3 := tableQ[1]
+	B3.AddAssign(api, tablePhiQ[0])
+	// 		B4 = -Q + Φ(Q)
+	B4 := G1Affine{}
+	B4.Neg(api, B3)
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// We add G (the base point) to Acc to avoid incomplete additions in the
+	// loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it might
+	// happen that Acc==Bi or Acc==-Bi. But now we force Acc to be different
+	// than the stored Bi. However, at the end, we need to subtract [2^nbits]G.
+	mPoints := getCurvePoints()
+	Acc.AddAssign(api, G1Affine{X: mPoints.G1x, Y: mPoints.G1y})
+
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
+		B.Y = api.Lookup2(s1bits[i], s2bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	// i = 0
+	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.CompleteArithmetic {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
+
+	// subtract H=[2^N]G since we added G at the beginning
+	negH := G1Affine{X: mPoints.G1m[nbits-1][0], Y: api.Neg(mPoints.G1m[nbits-1][1])}
+	Acc.AddUnified(api, negH)
 
 	if cfg.CompleteArithmetic {
-		// if Q=(0,0), return (0,0)
-		P.Select(api, selector, G1Affine{X: 0, Y: 0}, *P)
+		P.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		*P = Acc
 	}
 
 	return P

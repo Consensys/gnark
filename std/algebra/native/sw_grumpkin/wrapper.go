@@ -4,15 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"slices"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/grumpkin"
 	fr_grumpkin "github.com/consensys/gnark-crypto/ecc/grumpkin/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/selector"
@@ -34,49 +31,6 @@ func NewCurve(api frontend.API) (*Curve, error) {
 		api: api,
 		fr:  f,
 	}, nil
-}
-
-// MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
-	var ss *emulated.Element[ScalarField]
-	if cfg.ToBitsCanonical {
-		ss = c.fr.ReduceStrict(&s)
-	} else {
-		ss = c.fr.Reduce(&s)
-	}
-	x := c.fr.ToBits(ss)[:nbBits]
-	slices.Reverse(x)
-	return x
-}
-
-// MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
-// in little endian.
-func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	nbBits := 8 * ((ecc.GRUMPKIN.BaseField().BitLen() + 7) / 8)
-	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
-	if !cfg.ToBitsCanonical {
-		bOpts = append(bOpts, bits.OmitModulusCheck())
-	}
-	res := make([]frontend.Variable, 2*nbBits)
-	x := bits.ToBinary(c.api, P.X, bOpts...)
-	y := bits.ToBinary(c.api, P.Y, bOpts...)
-	for i := 0; i < nbBits; i++ {
-		res[i] = x[nbBits-1-i]
-		res[i+nbBits] = y[nbBits-1-i]
-	}
-	xZ := c.api.IsZero(P.X)
-	yZ := c.api.IsZero(P.Y)
-	res[1] = c.api.Mul(xZ, yZ)
-	return res
 }
 
 // Add points P and Q and return the result. Does not modify the inputs.
@@ -187,14 +141,18 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 			return nil, errors.New("need scalar for folding")
 		}
 		gamma := c.packScalarToVar(scalars[0])
-		gammaBits := c.api.ToBinary(gamma, 254)
+		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
+		gamma1, gamma2 := callDecomposeScalar(c.api, gamma, true)
+		nbits := 127
+		gamma1Bits := c.api.ToBinary(gamma1, nbits)
+		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
 		// points and scalars must be non-zero
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gammaBits, opts...)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
 			res = *addFn(P[i], &res)
-			res.scalarBitsMul(c.api, res, gammaBits, opts...)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
 		res = *addFn(P[0], &res)
 		return &res, nil

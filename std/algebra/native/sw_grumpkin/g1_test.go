@@ -9,7 +9,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/grumpkin"
-	"github.com/consensys/gnark-crypto/ecc/grumpkin/fp"
 	"github.com/consensys/gnark-crypto/ecc/grumpkin/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
@@ -17,92 +16,6 @@ import (
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
-
-// -------------------------------------------------------------------------------------------------
-// Marshalling
-
-type MarshalScalarTest struct {
-	X Scalar
-	R [fr.Bytes * 8]frontend.Variable
-}
-
-func (c *MarshalScalarTest) Define(api frontend.API) error {
-	ec, err := NewCurve(api)
-	if err != nil {
-		return err
-	}
-	r := ec.MarshalScalar(c.X)
-	for i := range c.R {
-		api.AssertIsEqual(r[i], c.R[i])
-	}
-	return nil
-}
-
-func TestMarshalScalar(t *testing.T) {
-	assert := test.NewAssert(t)
-	var r fr.Element
-	r.SetRandom()
-	rBytes := r.Marshal()
-	var witness MarshalScalarTest
-	witness.X = NewScalar(r)
-	for i := 0; i < fr.Bytes; i++ {
-		for j := 0; j < 8; j++ {
-			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
-		}
-	}
-	var circuit MarshalScalarTest
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
-}
-
-type MarshalG1Test struct {
-	P G1Affine
-	R [2 * 8 * fp.Bytes]frontend.Variable
-}
-
-func (c *MarshalG1Test) Define(api frontend.API) error {
-	ec, err := NewCurve(api)
-	if err != nil {
-		return err
-	}
-	// the bits are laid out exactly as in gnark-crypto
-	r := ec.MarshalG1(c.P)
-	for i := range c.R {
-		api.AssertIsEqual(r[i], c.R[i])
-	}
-	return nil
-}
-
-func TestMarshalG1(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	testfn := func(r fr.Element) {
-		var br big.Int
-		r.BigInt(&br)
-		_, g := grumpkin.Generators()
-		g.ScalarMultiplication(&g, &br)
-		gBytes := g.Marshal()
-		var witness MarshalG1Test
-		witness.P.Assign(&g)
-		for i := 0; i < 64; i++ {
-			for j := 0; j < 8; j++ {
-				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
-			}
-		}
-		var circuit MarshalG1Test
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
-	}
-	assert.Run(func(assert *test.Assert) {
-		// sample a random point
-		var r fr.Element
-		r.SetRandom()
-		testfn(r)
-	})
-	assert.Run(func(assert *test.Assert) {
-		var r fr.Element
-		r.SetZero()
-		testfn(r)
-	})
-}
 
 // -------------------------------------------------------------------------------------------------
 // Add affine
@@ -304,42 +217,6 @@ func TestConstantScalarMulG1EdgeCases(t *testing.T) {
 
 }
 
-type g1varScalarMul struct {
-	A G1Affine
-	C G1Affine `gnark:",public"`
-	R frontend.Variable
-}
-
-func (circuit *g1varScalarMul) Define(api frontend.API) error {
-	expected := G1Affine{}
-	expected.varScalarMul(api, circuit.A, circuit.R)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestVarScalarMulG1(t *testing.T) {
-	// sample random point
-	_a := randomPointG1()
-	var a, c grumpkin.G1Affine
-	a.FromJacobian(&_a)
-
-	// create the cs
-	var circuit, witness g1varScalarMul
-	var r fr.Element
-	_, _ = r.SetRandom()
-	witness.R = r.String()
-	// assign the inputs
-	witness.A.Assign(&a)
-	// compute the result
-	var br big.Int
-	_a.ScalarMultiplication(&_a, r.BigInt(&br))
-	c.FromJacobian(&_a)
-	witness.C.Assign(&c)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
-}
-
 type g1ScalarMulEdgeCases struct {
 	A, Inf  G1Affine
 	R, Zero frontend.Variable
@@ -355,7 +232,7 @@ func (circuit *g1ScalarMulEdgeCases) Define(api frontend.API) error {
 	return nil
 }
 
-func TestVarScalarMulG1EdgeCases(t *testing.T) {
+func TestEndoScalarMulG1EdgeCases(t *testing.T) {
 	// sample random point
 	_a := randomPointG1()
 	var a grumpkin.G1Affine
@@ -416,24 +293,24 @@ func TestScalarMulG1(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
 }
 
-type g1varScalarMulBase struct {
+type g1ScalarMulBase struct {
 	C G1Affine `gnark:",public"`
 	R frontend.Variable
 }
 
-func (circuit *g1varScalarMulBase) Define(api frontend.API) error {
+func (circuit *g1ScalarMulBase) Define(api frontend.API) error {
 	expected := G1Affine{}
 	expected.ScalarMulBase(api, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
-func TestVarScalarMulBaseG1(t *testing.T) {
+func TestEndoScalarMulBaseG1(t *testing.T) {
 	var c grumpkin.G1Affine
 	gJac, _ := grumpkin.Generators()
 
 	// create the cs
-	var circuit, witness g1varScalarMulBase
+	var circuit, witness g1ScalarMulBase
 	var r fr.Element
 	_, _ = r.SetRandom()
 	witness.R = r.String()
@@ -725,8 +602,8 @@ type g1JointScalarMulNaive struct {
 func (circuit *g1JointScalarMulNaive) Define(api frontend.API) error {
 	expected := G1Affine{}
 	tmp := G1Affine{}
-	tmp.varScalarMul(api, circuit.A, circuit.R)
-	expected.varScalarMul(api, circuit.B, circuit.S)
+	tmp.ScalarMul(api, circuit.A, circuit.R)
+	expected.ScalarMul(api, circuit.B, circuit.S)
 	expected.AddAssign(api, tmp)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
@@ -913,6 +790,42 @@ func TestMultiScalarMulFolded(t *testing.T) {
 		Scalars: make([]emulated.Element[ScalarField], nbLen),
 	}, &assignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type g1varScalarMul struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMul) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestEndoScalarMulG1(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c grumpkin.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMul
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
 }
 
 func randomPointG1() grumpkin.G1Jac {

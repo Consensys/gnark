@@ -23,9 +23,9 @@ type innerConfig struct {
 
 var innerConfigBN254 innerConfig
 
-func (cc *innerConfig) phi1(api frontend.API, res, P *G1Affine) *G1Affine {
+func (cc *innerConfig) phi1Neg(api frontend.API, res, P *G1Affine) *G1Affine {
 	res.X = api.Mul(P.X, cc.thirdRootOne1)
-	res.Y = P.Y
+	res.Y = api.Neg(P.Y)
 	return res
 }
 
