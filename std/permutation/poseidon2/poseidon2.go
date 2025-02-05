@@ -13,6 +13,7 @@ import (
 	poseidonbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
 	poseidonbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/poseidon2"
 	poseidonbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/poseidon2"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -21,7 +22,8 @@ var (
 )
 
 type Permutation struct {
-	params parameters
+	params           parameters
+	nativeCompressor hash.Compressor
 }
 
 // parameters describing the poseidon2 implementation
@@ -46,75 +48,83 @@ type parameters struct {
 	roundKeys [][]big.Int
 }
 
-func NewPoseidon2(t, d, rf, rp int, curve ecc.ID) Permutation {
+func NewPoseidon2(t, d, rf, rp int, curve ecc.ID) *Permutation {
 	params := parameters{t: t, d: d, rF: rf, rP: rp}
+	var nativeCompressor hash.Compressor
 	if curve == ecc.BN254 {
-		concreteParams := poseidonbn254.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbn254.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BLS12_381 {
-		concreteParams := poseidonbls12381.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbls12381.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BLS12_377 {
-		concreteParams := poseidonbls12377.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbls12377.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BW6_761 {
-		concreteParams := poseidonbw6761.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbw6761.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BW6_633 {
-		concreteParams := poseidonbw6633.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbw6633.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BLS24_315 {
-		concreteParams := poseidonbls24315.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbls24315.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else if curve == ecc.BLS24_317 {
-		concreteParams := poseidonbls24317.NewParameters(t, rf, rp)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		nativePermutation := poseidonbls24317.NewPermutation(t, rf, rp)
+		params.roundKeys = make([][]big.Int, len(nativePermutation.Parameters.RoundKeys))
 		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			params.roundKeys[i] = make([]big.Int, len(nativePermutation.Parameters.RoundKeys[i]))
 			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+				nativePermutation.Parameters.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
 			}
 		}
+		nativeCompressor = nativePermutation
 	} else {
 		panic(fmt.Errorf("curve %s not supported", curve.String()))
 	}
-	return Permutation{params: params}
+	return &Permutation{params: params, nativeCompressor: nativeCompressor}
 }
 
 // sBox applies the sBox on buffer[index]
@@ -297,4 +307,8 @@ func (h *Permutation) Compress(api frontend.API, l, r frontend.Variable) fronten
 		panic(err) // this would never happen
 	}
 	return vars[1]
+}
+
+func (h *Permutation) NativeCompressor() hash.Compressor {
+	return h.nativeCompressor
 }
