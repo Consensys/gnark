@@ -56,13 +56,12 @@ func (p *Phase2) refsSlice() []any {
 		panic("nbCommitments not fitting in 16 bits")
 	}
 
-	expectedLen := 2*nbCommitments + 5
-	refs := make([]any, 5, expectedLen)
-	refs[0] = uint16(nbCommitments)
-	refs[1] = &p.Parameters.G1.Delta
-	refs[2] = &p.Parameters.G1.PKK // unique size: private input size, excluding those committed to
-	refs[3] = &p.Parameters.G1.Z   // unique size: N-1
-	refs[4] = &p.Parameters.G2.Delta
+	expectedLen := 2*nbCommitments + 4
+	refs := make([]any, 4, expectedLen)
+	refs[0] = &p.Parameters.G1.Delta
+	refs[1] = &p.Parameters.G1.PKK // unique size: private input size, excluding those committed to
+	refs[2] = &p.Parameters.G1.Z   // unique size: N-1
+	refs[3] = &p.Parameters.G2.Delta
 
 	refs = utils.AppendRefs(refs, p.Parameters.G1.SigmaCKK)
 	refs = utils.AppendRefs(refs, p.Parameters.G2.Sigma)
@@ -77,16 +76,20 @@ func (p *Phase2) refsSlice() []any {
 // WriteTo implements io.WriterTo
 func (p *Phase2) WriteTo(writer io.Writer) (n int64, err error) {
 	// write the parameters
+	if err = binary.Write(writer, binary.BigEndian, uint16(len(p.Parameters.G2.Sigma))); err != nil {
+		return -1, err // binary.Write doesn't return the number of bytes written
+	}
+	n = 2
 	enc := curve.NewEncoder(writer)
 	for _, v := range p.refsSlice() {
-		if err := enc.Encode(v); err != nil {
-			return enc.BytesWritten(), err
+		if err = enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
 		}
 	}
 
 	//write the proofs
 	dn, err := p.Delta.WriteTo(writer)
-	n = enc.BytesWritten() + dn
+	n += enc.BytesWritten() + dn
 	if err != nil {
 		return n, err
 	}
@@ -110,22 +113,21 @@ func (p *Phase2) ReadFrom(reader io.Reader) (n int64, err error) {
 	if err = binary.Read(reader, binary.BigEndian, &nbCommitments); err != nil {
 		return -1, err // binary.Read doesn't return the number of bytes read
 	}
-	n = int64(2) // we've definitely successfully read 2 bytes
+	n = 2 // we've definitely successfully read 2 bytes
 
 	p.Sigmas = make([]mpcsetup.UpdateProof, nbCommitments)
 	p.Parameters.G1.SigmaCKK = make([][]curve.G1Affine, nbCommitments)
 	p.Parameters.G2.Sigma = make([]curve.G2Affine, nbCommitments)
 
 	dec := curve.NewDecoder(reader)
-	for _, v := range p.refsSlice()[1:] { // nbCommitments already read
+	for _, v := range p.refsSlice() {
 		if err = dec.Decode(v); err != nil {
 			return n + dec.BytesRead(), err
 		}
 	}
-	n += dec.BytesRead()
 
 	dn, err := p.Delta.ReadFrom(reader)
-	n += dn
+	n += dec.BytesRead() + dn
 	if err != nil {
 		return n, err
 	}
