@@ -100,9 +100,7 @@ func (h *shortNativeHash) Sum(b []byte) []byte {
 
 	// zero the buffer we use for transporting bytes from bytes.Buffer to
 	// underlying hash. Remember that the cache buffer may not be full.
-	for i := range h.buf {
-		h.buf[i] = 0
-	}
+	clear(h.buf)
 	h.ringBuf.Read(h.buf[1:])
 	h.wrapped.Write(h.buf)
 
@@ -138,9 +136,7 @@ type shortCircuitHash struct {
 
 func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength int, bitmode bool) stdhash.FieldHasher {
 	tmp := make([]frontend.Variable, ((api.Compiler().FieldBitLen()+7)/8)*8-8)
-	for i := range tmp {
-		tmp[i] = 0
-	}
+	clear(tmp)
 	return &shortCircuitHash{
 		api:     api,
 		outSize: bitLength,
@@ -193,9 +189,7 @@ func (h *shortCircuitHash) Sum() frontend.Variable {
 
 	// but first, we have to zero the buffer we use for reversing. The cache
 	// buffer may not be full and so some bits may be set.
-	for i := range h.tmp {
-		h.tmp[i] = 0
-	}
+	clear(h.tmp)
 	copy(h.tmp, h.buf)
 	slices.Reverse(h.tmp)
 	v := bits.FromBinary(h.api, h.tmp)
@@ -249,8 +243,6 @@ func (h *shortCircuitHash) Write(data ...frontend.Variable) {
 
 func (h *shortCircuitHash) Reset() {
 	h.buf = nil
-	for i := range h.tmp {
-		h.tmp[i] = 0
-	}
+	clear(h.tmp)
 	h.wrapped.Reset()
 }
