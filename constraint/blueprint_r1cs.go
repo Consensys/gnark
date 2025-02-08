@@ -59,7 +59,7 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, inst Instruction) {
 }
 
 func (b *BlueprintGenericR1C) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
-	// a R1C doesn't know which wires are input and which are outputs
+	// an R1C doesn't know which wires are input and which are outputs
 	lenL := int(inst.Calldata[1])
 	lenR := int(inst.Calldata[2])
 	lenO := int(inst.Calldata[3])
