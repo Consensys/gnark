@@ -28,7 +28,7 @@ func (st *SymbolTable) CollectStack() []int {
 		r = make([]int, 0, 5)
 	}
 	// derived from: https://golang.org/pkg/runtime/#example_Frames
-	// we stop when func name == Define as it is where the gnark circuit code should start
+	// we stop when func name == "Define" as it is where the gnark circuit code should start
 
 	// Ask runtime.Callers for up to 10 pcs
 	var pc [20]uintptr
