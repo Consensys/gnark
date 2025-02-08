@@ -7,7 +7,7 @@ import (
 
 var (
 	errDivideByZero  = errors.New("division by 0")
-	errBoolConstrain = errors.New("boolean constraint doesn't hold")
+	errBoolConstraint = errors.New("boolean constraint doesn't hold")
 )
 
 // BlueprintGenericSparseR1C implements Blueprint and BlueprintSparseR1C.
