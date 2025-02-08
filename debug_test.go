@@ -66,6 +66,52 @@ func TestPrintln(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// test printf (non regression)
+type printfCircuit struct {
+	A, B frontend.Variable
+}
+
+func (circuit *printfCircuit) Define(api frontend.API) error {
+	c := api.Add(circuit.A, circuit.B)
+	api.Printf("%d is the addition", c)
+	d := api.Mul(circuit.A, c)
+	api.Printf("%s %s", d, new(big.Int).SetInt64(42))
+	bs := api.ToBinary(circuit.B, 10)
+	api.Printf("bits %s", bs[3])
+	api.Printf("circuit %s", circuit)
+	nb := api.Mul(bs[1], 2)
+	api.AssertIsBoolean(nb) // this will fail
+	m := api.Mul(circuit.A, circuit.B)
+	api.Printf("m %s", m) // this should not be resolved
+	return nil
+}
+
+func TestPrintf(t *testing.T) {
+	assert := require.New(t)
+
+	var circuit, witness printfCircuit
+	witness.A = 2
+	witness.B = 11
+
+	var expected bytes.Buffer
+	expected.WriteString("debug_test.go:30 > 13 is the addition\n")
+	expected.WriteString("debug_test.go:32 > 26 42\n")
+	expected.WriteString("debug_test.go:34 > bits 1\n")
+	expected.WriteString("debug_test.go:35 > circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:39 > m .*\n")
+
+	{
+		trace, _ := getGroth16Trace(&circuit, &witness)
+		assert.Regexp(expected.String(), trace)
+	}
+
+	{
+		trace, _ := getPlonkTrace(&circuit, &witness)
+		assert.Regexp(expected.String(), trace)
+	}
+}
+
+// -------------------------------------------------------------------------------------------------
 // Div by 0
 type divBy0Trace struct {
 	A, B, C frontend.Variable
