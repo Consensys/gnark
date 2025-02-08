@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
-// The tests in the package are for the rollup in plain go only, there is no snark circuits
+// The tests in the package are for the rollup in plain go only, there are no snark circuits
 // involved here.
 
 func TestOperatorReadAccount(t *testing.T) {
