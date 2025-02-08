@@ -215,7 +215,7 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 // groth16.Setup uses some randomness to precompute the Proving and Verifying keys. If the process
 // or machine leaks this randomness, an attacker could break the ZKP protocol.
 //
-// Two main solutions to this deployment issues are: running the Setup through a MPC (multi party computation)
+// Two main solutions to these deployment issues are: running the Setup through a MPC (multi party computation)
 // or using a ZKP backend like PLONK where the per-circuit Setup is deterministic.
 func Setup(r1cs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
