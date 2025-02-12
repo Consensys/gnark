@@ -88,21 +88,29 @@ type BinaryFixedLengthHasher interface {
 	FixedLengthSum(length frontend.Variable) []uints.U8
 }
 
-// CompressionFunction is a 2 to 1 function
-type CompressionFunction interface {
-	Compress(frontend.API, frontend.Variable, frontend.Variable) frontend.Variable
+// Compressor is a 2-1 one-way function. It takes two inputs and compresses
+// them into one output.
+//
+// NB! This is lossy compression, meaning that the output is not guaranteed to
+// be unique for different inputs. The output is guaranteed to be the same for
+// the same inputs.
+//
+// The Compressor is used in the Merkle-Damgard construction to build a hash
+// function.
+type Compressor interface {
+	Compress(frontend.Variable, frontend.Variable) frontend.Variable
 }
 
 type merkleDamgardHasher struct {
 	state frontend.Variable
 	iv    frontend.Variable
-	f     CompressionFunction
+	f     Compressor
 	api   frontend.API
 }
 
 // NewMerkleDamgardHasher transforms a 2-1 one-way function into a hash
 // initialState is a value whose preimage is not known
-func NewMerkleDamgardHasher(api frontend.API, f CompressionFunction, initialState frontend.Variable) FieldHasher {
+func NewMerkleDamgardHasher(api frontend.API, f Compressor, initialState frontend.Variable) FieldHasher {
 	return &merkleDamgardHasher{
 		state: initialState,
 		iv:    initialState,
@@ -117,7 +125,7 @@ func (h *merkleDamgardHasher) Reset() {
 
 func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 	for _, d := range data {
-		h.state = h.f.Compress(h.api, h.state, d)
+		h.state = h.f.Compress(h.state, d)
 	}
 }
 
