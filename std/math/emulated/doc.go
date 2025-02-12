@@ -55,8 +55,8 @@ know that the limb values do not overflow 2^w, then we say that the element is
 in normal form.
 
 In the implementation, we have two functions for splitting an element into limbs
-and composing an element from limbs -- [decompose] and [recompose]. The
-[recompose] function also accepts element in non-normal form.
+and composing an element from limbs -- [limbs.Decompose] and [limbs.Recompose].
+The [limbs.Recompose] function also accepts element in non-normal form.
 
 # Elements in non-normal form
 
@@ -86,52 +86,41 @@ then the overflow value f' for the sum is computed as
 
 The complexity of native limb-wise multiplication is k^2. This translates
 directly to the complexity in the number of constraints in the constraint
-system. However, alternatively, when instead computing the limb values
-off-circuit and constructing a system of k linear equations, we can ensure that
-the product was computed correctly.
+system.
 
-Let the factors be
+For multiplication, we would instead use polynomial representation of the
+elements:
 
 	x = ∑_{i=0}^k x_i 2^{w i}
-
-and
-
 	y = ∑_{i=0}^k y_i 2^{w i}.
 
-For computing the product, we compute off-circuit the limbs
+as
 
-	z_i = ∑_{j, j'>0, j+j'=i, j+j'≤2k-2} x_{j} y_{j'}, // in MultiplicationHint()
+	x(X) = ∑_{i=0}^k x_i X^i
+	y(X) = ∑_{i=0}^k y_i X^i.
 
-and assert in-circuit
+If the multiplication result modulo r is c, then the following holds:
 
-	∑_{i=0}^{2k-2} z_i c^i = (∑_{i=0}^k x_i) (∑_{i=0}^k y_i), ∀ c ∈ {1, ..., 2k-1}.
+	x * y = c + z*r.
 
-Computing the overflow for the multiplication result is slightly more
-complicated. The overflow for
+We can check the correctness of the multiplication by checking the following
+identity at a random point:
 
-	x_{j} y_{j'}
+	x(X) * y(X) = c(X) + z(X) * r(X) + (2^w' - X) e(X),
 
-is
+where e(X) is a polynomial used for carrying the overflows of the left- and
+right-hand side of the above equation.
 
-	w+f+f'+1.
+This approach can be extended to the case when the left hand side is not a
+simple multiplication, but rather any evaluation of a multivariate polynomial.
+So in essence we can check the correctness of any polynomial evaluation modulo
+r:
 
-Naively, as the limbs of the result are summed over all 0 ≤ i ≤ 2k-2, then the
-overflow of the limbs should be
+	F(x_1, x_2, ..., x_n) = c + z*r
 
-	w+f+f'+2k-1.
+through the following identity:
 
-For computing the number of bits and thus in the overflow, we can instead look
-at the maximal possible value. This can be computed by
-
-	(2^{2w+f+f'+2}-1)*(2k-1).
-
-Its bitlength is
-
-	2w+f+f'+1+log_2(2k-1),
-
-which leads to maximal overflow of
-
-	w+f+f'+1+log_2(2k-1).
+	F(x_1(X), x_2(X), ..., x_n(X)) = c(X) + z(X) * r(X) + (2^w' - X) e(X).
 
 # Subtraction
 
@@ -163,68 +152,15 @@ larger than every limb of b. The subtraction is performed as
 
 # Equality checking
 
-The package provides two ways to check equality -- limb-wise equality check and
-checking equality by value.
+Equality checking is performed using modular multiplication. To check that a, b
+are equal modulo r, we compute
 
-In the limb-wise equality check we check that the integer values of the elements
-x and y are equal. We have to carry the excess using bit decomposition (which
-makes the computation fairly inefficient). To reduce the number of bit
-decompositions, we instead carry over the excess of the difference of the limbs
-instead. As we take the difference, then similarly as computing the padding in
-subtraction algorithm, we need to add padding to the limbs before subtracting
-limb-wise to avoid underflows. However, the padding in this case is slightly
-different -- we do not need the padding to be divisible by the modulus, but
-instead need that the limb padding is larger than the limb which is being
-subtracted.
+	diff = b-a,
 
-Lets look at the algorithm itself. We assume that the overflow f of x is larger
-than y. If overflow of y is larger, then we can just swap the arguments and
-apply the same argumentation. Let
+and enforce modular multiplication check using the techniques for modular
+multiplication:
 
-	maxValue = 1 << (k+f), // padding for limbs
-	maxValueShift = 1 << f.  // carry part of the padding
-
-For every limb we compute the difference as
-
-	diff_0 = maxValue+x_0-y_0,
-	diff_i = maxValue+carry_i+x_i-y_i-maxValueShift.
-
-We check that the normal part of the difference is zero and carry the rest over
-to next limb:
-
-	diff_i[0:k] == 0,
-	carry_{i+1} = diff_i[k:k+f+1] // we also carry over the padding bit.
-
-Finally, after we have compared all the limbs, we still need to check that the
-final carry corresponds to the padding. We add final check:
-
-	carry_k == maxValueShift.
-
-We can further optimise the limb-wise equality check by first regrouping the
-limbs. The idea is to group several limbs so that the result would still fit
-into the scalar field. If
-
-	x = ∑_{i=0}^k x_i 2^{w i},
-
-then we can instead take w' divisible by w such that
-
-	x = ∑_{i=0}^(k/(w'/w)) x'_i 2^{w' i},
-
-where
-
-	x'_j = ∑_{i=0}^(w'/w) x_{j*w'/w+i} 2^{w i}.
-
-For element value equality check, we check that two elements x and y are equal
-modulo r and for that we need to show that r divides x-y. As mentioned in the
-subtraction section, we add sufficient padding such that x-y does not underflow
-and its integer value is always larger than 0. We use hint function to compute z
-such that
-
-	x-y = z*r,
-
-compute z*r and use limbwise equality checking to show that
-
-	x-y == z*r.
+	diff * 1 = 0 + k * r.
 
 # Bitwidth enforcement
 
@@ -259,5 +195,17 @@ The package currently does not explicitly differentiate between constant and
 variable elements. The builder may track some elements as being constants. Some
 operations have a fast track path for cases when all inputs are constants. There
 is [Field.MulConst], which provides variable by constant multiplication.
+
+# Variable-modulus operations
+
+The package also exposes methods for performing operations with variable
+modulus. The modulus is represented as an element and is not required to be
+prime. The methods for variable-modulus operations are [Field.ModMul],
+[Field.ModAdd], [Field.ModExp] and [Field.ModAssertIsEqual]. The modulus is
+passed as an argument to the operation.
+
+The type parameter for the [Field] should be sufficiently big to allow to fit
+the inputs and the modulus. Recommended to use predefined [emparams.Mod1e512] or
+[emparams.Mod1e4096].
 */
 package emulated

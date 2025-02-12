@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
@@ -16,9 +17,11 @@ type TestingOption func(*testingConfig) error
 
 type testingConfig struct {
 	profile
-	solverOpts  []solver.Option
-	proverOpts  []backend.ProverOption
-	compileOpts []frontend.CompileOption
+	solverOpts   []solver.Option
+	proverOpts   []backend.ProverOption
+	verifierOpts []backend.VerifierOption
+	compileOpts  []frontend.CompileOption
+	solidityOpts []solidity.ExportOption
 
 	validAssignments   []frontend.Circuit
 	invalidAssignments []frontend.Circuit
@@ -130,7 +133,7 @@ func NoTestEngine() TestingOption {
 // When the tags are set; this requires gnark-solidity-checker to be installed, which in turns
 // requires solc and abigen to be reachable in the PATH.
 //
-// See https://github.com/ConsenSys/gnark-solidity-checker for more details.
+// See https://github.com/Consensys/gnark-solidity-checker for more details.
 func NoSolidityChecks() TestingOption {
 	return func(opt *testingConfig) error {
 		opt.checkSolidity = false
@@ -163,6 +166,24 @@ func WithSolverOpts(solverOpts ...solver.Option) TestingOption {
 func WithCompileOpts(compileOpts ...frontend.CompileOption) TestingOption {
 	return func(opt *testingConfig) error {
 		opt.compileOpts = compileOpts
+		return nil
+	}
+}
+
+// WithVerifierOpts is a testing option which uses the given verifierOpts when
+// calling backend.Verify method.
+func WithVerifierOpts(verifierOpts ...backend.VerifierOption) TestingOption {
+	return func(tc *testingConfig) error {
+		tc.verifierOpts = append(tc.verifierOpts, verifierOpts...)
+		return nil
+	}
+}
+
+// WithSolidityExportOptions is a testing option which uses the given solidityOpts when
+// calling ExportSolidity method on the verification key.
+func WithSolidityExportOptions(solidityOpts ...solidity.ExportOption) TestingOption {
+	return func(tc *testingConfig) error {
+		tc.solidityOpts = solidityOpts
 		return nil
 	}
 }

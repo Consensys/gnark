@@ -1,22 +1,10 @@
-/*
-Copyright © 2021 ConsenSys Software Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package scs
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -56,7 +44,7 @@ type builder struct {
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[expr.Term]struct{}
 
-	// records multiplications constraint to avoid duplicate.
+	// records multiplications constraint to avoid duplicates.
 	// see mulConstraintExist(...)
 	mMulInstructions map[uint64]int
 
@@ -191,6 +179,13 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debugInfo ...constraint.
 	if !c.qM.IsZero() && (c.xa == 0 || c.xb == 0) {
 		// TODO this is internal but not easy to detect; if qM is set, but one or both of xa / xb is not,
 		// since wireID == 0 is a valid wire, it may trigger unexpected behavior.
+		//
+		// ivokub: This essentially means we add a constraint which is always
+		// satisfied for any input. It only increases the number of constraints
+		// without adding any real constraints on the inputs. But this is good
+		// to catch unoptimal code on the caller side -- we have found a few
+		// multiplications by zero in field emulation and emulated group
+		// arithmetic. And this has allowed to optimize the implementation.
 		log := logger.Logger()
 		log.Warn().Msg("adding a plonk constraint with qM set but xa or xb == 0 (wire 0)")
 	}
@@ -301,8 +296,7 @@ func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	return builder.cs, nil
 }
 
-// ConstantValue returns the big.Int value of v.
-// Will panic if v.IsConstant() == false
+// ConstantValue returns the big.Int value of v and true if v is a constant, false otherwise
 func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	coeff, ok := builder.constantValue(v)
 	if !ok {
@@ -312,7 +306,10 @@ func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, bool) {
-	if _, ok := v.(expr.Term); ok {
+	if vv, ok := v.(expr.Term); ok {
+		if vv.Coeff.IsZero() {
+			return constraint.Element{}, true
+		}
 		return constraint.Element{}, false
 	}
 	return builder.cs.FromInterface(v), true
@@ -343,10 +340,6 @@ func (builder *builder) hintBuffer(size int) []constraint.LinearExpression {
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	return builder.newHint(f, solver.GetHintID(f), nbOutputs, inputs...)
-}
-
-func (builder *builder) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	return builder.newHint(nil, id, nbOutputs, inputs...)
 }
 
 func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
@@ -689,4 +682,71 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 		term.MarkConstant()
 		return term
 	}
+}
+
+// GetWireConstraints returns the pairs (constraintID, wireLocation) for the
+// given wires in the compiled constraint system:
+//   - constraintID is the index of the constraint in the constraint system.
+//   - wireLocation is the location of the wire in the constraint (0=xA or 1=xB).
+//
+// If the argument addMissing is true, then the function will add a new
+// constraint for each wire that is not found in the constraint system. This may
+// happen when getting the constraint for a witness which is not used in
+// constraints. Otherwise, when addMissing is false, the function returns an
+// error if a wire is not found in the constraint system.
+//
+// The method only returns a single pair (constraintID, wireLocation) for every
+// unique wire (removing duplicates). The order of the returned pairs is not the
+// same as for the given arguments.
+func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
+	// construct a lookup table table for later quick access when iterating over instructions
+	lookup := make(map[int]struct{})
+	for _, w := range wires {
+		ww, ok := w.(expr.Term)
+		if !ok {
+			panic("input wire is not a Term")
+		}
+		lookup[ww.WireID()] = struct{}{}
+	}
+	nbPub := builder.cs.GetNbPublicVariables()
+	res := make([][2]int, 0, len(wires))
+	iterator := builder.cs.GetSparseR1CIterator()
+	for c, constraintIdx := iterator.Next(), 0; c != nil; c, constraintIdx = iterator.Next(), constraintIdx+1 {
+		if _, ok := lookup[int(c.XA)]; ok {
+			res = append(res, [2]int{nbPub + constraintIdx, 0})
+			delete(lookup, int(c.XA))
+		}
+		if _, ok := lookup[int(c.XB)]; ok {
+			res = append(res, [2]int{nbPub + constraintIdx, 1})
+			delete(lookup, int(c.XB))
+		}
+		if _, ok := lookup[int(c.XC)]; ok {
+			res = append(res, [2]int{nbPub + constraintIdx, 2})
+			delete(lookup, int(c.XC))
+		}
+		if len(lookup) == 0 {
+			// we can break early if we found constraints for all the wires
+			break
+		}
+	}
+	if addMissing {
+		nbWitnessWires := builder.cs.GetNbPublicVariables() + builder.cs.GetNbSecretVariables()
+		for k := range lookup {
+			if k >= nbWitnessWires {
+				return nil, fmt.Errorf("addMissing is true, but wire %d is not a witness", k)
+			}
+			constraintIdx := builder.cs.AddSparseR1C(constraint.SparseR1C{
+				XA: uint32(k),
+				XC: uint32(k),
+				QL: constraint.CoeffIdOne,
+				QO: constraint.CoeffIdMinusOne,
+			}, builder.genericGate)
+			res = append(res, [2]int{nbPub + constraintIdx, 0})
+			delete(lookup, k)
+		}
+	}
+	if len(lookup) > 0 {
+		return nil, fmt.Errorf("constraint with wire not found in circuit")
+	}
+	return res, nil
 }

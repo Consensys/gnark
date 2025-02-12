@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package rollup
 
@@ -33,7 +20,7 @@ func TestOperatorReadAccount(t *testing.T) {
 	// create operator with 10 accounts
 	operator, _ := createOperator(10)
 
-	// check if the account read from the operator are correct
+	// check if the account read from the operator is correct
 	for i := 0; i < 10; i++ {
 		opAccount, err := operator.readAccount(uint64(i))
 		if err != nil {
@@ -168,7 +155,7 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	return acc, privkey
 }
 
-// Returns a newly created operator and tha private keys of the associated accounts
+// Returns a newly created operator and the private keys of the associated accounts
 func createOperator(nbAccounts int) (Operator, []eddsa.PrivateKey) {
 
 	operator := NewOperator(nbAccounts)

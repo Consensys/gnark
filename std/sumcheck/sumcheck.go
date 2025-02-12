@@ -1,11 +1,12 @@
 package sumcheck
 
 import (
-	"fmt"
+	"errors"
+	"strconv"
+
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"strconv"
 )
 
 // LazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
@@ -37,8 +38,7 @@ func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fia
 		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
 	}
 	if settings.Transcript == nil {
-		transcript := fiatshamir.NewTranscript(api, settings.Hash, challengeNames...)
-		settings.Transcript = &transcript
+		settings.Transcript = fiatshamir.NewTranscript(api, settings.Hash, challengeNames)
 	}
 
 	return challengeNames, settings.Transcript.Bind(challengeNames[0], settings.BaseChallenges)
@@ -87,7 +87,7 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 	for j := 0; j < claims.VarsNum(); j++ {
 		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
 		if len(partialSumPoly) != claims.Degree(j) {
-			return fmt.Errorf("malformed proof") //Malformed proof
+			return errors.New("malformed proof") //Malformed proof
 		}
 		copy(gJ[1:], partialSumPoly)
 		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)

@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -78,6 +78,9 @@ func (circuit *divBy0Trace) Define(api frontend.API) error {
 }
 
 func TestTraceDivBy0(t *testing.T) {
+	if !debug.Debug {
+		t.Skip("skipping test in non debug mode")
+	}
 	assert := require.New(t)
 
 	var circuit, witness divBy0Trace
@@ -159,11 +162,12 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 		return "", err
 	}
 
-	srs, err := test.NewKZGSRS(ccs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		return "", err
 	}
-	pk, _, err := plonk.Setup(ccs, srs)
+
+	pk, _, err := plonk.Setup(ccs, srs, srsLagrange)
 	if err != nil {
 		return "", err
 	}

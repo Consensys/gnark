@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
-const copyrightHolder = "ConsenSys Software Inc."
+const copyrightHolder = "Consensys Software Inc."
 
 var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 
@@ -67,6 +67,7 @@ func main() {
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
 		noBackend: true,
+		NoGKR:     true,
 	}
 
 	// autogenerate tinyfield
@@ -104,7 +105,6 @@ func main() {
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
 				groth16MpcSetupDir = filepath.Join(groth16Dir, "mpcsetup")
 				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
-				plonkFriDir        = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
 			)
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
@@ -113,15 +113,13 @@ func main() {
 			if err := os.MkdirAll(plonkDir, 0700); err != nil {
 				panic(err)
 			}
-			if err := os.MkdirAll(plonkFriDir, 0700); err != nil {
-				panic(err)
-			}
 
 			csDir := d.CSPath
 
 			// constraint systems
 			entries := []bavard.Entry{
 				{File: filepath.Join(csDir, "system.go"), Templates: []string{"system.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "marshal.go"), Templates: []string{"marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "coeff.go"), Templates: []string{"coeff.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "solver.go"), Templates: []string{"solver.go.tmpl", importCurve}},
 			}
@@ -161,7 +159,6 @@ func main() {
 				{File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{"groth16/groth16.verify.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{"groth16/groth16.prove.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{"groth16/groth16.setup.go.tmpl", importCurve}},
-				{File: filepath.Join(groth16Dir, "commitment.go"), Templates: []string{"groth16/groth16.commitment.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{"groth16/groth16.marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{"groth16/tests/groth16.marshal.go.tmpl", importCurve}},
 			}
@@ -204,28 +201,9 @@ func main() {
 				panic(err)
 			}
 
-			// plonkfri
-			entries = []bavard.Entry{
-				{File: filepath.Join(plonkFriDir, "verify.go"), Templates: []string{"plonkfri/plonk.verify.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "prove.go"), Templates: []string{"plonkfri/plonk.prove.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "setup.go"), Templates: []string{"plonkfri/plonk.setup.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "plonkfri", "./template/zkpschemes/", entries...); err != nil {
-				panic(err)
-			}
-
 		}(d)
 
 	}
-
-	wg.Add(1)
-	go func() {
-		if err = bgen.Generate(datas, "constant", "./template/representations/",
-			bavard.Entry{File: filepath.Join("../../../constant", "constant.go"), Templates: []string{"constant.go.tmpl"}}); err != nil {
-			panic(err)
-		}
-		wg.Done()
-	}()
 
 	wg.Wait()
 
@@ -245,4 +223,5 @@ type templateData struct {
 	Curve     string
 	CurveID   string
 	noBackend bool
+	NoGKR     bool
 }

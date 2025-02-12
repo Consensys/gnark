@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package rollup
 
@@ -27,8 +14,8 @@ import (
 
 const (
 	nbAccounts       = 16 // 16 accounts so we know that the proof length is 5
-	depth            = 5  // size fo the inclusion proofs
-	BatchSizeCircuit = 1  // nbTranfers to batch in a proof
+	depth            = 5  // size of the inclusion proofs
+	BatchSizeCircuit = 1  // nbTransfers to batch in a proof
 )
 
 // Circuit "toy" rollup circuit where an operator can generate a proof that he processed
@@ -172,7 +159,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-// verifySignatureTransfer ensures that the signature of the transfer is valid
+// verifyTransferSignature ensures that the signature of the transfer is valid
 func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// Reset the hash state!

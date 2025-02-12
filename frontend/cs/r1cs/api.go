@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package r1cs
 
@@ -23,6 +10,8 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+
+	"github.com/consensys/gnark/internal/hints"
 
 	"github.com/consensys/gnark/internal/utils"
 
@@ -91,7 +80,7 @@ func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 		// it fits, no mem alloc
 		_a = append(_a, builder.mbuf2...)
 	} else {
-		// allocate a expression linear with extended capacity
+		// allocate an expression linear with extended capacity
 		_a = make(expr.LinearExpression, len(builder.mbuf2), len(builder.mbuf2)*3)
 		copy(_a, builder.mbuf2)
 	}
@@ -294,12 +283,14 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	if !v2Constant {
 		res := builder.newInternalVariable()
-		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 		c1 := builder.cs.AddR1C(builder.newR1C(v2, v2Inv, builder.cstOne()), builder.genericGate)
 		c2 := builder.cs.AddR1C(builder.newR1C(v1, v2Inv, res), builder.genericGate)
-		builder.cs.AttachDebugInfo(debug, []int{c1, c2})
+		if debug.Debug {
+			debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
+			builder.cs.AttachDebugInfo(debug, []int{c1, c2})
+		}
 		return res
 	}
 
@@ -350,7 +341,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
-// The result in in little endian (first bit= lsb)
+// The result is in little endian (first bit= lsb)
 func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()
@@ -542,8 +533,6 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		return builder.cstZero()
 	}
 
-	debug := builder.newDebugInfo("isZero", a)
-
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
@@ -563,7 +552,12 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	// a * m = 0            // constrain m to be 0 if a != 0
 	c2 := builder.cs.AddR1C(builder.newR1C(a, m, builder.cstZero()), builder.genericGate)
 
-	builder.cs.AttachDebugInfo(debug, []int{c1, c2})
+	if debug.Debug {
+		debug := builder.newDebugInfo("isZero", a)
+		builder.cs.AttachDebugInfo(debug, []int{c1, c2})
+	}
+
+	builder.MarkBoolean(m)
 
 	return m
 }
@@ -682,6 +676,19 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
+	// add a random mask to v
+	{
+		vCp := make([]frontend.Variable, len(v)+1)
+		copy(vCp, v)
+		mask, err := builder.NewHint(hints.Randomize, 1)
+		if err != nil {
+			return nil, err
+		}
+		vCp[len(v)] = mask[0]
+		builder.cs.AddR1C(builder.newR1C(mask[0], builder.eOne, mask[0]), builder.genericGate) // the variable needs to be involved in a constraint otherwise it will not affect the commitment
+		v = vCp
+	}
+
 	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
 	existingCommitmentIndexes := commitments.CommitmentIndexes()
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
@@ -775,33 +782,27 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-
-	var (
-		hintOut []frontend.Variable
-		err     error
+	commitmentDepth := len(commitments)
+	inputs := builder.wireIDsToVars(
+		commitment.PublicAndCommitmentCommitted,
+		commitment.PrivateCommitted,
 	)
+	inputs = append([]frontend.Variable{commitmentDepth}, inputs...)
 
-	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
 		return nil, err
 	}
 
-	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
-		commitment.PublicAndCommitmentCommitted,
-		commitment.PrivateCommitted,
-	)...); err != nil {
-		return nil, err
-	}
+	res := hintOut[0]
 
-	cVar := hintOut[0]
-
-	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
+	commitment.CommitmentIndex = (res.(expr.LinearExpression))[0].WireID()
 
 	if err := builder.cs.AddCommitment(commitment); err != nil {
 		return nil, err
 	}
 
-	return cVar, nil
+	return res, nil
 }
 
 func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {

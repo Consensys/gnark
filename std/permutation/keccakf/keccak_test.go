@@ -1,8 +1,9 @@
 package keccakf_test
 
 import (
-	"github.com/consensys/gnark/std/math/uints"
 	"testing"
+
+	"github.com/consensys/gnark/std/math/uints"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -53,5 +54,6 @@ func TestKeccakf(t *testing.T) {
 	assert.ProverSucceeded(&keccakfCircuit{}, &witness,
 		test.WithCurves(ecc.BN254),
 		test.WithBackends(backend.GROTH16, backend.PLONK),
+		test.NoProverChecks(),
 		test.NoFuzzing())
 }

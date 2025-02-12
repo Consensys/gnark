@@ -33,6 +33,45 @@ func randomG1G2Affines() (bw6761.G1Affine, bw6761.G2Affine) {
 	return p, q
 }
 
+type MillerLoopCircuit struct {
+	In1G1, In2G1 G1Affine
+	In1G2, In2G2 G2Affine
+	Res          GTEl
+}
+
+func (c *MillerLoopCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.MillerLoop([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("Miller loop: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMillerLoopTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
+	res, err := bw6761.MillerLoopDirect(
+		[]bw6761.G1Affine{p1, p2},
+		[]bw6761.G2Affine{q1, q2},
+	)
+	assert.NoError(err)
+	witness := MillerLoopCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type FinalExponentiationCircuit struct {
 	InGt GTEl
 	Res  GTEl
@@ -72,6 +111,8 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -94,6 +135,20 @@ func TestPairTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestPairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2AffineFixed(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type MultiPairCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
@@ -106,6 +161,8 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
 	P, Q := []*G1Affine{}, []*G2Affine{}
 	for i := 0; i < c.n; i++ {
 		P = append(P, &c.InG1)
@@ -120,16 +177,19 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 }
 
 func TestMultiPairTestSolve(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
-	p := make([]bw6761.G1Affine, 4)
-	q := make([]bw6761.G2Affine, 4)
-	for i := 0; i < 4; i++ {
+	p := make([]bw6761.G1Affine, 3)
+	q := make([]bw6761.G2Affine, 3)
+	for i := 0; i < 3; i++ {
 		p[i] = p1
 		q[i] = q1
 	}
 
-	for i := 2; i < 4; i++ {
+	for i := 2; i < 3; i++ {
 		res, err := bw6761.Pair(p[:i], q[:i])
 		assert.NoError(err)
 		witness := MultiPairCircuit{
@@ -142,7 +202,6 @@ func TestMultiPairTestSolve(t *testing.T) {
 	}
 }
 
-/*
 type PairingCheckCircuit struct {
 	In1G1 G1Affine
 	In2G1 G1Affine
@@ -155,7 +214,7 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -164,10 +223,13 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bw6761.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bw6761.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
@@ -177,20 +239,47 @@ func TestPairingCheckTestSolve(t *testing.T) {
 	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
+
+type GroupMembershipCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+}
+
+func (c *GroupMembershipCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
+	return nil
+}
+
+func TestGroupMembershipSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	witness := GroupMembershipCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+	}
+	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
 
 // bench
 func BenchmarkPairing(b *testing.B) {
-
-	p, q := randomG1G2Affines()
-	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
-	if err != nil {
-		b.Fatal(err)
-	}
-	witness := PairCircuit{
-		InG1: NewG1Affine(p),
-		InG2: NewG2Affine(q),
-		Res:  NewGTEl(res),
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bw6761.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bw6761.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	witness := PairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
 	}
 	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	if err != nil {
@@ -200,7 +289,7 @@ func BenchmarkPairing(b *testing.B) {
 	b.Run("compile scs", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairCircuit{}); err != nil {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairingCheckCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -222,7 +311,7 @@ func BenchmarkPairing(b *testing.B) {
 	b.Run("compile r1cs", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairCircuit{}); err != nil {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}

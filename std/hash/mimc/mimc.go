@@ -1,20 +1,6 @@
-/*
-Copyright © 2020 ConsenSys
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package mimc provides a ZKP-circuit function to compute a MiMC hash.
 package mimc
 
 import (
@@ -26,7 +12,9 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-// MiMC contains the params of the Mimc hash func and the curves on which it is implemented
+// MiMC contains the params of the MiMC hash func and the curves on which it is implemented.
+//
+// NB! See the package documentation for length extension attack consideration.
 type MiMC struct {
 	params []big.Int           // slice containing constants for the encryption rounds
 	id     ecc.ID              // id needed to know which encryption function to use
@@ -35,7 +23,12 @@ type MiMC struct {
 	api    frontend.API        // underlying constraint system
 }
 
-// NewMiMC returns a MiMC instance, than can be used in a gnark circuit
+// NewMiMC returns a MiMC instance that can be used in a gnark circuit. The
+// out-circuit counterpart of this function is provided in [gnark-crypto].
+//
+// NB! See the package documentation for length extension attack consideration.
+//
+// [gnark-crypto]: https://pkg.go.dev/github.com/consensys/gnark-crypto/hash
 func NewMiMC(api frontend.API) (MiMC, error) {
 	// TODO @gbotrel use field
 	if constructor, ok := newMimc[utils.FieldToCurve(api.Compiler().Field())]; ok {
@@ -55,10 +48,35 @@ func (h *MiMC) Reset() {
 	h.h = 0
 }
 
-// Sum hash (in r1cs form) using Miyaguchi–Preneel:
-// https://en.wikipedia.org/wiki/One-way_compression_function
-// The XOR operation is replaced by field addition.
-// See github.com/consensys/gnark-crypto for reference implementation.
+// SetState manually sets the state of the hasher to the provided value. In the
+// case of MiMC only a single frontend variable is expected to represent the
+// state.
+func (h *MiMC) SetState(newState []frontend.Variable) error {
+
+	if len(h.data) > 0 {
+		return errors.New("the hasher is not in an initial state")
+	}
+
+	if len(newState) != 1 {
+		return errors.New("the MiMC hasher expects a single field element to represent the state")
+	}
+
+	h.h = newState[0]
+	h.data = nil
+	return nil
+}
+
+// State returns the inner-state of the hasher. In the context of MiMC only a
+// single field element is returned.
+func (h *MiMC) State() []frontend.Variable {
+	h.Sum() // this flushes the unsummed data
+	return []frontend.Variable{h.h}
+}
+
+// Sum hash using [Miyaguchi–Preneel] where the XOR operation is replaced by
+// field addition.
+//
+// [Miyaguchi–Preneel]: https://en.wikipedia.org/wiki/One-way_compression_function
 func (h *MiMC) Sum() frontend.Variable {
 
 	//h.Write(data...)s

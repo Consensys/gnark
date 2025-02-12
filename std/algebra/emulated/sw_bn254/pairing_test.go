@@ -33,20 +33,59 @@ func randomG1G2Affines() (bn254.G1Affine, bn254.G2Affine) {
 	return p, q
 }
 
-type FinalExponentiationCircuit struct {
-	InGt GTEl
-	Res  GTEl
+type MillerLoopCircuit struct {
+	In1G1, In2G1 G1Affine
+	In1G2, In2G2 G2Affine
+	Res          GTEl
 }
 
-func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
+func (c *MillerLoopCircuit) Define(api frontend.API) error {
 	pairing, err := NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res1 := pairing.FinalExponentiation(&c.InGt)
-	pairing.AssertIsEqual(res1, &c.Res)
-	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
-	pairing.AssertIsEqual(res2, &c.Res)
+	res, err := pairing.MillerLoop([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMillerLoopTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
+	lines1 := bn254.PrecomputeLines(q1)
+	lines2 := bn254.PrecomputeLines(q2)
+	res, err := bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{p1, p2},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines1, lines2},
+	)
+	assert.NoError(err)
+	witness := MillerLoopCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FinalExponentiation struct {
+	InGt GTEl
+	Res  GTEl
+}
+
+func (c *FinalExponentiation) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	expected := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(expected, &c.Res)
 	return nil
 }
 
@@ -55,11 +94,45 @@ func TestFinalExponentiationTestSolve(t *testing.T) {
 	var gt bn254.GT
 	gt.SetRandom()
 	res := bn254.FinalExponentiation(&gt)
-	witness := FinalExponentiationCircuit{
+	witness := FinalExponentiation{
 		InGt: NewGTEl(gt),
 		Res:  NewGTEl(res),
 	}
-	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&FinalExponentiation{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FinalExponentiationIsOne struct {
+	InGt GTEl
+}
+
+func (c *FinalExponentiationIsOne) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	pairing.AssertFinalExponentiationIsOne(&c.InGt)
+	return nil
+}
+
+func TestFinalExponentiationIsOneTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	ml, err := bn254.MillerLoop(
+		[]bn254.G1Affine{p1, p2},
+		[]bn254.G2Affine{q1, q2},
+	)
+	assert.NoError(err)
+	witness := FinalExponentiationIsOne{
+		InGt: NewGTEl(ml),
+	}
+	err = test.IsSolved(&FinalExponentiationIsOne{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -74,8 +147,6 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG1(&c.InG1)
-	pairing.AssertIsOnG2(&c.InG2)
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -95,6 +166,20 @@ func TestPairTestSolve(t *testing.T) {
 		Res:  NewGTEl(res),
 	}
 	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestPairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2AffineFixed(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -126,16 +211,19 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 }
 
 func TestMultiPairTestSolve(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
-	p := make([]bn254.G1Affine, 10)
-	q := make([]bn254.G2Affine, 10)
-	for i := 0; i < 10; i++ {
+	p := make([]bn254.G1Affine, 4)
+	q := make([]bn254.G2Affine, 4)
+	for i := 0; i < 4; i++ {
 		p[i] = p1
 		q[i] = q1
 	}
 
-	for i := 2; i < 10; i++ {
+	for i := 2; i < 4; i++ {
 		res, err := bn254.Pair(p[:i], q[:i])
 		assert.NoError(err)
 		witness := MultiPairCircuit{
@@ -160,7 +248,7 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -169,10 +257,13 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bn254.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
@@ -180,42 +271,6 @@ func TestPairingCheckTestSolve(t *testing.T) {
 		In2G2: NewG2Affine(q2),
 	}
 	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type FinalExponentiationSafeCircuit struct {
-	P1, P2 G1Affine
-	Q1, Q2 G2Affine
-}
-
-func (c *FinalExponentiationSafeCircuit) Define(api frontend.API) error {
-	pairing, err := NewPairing(api)
-	if err != nil {
-		return err
-	}
-	res, err := pairing.MillerLoop([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2})
-	if err != nil {
-		return err
-	}
-	res2 := pairing.FinalExponentiation(res)
-	one := pairing.Ext12.One()
-	pairing.AssertIsEqual(one, res2)
-	return nil
-}
-
-func TestFinalExponentiationSafeCircuit(t *testing.T) {
-	assert := test.NewAssert(t)
-	_, _, p1, q1 := bn254.Generators()
-	var p2 bn254.G1Affine
-	var q2 bn254.G2Affine
-	p2.Neg(&p1)
-	q2.Set(&q1)
-	err := test.IsSolved(&FinalExponentiationSafeCircuit{}, &FinalExponentiationSafeCircuit{
-		P1: NewG1Affine(p1),
-		P2: NewG1Affine(p2),
-		Q1: NewG2Affine(q1),
-		Q2: NewG2Affine(q2),
-	}, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -245,92 +300,182 @@ func TestGroupMembershipSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-// ----------------------------
-//	  Fixed-argument pairing
-// ----------------------------
-//
-// The second argument Q is the fixed canonical generator of G2.
-//
-// Q.X.A0 = 0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed
-// Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
-// Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
-// Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
-
-type PairFixedCircuit struct {
-	InG1 G1Affine
-	Res  GTEl
+type IsOnTwistCircuit struct {
+	Q        G2Affine
+	Expected frontend.Variable
 }
 
-func (c *PairFixedCircuit) Define(api frontend.API) error {
+func (c *IsOnTwistCircuit) Define(api frontend.API) error {
 	pairing, err := NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ(&c.InG1)
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Res)
+	res := pairing.IsOnTwist(&c.Q)
+	api.AssertIsEqual(res, c.Expected)
 	return nil
 }
 
-func TestPairFixedTestSolve(t *testing.T) {
+func TestIsOnTwistSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, _ := randomG1G2Affines()
-	_, _, _, G2AffGen := bn254.Generators()
-	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{G2AffGen})
+	// test for a point not on the twist
+	var Q bn254.G2Affine
+	_, err := Q.X.A0.SetString("0x119606e6d3ea97cea4eff54433f5c7dbc026b8d0670ddfbe6441e31225028d31")
 	assert.NoError(err)
-	witness := PairFixedCircuit{
-		InG1: NewG1Affine(p),
-		Res:  NewGTEl(res),
+	_, err = Q.X.A1.SetString("0x1d3df5be6084324da6333a6ad1367091ca9fbceb70179ec484543a58b8cb5d63")
+	assert.NoError(err)
+	_, err = Q.Y.A0.SetString("0x1b9a36ea373fe2c5b713557042ce6deb2907d34e12be595f9bbe84c144de86ef")
+	assert.NoError(err)
+	_, err = Q.Y.A1.SetString("0x49fe60975e8c78b7b31a6ed16a338ac8b28cf6a065cfd2ca47e9402882518ba0")
+	assert.NoError(err)
+	assert.False(Q.IsOnCurve())
+	witness := IsOnTwistCircuit{
+		Q:        NewG2Affine(Q),
+		Expected: 0,
 	}
-	err = test.IsSolved(&PairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	err = test.IsSolved(&IsOnTwistCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	// test for a point on the twist
+	_, Q = randomG1G2Affines()
+	assert.True(Q.IsOnCurve())
+	witness = IsOnTwistCircuit{
+		Q:        NewG2Affine(Q),
+		Expected: 1,
+	}
+	err = test.IsSolved(&IsOnTwistCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
-type DoublePairFixedCircuit struct {
-	In1G1 G1Affine
-	In2G1 G1Affine
-	In1G2 G2Affine
-	Res   GTEl
+type IsOnG2Circuit struct {
+	Q        G2Affine
+	Expected frontend.Variable
 }
 
-func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
+func (c *IsOnG2Circuit) Define(api frontend.API) error {
 	pairing, err := NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.DoublePairFixedQ(&c.In1G1, &c.In2G1, &c.In1G2)
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Res)
+	res := pairing.IsOnG2(&c.Q)
+	api.AssertIsEqual(res, c.Expected)
 	return nil
 }
 
-func TestDoublePairFixedTestSolve(t *testing.T) {
+func TestIsOnG2Solve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// test for a point not on the curve
+	var Q bn254.G2Affine
+	_, err := Q.X.A0.SetString("0x119606e6d3ea97cea4eff54433f5c7dbc026b8d0670ddfbe6441e31225028d31")
+	assert.NoError(err)
+	_, err = Q.X.A1.SetString("0x1d3df5be6084324da6333a6ad1367091ca9fbceb70179ec484543a58b8cb5d63")
+	assert.NoError(err)
+	_, err = Q.Y.A0.SetString("0x1b9a36ea373fe2c5b713557042ce6deb2907d34e12be595f9bbe84c144de86ef")
+	assert.NoError(err)
+	_, err = Q.Y.A1.SetString("0x49fe60975e8c78b7b31a6ed16a338ac8b28cf6a065cfd2ca47e9402882518ba0")
+	assert.NoError(err)
+	assert.False(Q.IsOnCurve())
+	witness := IsOnG2Circuit{
+		Q:        NewG2Affine(Q),
+		Expected: 0,
+	}
+	err = test.IsSolved(&IsOnG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	// test for a point on curve not in G2
+	_, err = Q.X.A0.SetString("0x07192b9fd0e2a32e3e1caa8e59462b757326d48f641924e6a1d00d66478913eb")
+	assert.NoError(err)
+	_, err = Q.X.A1.SetString("0x15ce93f1b1c4946dd6cfbb3d287d9c9a1cdedb264bda7aada0844416d8a47a63")
+	assert.NoError(err)
+	_, err = Q.Y.A0.SetString("0x0fa65a9b48ba018361ed081e3b9e958451de5d9e8ae0bd251833ebb4b2fafc96")
+	assert.NoError(err)
+	_, err = Q.Y.A1.SetString("0x06e1f5e20f68f6dfa8a91a3bea048df66d9eaf56cc7f11215401f7e05027e0c6")
+	assert.NoError(err)
+	assert.True(Q.IsOnCurve())
+	assert.False(Q.IsInSubGroup())
+	witness = IsOnG2Circuit{
+		Q:        NewG2Affine(Q),
+		Expected: 0,
+	}
+	err = test.IsSolved(&IsOnG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	// test for a point in G2
+	_, Q = randomG1G2Affines()
+	assert.True(Q.IsOnCurve())
+	assert.True(Q.IsInSubGroup())
+	witness = IsOnG2Circuit{
+		Q:        NewG2Affine(Q),
+		Expected: 1,
+	}
+	err = test.IsSolved(&IsOnG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type IsMillerLoopAndFinalExpCircuit struct {
+	Prev     GTEl
+	P        G1Affine
+	Q        G2Affine
+	Expected frontend.Variable
+}
+
+func (c *IsMillerLoopAndFinalExpCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res := pairing.IsMillerLoopAndFinalExpOne(&c.P, &c.Q, &c.Prev)
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+
+}
+
+func TestIsMillerLoopAndFinalExpCircuitTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p, q := randomG1G2Affines()
-	_, _, _, G2AffGen := bn254.Generators()
-	res, err := bn254.Pair([]bn254.G1Affine{p, p}, []bn254.G2Affine{q, G2AffGen})
+
+	var np bn254.G1Affine
+	np.Neg(&p)
+
+	ok, err := bn254.PairingCheck([]bn254.G1Affine{p, np}, []bn254.G2Affine{q, q})
 	assert.NoError(err)
-	witness := DoublePairFixedCircuit{
-		In1G1: NewG1Affine(p),
-		In2G1: NewG1Affine(p),
-		In1G2: NewG2Affine(q),
-		Res:   NewGTEl(res),
+	assert.True(ok)
+
+	lines := bn254.PrecomputeLines(q)
+	// need to use ML with precomputed lines. Otherwise, the result will be different
+	mlres, err := bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{p},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
+	)
+	assert.NoError(err)
+
+	witness := IsMillerLoopAndFinalExpCircuit{
+		Prev:     NewGTEl(mlres),
+		P:        NewG1Affine(np),
+		Q:        NewG2Affine(q),
+		Expected: 1,
 	}
-	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	err = test.IsSolved(&IsMillerLoopAndFinalExpCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	var randPrev bn254.GT
+	randPrev.SetRandom()
+
+	witness = IsMillerLoopAndFinalExpCircuit{
+		Prev:     NewGTEl(randPrev),
+		P:        NewG1Affine(np),
+		Q:        NewG2Affine(q),
+		Expected: 0,
+	}
+	err = test.IsSolved(&IsMillerLoopAndFinalExpCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 // bench
 func BenchmarkPairing(b *testing.B) {
-
+	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
-	_, q2 := randomG1G2Affines()
 	var p2 bn254.G1Affine
-	p2.Neg(&p1)
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),

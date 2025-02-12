@@ -1,40 +1,53 @@
 {{- /*gotype: github.com/gotesttools/gotestfmt/v2/parser.Package*/ -}}
-
+{{- /*
+This template contains the format for an individual package. GitHub actions does not currently support nested groups so
+we are creating a stylized header for each package.
+*/ -}}
 {{- $settings := .Settings -}}
 {{- if and (or (not $settings.HideSuccessfulPackages) (ne .Result "PASS")) (or (not $settings.HideEmptyPackages) (ne .Result "SKIP") (ne (len .TestCases) 0)) -}}
-    📦 `{{ .Name }}`
+    {{- if eq .Result "PASS" -}}
+        {{ "\033" }}[0;32m
+    {{- else if eq .Result "SKIP" -}}
+        {{ "\033" }}[0;33m
+    {{- else -}}
+        {{ "\033" }}[0;31m
+    {{- end -}}
+    📦 {{ .Name }}{{- "\033" }}[0m
     {{- with .Coverage -}}
-       ({{ . }}% coverage)
+       {{- "\033" -}}[0;37m ({{ . }}% coverage){{- "\033" -}}[0m
     {{- end -}}
     {{- "\n" -}}
     {{- with .Reason -}}
         {{- "  " -}}🛑 {{ . -}}{{- "\n" -}}
     {{- end -}}
     {{- with .Output -}}
-    ```{{- "\n" -}}
         {{- . -}}{{- "\n" -}}
-    ```{{- "\n" -}}
     {{- end -}}
     {{- with .TestCases -}}
         {{- range . -}}
             {{- if or (not $settings.HideSuccessfulTests) (ne .Result "PASS") -}}
+                ::group::
                 {{- if eq .Result "PASS" -}}
-                    ✅
+                    {{ "\033" }}[0;32m✅
                 {{- else if eq .Result "SKIP" -}}
-                    🚧
+                    {{ "\033" }}[0;33m🚧
                 {{- else -}}
-                    ❌
+                    {{ "\033" }}[0;31m❌
                 {{- end -}}
-                {{ " " }}`{{- .Name -}}` {{ .Duration -}}
+                {{ " " }}{{- .Name -}}
+                {{- "\033" -}}[0;37m ({{if $settings.ShowTestStatus}}{{.Result}}; {{end}}{{ .Duration -}}
+                {{- with .Coverage -}}
+                    , coverage: {{ . }}%
+                {{- end -}})
+                {{- "\033" -}}[0m
                 {{- "\n" -}}
 
                 {{- with .Output -}}
-                    ```{{- "\n" -}}
-                    {{- formatTestOutput . $settings -}}{{- "\n" -}}
-                    ```{{- "\n" -}}
+                    {{- formatTestOutput . $settings -}}
+                    {{- "\n" -}}
                 {{- end -}}
 
-                {{- "\n" -}}
+                ::endgroup::{{- "\n" -}}
             {{- end -}}
         {{- end -}}
     {{- end -}}

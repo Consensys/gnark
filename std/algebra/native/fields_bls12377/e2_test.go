@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package fields_bls12377
 
@@ -239,37 +226,5 @@ func TestInverseFp2(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
-
-}
-
-func TestMulByNonResidueFp2(t *testing.T) {
-	// TODO fixme
-	t.Skip("missing e2.MulByNonSquare")
-	// ext := Extension{uSquare: 5}
-
-	// var circuit, witness XXXX
-	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// // witness values
-	// var a, c bls12377.E2
-	// a.SetRandom()
-
-	// // TODO c.MulByNonSquare(&a)
-
-	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
-
-	// fp2c := NewFp2Elmt(&cs, nil, nil)
-	// fp2c.MulByNonResidue(&cs, &fp2a)
-
-	//
-	// witness.A.A0 = (a.A0)
-	// witness.A.A1 = (a.A1)
-
-	//
-	// witness.C.A0 = (c.A0)
-	// witness.C.A1 = (c.A1)
 
 }

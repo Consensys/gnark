@@ -1,18 +1,5 @@
-/*
-Copyright © 2021 ConsenSys Software Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package test
 
@@ -128,6 +115,14 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
+
+	// first we reset the stateful blueprints
+	for i := range e.blueprints {
+		if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
+	}
+
 	if err = c.Define(e); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
@@ -456,6 +451,12 @@ func (e *engine) AssertIsBoolean(i1 frontend.Variable) {
 	e.mustBeBoolean(b1)
 }
 
+func (e *engine) AssertIsCrumb(i1 frontend.Variable) {
+	i1 = e.MulAcc(e.Mul(-3, i1), i1, i1)
+	i1 = e.MulAcc(e.Mul(2, i1), i1, i1)
+	e.AssertIsEqual(i1, 0)
+}
+
 func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 
 	bValue := e.toBigInt(bound)
@@ -670,6 +671,11 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	hasher.Read(buf)
 	res := new(big.Int).SetBytes(buf)
 	res.Mod(res, e.modulus())
+	if res.Sign() == 0 {
+		// a commit == 0 is unlikely; happens quite often in tests
+		// with tinyfield
+		res.SetUint64(1)
+	}
 	return res, nil
 }
 
@@ -736,7 +742,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
-	return fmt.Errorf("not implemented")
+	return nil
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits
@@ -761,8 +767,4 @@ func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aF
 	if v.Cmp(bound) > 0 {
 		panic(fmt.Sprintf("%d > %d", v, bound))
 	}
-}
-
-func (e *engine) NewCombination(a, b frontend.Variable, aCoeff, bCoeff, mCoeff, constant int) frontend.Variable {
-	return e.Add(e.Mul(a, aCoeff), e.Mul(b, bCoeff), e.Mul(mCoeff, a, b), constant)
 }

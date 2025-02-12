@@ -41,15 +41,6 @@ func convertCanonicalSorted(i, n int) int {
 
 }
 
-// paddNaming takes s = 0xA1.... and turns
-// it into s' = 0xA1.. || 0..0 of size frSize bytes
-func paddNaming(s string, size int) string {
-	a := make([]byte, size)
-	b := []byte(s)
-	copy(a, b)
-	return string(a)
-}
-
 // deriveQueriesPositions derives the indices of the oracle
 // function that the verifier has to pick, in sorted form.
 // * pos is the initial position, i.e. the logarithm of the first challenge

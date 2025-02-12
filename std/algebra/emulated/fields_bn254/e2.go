@@ -60,8 +60,8 @@ func NewExt2(api frontend.API) *Ext2 {
 }
 
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
-	z0 := e.fp.MulMod(&x.A0, y)
-	z1 := e.fp.MulMod(&x.A1, y)
+	z0 := e.fp.Mul(&x.A0, y)
+	z1 := e.fp.Mul(&x.A1, y)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -134,8 +134,8 @@ func (e Ext2) MulByNonResidue1Power5(x *E2) *E2 {
 func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
 	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556617")
 	return &E2{
-		A0: *e.fp.MulMod(&x.A0, &element),
-		A1: *e.fp.MulMod(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, &element),
+		A1: *e.fp.Mul(&x.A1, &element),
 	}
 }
 
@@ -143,8 +143,8 @@ func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
 func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
 	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
 	return &E2{
-		A0: *e.fp.MulMod(&x.A0, &element),
-		A1: *e.fp.MulMod(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, &element),
+		A1: *e.fp.Mul(&x.A1, &element),
 	}
 }
 
@@ -152,8 +152,8 @@ func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
 func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
 	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275222246405745257275088696311157297823662689037894645226208582")
 	return &E2{
-		A0: *e.fp.MulMod(&x.A0, &element),
-		A1: *e.fp.MulMod(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, &element),
+		A1: *e.fp.Mul(&x.A1, &element),
 	}
 }
 
@@ -161,8 +161,8 @@ func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
 func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
 	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651966")
 	return &E2{
-		A0: *e.fp.MulMod(&x.A0, &element),
-		A1: *e.fp.MulMod(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, &element),
+		A1: *e.fp.Mul(&x.A1, &element),
 	}
 }
 
@@ -170,8 +170,8 @@ func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
 func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
 	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651967")
 	return &E2{
-		A0: *e.fp.MulMod(&x.A0, &element),
-		A1: *e.fp.MulMod(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, &element),
+		A1: *e.fp.Mul(&x.A1, &element),
 	}
 }
 
@@ -201,17 +201,14 @@ func (e Ext2) MulByNonResidue3Power5(x *E2) *E2 {
 }
 
 func (e Ext2) Mul(x, y *E2) *E2 {
-	a := e.fp.Add(&x.A0, &x.A1)
-	b := e.fp.Add(&y.A0, &y.A1)
-	a = e.fp.MulMod(a, b)
-	b = e.fp.MulMod(&x.A0, &y.A0)
-	c := e.fp.MulMod(&x.A1, &y.A1)
-	z1 := e.fp.Sub(a, b)
-	z1 = e.fp.Sub(z1, c)
-	z0 := e.fp.Sub(b, c)
+	// b0 = x0*y0 - x1*y1
+	b0 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A0}, {e.fp.NewElement(-1), &x.A1, &y.A1}}, []int{1, 1})
+	// b1 = x0*y1 + x1*y0
+	b1 := e.fp.Eval([][]*baseEl{{&x.A0, &y.A1}, {&x.A1, &y.A0}}, []int{1, 1})
+
 	return &E2{
-		A0: *z0,
-		A1: *z1,
+		A0: *b0,
+		A1: *b1,
 	}
 }
 
@@ -267,11 +264,22 @@ func (e Ext2) IsZero(z *E2) frontend.Variable {
 }
 
 func (e Ext2) Square(x *E2) *E2 {
-	a := e.fp.Add(&x.A0, &x.A1)
-	b := e.fp.Sub(&x.A0, &x.A1)
-	a = e.fp.MulMod(a, b)
-	b = e.fp.MulMod(&x.A0, &x.A1)
-	b = e.fp.MulConst(b, big.NewInt(2))
+	// a = (x0+x1)(x0-x1) = x0^2 - x1^2
+	a := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0}, {e.fp.NewElement(-1), &x.A1, &x.A1}}, []int{1, 1})
+	// b = 2*x0*x1
+	b := e.fp.Eval([][]*baseEl{{&x.A0, &x.A1}}, []int{2})
+	return &E2{
+		A0: *a,
+		A1: *b,
+	}
+}
+
+func (e Ext2) Cube(x *E2) *E2 {
+	mone := e.fp.NewElement(-1)
+	// a = x0^3 - 3*x0*x1^2
+	a := e.fp.Eval([][]*baseEl{{&x.A0, &x.A0, &x.A0}, {mone, &x.A0, &x.A1, &x.A1}}, []int{1, 3})
+	// b = 3*x1*x0^2 - x1^3
+	b := e.fp.Eval([][]*baseEl{{&x.A1, &x.A0, &x.A0}, {mone, &x.A1, &x.A1, &x.A1}}, []int{3, 1})
 	return &E2{
 		A0: *a,
 		A1: *b,
@@ -291,6 +299,14 @@ func (e Ext2) Double(x *E2) *E2 {
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
+}
+
+func (e Ext2) IsEqual(x, y *E2) frontend.Variable {
+	xDiff := e.fp.Sub(&x.A0, &y.A0)
+	yDiff := e.fp.Sub(&x.A1, &y.A1)
+	xIsZero := e.fp.IsZero(xDiff)
+	yIsZero := e.fp.IsZero(yDiff)
+	return e.api.And(xIsZero, yIsZero)
 }
 
 func FromE2(y *bn254.E2) E2 {

@@ -2,10 +2,10 @@ package constraint
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/std/utils/algo_utils"
 	"sort"
+
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/algo_utils"
 )
 
 type GkrVariable int // Just an alias to hide implementation details. May be more trouble than worth
@@ -101,7 +101,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 		oldW := d.Circuit[oldI]
 
 		if !oldW.IsInput() {
-			d.MaxNIns = utils.Max(d.MaxNIns, len(oldW.Inputs))
+			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
 		}
 
 		for j := range oldW.Dependencies {

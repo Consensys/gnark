@@ -7,6 +7,10 @@ import (
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -67,12 +71,6 @@ func initSnippets() {
 	registerSnippet("math/bits.ToTernary/unconstrained", func(api frontend.API, newVariable func() frontend.Variable) {
 		_ = bits.ToTernary(api, newVariable(), bits.WithUnconstrainedOutputs())
 	})
-	registerSnippet("math/bits.ToNAF", func(api frontend.API, newVariable func() frontend.Variable) {
-		_ = bits.ToNAF(api, newVariable())
-	})
-	registerSnippet("math/bits.ToNAF/unconstrained", func(api frontend.API, newVariable func() frontend.Variable) {
-		_ = bits.ToNAF(api, newVariable(), bits.WithUnconstrainedOutputs())
-	})
 
 	registerSnippet("hash/mimc", func(api frontend.API, newVariable func() frontend.Variable) {
 		mimc, _ := mimc.NewMiMC(api)
@@ -110,12 +108,11 @@ func initSnippets() {
 		var dummyG2 sw_bls12377.G2Affine
 		dummyG1.X = newVariable()
 		dummyG1.Y = newVariable()
-		dummyG2.X.A0 = newVariable()
-		dummyG2.X.A1 = newVariable()
-		dummyG2.Y.A0 = newVariable()
-		dummyG2.Y.A1 = newVariable()
+		dummyG2.P.X.A0 = newVariable()
+		dummyG2.P.X.A1 = newVariable()
+		dummyG2.P.Y.A0 = newVariable()
+		dummyG2.P.Y.A1 = newVariable()
 
-		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
 		_, _ = sw_bls12377.Pair(api, []sw_bls12377.G1Affine{dummyG1}, []sw_bls12377.G2Affine{dummyG2})
 
 	}, ecc.BW6_761)
@@ -126,19 +123,193 @@ func initSnippets() {
 		var dummyG2 sw_bls24315.G2Affine
 		dummyG1.X = newVariable()
 		dummyG1.Y = newVariable()
-		dummyG2.X.B0.A0 = newVariable()
-		dummyG2.X.B0.A1 = newVariable()
-		dummyG2.X.B1.A0 = newVariable()
-		dummyG2.X.B1.A1 = newVariable()
-		dummyG2.Y.B0.A0 = newVariable()
-		dummyG2.Y.B0.A1 = newVariable()
-		dummyG2.Y.B1.A0 = newVariable()
-		dummyG2.Y.B1.A1 = newVariable()
+		dummyG2.P.X.B0.A0 = newVariable()
+		dummyG2.P.X.B0.A1 = newVariable()
+		dummyG2.P.X.B1.A0 = newVariable()
+		dummyG2.P.X.B1.A1 = newVariable()
+		dummyG2.P.Y.B0.A0 = newVariable()
+		dummyG2.P.Y.B0.A1 = newVariable()
+		dummyG2.P.Y.B1.A0 = newVariable()
+		dummyG2.P.Y.B1.A1 = newVariable()
 
-		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
 		_, _ = sw_bls24315.Pair(api, []sw_bls24315.G1Affine{dummyG1}, []sw_bls24315.G2Affine{dummyG2})
 
 	}, ecc.BW6_633)
+
+	registerSnippet("pairing_bls12381", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		bls12381, _ := emulated.NewField[emulated.BLS12381Fp](api)
+		newElement := func() *emulated.Element[emulated.BLS12381Fp] {
+			limbs := make([]frontend.Variable, emulated.BLS12381Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bls12381.NewElement(limbs)
+		}
+		var dummyG1 sw_bls12381.G1Affine
+		var dummyG2 sw_bls12381.G2Affine
+		dummyG1.X = *newElement()
+		dummyG1.Y = *newElement()
+		dummyG2.P.X.A0 = *newElement()
+		dummyG2.P.X.A1 = *newElement()
+		dummyG2.P.Y.A0 = *newElement()
+		dummyG2.P.Y.A1 = *newElement()
+
+		pr, err := sw_bls12381.NewPairing(api)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = pr.Pair([]*sw_bls12381.G1Affine{&dummyG1}, []*sw_bls12381.G2Affine{&dummyG2})
+
+	}, ecc.BN254)
+
+	registerSnippet("pairing_bn254", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		bn254, _ := emulated.NewField[emulated.BN254Fp](api)
+		newElement := func() *emulated.Element[emulated.BN254Fp] {
+			limbs := make([]frontend.Variable, emulated.BN254Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn254.NewElement(limbs)
+		}
+		var dummyG1 sw_bn254.G1Affine
+		var dummyG2 sw_bn254.G2Affine
+		dummyG1.X = *newElement()
+		dummyG1.Y = *newElement()
+		dummyG2.P.X.A0 = *newElement()
+		dummyG2.P.X.A1 = *newElement()
+		dummyG2.P.Y.A0 = *newElement()
+		dummyG2.P.Y.A1 = *newElement()
+
+		pr, err := sw_bn254.NewPairing(api)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = pr.Pair([]*sw_bn254.G1Affine{&dummyG1}, []*sw_bn254.G2Affine{&dummyG2})
+
+	}, ecc.BN254)
+
+	registerSnippet("pairing_bw6761", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		bw6761, _ := emulated.NewField[emulated.BW6761Fp](api)
+		newElement := func() *emulated.Element[emulated.BW6761Fp] {
+			limbs := make([]frontend.Variable, emulated.BW6761Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bw6761.NewElement(limbs)
+		}
+		var dummyG1 sw_bw6761.G1Affine
+		var dummyG2 sw_bw6761.G2Affine
+		dummyG1.X = *newElement()
+		dummyG1.Y = *newElement()
+		dummyG2.P.X = *newElement()
+		dummyG2.P.Y = *newElement()
+
+		pr, err := sw_bw6761.NewPairing(api)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = pr.Pair([]*sw_bw6761.G1Affine{&dummyG1}, []*sw_bw6761.G2Affine{&dummyG2})
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_G1_bn254", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetCurveParams[emulated.BN254Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.BN254Fr](api)
+		newFr := func() *emulated.Element[emulated.BN254Fr] {
+			limbs := make([]frontend.Variable, emulated.BN254Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.BN254Fp](api)
+		newFp := func() *emulated.Element[emulated.BN254Fp] {
+			limbs := make([]frontend.Variable, emulated.BN254Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.BN254Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_secp256k1", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.Secp256k1Fr](api)
+		newFr := func() *emulated.Element[emulated.Secp256k1Fr] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.Secp256k1Fp](api)
+		newFp := func() *emulated.Element[emulated.Secp256k1Fp] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.Secp256k1Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
+
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_P256", func(api frontend.API, newVariable func() frontend.Variable) {
+
+		cr, err := sw_emulated.New[emulated.P256Fp, emulated.P256Fr](api, sw_emulated.GetCurveParams[emulated.P256Fp]())
+		if err != nil {
+			panic(err)
+		}
+		bn_fr, _ := emulated.NewField[emulated.P256Fr](api)
+		newFr := func() *emulated.Element[emulated.P256Fr] {
+			limbs := make([]frontend.Variable, emulated.P256Fr{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fr.NewElement(limbs)
+		}
+		bn_fp, _ := emulated.NewField[emulated.P256Fp](api)
+		newFp := func() *emulated.Element[emulated.P256Fp] {
+			limbs := make([]frontend.Variable, emulated.P256Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return bn_fp.NewElement(limbs)
+		}
+		var dummyG1 sw_emulated.AffinePoint[emulated.P256Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
+		_ = cr.ScalarMul(
+			&dummyG1,
+			newFr(),
+		)
+
+	}, ecc.BN254)
 
 }
 

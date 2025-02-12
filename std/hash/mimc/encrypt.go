@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package mimc
 
@@ -142,7 +129,7 @@ func pow17(api frontend.API, x frontend.Variable) frontend.Variable {
 	return api.Mul(r, x)
 }
 
-// encryptBn256 of a mimc run expressed as r1cs
+// encryptPow5 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow5(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m
@@ -152,7 +139,7 @@ func encryptPow5(h MiMC, m frontend.Variable) frontend.Variable {
 	return h.api.Add(x, h.h)
 }
 
-// encryptBLS24317 of a mimc run expressed as r1cs
+// encryptPow7 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow7(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m
@@ -162,7 +149,7 @@ func encryptPow7(h MiMC, m frontend.Variable) frontend.Variable {
 	return h.api.Add(x, h.h)
 }
 
-// encryptBLS377 of a mimc run expressed as r1cs
+// encryptPow17 of a mimc run expressed as r1cs
 // m is the message, k the key
 func encryptPow17(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m

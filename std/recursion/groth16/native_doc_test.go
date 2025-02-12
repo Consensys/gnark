@@ -1,8 +1,6 @@
 package groth16_test
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
@@ -16,14 +14,14 @@ import (
 // field emulation, but requires a specific chain of inner and outer curves.
 func Example_native() {
 	// compute the proof which we want to verify recursively
-	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
 
 	// initialize the witness elements
 	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
 	if err != nil {
 		panic(err)
 	}
-	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](innerWitness)
+	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +30,7 @@ func Example_native() {
 		panic(err)
 	}
 
-	outerAssignment := &OuterCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -42,8 +40,8 @@ func Example_native() {
 	// compiled inner circuit to deduce the required size for the outer witness
 	// using functions [stdgroth16.PlaceholderWitness] and
 	// [stdgroth16.PlaceholderVerifyingKey]
-	outerCircuit := &OuterCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.Scalar](innerCcs),
+	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
 	}
 
@@ -84,6 +82,4 @@ func Example_native() {
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())
 	}
-	fmt.Println("done")
-	// Output: done
 }

@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package fields_bls24315
 
@@ -120,6 +107,42 @@ func TestMulFp12(t *testing.T) {
 	// cs values
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+}
+
+type fp12MulBy01 struct {
+	A      E12
+	C0, C1 E4
+	C      E12 `gnark:",public"`
+}
+
+func (circuit *fp12MulBy01) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.MulBy01(api, circuit.C0, circuit.C1)
+	expected.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestMulFp12By01(t *testing.T) {
+
+	var circuit, witness fp12MulBy01
+	// witness values
+	var a, c bls24315.E12
+	var C0, C1 bls24315.E4
+	_, _ = a.SetRandom()
+	_, _ = C0.SetRandom()
+	_, _ = C1.SetRandom()
+	c.Set(&a)
+	c.MulBy01(&C0, &C1)
+
+	witness.A.Assign(&a)
+	witness.C0.Assign(&C0)
+	witness.C1.Assign(&C1)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+
 }
 
 type fp12MulByNonResidue struct {

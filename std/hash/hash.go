@@ -1,23 +1,13 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 // Package hash provides an interface that hash functions (as gadget) should implement.
 package hash
 
 import (
+	"errors"
+	"sync"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -25,7 +15,7 @@ import (
 // FieldHasher hashes inputs into a short digest. This interface mocks
 // [BinaryHasher], but is more suitable in-circuit by assuming the inputs are
 // scalar field elements and outputs digest as a field element. Such hash
-// functions are for examle Poseidon, MiMC etc.
+// functions are for example Poseidon, MiMC etc.
 type FieldHasher interface {
 	// Sum computes the hash of the internal state of the hash function.
 	Sum() frontend.Variable
@@ -37,7 +27,41 @@ type FieldHasher interface {
 	Reset()
 }
 
-var BuilderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
+// StateStorer allows to store and retrieve the state of a hash function.
+type StateStorer interface {
+	FieldHasher
+	// State retrieves the current state of the hash function. Calling this
+	// method should not destroy the current state and allow continue the use of
+	// the current hasher. The number of returned Variable is implementation
+	// dependent.
+	State() []frontend.Variable
+	// SetState sets the state of the hash function from a previously stored
+	// state retrieved using [StateStorer.State] method. The implementation
+	// returns an error if the number of supplied Variable does not match the
+	// number of Variable expected.
+	SetState(state []frontend.Variable) error
+}
+
+var (
+	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
+	lock            sync.RWMutex
+)
+
+func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
+	lock.Lock()
+	defer lock.Unlock()
+	builderRegistry[name] = builder
+}
+
+func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
+	lock.RLock()
+	defer lock.RUnlock()
+	builder, ok := builderRegistry[name]
+	if !ok {
+		return nil, errors.New("hash function not found")
+	}
+	return builder(api)
+}
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and
 // outputs byte array whose length depends on the underlying hash function. For

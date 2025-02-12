@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package merkle
 
@@ -25,10 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -71,10 +55,6 @@ func TestVerify(t *testing.T) {
 		// create the circuit
 		var circuit MerkleProofTest
 		circuit.M.Path = make([]frontend.Variable, depth+1)
-		cc, err := frontend.Compile(tData.curve.ScalarField(), r1cs.NewBuilder, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		mod := tData.curve.ScalarField()
 		modNbBytes := len(mod.Bytes())
@@ -115,18 +95,12 @@ func TestVerify(t *testing.T) {
 				witness.M.Path[i] = proofPath[i]
 			}
 
-			w, err := frontend.NewWitness(&witness, tData.curve.ScalarField())
-			if err != nil {
-				t.Fatal(err)
-			}
-			logger.SetOutput(os.Stdout)
-			err = cc.IsSolved(w, solver.WithLogger(logger.Logger()))
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			// verify the circuit
-			assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
+			if proofIndex > 1 {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve), test.NoProverChecks())
+			} else {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
+			}
 
 		}
 

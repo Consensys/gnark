@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package fields_bls12377
 
@@ -198,25 +185,25 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 
 }
 
-type fp12CycloSquareCompressed struct {
+type fp12CycloSquareKarabina2345 struct {
 	A E12
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12CycloSquareCompressed) Define(api frontend.API) error {
+func (circuit *fp12CycloSquareKarabina2345) Define(api frontend.API) error {
 
 	var u, v E12
 	u.Square(api, circuit.A)
-	v.CyclotomicSquareCompressed(api, circuit.A)
-	v.Decompress(api, v)
+	v.CyclotomicSquareKarabina2345(api, circuit.A)
+	v.DecompressKarabina2345(api, v)
 	u.AssertIsEqual(api, v)
 	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
-func TestFp12CyclotomicSquareCompressed(t *testing.T) {
+func TestFp12CyclotomicSquareKarabina2345(t *testing.T) {
 
-	var circuit, witness fp12CycloSquareCompressed
+	var circuit, witness fp12CycloSquareKarabina2345
 
 	// witness values
 	var a, b bls12377.E12
@@ -284,9 +271,6 @@ func (circuit *fp12Frobenius) Define(api frontend.API) error {
 	fbSquare.FrobeniusSquare(api, circuit.A)
 	fbSquare.AssertIsEqual(api, circuit.D)
 
-	fbCube := E12{}
-	fbCube.FrobeniusCube(api, circuit.A)
-	fbCube.AssertIsEqual(api, circuit.E)
 	return nil
 }
 
@@ -299,9 +283,6 @@ func TestFrobeniusFp12(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Frobenius(&a)
 	d.FrobeniusSquare(&a)
-	// TODO @yelhousni restore
-	t.Skip("@yelhousni restore")
-	// e.FrobeniusCube(&a)
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)
@@ -380,8 +361,7 @@ type fp12FixedExpo struct {
 func (circuit *fp12FixedExpo) Define(api frontend.API) error {
 	expected := E12{}
 
-	expo := uint64(9586122913090633729)
-	expected.Expt(api, circuit.A, expo)
+	expected.ExpX0(api, circuit.A)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }

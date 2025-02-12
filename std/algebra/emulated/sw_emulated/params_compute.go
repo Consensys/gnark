@@ -6,7 +6,9 @@ import (
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
+	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 )
 
 func computeSecp256k1Table() [][2]*big.Int {
@@ -129,4 +131,56 @@ func computeP384Table() [][2]*big.Int {
 		}
 	}
 	return table
+}
+
+func computeBW6761Table() [][2]*big.Int {
+	Gjac, _, _, _ := bw6761.Generators()
+	table := make([][2]*big.Int, 377)
+	tmp := new(bw6761.G1Jac).Set(&Gjac)
+	aff := new(bw6761.G1Affine)
+	jac := new(bw6761.G1Jac)
+	for i := 1; i < 377; i++ {
+		tmp = tmp.Double(tmp)
+		switch i {
+		case 1, 2:
+			jac.Set(tmp).AddAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+		case 3:
+			jac.Set(tmp).SubAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+			fallthrough
+		default:
+			aff.FromJacobian(tmp)
+			table[i] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+		}
+	}
+	return table
+}
+
+func computeStarkCurveTable() [][2]*big.Int {
+	Gjac, _ := stark_curve.Generators()
+	table := make([][2]*big.Int, 256)
+	tmp := new(stark_curve.G1Jac).Set(&Gjac)
+	aff := new(stark_curve.G1Affine)
+	jac := new(stark_curve.G1Jac)
+	for i := 1; i < 256; i++ {
+		tmp = tmp.Double(tmp)
+		switch i {
+		case 1, 2:
+			jac.Set(tmp).AddAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+		case 3:
+			jac.Set(tmp).SubAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+			fallthrough
+		default:
+			aff.FromJacobian(tmp)
+			table[i] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+		}
+	}
+	return table[:]
 }

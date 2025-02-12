@@ -14,7 +14,7 @@ type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
 type Compiler interface {
 	constraint.CustomizableSystem
 
-	// MarkBoolean sets (but do not constraint!) v to be boolean
+	// MarkBoolean sets (but does not constrain!) v to be boolean
 	// This is useful in scenarios where a variable is known to be boolean through a constraint
 	// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 	MarkBoolean(v Variable)
@@ -39,7 +39,6 @@ type Compiler interface {
 	//
 	// If nbOutputs is specified, it must be >= 1 and <= f.NbOutputs
 	NewHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
-	NewHintForId(id solver.HintID, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
 	// ConstantValue returns the big.Int value of v and true if op is a success.
 	// nil and false if failure. This API returns a boolean to allow for future refactoring

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("go test fuzz v1\n[]byte(\"00\\xf2\\xf201\\xf2\\xf20000001000000010000000100000\")\n")

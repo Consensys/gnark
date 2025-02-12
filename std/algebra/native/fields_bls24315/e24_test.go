@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package fields_bls24315
 
@@ -194,25 +181,25 @@ func TestFp24CyclotomicSquare(t *testing.T) {
 
 }
 
-type fp24CycloSquareCompressed struct {
+type fp24CycloSquareKarabina2345 struct {
 	A E24
 	B E24 `gnark:",public"`
 }
 
-func (circuit *fp24CycloSquareCompressed) Define(api frontend.API) error {
+func (circuit *fp24CycloSquareKarabina2345) Define(api frontend.API) error {
 
 	var u, v E24
 	u.Square(api, circuit.A)
-	v.CyclotomicSquareCompressed(api, circuit.A)
-	v.Decompress(api, v)
+	v.CyclotomicSquareKarabina2345(api, circuit.A)
+	v.DecompressKarabina2345(api, v)
 	u.AssertIsEqual(api, v)
 	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
-func TestFp24CyclotomicSquareCompressed(t *testing.T) {
+func TestFp24CyclotomicSquareKarabina2345(t *testing.T) {
 
-	var circuit, witness fp24CycloSquareCompressed
+	var circuit, witness fp24CycloSquareKarabina2345
 
 	// witness values
 	var a, b bls24315.E24
@@ -225,7 +212,7 @@ func TestFp24CyclotomicSquareCompressed(t *testing.T) {
 	tmp.Mul(&tmp, &a)
 	a.FrobeniusQuad(&tmp).Mul(&a, &tmp)
 
-	b.CyclotomicSquare(&a)
+	b.CyclotomicSquareCompressed(&a)
 	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/frontend/schema/internal/reflectwalk"
+	"github.com/consensys/gnark/logger"
 )
 
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
@@ -82,7 +83,8 @@ func (w *walker) Pointer(value reflect.Value) error {
 func (w *walker) Slice(value reflect.Value) error {
 	if value.Type() == w.targetSlice {
 		if value.Len() == 0 {
-			fmt.Printf("ignoring uninitialized slice: %s %s\n", w.name(), reflect.SliceOf(w.target).String())
+			log := logger.Logger()
+			log.Warn().Str("slice name", w.name()).Str("slice type", reflect.SliceOf(w.target).String()).Msg("ignoring uninitialized slice")
 			return nil
 		}
 		return w.handleLeaves(value)
@@ -96,6 +98,10 @@ func (w *walker) arraySliceElem(index int, v reflect.Value) error {
 	if v.CanAddr() && v.Addr().CanInterface() {
 		// TODO @gbotrel don't like that hook, undesirable side effects
 		// will be hard to detect; (for example calling Parse multiple times will init multiple times!)
+		//
+		// ivokub: completely agree, I have had to work around quite a lot in
+		// field emulation to "deinitialize" the elements. Maybe we can have a
+		// destructor/deinit hook also?
 		value := v.Addr().Interface()
 		if ih, hasInitHook := value.(InitHook); hasInitHook {
 			ih.GnarkInitHook()
@@ -164,6 +170,10 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 	if v.CanAddr() && v.Addr().CanInterface() {
 		// TODO @gbotrel don't like that hook, undesirable side effects
 		// will be hard to detect; (for example calling Parse multiple times will init multiple times!)
+		//
+		// ivokub: completely agree, I have had to work around quite a lot in
+		// field emulation to "deinitialize" the elements. Maybe we can have a
+		// destructor/deinit hook also?
 		value := v.Addr().Interface()
 		if ih, hasInitHook := value.(InitHook); hasInitHook {
 			ih.GnarkInitHook()

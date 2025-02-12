@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package r1cs
 
@@ -58,7 +45,7 @@ type builder struct {
 	kvstore.Store
 
 	// map for recording boolean constrained variables (to not constrain them twice)
-	mtBooleans map[uint64][]expr.LinearExpression
+	mtBooleans map[[16]byte][]expr.LinearExpression
 
 	tOne        constraint.Element
 	eZero, eOne expr.LinearExpression
@@ -82,7 +69,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		macCapacity = config.CompressThreshold
 	}
 	builder := builder{
-		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
+		mtBooleans: make(map[[16]byte][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
 		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
@@ -211,9 +198,7 @@ func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExp
 	case constraint.LinearExpression:
 		L = tl
 	default:
-		if debug.Debug {
-			panic("invalid input for getLinearExpression") // sanity check
-		}
+		panic("invalid input for getLinearExpression") // sanity check
 	}
 
 	return L
@@ -270,7 +255,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
 
-// Compile constructs a rank-1 constraint sytem
+// Compile constructs a rank-1 constraint system
 func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	// TODO if already compiled, return builder.cs object
 	log := logger.Logger()
@@ -308,6 +293,9 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, 
 			// and are always reduced to one element. may not always be true?
 			return constraint.Element{}, false
 		}
+		if _v[0].Coeff.IsZero() {
+			return constraint.Element{}, true
+		}
 		if !(_v[0].WireID() == 0) { // public ONE WIRE
 			return constraint.Element{}, false
 		}
@@ -316,7 +304,7 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, 
 	return builder.cs.FromInterface(v), true
 }
 
-// toVariable will return (and allocate if neccesary) a linearExpression from given value
+// toVariable will return (and allocate if necessary) a linearExpression from given value
 //
 // if input is already a linearExpression, does nothing
 // else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a toVariable linearExpression

@@ -1,27 +1,16 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package fiatshamir
 
 import (
 	"errors"
 
-	"github.com/consensys/gnark/constant"
+	"golang.org/x/exp/slices"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // errChallengeNotFound is returned when a wrong challenge name is provided.
@@ -41,6 +30,8 @@ type Transcript struct {
 
 	// gnark API
 	api frontend.API
+
+	config transcriptConfig
 }
 
 type challenge struct {
@@ -53,19 +44,24 @@ type challenge struct {
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID ...string) Transcript {
+func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID []string, opts ...TranscriptOption) *Transcript {
+	cfg := transcriptConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	n := len(challengesID)
 	t := Transcript{
 		challenges: make(map[string]challenge, n),
 		api:        api,
 		h:          h,
+		config:     cfg,
 	}
 
 	for i := 0; i < n; i++ {
 		t.challenges[challengesID[i]] = challenge{position: i}
 	}
 
-	return t
+	return &t
 }
 
 // Bind binds the challenge to value. A challenge can be binded to an
@@ -92,10 +88,9 @@ func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error 
 
 // ComputeChallenge computes the challenge corresponding to the given name.
 // The resulting variable is:
-// * H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
-// * H(name ∥ binded_values... ) if it's is the first challenge
+//   - H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
+//   - H(name ∥ binded_values... ) if it's is the first challenge
 func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
-
 	challenge, ok := t.challenges[challengeID]
 
 	if !ok {
@@ -110,11 +105,14 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	t.h.Reset()
 
 	// write the challenge name, the purpose is to have a domain separator
-	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
-	if challengeName, err := constant.HashedBytes(t.api, cChallenge); err == nil {
-		t.h.Write(challengeName)
+	challengeInput := []byte(challengeID)
+
+	if t.config.tryBitmode > 0 {
+		challengeBits := bits.ToBinary(t.api, challengeInput, bits.WithNbDigits(8*len(challengeInput)))
+		slices.Reverse(challengeBits)
+		t.h.Write(challengeBits...)
 	} else {
-		return nil, err
+		t.h.Write(challengeInput)
 	}
 
 	// write the previous challenge if it's not the first challenge
@@ -122,7 +120,13 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 		if t.previous == nil || (t.previous.position != challenge.position-1) {
 			return nil, errPreviousChallengeNotComputed
 		}
-		t.h.Write(t.previous.value)
+		if t.config.tryBitmode > 0 {
+			prevBits := bits.ToBinary(t.api, t.previous.value, bits.WithNbDigits(t.config.tryBitmode))
+			slices.Reverse(prevBits)
+			t.h.Write(prevBits...)
+		} else {
+			t.h.Write(t.previous.value)
+		}
 	}
 
 	// write the binded values in the order they were added
@@ -139,4 +143,21 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	return challenge.value, nil
 
+}
+
+type transcriptConfig struct {
+	tryBitmode int
+}
+
+// TranscriptOption allows modifying the [Transcript] operation.
+type TranscriptOption func(tc *transcriptConfig)
+
+// WithTryBitmode changes the [Transcript] to work on bits instead of field
+// elements when writing input to the hasher. Requires that the hasher is also
+// set to work in bitmode. This mode of operation is useful in cases where we
+// work in mismatching fields and want to avoid overflows.
+func WithTryBitmode(nbBits int) TranscriptOption {
+	return func(tc *transcriptConfig) {
+		tc.tryBitmode = nbBits
+	}
 }

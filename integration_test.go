@@ -1,18 +1,5 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package gnark_test
 
@@ -20,7 +7,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
@@ -58,19 +44,9 @@ func TestIntegrationAPI(t *testing.T) {
 				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
 			}
 
-			// for "mul" only we test with PLONKFRI
-			if name == "mul" {
-				opts = append(opts, test.WithBackends(backend.PLONK, backend.GROTH16, backend.PLONKFRI))
-			}
-
 			if name == "multi-output-hint" {
 				// TODO @gbotrel FIXME
 				opts = append(opts, test.NoFuzzing())
-			}
-
-			if name == "commit" && test.SolcCheck {
-				// TODO @gbotrel FIXME groth16 solidity verifier needs updating.
-				opts = append(opts, test.WithBackends(backend.PLONK))
 			}
 
 			assert.CheckCircuit(tData.Circuit, opts...)

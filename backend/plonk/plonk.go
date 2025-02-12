@@ -1,16 +1,5 @@
-// Copyright 2020 ConsenSys AG
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 // Package plonk implements PLONK Zero Knowledge Proof system.
 //
@@ -27,6 +16,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	cs_bls12381 "github.com/consensys/gnark/constraint/bls12-381"
@@ -69,6 +59,9 @@ import (
 type Proof interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 }
 
@@ -78,8 +71,13 @@ type Proof interface {
 type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
+
+	// VerifyingKey returns the corresponding VerifyingKey.
 	VerifyingKey() interface{}
 }
 
@@ -89,30 +87,39 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
-	NbPublicWitness() int // number of elements expected in the public witness
-	ExportSolidity(w io.Writer) error
+
+	// VerifyingKey are the methods required for generating the Solidity
+	// verifier contract from the VerifyingKey. This will return an error if not
+	// supported on the CurveID().
+	solidity.VerifyingKey
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(ccs constraint.ConstraintSystem, kzgSrs kzg.SRS) (ProvingKey, VerifyingKey, error) {
+// The kzg SRS must be provided in canonical and lagrange form.
+// For test purposes, see test/unsafekzg package. With an existing SRS generated through MPC in canonical form,
+// gnark-crypto offers the ToLagrangeG1 method to convert it to lagrange form.
+func Setup(ccs constraint.ConstraintSystem, srs, srsLagrange kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		return plonk_bn254.Setup(tccs, *kzgSrs.(*kzg_bn254.SRS))
+		return plonk_bn254.Setup(tccs, *srs.(*kzg_bn254.SRS), *srsLagrange.(*kzg_bn254.SRS))
 	case *cs_bls12381.SparseR1CS:
-		return plonk_bls12381.Setup(tccs, *kzgSrs.(*kzg_bls12381.SRS))
+		return plonk_bls12381.Setup(tccs, *srs.(*kzg_bls12381.SRS), *srsLagrange.(*kzg_bls12381.SRS))
 	case *cs_bls12377.SparseR1CS:
-		return plonk_bls12377.Setup(tccs, *kzgSrs.(*kzg_bls12377.SRS))
+		return plonk_bls12377.Setup(tccs, *srs.(*kzg_bls12377.SRS), *srsLagrange.(*kzg_bls12377.SRS))
 	case *cs_bw6761.SparseR1CS:
-		return plonk_bw6761.Setup(tccs, *kzgSrs.(*kzg_bw6761.SRS))
+		return plonk_bw6761.Setup(tccs, *srs.(*kzg_bw6761.SRS), *srsLagrange.(*kzg_bw6761.SRS))
 	case *cs_bls24317.SparseR1CS:
-		return plonk_bls24317.Setup(tccs, *kzgSrs.(*kzg_bls24317.SRS))
+		return plonk_bls24317.Setup(tccs, *srs.(*kzg_bls24317.SRS), *srsLagrange.(*kzg_bls24317.SRS))
 	case *cs_bls24315.SparseR1CS:
-		return plonk_bls24315.Setup(tccs, *kzgSrs.(*kzg_bls24315.SRS))
+		return plonk_bls24315.Setup(tccs, *srs.(*kzg_bls24315.SRS), *srsLagrange.(*kzg_bls24315.SRS))
 	case *cs_bw6633.SparseR1CS:
-		return plonk_bw6633.Setup(tccs, *kzgSrs.(*kzg_bw6633.SRS))
+		return plonk_bw6633.Setup(tccs, *srs.(*kzg_bw6633.SRS), *srsLagrange.(*kzg_bw6633.SRS))
 	default:
 		panic("unrecognized SparseR1CS curve type")
 	}
@@ -155,7 +162,7 @@ func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.W
 }
 
 // Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
-func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 
 	switch _proof := proof.(type) {
 
@@ -164,49 +171,49 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w)
+		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w, opts...)
 
 	case *plonk_bls12381.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w)
+		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w, opts...)
 
 	case *plonk_bls12377.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12377.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w)
+		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w, opts...)
 
 	case *plonk_bw6761.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6761.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w)
+		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w, opts...)
 
 	case *plonk_bw6633.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6633.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w)
+		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w, opts...)
 
 	case *plonk_bls24317.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24317.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w)
+		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w, opts...)
 
 	case *plonk_bls24315.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24315.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w)
+		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w, opts...)
 
 	default:
 		panic("unrecognized proof type")
@@ -314,4 +321,17 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	}
 
 	return vk
+}
+
+// SRSSize returns the required size of the kzg SRS for a given constraint system
+// Note that the SRS size in Lagrange form is a power of 2,
+// and the SRS size in canonical form need few extra elements (3) to account for the blinding factors
+func SRSSize(ccs constraint.ConstraintSystem) (sizeCanonical, sizeLagrange int) {
+	nbConstraints := ccs.GetNbConstraints()
+	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
+
+	sizeLagrange = int(ecc.NextPowerOfTwo(uint64(sizeSystem)))
+	sizeCanonical = sizeLagrange + 3
+
+	return
 }
