@@ -11,11 +11,13 @@ package selector
 
 import (
 	"fmt"
+	"math/big"
+	binary "math/bits"
+
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"math/big"
-	binary "math/bits"
+	"github.com/consensys/gnark/std/math/cmp"
 )
 
 func init() {
@@ -53,12 +55,46 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // sel needs to be between 0 and n - 1 (inclusive), where n is the number of
 // inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
+	count := uint(len(inputs))
+	if count == 1 {
+		return inputs[0]
+	}
+
+	nbBits := binary.Len(count)
+
 	// we use BinaryMux when len(inputs) is a power of 2.
-	if binary.OnesCount(uint(len(inputs))) == 1 {
-		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(binary.Len(uint(len(inputs)))-1))
+	if binary.OnesCount(count) == 1 {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits-1))
 		return BinaryMux(api, selBits, inputs)
 	}
-	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
+
+	bcmp := cmp.NewBoundedComparator(api, big.NewInt(0).SetUint64(uint64(len(inputs))), false)
+	t := bcmp.IsLess(sel, len(inputs))
+	api.AssertIsEqual(t, 1)
+
+	// otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
+	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits))
+
+	return muxRecursive(api, selBits, inputs, nbBits)
+}
+
+func muxRecursive(api frontend.API,
+	selBits []frontend.Variable, inputs []frontend.Variable, nbBits int) frontend.Variable {
+	leftCount := uint(1 << (nbBits - 1))
+	left := BinaryMux(api, selBits[:nbBits-1], inputs[:leftCount])
+
+	rightCount := uint(len(inputs)) - leftCount
+	nbRightBits := binary.Len(rightCount)
+
+	var right frontend.Variable
+	if binary.OnesCount(rightCount) == 1 {
+		right = BinaryMux(api, selBits[:nbRightBits-1], inputs[leftCount:])
+	} else {
+		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:], nbRightBits)
+	}
+
+	msb := selBits[nbBits-1]
+	return api.Select(msb, right, left)
 }
 
 // KeyDecoder is a decoder that associates keys to its output wires. It outputs
