@@ -18,7 +18,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/cmp"
-	// "github.com/ethereum/go-ethereum/common/math"
 )
 
 func init() {
@@ -53,9 +52,24 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // Mux is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
 // exactly one of its inputs based on sel. The index of inputs starts from zero.
 //
-// sel needs to be between 0 and n - 1 (inclusive), where n is the number of the
-// inputs, otherwise the proof will fail or silently return another element from the inputs.
+// sel needs to be between 0 and n - 1 (inclusive), where n is the number of
+// inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
+	// we use BinaryMux when len(inputs) is a power of 2.
+	if binary.OnesCount(uint(len(inputs))) == 1 {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(binary.Len(uint(len(inputs)))-1))
+		return BinaryMux(api, selBits, inputs)
+	}
+	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
+}
+
+// MuxCapped is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
+// exactly one of its inputs based on sel. The index of inputs starts from zero.
+//
+// Users are responsible to ensure that |sel - n| <= n ("Capped"), where n is the number of the inputs.
+// Internally we use BoundedComparator, and set the absDiffUpp to n. Breaking the cap might allow sel to
+// be out of range of [0, n-1], and cause soundness issues.
+func MuxCapped(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
 	if n == 1 {
 		return inputs[0]
@@ -70,7 +84,7 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	}
 
 	// If sel is beyond range [0, n-1], bcmp might wrongly produce reversed results,
-	// leading Mux to return another elements from the inputs.
+	// leading MuxCapped to return another elements from the inputs.
 	// See doc of cmp.NewBoundedComparator.
 	bcmp := cmp.NewBoundedComparator(api, big.NewInt(int64(n)), false)
 	bcmp.AssertIsLess(sel, n)
