@@ -2,7 +2,6 @@ package constraint
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/utils"
 	"sort"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -89,7 +88,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
-	inputs := utils.Map(d.Circuit, func(w GkrWire) []int {
+	inputs := algo_utils.Map(d.Circuit, func(w GkrWire) []int {
 		return w.Inputs
 	})
 
@@ -122,7 +121,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 
 		sorted[newI] = GkrWire{
 			Gate:            oldW.Gate,
-			Inputs:          utils.Map(oldW.Inputs, wirePermutationAt),
+			Inputs:          algo_utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
 		}

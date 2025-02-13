@@ -213,17 +213,6 @@ func frToInt(x *frBls12377.Element) *big.Int {
 	return &res
 }
 
-func varIndex(varName string) int {
-	switch varName {
-	case "x":
-		return 0
-	case "y":
-		return 1
-	default:
-		panic("unexpected varName")
-	}
-}
-
 func (p *GkrPermutations) finalize(api frontend.API) error {
 	if p.api != api {
 		panic("unexpected API")
@@ -234,8 +223,14 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return &m, err
 	})
 
-	roundKeysFr := bls12377Permutation().Parameters.RoundKeys
-	params := bls12377Permutation().Parameters.String()
+	// variable indexes
+	const (
+		xI = iota
+		yI
+	)
+
+	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
+	params := poseidon2Bls12377.GetDefaultParameters().String()
 	zero := new(big.Int)
 	const halfRf = rF / 2
 
@@ -261,37 +256,37 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return err
 	}
 
-	gateNameLinear := func(varName string, i int) string {
-		return fmt.Sprintf("%s-l-op-round=%d;%s", varName, i, params)
+	gateNameLinear := func(varI, i int) string {
+		return fmt.Sprintf("x%d-l-op-round=%d;%s", varI, i, params)
 	}
 
 	gkr.Gates["pow4"] = pow4Gate{}
 	gkr.Gates["pow4Times"] = pow4TimesGate{}
 
-	sBox := func(round int, varName string, u constraint.GkrVariable) constraint.GkrVariable {
+	sBox := func(round int, u constraint.GkrVariable) constraint.GkrVariable {
 		v := gkrApi.NamedGate("pow4", u)           // u^4
 		return gkrApi.NamedGate("pow4Times", v, u) // u^17
 	}
 
-	extKeySBox := func(round int, varName string, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateNameLinear(varName, round)
+	extKeySBox := func(round, varI int, a, b constraint.GkrVariable) constraint.GkrVariable {
+		gate := gateNameLinear(varI, round)
 		gkr.Gates[gate] = &extKeyGate{
-			roundKey: frToInt(&roundKeysFr[round][varIndex(varName)]),
+			roundKey: frToInt(&roundKeysFr[round][varI]),
 		}
-		return sBox(round, varName, gkrApi.NamedGate(gate, a, b))
+		return sBox(round, gkrApi.NamedGate(gate, a, b))
 	}
 
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gateNameLinear("y", round)
+		gate := gateNameLinear(yI, round)
 		gkr.Gates[gate] = &intKeyGate2{
 			roundKey: frToInt(&roundKeysFr[round][1]),
 		}
-		return sBox(round, "y", gkrApi.NamedGate(gate, a, b))
+		return sBox(round, gkrApi.NamedGate(gate, a, b))
 	}
 
 	fullRound := func(i int) {
-		x1 := extKeySBox(i, "x", x, y) // TODO inline this
-		x, y = x1, extKeySBox(i, "y", y, x)
+		x1 := extKeySBox(i, xI, x, y) // TODO inline this
+		x, y = x1, extKeySBox(i, yI, y, x)
 	}
 
 	for i := range halfRf {
@@ -299,17 +294,17 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	{ // i = halfRf: first partial round
-		x1 := extKeySBox(halfRf, "x", x, y)
+		x1 := extKeySBox(halfRf, xI, x, y)
 
-		gate := gateNameLinear("y", halfRf)
+		gate := gateNameLinear(yI, halfRf)
 		gkr.Gates[gate] = &extGate2{}
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
 	}
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
-		x1 := extKeySBox(i, "x", x, y)
+		x1 := extKeySBox(i, xI, x, y)
 
-		gate := gateNameLinear("y", i)
+		gate := gateNameLinear(yI, i)
 		gkr.Gates[gate] = &intKeyGate2{ // TODO replace with extGate
 			roundKey: zero,
 		}
@@ -318,7 +313,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 
 	{
 		i := halfRf + rP
-		x1 := extKeySBox(i, "x", x, y)
+		x1 := extKeySBox(i, xI, x, y)
 
 		x, y = x1, intKeySBox2(i, x, y)
 	}
@@ -327,7 +322,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		fullRound(i)
 	}
 
-	gate := gateNameLinear("y", rP+rF)
+	gate := gateNameLinear(yI, rP+rF)
 	gkr.Gates[gate] = extGate{}
 	y = gkrApi.NamedGate(gate, y, x)
 
@@ -378,7 +373,7 @@ const (
 
 var (
 	bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
-		return poseidon2Bls12377.NewPermutation(2, rF, rP)
+		return poseidon2Bls12377.NewPermutation(2, rF, rP) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
 	})
 )
 

@@ -2,7 +2,6 @@ package gkr
 
 import (
 	"errors"
-	"github.com/consensys/gnark-crypto/utils"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -154,7 +153,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
 // Export returns the values of an output variable across all instances
 func (s Solution) Export(v frontend.Variable) []frontend.Variable {
-	return utils.Map(s.permutations.SortedInstances, algo_utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
+	return algo_utils.Map(s.permutations.SortedInstances, algo_utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
 }
 
 // Verify encodes the verification circuitry for the GKR circuit
@@ -225,7 +224,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 		w := info.Circuit[i]
 		circuit[i] = Wire{
 			Gate:            ite(w.IsInput(), Gates[w.Gate], Gate(IdentityGate{})),
-			Inputs:          utils.Map(w.Inputs, circuitAt),
+			Inputs:          algo_utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}
 		snarkAssignment[&circuit[i]] = assignment[i]
