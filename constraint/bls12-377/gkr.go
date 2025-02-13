@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/algo_utils"
@@ -35,7 +34,7 @@ func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 		if resCircuit[i].Gate, found = gkr.Gates[noPtr[i].Gate]; !found && noPtr[i].Gate != "" {
 			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
 		}
-		resCircuit[i].Inputs = gcUtils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
+		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
 	}
 	return resCircuit, nil
 }
@@ -149,7 +148,7 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		insBytes := gcUtils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
+		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
 			b := make([]byte, fr.Bytes)
 			i.FillBytes(b)
 			return b[:]
