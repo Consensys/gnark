@@ -63,6 +63,12 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 
 	nbBits := binary.Len(n - 1)
 
+	// We use BinaryMux when len(inputs) is a power of 2.
+	if binary.OnesCount(n) == 1 {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits-1))
+		return BinaryMux(api, selBits, inputs)
+	}
+
 	// If sel is beyond range [0, n-1], bcmp might wrongly produce reversed results,
 	// leading Mux to return another elements from the inputs.
 	// See doc of cmp.NewBoundedComparator.
