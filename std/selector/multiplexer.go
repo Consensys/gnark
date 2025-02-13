@@ -65,7 +65,7 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 
 	// We use BinaryMux when len(inputs) is a power of 2.
 	if binary.OnesCount(n) == 1 {
-		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits-1))
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits))
 		return BinaryMux(api, selBits, inputs)
 	}
 
