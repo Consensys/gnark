@@ -6,9 +6,14 @@ package hash
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	cryptoHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -43,24 +48,77 @@ type StateStorer interface {
 }
 
 var (
-	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
+	builderRegistry = make(map[Hash]func(api frontend.API) (FieldHasher, error))
 	lock            sync.RWMutex
 )
 
-func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
-	lock.Lock()
-	defer lock.Unlock()
-	builderRegistry[name] = builder
+type Hash uint
+
+const (
+	// MIMC_NATIVE is the MiMC hash function defined over the native field of
+	// the curve (determined at circuit compile time).
+	MIMC_NATIVE Hash = iota
+
+	maxHash // maxHash is the number of hash functions registered
+)
+
+func (m Hash) New(api frontend.API) (FieldHasher, error) {
+	if m < maxHash {
+		f := builderRegistry[m]
+		if f != nil {
+			return f(api)
+		}
+	}
+	return nil, fmt.Errorf("hash function %d not found", m)
 }
 
-func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
-	lock.RLock()
-	defer lock.RUnlock()
-	builder, ok := builderRegistry[name]
-	if !ok {
-		return nil, errors.New("hash function not found")
+func (m Hash) String() string {
+	switch m {
+	case MIMC_NATIVE:
+		return "MIMC_NATIVE"
+	default:
+		return fmt.Sprintf("hash(%d)", m)
 	}
-	return builder(api)
+}
+
+func (m Hash) Available() bool {
+	return m < maxHash && builderRegistry[m] != nil
+}
+
+func (m Hash) CryptoHash(api frontend.API) (cryptoHash.Hash, error) {
+	switch m {
+	case MIMC_NATIVE:
+		switch utils.FieldToCurve(api.Compiler().Field()) {
+		case ecc.BN254:
+			return cryptoHash.MIMC_BN254, nil
+		case ecc.BLS12_381:
+			return cryptoHash.MIMC_BLS12_381, nil
+		case ecc.BLS12_377:
+			return cryptoHash.MIMC_BLS12_377, nil
+		case ecc.BW6_761:
+			return cryptoHash.MIMC_BW6_761, nil
+		case ecc.BLS24_315:
+			return cryptoHash.MIMC_BLS24_315, nil
+		case ecc.BLS24_317:
+			return cryptoHash.MIMC_BLS24_317, nil
+		case ecc.BW6_633:
+			return cryptoHash.MIMC_BW6_633, nil
+		}
+	}
+	return 0, errors.New("hash function not found")
+}
+
+func init() {
+	Register(MIMC_NATIVE, func(api frontend.API) (FieldHasher, error) {
+		h, err := mimc.NewMiMC(api)
+		return &h, err
+	})
+}
+
+func Register(hash Hash, builder func(api frontend.API) (FieldHasher, error)) {
+	lock.Lock()
+	defer lock.Unlock()
+	builderRegistry[hash] = builder
 }
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and

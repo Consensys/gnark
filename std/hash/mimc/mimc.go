@@ -12,6 +12,13 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// func init() {
+// 	hash.Register(hash.MIMC, func(api frontend.API) (hash.FieldHasher, error) {
+// 		h, err := NewMiMC(api)
+// 		return &h, err
+// 	})
+// }
+
 // MiMC contains the params of the MiMC hash func and the curves on which it is implemented.
 //
 // NB! See the package documentation for length extension attack consideration.
