@@ -74,6 +74,15 @@ func NewG2Affine(v bn254.G2Affine) G2Affine {
 // NewG2AffineFixed returns witness of v with precomputations for efficient
 // pairing computation.
 func NewG2AffineFixed(v bn254.G2Affine) G2Affine {
+	if !v.IsInSubGroup() {
+		// for the pairing check we check that G2 point is already in the
+		// subgroup when we compute the lines in circuit. However, when the
+		// point is given as a constant, then we already precompute the lines at
+		// circuit compile time without explicitly checking the G2 membership.
+		// So, we need to check that the point is in the subgroup before we
+		// compute the lines.
+		panic("given point is not in the G2 subgroup")
+	}
 	lines := precomputeLines(v)
 	return G2Affine{
 		P:     newG2AffP(v),
@@ -101,7 +110,7 @@ func (g2 *G2) phi(q *G2Affine) *G2Affine {
 	return &G2Affine{
 		P: g2AffP{
 			X: *x,
-			Y: q.P.Y,
+			Y: *g2.Ext2.Neg(&q.P.Y),
 		},
 	}
 }
