@@ -67,7 +67,7 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	// leading Mux to return another elements from the inputs.
 	// See doc of cmp.NewBoundedComparator.
 	bcmp := cmp.NewBoundedComparator(api, big.NewInt(0).SetUint64(uint64(n)), false)
-	t := bcmp.IsLess(sel, n-1)
+	t := bcmp.IsLess(sel, n)
 	api.AssertIsEqual(t, 1)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
