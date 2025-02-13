@@ -68,7 +68,7 @@ func testMux(t *testing.T, len int, sel int) {
 			Expected: sel,
 		}),
 		test.WithInvalidAssignment(&muxCircuit{
-			Sel:      200,
+			Sel:      3000,
 			Input:    inputs,
 			Expected: sel,
 		}),
