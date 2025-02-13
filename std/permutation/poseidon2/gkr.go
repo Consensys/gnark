@@ -5,6 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
+	"math/big"
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
@@ -16,9 +20,6 @@ import (
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"hash"
-	"math/big"
-	"sync"
 )
 
 // Gkr implements a GKR version of the Poseidon2 permutation with fan-in 2
@@ -49,10 +50,10 @@ func (h *Permutation) hash(curve ecc.ID) []byte {
 		hasher.Write(buf[:])
 	}
 	writeAsTwoBytes(int(curve))
-	writeAsByte(h.params.t)
-	writeAsByte(h.params.d)
-	writeAsByte(h.params.rF)
-	writeAsByte(h.params.rP)
+	writeAsByte(h.params.width)
+	writeAsByte(h.params.degreeSBox)
+	writeAsByte(h.params.nbFullRounds)
+	writeAsByte(h.params.nbPartialRounds)
 	return hasher.Sum(nil)
 }
 

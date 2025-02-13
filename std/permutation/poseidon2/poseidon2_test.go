@@ -1,6 +1,7 @@
 package poseidon2
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -35,17 +36,20 @@ type Poseidon2Circuit struct {
 }
 
 type circuitParams struct {
-	seed string
-	rf   int
-	rp   int
-	t    int
-	d    int
-	id   ecc.ID
+	rf int
+	rp int
+	t  int
+	id ecc.ID
 }
 
 func (c *Poseidon2Circuit) Define(api frontend.API) error {
-	h := NewPermutation(c.params.t, c.params.d, c.params.rf, c.params.rp, c.params.id)
-	h.Permutation(api, c.Input)
+	h, err := NewPoseidon2FromParameters(api, c.params.t, c.params.rf, c.params.rp)
+	if err != nil {
+		return fmt.Errorf("could not create poseidon2 hasher: %w", err)
+	}
+	if err := h.Permutation(c.Input); err != nil {
+		return fmt.Errorf("could not apply permutation: %w", err)
+	}
 	for i := 0; i < len(c.Input); i++ {
 		api.AssertIsEqual(c.Output[i], c.Input[i])
 	}
@@ -57,13 +61,13 @@ func TestPoseidon2(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	params := make(map[ecc.ID]circuitParams)
-	params[ecc.BN254] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 5, id: ecc.BN254}
-	params[ecc.BLS12_381] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 5, id: ecc.BLS12_381}
-	params[ecc.BLS12_377] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 17, id: ecc.BLS12_377}
-	params[ecc.BW6_761] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 5, id: ecc.BW6_761}
-	params[ecc.BW6_633] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 5, id: ecc.BW6_633}
-	params[ecc.BLS24_315] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 5, id: ecc.BLS24_315}
-	params[ecc.BLS24_317] = circuitParams{seed: "seed", rf: 8, rp: 56, t: 3, d: 7, id: ecc.BLS24_317}
+	params[ecc.BN254] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BN254}
+	params[ecc.BLS12_381] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BLS12_381}
+	params[ecc.BLS12_377] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BLS12_377}
+	params[ecc.BW6_761] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BW6_761}
+	params[ecc.BW6_633] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BW6_633}
+	params[ecc.BLS24_315] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BLS24_315}
+	params[ecc.BLS24_317] = circuitParams{rf: 8, rp: 56, t: 3, id: ecc.BLS24_317}
 
 	{
 		var circuit, validWitness Poseidon2Circuit
