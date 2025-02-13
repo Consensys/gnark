@@ -266,6 +266,7 @@ func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 		// 	input[i] = api.Mul(input[i], h.params.diagInternalMatrices[i])
 		// 	input[i] = api.Add(input[i], sum)
 		// }
+		panic("only T=2,3 is supported")
 	}
 }
 
