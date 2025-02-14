@@ -6,6 +6,7 @@
 package mpcsetup
 
 import (
+	"bits"
 	"math/big"
 	"math/bits"
 	"runtime"

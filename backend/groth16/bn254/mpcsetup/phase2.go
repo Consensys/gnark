@@ -19,7 +19,6 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
-	"math/bits"
 	"slices"
 )
 

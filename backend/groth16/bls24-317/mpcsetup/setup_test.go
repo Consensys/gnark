@@ -318,21 +318,23 @@ func commonsSmallValues(N uint64, tau, alpha, beta int64) SrsCommons {
 	return res
 }
 
-func powersI(x uint64, n int) []fr.Element {
+func powersI(x int64, n int) []fr.Element {
 	var y fr.Element
-	y.SetUint64(x)
+	y.SetInt64(x)
 	return powers(&y, n)
 }
 
-func TestPowers(t *testing.T) {
-	t.Skip("skipping unit test for BLS24-317 so as not to clog the CI")
-	var x fr.Element
-	x.SetUint64(2)
-	x2 := powers(&x, 10)
-	for i := range x2 {
-		require.True(t, x2[i].IsUint64())
-		require.Equal(t, x2[i].Uint64(), uint64(1<<i))
+// Returns [1, a, a², ..., aᴺ⁻¹ ]
+func powers(a *fr.Element, N int) []fr.Element {
+	if N == 0 {
+		return nil
 	}
+	result := make([]fr.Element, N)
+	result[0].SetOne()
+	for i := 1; i < N; i++ {
+		result[i].Mul(&result[i-1], a)
+	}
+	return result
 }
 
 func TestCommons(t *testing.T) {
@@ -357,13 +359,38 @@ func TestCommons(t *testing.T) {
 
 func TestCommonsUpdate(t *testing.T) {
 	t.Skip("skipping unit test for BLS24-317 so as not to clog the CI")
-	var c SrsCommons
-	c.setOne(1)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
-	one := fr.One()
-	var zero fr.Element
-	c.update(&zero, &zero, &one)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
+	const (
+		N     = 8
+		tau   = 2
+		alpha = 3
+		beta  = 4
+	)
+	expected := commonsSmallValues(N, tau, alpha, beta)
+	var computed SrsCommons
+	computed.setOne(N)
+	var tauUpdate, alphaUpdate, betaUpdate fr.Element
+	tauUpdate.SetInt64(tau)
+	alphaUpdate.SetInt64(alpha)
+	betaUpdate.SetInt64(beta)
+	computed.update(&tauUpdate, &alphaUpdate, &betaUpdate)
+
+	assertG1VectorEqual := func(vectorName string, expected, computed []curve.G1Affine) {
+		require.Equalf(t, len(expected), len(computed), "length mismatch for %s", vectorName)
+		for i := range expected {
+			assert.Equalf(t, expected[i], computed[i], "%s^%d", vectorName, i)
+		}
+	}
+
+	assertG1VectorEqual("[τ]₁", expected.G1.Tau, computed.G1.Tau)
+	assertG1VectorEqual("ατ", expected.G1.AlphaTau, computed.G1.AlphaTau)
+	assertG1VectorEqual("βτ", expected.G1.BetaTau, computed.G1.BetaTau)
+
+	assert.Equal(t, expected.G2.Beta, computed.G2.Beta, "[β]₂")
+
+	require.Equal(t, len(expected.G2.Tau), len(computed.G2.Tau), "length mismatch [τ]₂")
+	for i := range expected.G2.Tau {
+		assert.Equalf(t, expected.G2.Tau[i], computed.G2.Tau[i], "[τ]₂^%d", i)
+	}
 }
 
 func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {

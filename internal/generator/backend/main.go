@@ -181,7 +181,6 @@ func main() {
 				{File: filepath.Join(groth16MpcSetupDir, "phase2.go"), Templates: []string{"groth16/mpcsetup/phase2.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16MpcSetupDir, "setup.go"), Templates: []string{"groth16/mpcsetup/setup.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16MpcSetupDir, "setup_test.go"), Templates: []string{"groth16/mpcsetup/setup_test.go.tmpl", importCurve}},
-				{File: filepath.Join(groth16MpcSetupDir, "utils.go"), Templates: []string{"groth16/mpcsetup/utils.go.tmpl", importCurve}},
 			}
 
 			if err := bgen.Generate(d, "mpcsetup", "./template/zkpschemes/", entries...); err != nil {

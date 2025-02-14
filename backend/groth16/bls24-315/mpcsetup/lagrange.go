@@ -6,6 +6,7 @@
 package mpcsetup
 
 import (
+	"bits"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -205,5 +206,17 @@ func difFFTG2(a []curve.G2Affine, twiddles [][]fr.Element, stage, maxSplits int,
 	} else {
 		difFFTG2(a[0:m], twiddles, nextStage, maxSplits, nil)
 		difFFTG2(a[m:n], twiddles, nextStage, maxSplits, nil)
+	}
+}
+
+func bitReverse[T any](a []T) {
+	n := uint64(len(a))
+	nn := uint64(64 - bits.TrailingZeros64(n))
+
+	for i := uint64(0); i < n; i++ {
+		irev := bits.Reverse64(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev], a[i]
+		}
 	}
 }

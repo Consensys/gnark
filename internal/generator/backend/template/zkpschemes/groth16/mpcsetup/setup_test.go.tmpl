@@ -359,13 +359,38 @@ func TestCommons(t *testing.T) {
 
 func TestCommonsUpdate(t *testing.T) {
 	{{- template "skip_unit_test" .}}
-	var c SrsCommons
-	c.setOne(1)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
-	one := fr.One()
-	var zero fr.Element
-	c.update(&zero, &zero, &one)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
+	const (
+		N     = 8
+		tau   = 2
+		alpha = 3
+		beta  = 4
+	)
+	expected := commonsSmallValues(N, tau, alpha, beta)
+	var computed SrsCommons
+	computed.setOne(N)
+	var tauUpdate, alphaUpdate, betaUpdate fr.Element
+	tauUpdate.SetInt64(tau)
+	alphaUpdate.SetInt64(alpha)
+	betaUpdate.SetInt64(beta)
+	computed.update(&tauUpdate, &alphaUpdate, &betaUpdate)
+
+	assertG1VectorEqual := func(vectorName string, expected, computed []curve.G1Affine) {
+		require.Equalf(t, len(expected), len(computed), "length mismatch for %s", vectorName)
+		for i := range expected {
+			assert.Equalf(t, expected[i], computed[i], "%s^%d", vectorName, i)
+		}
+	}
+
+	assertG1VectorEqual("[τ]₁", expected.G1.Tau, computed.G1.Tau)
+	assertG1VectorEqual("ατ", expected.G1.AlphaTau, computed.G1.AlphaTau)
+	assertG1VectorEqual("βτ", expected.G1.BetaTau, computed.G1.BetaTau)
+
+	assert.Equal(t, expected.G2.Beta, computed.G2.Beta, "[β]₂")
+
+	require.Equal(t, len(expected.G2.Tau), len(computed.G2.Tau), "length mismatch [τ]₂")
+	for i := range expected.G2.Tau {
+		assert.Equalf(t, expected.G2.Tau[i], computed.G2.Tau[i], "[τ]₂^%d", i)
+	}
 }
 
 func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {
