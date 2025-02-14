@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"math/big"
 	"slices"
@@ -271,7 +272,7 @@ func TestOnePhase1Contribute(t *testing.T) {
 	testAll(t, 2, 0)
 }
 
-func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
+func commonsSmallValues(N uint64, tau, alpha, beta int64) SrsCommons {
 	var (
 		res   SrsCommons
 		I     big.Int
@@ -292,7 +293,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.AlphaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(alpha)
+	coeff.SetInt64(alpha)
 	for i := range res.G1.AlphaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -301,7 +302,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.BetaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(beta)
+	coeff.SetInt64(beta)
 	for i := range res.G1.BetaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -309,15 +310,15 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 		res.G1.BetaTau[i].ScalarMultiplication(&g1, &I)
 	}
 
-	I.SetUint64(beta)
+	I.SetInt64(beta)
 	res.G2.Beta.ScalarMultiplication(&g2, &I)
 
 	return res
 }
 
-func powersI(x uint64, n int) []fr.Element {
+func powersI(x int64, n int) []fr.Element {
 	var y fr.Element
-	y.SetUint64(x)
+	y.SetInt64(x)
 	return powers(&y, n)
 }
 
@@ -351,13 +352,38 @@ func TestCommons(t *testing.T) {
 }
 
 func TestCommonsUpdate(t *testing.T) {
-	var c SrsCommons
-	c.setOne(1)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
-	one := fr.One()
-	var zero fr.Element
-	c.update(&zero, &zero, &one)
-	assertG1G2Equal(t, c.G1.BetaTau[0], c.G2.Beta)
+	const (
+		N     = 8
+		tau   = 2
+		alpha = 3
+		beta  = 4
+	)
+	expected := commonsSmallValues(N, tau, alpha, beta)
+	var computed SrsCommons
+	computed.setOne(N)
+	var tauUpdate, alphaUpdate, betaUpdate fr.Element
+	tauUpdate.SetInt64(tau)
+	alphaUpdate.SetInt64(alpha)
+	betaUpdate.SetInt64(beta)
+	computed.update(&tauUpdate, &alphaUpdate, &betaUpdate)
+
+	assertG1VectorEqual := func(vectorName string, expected, computed []curve.G1Affine) {
+		require.Equalf(t, len(expected), len(computed), "length mismatch for %s", vectorName)
+		for i := range expected {
+			assert.Equalf(t, expected[i], computed[i], "%s^%d", vectorName, i)
+		}
+	}
+
+	assertG1VectorEqual("[τ]₁", expected.G1.Tau, computed.G1.Tau)
+	assertG1VectorEqual("ατ", expected.G1.AlphaTau, computed.G1.AlphaTau)
+	assertG1VectorEqual("βτ", expected.G1.BetaTau, computed.G1.BetaTau)
+
+	assert.Equal(t, expected.G2.Beta, computed.G2.Beta, "[β]₂")
+
+	require.Equal(t, len(expected.G2.Tau), len(computed.G2.Tau), "length mismatch [τ]₂")
+	for i := range expected.G2.Tau {
+		assert.Equalf(t, expected.G2.Tau[i], computed.G2.Tau[i], "[τ]₂^%d", i)
+	}
 }
 
 func assertG1G2Equal(t *testing.T, p1 curve.G1Affine, p2 curve.G2Affine) {
