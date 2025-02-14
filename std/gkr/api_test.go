@@ -387,6 +387,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	return solution.Verify("-20", challenge)
 }
 
+// TODO @Tabaie just try using IsSolved instead?
 func testGroth16(t *testing.T, circuit, assignment frontend.Circuit) {
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
 	require.NoError(t, err)

@@ -44,7 +44,6 @@ func (api *API) Mul(i1, i2 constraint.GkrVariable, in ...constraint.GkrVariable)
 	return api.namedGate2PlusIn("mul", i1, i2, in...)
 }
 
-// TODO @Tabaie This can be useful
-func (api *API) Println(a ...constraint.GkrVariable) {
+func (api *API) Println(...constraint.GkrVariable) {
 	panic("not implemented")
 }
