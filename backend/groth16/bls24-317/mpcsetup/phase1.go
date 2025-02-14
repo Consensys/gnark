@@ -67,8 +67,9 @@ func (p *Phase1) Contribute() {
 	p.parameters.update(&tauContrib, &alphaContrib, &betaContrib)
 }
 
-// setZero instantiates the parameters, and sets all contributions to zero
-func (c *SrsCommons) setZero(N uint64) {
+// setContributionsZero instantiates the parameters, and sets all contributions to zero.
+// This means that the first element of each vector is set to the generator.
+func (c *SrsCommons) setContributionsZero(N uint64) {
 	c.G1.Tau = make([]curve.G1Affine, 2*N-1)
 	c.G2.Tau = make([]curve.G2Affine, N)
 	c.G1.AlphaTau = make([]curve.G1Affine, N)
@@ -78,7 +79,7 @@ func (c *SrsCommons) setZero(N uint64) {
 
 // setOne instantiates the parameters, and sets all contributions to one
 func (c *SrsCommons) setOne(N uint64) {
-	c.setZero(N)
+	c.setContributionsZero(N)
 	g1, g2 := &c.G1.Tau[0], &c.G2.Tau[0]
 	setG1 := func(s []curve.G1Affine) {
 		for i := range s {

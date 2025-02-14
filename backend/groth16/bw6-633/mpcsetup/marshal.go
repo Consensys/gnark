@@ -195,7 +195,7 @@ func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
 		return dec.BytesRead(), err
 	}
 
-	c.setZero(N)
+	c.setContributionsZero(N)
 
 	for _, v := range c.refsSlice()[1:] { // we've already decoded N
 		if err = dec.Decode(v); err != nil {
