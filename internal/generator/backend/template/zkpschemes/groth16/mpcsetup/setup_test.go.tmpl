@@ -274,7 +274,7 @@ func TestOnePhase1Contribute(t *testing.T) {
 	testAll(t, 2, 0)
 }
 
-func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
+func commonsSmallValues(N uint64, tau, alpha, beta int64) SrsCommons {
 	var (
 		res   SrsCommons
 		I     big.Int
@@ -295,7 +295,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.AlphaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(alpha)
+	coeff.SetInt64(alpha)
 	for i := range res.G1.AlphaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -304,7 +304,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.BetaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(beta)
+	coeff.SetInt64(beta)
 	for i := range res.G1.BetaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -312,27 +312,29 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 		res.G1.BetaTau[i].ScalarMultiplication(&g1, &I)
 	}
 
-	I.SetUint64(beta)
+	I.SetInt64(beta)
 	res.G2.Beta.ScalarMultiplication(&g2, &I)
 
 	return res
 }
 
-func powersI(x uint64, n int) []fr.Element {
+func powersI(x int64, n int) []fr.Element {
 	var y fr.Element
-	y.SetUint64(x)
+	y.SetInt64(x)
 	return powers(&y, n)
 }
 
-func TestPowers(t *testing.T) {
-	{{- template "skip_unit_test" .}}
-	var x fr.Element
-	x.SetUint64(2)
-	x2 := powers(&x, 10)
-	for i := range x2 {
-		require.True(t, x2[i].IsUint64())
-		require.Equal(t, x2[i].Uint64(), uint64(1<<i))
+// Returns [1, a, a², ..., aᴺ⁻¹ ]
+func powers(a *fr.Element, N int) []fr.Element {
+	if N == 0 {
+		return nil
 	}
+	result := make([]fr.Element, N)
+	result[0].SetOne()
+	for i := 1; i < N; i++ {
+		result[i].Mul(&result[i-1], a)
+	}
+	return result
 }
 
 func TestCommons(t *testing.T) {

@@ -207,3 +207,15 @@ func difFFTG2(a []curve.G2Affine, twiddles [][]fr.Element, stage, maxSplits int,
 		difFFTG2(a[m:n], twiddles, nextStage, maxSplits, nil)
 	}
 }
+
+func bitReverse[T any](a []T) {
+	n := uint64(len(a))
+	nn := uint64(64 - bits.TrailingZeros64(n))
+
+	for i := uint64(0); i < n; i++ {
+		irev := bits.Reverse64(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev], a[i]
+		}
+	}
+}

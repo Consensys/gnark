@@ -274,7 +274,7 @@ func TestOnePhase1Contribute(t *testing.T) {
 	testAll(t, 2, 0)
 }
 
-func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
+func commonsSmallValues(N uint64, tau, alpha, beta int64) SrsCommons {
 	var (
 		res   SrsCommons
 		I     big.Int
@@ -295,7 +295,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.AlphaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(alpha)
+	coeff.SetInt64(alpha)
 	for i := range res.G1.AlphaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -304,7 +304,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 	}
 
 	res.G1.BetaTau = make([]curve.G1Affine, N)
-	coeff.SetUint64(beta)
+	coeff.SetInt64(beta)
 	for i := range res.G1.BetaTau {
 		var x fr.Element
 		x.Mul(&tauPowers[i], &coeff)
@@ -312,7 +312,7 @@ func commonsSmallValues(N, tau, alpha, beta uint64) SrsCommons {
 		res.G1.BetaTau[i].ScalarMultiplication(&g1, &I)
 	}
 
-	I.SetUint64(beta)
+	I.SetInt64(beta)
 	res.G2.Beta.ScalarMultiplication(&g2, &I)
 
 	return res
