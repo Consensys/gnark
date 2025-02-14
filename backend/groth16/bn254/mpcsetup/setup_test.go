@@ -424,43 +424,6 @@ func (c *tinyCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func (p *Phase2) Equal(o *Phase2) bool {
-
-	if p.Parameters.G2.Delta != o.Parameters.G2.Delta {
-		print("g2 delta")
-	}
-
-	if p.Delta != o.Delta {
-		print("proof delta")
-	}
-
-	if p.Parameters.G1.Delta != o.Parameters.G1.Delta {
-		print("g1 delta")
-	}
-
-	return p.Parameters.G2.Delta == o.Parameters.G2.Delta &&
-		slices.Equal(p.Sigmas, o.Sigmas) &&
-		// bytes.Equal(p.Challenge, o.Challenge) && This function is used in serialization round-trip testing, and we deliberately don't write the challenges
-		p.Delta == o.Delta &&
-		sliceSliceEqual(p.Parameters.G1.SigmaCKK, o.Parameters.G1.SigmaCKK) &&
-		p.Parameters.G1.Delta == o.Parameters.G1.Delta &&
-		slices.Equal(p.Parameters.G1.Z, o.Parameters.G1.Z) &&
-		slices.Equal(p.Parameters.G1.PKK, o.Parameters.G1.PKK) &&
-		slices.Equal(p.Parameters.G2.Sigma, o.Parameters.G2.Sigma)
-}
-
-func sliceSliceEqual[T comparable](a, b [][]T) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !slices.Equal(a[i], b[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 func getSimplePhase2(t *testing.T, circuit frontend.Circuit) Phase2 {
 	_cs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, circuit)
 	require.NoError(t, err)

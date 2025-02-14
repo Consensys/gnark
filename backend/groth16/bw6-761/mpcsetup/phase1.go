@@ -14,9 +14,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/mpcsetup"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"math/big"
-	"sync"
 )
 
 // SrsCommons are the circuit-independent components of the Groth16 SRS,
@@ -152,14 +150,12 @@ func (p *Phase1) Seal(beaconChallenge []byte) SrsCommons {
 // It seeds a final "contribution" to the protocol, reproducible by any verifier.
 // For more information on random beacons, refer to https://a16zcrypto.com/posts/article/public-randomness-and-randomness-beacons/
 // Organizations such as the League of Entropy (https://leagueofentropy.com/) provide such beacons. THIS IS NOT A RECOMMENDATION OR ENDORSEMENT.
-// and c are the output from the contributors
+// c are the output from the contributors and are assumed to be well-formed, as guaranteed by the ReadFrom function.
 // WARNING: the last contribution object will be modified
 func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, error) {
 	prev := NewPhase1(N)
-	wp := gcUtils.NewWorkerPool()
-	defer wp.Stop()
 	for i := range c {
-		if err := prev.Verify(c[i], WithWorkerPool(wp)); err != nil {
+		if err := prev.Verify(c[i]); err != nil {
 			return SrsCommons{}, err
 		}
 		prev = c[i]
@@ -167,8 +163,10 @@ func VerifyPhase1(N uint64, beaconChallenge []byte, c ...*Phase1) (SrsCommons, e
 	return prev.Seal(beaconChallenge), nil
 }
 
-// Verify assumes previous is correct
-func (p *Phase1) Verify(next *Phase1, options ...verificationOption) error {
+// Verify assumes previous is correct.
+// It also assumes that next is well-formed, i.e. it has been read
+// using the ReadFrom function.
+func (p *Phase1) Verify(next *Phase1) error {
 
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
@@ -196,42 +194,6 @@ func (p *Phase1) Verify(next *Phase1, options ...verificationOption) error {
 		{Previous: &p.parameters.G2.Beta, Next: &next.parameters.G2.Beta},
 	}...); err != nil {
 		return fmt.Errorf("failed to verify contribution to β: %w", err)
-	}
-
-	// check subgroup membership
-	var settings verificationSettings
-	for _, opt := range options {
-		opt(&settings)
-	}
-	wp := settings.wp
-	if wp == nil {
-		wp = gcUtils.NewWorkerPool()
-		defer wp.Stop()
-	}
-
-	var wg [4]*sync.WaitGroup
-	subGroupCheckErrors := make(chan error, 4)
-	wg[0] = areInSubGroupG1(wp, next.parameters.G1.Tau[2:], func(i int) {
-		subGroupCheckErrors <- fmt.Errorf("[τ^%d]₁ representation not in subgroup", i+2)
-	})
-	wg[1] = areInSubGroupG1(wp, next.parameters.G1.AlphaTau[1:], func(i int) {
-		subGroupCheckErrors <- fmt.Errorf("[ατ^%d]₁ representation not in subgroup", i+1)
-	})
-	wg[2] = areInSubGroupG1(wp, next.parameters.G1.BetaTau[1:], func(i int) {
-		subGroupCheckErrors <- fmt.Errorf("[βτ^%d]₁ representation not in subgroup", i+1)
-	})
-	wg[3] = areInSubGroupG2(wp, next.parameters.G2.Tau[2:], func(i int) {
-		subGroupCheckErrors <- fmt.Errorf("[τ^%d]₂ representation not in subgroup", i+2)
-	})
-
-	for _, wg := range wg {
-		wg.Wait()
-	}
-	close(subGroupCheckErrors)
-	for err := range subGroupCheckErrors {
-		if err != nil {
-			return err
-		}
 	}
 
 	return mpcsetup.SameRatioMany(

@@ -8,11 +8,9 @@ package mpcsetup
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"math/bits"
-	"sync"
 )
 
 func bitReverse[T any](a []T) {
@@ -62,40 +60,4 @@ func scaleG2InPlace(A []curve.G2Affine, a []fr.Element) {
 			A[i].ScalarMultiplication(&A[i], &tmp)
 		}
 	})
-}
-
-// TODO @Tabaie replace with batch subgroup check, when available
-func areInSubGroupG1(wp *gcUtils.WorkerPool, s []curve.G1Affine, errorReporter func(int)) *sync.WaitGroup {
-	return wp.Submit(len(s), func(start, end int) {
-		for i := start; i < end; i++ {
-			if !s[i].IsInSubGroup() {
-				errorReporter(i)
-				break
-			}
-		}
-	}, 1024) // TODO @Tabaie experimentally optimize minBlock
-}
-
-// TODO @Tabaie replace with batch subgroup check, when available
-func areInSubGroupG2(wp *gcUtils.WorkerPool, s []curve.G2Affine, errorReporter func(int)) *sync.WaitGroup {
-	return wp.Submit(len(s), func(start, end int) {
-		for i := start; i < end; i++ {
-			if !s[i].IsInSubGroup() {
-				errorReporter(i)
-				break
-			}
-		}
-	}, 1024) // TODO @Tabaie experimentally optimize minBlock
-}
-
-type verificationSettings struct {
-	wp *gcUtils.WorkerPool
-}
-
-type verificationOption func(*verificationSettings)
-
-func WithWorkerPool(wp *gcUtils.WorkerPool) verificationOption {
-	return func(s *verificationSettings) {
-		s.wp = wp
-	}
 }
