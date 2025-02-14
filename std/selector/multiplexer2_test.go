@@ -1,8 +1,6 @@
 package selector
 
 import (
-	"math"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -29,7 +27,7 @@ func (c *muxCircuit) Define(api frontend.API) error {
 		panic("invalid length")
 	}
 
-	s := MuxBounded(api, c.Sel, big.NewInt(0).SetUint64(math.MaxUint16), c.Input...)
+	s := MuxBounded(api, c.Sel, c.Input...)
 	api.AssertIsEqual(s, c.Expected)
 	return nil
 }

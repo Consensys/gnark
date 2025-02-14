@@ -66,25 +66,24 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 // MuxBounded is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
 // exactly one of its inputs based on sel. The index of inputs starts from zero.
 //
-// bound is used to construct BoundedComparator as its absDiffUpp parameter. Users are responsible
-// for ensuring |sel - len(inputs)| <= bound, otherwise we might have soundness issues or proof cannot
-// be generated. See doc for cmp.NewBoundedComparator
-func MuxBounded(api frontend.API, sel frontend.Variable, bound *big.Int, inputs ...frontend.Variable) frontend.Variable {
+// sel needs to be between 0 and n - 1 (inclusive), where n is the number of
+// inputs, otherwise the proof will fail.
+func MuxBounded(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
 	if n == 1 {
 		return inputs[0]
 	}
 
 	nbBits := binary.Len(n - 1)
-	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits))
+	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits)) // binary decomposition ensures sel < 2^nbBits
 
 	// We use BinaryMux when len(inputs) is a power of 2.
 	if binary.OnesCount(n) == 1 {
 		return BinaryMux(api, selBits, inputs)
 	}
 
-	bcmp := cmp.NewBoundedComparator(api, bound, false)
-	bcmp.AssertIsLess(sel, n)
+	bcmp := cmp.NewBoundedComparator(api, big.NewInt((1<<nbBits)-1), false)
+	bcmp.AssertIsLessEq(sel, n-1)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
 	return muxRecursive(api, selBits, inputs, nbBits)
