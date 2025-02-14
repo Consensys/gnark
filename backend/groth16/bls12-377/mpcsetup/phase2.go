@@ -13,7 +13,6 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/mpcsetup"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
@@ -21,7 +20,6 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"slices"
-	"sync"
 )
 
 // Phase2Evaluations components of the circuit keys
@@ -66,7 +64,10 @@ const (
 	DST_SIGMA
 )
 
-func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
+// Verify assumes previous is correct.
+// It also assumes that next is well-formed, i.e. it has been read
+// using the ReadFrom function.
+func (p *Phase2) Verify(next *Phase2) error {
 	challenge := p.hash()
 	if len(next.Challenge) != 0 && !bytes.Equal(next.Challenge, challenge) {
 		return errors.New("the challenge does not match the previous contribution's hash")
@@ -78,40 +79,6 @@ func (p *Phase2) Verify(next *Phase2, options ...verificationOption) error {
 		len(next.Parameters.G1.SigmaCKK) != len(p.Parameters.G1.SigmaCKK) ||
 		len(next.Parameters.G2.Sigma) != len(p.Parameters.G2.Sigma) {
 		return errors.New("contribution size mismatch")
-	}
-
-	// check subgroup membership
-	var settings verificationSettings
-	for _, opt := range options {
-		opt(&settings)
-	}
-	wp := settings.wp
-	if wp == nil {
-		wp = gcUtils.NewWorkerPool()
-		defer wp.Stop()
-	}
-
-	subGroupCheckErrors := make(chan error, 2+len(p.Sigmas))
-	subGroupErrorReporterNoOffset := func(format string) func(int) {
-		return func(i int) {
-			subGroupCheckErrors <- fmt.Errorf(format+" representation not in subgroup", i)
-		}
-	}
-
-	wg := make([]*sync.WaitGroup, 2+len(p.Sigmas))
-	wg[0] = areInSubGroupG1(wp, next.Parameters.G1.Z, subGroupErrorReporterNoOffset("[Z[%d]]₁"))
-	wg[1] = areInSubGroupG1(wp, next.Parameters.G1.PKK, subGroupErrorReporterNoOffset("[PKK[%d]]₁"))
-	for i := range p.Sigmas {
-		wg[2+i] = areInSubGroupG1(wp, next.Parameters.G1.SigmaCKK[i], subGroupErrorReporterNoOffset("[σCKK[%d]]₁ (commitment proving key)"))
-	}
-	for _, wg := range wg {
-		wg.Wait()
-	}
-	close(subGroupCheckErrors)
-	for err := range subGroupCheckErrors {
-		if err != nil {
-			return err
-		}
 	}
 
 	// verify proof of knowledge of contributions to the σᵢ
@@ -346,15 +313,13 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 // It seeds a final "contribution" to the protocol, reproducible by any verifier.
 // For more information on random beacons, refer to https://a16zcrypto.com/posts/article/public-randomness-and-randomness-beacons/
 // Organizations such as the League of Entropy (https://leagueofentropy.com/) provide such beacons. THIS IS NOT A RECOMMENDATION OR ENDORSEMENT.
-// and c are the output from the contributors
+// c are the output from the contributors, and are assumed to be well-formed, as guaranteed by the ReadFrom function.
 // WARNING: the last contribution object will be modified
 func VerifyPhase2(r1cs *cs.R1CS, commons *SrsCommons, beaconChallenge []byte, c ...*Phase2) (groth16.ProvingKey, groth16.VerifyingKey, error) {
 	prev := new(Phase2)
 	evals := prev.Initialize(r1cs, commons)
-	wp := gcUtils.NewWorkerPool()
-	defer wp.Stop()
 	for i := range c {
-		if err := prev.Verify(c[i], WithWorkerPool(wp)); err != nil {
+		if err := prev.Verify(c[i]); err != nil {
 			return nil, nil, err
 		}
 		prev = c[i]
