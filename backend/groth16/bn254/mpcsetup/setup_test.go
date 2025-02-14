@@ -317,29 +317,22 @@ func commonsSmallValues(N uint64, tau, alpha, beta int64) SrsCommons {
 }
 
 func powersI(x int64, n int) []fr.Element {
-	if n == 0 {
-		return nil
-	}
-	result := make([]fr.Element, n)
-	result[0].SetOne()
-	if n == 1 {
-		return result
-	}
-	result[1].SetInt64(x)
-	for i := 1; i < n; i++ {
-		result[i].Mul(&result[i-1], &result[1])
-	}
-	return result
+	var y fr.Element
+	y.SetInt64(x)
+	return powers(&y, n)
 }
 
-func TestPowers(t *testing.T) {
-	var x fr.Element
-	x.SetUint64(2)
-	x2 := powers(&x, 10)
-	for i := range x2 {
-		require.True(t, x2[i].IsUint64())
-		require.Equal(t, x2[i].Uint64(), uint64(1<<i))
+// Returns [1, a, a², ..., aᴺ⁻¹ ]
+func powers(a *fr.Element, N int) []fr.Element {
+	if N == 0 {
+		return nil
 	}
+	result := make([]fr.Element, N)
+	result[0].SetOne()
+	for i := 1; i < N; i++ {
+		result[i].Mul(&result[i-1], a)
+	}
+	return result
 }
 
 func TestCommons(t *testing.T) {
