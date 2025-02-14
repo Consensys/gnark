@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	groth16Impl "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"math/big"
 	"slices"
@@ -373,7 +372,7 @@ func TestCommonsUpdate(t *testing.T) {
 	assertG1VectorEqual := func(vectorName string, expected, computed []curve.G1Affine) {
 		require.Equalf(t, len(expected), len(computed), "length mismatch for %s", vectorName)
 		for i := range expected {
-			assert.Equalf(t, expected[i], computed[i], "%s^%d", vectorName, i)
+			require.Equalf(t, expected[i], computed[i], "%s^%d", vectorName, i)
 		}
 	}
 
@@ -381,11 +380,11 @@ func TestCommonsUpdate(t *testing.T) {
 	assertG1VectorEqual("ατ", expected.G1.AlphaTau, computed.G1.AlphaTau)
 	assertG1VectorEqual("βτ", expected.G1.BetaTau, computed.G1.BetaTau)
 
-	assert.Equal(t, expected.G2.Beta, computed.G2.Beta, "[β]₂")
+	require.Equal(t, expected.G2.Beta, computed.G2.Beta, "[β]₂")
 
 	require.Equal(t, len(expected.G2.Tau), len(computed.G2.Tau), "length mismatch [τ]₂")
 	for i := range expected.G2.Tau {
-		assert.Equalf(t, expected.G2.Tau[i], computed.G2.Tau[i], "[τ]₂^%d", i)
+		require.Equalf(t, expected.G2.Tau[i], computed.G2.Tau[i], "[τ]₂^%d", i)
 	}
 }
 
