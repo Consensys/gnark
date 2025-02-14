@@ -128,6 +128,10 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...Variable)
 
+	// Printf behaves like fmt.Printf but accepts cd.Variable as parameters
+	// whose value will be resolved at runtime when computed by the solver
+	Printf(format string, args ...Variable)
+
 	// Compiler returns the compiler object for advanced circuit development
 	Compiler() Compiler
 
