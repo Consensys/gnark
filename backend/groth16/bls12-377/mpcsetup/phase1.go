@@ -104,30 +104,45 @@ func (c *SrsCommons) update(tauUpdate, alphaUpdate, betaUpdate *fr.Element) {
 
 	// TODO @gbotrel working with jacobian points here will help with perf.
 
-	tauUpdates := powers(tauUpdate, len(c.G1.Tau))
+	// update α, β
+	var coeff big.Int
+	alphaUpdate.BigInt(&coeff)
+	c.G1.AlphaTau[0].ScalarMultiplication(&c.G1.AlphaTau[0], &coeff)
+	betaUpdate.BigInt(&coeff)
+	c.G1.BetaTau[0].ScalarMultiplication(&c.G1.BetaTau[0], &coeff)
+	c.G2.Beta.ScalarMultiplication(&c.G2.Beta, &coeff)
 
-	scaleG1InPlace(c.G1.Tau[1:], tauUpdates[1:]) // first element remains 1
-	scaleG2InPlace(c.G2.Tau[1:], tauUpdates[1:])
+	// update all values from 1 to N-1
+	tauPowI := tauUpdate
+	for i := 1; i < len(c.G2.Tau); i++ {
+		tauPowI.BigInt(&coeff)
 
-	alphaUpdates := make([]fr.Element, len(c.G1.AlphaTau))
-	alphaUpdates[0].Set(alphaUpdate)
-	for i := range alphaUpdates {
+		c.G1.Tau[i].ScalarMultiplication(&c.G1.Tau[i], &coeff)
+		c.G2.Tau[i].ScalarMultiplication(&c.G2.Tau[i], &coeff)
+
+		var tauPowIScaled fr.Element
+
 		// let α₁ = α₀.α', τ₁ = τ₀.τ'
 		// then α₁τ₁ⁱ = (α₀τ₀ⁱ)α'τ'ⁱ
-		alphaUpdates[i].Mul(&tauUpdates[i], alphaUpdate)
-	}
-	scaleG1InPlace(c.G1.AlphaTau, alphaUpdates)
+		tauPowIScaled.Mul(tauPowI, alphaUpdate)
+		tauPowIScaled.BigInt(&coeff)
+		c.G1.AlphaTau[i].ScalarMultiplication(&c.G1.AlphaTau[i], &coeff)
 
-	betaUpdates := make([]fr.Element, len(c.G1.BetaTau))
-	betaUpdates[0].Set(betaUpdate)
-	for i := range betaUpdates {
-		betaUpdates[i].Mul(&tauUpdates[i], betaUpdate)
-	}
-	scaleG1InPlace(c.G1.BetaTau, betaUpdates)
+		// similarly for β
+		tauPowIScaled.Mul(tauPowI, betaUpdate)
+		tauPowIScaled.BigInt(&coeff)
+		c.G1.BetaTau[i].ScalarMultiplication(&c.G1.BetaTau[i], &coeff)
 
-	var betaUpdateI big.Int
-	betaUpdate.BigInt(&betaUpdateI)
-	c.G2.Beta.ScalarMultiplication(&c.G2.Beta, &betaUpdateI)
+		tauPowI.Mul(tauPowI, tauUpdate)
+	}
+
+	// update the rest of [τⁱ]₁
+	for i := 1; i < len(c.G1.Tau); i++ {
+		tauPowI.BigInt(&coeff)
+		c.G1.Tau[i].ScalarMultiplication(&c.G1.Tau[i], &coeff)
+
+		tauPowI.Mul(tauPowI, tauUpdate)
+	}
 }
 
 // Seal performs the final contribution and outputs the final parameters.
