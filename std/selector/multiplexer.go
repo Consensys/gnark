@@ -75,9 +75,6 @@ func MuxBounded(api frontend.API, sel frontend.Variable, bound *big.Int, inputs 
 		return inputs[0]
 	}
 
-	bcmp := cmp.NewBoundedComparator(api, bound, false)
-	bcmp.AssertIsLess(sel, n)
-
 	nbBits := binary.Len(n - 1)
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits))
 
@@ -85,6 +82,9 @@ func MuxBounded(api frontend.API, sel frontend.Variable, bound *big.Int, inputs 
 	if binary.OnesCount(n) == 1 {
 		return BinaryMux(api, selBits, inputs)
 	}
+
+	bcmp := cmp.NewBoundedComparator(api, bound, false)
+	bcmp.AssertIsLess(sel, n)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
 	return muxRecursive(api, selBits, inputs, nbBits)
