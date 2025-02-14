@@ -63,17 +63,20 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
 }
 
-// MuxCapped is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
+// MuxBounded is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
 // exactly one of its inputs based on sel. The index of inputs starts from zero.
 //
-// Users are responsible to ensure that |sel - n| <= n ("Capped"), where n is the number of the inputs.
-// Internally we use BoundedComparator, and set the absDiffUpp to n. Breaking the cap might allow sel to
-// be out of range of [0, n-1], and cause soundness issues.
-func MuxCapped(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
+// bound is used to construct BoundedComparator as its absDiffUpp parameter. Users are responsible
+// for ensuring |sel - len(inputs)| <= bound, otherwise we might have soundness issues or proof cannot
+// be generated. See doc for cmp.NewBoundedComparator
+func MuxBounded(api frontend.API, sel frontend.Variable, bound *big.Int, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
 	if n == 1 {
 		return inputs[0]
 	}
+
+	bcmp := cmp.NewBoundedComparator(api, bound, false)
+	bcmp.AssertIsLess(sel, n)
 
 	nbBits := binary.Len(n - 1)
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits))
@@ -82,12 +85,6 @@ func MuxCapped(api frontend.API, sel frontend.Variable, inputs ...frontend.Varia
 	if binary.OnesCount(n) == 1 {
 		return BinaryMux(api, selBits, inputs)
 	}
-
-	// If sel is beyond range [0, n-1], bcmp might wrongly produce reversed results,
-	// leading MuxCapped to return another elements from the inputs.
-	// See doc of cmp.NewBoundedComparator.
-	bcmp := cmp.NewBoundedComparator(api, big.NewInt(int64(n)), false)
-	bcmp.AssertIsLess(sel, n)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
 	return muxRecursive(api, selBits, inputs, nbBits)
