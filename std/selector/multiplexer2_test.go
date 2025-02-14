@@ -1,13 +1,24 @@
 package selector
 
 import (
+	binary "math/bits"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
 )
+
+func mux2(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
+	// we use BinaryMux when len(inputs) is a power of 2.
+	if binary.OnesCount(uint(len(inputs))) == 1 {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(binary.Len(uint(len(inputs)))-1))
+		return BinaryMux(api, selBits, inputs)
+	}
+	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
+}
 
 // having this test file in package selector so that we can have mux3
 func mux3(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
@@ -27,7 +38,7 @@ func (c *muxCircuit) Define(api frontend.API) error {
 		panic("invalid length")
 	}
 
-	s := MuxBounded(api, c.Sel, c.Input...)
+	s := Mux(api, c.Sel, c.Input...)
 	api.AssertIsEqual(s, c.Expected)
 	return nil
 }
@@ -76,7 +87,7 @@ func (c *largeCircuit2) Define(api frontend.API) error {
 	if len(c.Input) != c.Length {
 		panic("invalid length")
 	}
-	s := Mux(api, c.Sel, c.Input...)
+	s := mux2(api, c.Sel, c.Input...)
 	api.AssertIsEqual(s, c.Expected)
 	return nil
 }

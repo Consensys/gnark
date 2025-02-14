@@ -55,20 +55,6 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // sel needs to be between 0 and n - 1 (inclusive), where n is the number of
 // inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
-	// we use BinaryMux when len(inputs) is a power of 2.
-	if binary.OnesCount(uint(len(inputs))) == 1 {
-		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(binary.Len(uint(len(inputs)))-1))
-		return BinaryMux(api, selBits, inputs)
-	}
-	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
-}
-
-// MuxBounded is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects
-// exactly one of its inputs based on sel. The index of inputs starts from zero.
-//
-// sel needs to be between 0 and n - 1 (inclusive), where n is the number of
-// inputs, otherwise the proof will fail.
-func MuxBounded(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
 	if n == 1 {
 		return inputs[0]
