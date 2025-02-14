@@ -48,11 +48,11 @@
 {{- end }}
 
 {{- define "import_groth16" }}
-	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/groth16"
+	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/backend/groth16/{{toLower .Curve}}"
 {{- end }}
 
 {{- define "import_plonk" }}
-	{{toLower .CurveID}}plonk "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/plonk"
+	{{toLower .CurveID}}plonk "github.com/consensys/gnark/backend/plonk/{{toLower .Curve}}"
 {{- end }}
 
 {{- define "import_polynomial" }}
