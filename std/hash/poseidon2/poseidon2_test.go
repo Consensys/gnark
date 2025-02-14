@@ -1,9 +1,9 @@
 package poseidon2
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
@@ -19,10 +19,11 @@ func TestPoseidon2Hash(t *testing.T) {
 	}
 	res := h.Sum(nil)
 
-	test.SingleFunction(ecc.BLS12_377, func(api frontend.API) []frontend.Variable {
+	test.Function(func(api frontend.API) error {
 		hsh, err := NewMerkleDamgardHasher(api)
 		require.NoError(t, err)
 		hsh.Write(0, 1, 2, 3, 4)
-		return []frontend.Variable{hsh.Sum()}
-	}, res)(t)
+		api.AssertIsEqual(hsh.Sum(), res)
+		return nil
+	}, test.WithCurves(ecc.BLS12_377))(t)
 }
