@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
@@ -13,7 +12,6 @@ import (
 )
 
 func TestGkrPermutation(t *testing.T) {
-	pos2Fr := poseidon2.NewPermutation(2, rF, rP)
 	const n = 2
 	var k int64
 	ins := make([][2]frontend.Variable, n)
@@ -25,7 +23,7 @@ func TestGkrPermutation(t *testing.T) {
 		x[0].SetInt64(k)
 		x[1].SetInt64(k + 1)
 
-		require.NoError(t, pos2Fr.Permutation(x[:]))
+		require.NoError(t, bls12377Permutation().Permutation(x[:]))
 		outs[i] = x[1]
 
 		k += 2

@@ -1,8 +1,6 @@
 package poseidon2
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash"
@@ -25,36 +23,8 @@ import (
 // Gkr implements a GKR version of the Poseidon2 permutation with fan-in 2
 type Gkr struct {
 	Permutation
-	Ins         []frontend.Variable
-	Outs        []frontend.Variable
-	plainHasher hash.Hash
-}
-
-// SHA256 hash of the hash parameters - as a unique identifier
-// Note that the identifier is only unique with respect to the size parameters
-// t, d, rF, rP
-func (h *Permutation) hash(curve ecc.ID) []byte {
-	hasher := sha256.New()
-	writeAsByte := func(i int) {
-		if i > 255 || i < 0 {
-			panic("uint8 expected")
-		}
-		hasher.Write([]byte{byte(i)})
-	}
-	writeAsTwoBytes := func(i int) {
-		if i > 65535 || i < 0 {
-			panic("uint16 expected")
-		}
-		var buf [2]byte
-		binary.LittleEndian.PutUint16(buf[:], uint16(i))
-		hasher.Write(buf[:])
-	}
-	writeAsTwoBytes(int(curve))
-	writeAsByte(h.params.width)
-	writeAsByte(h.params.degreeSBox)
-	writeAsByte(h.params.nbFullRounds)
-	writeAsByte(h.params.nbPartialRounds)
-	return hasher.Sum(nil)
+	Ins  []frontend.Variable
+	Outs []frontend.Variable
 }
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -136,7 +106,7 @@ func (g pow2TimesGate) Degree() int {
 
 // for x1, the partial round gates are identical to full round gates
 // for x2, the partial round gates are just a linear combination
-// TODO @Tabaie eliminate the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
+// TODO @Tabaie try eliminating the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
 
 // extGate2 applies the external matrix mul, outputting the second element of the result
 type extGate2 struct {
@@ -233,7 +203,9 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
 	params := poseidon2Bls12377.GetDefaultParameters().String()
 	zero := new(big.Int)
-	const halfRf = rF / 2
+	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
+	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
+	halfRf := rF / 2
 
 	// build GKR circuit
 	gkrApi := gkr.NewApi()
@@ -264,7 +236,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	gkr.Gates["pow4"] = pow4Gate{}
 	gkr.Gates["pow4Times"] = pow4TimesGate{}
 
-	sBox := func(round int, u constraint.GkrVariable) constraint.GkrVariable {
+	sBox := func(u constraint.GkrVariable) constraint.GkrVariable {
 		v := gkrApi.NamedGate("pow4", u)           // u^4
 		return gkrApi.NamedGate("pow4Times", v, u) // u^17
 	}
@@ -274,7 +246,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		gkr.Gates[gate] = &extKeyGate{
 			roundKey: frToInt(&roundKeysFr[round][varI]),
 		}
-		return sBox(round, gkrApi.NamedGate(gate, a, b))
+		return sBox(gkrApi.NamedGate(gate, a, b))
 	}
 
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
@@ -282,7 +254,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		gkr.Gates[gate] = &intKeyGate2{
 			roundKey: frToInt(&roundKeysFr[round][1]),
 		}
-		return sBox(round, gkrApi.NamedGate(gate, a, b))
+		return sBox(gkrApi.NamedGate(gate, a, b))
 	}
 
 	fullRound := func(i int) {
@@ -366,17 +338,10 @@ func permuteHint(m *big.Int, ins, outs []*big.Int) error {
 	return err
 }
 
-const (
-	rF = 6
-	rP = 32 - rF
-	d  = 17
-)
-
-var (
-	bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
-		return poseidon2Bls12377.NewPermutation(2, rF, rP) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
-	})
-)
+var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
+	params := poseidon2Bls12377.GetDefaultParameters()
+	return poseidon2Bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
+})
 
 // TODO find better name
 // these are the fr gates
