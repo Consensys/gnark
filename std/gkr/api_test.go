@@ -679,3 +679,55 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 	}
 	return
 }
+
+func TestSolveInTestEngine(t *testing.T) {
+	assignment := testSolveInTestEngineCircuit{
+		X: []frontend.Variable{2, 3, 4, 5, 6, 7, 8, 9},
+	}
+	circuit := testSolveInTestEngineCircuit{
+		X: make([]frontend.Variable, len(assignment.X)),
+	}
+
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BN254.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS24_315.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS12_381.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS24_317.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BW6_633.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
+	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS12_377.ScalarField()))
+}
+
+type testSolveInTestEngineCircuit struct {
+	X []frontend.Variable
+}
+
+func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
+	gkr := NewApi()
+	x, err := gkr.Import(c.X)
+	if err != nil {
+		return err
+	}
+	Y := make([]frontend.Variable, len(c.X))
+	Y[0] = 1
+	y, err := gkr.Import(Y)
+	if err != nil {
+		return err
+	}
+
+	z := gkr.Mul(x, y)
+
+	for i := range len(c.X) - 1 {
+		gkr.Series(y, z, i+1, i)
+	}
+
+	assignments := gkr.SolveInTestEngine(api)
+
+	product := frontend.Variable(1)
+	for i := range c.X {
+		api.AssertIsEqual(assignments[y][i], product)
+		product = api.Mul(product, c.X[i])
+		api.AssertIsEqual(assignments[z][i], product)
+	}
+
+	return nil
+}
