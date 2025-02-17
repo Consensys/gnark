@@ -34,7 +34,7 @@ func TestGkrPermutation(t *testing.T) {
 		Outs: outs,
 	}
 
-	AddGkrGatesSolution()
+	RegisterGKRGates(ecc.BLS12_377)
 
 	require.NoError(t, test.IsSolved(&circuit, &circuit, ecc.BLS12_377.ScalarField()))
 }

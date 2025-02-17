@@ -369,11 +369,20 @@ var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
 	return poseidon2Bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
 })
 
-// TODO find better name
-// these are the fr gates
-func AddGkrGatesSolution() {
-	csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
-		return mimcBls12377.NewMiMC()
-	})
-	gkrPoseidon2Bls12377.RegisterGkrGates()
+// RegisterGKRGates registers the GKR gates corresponding to the given curves for the solver
+func RegisterGKRGates(curves ...ecc.ID) {
+	if len(curves) == 0 {
+		panic("expected at least one curve")
+	}
+	for _, curve := range curves {
+		switch curve {
+		case ecc.BLS12_377:
+			csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
+				return mimcBls12377.NewMiMC()
+			})
+			gkrPoseidon2Bls12377.RegisterGkrGates()
+		default:
+			panic(fmt.Sprintf("curve %s not currently supported", curve))
+		}
+	}
 }
