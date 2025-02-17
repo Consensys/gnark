@@ -184,17 +184,10 @@ func frToInt(x *frBls12377.Element) *big.Int {
 	return &res
 }
 
-func (p *GkrPermutations) finalize(api frontend.API) error {
-	if p.api != api {
-		panic("unexpected API")
-	}
-
-	// register MiMC to be used as a random oracle in the GKR proof
-	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})
-
+// defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377
+// insLeft and insRight are the inputs to the permutation
+// they must be padded to a power of 2
+func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.GkrVariable, error) {
 	// variable indexes
 	const (
 		xI = iota
@@ -209,26 +202,15 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	// pad instances into a power of 2
-	// TODO @Tabaie the GKR API to do this automatically?
-	ins1Padded := make([]frontend.Variable, ecc.NextPowerOfTwo(uint64(len(p.ins1))))
-	ins2Padded := make([]frontend.Variable, len(ins1Padded))
-	copy(ins1Padded, p.ins1)
-	copy(ins2Padded, p.ins2)
-	for i := len(p.ins1); i < len(ins1Padded); i++ {
-		ins1Padded[i] = 0
-		ins2Padded[i] = 0
-	}
-
 	gkrApi := gkr.NewApi()
 
-	x, err := gkrApi.Import(ins1Padded)
+	x, err := gkrApi.Import(insLeft)
 	if err != nil {
-		return err
+		return nil, -1, err
 	}
-	y, err := gkrApi.Import(ins2Padded)
+	y, err := gkrApi.Import(insRight)
 	if err != nil {
-		return err
+		return nil, -1, err
 	}
 
 	// unique names for linear rounds
@@ -324,6 +306,36 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	gate := gateNameLinear(yI, rP+rF)
 	gkr.Gates[gate] = extGate{}
 	y = gkrApi.NamedGate(gate, y, x)
+
+	return gkrApi, y, nil
+}
+
+func (p *GkrPermutations) finalize(api frontend.API) error {
+	if p.api != api {
+		panic("unexpected API")
+	}
+
+	// register MiMC to be used as a random oracle in the GKR proof
+	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
+		m, err := mimc.NewMiMC(api)
+		return &m, err
+	})
+
+	// pad instances into a power of 2
+	// TODO @Tabaie the GKR API to do this automatically?
+	ins1Padded := make([]frontend.Variable, ecc.NextPowerOfTwo(uint64(len(p.ins1))))
+	ins2Padded := make([]frontend.Variable, len(ins1Padded))
+	copy(ins1Padded, p.ins1)
+	copy(ins2Padded, p.ins2)
+	for i := len(p.ins1); i < len(ins1Padded); i++ {
+		ins1Padded[i] = 0
+		ins2Padded[i] = 0
+	}
+
+	gkrApi, y, err := defineCircuit(ins1Padded, ins2Padded)
+	if err != nil {
+		return err
+	}
 
 	// connect to output
 	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
