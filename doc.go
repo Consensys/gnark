@@ -1,4 +1,4 @@
-// Package gnark provides fast Zero Knowledge Proofs (ZKP) systems and a high level APIs to design ZKP circuits.
+// Package gnark provides fast Zero Knowledge Proofs (ZKP) systems and a high-level APIs to design ZKP circuits.
 //
 // gnark supports the following ZKP schemes:
 //   - Groth16
