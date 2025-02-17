@@ -140,38 +140,30 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 	return &Permutation{api: api, params: params}, nil
 }
 
-func (h *Permutation) power(x frontend.Variable, degree int) frontend.Variable {
-	tmp := x
-	switch degree {
-	case 3:
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(tmp, x)
-	case 5:
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, tmp)
-	case 7:
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, tmp)
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, tmp)
-	case 17:
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, x)
-		x = h.api.Mul(x, tmp)
-	case -1:
-		x = h.api.Inverse(x)
-	default:
-		panic(fmt.Sprintf("unknown sBox degree %d", degree))
-	}
-	return x
-}
-
 // sBox applies the sBox on buffer[index]
 func (h *Permutation) sBox(index int, input []frontend.Variable) {
-	input[index] = h.power(input[index], h.params.degreeSBox)
+	tmp := input[index]
+	if h.params.degreeSBox == 3 {
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(tmp, input[index])
+	} else if h.params.degreeSBox == 5 {
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], tmp)
+	} else if h.params.degreeSBox == 7 {
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], tmp)
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], tmp)
+	} else if h.params.degreeSBox == 17 {
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], input[index])
+		input[index] = h.api.Mul(input[index], tmp)
+	} else if h.params.degreeSBox == -1 {
+		input[index] = h.api.Inverse(input[index])
+	}
 }
 
 // matMulM4 computes
