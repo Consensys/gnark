@@ -197,7 +197,6 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	// poseidon2 parameters
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
 	params := poseidon2Bls12377.GetDefaultParameters().String()
-	zero := new(big.Int)
 	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
@@ -280,6 +279,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
 	}
 
+	zero := new(big.Int)
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
 
