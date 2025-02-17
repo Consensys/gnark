@@ -44,7 +44,7 @@ func (g *extKeyGate) Degree() int {
 	return 1
 }
 
-// pow4Gate computes a -> a^4
+// pow4Gate computes a -> a⁴
 type pow4Gate struct{}
 
 func (g pow4Gate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
@@ -61,7 +61,7 @@ func (g pow4Gate) Degree() int {
 	return 4
 }
 
-// pow4Gate computes a, b -> a^4 * b
+// pow4Gate computes a, b -> a⁴ * b
 type pow4TimesGate struct{}
 
 func (g pow4TimesGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
@@ -189,6 +189,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		panic("unexpected API")
 	}
 
+	// register MiMC to be used as a random oracle in the GKR proof
 	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
@@ -200,6 +201,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		yI
 	)
 
+	// poseidon2 parameters
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
 	params := poseidon2Bls12377.GetDefaultParameters().String()
 	zero := new(big.Int)
@@ -207,10 +209,8 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	// build GKR circuit
-	gkrApi := gkr.NewApi()
-
-	// TODO @Tabaie gkr to auto pad?
+	// pad instances into a power of 2
+	// TODO @Tabaie the GKR API to do this automatically?
 	ins1Padded := make([]frontend.Variable, ecc.NextPowerOfTwo(uint64(len(p.ins1))))
 	ins2Padded := make([]frontend.Variable, len(ins1Padded))
 	copy(ins1Padded, p.ins1)
@@ -219,6 +219,8 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		ins1Padded[i] = 0
 		ins2Padded[i] = 0
 	}
+
+	gkrApi := gkr.NewApi()
 
 	x, err := gkrApi.Import(ins1Padded)
 	if err != nil {
@@ -229,18 +231,31 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return err
 	}
 
-	gateNameLinear := func(varI, i int) string {
-		return fmt.Sprintf("x%d-l-op-round=%d;%s", varI, i, params)
+	// unique names for linear rounds
+	gateNameLinear := func(varI, round int) string {
+		return fmt.Sprintf("x%d-l-op-round=%d;%s", varI, round, params)
 	}
 
+	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
 	gkr.Gates["pow4"] = pow4Gate{}
 	gkr.Gates["pow4Times"] = pow4TimesGate{}
 
+	// *** helper functions to register and apply gates ***
+
+	// Poseidon2 is a sequence of additions, exponentiations (s-Box), and linear operations
+	// but here we group the operations so that every round consists of a degree-1 operation followed by the s-Box
+	// this allows for more efficient result sharing among the gates
+	// but also breaks the uniformity of the circuit a bit, in that the matrix operation
+	// in every round comes from the previous (canonical) round.
+
+	// apply the s-Box to u
 	sBox := func(u constraint.GkrVariable) constraint.GkrVariable {
-		v := gkrApi.NamedGate("pow4", u)           // u^4
-		return gkrApi.NamedGate("pow4Times", v, u) // u^17
+		v := gkrApi.NamedGate("pow4", u)           // u⁴
+		return gkrApi.NamedGate("pow4Times", v, u) // u¹⁷
 	}
 
+	// register and apply external matrix multiplication and round key addition
+	// round dependent due to the round key
 	extKeySBox := func(round, varI int, a, b constraint.GkrVariable) constraint.GkrVariable {
 		gate := gateNameLinear(varI, round)
 		gkr.Gates[gate] = &extKeyGate{
@@ -249,6 +264,10 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return sBox(gkrApi.NamedGate(gate, a, b))
 	}
 
+	// register and apply external matrix multiplication and round key addition
+	// then apply the s-Box
+	// for the second variable
+	// round independent due to the round key
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
 		gate := gateNameLinear(yI, round)
 		gkr.Gates[gate] = &intKeyGate2{
@@ -257,16 +276,21 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		return sBox(gkrApi.NamedGate(gate, a, b))
 	}
 
+	// apply a full round
 	fullRound := func(i int) {
-		x1 := extKeySBox(i, xI, x, y) // TODO inline this
-		x, y = x1, extKeySBox(i, yI, y, x)
+		x1 := extKeySBox(i, xI, x, y)      // TODO inline this
+		x, y = x1, extKeySBox(i, yI, y, x) // the external matrix is symmetric so we can use the same gate with inputs swapped
 	}
+
+	// *** construct the circuit ***
 
 	for i := range halfRf {
 		fullRound(i)
 	}
 
-	{ // i = halfRf: first partial round
+	{
+		// i = halfRf: first partial round
+		// still using the external matrix, since the linear operation still belongs to a full (canonical) round
 		x1 := extKeySBox(halfRf, xI, x, y)
 
 		gate := gateNameLinear(yI, halfRf)
@@ -275,10 +299,10 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 	}
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
-		x1 := extKeySBox(i, xI, x, y)
+		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
 
 		gate := gateNameLinear(yI, i)
-		gkr.Gates[gate] = &intKeyGate2{ // TODO replace with extGate
+		gkr.Gates[gate] = &intKeyGate2{
 			roundKey: zero,
 		}
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
@@ -286,8 +310,9 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 
 	{
 		i := halfRf + rP
+		// first iteration of the final batch of full rounds
+		// still using the internal matrix, since the linear operation still belongs to a partial (canonical) round
 		x1 := extKeySBox(i, xI, x, y)
-
 		x, y = x1, intKeySBox2(i, x, y)
 	}
 
@@ -295,6 +320,7 @@ func (p *GkrPermutations) finalize(api frontend.API) error {
 		fullRound(i)
 	}
 
+	// apply the external matrix one last time to obtain the final value of y
 	gate := gateNameLinear(yI, rP+rF)
 	gkr.Gates[gate] = extGate{}
 	y = gkrApi.NamedGate(gate, y, x)
