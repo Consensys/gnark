@@ -72,11 +72,13 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	bcmp.AssertIsLessEq(sel, n-1)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
-	return muxRecursive(api, selBits, inputs, nbBits)
+	return muxRecursive(api, selBits, inputs)
 }
 
 func muxRecursive(api frontend.API,
-	selBits []frontend.Variable, inputs []frontend.Variable, nbBits int) frontend.Variable {
+	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
+
+	nbBits := len(selBits)
 	leftCount := uint(1 << (nbBits - 1))
 	left := BinaryMux(api, selBits[:nbBits-1], inputs[:leftCount])
 
@@ -87,7 +89,7 @@ func muxRecursive(api frontend.API,
 	if binary.OnesCount(rightCount) == 1 {
 		right = BinaryMux(api, selBits[:nbRightBits-1], inputs[leftCount:])
 	} else {
-		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:], nbRightBits)
+		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:])
 	}
 
 	msb := selBits[nbBits-1]
