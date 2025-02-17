@@ -31,8 +31,8 @@ input.json
 # Files used as backups when refactoring
 *.backup
 
-# generated files during integratrion tests
-integratrion_test/**
+# generated files during integration tests
+integration_test/**
 
 # binary
 gnark
