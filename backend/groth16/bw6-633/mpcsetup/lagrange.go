@@ -75,7 +75,7 @@ func butterflyG2(a *curve.G2Affine, b *curve.G2Affine) {
 	b.Sub(&t, b)
 }
 
-// kerDIF8 is a kernel that process a FFT of size 8
+// kerDIF8 is a kernel that processes an FFT of size 8
 func kerDIF8G1(a []curve.G1Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG1(&a[0], &a[4])
 	butterflyG1(&a[1], &a[5])
@@ -103,7 +103,7 @@ func kerDIF8G1(a []curve.G1Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG1(&a[6], &a[7])
 }
 
-// kerDIF8 is a kernel that process a FFT of size 8
+// kerDIF8 is a kernel that processes an FFT of size 8
 func kerDIF8G2(a []curve.G2Affine, twiddles [][]fr.Element, stage int) {
 	butterflyG2(&a[0], &a[4])
 	butterflyG2(&a[1], &a[5])
@@ -205,5 +205,17 @@ func difFFTG2(a []curve.G2Affine, twiddles [][]fr.Element, stage, maxSplits int,
 	} else {
 		difFFTG2(a[0:m], twiddles, nextStage, maxSplits, nil)
 		difFFTG2(a[m:n], twiddles, nextStage, maxSplits, nil)
+	}
+}
+
+func bitReverse[T any](a []T) {
+	n := uint64(len(a))
+	nn := uint64(64 - bits.TrailingZeros64(n))
+
+	for i := uint64(0); i < n; i++ {
+		irev := bits.Reverse64(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev], a[i]
+		}
 	}
 }
