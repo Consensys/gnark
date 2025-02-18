@@ -7,9 +7,9 @@ toolchain go1.22.6
 require (
 	github.com/bits-and-blooms/bitset v1.20.0
 	github.com/blang/semver/v4 v4.0.0
-	github.com/consensys/bavard v0.1.27
+	github.com/consensys/bavard v0.1.29
 	github.com/consensys/compress v0.2.5
-	github.com/consensys/gnark-crypto v0.16.1-0.20250205153847-10a243d332ca
+	github.com/consensys/gnark-crypto v0.16.1-0.20250218155240-b2e7aa1a22d7
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
@@ -19,9 +19,9 @@ require (
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.33.0
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
-	golang.org/x/sync v0.10.0
+	golang.org/x/sync v0.11.0
 )
 
 require (
@@ -31,7 +31,7 @@ require (
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
