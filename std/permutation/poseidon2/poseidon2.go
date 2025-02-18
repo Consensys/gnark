@@ -1,4 +1,4 @@
-package poseidon
+package poseidon2
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ type parameters struct {
 	// number of partial rounds
 	nbPartialRounds int
 
-	// round keys
+	// round keys: ordered by round then variable
 	roundKeys [][]big.Int
 }
 
@@ -49,7 +49,7 @@ type parameters struct {
 func NewPoseidon2(api frontend.API) (*Permutation, error) {
 	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
 	case ecc.BLS12_377:
-		params := poseidonbls12377.NewDefaultParameters()
+		params := poseidonbls12377.GetDefaultParameters()
 		return NewPoseidon2FromParameters(api, 2, params.NbFullRounds, params.NbPartialRounds)
 	// TODO: we don't have default parameters for other curves yet. Update this when we do.
 	default:
@@ -236,7 +236,7 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 	}
 }
 
-// when t=2,3 the matrix are respectibely [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
+// when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 	if h.params.width == 2 {
