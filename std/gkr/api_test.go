@@ -268,7 +268,6 @@ func TestApiMul(t *testing.T) {
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
 	depth := 14
-	//fmt.Println("start")
 	bottom := make([]frontend.Variable, 1<<depth)
 
 	for i := 0; i < 1<<depth; i++ {
