@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/algo_utils"
+	algo_utils "github.com/consensys/gnark/internal/utils"
 	"hash"
 	"math/big"
 	"sync"
