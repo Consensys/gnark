@@ -917,6 +917,9 @@ func (c *IsZeroCircuit[T]) Define(api frontend.API) error {
 	}
 	R := f.Add(&c.X, &c.Y)
 	api.AssertIsEqual(c.Zero, f.IsZero(R))
+
+	isZero := f.IsZero(f.Zero())
+	api.AssertIsEqual(isZero, 1)
 	return nil
 }
 

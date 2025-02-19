@@ -6,6 +6,7 @@
 
 [How to Contribute](#how-to-contribute)
 
+* [Guidelines for Non-Code and other Trivial Contributions](#guidelines-for-non-code-and-other-trivial-contributions)
 * [Reporting Bugs](#reporting-bugs)
 * [Suggesting Enhancements](#suggesting-enhancements)
 * [Pull Requests](#pull-requests)
@@ -16,6 +17,10 @@
 * This project is governed by the [gnark Code of Conduct](CODE_OF_CONDUCT.md). By participating, 
 you are agreeing to uphold this code. Please report unacceptable behavior.
 ## How to Contribute
+
+
+### Guidelines for Non-Code and other Trivial Contributions
+Please keep in mind that we do not accept non-code contributions like fixing comments, typos or some other trivial fixes. Although we appreciate the extra help, managing lots of these small contributions is unfeasible, and puts extra pressure in our continuous delivery systems (running all tests, etc). Feel free to open an issue pointing to any of those errors, and we will batch them into a single change.
 
 ### Reporting Bugs
 #### Before Submitting A Bug 

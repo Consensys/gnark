@@ -11,7 +11,7 @@ import (
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
-	// fast path when dividing by 0
+	// fast path when dividing 0
 	if len(a.Limbs) == 0 {
 		return f.Zero()
 	}

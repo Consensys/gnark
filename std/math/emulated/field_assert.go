@@ -103,6 +103,11 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 // method internally reduces the element and asserts that the value is less than
 // the modulus.
 func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
+	// fast path - when the element is on zero limbs, then it is always zero
+	if len(a.Limbs) == 0 {
+		return 1
+	}
+
 	// to avoid using strict reduction (which is expensive as requires binary
 	// assertion that value is less than modulus), we use ordinary reduction but
 	// in this case the result can be either 0 or p (if it is zero).
