@@ -3,6 +3,8 @@ package gkr
 import (
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	gkrBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
@@ -20,7 +22,6 @@ import (
 	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"math/big"
 )
 
 // SolveInTestEngine solves the defined circuit directly inside the SNARK circuit. This means that the method does not compute the GKR proof of the circuit and does not embed the GKR proof verifier inside a SNARK.
