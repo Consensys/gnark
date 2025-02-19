@@ -16,8 +16,6 @@ import (
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/test"
 
-	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/backend/plonk"
 	bn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/stretchr/testify/require"
 
@@ -26,15 +24,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
-	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -69,6 +64,7 @@ func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestDoubleNoDependencyCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
 
 	xValuess := [][]frontend.Variable{
 		{1, 1},
@@ -77,12 +73,13 @@ func TestDoubleNoDependencyCircuit(t *testing.T) {
 
 	hashes := []string{"-1", "-20"}
 
-	for _, xValues := range xValuess {
+	for i, xValues := range xValuess {
 		for _, hashName := range hashes {
 			assignment := doubleNoDependencyCircuit{X: xValues}
 			circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
-
-			test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+			}, fmt.Sprintf("xValue=%d/hash=%s", i, hashName))
 
 		}
 	}
@@ -115,6 +112,7 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestSqNoDependencyCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
 
 	xValuess := [][]frontend.Variable{
 		{1, 1},
@@ -123,12 +121,13 @@ func TestSqNoDependencyCircuit(t *testing.T) {
 
 	hashes := []string{"-1", "-20"}
 
-	for _, xValues := range xValuess {
+	for i, xValues := range xValuess {
 		for _, hashName := range hashes {
 			assignment := sqNoDependencyCircuit{X: xValues}
 			circuit := sqNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
-			testGroth16(t, &circuit, &assignment)
-			testPlonk(t, &circuit, &assignment)
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+			}, fmt.Sprintf("xValues=%d/hash=%s", i, hashName))
 		}
 	}
 }
@@ -168,6 +167,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestMulNoDependency(t *testing.T) {
+	assert := test.NewAssert(t)
 	xValuess := [][]frontend.Variable{
 		{1, 2},
 	}
@@ -189,9 +189,9 @@ func TestMulNoDependency(t *testing.T) {
 				Y:        make([]frontend.Variable, len(yValuess[i])),
 				hashName: hashName,
 			}
-
-			testGroth16(t, &circuit, &assignment)
-			testPlonk(t, &circuit, &assignment)
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+			}, fmt.Sprintf("xValues=%d/hash=%s", i, hashName))
 		}
 	}
 }
@@ -240,14 +240,13 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestSolveMulWithDependency(t *testing.T) {
+	assert := test.NewAssert(t)
 	assignment := mulWithDependencyCircuit{
 		XLast: 1,
 		Y:     []frontend.Variable{3, 2},
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
-
-	testGroth16(t, &circuit, &assignment)
-	testPlonk(t, &circuit, &assignment)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
 }
 
 func TestApiMul(t *testing.T) {
@@ -385,54 +384,6 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 
 	return solution.Verify("-20", challenge)
-}
-
-// TODO @Tabaie just try using IsSolved instead?
-func testGroth16(t *testing.T, circuit, assignment frontend.Circuit) {
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
-	require.NoError(t, err)
-	var (
-		fullWitness   witness.Witness
-		publicWitness witness.Witness
-		pk            groth16.ProvingKey
-		vk            groth16.VerifyingKey
-		proof         groth16.Proof
-	)
-	fullWitness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	require.NoError(t, err)
-	publicWitness, err = fullWitness.Public()
-	require.NoError(t, err)
-	pk, vk, err = groth16.Setup(cs)
-	require.NoError(t, err)
-	proof, err = groth16.Prove(cs, pk, fullWitness)
-	require.NoError(t, err)
-	err = groth16.Verify(proof, vk, publicWitness)
-	require.NoError(t, err)
-}
-
-func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
-	require.NoError(t, err)
-	var (
-		fullWitness   witness.Witness
-		publicWitness witness.Witness
-		pk            plonk.ProvingKey
-		vk            plonk.VerifyingKey
-		proof         plonk.Proof
-		kzgSrs        kzg.SRS
-	)
-	fullWitness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	require.NoError(t, err)
-	publicWitness, err = fullWitness.Public()
-	require.NoError(t, err)
-	kzgSrs, srsLagrange, err := unsafekzg.NewSRS(cs)
-	require.NoError(t, err)
-	pk, vk, err = plonk.Setup(cs, kzgSrs, srsLagrange)
-	require.NoError(t, err)
-	proof, err = plonk.Prove(cs, pk, fullWitness)
-	require.NoError(t, err)
-	err = plonk.Verify(proof, vk, publicWitness)
-	require.NoError(t, err)
 }
 
 func registerMiMC() {
@@ -646,19 +597,21 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 }
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
+	assert := test.NewAssert(t)
 	registerMiMC()
 	for i := 0; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(5, 1<<2, "-20")
-		testGroth16(t, circuit, assignment)
-		testPlonk(t, circuit, assignment)
+		assert.Run(func(assert *test.Assert) {
+			assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
+		}, fmt.Sprintf("i=%d", i))
 	}
 }
 
 func TestMiMCFullDepthNoDepSolveWithMiMCHash(t *testing.T) {
+	assert := test.NewAssert(t)
 	registerMiMC()
 	circuit, assignment := mimcNoDepCircuits(5, 1<<2, "mimc")
-	testGroth16(t, circuit, assignment)
-	testPlonk(t, circuit, assignment)
+	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
 func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend.Circuit) {
