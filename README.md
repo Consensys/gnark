@@ -184,8 +184,13 @@ go run -tags=zeknox examples/zeknox/main.go
 ```
 
 ##### Test
-Add following code to [mimc_test.go](examples/mimc/mimc_test.go)
+Add the following code to [mimc_test.go](examples/mimc/mimc_test.go)
 ```go
+import (
+	"github.com/consensys/gnark/backend"
+	// keep the other imports
+)
+// ...
 assert.ProverSucceeded(&mimcCircuit, &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
 		Hash:     "12886436712380113721405259596386800092738845035233065858332878701083870690753",

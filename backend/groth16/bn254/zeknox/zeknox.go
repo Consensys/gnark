@@ -238,7 +238,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	var bs1, ar curve.G1Jac
 
-	computeBS1 := func() error {
+	computeBS1_GPU := func() error {
 		<-chWireValuesB
 		var wireB *device.HostOrDeviceSlice[fr.Element]
 		chWireB := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
@@ -258,7 +258,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil
 	}
 
-	computeAR1 := func() error {
+	computeAR1_GPU := func() error {
 		<-chWireValuesA
 		var wireA *device.HostOrDeviceSlice[fr.Element]
 		chWireA := make(chan *device.HostOrDeviceSlice[fr.Element], 1)
@@ -280,7 +280,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	var krs2 curve.G1Jac
-	computeKRS2 := func() error {
+	computeKRS2_GPU := func() error {
 		// quotient poly H (witness reduction / FFT part)
 		var h []fr.Element
 		{
@@ -358,16 +358,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	g, _ := errgroup.WithContext(context.TODO())
+
 	// CPU MSM
 	g.Go(computeKRS1_CPU)
 	g.Go(computeBS2_CPU)
 
 	// Serial GPU MSM
-	computeAR1()
-	computeBS1()
-	// computeKRS1()
-	computeKRS2()
-	// computeBS2()
+	computeAR1_GPU()
+	computeBS1_GPU()
+	computeKRS2_GPU()
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
@@ -382,6 +381,68 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		krs1.AddAssign(&p1)
 		proof.Krs.FromJacobian(&krs1)
 	}
+
+	// this is a workaround
+	if !(proof.Ar.IsInSubGroup() && proof.Krs.IsInSubGroup() && proof.Bs.IsInSubGroup()) {
+		// if the proof is not valid, recompute invalid parts on CPU
+		cpug, _ := errgroup.WithContext(context.TODO())
+
+		var bs1, ar curve.G1Jac
+
+		n := runtime.NumCPU()
+
+		if !proof.Bs.IsInSubGroup() {
+			computeBS1 := func() error {
+				<-chWireValuesB
+				if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+					return err
+				}
+				bs1.AddMixed(&pk.G1.Beta)
+				bs1.AddMixed(&deltas[1])
+				return nil
+			}
+			cpug.Go(computeBS1)
+		}
+
+		if !proof.Ar.IsInSubGroup() {
+			computeAR1 := func() error {
+				<-chWireValuesA
+				if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+					return err
+				}
+				ar.AddMixed(&pk.G1.Alpha)
+				ar.AddMixed(&deltas[0])
+				proof.Ar.FromJacobian(&ar)
+				return nil
+			}
+			cpug.Go(computeAR1)
+		}
+
+		if !proof.Krs.IsInSubGroup() {
+			computeKRS2 := func() error {
+				h := computeH(solution.A, solution.B, solution.C, &pk.Domain)
+				solution.A = nil
+				solution.B = nil
+				solution.C = nil
+				sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
+				_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: n / 2})
+				return err
+			}
+			cpug.Go(computeKRS2)
+		}
+
+		if err := g.Wait(); err != nil {
+			return nil, err
+		}
+		var p1 curve.G1Jac
+		krs1.AddAssign(&krs2)
+		p1.ScalarMultiplication(&ar, &s)
+		krs1.AddAssign(&p1)
+		p1.ScalarMultiplication(&bs1, &r)
+		krs1.AddAssign(&p1)
+		proof.Krs.FromJacobian(&krs1)
+	}
+	// end of workaround
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
