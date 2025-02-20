@@ -16,7 +16,7 @@ require (
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/icicle/v3 v3.1.1-0.20241118092657-fccdb2f0921b
 	github.com/leanovate/gopter v0.2.11
-	github.com/okx/zeknox v1.0.0
+	github.com/okx/zeknox v1.0.1
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0

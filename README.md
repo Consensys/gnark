@@ -167,8 +167,8 @@ Unlock free GPU acceleration with [OKX zeknox library](https://github.com/okx/ze
 
 ##### Download prebuilt binaries
 ```sh
-curl -L -o libzeknox.a https://github.com/okx/zeknox/releases/download/v1.0.0/bn254-msm-86-89-90-libzeknox.a
-curl -L -o libblst.a https://github.com/okx/zeknox/releases/download/v1.0.0/libblst.a
+curl -L -o libzeknox.a https://github.com/okx/zeknox/releases/download/v1.0.1/bn254-msm-86-89-90-libzeknox.a
+curl -L -o libblst.a https://github.com/okx/zeknox/releases/download/v1.0.1/libblst.a
 sudo cp libblst.a libzeknox.a /usr/local/lib/
 ```
 
