@@ -66,6 +66,7 @@ func (d *digest) padding() []uints.U8 {
 }
 
 func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
+	numberOfBlocks = frontend.Variable(0)
 	padded = make([]uints.U8, len(d.in))
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)

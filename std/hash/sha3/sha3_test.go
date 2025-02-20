@@ -129,27 +129,30 @@ func TestSHA3FixedLengthSum(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			name := name
 			strategy := testCases[name]
-			h := strategy.native()
-			length := len(in) - 10
-			h.Write(in[:length])
-			expected := h.Sum(nil)
+			for _, length := range []int{0, 1, 10, 100, 200, len(in)} {
+				assert.Run(func(assert *test.Assert) {
+					h := strategy.native()
+					h.Write(in[:length])
+					expected := h.Sum(nil)
 
-			circuit := &sha3FixedLengthSumCircuit{
-				In:       make([]uints.U8, len(in)),
-				Expected: make([]uints.U8, len(expected)),
-				Length:   0,
-				hasher:   name,
-			}
+					circuit := &sha3FixedLengthSumCircuit{
+						In:       make([]uints.U8, len(in)),
+						Expected: make([]uints.U8, len(expected)),
+						Length:   0,
+						hasher:   name,
+					}
 
-			witness := &sha3FixedLengthSumCircuit{
-				In:       uints.NewU8Array(in),
-				Expected: uints.NewU8Array(expected),
-				Length:   length,
-			}
+					witness := &sha3FixedLengthSumCircuit{
+						In:       uints.NewU8Array(in),
+						Expected: uints.NewU8Array(expected),
+						Length:   length,
+					}
 
-			if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
-				t.Fatalf("%s: %s", name, err)
+					if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
+						t.Fatalf("%s: %s", name, err)
+					}
+				}, fmt.Sprintf("length=%d", length))
 			}
-		}, name)
+		}, fmt.Sprintf("hash=%s", name))
 	}
 }
