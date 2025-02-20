@@ -3,9 +3,10 @@ package sha3
 import (
 	"crypto/rand"
 	"fmt"
-	"golang.org/x/crypto/sha3"
 	"hash"
 	"testing"
+
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -59,7 +60,7 @@ func (c *sha3Circuit) Define(api frontend.API) error {
 
 func TestSHA3(t *testing.T) {
 	assert := test.NewAssert(t)
-	in := make([]byte, 100)
+	in := make([]byte, 310)
 	_, err := rand.Reader.Read(in)
 	assert.NoError(err)
 
