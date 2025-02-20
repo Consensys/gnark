@@ -1,16 +1,5 @@
-// Copyright 2020 ConsenSys AG
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 // Package groth16 implements Groth16 Zero Knowledge Proof system  (aka zkSNARK).
 //
@@ -379,7 +368,7 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 			pk = &zeknox_bn254.ProvingKey{}
 		}
 		if icicle_bn254.HasIcicle {
-			pk = &icicle_bn254.ProvingKey{}
+			pk = icicle_bn254.NewProvingKey()
 		}
 	case ecc.BLS12_377:
 		pk = &groth16_bls12377.ProvingKey{}

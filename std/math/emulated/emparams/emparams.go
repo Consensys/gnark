@@ -313,7 +313,7 @@ type STARKCurveFr struct{ fourLimbPrimeField }
 
 func (fp STARKCurveFr) Modulus() *big.Int { return ecc.STARK_CURVE.ScalarField() }
 
-// Mod1e4096 provides type parametrization for emulated aritmetic:
+// Mod1e4096 provides type parametrization for emulated arithmetic:
 //   - limbs: 64
 //   - limb width: 64 bits
 //

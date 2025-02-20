@@ -14,7 +14,7 @@ type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
 type Compiler interface {
 	constraint.CustomizableSystem
 
-	// MarkBoolean sets (but do not constraint!) v to be boolean
+	// MarkBoolean sets (but does not constrain!) v to be boolean
 	// This is useful in scenarios where a variable is known to be boolean through a constraint
 	// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 	MarkBoolean(v Variable)

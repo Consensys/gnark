@@ -1,4 +1,4 @@
-package algo_utils
+package utils
 
 import "github.com/bits-and-blooms/bitset"
 

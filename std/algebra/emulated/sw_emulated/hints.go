@@ -2,6 +2,7 @@ package sw_emulated
 
 import (
 	"crypto/elliptic"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -42,10 +43,10 @@ func GetHints() []solver.Hint {
 func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two inputs")
+			return errors.New("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -71,10 +72,10 @@ func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big
 func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two inputs")
+			return errors.New("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -97,10 +98,10 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+			return errors.New("expecting two outputs")
 		}
 		if field.Cmp(elliptic.P256().Params().P) == 0 {
 			var fp emparams.P256Fp
@@ -282,7 +283,7 @@ func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			P.Y.BigInt(outputs[1])
 
 		} else {
-			return fmt.Errorf("unsupported curve")
+			return errors.New("unsupported curve")
 		}
 
 		return nil
@@ -339,8 +340,8 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 5 {
-			return fmt.Errorf("expecting five outputs")
+		if len(outputs) != 4 {
+			return fmt.Errorf("expecting four outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -361,15 +362,7 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		outputs[1].SetUint64(0)
 		outputs[2].SetUint64(0)
 		outputs[3].SetUint64(0)
-		outputs[4].SetUint64(0)
 		res := eisenstein.HalfGCD(&r, &s)
-		s.A1.Mul(res[1].A1, inputs[1]).
-			Add(s.A1, res[1].A0).
-			Mul(s.A1, inputs[0]).
-			Add(s.A1, res[0].A0)
-		s.A0.Mul(res[0].A1, inputs[1])
-		s.A1.Add(s.A1, s.A0).
-			Div(s.A1, field)
 
 		if res[0].A0.Sign() == -1 {
 			outputs[0].SetUint64(1)
@@ -383,9 +376,6 @@ func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
 		if res[1].A1.Sign() == -1 {
 			outputs[3].SetUint64(1)
 		}
-		if s.A1.Sign() == -1 {
-			outputs[4].SetUint64(1)
-		}
 		return nil
 	})
 }
@@ -395,8 +385,8 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two input")
 		}
-		if len(outputs) != 5 {
-			return fmt.Errorf("expecting five outputs")
+		if len(outputs) != 4 {
+			return fmt.Errorf("expecting four outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -417,13 +407,6 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[1].Set(res[0].A1)
 		outputs[2].Set(res[1].A0)
 		outputs[3].Set(res[1].A1)
-		outputs[4].Mul(res[1].A1, inputs[1]).
-			Add(outputs[4], res[1].A0).
-			Mul(outputs[4], inputs[0]).
-			Add(outputs[4], res[0].A0)
-		s.A0.Mul(res[0].A1, inputs[1])
-		outputs[4].Add(outputs[4], s.A0).
-			Div(outputs[4], field)
 
 		if outputs[0].Sign() == -1 {
 			outputs[0].Neg(outputs[0])
@@ -436,9 +419,6 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		}
 		if outputs[3].Sign() == -1 {
 			outputs[3].Neg(outputs[3])
-		}
-		if outputs[4].Sign() == -1 {
-			outputs[4].Neg(outputs[4])
 		}
 		return nil
 	})

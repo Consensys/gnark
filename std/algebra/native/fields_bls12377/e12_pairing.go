@@ -219,16 +219,16 @@ func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
 		panic(err)
 	}
 
-	var residueWitness, scalingFactor, t0, t1 E12
+	var residueWitness, t0, t1 E12
+	var scalingFactor E6
 	residueWitness.assign(res[:12])
 	// constrain cubicNonResiduePower to be in Fp6
-	scalingFactor.C0.B0.A0 = res[12]
-	scalingFactor.C0.B0.A1 = res[13]
-	scalingFactor.C0.B1.A0 = res[14]
-	scalingFactor.C0.B1.A1 = res[15]
-	scalingFactor.C0.B2.A0 = res[16]
-	scalingFactor.C0.B2.A1 = res[17]
-	scalingFactor.C1.SetZero()
+	scalingFactor.B0.A0 = res[12]
+	scalingFactor.B0.A1 = res[13]
+	scalingFactor.B1.A0 = res[14]
+	scalingFactor.B1.A1 = res[15]
+	scalingFactor.B2.A0 = res[16]
+	scalingFactor.B2.A1 = res[17]
 
 	// Check that  x * scalingFactor == residueWitness^(q-u)
 	// where u=0x8508c00000000001 is the BLS12-377 seed,
@@ -238,7 +238,8 @@ func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
 	t1.ExpX0(api, residueWitness)
 	t0.DivUnchecked(api, t0, t1)
 
-	t1.Mul(api, *x, scalingFactor)
+	t1.C0.Mul(api, x.C0, scalingFactor)
+	t1.C1.Mul(api, x.C1, scalingFactor)
 
 	t0.AssertIsEqual(api, t1)
 }

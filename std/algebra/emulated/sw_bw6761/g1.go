@@ -72,14 +72,11 @@ func (g1 *G1) double(p *G1Affine) *G1Affine {
 	λ := g1.curveF.Div(xx3a, y1)
 
 	// xr = λ²-2p.x
-	x1 := g1.curveF.MulConst(&p.X, big.NewInt(2))
-	λλ := g1.curveF.Mul(λ, λ)
-	xr := g1.curveF.Sub(λλ, x1)
+	mone := g1.curveF.NewElement(-1)
+	xr := g1.curveF.Eval([][]*baseEl{{λ, λ}, {mone, &p.X}}, []int{1, 2})
 
-	// yr = λ(p-xr) - p.y
-	pxrx := g1.curveF.Sub(&p.X, xr)
-	λpxrx := g1.curveF.Mul(λ, pxrx)
-	yr := g1.curveF.Sub(λpxrx, &p.Y)
+	// yr = λ(p.x-xr) - p.y
+	yr := g1.curveF.Eval([][]*baseEl{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
 
 	return &G1Affine{
 		X: *xr,
@@ -102,14 +99,11 @@ func (g1 G1) add(p, q *G1Affine) *G1Affine {
 	λ := g1.curveF.Div(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
-	λλ := g1.curveF.Mul(λ, λ)
-	qxpx = g1.curveF.Add(&p.X, &q.X)
-	xr := g1.curveF.Sub(λλ, qxpx)
+	mone := g1.curveF.NewElement(-1)
+	xr := g1.curveF.Eval([][]*baseEl{{λ, λ}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
 
 	// p.y = λ(p.x-r.x) - p.y
-	pxrx := g1.curveF.Sub(&p.X, xr)
-	λpxrx := g1.curveF.Mul(λ, pxrx)
-	yr := g1.curveF.Sub(λpxrx, &p.Y)
+	yr := g1.curveF.Eval([][]*baseEl{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
 
 	return &G1Affine{
 		X: *xr,
@@ -138,28 +132,22 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 	xqxp := g1.curveF.Sub(&q.X, &p.X)
 	λ1 := g1.curveF.Div(yqyp, xqxp)
 
-	// compute x1 = λ1²-p.x-q.x
-	λ1λ1 := g1.curveF.Mul(λ1, λ1)
-	xqxp = g1.curveF.Add(&p.X, &q.X)
-	x2 := g1.curveF.Sub(λ1λ1, xqxp)
+	// compute x2 = λ1²-p.x-q.x
+	mone := g1.curveF.NewElement(-1)
+	x2 := g1.curveF.Eval([][]*baseEl{{λ1, λ1}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
 
 	// omit y1 computation
-	// compute λ1 = -λ1-1*p.y/(x1-p.x)
+	// compute -λ1 = λ1+2*p.y/(x1-p.x)
 	ypyp := g1.curveF.Add(&p.Y, &p.Y)
 	x2xp := g1.curveF.Sub(x2, &p.X)
 	λ2 := g1.curveF.Div(ypyp, x2xp)
 	λ2 = g1.curveF.Add(λ1, λ2)
-	λ2 = g1.curveF.Neg(λ2)
 
-	// compute x3 =λ2²-p.x-x3
-	λ2λ2 := g1.curveF.Mul(λ2, λ2)
-	x3 := g1.curveF.Sub(λ2λ2, &p.X)
-	x3 = g1.curveF.Sub(x3, x2)
+	// compute x3 = (-λ2)²-p.x-x3
+	x3 := g1.curveF.Eval([][]*baseEl{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// compute y3 = λ2*(p.x - x3)-p.y
-	y3 := g1.curveF.Sub(&p.X, x3)
-	y3 = g1.curveF.Mul(λ2, y3)
-	y3 = g1.curveF.Sub(y3, &p.Y)
+	// compute y3 = -λ2*(x3 - p.x)-p.y
+	y3 := g1.curveF.Eval([][]*baseEl{{mone, λ2, &p.X}, {λ2, x3}, {mone, &p.Y}}, []int{1, 1, 1})
 
 	return &G1Affine{
 		X: *x3,
@@ -176,9 +164,8 @@ func (g1 G1) triple(p *G1Affine) *G1Affine {
 	λ1 := g1.curveF.Div(xx, y2)
 
 	// xr = λ²-2p.x
-	x2 := g1.curveF.MulConst(&p.X, big.NewInt(2))
-	λ1λ1 := g1.curveF.Mul(λ1, λ1)
-	x2 = g1.curveF.Sub(λ1λ1, x2)
+	mone := g1.curveF.NewElement(-1)
+	x2 := g1.curveF.Eval([][]*baseEl{{λ1, λ1}, {mone, &p.X}}, []int{1, 2})
 
 	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
@@ -187,14 +174,10 @@ func (g1 G1) triple(p *G1Affine) *G1Affine {
 	λ2 = g1.curveF.Sub(λ2, λ1)
 
 	// xr = λ²-p.x-x2
-	λ2λ2 := g1.curveF.Mul(λ2, λ2)
-	qxrx := g1.curveF.Add(x2, &p.X)
-	xr := g1.curveF.Sub(λ2λ2, qxrx)
+	xr := g1.curveF.Eval([][]*baseEl{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
 	// yr = λ(p.x-xr) - p.y
-	pxrx := g1.curveF.Sub(&p.X, xr)
-	λ2pxrx := g1.curveF.Mul(λ2, pxrx)
-	yr := g1.curveF.Sub(λ2pxrx, &p.Y)
+	yr := g1.curveF.Eval([][]*baseEl{{λ2, &p.X}, {mone, λ2, xr}, {mone, &p.Y}}, []int{1, 1, 1})
 
 	return &G1Affine{
 		X: *xr,

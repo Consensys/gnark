@@ -206,7 +206,7 @@ contract Verifier {
     /// @notice Will revert with InvalidProof() if
     ///   * the input is not a square,
     ///   * the hint is incorrect, or
-    ///   * the input coefficents are not reduced.
+    ///   * the input coefficients are not reduced.
     /// @param a0 The real part of the input.
     /// @param a1 The imaginary part of the input.
     /// @param hint A hint which of two possible signs to pick in the equation.
@@ -427,7 +427,7 @@ contract Verifier {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
-            {{- if eq $numWitness 1 }}
+            {{- if eq $numCommitments 1 }}
             mstore(g, mload(commitments))
             mstore(add(g, 0x20), mload(add(commitments, 0x20)))
             {{- else }}

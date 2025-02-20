@@ -845,7 +845,7 @@ func TestIssue348UnconstrainedLimbs(t *testing.T) {
 	// for freshly initialised elements (using NewElement, or directly by
 	// constructing the structure), we do not automatically enforce the widths.
 	//
-	// The bug is tracked in https://github.com/ConsenSys/gnark/issues/348
+	// The bug is tracked in https://github.com/Consensys/gnark/issues/348
 	a := big.NewInt(5)
 	b, _ := new(big.Int).SetString("21888242871839275222246405745257275088548364400416034343698204186575808495612", 10)
 	assert := test.NewAssert(t)
@@ -917,6 +917,9 @@ func (c *IsZeroCircuit[T]) Define(api frontend.API) error {
 	}
 	R := f.Add(&c.X, &c.Y)
 	api.AssertIsEqual(c.Zero, f.IsZero(R))
+
+	isZero := f.IsZero(f.Zero())
+	api.AssertIsEqual(isZero, 1)
 	return nil
 }
 
@@ -1482,7 +1485,7 @@ func (c *FastPathsCircuit[T]) Define(api frontend.API) error {
 	return nil
 }
 
-func TestFasthPaths(t *testing.T) {
+func TestFastPaths(t *testing.T) {
 	testFastPaths[Goldilocks](t)
 	testFastPaths[BN254Fr](t)
 	testFastPaths[emparams.Mod1e512](t)

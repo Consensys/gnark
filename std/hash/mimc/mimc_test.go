@@ -1,22 +1,12 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package mimc
 
 import (
+	"crypto/rand"
+	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -92,4 +82,129 @@ func TestMimcAll(t *testing.T) {
 			test.WithCurves(curve))
 	}
 
+}
+
+// stateStoreTestCircuit checks that SetState works as expected. The circuit, however
+// does not check the correctness of the hashes returned by the MiMC function
+// as there is another test already testing this property.
+type stateStoreTestCircuit struct {
+	X frontend.Variable
+}
+
+func (s *stateStoreTestCircuit) Define(api frontend.API) error {
+
+	hsh1, err1 := NewMiMC(api)
+	hsh2, err2 := NewMiMC(api)
+
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("could not instantiate the MIMC hasher: %w", errors.Join(err1, err2))
+	}
+
+	// This pre-shuffle the hasher state so that the test does not start from
+	// a zero state.
+	hsh1.Write(s.X)
+
+	state := hsh1.State()
+	hsh2.SetState(state)
+
+	hsh1.Write(s.X)
+	hsh2.Write(s.X)
+
+	var (
+		dig1      = hsh1.Sum()
+		dig2      = hsh2.Sum()
+		newState1 = hsh1.State()
+		newState2 = hsh2.State()
+	)
+
+	api.AssertIsEqual(dig1, dig2)
+
+	for i := range newState1 {
+		api.AssertIsEqual(newState1[i], newState2[i])
+	}
+
+	return nil
+}
+
+func TestStateStoreMiMC(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	curves := map[ecc.ID]hash.Hash{
+		ecc.BN254:     hash.MIMC_BN254,
+		ecc.BLS12_381: hash.MIMC_BLS12_381,
+		ecc.BLS12_377: hash.MIMC_BLS12_377,
+		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
+		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
+	}
+
+	for curve := range curves {
+
+		// minimal cs res = hash(data)
+		var (
+			circuit    = &stateStoreTestCircuit{}
+			assignment = &stateStoreTestCircuit{X: 2}
+		)
+
+		assert.CheckCircuit(circuit,
+			test.WithValidAssignment(assignment),
+			test.WithCurves(curve))
+	}
+}
+
+type recoveredStateTestCircuit struct {
+	State    []frontend.Variable
+	Input    frontend.Variable
+	Expected frontend.Variable `gnark:",public"`
+}
+
+func (c *recoveredStateTestCircuit) Define(api frontend.API) error {
+	h, err := NewMiMC(api)
+	if err != nil {
+		return fmt.Errorf("initialize hash: %w", err)
+	}
+	if err = h.SetState(c.State); err != nil {
+		return fmt.Errorf("set state: %w", err)
+	}
+	h.Write(c.Input)
+	res := h.Sum()
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func TestHasherFromState(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	hashes := map[ecc.ID]hash.Hash{
+		ecc.BN254:     hash.MIMC_BN254,
+		ecc.BLS12_381: hash.MIMC_BLS12_381,
+		ecc.BLS12_377: hash.MIMC_BLS12_377,
+		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
+		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
+	}
+
+	for cc, hh := range hashes {
+		hasher := hh.New()
+		ss, ok := hasher.(hash.StateStorer)
+		assert.True(ok)
+		_, err := ss.Write([]byte("hello world"))
+		assert.NoError(err)
+		state := ss.State()
+		nbBytes := cc.ScalarField().BitLen() / 8
+		buf := make([]byte, nbBytes)
+		_, err = rand.Read(buf)
+		assert.NoError(err)
+		ss.Write(buf)
+		expected := ss.Sum(nil)
+		bstate := new(big.Int).SetBytes(state)
+		binput := new(big.Int).SetBytes(buf)
+		assert.CheckCircuit(
+			&recoveredStateTestCircuit{State: make([]frontend.Variable, 1)},
+			test.WithValidAssignment(&recoveredStateTestCircuit{State: []frontend.Variable{bstate}, Input: binput, Expected: expected}),
+			test.WithCurves(cc))
+	}
 }
