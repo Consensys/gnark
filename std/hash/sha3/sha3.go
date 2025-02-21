@@ -71,9 +71,8 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
-	for i := 0; i < len(padded)-d.rate; i++ {
+	for i := 0; i <= len(padded)-d.rate; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
-		// reachEnd = d.api.Select(d.api.IsZero(length), 1, reachEnd)
 		switch q := d.rate - ((i) % d.rate); q {
 		case 1:
 			padded[i].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i].Val)
