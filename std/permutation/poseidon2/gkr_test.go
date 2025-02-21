@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
@@ -36,7 +37,7 @@ func TestGkrPermutation(t *testing.T) {
 
 	RegisterGKRGates(ecc.BLS12_377)
 
-	require.NoError(t, test.IsSolved(&circuit, &circuit, ecc.BLS12_377.ScalarField()))
+	test.NewAssert(t).CheckCircuit(&testGkrPermutationCircuit{Ins: make([][2]frontend.Variable, len(ins)), Outs: make([]frontend.Variable, len(outs))}, test.WithValidAssignment(&circuit), test.WithCurves(ecc.BLS12_377), test.WithSolverOpts(solver.WithHints(permuteHint)))
 }
 
 type testGkrPermutationCircuit struct {
@@ -55,12 +56,12 @@ func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func BenchmarkPoseidon2Gkr(b *testing.B) {
+func TestGkrPermutationCompiles(t *testing.T) {
 	// just measure the number of constraints
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &testGkrPermutationCircuit{
 		Ins:  make([][2]frontend.Variable, 52000),
 		Outs: make([]frontend.Variable, 52000),
 	})
-	require.NoError(b, err)
+	require.NoError(t, err)
 	fmt.Println(cs.GetNbConstraints(), "constraints")
 }
