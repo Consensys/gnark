@@ -1,11 +1,16 @@
 package sha3
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/permutation/keccakf"
 )
 
 type digest struct {
+	api       frontend.API
 	uapi      *uints.BinaryField[uints.U64]
 	state     [25]uints.U64 // 1600 bits state: 25 x 64
 	in        []uints.U8    // input to be digested
@@ -27,8 +32,17 @@ func (d *digest) Reset() {
 
 func (d *digest) Sum() []uints.U8 {
 	padded := d.padding()
+
 	blocks := d.composeBlocks(padded)
 	d.absorbing(blocks)
+	return d.squeezeBlocks()
+}
+
+func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
+	padded, numberOfBlocks := d.paddingFixedWidth(length)
+
+	blocks := d.composeBlocks(padded)
+	d.absorbingFixedWidth(blocks, numberOfBlocks)
 	return d.squeezeBlocks()
 }
 
@@ -49,6 +63,34 @@ func (d *digest) padding() []uints.U8 {
 	}
 
 	return padded
+}
+
+func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
+	numberOfBlocks = frontend.Variable(0)
+	padded = make([]uints.U8, len(d.in))
+	copy(padded[:], d.in[:])
+	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
+
+	for i := 0; i <= len(padded)-d.rate; i++ {
+		reachEnd := cmp.IsEqual(d.api, i, length)
+		switch q := d.rate - ((i) % d.rate); q {
+		case 1:
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+1)/d.rate, numberOfBlocks)
+		case 2:
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
+			padded[i+1].Val = d.api.Select(reachEnd, 0x80, padded[i+1].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
+		default:
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
+			for j := 0; j < q-1; j++ {
+				padded[i+1+j].Val = d.api.Select(reachEnd, 0, padded[i+1+j].Val)
+			}
+			padded[i+q-1].Val = d.api.Select(reachEnd, 0x80, padded[i+q-1].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+q)/d.rate, numberOfBlocks)
+		}
+	}
+	return padded, numberOfBlocks
 }
 
 func (d *digest) composeBlocks(padded []uints.U8) [][]uints.U64 {
@@ -74,6 +116,30 @@ func (d *digest) absorbing(blocks [][]uints.U64) {
 		}
 		d.state = keccakf.Permute(d.uapi, d.state)
 	}
+}
+
+func (d *digest) absorbingFixedWidth(blocks [][]uints.U64, nbBlocks frontend.Variable) {
+	var state [25]uints.U64
+	var resultState [25]uints.U64
+	copy(resultState[:], d.state[:])
+	copy(state[:], d.state[:])
+
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(blocks))), false)
+
+	for i, block := range blocks {
+		for j := range block {
+			state[j] = d.uapi.Xor(state[j], block[j])
+		}
+		state = keccakf.Permute(d.uapi, state)
+		isInRange := comparator.IsLess(i, nbBlocks)
+		// only select blocks that are in range
+		for j := 0; j < 25; j++ {
+			for k := 0; k < 8; k++ {
+				resultState[j][k].Val = d.api.Select(isInRange, state[j][k].Val, resultState[j][k].Val)
+			}
+		}
+	}
+	copy(d.state[:], resultState[:])
 }
 
 func (d *digest) squeezeBlocks() (result []uints.U8) {
