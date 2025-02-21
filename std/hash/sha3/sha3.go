@@ -72,22 +72,23 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
 	for i := 0; i < len(padded)-d.rate; i++ {
-		reachEnd := cmp.IsEqual(d.api, i+1, length)
-		switch q := d.rate - ((i + 1) % d.rate); q {
+		reachEnd := cmp.IsEqual(d.api, i, length)
+		// reachEnd = d.api.Select(d.api.IsZero(length), 1, reachEnd)
+		switch q := d.rate - ((i) % d.rate); q {
 		case 1:
-			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i+1].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+1)/d.rate, numberOfBlocks)
 		case 2:
-			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte, padded[i+1].Val)
-			padded[i+2].Val = d.api.Select(reachEnd, 0x80, padded[i+2].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+3)/d.rate, numberOfBlocks)
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
+			padded[i+1].Val = d.api.Select(reachEnd, 0x80, padded[i+1].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
 		default:
-			padded[i+1].Val = d.api.Select(reachEnd, d.dsbyte, padded[i+1].Val)
-			for j := 0; j < q-2; j++ {
-				padded[i+2+j].Val = d.api.Select(reachEnd, 0, padded[i+2+j].Val)
+			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
+			for j := 0; j < q-1; j++ {
+				padded[i+1+j].Val = d.api.Select(reachEnd, 0, padded[i+1+j].Val)
 			}
-			padded[i+q].Val = d.api.Select(reachEnd, 0x80, padded[i+q].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+1+q)/d.rate, numberOfBlocks)
+			padded[i+q-1].Val = d.api.Select(reachEnd, 0x80, padded[i+q-1].Val)
+			numberOfBlocks = d.api.Select(reachEnd, (i+q)/d.rate, numberOfBlocks)
 		}
 	}
 	return padded, numberOfBlocks

@@ -129,7 +129,7 @@ func TestSHA3FixedLengthSum(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			name := name
 			strategy := testCases[name]
-			for _, length := range []int{0, 1, 10, 100, 200, len(in)} {
+			for _, length := range []int{0, 1, 31, 32, 33, 135, 136, 137, len(in)} {
 				assert.Run(func(assert *test.Assert) {
 					h := strategy.native()
 					h.Write(in[:length])
