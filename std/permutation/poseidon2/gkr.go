@@ -3,6 +3,7 @@ package poseidon2
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/constraint/solver"
 	"hash"
 	"math/big"
 	"sync"
@@ -19,13 +20,6 @@ import (
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
-
-// Gkr implements a GKR version of the Poseidon2 permutation with fan-in 2
-type Gkr struct {
-	Permutation
-	Ins  []frontend.Variable
-	Outs []frontend.Variable
-}
 
 // extKeyGate applies the external matrix mul, then adds the round key
 // because of its symmetry, we don't need to define distinct x1 and x2 versions of it
@@ -159,6 +153,9 @@ type GkrPermutations struct {
 	outs []frontend.Variable
 }
 
+// NewGkrPermutations returns an object that can compute the Poseidon2 permutation (currently only for BLS12-377)
+// The correctness of the permutations is proven using GKR
+// Note that the solver will need the function RegisterGkrSolverOptions to be called with the desired curves
 func NewGkrPermutations(api frontend.API) *GkrPermutations {
 	res := GkrPermutations{
 		api: api,
@@ -381,11 +378,12 @@ var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
 	return poseidon2Bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
 })
 
-// RegisterGKRGates registers the GKR gates corresponding to the given curves for the solver
-func RegisterGKRGates(curves ...ecc.ID) {
+// RegisterGkrSolverOptions registers the GKR gates corresponding to the given curves for the solver
+func RegisterGkrSolverOptions(curves ...ecc.ID) {
 	if len(curves) == 0 {
 		panic("expected at least one curve")
 	}
+	solver.RegisterHint(permuteHint)
 	for _, curve := range curves {
 		switch curve {
 		case ecc.BLS12_377:

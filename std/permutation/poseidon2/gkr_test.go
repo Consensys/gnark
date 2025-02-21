@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
@@ -35,9 +34,9 @@ func TestGkrPermutation(t *testing.T) {
 		Outs: outs,
 	}
 
-	RegisterGKRGates(ecc.BLS12_377)
+	RegisterGkrSolverOptions(ecc.BLS12_377)
 
-	test.NewAssert(t).CheckCircuit(&testGkrPermutationCircuit{Ins: make([][2]frontend.Variable, len(ins)), Outs: make([]frontend.Variable, len(outs))}, test.WithValidAssignment(&circuit), test.WithCurves(ecc.BLS12_377), test.WithSolverOpts(solver.WithHints(permuteHint)))
+	test.NewAssert(t).CheckCircuit(&testGkrPermutationCircuit{Ins: make([][2]frontend.Variable, len(ins)), Outs: make([]frontend.Variable, len(outs))}, test.WithValidAssignment(&circuit), test.WithCurves(ecc.BLS12_377))
 }
 
 type testGkrPermutationCircuit struct {
