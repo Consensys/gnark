@@ -1,4 +1,4 @@
-// Copyright 2020-2024 Consensys Software Inc.
+// Copyright 2020-2025 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package rollup
@@ -14,8 +14,8 @@ import (
 
 const (
 	nbAccounts       = 16 // 16 accounts so we know that the proof length is 5
-	depth            = 5  // size fo the inclusion proofs
-	BatchSizeCircuit = 1  // nbTranfers to batch in a proof
+	depth            = 5  // size of the inclusion proofs
+	BatchSizeCircuit = 1  // nbTransfers to batch in a proof
 )
 
 // Circuit "toy" rollup circuit where an operator can generate a proof that he processed

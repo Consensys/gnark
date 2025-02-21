@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/algo_utils"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 type GkrVariable int // Just an alias to hide implementation details. May be more trouble than worth
@@ -83,26 +82,26 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 		}
 	}
 
-	p.SortedInstances, _ = algo_utils.TopologicalSort(instanceDeps)
-	p.InstancesPermutation = algo_utils.InvertPermutation(p.SortedInstances)
+	p.SortedInstances, _ = utils.TopologicalSort(instanceDeps)
+	p.InstancesPermutation = utils.InvertPermutation(p.SortedInstances)
 
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
-	inputs := algo_utils.Map(d.Circuit, func(w GkrWire) []int {
+	inputs := utils.Map(d.Circuit, func(w GkrWire) []int {
 		return w.Inputs
 	})
 
 	var uniqueOuts [][]int
-	p.SortedWires, uniqueOuts = algo_utils.TopologicalSort(inputs)
-	p.WiresPermutation = algo_utils.InvertPermutation(p.SortedWires)
-	wirePermutationAt := algo_utils.SliceAt(p.WiresPermutation)
+	p.SortedWires, uniqueOuts = utils.TopologicalSort(inputs)
+	p.WiresPermutation = utils.InvertPermutation(p.SortedWires)
+	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
 	sorted := make([]GkrWire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
 		if !oldW.IsInput() {
-			d.MaxNIns = utils.Max(d.MaxNIns, len(oldW.Inputs))
+			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
 		}
 
 		for j := range oldW.Dependencies {
@@ -122,7 +121,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 
 		sorted[newI] = GkrWire{
 			Gate:            oldW.Gate,
-			Inputs:          algo_utils.Map(oldW.Inputs, wirePermutationAt),
+			Inputs:          utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
