@@ -326,6 +326,10 @@ func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
 }
 
+func (pr *Pairing) IsEqual(e1, e2 *GT) frontend.Variable {
+	return e1.IsEqual(pr.api, e1, e2)
+}
+
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
 func (c *Pairing) AssertIsOnCurve(p *G1Affine) {
 	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
