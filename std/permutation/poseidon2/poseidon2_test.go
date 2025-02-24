@@ -1,4 +1,4 @@
-package poseidon
+package poseidon2
 
 import (
 	"fmt"
@@ -47,7 +47,9 @@ func (c *Poseidon2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("could not create poseidon2 hasher: %w", err)
 	}
-	h.Permutation(c.Input)
+	if err := h.Permutation(c.Input); err != nil {
+		return fmt.Errorf("could not apply permutation: %w", err)
+	}
 	for i := 0; i < len(c.Input); i++ {
 		api.AssertIsEqual(c.Output[i], c.Input[i])
 	}
