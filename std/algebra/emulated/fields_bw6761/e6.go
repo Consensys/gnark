@@ -118,6 +118,21 @@ func (e Ext6) Sub(x, y *E6) *E6 {
 	}
 }
 
+func (e Ext6) IsZero(x *E6) frontend.Variable {
+	isZero := e.fp.IsZero(&x.A0)
+	isZero = e.api.And(isZero, e.fp.IsZero(&x.A1))
+	isZero = e.api.And(isZero, e.fp.IsZero(&x.A2))
+	isZero = e.api.And(isZero, e.fp.IsZero(&x.A3))
+	isZero = e.api.And(isZero, e.fp.IsZero(&x.A4))
+	isZero = e.api.And(isZero, e.fp.IsZero(&x.A5))
+	return isZero
+}
+
+func (e Ext6) IsEqual(x, y *E6) frontend.Variable {
+	diff := e.Sub(x, y)
+	return e.IsZero(diff)
+}
+
 func (e Ext6) Double(x *E6) *E6 {
 	two := big.NewInt(2)
 	a0 := e.fp.MulConst(&x.A0, two)
@@ -1106,7 +1121,6 @@ func (e Ext6) AssertIsEqual(a, b *E6) {
 	e.fp.AssertIsEqual(&a.A3, &b.A3)
 	e.fp.AssertIsEqual(&a.A4, &b.A4)
 	e.fp.AssertIsEqual(&a.A5, &b.A5)
-
 }
 
 func (e Ext6) Copy(x *E6) *E6 {
