@@ -390,7 +390,9 @@ func RegisterGkrSolverOptions(curves ...ecc.ID) {
 			csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
 				return mimcBls12377.NewMiMC()
 			})
-			gkrPoseidon2Bls12377.RegisterGkrGates()
+			if err := gkrPoseidon2Bls12377.RegisterGkrGates(); err != nil {
+				panic(err)
+			}
 		default:
 			panic(fmt.Sprintf("curve %s not currently supported", curve))
 		}
