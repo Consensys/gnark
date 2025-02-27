@@ -1,27 +1,27 @@
-package selector_test
+package selector
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"time"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/selector"
 	"github.com/consensys/gnark/test"
 )
 
 type muxCircuit struct {
-	SEL                frontend.Variable
-	I0, I1, I2, I3, I4 frontend.Variable
-	OUT                frontend.Variable
+	Sel      frontend.Variable
+	Input    []frontend.Variable
+	Expected frontend.Variable
+
+	Length int
 }
 
 func (c *muxCircuit) Define(api frontend.API) error {
 
-	out := selector.Mux(api, c.SEL, c.I0, c.I1, c.I2, c.I3, c.I4)
-
-	api.AssertIsEqual(out, c.OUT)
+	out := Mux(api, c.Sel, c.Input...)
+	api.AssertIsEqual(out, c.Expected)
 
 	return nil
 }
@@ -34,46 +34,62 @@ type ignoredOutputMuxCircuit struct {
 
 func (c *ignoredOutputMuxCircuit) Define(api frontend.API) error {
 	// We ignore the output
-	_ = selector.Mux(api, c.SEL, c.I0, c.I1, c.I2)
+	_ = Mux(api, c.SEL, c.I0, c.I1, c.I2)
 
 	return nil
 }
 
-type mux2to1Circuit struct {
-	SEL    frontend.Variable
-	I0, I1 frontend.Variable
-	OUT    frontend.Variable
-}
+func testMux(assert *test.Assert, len int, sel int) {
+	rng := rand.New(rand.NewPCG(uint64(time.Now().Unix()), 1)) // seed the random generator
+	circuit := &muxCircuit{
+		Input: make([]frontend.Variable, len),
+	}
 
-func (c *mux2to1Circuit) Define(api frontend.API) error {
-	// We ignore the output
-	out := selector.Mux(api, c.SEL, c.I0, c.I1)
-	api.AssertIsEqual(out, c.OUT)
-	return nil
-}
+	inputs := make([]frontend.Variable, len)
+	for i := 0; i < len; i++ {
+		inputs[i] = frontend.Variable(rng.Uint64())
+	}
+	// out-range invalid selector
+	outRangeSel := uint64(len) + rng.Uint64N(100)
+	opts := []test.TestingOption{
+		test.WithValidAssignment(&muxCircuit{
+			Sel:      sel,
+			Input:    inputs,
+			Expected: inputs[sel],
+		}),
+		test.WithInvalidAssignment(&muxCircuit{
+			Sel:      outRangeSel,
+			Input:    inputs,
+			Expected: sel,
+		}),
+	}
 
-type mux4to1Circuit struct {
-	SEL frontend.Variable
-	In  [4]frontend.Variable
-	OUT frontend.Variable
-}
+	// in-range invalid selector
+	if len > 1 {
+		invalidSel := rng.Uint64N(uint64(len))
+		for invalidSel == uint64(sel) {
+			invalidSel = rng.Uint64N(uint64(len))
+		}
+		opts = append(opts, test.WithInvalidAssignment(&muxCircuit{
+			Sel:      invalidSel,
+			Input:    inputs,
+			Expected: sel,
+		}))
+	}
 
-func (c *mux4to1Circuit) Define(api frontend.API) error {
-	out := selector.Mux(api, c.SEL, c.In[:]...)
-	api.AssertIsEqual(out, c.OUT)
-	return nil
+	assert.CheckCircuit(circuit, opts...)
 }
 
 func TestMux(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	assert.CheckCircuit(&muxCircuit{},
-		test.WithValidAssignment(&muxCircuit{SEL: 2, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 12}),
-		test.WithValidAssignment(&muxCircuit{SEL: 0, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 10}),
-		test.WithValidAssignment(&muxCircuit{SEL: 4, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24}),
-		test.WithInvalidAssignment(&muxCircuit{SEL: 5, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24}),
-		test.WithInvalidAssignment(&muxCircuit{SEL: 0, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 21}),
-	)
+	for len := 0; len < 9; len++ {
+		for sel := 0; sel < len+1; sel++ {
+			assert.Run(func(assert *test.Assert) {
+				testMux(assert, len+1, sel)
+			}, fmt.Sprintf("len=%d/sel=%d", len+1, sel))
+		}
+	}
 
 	assert.CheckCircuit(&ignoredOutputMuxCircuit{},
 		test.WithValidAssignment(&ignoredOutputMuxCircuit{SEL: 0, I0: 0, I1: 1, I2: 2}),
@@ -82,38 +98,6 @@ func TestMux(t *testing.T) {
 		test.WithInvalidAssignment(&ignoredOutputMuxCircuit{SEL: -1, I0: 0, I1: 1, I2: 2}),
 	)
 
-	assert.CheckCircuit(&mux2to1Circuit{},
-		test.WithValidAssignment(&mux2to1Circuit{SEL: 1, I0: 10, I1: 20, OUT: 20}),
-		test.WithValidAssignment(&mux2to1Circuit{SEL: 0, I0: 10, I1: 20, OUT: 10}),
-		test.WithInvalidAssignment(&mux2to1Circuit{SEL: 2, I0: 10, I1: 20, OUT: 20}),
-	)
-
-	assert.CheckCircuit(&mux4to1Circuit{},
-		test.WithValidAssignment(&mux4to1Circuit{
-			SEL: 3,
-			In:  [4]frontend.Variable{11, 22, 33, 44},
-			OUT: 44,
-		}),
-		test.WithValidAssignment(&mux4to1Circuit{
-			SEL: 1,
-			In:  [4]frontend.Variable{11, 22, 33, 44},
-			OUT: 22,
-		}),
-		test.WithValidAssignment(&mux4to1Circuit{
-			SEL: 0,
-			In:  [4]frontend.Variable{11, 22, 33, 44},
-			OUT: 11,
-		}),
-		test.WithInvalidAssignment(&mux4to1Circuit{
-			SEL: 4,
-			In:  [4]frontend.Variable{11, 22, 33, 44},
-			OUT: 44,
-		}),
-	)
-
-	cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &mux4to1Circuit{})
-	// (4 - 1) + (2 + 1) + 1 == 7
-	assert.Equal(7, cs.GetNbConstraints())
 }
 
 // Map tests:
@@ -126,7 +110,7 @@ type mapCircuit struct {
 
 func (c *mapCircuit) Define(api frontend.API) error {
 
-	out := selector.Map(api, c.SEL,
+	out := Map(api, c.SEL,
 		[]frontend.Variable{c.K0, c.K1, c.K2, c.K3},
 		[]frontend.Variable{c.V0, c.V1, c.V2, c.V3})
 
@@ -143,7 +127,7 @@ type ignoredOutputMapCircuit struct {
 
 func (c *ignoredOutputMapCircuit) Define(api frontend.API) error {
 
-	_ = selector.Map(api, c.SEL,
+	_ = Map(api, c.SEL,
 		[]frontend.Variable{c.K0, c.K1},
 		[]frontend.Variable{c.V0, c.V1})
 

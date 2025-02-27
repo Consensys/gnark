@@ -56,6 +56,10 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
+	if n == 1 {
+		api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
 	nbBits := binary.Len(n - 1)                                   // we use n-1 as sel is 0-indexed
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits)) // binary decomposition ensures sel < 2^nbBits
 
