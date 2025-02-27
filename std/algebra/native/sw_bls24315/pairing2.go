@@ -319,6 +319,10 @@ func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
 }
 
+func (pr *Pairing) IsEqual(e1, e2 *GT) frontend.Variable {
+	return e1.Sub(pr.api, *e1, *e2).IsZero(pr.api)
+}
+
 func (p *Pairing) AssertIsOnG1(P *G1Affine) {
 	panic("not implemented")
 }

@@ -227,6 +227,10 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
 
+func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
+	return pr.Ext6.IsEqual(x, y)
+}
+
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
