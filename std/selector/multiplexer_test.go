@@ -38,7 +38,8 @@ func (c *ignoredOutputMuxCircuit) Define(api frontend.API) error {
 }
 
 func testMux(assert *test.Assert, len int, sel int) {
-	rng := rand.New(rand.NewPCG(uint64(time.Now().Unix()), 1)) // seed the random generator
+	// seed the random generator with the current time. Good enough for tests.
+	rng := rand.New(rand.NewPCG(uint64(time.Now().Unix()), 1)) //nolint G404
 	circuit := &muxCircuit{
 		Input: make([]frontend.Variable, len),
 	}
