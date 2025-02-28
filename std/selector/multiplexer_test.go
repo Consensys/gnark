@@ -14,8 +14,6 @@ type muxCircuit struct {
 	Sel      frontend.Variable
 	Input    []frontend.Variable
 	Expected frontend.Variable
-
-	Length int
 }
 
 func (c *muxCircuit) Define(api frontend.API) error {
