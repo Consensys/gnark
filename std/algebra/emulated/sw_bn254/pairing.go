@@ -741,7 +741,7 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
 	res = pr.Ext12.Mul(res, previous)
-	return res, err
+	return res, nil
 }
 
 // millerLoopAndFinalExpResult computes the Miller loop between P and Q,
