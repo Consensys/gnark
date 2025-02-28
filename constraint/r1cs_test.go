@@ -21,6 +21,7 @@ func ExampleR1CS_GetR1Cs() {
 	ONE := r1cs.AddPublicVariable("1") // the "ONE" wire
 	Y := r1cs.AddPublicVariable("Y")
 	X := r1cs.AddSecretVariable("X")
+	Z := r1cs.AddSecretVariable("Z")
 
 	v0 := r1cs.AddInternalVariable() // X²
 	v1 := r1cs.AddInternalVariable() // X³
@@ -45,13 +46,20 @@ func ExampleR1CS_GetR1Cs() {
 
 	// Y == X³ + X + 5
 	r1cs.AddR1C(constraint.R1C{
-		R: constraint.LinearExpression{r1cs.MakeTerm(cOne, ONE)},
 		L: constraint.LinearExpression{r1cs.MakeTerm(cOne, Y)},
+		R: constraint.LinearExpression{r1cs.MakeTerm(cOne, ONE)},
 		O: constraint.LinearExpression{
 			r1cs.MakeTerm(cFive, ONE),
 			r1cs.MakeTerm(cOne, X),
 			r1cs.MakeTerm(cOne, v1),
 		},
+	}, blueprint)
+
+	// Z = (1 + X) ⋅ X
+	r1cs.AddR1C(constraint.R1C{
+		L: constraint.LinearExpression{r1cs.MakeTerm(cOne, ONE), r1cs.MakeTerm(cOne, X)},
+		R: constraint.LinearExpression{r1cs.MakeTerm(cOne, X)},
+		O: constraint.LinearExpression{r1cs.MakeTerm(cOne, Z)},
 	}, blueprint)
 
 	// get the constraints
@@ -64,9 +72,10 @@ func ExampleR1CS_GetR1Cs() {
 	}
 
 	// Output:
-	// X ⋅ X == v0
-	// v0 ⋅ X == v1
-	// Y ⋅ 1 == 5 + X + v1
+	// (X) ⋅ (X) == v0
+	// (v0) ⋅ (X) == v1
+	// (Y) ⋅ (1) == 5 + X + v1
+	// (1 + X) ⋅ (X) == Z
 }
 
 func ExampleR1CS_Solve() {

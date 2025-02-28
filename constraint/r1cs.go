@@ -140,12 +140,14 @@ type R1C struct {
 	L, R, O LinearExpression
 }
 
-// String formats a R1C as L⋅R == O
+// String formats a R1C as (L) ⋅ (R) == O
 func (r1c *R1C) String(r Resolver) string {
 	sbb := NewStringBuilder(r)
+	sbb.WriteString("(")
 	sbb.WriteLinearExpression(r1c.L)
-	sbb.WriteString(" ⋅ ")
+	sbb.WriteString(") ⋅ (")
 	sbb.WriteLinearExpression(r1c.R)
+	sbb.WriteString(")")
 	sbb.WriteString(" == ")
 	sbb.WriteLinearExpression(r1c.O)
 	return sbb.String()
