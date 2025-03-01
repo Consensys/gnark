@@ -3,6 +3,7 @@ package emulated
 import (
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
@@ -41,6 +42,23 @@ type Element[T FieldParams] struct {
 
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`
+}
+
+// bigIntPool is a pool of big.Int objects to avoid frequent allocations
+var bigIntPool = sync.Pool{
+	New: func() interface{} {
+		return new(big.Int)
+	},
+}
+
+// getBigInt returns a big.Int from the pool
+func getBigInt() *big.Int {
+	return bigIntPool.Get().(*big.Int).SetInt64(0)
+}
+
+// putBigInt returns a big.Int to the pool
+func putBigInt(b *big.Int) {
+	bigIntPool.Put(b)
 }
 
 // ValueOf returns an Element[T] from a constant value. This method is used for
@@ -87,12 +105,18 @@ func newConstElement[T FieldParams](v interface{}, isWitness bool) *Element[T] {
 	} else {
 		nbLimbs = (bValue.BitLen() + int(fp.BitsPerLimb()) - 1) / int(fp.BitsPerLimb())
 	}
-	// TODO @gbotrel use big.Int pool here
+
+	// Use big.Int pool instead of creating new objects
 	blimbs := make([]*big.Int, nbLimbs)
 	for i := range blimbs {
-		blimbs[i] = new(big.Int)
+		blimbs[i] = getBigInt()
 	}
+
 	if err := limbs.Decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
+		// Return big.Int objects to the pool before panicking
+		for _, b := range blimbs {
+			putBigInt(b)
+		}
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
@@ -100,6 +124,8 @@ func newConstElement[T FieldParams](v interface{}, isWitness bool) *Element[T] {
 	limbs := make([]frontend.Variable, len(blimbs))
 	for i := range limbs {
 		limbs[i] = frontend.Variable(blimbs[i])
+		// Return big.Int to the pool after use
+		putBigInt(blimbs[i])
 	}
 	return &Element[T]{
 		Limbs:    limbs,
