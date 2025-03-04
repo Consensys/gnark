@@ -433,8 +433,32 @@ func init() {
 }
 
 func registerMiMCGate() {
-	Gates["mimc"] = MiMCCipherGate{Ark: 0}
-	gkr.Gates["mimc"] = mimcCipherGate{}
+	panicIfError(RegisterGate("mimc", func(api frontend.API, input ...frontend.Variable) frontend.Variable {
+		mimcSnarkTotalCalls++
+
+		if len(input) != 2 {
+			panic("mimc has fan-in 2")
+		}
+		sum := api.Add(input[0], input[1] /*, m.Ark*/)
+
+		sumCubed := api.Mul(sum, sum, sum) // sum^3
+		return api.Mul(sumCubed, sumCubed, sum)
+	}, 2, WithDegree(7)))
+
+	panicIfError(gkr.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
+		var sum fr.Element
+
+		sum.
+			Add(&input[0], &input[1]) //.Add(&sum, &m.ark)
+
+		res.Square(&sum)    // sum^2
+		res.Mul(&res, &sum) // sum^3
+		res.Square(&res)    //sum^6
+		res.Mul(&res, &sum) //sum^7
+
+		mimcFrTotalCalls++
+		return res
+	}, 2, gkr.WithDegree(7)))
 }
 
 type constPseudoHash int
@@ -597,7 +621,6 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	registerMiMC()
 	for i := 0; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(5, 1<<2, "-20")
 		assert.Run(func(assert *test.Assert) {
@@ -608,7 +631,6 @@ func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 
 func TestMiMCFullDepthNoDepSolveWithMiMCHash(t *testing.T) {
 	assert := test.NewAssert(t)
-	registerMiMC()
 	circuit, assignment := mimcNoDepCircuits(5, 1<<2, "mimc")
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }

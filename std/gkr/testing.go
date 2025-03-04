@@ -67,7 +67,7 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 				if err != nil {
 					panic(err)
 				}
-				res[wireI][instanceI] = Gates[w.Gate].Evaluate(parentApi, ins...)
+				res[wireI][instanceI] = GetGate(w.Gate).Evaluate(parentApi, ins...)
 				parentApi.AssertIsEqual(expectedV[0], res[wireI][instanceI]) // snark and raw gate evaluations must agree
 			}
 		}
@@ -215,11 +215,11 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 
 		degreeTestedGates.Store(gateName, struct{}{})
 
-		if degreeFr != Gates[gateName].Degree() {
-			return fmt.Errorf("gate \"%s\" degree mismatch: SNARK %d, Raw %d", gateName, Gates[gateName].Degree(), degreeFr)
+		if degreeFr != GetGate(gateName).Degree() {
+			return fmt.Errorf("gate \"%s\" degree mismatch: SNARK %d, Raw %d", gateName, GetGate(gateName).Degree(), degreeFr)
 		}
 
-		if nbInFr != len(ins) { // TODO @Tabaie also check against Gates[gateName].NbIn()
+		if nbInFr != len(ins) { // TODO @Tabaie also check against GetGate(gateName].NbIn()
 			return fmt.Errorf("gate \"%s\" input count mismatch: SNARK %d, Raw %d", gateName, len(ins), nbInFr)
 		}
 

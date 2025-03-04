@@ -28,18 +28,18 @@ func (api *API) namedGate2PlusIn(gate string, in1, in2 constraint.GkrVariable, i
 	return api.NamedGate(gate, inCombined...)
 }
 
-func (api *API) Add(i1, i2 constraint.GkrVariable, in ...constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("add", i1, i2, in...)
+func (api *API) Add(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
+	return api.namedGate2PlusIn("add2", i1, i2)
 }
 
 func (api *API) Neg(i1 constraint.GkrVariable) constraint.GkrVariable {
 	return api.NamedGate("neg", i1)
 }
 
-func (api *API) Sub(i1, i2 constraint.GkrVariable, in ...constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("sub", i1, i2, in...)
+func (api *API) Sub(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
+	return api.namedGate2PlusIn("sub2", i1, i2)
 }
 
-func (api *API) Mul(i1, i2 constraint.GkrVariable, in ...constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("mul", i1, i2, in...)
+func (api *API) Mul(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
+	return api.namedGate2PlusIn("mul2", i1, i2)
 }

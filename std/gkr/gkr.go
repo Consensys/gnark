@@ -1,9 +1,13 @@
 package gkr
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
+	bn254Gkr "github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
+	"github.com/consensys/gnark/std/gkr/internal"
 	"strconv"
+	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
@@ -15,14 +19,171 @@ import (
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
-// Gate must be a low-degree polynomial
-type Gate interface {
-	Evaluate(frontend.API, ...frontend.Variable) frontend.Variable
-	Degree() int
+type GateFunction func(frontend.API, ...frontend.Variable) frontend.Variable
+
+// A Gate is a low-degree multivariate polynomial
+type Gate struct {
+	Evaluate  GateFunction // Evaluate the polynomial function defining the gate
+	nbIn      int          // number of inputs
+	degree    int          // total degree of f
+	linearVar int          // if there is a variable of degree 1, its index, -1 otherwise
+}
+
+// Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
+func (g *Gate) Degree() int {
+	return g.degree
+}
+
+// LinearVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
+func (g *Gate) LinearVar() int {
+	return g.linearVar
+}
+
+// NbIn returns the number of inputs to the gate (its fan-in)
+func (g *Gate) NbIn() int {
+	return g.nbIn
+}
+
+var (
+	gates     = make(map[string]*Gate)
+	gatesLock sync.Mutex
+)
+
+/*type registerGateSettings struct {
+	linearVar               int
+	noLinearVarVerification bool
+	noDegreeVerification    bool
+	degree                  int
+}*/
+
+// here options are not defined as functions on settings to make translation to their field counterpart easier
+// TODO @Tabaie once GKR is moved to gnark, use the same options/settings type for all curves, obviating this
+
+type registerGateOptionType byte
+
+const (
+	registerGateOptionTypeWithLinearVar registerGateOptionType = iota
+	registerGateOptionTypeWithUnverifiedLinearVar
+	registerGateOptionTypeWithNoLinearVar
+	registerGateOptionTypeWithUnverifiedDegree
+	registerGateOptionTypeWithDegree
+)
+
+type registerGateOption struct {
+	tp    registerGateOptionType
+	param int
+}
+
+// WithLinearVar gives the index of a variable of degree 1 in the gate's polynomial. RegisterGate will return an error if the given index is not correct.
+func WithLinearVar(linearVar int) *registerGateOption {
+	return &registerGateOption{
+		tp:    registerGateOptionTypeWithLinearVar,
+		param: linearVar,
+	}
+}
+
+// WithUnverifiedLinearVar sets the index of a variable of degree 1 in the gate's polynomial. RegisterGate will not verify that the given index is correct.
+func WithUnverifiedLinearVar(linearVar int) *registerGateOption {
+	return &registerGateOption{
+		tp:    registerGateOptionTypeWithUnverifiedLinearVar,
+		param: linearVar,
+	}
+}
+
+// WithNoLinearVar sets the gate as having no variable of degree 1. RegisterGate will not check the correctness of this claim.
+func WithNoLinearVar() *registerGateOption {
+	return &registerGateOption{
+		tp: registerGateOptionTypeWithNoLinearVar,
+	}
+}
+
+// WithUnverifiedDegree sets the degree of the gate. RegisterGate will not verify that the given degree is correct.
+func WithUnverifiedDegree(degree int) *registerGateOption {
+	return &registerGateOption{
+		tp:    registerGateOptionTypeWithUnverifiedDegree,
+		param: degree,
+	}
+}
+
+// WithDegree sets the degree of the gate. RegisterGate will return an error if the degree is not correct.
+func WithDegree(degree int) *registerGateOption {
+	return &registerGateOption{
+		tp:    registerGateOptionTypeWithDegree,
+		param: degree,
+	}
+}
+
+// RegisterGate creates a gate object and stores it in the gates registry
+// name is a human-readable name for the gate
+// f is the polynomial function defining the gate
+// nbIn is the number of inputs to the gate
+// NB! This package generally expects certain properties of the gate to be invariant across all curves.
+// In particular the degree is computed and verified over BN254. If the leading coefficient is divided by
+// the curve's order, the degree will be computed incorrectly.
+func RegisterGate(name string, f GateFunction, nbIn int, options ...*registerGateOption) error {
+	frF := internal.ToBn254GateFunction(f) // delegate tests to bn254
+	var nameRand [4]byte
+	if _, err := rand.Read(nameRand[:]); err != nil {
+		return err
+	}
+	frName := fmt.Sprintf("%s-test-%x", name, nameRand)
+	frOptions := make([]bn254Gkr.RegisterGateOption, 0, len(options))
+
+	// translate options
+	for _, opt := range options {
+		switch opt.tp {
+		case registerGateOptionTypeWithLinearVar:
+			frOptions = append(frOptions, bn254Gkr.WithLinearVar(opt.param))
+		case registerGateOptionTypeWithUnverifiedLinearVar:
+			frOptions = append(frOptions, bn254Gkr.WithUnverifiedLinearVar(opt.param))
+		case registerGateOptionTypeWithNoLinearVar:
+			frOptions = append(frOptions, bn254Gkr.WithNoLinearVar())
+		case registerGateOptionTypeWithUnverifiedDegree:
+			frOptions = append(frOptions, bn254Gkr.WithUnverifiedDegree(opt.param))
+		case registerGateOptionTypeWithDegree:
+			frOptions = append(frOptions, bn254Gkr.WithDegree(opt.param))
+		default:
+			return fmt.Errorf("unknown option type %d", opt.tp)
+		}
+	}
+
+	if err := bn254Gkr.RegisterGate(frName, frF, nbIn, frOptions...); err != nil {
+		return err
+	}
+	bn254Gate := bn254Gkr.GetGate(frName)
+	bn254Gkr.RemoveGate(frName)
+
+	gatesLock.Lock()
+	defer gatesLock.Unlock()
+
+	gates[name] = &Gate{
+		Evaluate:  f,
+		nbIn:      nbIn,
+		degree:    bn254Gate.Degree(),
+		linearVar: bn254Gate.LinearVar(),
+	}
+
+	return nil
+}
+
+func GetGate(name string) *Gate {
+	gatesLock.Lock()
+	defer gatesLock.Unlock()
+	return gates[name]
+}
+
+func RemoveGate(name string) bool {
+	gatesLock.Lock()
+	defer gatesLock.Unlock()
+	_, found := gates[name]
+	if found {
+		delete(gates, name)
+	}
+	return found
 }
 
 type Wire struct {
-	Gate            Gate
+	Gate            *Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
@@ -349,16 +510,6 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	return nil
 }
 
-type IdentityGate struct{}
-
-func (IdentityGate) Evaluate(_ frontend.API, input ...frontend.Variable) frontend.Variable {
-	return input[0]
-}
-
-func (IdentityGate) Degree() int {
-	return 1
-}
-
 // outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
 func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 	res := make([][]int, len(c))
@@ -366,7 +517,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = IdentityGate{}
+			c[i].Gate = GetGate("identity")
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -533,39 +684,20 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 	return proof, nil
 }
 
-type MulGate struct{}
+func init() {
+	panicIfError(RegisterGate("mul2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Mul(x[0], x[1])
+	}, 2, WithUnverifiedDegree(2), WithNoLinearVar()))
+	panicIfError(RegisterGate("add2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[1])
+	}, 2, WithUnverifiedDegree(1), WithUnverifiedLinearVar(0)))
+	panicIfError(RegisterGate("identity", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return x[0]
+	}, 1, WithUnverifiedDegree(1), WithUnverifiedLinearVar(0)))
+}
 
-func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("mul has fan-in 2")
+func panicIfError(err error) {
+	if err != nil {
+		panic(err)
 	}
-	return api.Mul(x[0], x[1])
-}
-
-// TODO: Degree must take nbInputs as an argument and return degree = nbInputs
-func (g MulGate) Degree() int {
-	return 2
-}
-
-type AddGate struct{}
-
-func (a AddGate) Evaluate(api frontend.API, v ...frontend.Variable) frontend.Variable {
-	switch len(v) {
-	case 0:
-		return 0
-	case 1:
-		return v[0]
-	}
-	rest := v[2:]
-	return api.Add(v[0], v[1], rest...)
-}
-
-func (a AddGate) Degree() int {
-	return 1
-}
-
-var Gates = map[string]Gate{
-	"identity": IdentityGate{},
-	"add":      AddGate{},
-	"mul":      MulGate{},
 }
