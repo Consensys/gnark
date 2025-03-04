@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -20,7 +21,7 @@ func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count L
 		handler:     handler,
 	}
 	err = reflectwalk.Walk(circuit, &w)
-	if err == reflectwalk.ErrSkipEntry {
+	if errors.Is(err, reflectwalk.ErrSkipEntry) {
 		err = nil
 	}
 	count.Public = w.nbPublic
