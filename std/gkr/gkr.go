@@ -23,10 +23,10 @@ type GateFunction func(frontend.API, ...frontend.Variable) frontend.Variable
 
 // A Gate is a low-degree multivariate polynomial
 type Gate struct {
-	Evaluate  GateFunction // Evaluate the polynomial function defining the gate
-	nbIn      int          // number of inputs
-	degree    int          // total degree of f
-	linearVar int          // if there is a variable of degree 1, its index, -1 otherwise
+	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
+	nbIn        int          // number of inputs
+	degree      int          // total degree of f
+	solvableVar int          // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 }
 
 // Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
@@ -34,9 +34,9 @@ func (g *Gate) Degree() int {
 	return g.degree
 }
 
-// LinearVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
-func (g *Gate) LinearVar() int {
-	return g.linearVar
+// SolvableVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
+func (g *Gate) SolvableVar() int {
+	return g.solvableVar
 }
 
 // NbIn returns the number of inputs to the gate (its fan-in)
@@ -50,8 +50,8 @@ var (
 )
 
 /*type registerGateSettings struct {
-	linearVar               int
-	noLinearVarVerification bool
+	solvableVar               int
+	noSolvableVarVerification bool
 	noDegreeVerification    bool
 	degree                  int
 }*/
@@ -62,9 +62,9 @@ var (
 type registerGateOptionType byte
 
 const (
-	registerGateOptionTypeWithLinearVar registerGateOptionType = iota
-	registerGateOptionTypeWithUnverifiedLinearVar
-	registerGateOptionTypeWithNoLinearVar
+	registerGateOptionTypeWithSolvableVar registerGateOptionType = iota
+	registerGateOptionTypeWithUnverifiedSolvableVar
+	registerGateOptionTypeWithNoSolvableVar
 	registerGateOptionTypeWithUnverifiedDegree
 	registerGateOptionTypeWithDegree
 )
@@ -74,26 +74,26 @@ type registerGateOption struct {
 	param int
 }
 
-// WithLinearVar gives the index of a variable of degree 1 in the gate's polynomial. RegisterGate will return an error if the given index is not correct.
-func WithLinearVar(linearVar int) *registerGateOption {
+// WithSolvableVar gives the index of a variable of degree 1 in the gate's polynomial. RegisterGate will return an error if the given index is not correct.
+func WithSolvableVar(linearVar int) *registerGateOption {
 	return &registerGateOption{
-		tp:    registerGateOptionTypeWithLinearVar,
+		tp:    registerGateOptionTypeWithSolvableVar,
 		param: linearVar,
 	}
 }
 
-// WithUnverifiedLinearVar sets the index of a variable of degree 1 in the gate's polynomial. RegisterGate will not verify that the given index is correct.
-func WithUnverifiedLinearVar(linearVar int) *registerGateOption {
+// WithUnverifiedSolvableVar sets the index of a variable of degree 1 in the gate's polynomial. RegisterGate will not verify that the given index is correct.
+func WithUnverifiedSolvableVar(linearVar int) *registerGateOption {
 	return &registerGateOption{
-		tp:    registerGateOptionTypeWithUnverifiedLinearVar,
+		tp:    registerGateOptionTypeWithUnverifiedSolvableVar,
 		param: linearVar,
 	}
 }
 
-// WithNoLinearVar sets the gate as having no variable of degree 1. RegisterGate will not check the correctness of this claim.
-func WithNoLinearVar() *registerGateOption {
+// WithNoSolvableVar sets the gate as having no variable of degree 1. RegisterGate will not check the correctness of this claim.
+func WithNoSolvableVar() *registerGateOption {
 	return &registerGateOption{
-		tp: registerGateOptionTypeWithNoLinearVar,
+		tp: registerGateOptionTypeWithNoSolvableVar,
 	}
 }
 
@@ -132,12 +132,12 @@ func RegisterGate(name string, f GateFunction, nbIn int, options ...*registerGat
 	// translate options
 	for _, opt := range options {
 		switch opt.tp {
-		case registerGateOptionTypeWithLinearVar:
-			frOptions = append(frOptions, bn254Gkr.WithLinearVar(opt.param))
-		case registerGateOptionTypeWithUnverifiedLinearVar:
-			frOptions = append(frOptions, bn254Gkr.WithUnverifiedLinearVar(opt.param))
-		case registerGateOptionTypeWithNoLinearVar:
-			frOptions = append(frOptions, bn254Gkr.WithNoLinearVar())
+		case registerGateOptionTypeWithSolvableVar:
+			frOptions = append(frOptions, bn254Gkr.WithSolvableVar(opt.param))
+		case registerGateOptionTypeWithUnverifiedSolvableVar:
+			frOptions = append(frOptions, bn254Gkr.WithUnverifiedSolvableVar(opt.param))
+		case registerGateOptionTypeWithNoSolvableVar:
+			frOptions = append(frOptions, bn254Gkr.WithNoSolvableVar())
 		case registerGateOptionTypeWithUnverifiedDegree:
 			frOptions = append(frOptions, bn254Gkr.WithUnverifiedDegree(opt.param))
 		case registerGateOptionTypeWithDegree:
@@ -157,10 +157,10 @@ func RegisterGate(name string, f GateFunction, nbIn int, options ...*registerGat
 	defer gatesLock.Unlock()
 
 	gates[name] = &Gate{
-		Evaluate:  f,
-		nbIn:      nbIn,
-		degree:    bn254Gate.Degree(),
-		linearVar: bn254Gate.LinearVar(),
+		Evaluate:    f,
+		nbIn:        nbIn,
+		degree:      bn254Gate.Degree(),
+		solvableVar: bn254Gate.SolvableVar(),
 	}
 
 	return nil
@@ -687,13 +687,13 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 func init() {
 	panicIfError(RegisterGate("mul2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
 		return api.Mul(x[0], x[1])
-	}, 2, WithUnverifiedDegree(2), WithNoLinearVar()))
+	}, 2, WithUnverifiedDegree(2), WithNoSolvableVar()))
 	panicIfError(RegisterGate("add2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
 		return api.Add(x[0], x[1])
-	}, 2, WithUnverifiedDegree(1), WithUnverifiedLinearVar(0)))
+	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
 	panicIfError(RegisterGate("identity", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
 		return x[0]
-	}, 1, WithUnverifiedDegree(1), WithUnverifiedLinearVar(0)))
+	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
 }
 
 func panicIfError(err error) {

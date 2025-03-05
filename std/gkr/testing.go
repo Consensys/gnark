@@ -78,8 +78,9 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
 		const dummyGateName = "dummy-solve-in-test-engine-gate"
-		degreeFr := -1
+		var degreeFr int
 		nbInFr := -1
+		solvableVarFr := -1
 		if len(outs) != 1 {
 			return errors.New("gate must have one output")
 		}
@@ -90,6 +91,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBls12377.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls12377.WithDegree(degreeFr)); err != nil {
@@ -109,6 +111,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBn254.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBn254.WithDegree(degreeFr)); err != nil {
@@ -128,6 +131,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBls24315.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls24315.WithDegree(degreeFr)); err != nil {
@@ -159,6 +163,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBls12381.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls12381.WithDegree(degreeFr)); err != nil {
@@ -178,6 +183,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBls24317.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls24317.WithDegree(degreeFr)); err != nil {
@@ -197,6 +203,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			}
 			degreeFr = gate.Degree()
 			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
 			if _, ok := degreeTestedGates.Load(gateName); !ok {
 				// re-register the gate to make sure the degree is correct
 				if err := gkrBw6633.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBw6633.WithDegree(degreeFr)); err != nil {
@@ -221,6 +228,10 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 
 		if nbInFr != len(ins) { // TODO @Tabaie also check against GetGate(gateName].NbIn()
 			return fmt.Errorf("gate \"%s\" input count mismatch: SNARK %d, Raw %d", gateName, len(ins), nbInFr)
+		}
+
+		if solvableVarFr != GetGate(gateName).SolvableVar() {
+			return fmt.Errorf("gate \"%s\" designated solvable variable mismatch: SNARK %d, Raw %d", gateName, GetGate(gateName).SolvableVar(), solvableVarFr)
 		}
 
 		return nil
