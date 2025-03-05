@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/pedersen"
-	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
 	"github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +22,7 @@ import (
 	"github.com/leanovate/gopter/prop"
 
 	"testing"
+	"math/rand"
 )
 
 func TestProofSerialization(t *testing.T) {
@@ -58,8 +58,8 @@ func TestProofSerialization(t *testing.T) {
 
 func TestVerifyingKeySerialization(t *testing.T) {
 
-	roundTrip := func(withCommitment bool) func(curve.G1Affine, curve.G2Affine) bool {
-		return func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
+	roundTrip := func(withCommitment bool) func(*gopter.GenParameters, curve.G1Affine, curve.G2Affine) bool {
+		return func(genParams *gopter.GenParameters, p1 curve.G1Affine, p2 curve.G2Affine) bool {
 			var vk VerifyingKey
 
 			// create a random vk
@@ -88,7 +88,19 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			}
 
 			if withCommitment {
-				vk.PublicAndCommitmentCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
+				// Генерируем случайный двумерный массив с использованием gopter
+				maxRows := 5
+				maxCols := 10
+				rows := int(genParams.NextUint64() % uint64(maxRows)) + 1 // Минимум 1 строка
+				vk.PublicAndCommitmentCommitted = make([][]int, rows)
+				for i := 0; i < rows; i++ {
+					cols := int(genParams.NextUint64() % uint64(maxCols)) + 1 // Минимум 1 столбец
+					vk.PublicAndCommitmentCommitted[i] = make([]int, cols)
+					for j := 0; j < cols; j++ {
+						// Используем только положительные значения
+						vk.PublicAndCommitmentCommitted[i][j] = int(genParams.NextUint64() % 1000000)
+					}
+				}
 				bases := make([][]curve.G1Affine, len(vk.PublicAndCommitmentCommitted))
 				elem := p1
 				for i := 0; i < len(vk.PublicAndCommitmentCommitted); i++ {
@@ -112,14 +124,28 @@ func TestVerifyingKeySerialization(t *testing.T) {
 
 	properties := gopter.NewProperties(parameters)
 
+	genGenParams := func() gopter.Gen {
+		return func(genParams *gopter.GenParameters) *gopter.GenResult {
+			rng := rand.New(rand.NewSource(42))
+			result := &gopter.GenParameters{
+				MinSize: 0,
+				MaxSize: 100,
+				Rng:     rng,
+			}
+			return gopter.NewGenResult(result, gopter.NoShrinker)
+		}
+	}
+
 	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
 		roundTrip(false),
+		genGenParams(),
 		GenG1(),
 		GenG2(),
 	))
 
 	properties.Property("VerifyingKey (with commitments) -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
 		roundTrip(true),
+		genGenParams(),
 		GenG1(),
 		GenG2(),
 	))
