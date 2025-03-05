@@ -305,7 +305,7 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// connect to output
 	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
 	solution, err := gkrApi.Solve(api)
