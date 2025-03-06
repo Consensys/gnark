@@ -78,9 +78,7 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
 		const dummyGateName = "dummy-solve-in-test-engine-gate"
-		var degreeFr int
-		nbInFr := -1
-		solvableVarFr := -1
+		var degreeFr, nbInFr, solvableVarFr int
 		if len(outs) != 1 {
 			return errors.New("gate must have one output")
 		}
@@ -150,6 +148,14 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
 			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBw6761.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBw6761.WithDegree(degreeFr)); err != nil {
+					return err
+				}
+			}
 			x := make([]frBw6761.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
