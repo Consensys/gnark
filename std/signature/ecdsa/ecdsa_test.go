@@ -167,7 +167,7 @@ type EcdsaCircuitV1[T, S emulated.FieldParams] struct {
 
 func (c *EcdsaCircuitV1[T, S]) Define(api frontend.API) error {
 	verified := c.Pub.IsVerified(api, sw_emulated.GetCurveParams[T](), &c.Msg, &c.Sig)
-	api.AssertIsEqual(verified, 0)
+	api.AssertIsEqual(verified, 1)
 	return nil
 }
 
