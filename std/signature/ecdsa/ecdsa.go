@@ -79,7 +79,7 @@ func (pk PublicKey[T, S]) IsVerified(api frontend.API, params sw_emulated.CurveP
 	}
 	verified := frontend.Variable(0)
 	for i := range rbits {
-		res := api.Cmp(rbits[i], qxBits[i])
+		res := api.Sub(rbits[i], qxBits[i])
 		verified = api.Add(verified, res)
 	}
 	return verified
