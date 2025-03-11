@@ -25,7 +25,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 	}
 }
 
-// IsVerified modified from the Verify method, asserts that the signature sig verifies for the message msg and public
+// IsVerified returns whether the signature sig verifies for the message msg and public
 // key pk. The curve parameters params define the elliptic curve.
 // We assume that the message msg is already hashed to the scalar field.
 // If the signature is valid, it returns 1; otherwise, it returns  0
