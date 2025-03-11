@@ -1,7 +1,6 @@
 package ecdsa
 
 import (
-	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -20,10 +19,7 @@ type PublicKey[Base, Scalar emulated.FieldParams] sw_emulated.AffinePoint[Base]
 //
 // We assume that the message msg is already hashed to the scalar field.
 func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) {
-	qxBits, rbits, err := pk.checkParams(api, params, msg, sig)
-	if err != nil {
-		panic("ecdsa check params error")
-	}
+	qxBits, rbits := pk.checkParams(api, params, msg, sig)
 	for i := range rbits {
 		api.AssertIsEqual(rbits[i], qxBits[i])
 	}
@@ -34,10 +30,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 // We assume that the message msg is already hashed to the scalar field.
 // If the signature is valid, it returns 1; otherwise, it returns  0
 func (pk PublicKey[T, S]) IsVerified(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) frontend.Variable {
-	qxBits, rbits, err := pk.checkParams(api, params, msg, sig)
-	if err != nil {
-		panic("ecdsa check params error")
-	}
+	qxBits, rbits := pk.checkParams(api, params, msg, sig)
 	verified := frontend.Variable(1)
 	for i := range rbits {
 		res := api.IsZero(api.Sub(rbits[i], qxBits[i]))
@@ -47,18 +40,18 @@ func (pk PublicKey[T, S]) IsVerified(api frontend.API, params sw_emulated.CurveP
 
 }
 
-func (pk PublicKey[T, S]) checkParams(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) ([]frontend.Variable, []frontend.Variable, error) {
+func (pk PublicKey[T, S]) checkParams(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) ([]frontend.Variable, []frontend.Variable) {
 	cr, err := sw_emulated.New[T, S](api, params)
 	if err != nil {
-		return nil, nil, err
+		panic(err)
 	}
 	scalarApi, err := emulated.NewField[S](api)
 	if err != nil {
-		return nil, nil, err
+		panic(err)
 	}
 	baseApi, err := emulated.NewField[T](api)
 	if err != nil {
-		return nil, nil, err
+		panic(err)
 	}
 	pkpt := sw_emulated.AffinePoint[T](pk)
 	msInv := scalarApi.Div(msg, &sig.S)
@@ -70,7 +63,7 @@ func (pk PublicKey[T, S]) checkParams(api frontend.API, params sw_emulated.Curve
 	qxBits := baseApi.ToBits(qx)
 	rbits := scalarApi.ToBits(&sig.R)
 	if len(rbits) != len(qxBits) {
-		return nil, nil, fmt.Errorf("non-equal lengths")
+		panic("non-equal lengths")
 	}
-	return qxBits, rbits, nil
+	return qxBits, rbits
 }
