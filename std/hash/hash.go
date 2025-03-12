@@ -85,6 +85,7 @@ type BinaryHasher interface {
 type BinaryFixedLengthHasher interface {
 	BinaryHasher
 	// FixedLengthSum returns digest of the first length bytes.
+	// the minLen is the minimum length of the input.
 	FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 }
 

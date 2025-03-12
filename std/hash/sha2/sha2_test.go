@@ -65,7 +65,7 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 		return err
 	}
 	h.Write(c.In)
-	res := h.FixedLengthSum(c.Length)
+	res := h.FixedLengthSum(0, c.Length)
 	if len(res) != 32 {
 		return fmt.Errorf("not 32 bytes")
 	}

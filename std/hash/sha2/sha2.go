@@ -75,7 +75,7 @@ func (d *digest) Sum() []uints.U8 {
 	return ret
 }
 
-func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
+func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8 {
 	// we need to do two things here -- first the padding has to be put to the
 	// right place. For that we need to know how many blocks we have used. We
 	// need to fit at least 9 more bytes (padding byte and 8 bytes for input
@@ -85,10 +85,11 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	// idea - have a mask for blocks where 1 is only for the block we want to
 	// use.
 
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in)+64+8)), false)
+	comparator.AssertIsLessEq(minLen, length)
+
 	data := make([]uints.U8, len(d.in))
 	copy(data, d.in)
-
-	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(data)+64+8)), false)
 
 	for i := 0; i < 64+8; i++ {
 		data = append(data, uints.NewU8(0))
@@ -106,7 +107,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
-	for i := range data {
+	for i := minLen; i < len(data); i++ {
 		isPaddingStartPos := d.api.IsZero(d.api.Sub(i, length))
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
@@ -114,7 +115,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
-	for i := range data {
+	for i := minLen; i < len(data); i++ {
 		isLast8BytesPos := d.api.IsZero(d.api.Sub(i, last8BytesPos))
 		for j := 0; j < 8; j++ {
 			if i+j < len(data) {
@@ -133,8 +134,11 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 		copy(buf[:], data[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 
-		isInRange := comparator.IsLess(i*64, totalLen)
+		if i < minLen/64 {
+			continue
+		}
 
+		isInRange := comparator.IsLess(i*64, totalLen)
 		for j := 0; j < 8; j++ {
 			for k := 0; k < 4; k++ {
 				resultDigest[j][k].Val = d.api.Select(isInRange, runningDigest[j][k].Val, resultDigest[j][k].Val)
