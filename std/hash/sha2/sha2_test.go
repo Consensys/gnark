@@ -55,6 +55,11 @@ type sha2FixedLengthCircuit struct {
 	Expected [32]uints.U8
 }
 
+const (
+	minLen = 55
+	maxLen = 144
+)
+
 func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 	h, err := New(api)
 	if err != nil {
@@ -65,7 +70,7 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 		return err
 	}
 	h.Write(c.In)
-	res := h.FixedLengthSum(0, c.Length)
+	res := h.FixedLengthSum(minLen, c.Length)
 	if len(res) != 32 {
 		return fmt.Errorf("not 32 bytes")
 	}
@@ -76,7 +81,8 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 }
 
 func TestSHA2FixedLengthSum(t *testing.T) {
-	bts := make([]byte, 144)
+	circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, maxLen)}
+	bts := make([]byte, maxLen)
 	length := 56
 	dgst := sha256.Sum256(bts[:length])
 	witness := sha2FixedLengthCircuit{
@@ -84,7 +90,7 @@ func TestSHA2FixedLengthSum(t *testing.T) {
 		Length: length,
 	}
 	copy(witness.Expected[:], uints.NewU8Array(dgst[:]))
-	err := test.IsSolved(&sha2FixedLengthCircuit{In: make([]uints.U8, len(bts))}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(circuit, &witness, ecc.BN254.ScalarField())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	zkhash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
@@ -158,12 +159,12 @@ func TestSHA3FixedLengthSum(t *testing.T) {
 }
 
 const (
-	minLen = 299
-	maxLen = 310
+	minLen = 1680
+	maxLen = 1710
 )
 
 type sha3FixedLengthSumWithMinLenCircuit struct {
-	In       [maxLen]uints.U8
+	In       []uints.U8
 	Expected []uints.U8
 	Length   frontend.Variable
 	hasher   string
@@ -182,7 +183,7 @@ func (c *sha3FixedLengthSumWithMinLenCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	h.Write(c.In[:])
+	h.Write(c.In)
 	res := h.FixedLengthSum(minLen, c.Length)
 
 	for i := range c.Expected {
@@ -207,13 +208,13 @@ func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
 					h.Write(in[:length])
 					expected := h.Sum(nil)
 
-					circuit := &sha3FixedLengthSumCircuit{
+					circuit := &sha3FixedLengthSumWithMinLenCircuit{
 						In:       make([]uints.U8, maxLen),
 						Expected: make([]uints.U8, len(expected)),
 						hasher:   name,
 					}
 
-					witness := &sha3FixedLengthSumCircuit{
+					witness := &sha3FixedLengthSumWithMinLenCircuit{
 						In:       uints.NewU8Array(in),
 						Expected: uints.NewU8Array(expected),
 						Length:   length,
@@ -225,5 +226,37 @@ func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
 				}, fmt.Sprintf("length=%d", length))
 			}
 		}, fmt.Sprintf("hash=%s", name))
+	}
+}
+
+func Test_SHA3FixedLengthSum_WithMinLen_VS_Zero(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	for name := range testCases {
+		name := name
+		strategy := testCases[name]
+		h := strategy.native()
+		sumLen := h.Size()
+
+		circuit1 := &sha3FixedLengthSumCircuit{
+			In:       make([]uints.U8, maxLen),
+			Expected: make([]uints.U8, sumLen),
+			hasher:   name,
+		}
+
+		cs1, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit1)
+		assert.NoError(err)
+
+		circuit2 := &sha3FixedLengthSumWithMinLenCircuit{
+			In:       make([]uints.U8, maxLen),
+			Expected: make([]uints.U8, sumLen),
+			hasher:   name,
+		}
+
+		cs2, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit2)
+		assert.NoError(err)
+
+		fmt.Printf("maxLen=%d, minLen=%d, hash=%s, nbConstraints: %d vs %d(withMinLen)\n",
+			maxLen, minLen, name, cs1.GetNbConstraints(), cs2.GetNbConstraints())
 	}
 }
