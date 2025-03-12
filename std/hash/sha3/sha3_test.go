@@ -156,3 +156,74 @@ func TestSHA3FixedLengthSum(t *testing.T) {
 		}, fmt.Sprintf("hash=%s", name))
 	}
 }
+
+const (
+	minLen = 299
+	maxLen = 310
+)
+
+type sha3FixedLengthSumWithMinLenCircuit struct {
+	In       [maxLen]uints.U8
+	Expected []uints.U8
+	Length   frontend.Variable
+	hasher   string
+}
+
+func (c *sha3FixedLengthSumWithMinLenCircuit) Define(api frontend.API) error {
+	newHasher, ok := testCases[c.hasher]
+	if !ok {
+		return fmt.Errorf("hash function unknown: %s", c.hasher)
+	}
+	h, err := newHasher.zk(api)
+	if err != nil {
+		return err
+	}
+	uapi, err := uints.New[uints.U64](api)
+	if err != nil {
+		return err
+	}
+	h.Write(c.In[:])
+	res := h.FixedLengthSum(minLen, c.Length)
+
+	for i := range c.Expected {
+		uapi.ByteAssertEq(c.Expected[i], res[i])
+	}
+	return nil
+}
+
+func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
+	assert := test.NewAssert(t)
+	in := make([]byte, maxLen)
+	_, err := rand.Reader.Read(in)
+	assert.NoError(err)
+
+	for name := range testCases {
+		assert.Run(func(assert *test.Assert) {
+			name := name
+			strategy := testCases[name]
+			for length := minLen; length <= maxLen; length++ {
+				assert.Run(func(assert *test.Assert) {
+					h := strategy.native()
+					h.Write(in[:length])
+					expected := h.Sum(nil)
+
+					circuit := &sha3FixedLengthSumCircuit{
+						In:       make([]uints.U8, maxLen),
+						Expected: make([]uints.U8, len(expected)),
+						hasher:   name,
+					}
+
+					witness := &sha3FixedLengthSumCircuit{
+						In:       uints.NewU8Array(in),
+						Expected: uints.NewU8Array(expected),
+						Length:   length,
+					}
+
+					if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
+						t.Fatalf("%s: %s", name, err)
+					}
+				}, fmt.Sprintf("length=%d", length))
+			}
+		}, fmt.Sprintf("hash=%s", name))
+	}
+}
