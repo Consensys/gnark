@@ -111,7 +111,7 @@ func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
 		return err
 	}
 	h.Write(c.In)
-	res := h.FixedLengthSum(c.Length)
+	res := h.FixedLengthSum(0, c.Length)
 
 	for i := range c.Expected {
 		uapi.ByteAssertEq(c.Expected[i], res[i])

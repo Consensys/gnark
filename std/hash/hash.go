@@ -85,7 +85,7 @@ type BinaryHasher interface {
 type BinaryFixedLengthHasher interface {
 	BinaryHasher
 	// FixedLengthSum returns digest of the first length bytes.
-	FixedLengthSum(length frontend.Variable) []uints.U8
+	FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 }
 
 // Compressor is a 2-1 one-way function. It takes two inputs and compresses
