@@ -105,13 +105,14 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					var concreteBackend tBackend
 
-					switch b {
-					case backend.GROTH16:
-						concreteBackend = _groth16
-					case backend.PLONK:
-						concreteBackend = _plonk
-					default:
-						panic("backend not implemented")
+					backends := map[backend.ID]tBackend{
+						backend.GROTH16: _groth16,
+						backend.PLONK:   _plonk,
+					}
+
+					concreteBackend, ok := backends[b]
+					if !ok {
+						panic(fmt.Sprintf("Unsupported backend: %v", b))
 					}
 
 					// proof system setup.
@@ -130,7 +131,8 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 								if len(ccs.GetCommitments().CommitmentIndexes()) > 1 {
 									log.Warn().
 										Int("nb_commitments", len(ccs.GetCommitments().CommitmentIndexes())).
-										Msg("skipping solidity check, too many commitments")
+										Msg("Skipping Solidity verification: circuit has too many commitments. Solidity verifier supports only up to 1 commitment.")
+
 								}
 								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
 								// set the default hash function in case of	custom hash function not set. This is to ensure that the proof can be verified by gnark-solidity-checker
@@ -220,7 +222,12 @@ func (assert *Assert) parseAssignment(circuit frontend.Circuit, assignment front
 		s, err := schema.Walk(assignment, tVariable, nil)
 		assert.NoError(err)
 
-		if s.Public+s.Secret <= serializationThreshold {
+		if s.Public+s.Secret > serializationThreshold {
+			log.Warn().
+				Int("total_elements", s.Public+s.Secret).
+				Int("threshold", serializationThreshold).
+				Msg("Skipping JSON serialization due to size limit.")
+		} else {
 			assert.Run(func(assert *Assert) {
 				s := lazySchema(circuit)()
 				assert.marshalWitnessJSON(full, s, curve, false)
@@ -229,8 +236,8 @@ func (assert *Assert) parseAssignment(circuit frontend.Circuit, assignment front
 				s := lazySchema(circuit)()
 				assert.marshalWitnessJSON(public, s, curve, true)
 			}, curve.String(), "marshal-public/json")
-		}
 	}
+}
 
 	return _witness{full: full, public: public, assignment: assignment}
 }
@@ -273,8 +280,10 @@ var (
 			err error) {
 			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			if err != nil {
+				log.Error().Err(err).Msg("Failed to generate SRS for Plonk")
 				return nil, nil, nil, nil, nil, err
 			}
+
 			pk, vk, err = plonk.Setup(ccs, srs, srsLagrange)
 			return pk, vk, func() any { return plonk.NewProvingKey(curve) }, func() any { return plonk.NewVerifyingKey(curve) }, func() any { return plonk.NewProof(curve) }, err
 		},
