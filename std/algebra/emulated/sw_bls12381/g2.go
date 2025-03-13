@@ -53,6 +53,7 @@ func NewG2(api frontend.API) *G2 {
 		A1: emulated.ValueOf[BaseField]("1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"),
 	}
 	return &G2{
+		api:  api,
 		fp:   fp,
 		Ext2: fields_bls12381.NewExt2(api),
 		w:    &w,
@@ -118,6 +119,61 @@ func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 	z = g2.doubleN(z, 16)
 
 	return g2.neg(z)
+}
+
+// AddUnified adds p and q and returns it. It doesn't modify p nor q.
+//
+// ✅ p can be equal to q, and either or both can be (0,0).
+// ([0,0],[0,0]) is not on the twist but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// It uses the unified formulas of Brier and Joye ([[BriJoy02]] (Corollary 1)).
+//
+// [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (g2 *G2) AddUnified(p, q *G2Affine) *G2Affine {
+
+	// selector1 = 1 when p is ([0,0],[0,0]) and 0 otherwise
+	selector1 := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+	// selector2 = 1 when q is ([0,0],[0,0]) and 0 otherwise
+	selector2 := g2.api.And(g2.Ext2.IsZero(&q.P.X), g2.Ext2.IsZero(&q.P.Y))
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := g2.Mul(&p.P.X, &q.P.X)
+	pxplusqx := g2.Add(&p.P.X, &q.P.X)
+	num := g2.Mul(pxplusqx, pxplusqx)
+	num = g2.Sub(num, pxqx)
+	denum := g2.Add(&p.P.Y, &q.P.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := g2.IsZero(denum)
+	denum = g2.Ext2.Select(selector3, g2.One(), denum)
+	λ := g2.DivUnchecked(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := g2.Mul(λ, λ)
+	xr = g2.Sub(xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr := g2.Sub(&p.P.X, xr)
+	yr = g2.Mul(yr, λ)
+	yr = g2.Sub(yr, &p.P.Y)
+	result := G2Affine{
+		P:     g2AffP{X: *xr, Y: *yr},
+		Lines: nil,
+	}
+
+	zero := g2.Ext2.Zero()
+	infinity := G2Affine{
+		P:     g2AffP{X: *zero, Y: *zero},
+		Lines: nil,
+	}
+	// if p=([0,0],[0,0]) return q
+	result = *g2.Select(selector1, q, &result)
+	// if q=([0,0],[0,0]) return p
+	result = *g2.Select(selector2, p, &result)
+	// if p.y + q.y = 0, return ([0,0],[0,0])
+	result = *g2.Select(selector3, &infinity, &result)
+
+	return &result
 }
 
 func (g2 G2) add(p, q *G2Affine) *G2Affine {
@@ -274,6 +330,17 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 			X: *x3,
 			Y: *y3,
 		},
+	}
+}
+
+// Select selects between p and q given the selector b. If b == 1, then returns
+// p and q otherwise.
+func (g2 *G2) Select(b frontend.Variable, p, q *G2Affine) *G2Affine {
+	x := g2.Ext2.Select(b, &p.P.X, &q.P.X)
+	y := g2.Ext2.Select(b, &p.P.Y, &q.P.Y)
+	return &G2Affine{
+		P:     g2AffP{X: *x, Y: *y},
+		Lines: nil,
 	}
 }
 
