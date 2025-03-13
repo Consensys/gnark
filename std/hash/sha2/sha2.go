@@ -87,15 +87,16 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	// idea - have a mask for blocks where 1 is only for the block we want to
 	// use.
 
-	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in)+64+8)), false)
+	maxLen := len(d.in)
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxLen+64+8)), false)
 	comparator.AssertIsLessEq(minLen, length)
 
-	data := make([]uints.U8, len(d.in))
+	data := make([]uints.U8, maxLen)
 	copy(data, d.in)
 	data = append(data, uints.NewU8Array(make([]uint8, 64+8))...)
 
-	// When i < minLen and i < len(data)-8, padding 1 or 0 is completely unnecessary
-	for i := minLen; i < len(data)-8; i++ {
+	// When i < minLen and i >= len(d.in)+1, padding 0x80 is completely unnecessary
+	for i := minLen; i < maxLen+1; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
