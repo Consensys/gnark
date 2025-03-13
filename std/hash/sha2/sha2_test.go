@@ -1,6 +1,7 @@
 package sha2
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"testing"
@@ -56,7 +57,7 @@ type sha2FixedLengthCircuit struct {
 }
 
 const (
-	minLen = 55
+	minLen = 56
 	maxLen = 144
 )
 
@@ -81,17 +82,25 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 }
 
 func TestSHA2FixedLengthSum(t *testing.T) {
+	assert := test.NewAssert(t)
 	circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, maxLen)}
 	bts := make([]byte, maxLen)
-	length := 56
-	dgst := sha256.Sum256(bts[:length])
-	witness := sha2FixedLengthCircuit{
-		In:     uints.NewU8Array(bts),
-		Length: length,
-	}
-	copy(witness.Expected[:], uints.NewU8Array(dgst[:]))
-	err := test.IsSolved(circuit, &witness, ecc.BN254.ScalarField())
-	if err != nil {
-		t.Fatal(err)
+	_, err := rand.Reader.Read(bts)
+	assert.NoError(err)
+
+	for length := minLen; length <= maxLen; length++ {
+		assert.Run(func(assert *test.Assert) {
+			dgst := sha256.Sum256(bts[:length])
+			witness := &sha2FixedLengthCircuit{
+				In:       uints.NewU8Array(bts),
+				Length:   length,
+				Expected: [32]uints.U8(uints.NewU8Array(dgst[:])),
+			}
+
+			err = test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
+			if err != nil {
+				t.Fatal(err)
+			}
+		}, fmt.Sprintf("length=%d", length))
 	}
 }
