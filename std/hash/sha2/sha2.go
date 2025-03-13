@@ -129,7 +129,6 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	var resultDigest [8]uints.U32
 	var buf [64]uints.U8
 	copy(runningDigest[:], _seed)
-	copy(resultDigest[:], _seed)
 
 	for i := 0; i < len(data)/64; i++ {
 		copy(buf[:], data[i*64:(i+1)*64])
@@ -137,6 +136,9 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 
 		// When i < minLen/64, runningDigest cannot be resultDigest, and proceed to the next loop directly
 		if i < minLen/64 {
+			continue
+		} else if i == minLen/64 { // init resultDigests
+			copy(resultDigest[:], runningDigest[:])
 			continue
 		}
 

@@ -128,7 +128,6 @@ func (d *digest) absorbing(blocks [][]uints.U64) {
 func (d *digest) absorbingFixedWidth(minNbOfBlocks int, blocks [][]uints.U64, nbBlocks frontend.Variable) {
 	var state [25]uints.U64
 	var resultState [25]uints.U64
-	copy(resultState[:], d.state[:])
 	copy(state[:], d.state[:])
 
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(blocks))), false)
@@ -141,6 +140,9 @@ func (d *digest) absorbingFixedWidth(minNbOfBlocks int, blocks [][]uints.U64, nb
 
 		// When i < minNbOfBlocks, state cannot be resultState, and proceed to the next loop directly
 		if i < minNbOfBlocks {
+			continue
+		} else if i == minNbOfBlocks { // init resultState
+			copy(resultState[:], state[:])
 			continue
 		}
 
