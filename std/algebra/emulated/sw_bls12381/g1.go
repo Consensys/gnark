@@ -28,6 +28,7 @@ func NewG1Affine(v bls12381.G1Affine) G1Affine {
 }
 
 type G1 struct {
+	api    frontend.API
 	curveF *emulated.Field[BaseField]
 	w      *emulated.Element[BaseField]
 }
@@ -155,6 +156,14 @@ func (g1 *G1) scalarMulBySeedSquare(q *G1Affine) *G1Affine {
 	z = g1.doubleN(z, 32)
 
 	return z
+}
+
+func (g1 *G1) IsEqual(p, q *G1Affine) frontend.Variable {
+	xDiff := g1.curveF.Sub(&p.X, &q.X)
+	yDiff := g1.curveF.Sub(&p.Y, &q.Y)
+	xIsZero := g1.curveF.IsZero(xDiff)
+	yIsZero := g1.curveF.IsZero(yDiff)
+	return g1.api.And(xIsZero, yIsZero)
 }
 
 // NewScalar allocates a witness from the native scalar and returns it.

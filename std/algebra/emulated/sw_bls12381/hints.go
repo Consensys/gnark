@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"errors"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
@@ -17,6 +18,7 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		finalExpHint,
 		pairingCheckHint,
+		millerLoopAndCheckFinalExpHint,
 	}
 }
 
@@ -199,4 +201,75 @@ func finalExpWitness(millerLoop *bls12381.E12) (residueWitness, scalingFactor bl
 	residueWitness.Exp(*millerLoop, &exponent)
 
 	return residueWitness, scalingFactor
+}
+
+func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var P bls12381.G1Affine
+			var Q bls12381.G2Affine
+			var previous bls12381.E12
+
+			P.X.SetBigInt(inputs[0])
+			P.Y.SetBigInt(inputs[1])
+			Q.X.A0.SetBigInt(inputs[2])
+			Q.X.A1.SetBigInt(inputs[3])
+			Q.Y.A0.SetBigInt(inputs[4])
+			Q.Y.A1.SetBigInt(inputs[5])
+
+			previous.C0.B0.A0.SetBigInt(inputs[6])
+			previous.C0.B0.A1.SetBigInt(inputs[7])
+			previous.C0.B1.A0.SetBigInt(inputs[8])
+			previous.C0.B1.A1.SetBigInt(inputs[9])
+			previous.C0.B2.A0.SetBigInt(inputs[10])
+			previous.C0.B2.A1.SetBigInt(inputs[11])
+			previous.C1.B0.A0.SetBigInt(inputs[12])
+			previous.C1.B0.A1.SetBigInt(inputs[13])
+			previous.C1.B1.A0.SetBigInt(inputs[14])
+			previous.C1.B1.A1.SetBigInt(inputs[15])
+			previous.C1.B2.A0.SetBigInt(inputs[16])
+			previous.C1.B2.A1.SetBigInt(inputs[17])
+
+			if previous.IsZero() {
+				return errors.New("previous Miller loop result is zero")
+			}
+
+			lines := bls12381.PrecomputeLines(Q)
+			millerLoop, err := bls12381.MillerLoopFixedQ(
+				[]bls12381.G1Affine{P},
+				[][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines},
+			)
+			if err != nil {
+				return err
+			}
+			millerLoop.Conjugate(&millerLoop)
+
+			millerLoop.Mul(&millerLoop, &previous)
+
+			residueWitnessInv, scalingFactor := finalExpWitness(&millerLoop)
+			residueWitnessInv.Inverse(&residueWitnessInv)
+
+			residueWitnessInv.C0.B0.A0.BigInt(outputs[0])
+			residueWitnessInv.C0.B0.A1.BigInt(outputs[1])
+			residueWitnessInv.C0.B1.A0.BigInt(outputs[2])
+			residueWitnessInv.C0.B1.A1.BigInt(outputs[3])
+			residueWitnessInv.C0.B2.A0.BigInt(outputs[4])
+			residueWitnessInv.C0.B2.A1.BigInt(outputs[5])
+			residueWitnessInv.C1.B0.A0.BigInt(outputs[6])
+			residueWitnessInv.C1.B0.A1.BigInt(outputs[7])
+			residueWitnessInv.C1.B1.A0.BigInt(outputs[8])
+			residueWitnessInv.C1.B1.A1.BigInt(outputs[9])
+			residueWitnessInv.C1.B2.A0.BigInt(outputs[10])
+			residueWitnessInv.C1.B2.A1.BigInt(outputs[11])
+
+			// return the scaling factor
+			scalingFactor.C0.B0.A0.BigInt(outputs[12])
+			scalingFactor.C0.B0.A1.BigInt(outputs[13])
+			scalingFactor.C0.B1.A0.BigInt(outputs[14])
+			scalingFactor.C0.B1.A1.BigInt(outputs[15])
+			scalingFactor.C0.B2.A0.BigInt(outputs[16])
+			scalingFactor.C0.B2.A1.BigInt(outputs[17])
+
+			return nil
+		})
 }

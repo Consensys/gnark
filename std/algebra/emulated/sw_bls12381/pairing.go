@@ -181,6 +181,10 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
+	return pr.Ext12.IsEqual(x, y)
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
@@ -189,7 +193,30 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+func (pr Pairing) computeCurveEquation(P *G1Affine) (left, right *baseEl) {
+	// Curve: Y² == X³ + aX + b, where a=0 and b=4
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if P=(0,0) we assign b=0 otherwise 4, and continue
+	selector := pr.api.And(pr.curveF.IsZero(&P.X), pr.curveF.IsZero(&P.Y))
+	four := emulated.ValueOf[BaseField]("4")
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), &four)
+
+	left = pr.curveF.Mul(&P.Y, &P.Y)
+	right = pr.curveF.Mul(&P.X, &P.X)
+	right = pr.curveF.Mul(right, &P.X)
+	right = pr.curveF.Add(right, b)
+	return left, right
+}
+
+// IsOnCurve returns a boolean indicating if the G1 point is in the curve.
+func (pr Pairing) IsOnCurve(P *G1Affine) frontend.Variable {
+	left, right := pr.computeCurveEquation(P)
+	diff := pr.curveF.Sub(left, right)
+	return pr.curveF.IsZero(diff)
+}
+
+func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
@@ -197,11 +224,23 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
-	left := pr.Ext2.Square(&Q.P.Y)
-	right := pr.Ext2.Square(&Q.P.X)
+	left = pr.Ext2.Square(&Q.P.Y)
+	right = pr.Ext2.Square(&Q.P.X)
 	right = pr.Ext2.Mul(right, &Q.P.X)
 	right = pr.Ext2.Add(right, b)
+	return left, right
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	left, right := pr.computeTwistEquation(Q)
 	pr.Ext2.AssertIsEqual(left, right)
+}
+
+// IsOnTwist returns a boolean indicating if the G2 point is in the twist.
+func (pr Pairing) IsOnTwist(Q *G2Affine) frontend.Variable {
+	left, right := pr.computeTwistEquation(Q)
+	diff := pr.Ext2.Sub(left, right)
+	return pr.Ext2.IsZero(diff)
 }
 
 func (pr Pairing) AssertIsOnG1(P *G1Affine) {
@@ -218,6 +257,21 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.curve.AssertIsEqual(_P, P)
 }
 
+// IsOnG1 returns a boolean indicating if the G1 point is in the subgroup. The
+// method assumes that the point is already on the curve. Call
+// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
+	// 1 - is P on curve
+	isOnCurve := pr.IsOnCurve(P)
+	// 2 - is P in the subgroup
+	phiP := pr.g1.phi(P)
+	_P := pr.g1.scalarMulBySeedSquare(phiP)
+	_P = pr.curve.Neg(_P)
+	isInSubgroup := pr.g1.IsEqual(_P, phiP)
+
+	return pr.api.And(isOnCurve, isInSubgroup)
+}
+
 func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	// 1- Check Q is on the curve
 	pr.AssertIsOnTwist(Q)
@@ -230,6 +284,19 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 
 	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
 	pr.g2.AssertIsEqual(xQ, psiQ)
+}
+
+// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
+// method assumes that the point is already on the curve. Call
+// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
+	// 1 - is Q on curve
+	isOnCurve := pr.IsOnTwist(Q)
+	// 2 - is Q in the subgroup
+	xQ := pr.g2.scalarMulBySeed(Q)
+	psiQ := pr.g2.psi(Q)
+	isInSubgroup := pr.g2.IsEqual(xQ, psiQ)
+	return pr.api.And(isOnCurve, isInSubgroup)
 }
 
 // loopCounter = seed in binary
@@ -607,4 +674,124 @@ func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	return &line
 
+}
+
+// MillerLoopAndMul computes the Miller loop between P and Q
+// and multiplies it in 𝔽p¹² by previous.
+//
+// This method is needed for evmprecompiles/ecpair.
+func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*GTEl, error) {
+	res, err := pr.MillerLoop([]*G1Affine{P}, []*G2Affine{Q})
+	if err != nil {
+		return nil, fmt.Errorf("miller loop: %w", err)
+	}
+	res = pr.Ext12.Conjugate(res)
+	res = pr.Ext12.Mul(res, previous)
+	return res, err
+}
+
+// AssertMillerLoopAndFinalExpIsOne computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and checks that the result lies in the
+// same equivalence class as the reduced pairing purported to be 1. This check
+// replaces the final exponentiation step in-circuit and follows Section 4 of
+// [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// This method is needed for evmprecompiles/ecpair.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) AssertMillerLoopAndFinalExpIsOne(P *G1Affine, Q *G2Affine, previous *GTEl) {
+	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
+	pr.AssertIsEqual(t2, pr.Ext12.One())
+}
+
+// millerLoopAndFinalExpResult computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and returns the result.
+func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
+	tower := pr.ToTower(previous)
+
+	// hint the non-residue witness
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, tower[0], tower[1], tower[2], tower[3], tower[4], tower[5], tower[6], tower[7], tower[8], tower[9], tower[10], tower[11])
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	residueWitnessInv := pr.Ext12.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+	// constrain scalingFactor to be in Fp6
+	// that is: a100=a101=a110=a111=a120=a121=0
+	// or
+	//     A0  =  a000 - a001
+	//     A1  =  0
+	//     A2  =  a010 - a011
+	//     A3  =  0
+	//     A4  =  a020 - a021
+	//     A5  =  0
+	//     A6  =  a001
+	//     A7  =  0
+	//     A8  =  a011
+	//     A9  =  0
+	//     A10 =  a021
+	//     A11 =  0
+	scalingFactor := GTEl{
+		A0:  *pr.curveF.Sub(hint[12], hint[13]),
+		A1:  *pr.curveF.Zero(),
+		A2:  *pr.curveF.Sub(hint[14], hint[15]),
+		A3:  *pr.curveF.Zero(),
+		A4:  *pr.curveF.Sub(hint[16], hint[17]),
+		A5:  *pr.curveF.Zero(),
+		A6:  *hint[13],
+		A7:  *pr.curveF.Zero(),
+		A8:  *hint[15],
+		A9:  *pr.curveF.Zero(),
+		A10: *hint[17],
+		A11: *pr.curveF.Zero(),
+	}
+
+	if Q.Lines == nil {
+		Qlines := pr.computeLines(&Q.P)
+		Q.Lines = &Qlines
+	}
+	lines := *Q.Lines
+
+	res, err := pr.millerLoopLines(
+		[]*G1Affine{P},
+		[]lineEvaluations{lines},
+		residueWitnessInv,
+		false,
+	)
+	if err != nil {
+		return nil
+	}
+	res = pr.Ext12.Conjugate(res)
+
+	// multiply by previous multi-Miller function
+	res = pr.Ext12.Mul(res, previous)
+
+	// Check that: MillerLoop(P,Q) * scalingFactor * residueWitnessInv^(p-x₀) == 1
+	// where u=-0xd201000000010000 is the BLS12-381 seed, and residueWitnessInv,
+	// scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{-x₀} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	// So we only need to check that:
+	// 		res * scalingFactor * residueWitnessInv^p == 1
+	res = pr.Ext12.Mul(res, &scalingFactor)
+	t0 := pr.Frobenius(residueWitnessInv)
+	res = pr.Ext12.Mul(res, t0)
+
+	return res
+
+}
+
+// IsMillerLoopAndFinalExpOne computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and returns a boolean indicating if
+// the result lies in the same equivalence class as the reduced pairing
+// purported to be 1.
+//
+// This method is needed for evmprecompiles/ecpair.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) IsMillerLoopAndFinalExpOne(P *G1Affine, Q *G2Affine, previous *GTEl) frontend.Variable {
+	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
+
+	res := pr.IsEqual(t2, pr.Ext12.One())
+	return res
 }

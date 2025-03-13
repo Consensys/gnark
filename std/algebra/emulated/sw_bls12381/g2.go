@@ -10,7 +10,8 @@ import (
 )
 
 type G2 struct {
-	fp *emulated.Field[BaseField]
+	api frontend.API
+	fp  *emulated.Field[BaseField]
 	*fields_bls12381.Ext2
 	u1, w *emulated.Element[BaseField]
 	v     *fields_bls12381.E2
@@ -280,4 +281,10 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 func (g2 *G2) AssertIsEqual(p, q *G2Affine) {
 	g2.Ext2.AssertIsEqual(&p.P.X, &q.P.X)
 	g2.Ext2.AssertIsEqual(&p.P.Y, &q.P.Y)
+}
+
+func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
+	xEqual := g2.Ext2.IsEqual(&p.P.X, &q.P.X)
+	yEqual := g2.Ext2.IsEqual(&p.P.Y, &q.P.Y)
+	return g2.api.And(xEqual, yEqual)
 }
