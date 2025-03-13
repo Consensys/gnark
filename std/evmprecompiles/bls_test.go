@@ -66,6 +66,50 @@ func TestECAddBLSCircuitShort(t *testing.T) {
 	assert.NoError(err)
 }
 
+type ecaddG2BLSCircuit struct {
+	X0       sw_bls12381.G2Affine
+	X1       sw_bls12381.G2Affine
+	Expected sw_bls12381.G2Affine
+}
+
+func (c *ecaddG2BLSCircuit) Define(api frontend.API) error {
+	g2 := sw_bls12381.NewG2(api)
+	res := ECAddG2BLS(api, &c.X0, &c.X1)
+	g2.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func testRoutineECAddG2BLS() (circ, wit frontend.Circuit) {
+	_, _, _, G := bls12381.Generators()
+	var u, v fr.Element
+	u.SetRandom()
+	v.SetRandom()
+	var P, Q bls12381.G2Affine
+	P.ScalarMultiplication(&G, u.BigInt(new(big.Int)))
+	Q.ScalarMultiplication(&G, v.BigInt(new(big.Int)))
+	var expected bls12381.G2Affine
+	expected.Add(&P, &Q)
+	circuit := ecaddG2BLSCircuit{}
+	witness := ecaddG2BLSCircuit{
+		X0:       sw_bls12381.NewG2Affine(P),
+		X1:       sw_bls12381.NewG2Affine(Q),
+		Expected: sw_bls12381.NewG2Affine(expected),
+	}
+	return &circuit, &witness
+}
+
+func TestECAddG2BLSCircuitShort(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit, witness := testRoutineECAddG2BLS()
+	err := test.IsSolved(circuit, witness, ecc.BLS12_381.ScalarField())
+	assert.NoError(err)
+}
+
+func TestECAddG2BLSCircuitFull(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit, witness := testRoutineECAddG2BLS()
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+}
 func TestECAddBLSCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECAdd()
@@ -133,50 +177,4 @@ func TestECPairBLSBLSMulBatch(t *testing.T) {
 		}, ecc.BLS12_381.ScalarField())
 		assert.NoError(err)
 	}
-}
-
-// ---
-type ecaddG2BLSCircuit struct {
-	X0       sw_bls12381.G2Affine
-	X1       sw_bls12381.G2Affine
-	Expected sw_bls12381.G2Affine
-}
-
-func (c *ecaddG2BLSCircuit) Define(api frontend.API) error {
-	g2 := sw_bls12381.NewG2(api)
-	res := ECAddG2BLS(api, &c.X0, &c.X1)
-	g2.AssertIsEqual(res, &c.Expected)
-	return nil
-}
-
-func testRoutineECAddG2BLS() (circ, wit frontend.Circuit) {
-	_, _, _, G := bls12381.Generators()
-	var u, v fr.Element
-	u.SetRandom()
-	v.SetRandom()
-	var P, Q bls12381.G2Affine
-	P.ScalarMultiplication(&G, u.BigInt(new(big.Int)))
-	Q.ScalarMultiplication(&G, v.BigInt(new(big.Int)))
-	var expected bls12381.G2Affine
-	expected.Add(&P, &Q)
-	circuit := ecaddG2BLSCircuit{}
-	witness := ecaddG2BLSCircuit{
-		X0:       sw_bls12381.NewG2Affine(P),
-		X1:       sw_bls12381.NewG2Affine(Q),
-		Expected: sw_bls12381.NewG2Affine(expected),
-	}
-	return &circuit, &witness
-}
-
-func TestECAddG2BLSCircuitShort(t *testing.T) {
-	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECAddG2BLS()
-	err := test.IsSolved(circuit, witness, ecc.BLS12_381.ScalarField())
-	assert.NoError(err)
-}
-
-func TestECAddG2BLSCircuitFull(t *testing.T) {
-	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECAddG2BLS()
-	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 }

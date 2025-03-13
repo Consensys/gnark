@@ -43,9 +43,7 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 	for i := 0; i < n; i++ {
 		// 1- Check that Pᵢ are on G1
 		pair.AssertIsOnG1(P[i])
-		// 2- Check that Qᵢ are on G2
-		// TODO: @yelousni include this check in `computeLines`
-		pair.AssertIsOnG2(Q[i])
+		// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck)
 	}
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
