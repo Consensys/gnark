@@ -139,14 +139,14 @@ func (d *digest) absorbingFixedWidth(minNbOfBlocks int, blocks [][]uints.U64, nb
 		}
 		state = keccakf.Permute(d.uapi, state)
 
-		// When i < minNbOfBlocks, it must be in the range, so we use state directly
+		// When i < minNbOfBlocks, state cannot be resultState, and proceed to the next loop directly
 		if i < minNbOfBlocks {
 			continue
 		}
 
 		isInRange := comparator.IsLess(i, nbBlocks)
-		// only select blocks that are in range
-		for j := 0; j < 25; j++ {
+		// only select blocks that are in range. Only process the first outputLen data relevant to the result
+		for j := 0; j < d.outputLen/8; j++ {
 			for k := 0; k < 8; k++ {
 				resultState[j][k].Val = d.api.Select(isInRange, state[j][k].Val, resultState[j][k].Val)
 			}

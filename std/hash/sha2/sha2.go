@@ -60,14 +60,16 @@ func (d *digest) padded(bytesLen int) []uints.U8 {
 }
 
 func (d *digest) Sum() []uints.U8 {
+	padded := d.padded(len(d.in))
+
 	var runningDigest [8]uints.U32
 	var buf [64]uints.U8
 	copy(runningDigest[:], _seed)
-	padded := d.padded(len(d.in))
 	for i := 0; i < len(padded)/64; i++ {
 		copy(buf[:], padded[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 	}
+
 	var ret []uints.U8
 	for i := range runningDigest {
 		ret = append(ret, d.uapi.UnpackMSB(runningDigest[i])...)
@@ -133,7 +135,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 		copy(buf[:], data[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 
-		// When i < minLen/64, it must be in the range, so we use runningDigest directly
+		// When i < minLen/64, runningDigest cannot be resultDigest, and proceed to the next loop directly
 		if i < minLen/64 {
 			continue
 		}
