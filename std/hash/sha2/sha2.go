@@ -107,16 +107,18 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
+	// When i < minLen, it is completely unnecessary
 	for i := minLen; i < len(data); i++ {
-		isPaddingStartPos := d.api.IsZero(d.api.Sub(i, length))
+		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
 		isPaddingPos := comparator.IsLess(length, i)
 		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
+	// When i < minLen, it is completely unnecessary
 	for i := minLen; i < len(data); i++ {
-		isLast8BytesPos := d.api.IsZero(d.api.Sub(i, last8BytesPos))
+		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
 			if i+j < len(data) {
 				data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
@@ -134,6 +136,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 		copy(buf[:], data[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 
+		// When i < minLen/64, it must be in the range, so we use runningDigest directly
 		if i < minLen/64 {
 			continue
 		}

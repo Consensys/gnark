@@ -77,6 +77,7 @@ func (d *digest) paddingFixedWidth(minLen int, length frontend.Variable) (padded
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
+	// When i < minLen, it is completely unnecessary
 	for i := minLen; i <= len(padded)-d.rate; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
 		switch q := d.rate - ((i) % d.rate); q {
@@ -137,6 +138,8 @@ func (d *digest) absorbingFixedWidth(minNbOfBlocks int, blocks [][]uints.U64, nb
 			state[j] = d.uapi.Xor(state[j], block[j])
 		}
 		state = keccakf.Permute(d.uapi, state)
+
+		// When i < minNbOfBlocks, it must be in the range, so we use state directly
 		if i < minNbOfBlocks {
 			continue
 		}
