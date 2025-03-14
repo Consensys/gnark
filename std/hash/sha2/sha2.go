@@ -70,9 +70,13 @@ func (d *digest) Sum() []uints.U8 {
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 	}
 
+	return d.unpackU8digest(runningDigest)
+}
+
+func (d *digest) unpackU8digest(digest [8]uints.U32) []uints.U8 {
 	var ret []uints.U8
-	for i := range runningDigest {
-		ret = append(ret, d.uapi.UnpackMSB(runningDigest[i])...)
+	for i := range digest {
+		ret = append(ret, d.uapi.UnpackMSB(digest[i])...)
 	}
 	return ret
 }
@@ -95,7 +99,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	copy(data, d.in)
 	data = append(data, uints.NewU8Array(make([]uint8, 64+8))...)
 
-	// When i < minLen and i >= len(d.in)+1, padding 0x80 is completely unnecessary
+	// When i < minLen and i >= len(d.in)+1, padding 1 0r 0 is completely unnecessary
 	for i := minLen; i < maxLen+1; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
@@ -151,11 +155,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 		}
 	}
 
-	var ret []uints.U8
-	for i := range resultDigest {
-		ret = append(ret, d.uapi.UnpackMSB(resultDigest[i])...)
-	}
-	return ret
+	return d.unpackU8digest(resultDigest)
 }
 
 func (d *digest) Reset() {
