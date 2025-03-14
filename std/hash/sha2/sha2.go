@@ -95,9 +95,9 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxLen+64+8)), false)
 	comparator.AssertIsLessEq(minLen, length)
 
-	padded := make([]uints.U8, maxLen)
-	copy(padded, d.in)
-	padded = append(padded, uints.NewU8Array(make([]uint8, 64+8))...)
+	data := make([]uints.U8, maxLen)
+	copy(data, d.in)
+	data = append(data, uints.NewU8Array(make([]uint8, 64+8))...)
 
 	lenMod64 := d.mod64(length)
 	lenMod64Less56 := comparator.IsLess(lenMod64, 56)
@@ -114,18 +114,18 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	// When i < minLen or i > maxLen, padding 1 0r 0 is completely unnecessary
 	for i := minLen; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
-		padded[i].Val = d.api.Select(isPaddingStartPos, 0x80, padded[i].Val)
+		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
 		isPaddingPos := comparator.IsLess(length, i)
-		padded[i].Val = d.api.Select(isPaddingPos, 0, padded[i].Val)
+		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
 	// When i <= minLen, padding length is completely unnecessary
-	for i := minLen + 1; i < len(padded); i++ {
+	for i := minLen + 1; i < len(data); i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
-			if i+j < len(padded) {
-				padded[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], padded[i+j].Val)
+			if i+j < len(data) {
+				data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
 			}
 		}
 	}
@@ -135,8 +135,8 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	var buf [64]uints.U8
 	copy(runningDigest[:], _seed)
 
-	for i := 0; i < len(padded)/64; i++ {
-		copy(buf[:], padded[i*64:(i+1)*64])
+	for i := 0; i < len(data)/64; i++ {
+		copy(buf[:], data[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 
 		// When i < minLen/64, runningDigest cannot be resultDigest, and proceed to the next loop directly
