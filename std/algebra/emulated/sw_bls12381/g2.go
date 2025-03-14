@@ -342,6 +342,43 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	}
 }
 
+func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+	bTwist := fields_bls12381.E2{
+		A0: emulated.ValueOf[BaseField]("4"),
+		A1: emulated.ValueOf[BaseField]("4"),
+	}
+	// if Q=(0,0) we assign b=0 otherwise 4(1+u), and continue
+	selector := g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
+	b := g2.Ext2.Select(selector, g2.Ext2.Zero(), &bTwist)
+
+	left = g2.Ext2.Square(&Q.P.Y)
+	right = g2.Ext2.Square(&Q.P.X)
+	right = g2.Ext2.Mul(right, &Q.P.X)
+	right = g2.Ext2.Add(right, b)
+	return left, right
+}
+
+func (g2 *G2) AssertIsOnTwist(Q *G2Affine) {
+	left, right := g2.computeTwistEquation(Q)
+	g2.Ext2.AssertIsEqual(left, right)
+}
+
+func (g2 *G2) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	g2.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	// [x₀]Q
+	xQ := g2.scalarMulBySeed(Q)
+	// ψ(Q)
+	psiQ := g2.psi(Q)
+
+	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	g2.AssertIsEqual(xQ, psiQ)
+}
+
 // Select selects between p and q given the selector b. If b == 1, then returns
 // p and q otherwise.
 func (g2 *G2) Select(b frontend.Variable, p, q *G2Affine) *G2Affine {

@@ -24,7 +24,7 @@ import (
 // logic but we prefer a minimal number of circuits (2).
 //
 // See the methods [ECPairMillerLoopAndMul] and [ECPairMillerLoopAndFinalExpCheck] for the fixed circuits.
-// See the method [ECPairIsOnG2] for the check that Qᵢ are on G2.
+// See the method [ECPairBLSIsOnG2] for the check that Qᵢ are on G2.
 //
 // [BLS12_PAIRING_CHECK]: https://eips.ethereum.org/EIPS/eip-2537
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
@@ -41,8 +41,7 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 		panic(err)
 	}
 	for i := 0; i < n; i++ {
-		// 1- Check that Pᵢ are on G1
-		pair.AssertIsOnG1(P[i])
+		// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️)
 		// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck)
 	}
 
@@ -58,17 +57,6 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 
 	// fixed circuit 2
 	pair.AssertMillerLoopAndFinalExpIsOne(P[n-1], Q[n-1], ml)
-}
-
-// ECPairBLSIsOnG1 implements the fixed circuit for checking G1 membership and non-membership.
-func ECPairBLSIsOnG1(api frontend.API, Q *sw_bls12381.G1Affine, expectedIsOnG1 frontend.Variable) error {
-	pairing, err := sw_bls12381.NewPairing(api)
-	if err != nil {
-		return err
-	}
-	isOnG1 := pairing.IsOnG1(Q)
-	api.AssertIsEqual(expectedIsOnG1, isOnG1)
-	return nil
 }
 
 // ECPairBLSIsOnG2 implements the fixed circuit for checking G2 membership and non-membership.

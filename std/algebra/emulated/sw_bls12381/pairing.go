@@ -21,7 +21,6 @@ type Pairing struct {
 	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
 	g1     *G1
-	bTwist *fields_bls12381.E2
 }
 
 type baseEl = emulated.Element[BaseField]
@@ -62,10 +61,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
-	bTwist := fields_bls12381.E2{
-		A0: emulated.ValueOf[BaseField]("4"),
-		A1: emulated.ValueOf[BaseField]("4"),
-	}
 	g1, err := NewG1(api)
 	if err != nil {
 		return nil, fmt.Errorf("new G1 struct: %w", err)
@@ -78,7 +73,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		curve:  curve,
 		g1:     g1,
 		g2:     NewG2(api),
-		bTwist: &bTwist,
 	}, nil
 }
 
@@ -216,29 +210,13 @@ func (pr Pairing) IsOnCurve(P *G1Affine) frontend.Variable {
 	return pr.curveF.IsZero(diff)
 }
 
-func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
-	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
-	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
-
-	// if Q=(0,0) we assign b=0 otherwise 4(1+u), and continue
-	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
-	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
-
-	left = pr.Ext2.Square(&Q.P.Y)
-	right = pr.Ext2.Square(&Q.P.X)
-	right = pr.Ext2.Mul(right, &Q.P.X)
-	right = pr.Ext2.Add(right, b)
-	return left, right
-}
-
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
-	left, right := pr.computeTwistEquation(Q)
-	pr.Ext2.AssertIsEqual(left, right)
+	pr.g2.AssertIsOnTwist(Q)
 }
 
 // IsOnTwist returns a boolean indicating if the G2 point is in the twist.
 func (pr Pairing) IsOnTwist(Q *G2Affine) frontend.Variable {
-	left, right := pr.computeTwistEquation(Q)
+	left, right := pr.g2.computeTwistEquation(Q)
 	diff := pr.Ext2.Sub(left, right)
 	return pr.Ext2.IsZero(diff)
 }
@@ -257,33 +235,8 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.curve.AssertIsEqual(_P, P)
 }
 
-// IsOnG1 returns a boolean indicating if the G1 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
-func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
-	// 1 - is P on curve
-	isOnCurve := pr.IsOnCurve(P)
-	// 2 - is P in the subgroup
-	phiP := pr.g1.phi(P)
-	_P := pr.g1.scalarMulBySeedSquare(phiP)
-	_P = pr.curve.Neg(_P)
-	isInSubgroup := pr.g1.IsEqual(_P, phiP)
-
-	return pr.api.And(isOnCurve, isInSubgroup)
-}
-
 func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
-	// 1- Check Q is on the curve
-	pr.AssertIsOnTwist(Q)
-
-	// 2- Check Q has the right subgroup order
-	// [x₀]Q
-	xQ := pr.g2.scalarMulBySeed(Q)
-	// ψ(Q)
-	psiQ := pr.g2.psi(Q)
-
-	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
-	pr.g2.AssertIsEqual(xQ, psiQ)
+	pr.g2.AssertIsOnG2(Q)
 }
 
 // IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
