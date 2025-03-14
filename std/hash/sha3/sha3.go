@@ -73,28 +73,29 @@ func (d *digest) padding() []uints.U8 {
 
 func (d *digest) paddingFixedWidth(minLen int, length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
 	numberOfBlocks = frontend.Variable(0)
-	padded = make([]uints.U8, len(d.in))
+	maxLen := len(d.in)
+	padded = make([]uints.U8, maxLen)
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
-	// When i < minLen, it is completely unnecessary
-	for i := minLen; i <= len(padded)-d.rate; i++ {
-		reachEnd := cmp.IsEqual(d.api, i, length)
+	// When i < minLen or i > maxLen, it is completely unnecessary
+	for i := minLen; i <= maxLen; i++ {
+		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		switch q := d.rate - ((i) % d.rate); q {
 		case 1:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+1)/d.rate, numberOfBlocks)
+			padded[i].Val = d.api.Select(isPaddingStartPos, d.dsbyte^0x80, padded[i].Val)
+			numberOfBlocks = d.api.Select(isPaddingStartPos, (i+1)/d.rate, numberOfBlocks)
 		case 2:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
-			padded[i+1].Val = d.api.Select(reachEnd, 0x80, padded[i+1].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
+			padded[i].Val = d.api.Select(isPaddingStartPos, d.dsbyte, padded[i].Val)
+			padded[i+1].Val = d.api.Select(isPaddingStartPos, 0x80, padded[i+1].Val)
+			numberOfBlocks = d.api.Select(isPaddingStartPos, (i+2)/d.rate, numberOfBlocks)
 		default:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
-			for j := 0; j < q-1; j++ {
-				padded[i+1+j].Val = d.api.Select(reachEnd, 0, padded[i+1+j].Val)
+			padded[i].Val = d.api.Select(isPaddingStartPos, d.dsbyte, padded[i].Val)
+			for j := 0; j < q-2; j++ {
+				padded[i+1+j].Val = d.api.Select(isPaddingStartPos, 0, padded[i+1+j].Val)
 			}
-			padded[i+q-1].Val = d.api.Select(reachEnd, 0x80, padded[i+q-1].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+q)/d.rate, numberOfBlocks)
+			padded[i+q-1].Val = d.api.Select(isPaddingStartPos, 0x80, padded[i+q-1].Val)
+			numberOfBlocks = d.api.Select(isPaddingStartPos, (i+q)/d.rate, numberOfBlocks)
 		}
 	}
 	return padded, numberOfBlocks

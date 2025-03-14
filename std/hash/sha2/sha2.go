@@ -111,8 +111,8 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
-	// When i < minLen and i >= len(d.in)+1, padding 1 0r 0 is completely unnecessary
-	for i := minLen; i < maxLen+1; i++ {
+	// When i < minLen or i > maxLen, padding 1 0r 0 is completely unnecessary
+	for i := minLen; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		padded[i].Val = d.api.Select(isPaddingStartPos, 0x80, padded[i].Val)
 
