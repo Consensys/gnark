@@ -233,9 +233,10 @@ func TestECPairBLSBLSMulBatch(t *testing.T) {
 }
 
 type ecmsmg1BLSCircuit struct {
-	Points  []sw_emulated.AffinePoint[emulated.BLS12381Fp]
-	Scalars []emulated.Element[emulated.BLS12381Fr]
+	Points  [10]sw_emulated.AffinePoint[emulated.BLS12381Fp]
+	Scalars [10]emulated.Element[emulated.BLS12381Fr]
 	Res     sw_emulated.AffinePoint[emulated.BLS12381Fp]
+	n       int
 }
 
 func (c *ecmsmg1BLSCircuit) Define(api frontend.API) error {
@@ -243,12 +244,12 @@ func (c *ecmsmg1BLSCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	ps := make([]*sw_emulated.AffinePoint[emulated.BLS12381Fp], len(c.Points))
-	for i := range c.Points {
+	ps := make([]*sw_emulated.AffinePoint[emulated.BLS12381Fp], c.n)
+	for i := range c.n {
 		ps[i] = &c.Points[i]
 	}
-	ss := make([]*emulated.Element[emulated.BLS12381Fr], len(c.Scalars))
-	for i := range c.Scalars {
+	ss := make([]*emulated.Element[emulated.BLS12381Fr], c.n)
+	for i := range c.n {
 		ss[i] = &c.Scalars[i]
 	}
 	res := ECMSMG1BLS(api, ps, ss)
@@ -258,39 +259,38 @@ func (c *ecmsmg1BLSCircuit) Define(api frontend.API) error {
 
 func TestECMSMG1BLSCircuit(t *testing.T) {
 	assert := test.NewAssert(t)
-	nbLen := 4
-	P := make([]bls12381.G1Affine, nbLen)
-	S := make([]fr_bls12381.Element, nbLen)
-	for i := 0; i < nbLen; i++ {
+	P := make([]bls12381.G1Affine, 10)
+	S := make([]fr_bls12381.Element, 10)
+	for i := 0; i < 10; i++ {
 		S[i].SetRandom()
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
 	}
-	var res bls12381.G1Affine
-	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
 
-	assert.NoError(err)
-	cP := make([]sw_emulated.AffinePoint[emulated.BLS12381Fp], len(P))
+	var cP [10]sw_emulated.AffinePoint[emulated.BLS12381Fp]
 	for i := range cP {
 		cP[i] = sw_emulated.AffinePoint[emulated.BLS12381Fp]{
 			X: emulated.ValueOf[emulated.BLS12381Fp](P[i].X),
 			Y: emulated.ValueOf[emulated.BLS12381Fp](P[i].Y),
 		}
 	}
-	cS := make([]emulated.Element[emulated.BLS12381Fr], len(S))
+	var cS [10]emulated.Element[emulated.BLS12381Fr]
 	for i := range cS {
 		cS[i] = emulated.ValueOf[emulated.BLS12381Fr](S[i])
 	}
-	assignment := ecmsmg1BLSCircuit{
-		Points:  cP,
-		Scalars: cS,
-		Res: sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](res.X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](res.Y),
-		},
+
+	for i := 1; i < 11; i++ {
+		var res bls12381.G1Affine
+		_, err := res.MultiExp(P[:i], S[:i], ecc.MultiExpConfig{})
+		assert.NoError(err)
+		err = test.IsSolved(&ecmsmg1BLSCircuit{n: i}, &ecmsmg1BLSCircuit{
+			n:       i,
+			Points:  cP,
+			Scalars: cS,
+			Res: sw_emulated.AffinePoint[emulated.BLS12381Fp]{
+				X: emulated.ValueOf[emulated.BLS12381Fp](res.X),
+				Y: emulated.ValueOf[emulated.BLS12381Fp](res.Y),
+			},
+		}, ecc.BN254.ScalarField())
+		assert.NoError(err)
 	}
-	err = test.IsSolved(&ecmsmg1BLSCircuit{
-		Points:  make([]sw_emulated.AffinePoint[emulated.BLS12381Fp], nbLen),
-		Scalars: make([]emulated.Element[emulated.BLS12381Fr], nbLen),
-	}, &assignment, ecc.BN254.ScalarField())
-	assert.NoError(err)
 }
