@@ -74,7 +74,10 @@ type ecaddG2BLSCircuit struct {
 }
 
 func (c *ecaddG2BLSCircuit) Define(api frontend.API) error {
-	g2 := sw_bls12381.NewG2(api)
+	g2, err := sw_bls12381.NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res := ECAddG2BLS(api, &c.X0, &c.X1)
 	g2.AssertIsEqual(res, &c.Expected)
 	return nil

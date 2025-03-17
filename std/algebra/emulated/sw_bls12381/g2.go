@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"fmt"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
@@ -40,11 +41,10 @@ func newG2AffP(v bls12381.G2Affine) g2AffP {
 	}
 }
 
-func NewG2(api frontend.API) *G2 {
-	fp, err := emulated.NewField[emulated.BLS12381Fp](api)
+func NewG2(api frontend.API) (*G2, error) {
+	fp, err := emulated.NewField[BaseField](api)
 	if err != nil {
-		// TODO: we start returning errors when generifying
-		panic(err)
+		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	w := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	u1 := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
@@ -59,7 +59,7 @@ func NewG2(api frontend.API) *G2 {
 		w:    &w,
 		u1:   &u1,
 		v:    &v,
-	}
+	}, nil
 }
 
 func NewG2Affine(v bls12381.G2Affine) G2Affine {

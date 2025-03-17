@@ -1,6 +1,7 @@
 package sw_bn254
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -40,11 +41,10 @@ func newG2AffP(v bn254.G2Affine) g2AffP {
 	}
 }
 
-func NewG2(api frontend.API) *G2 {
-	fp, err := emulated.NewField[emulated.BN254Fp](api)
+func NewG2(api frontend.API) (*G2, error) {
+	fp, err := emulated.NewField[BaseField](api)
 	if err != nil {
-		// TODO: we start returning errors when generifying
-		panic(err)
+		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	w := emulated.ValueOf[BaseField]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
 	u := fields_bn254.E2{
@@ -62,7 +62,7 @@ func NewG2(api frontend.API) *G2 {
 		w:    &w,
 		u:    &u,
 		v:    &v,
-	}
+	}, nil
 }
 
 func NewG2Affine(v bn254.G2Affine) G2Affine {

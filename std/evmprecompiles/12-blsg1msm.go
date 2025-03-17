@@ -3,6 +3,7 @@ package evmprecompiles
 import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -15,8 +16,17 @@ func ECMSMG1BLS(api frontend.API, P []*sw_emulated.AffinePoint[emulated.BLS12381
 	if err != nil {
 		panic(err)
 	}
+	g1, err := sw_bls12381.NewG1(api)
+	if err != nil {
+		panic(err)
+	}
 
-	// Check that all P's are on G1 (done in the zkEVM ⚠️ )
+	// Check that Pᵢ are on G1
+	for _, p := range P {
+		g1.AssertIsOnG1(p)
+	}
+
+	// Compute the MSM
 	res, err := curve.MultiScalarMul(P, s, algopts.WithCompleteArithmetic())
 	if err != nil {
 		panic(err)
