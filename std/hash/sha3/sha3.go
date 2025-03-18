@@ -38,9 +38,13 @@ func (d *digest) Sum() []uints.U8 {
 	return d.squeezeBlocks()
 }
 
-func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8 {
-	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
-	comparator.AssertIsLessEq(minLen, length)
+func (d *digest) FixedLengthSum(length frontend.Variable, minLenOpt ...int) []uints.U8 {
+	minLen := 0
+	if len(minLenOpt) == 1 {
+		minLen = minLenOpt[0]
+		comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
+		comparator.AssertIsLessEq(minLen, length)
+	}
 
 	padded, numberOfBlocks := d.paddingFixedWidth(minLen, length)
 
