@@ -70,10 +70,10 @@ func (d *digest) Sum() []uints.U8 {
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 	}
 
-	return d.unpackU8digest(runningDigest)
+	return d.unpackU8Digest(runningDigest)
 }
 
-func (d *digest) unpackU8digest(digest [8]uints.U32) []uints.U8 {
+func (d *digest) unpackU8Digest(digest [8]uints.U32) []uints.U8 {
 	var ret []uints.U8
 	for i := range digest {
 		ret = append(ret, d.uapi.UnpackMSB(digest[i])...)
@@ -160,7 +160,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable, minLenOpt ...int) []ui
 		}
 	}
 
-	return d.unpackU8digest(resultDigest)
+	return d.unpackU8Digest(resultDigest)
 }
 
 func (d *digest) Reset() {

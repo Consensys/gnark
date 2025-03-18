@@ -122,7 +122,7 @@ func (c *sha2FixedLengthWithMinLenCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestSHA2FixedLengthWithMinLenSumWithMinLen(t *testing.T) {
+func TestSHA2FixedLengthSumWithMinLen(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit := &sha2FixedLengthWithMinLenCircuit{In: make([]uints.U8, maxLen)}
 	bts := make([]byte, maxLen)
