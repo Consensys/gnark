@@ -89,6 +89,29 @@ type BinaryFixedLengthHasher interface {
 	FixedLengthSum(length frontend.Variable) []uints.U8
 }
 
+// HasherConfig allows to configure the behavior of the hash constructors. Do
+// not initialize the configuration directly but rather use the [Option]
+// functions which perform correct initializations. This configuration is
+// exported for importing in hash implementations.
+type HasherConfig struct {
+	MinimalLength int
+}
+
+// Option allows configuring the hash functions.
+type Option func(*HasherConfig) error
+
+// WithMinimalLength hints the minimal length of the input to the hash function.
+// This allows to optimize the constraint count when calling
+// [BinaryFixedLengthHasher.FixedLengthSum] as we can avoid selecting between
+// the dummy padding and actual padding. If this option is not provided, then we
+// assume the minimal length is 0.
+func WithMinimalLength(minimalLength int) Option {
+	return func(cfg *HasherConfig) error {
+		cfg.MinimalLength = minimalLength
+		return nil
+	}
+}
+
 // Compressor is a 2-1 one-way function. It takes two inputs and compresses
 // them into one output.
 //
