@@ -342,7 +342,6 @@ func TestTopSortSingleGate(t *testing.T) {
 	c[0].Inputs = []*Wire{&c[1], &c[2]}
 	sorted := topologicalSort(c)
 	expected := []*Wire{&c[1], &c[2], &c[0]}
-	assert.True(t, SliceEqual(sorted, expected)) //TODO: Remove
 	AssertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].nbUniqueOutputs, 0)
 	assert.Equal(t, c[1].nbUniqueOutputs, 1)
