@@ -2,10 +2,13 @@ package evmprecompiles
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+type FpApi = emulated.Field[emulated.BLS12381Fp]
 type FpElement = emulated.Element[emulated.BLS12381Fp]
+type G1Affine = sw_emulated.AffinePoint[emulated.BLS12381Fp]
 
 func g1IsogenyXNumerator(api frontend.API, x FpElement) (FpElement, error) {
 
@@ -100,22 +103,105 @@ func g1IsogenyYDenominator(api frontend.API, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1EvalPolynomial(api frontend.API, monic bool, coefficients []FpElement, x FpElement) (FpElement, error) {
+func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x FpElement) (FpElement, error) {
 
 	res := coefficients[len(coefficients)-1]
-	fp, e := emulated.NewField[emulated.BLS12381Fp](api)
-	if e != nil {
-		return res, e
-	}
 
 	if monic {
-		res = *fp.Add(&res, &x)
+		res = *api.Add(&res, &x)
 	}
 
 	for i := len(coefficients) - 2; i >= 0; i-- {
-		res = *fp.Mul(&res, &x)
-		res = *fp.Add(&res, &coefficients[i])
+		res = *api.Mul(&res, &x)
+		res = *api.Add(&res, &coefficients[i])
 	}
 	return res, nil
 
+}
+
+// g1MulByZ multiplies x by [11] and stores the result in z
+func g1MulByZ(api *FpApi, z, x *FpElement) {
+	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
+	*z = *api.Mul(&eleven, x)
+}
+
+// https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
+// MapToCurve1 implements the SSWU map
+// No cofactor clearing or isogeny
+func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
+
+	var res G1Affine
+
+	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
+	if err != nil {
+		return res, err
+	}
+
+	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp]("0x144698a3b8e9433d693a02c96d4982b0ea985383ee66a8d8e8981aefd881ac98936f8da0e0f97f5cf428082d584c1d")
+	sswuIsoCurveCoeffB := emulated.ValueOf[emulated.BLS12381Fp]("0x12e2908d11688030018b12e8753eee3b2016c1f0f24f4070a0b9c14fcef35ef55a23215a316ceaa5d1cc48e98e172be0")
+
+	tv1 := fpApi.Mul(u, u) // 1.  tv1 = u²
+
+	//mul tv1 by Z
+	g1MulByZ(&tv1, &tv1) // 2.  tv1 = Z * tv1
+
+	// var tv2 fp.Element
+	// tv2.Square(&tv1)    // 3.  tv2 = tv1²
+	// tv2.Add(&tv2, &tv1) // 4.  tv2 = tv2 + tv1
+
+	// var tv3 fp.Element
+	// var tv4 fp.Element
+	// tv4.SetOne()
+	// tv3.Add(&tv2, &tv4)                // 5.  tv3 = tv2 + 1
+	// tv3.Mul(&tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
+
+	// tv2NZero := g1NotZero(&tv2)
+
+	// // tv4 = Z
+	// tv4 = fp.Element{9830232086645309404, 1112389714365644829, 8603885298299447491, 11361495444721768256, 5788602283869803809, 543934104870762216}
+
+	// tv2.Neg(&tv2)
+	// tv4.Select(int(tv2NZero), &tv4, &tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	// tv4.Mul(&tv4, &sswuIsoCurveCoeffA)    // 8.  tv4 = A * tv4
+
+	// tv2.Square(&tv3) // 9.  tv2 = tv3²
+
+	// var tv6 fp.Element
+	// tv6.Square(&tv4) // 10. tv6 = tv4²
+
+	// var tv5 fp.Element
+	// tv5.Mul(&tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
+
+	// tv2.Add(&tv2, &tv5) // 12. tv2 = tv2 + tv5
+	// tv2.Mul(&tv2, &tv3) // 13. tv2 = tv2 * tv3
+	// tv6.Mul(&tv6, &tv4) // 14. tv6 = tv6 * tv4
+
+	// tv5.Mul(&tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
+	// tv2.Add(&tv2, &tv5)                // 16. tv2 = tv2 + tv5
+
+	// var x fp.Element
+	// x.Mul(&tv1, &tv3) // 17.   x = tv1 * tv3
+
+	// var y1 fp.Element
+	// gx1NSquare := g1SqrtRatio(&y1, &tv2, &tv6) // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+
+	// var y fp.Element
+	// y.Mul(&tv1, u) // 19.   y = tv1 * u
+
+	// y.Mul(&y, &y1) // 20.   y = y * y1
+
+	// x.Select(int(gx1NSquare), &tv3, &x) // 21.   x = CMOV(x, tv3, is_gx1_square)
+	// y.Select(int(gx1NSquare), &y1, &y)  // 22.   y = CMOV(y, y1, is_gx1_square)
+
+	// y1.Neg(&y)
+	// y.Select(int(g1Sgn0(u)^g1Sgn0(&y)), &y, &y1)
+
+	// // 23.  e1 = sgn0(u) == sgn0(y)
+	// // 24.   y = CMOV(-y, y, e1)
+
+	// x.Div(&x, &tv4) // 25.   x = x / tv4
+
+	// return G1Affine{x, y}
+
+	return res, nil
 }
