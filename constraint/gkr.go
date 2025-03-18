@@ -49,15 +49,29 @@ func (w GkrWire) IsOutput() bool {
 	return w.NbUniqueOutputs == 0
 }
 
-// AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
+// AssignmentOffsets calculates and returns an array where each element represents
+// the index of the first value assigned to a specific wire in the circuit.
+//
+// - `res[i]`: Represents the **starting index** of values assigned to wire `i`.
+// - `res[i+1]`: Represents the **starting index** of values assigned to the next wire (`i+1`).
+// - If a wire is an **independent input**, its assigned values are determined directly.
+//   However, if it **depends on other wires**, the number of assignments is adjusted
+//   based on the dependencies (`nbExplicitAssignments` calculation).
+//
+//  This function ensures that each wire in the `Circuit` has a correctly assigned
+//    starting index for its values, helping track assignments efficiently.
+
 func (d *GkrInfo) AssignmentOffsets() []int {
 	c := d.Circuit
-	res := make([]int, len(c)+1)
+	res := make([]int, len(c)+1) // One extra element for easier boundary calculations.
 	for i := range c {
 		nbExplicitAssignments := 0
+		// If the wire is an independent input
 		if c[i].IsInput() {
+			// Determine the number of non-dependent instances
 			nbExplicitAssignments = d.NbInstances - len(c[i].Dependencies)
 		}
+		// Compute the offset by adding to the previous index
 		res[i+1] = res[i] + nbExplicitAssignments
 	}
 	return res
