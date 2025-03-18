@@ -10,8 +10,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -395,45 +393,4 @@ func TestECMSMG2BLSCircuit(t *testing.T) {
 		}, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
-}
-
-// bench
-func BenchmarkG2MSM1(b *testing.B) {
-	c := ecmsmg2BLSCircuit{n: 1}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BLS12_G2MSM (1 pair): ", p.NbConstraints())
-}
-
-func BenchmarkG2MSM2(b *testing.B) {
-	c := ecmsmg2BLSCircuit{n: 2}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BLS12_G2MSM (2 pair): ", p.NbConstraints())
-}
-
-func BenchmarkG2MSM3(b *testing.B) {
-	c := ecmsmg2BLSCircuit{n: 3}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BLS12_G2MSM (3 pair): ", p.NbConstraints())
-}
-
-func BenchmarkG2MSM5(b *testing.B) {
-	c := ecmsmg2BLSCircuit{n: 5}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BLS12_G2MSM (5 pair): ", p.NbConstraints())
-}
-
-func BenchmarkG2MSM10(b *testing.B) {
-	c := ecmsmg2BLSCircuit{n: 10}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BLS12_G2MSM (10 pair): ", p.NbConstraints())
 }
