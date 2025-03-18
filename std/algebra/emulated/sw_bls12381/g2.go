@@ -6,6 +6,7 @@ import (
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -13,6 +14,7 @@ import (
 type G2 struct {
 	api frontend.API
 	fp  *emulated.Field[BaseField]
+	fr  *emulated.Field[ScalarField]
 	*fields_bls12381.Ext2
 	u1, w *emulated.Element[BaseField]
 	v     *fields_bls12381.E2
@@ -46,6 +48,10 @@ func NewG2(api frontend.API) (*G2, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	fr, err := emulated.NewField[ScalarField](api)
+	if err != nil {
+		return nil, fmt.Errorf("new scalar api: %w", err)
+	}
 	w := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	u1 := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
 	v := fields_bls12381.E2{
@@ -55,6 +61,7 @@ func NewG2(api frontend.API) (*G2, error) {
 	return &G2{
 		api:  api,
 		fp:   fp,
+		fr:   fr,
 		Ext2: fields_bls12381.NewExt2(api),
 		w:    &w,
 		u1:   &u1,
@@ -342,6 +349,56 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	}
 }
 
+// doubleAndAddSelect is the same as doubleAndAdd but computes either:
+//
+//	2p+q if b=1 or
+//	2q+p if b=0
+//
+// It first computes the x-coordinate of p+q via the slope(p,q)
+// and then based on a Select adds either p or q.
+func (g2 G2) doubleAndAddSelect(b frontend.Variable, p, q *G2Affine) *G2Affine {
+	mone := g2.fp.NewElement(-1)
+
+	// compute λ1 = (q.y-p.y)/(q.x-p.x)
+	yqyp := g2.Ext2.Sub(&q.P.Y, &p.P.Y)
+	xqxp := g2.Ext2.Sub(&q.P.X, &p.P.X)
+	λ1 := g2.Ext2.DivUnchecked(yqyp, xqxp)
+
+	// compute x2 = λ1²-p.x-q.x
+	x20 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p.P.X.A0}, {mone, &q.P.X.A0}}, []int{1, 1, 1, 1})
+	x21 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p.P.X.A1}, {mone, &q.P.X.A1}}, []int{2, 1, 1})
+	x2 := &fields_bls12381.E2{A0: *x20, A1: *x21}
+
+	// omit y2 computation
+
+	// conditional second addition
+	t := g2.Select(b, p, q)
+
+	// compute -λ2 = λ1+2*t.y/(x2-t.x)
+	ypyp := g2.Ext2.Add(&t.P.Y, &t.P.Y)
+	x2xp := g2.Ext2.Sub(x2, &t.P.X)
+	λ2 := g2.Ext2.DivUnchecked(ypyp, x2xp)
+	λ2 = g2.Ext2.Add(λ1, λ2)
+
+	// compute x3 = (-λ2)²-t.x-x2
+	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &t.P.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
+	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &t.P.X.A1}, {mone, x21}}, []int{2, 1, 1})
+	x3 := &fields_bls12381.E2{A0: *x30, A1: *x31}
+
+	// compute y3 = -λ2*(x3 - t.x)-t.y
+	y3 := g2.Ext2.Sub(x3, &t.P.X)
+	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {mone, &λ2.A1, &y3.A1}, {mone, &t.P.Y.A0}}, []int{1, 1, 1})
+	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {mone, &t.P.Y.A1}}, []int{1, 1, 1})
+	y3 = &fields_bls12381.E2{A0: *y30, A1: *y31}
+
+	return &G2Affine{
+		P: g2AffP{
+			X: *x3,
+			Y: *y3,
+		},
+	}
+}
+
 func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
@@ -400,4 +457,124 @@ func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
 	xEqual := g2.Ext2.IsEqual(&p.P.X, &q.P.X)
 	yEqual := g2.Ext2.IsEqual(&p.P.Y, &q.P.Y)
 	return g2.api.And(xEqual, yEqual)
+}
+
+// scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
+// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// It computes the right-to-left variable-base double-and-add algorithm ([Joye07], Alg.1).
+//
+// Since we use incomplete formulas for the addition law, we need to start with
+// a non-zero accumulator point (R0). To do this, we skip the LSB (bit at
+// position 0) and proceed assuming it was 1. At the end, we conditionally
+// subtract the initial value (p) if LSB is 1. We also handle the bits at
+// positions 1 and n-1 outside of the loop to optimize the number of
+// constraints using [ELM03] (Section 3.1)
+//
+// [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
+func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if p=(0,0) we assign a dummy (0,1) to p and continue
+		selector = g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+		one := g2.Ext2.One()
+		p = g2.Select(selector, &G2Affine{P: g2AffP{X: *one, Y: *one}, Lines: nil}, p)
+	}
+
+	var st ScalarField
+	sr := g2.fr.Reduce(s)
+	sBits := g2.fr.ToBits(sr)
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+
+	// i = 1
+	Rb := g2.triple(p)
+	R0 := g2.Select(sBits[1], Rb, p)
+	R1 := g2.Select(sBits[1], p, Rb)
+
+	for i := 2; i < n-1; i++ {
+		Rb = g2.doubleAndAddSelect(sBits[i], R0, R1)
+		R0 = g2.Select(sBits[i], Rb, R0)
+		R1 = g2.Select(sBits[i], R1, Rb)
+	}
+
+	// i = n-1
+	Rb = g2.doubleAndAddSelect(sBits[n-1], R0, R1)
+	R0 = g2.Select(sBits[n-1], Rb, R0)
+
+	// i = 0
+	// we use AddUnified instead of Add. This is because:
+	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
+	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
+	R0 = g2.Select(sBits[0], R0, g2.AddUnified(R0, g2.neg(p)))
+
+	if cfg.CompleteArithmetic {
+		// if p=(0,0), return (0,0)
+		zero := g2.Ext2.Zero()
+		R0 = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}, Lines: nil}, R0)
+	}
+
+	return R0
+}
+
+// MultiScalarMul computes the multi scalar multiplication of the points P and
+// scalars s. It returns an error if the length of the slices mismatch. If the
+// input slices are empty, then returns point at infinity.
+func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.AlgebraOption) (*G2Affine, error) {
+
+	if len(p) == 0 {
+		return &G2Affine{
+			P: g2AffP{
+				X: *g2.Ext2.Zero(),
+				Y: *g2.Ext2.Zero(),
+			},
+			Lines: nil,
+		}, nil
+	}
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new config: %w", err)
+	}
+	addFn := g2.add
+	if cfg.CompleteArithmetic {
+		addFn = g2.AddUnified
+	}
+	if !cfg.FoldMulti {
+		// the scalars are unique
+		if len(p) != len(s) {
+			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+		}
+		n := len(p)
+		res := g2.scalarMulGeneric(p[0], s[0], opts...)
+		for i := 1; i < n; i++ {
+			q := g2.scalarMulGeneric(p[i], s[i], opts...)
+			res = addFn(res, q)
+		}
+		return res, nil
+	} else {
+		// scalars are powers
+		if len(s) == 0 {
+			return nil, fmt.Errorf("need scalar for folding")
+		}
+		gamma := s[0]
+		res := g2.scalarMulGeneric(p[len(p)-1], gamma, opts...)
+		for i := len(p) - 2; i > 0; i-- {
+			res = addFn(p[i], res)
+			res = g2.scalarMulGeneric(res, gamma, opts...)
+		}
+		res = addFn(p[0], res)
+		return res, nil
+	}
 }

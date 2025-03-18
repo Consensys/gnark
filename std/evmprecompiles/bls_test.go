@@ -10,6 +10,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -293,4 +295,145 @@ func TestECMSMG1BLSCircuit(t *testing.T) {
 		}, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
+}
+
+type ecmulBLSG2Circuit struct {
+	X0       sw_bls12381.G2Affine
+	U        sw_bls12381.Scalar
+	Expected sw_bls12381.G2Affine
+}
+
+func (c *ecmulBLSG2Circuit) Define(api frontend.API) error {
+	g2, err := sw_bls12381.NewG2(api)
+	if err != nil {
+		return err
+	}
+	res := ECMSMG2BLS(api,
+		[]*sw_bls12381.G2Affine{&c.X0},
+		[]*sw_bls12381.Scalar{&c.U},
+	)
+	g2.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func testRoutineECMulG2BLS(t *testing.T) (circ, wit frontend.Circuit) {
+	_, _, _, G := bls12381.Generators()
+	var u, v fr.Element
+	u.SetRandom()
+	v.SetRandom()
+	var P bls12381.G2Affine
+	P.ScalarMultiplication(&G, u.BigInt(new(big.Int)))
+	var expected bls12381.G2Affine
+	expected.ScalarMultiplication(&P, v.BigInt(new(big.Int)))
+	circuit := ecmulBLSG2Circuit{}
+	witness := ecmulBLSG2Circuit{
+		X0:       sw_bls12381.NewG2Affine(P),
+		U:        sw_bls12381.NewScalar(v),
+		Expected: sw_bls12381.NewG2Affine(expected),
+	}
+	return &circuit, &witness
+}
+
+func TestECMulBLSG2CircuitFull(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit, witness := testRoutineECMulG2BLS(t)
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness), test.WithCurves(ecc.BN254))
+}
+
+type ecmsmg2BLSCircuit struct {
+	Points  [10]sw_bls12381.G2Affine
+	Scalars [10]sw_bls12381.Scalar
+	Res     sw_bls12381.G2Affine
+	n       int
+}
+
+func (c *ecmsmg2BLSCircuit) Define(api frontend.API) error {
+	g2, err := sw_bls12381.NewG2(api)
+	if err != nil {
+		panic(err)
+	}
+	ps := make([]*sw_bls12381.G2Affine, c.n)
+	for i := range c.n {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*sw_bls12381.Scalar, c.n)
+	for i := range c.n {
+		ss[i] = &c.Scalars[i]
+	}
+	res := ECMSMG2BLS(api, ps, ss)
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestECMSMG2BLSCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	P := make([]bls12381.G2Affine, 10)
+	S := make([]fr_bls12381.Element, 10)
+	for i := 0; i < 10; i++ {
+		S[i].SetRandom()
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+
+	var cP [10]sw_bls12381.G2Affine
+	for i := range cP {
+		cP[i] = sw_bls12381.NewG2Affine(P[i])
+	}
+	var cS [10]emulated.Element[emulated.BLS12381Fr]
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emulated.BLS12381Fr](S[i])
+	}
+
+	for i := 1; i < 11; i++ {
+		var res bls12381.G2Affine
+		_, err := res.MultiExp(P[:i], S[:i], ecc.MultiExpConfig{})
+		assert.NoError(err)
+		err = test.IsSolved(&ecmsmg2BLSCircuit{n: i}, &ecmsmg2BLSCircuit{
+			n:       i,
+			Points:  cP,
+			Scalars: cS,
+			Res:     sw_bls12381.NewG2Affine(res),
+		}, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+}
+
+// bench
+func BenchmarkG2MSM1(b *testing.B) {
+	c := ecmsmg2BLSCircuit{n: 1}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BLS12_G2MSM (1 pair): ", p.NbConstraints())
+}
+
+func BenchmarkG2MSM2(b *testing.B) {
+	c := ecmsmg2BLSCircuit{n: 2}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BLS12_G2MSM (2 pair): ", p.NbConstraints())
+}
+
+func BenchmarkG2MSM3(b *testing.B) {
+	c := ecmsmg2BLSCircuit{n: 3}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BLS12_G2MSM (3 pair): ", p.NbConstraints())
+}
+
+func BenchmarkG2MSM5(b *testing.B) {
+	c := ecmsmg2BLSCircuit{n: 5}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BLS12_G2MSM (5 pair): ", p.NbConstraints())
+}
+
+func BenchmarkG2MSM10(b *testing.B) {
+	c := ecmsmg2BLSCircuit{n: 10}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BLS12_G2MSM (10 pair): ", p.NbConstraints())
 }
