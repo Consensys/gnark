@@ -10,13 +10,14 @@ import (
 )
 
 type digest struct {
-	api       frontend.API
-	uapi      *uints.BinaryField[uints.U64]
-	state     [25]uints.U64 // 1600 bits state: 25 x 64
-	in        []uints.U8    // input to be digested
-	dsbyte    byte          // dsbyte contains the "domain separation" bits and the first bit of the padding
-	rate      int           // the number of bytes of state to use
-	outputLen int           // the default output size in bytes
+	api           frontend.API
+	uapi          *uints.BinaryField[uints.U64]
+	state         [25]uints.U64 // 1600 bits state: 25 x 64
+	in            []uints.U8    // input to be digested
+	dsbyte        byte          // dsbyte contains the "domain separation" bits and the first bit of the padding
+	rate          int           // the number of bytes of state to use
+	outputLen     int           // the default output size in bytes
+	minimalLength int           // lower bound on the length of the input to optimize fixed length hashing
 }
 
 func (d *digest) Write(in []uints.U8) {
@@ -38,7 +39,7 @@ func (d *digest) Sum() []uints.U8 {
 	return d.squeezeBlocks()
 }
 
-func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8 {
+func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
 	comparator.AssertIsLessEq(minLen, length)
 
