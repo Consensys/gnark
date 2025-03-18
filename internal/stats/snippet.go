@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/selector"
 )
 
 var (
@@ -310,6 +311,26 @@ func initSnippets() {
 		)
 
 	}, ecc.BN254)
+
+	registerSnippet("selector/mux_3", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/mux_4", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/mux_5", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/binaryMux_4", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.BinaryMux(api, []frontend.Variable{newVariable(), newVariable()}, []frontend.Variable{newVariable(), newVariable(), newVariable(), newVariable()})
+	})
+
+	registerSnippet("selector/binaryMux_8", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.BinaryMux(api, []frontend.Variable{newVariable(), newVariable(), newVariable()}, []frontend.Variable{newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable()})
+	})
 
 }
 
