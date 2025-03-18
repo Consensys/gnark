@@ -6,6 +6,7 @@ package sha2
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
@@ -25,14 +26,22 @@ type digest struct {
 	api  frontend.API
 	uapi *uints.BinaryField[uints.U32]
 	in   []uints.U8
+
+	minimalLength int
 }
 
-func New(api frontend.API) (hash.BinaryFixedLengthHasher, error) {
+func New(api frontend.API, opts ...hash.Option) (hash.BinaryFixedLengthHasher, error) {
+	cfg := new(hash.HasherConfig)
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			return nil, fmt.Errorf("applying option: %w", err)
+		}
+	}
 	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("initializing uints: %w", err)
 	}
-	return &digest{api: api, uapi: uapi}, nil
+	return &digest{api: api, uapi: uapi, minimalLength: cfg.MinimalLength}, nil
 }
 
 func (d *digest) Write(data []uints.U8) {
@@ -60,11 +69,10 @@ func (d *digest) padded(bytesLen int) []uints.U8 {
 }
 
 func (d *digest) Sum() []uints.U8 {
-	padded := d.padded(len(d.in))
-
 	var runningDigest [8]uints.U32
 	var buf [64]uints.U8
 	copy(runningDigest[:], _seed)
+	padded := d.padded(len(d.in))
 	for i := 0; i < len(padded)/64; i++ {
 		copy(buf[:], padded[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
@@ -81,7 +89,7 @@ func (d *digest) unpackU8digest(digest [8]uints.U32) []uints.U8 {
 	return ret
 }
 
-func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8 {
+func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	// we need to do two things here -- first the padding has to be put to the
 	// right place. For that we need to know how many blocks we have used. We
 	// need to fit at least 9 more bytes (padding byte and 8 bytes for input
@@ -93,7 +101,11 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 
 	maxLen := len(d.in)
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxLen+64+8)), false)
-	comparator.AssertIsLessEq(minLen, length)
+	// when minimal length is 0 (i.e. not set), then we can skip the check as it holds naturally (all field elements are non-negative)
+	if d.minimalLength > 0 {
+		// we use comparator as [frontend.API] doesn't have a fast path for case API.AssertIsLessOrEqual(constant, variable)
+		comparator.AssertIsLessEq(d.minimalLength, length)
+	}
 
 	data := make([]uints.U8, maxLen)
 	copy(data, d.in)
@@ -112,7 +124,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
 	// When i < minLen or i > maxLen, padding 1 0r 0 is completely unnecessary
-	for i := minLen; i <= maxLen; i++ {
+	for i := d.minimalLength; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
@@ -121,7 +133,7 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 	}
 
 	// When i <= minLen, padding length is completely unnecessary
-	for i := minLen + 1; i < len(data); i++ {
+	for i := d.minimalLength + 1; i < len(data); i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
 			if i+j < len(data) {
@@ -140,9 +152,9 @@ func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 
 		// When i < minLen/64, runningDigest cannot be resultDigest, and proceed to the next loop directly
-		if i < minLen/64 {
+		if i < d.minimalLength/64 {
 			continue
-		} else if i == minLen/64 { // init resultDigests
+		} else if i == d.minimalLength/64 { // init resultDigests
 			copy(resultDigest[:], runningDigest[:])
 			continue
 		}
