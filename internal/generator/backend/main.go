@@ -163,14 +163,14 @@ func main() {
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{"groth16/tests/groth16.marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
-				panic(err) // TODO handle
+				log.Fatalf("Failed to generate Groth16 files: %v", err)
 			}
 
 			entries = []bavard.Entry{
 				{File: filepath.Join(groth16Dir, "commitment_test.go"), Templates: []string{"groth16/tests/groth16.commitment.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "groth16_test", "./template/zkpschemes/", entries...); err != nil {
-				panic(err) // TODO handle
+				log.Fatalf("Failed to generate Groth16 test files: %v", err)
 			}
 
 			// groth16 mpcsetup
@@ -184,7 +184,7 @@ func main() {
 			}
 
 			if err := bgen.Generate(d, "mpcsetup", "./template/zkpschemes/", entries...); err != nil {
-				panic(err) // TODO handle
+				log.Fatalf("Failed to generate Groth16 MPC setup files: %v", err)
 			}
 
 			// plonk
