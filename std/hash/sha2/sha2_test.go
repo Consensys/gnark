@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
@@ -54,6 +55,9 @@ type sha2FixedLengthCircuit struct {
 	In       []uints.U8
 	Length   frontend.Variable
 	Expected [32]uints.U8
+
+	// minimal length of the input is the circuit parameter
+	minimalLength int
 }
 
 const (
@@ -62,7 +66,7 @@ const (
 )
 
 func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
-	h, err := New(api)
+	h, err := New(api, hash.WithMinimalLength(c.minimalLength))
 	if err != nil {
 		return err
 	}
@@ -71,7 +75,7 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 		return err
 	}
 	h.Write(c.In)
-	res := h.FixedLengthSum(minLen, c.Length)
+	res := h.FixedLengthSum(c.Length)
 	if len(res) != 32 {
 		return fmt.Errorf("not 32 bytes")
 	}
@@ -83,24 +87,28 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 
 func TestSHA2FixedLengthSum(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, maxLen)}
 	bts := make([]byte, maxLen)
 	_, err := rand.Reader.Read(bts)
 	assert.NoError(err)
 
-	for length := minLen; length <= maxLen; length++ {
-		assert.Run(func(assert *test.Assert) {
-			dgst := sha256.Sum256(bts[:length])
-			witness := &sha2FixedLengthCircuit{
-				In:       uints.NewU8Array(bts),
-				Length:   length,
-				Expected: [32]uints.U8(uints.NewU8Array(dgst[:])),
-			}
+	for _, lengthBound := range []int{0, 31, 32, 33, 63, 64, 65} {
+		circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, maxLen), minimalLength: lengthBound}
+		for _, length := range []int{0, 1, 31, 32, 33, 63, 64, 65, maxLen} {
+			assert.Run(func(assert *test.Assert) {
+				dgst := sha256.Sum256(bts[:length])
+				witness := &sha2FixedLengthCircuit{
+					In:       uints.NewU8Array(bts),
+					Length:   length,
+					Expected: [32]uints.U8(uints.NewU8Array(dgst[:])),
+				}
 
-			err = test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
-			if err != nil {
-				t.Fatal(err)
-			}
-		}, fmt.Sprintf("length=%d", length))
+				err = test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
+				if length >= lengthBound && err != nil {
+					t.Fatal(err)
+				} else if length < lengthBound && err == nil {
+					t.Fatal("expected error")
+				}
+			}, fmt.Sprintf("bound=%d/length=%d", lengthBound, length))
+		}
 	}
 }
