@@ -10,13 +10,14 @@ import (
 )
 
 type digest struct {
-	api       frontend.API
-	uapi      *uints.BinaryField[uints.U64]
-	state     [25]uints.U64 // 1600 bits state: 25 x 64
-	in        []uints.U8    // input to be digested
-	dsbyte    byte          // dsbyte contains the "domain separation" bits and the first bit of the padding
-	rate      int           // the number of bytes of state to use
-	outputLen int           // the default output size in bytes
+	api           frontend.API
+	uapi          *uints.BinaryField[uints.U64]
+	state         [25]uints.U64 // 1600 bits state: 25 x 64
+	in            []uints.U8    // input to be digested
+	dsbyte        byte          // dsbyte contains the "domain separation" bits and the first bit of the padding
+	rate          int           // the number of bytes of state to use
+	outputLen     int           // the default output size in bytes
+	minimalLength int           // lower bound on the length of the input to optimize fixed length hashing
 }
 
 func (d *digest) Write(in []uints.U8) {
@@ -39,10 +40,18 @@ func (d *digest) Sum() []uints.U8 {
 }
 
 func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
+	// in case the lower bound on the length of input is given, check that the input is long enough
+	if d.minimalLength > 0 {
+		comparator.AssertIsLessEq(d.minimalLength, length)
+	}
+
 	padded, numberOfBlocks := d.paddingFixedWidth(length)
 
 	blocks := d.composeBlocks(padded)
+
 	d.absorbingFixedWidth(blocks, numberOfBlocks)
+
 	return d.squeezeBlocks()
 }
 
@@ -67,11 +76,13 @@ func (d *digest) padding() []uints.U8 {
 
 func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
 	numberOfBlocks = frontend.Variable(0)
-	padded = make([]uints.U8, len(d.in))
+	maxLen := len(d.in)
+	padded = make([]uints.U8, maxLen)
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
-	for i := 0; i <= len(padded)-d.rate; i++ {
+	// When i < minLen or i > maxLen, it is completely unnecessary
+	for i := d.minimalLength; i <= maxLen; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
 		switch q := d.rate - ((i) % d.rate); q {
 		case 1:
@@ -83,7 +94,7 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
 		default:
 			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
-			for j := 0; j < q-1; j++ {
+			for j := 0; j < q-2; j++ {
 				padded[i+1+j].Val = d.api.Select(reachEnd, 0, padded[i+1+j].Val)
 			}
 			padded[i+q-1].Val = d.api.Select(reachEnd, 0x80, padded[i+q-1].Val)
@@ -119,9 +130,9 @@ func (d *digest) absorbing(blocks [][]uints.U64) {
 }
 
 func (d *digest) absorbingFixedWidth(blocks [][]uints.U64, nbBlocks frontend.Variable) {
+	minNbOfBlocks := d.minimalLength / d.rate
 	var state [25]uints.U64
 	var resultState [25]uints.U64
-	copy(resultState[:], d.state[:])
 	copy(state[:], d.state[:])
 
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(blocks))), false)
@@ -131,9 +142,18 @@ func (d *digest) absorbingFixedWidth(blocks [][]uints.U64, nbBlocks frontend.Var
 			state[j] = d.uapi.Xor(state[j], block[j])
 		}
 		state = keccakf.Permute(d.uapi, state)
+
+		// When i < minNbOfBlocks, state cannot be resultState, and proceed to the next loop directly
+		if i < minNbOfBlocks {
+			continue
+		} else if i == minNbOfBlocks { // init resultState
+			copy(resultState[:], state[:])
+			continue
+		}
+
 		isInRange := comparator.IsLess(i, nbBlocks)
-		// only select blocks that are in range
-		for j := 0; j < 25; j++ {
+		// only select blocks that are in range. Only process the first outputLen data relevant to the result
+		for j := 0; j < d.outputLen/8; j++ {
 			for k := 0; k < 8; k++ {
 				resultState[j][k].Val = d.api.Select(isInRange, state[j][k].Val, resultState[j][k].Val)
 			}
