@@ -70,13 +70,17 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		A0: emulated.ValueOf[BaseField]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
 		A1: emulated.ValueOf[BaseField]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
 	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new g2: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
 		Ext2:   fields_bn254.NewExt2(api),
 		curveF: ba,
 		curve:  curve,
-		g2:     NewG2(api),
+		g2:     g2,
 		bTwist: &bTwist,
 	}, nil
 }

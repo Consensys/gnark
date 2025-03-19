@@ -41,8 +41,9 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 		panic(err)
 	}
 	for i := 0; i < n; i++ {
-		// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️)
-		// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck)
+		// 1- Check that Pᵢ are on G1
+		pair.AssertIsOnG1(P[i])
+		// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck`)
 	}
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
@@ -67,6 +68,17 @@ func ECPairBLSIsOnG2(api frontend.API, Q *sw_bls12381.G2Affine, expectedIsOnG2 f
 	}
 	isOnG2 := pairing.IsOnG2(Q)
 	api.AssertIsEqual(expectedIsOnG2, isOnG2)
+	return nil
+}
+
+// ECPairBLSIsOnG1 implements the fixed circuit for checking G1 membership and non-membership.
+func ECPairBLSIsOnG1(api frontend.API, Q *sw_bls12381.G1Affine, expectedIsOnG1 frontend.Variable) error {
+	pairing, err := sw_bls12381.NewPairing(api)
+	if err != nil {
+		return err
+	}
+	isOnG1 := pairing.IsOnG1(Q)
+	api.AssertIsEqual(expectedIsOnG1, isOnG1)
 	return nil
 }
 

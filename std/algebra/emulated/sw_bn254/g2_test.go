@@ -16,7 +16,10 @@ type addG2Circuit struct {
 }
 
 func (c *addG2Circuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res := g2.add(&c.In1, &c.In2)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
@@ -43,7 +46,10 @@ type doubleG2Circuit struct {
 }
 
 func (c *doubleG2Circuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res := g2.double(&c.In1)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
@@ -71,7 +77,10 @@ type doubleAndAddG2Circuit struct {
 }
 
 func (c *doubleAndAddG2Circuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res := g2.doubleAndAdd(&c.In1, &c.In2)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
@@ -99,7 +108,10 @@ type scalarMulG2BySeedCircuit struct {
 }
 
 func (c *scalarMulG2BySeedCircuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res := g2.scalarMulBySeed(&c.In1)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
@@ -124,7 +136,10 @@ type endomorphismG2Circuit struct {
 }
 
 func (c *endomorphismG2Circuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		panic(err)
+	}
 	res1 := g2.phi(&c.In1)
 	res2 := g2.psi(&c.In1)
 	res2 = g2.psi(res2)

@@ -65,6 +65,10 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new G1 struct: %w", err)
 	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G2 struct: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bls12381.NewExt12(api),
@@ -72,7 +76,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		curveF: ba,
 		curve:  curve,
 		g1:     g1,
-		g2:     NewG2(api),
+		g2:     g2,
 	}, nil
 }
 
@@ -187,27 +191,29 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) computeCurveEquation(P *G1Affine) (left, right *baseEl) {
-	// Curve: Y² == X³ + aX + b, where a=0 and b=4
-	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
-
-	// if P=(0,0) we assign b=0 otherwise 4, and continue
-	selector := pr.api.And(pr.curveF.IsZero(&P.X), pr.curveF.IsZero(&P.Y))
-	four := emulated.ValueOf[BaseField]("4")
-	b := pr.curveF.Select(selector, pr.curveF.Zero(), &four)
-
-	left = pr.curveF.Mul(&P.Y, &P.Y)
-	right = pr.curveF.Mul(&P.X, &P.X)
-	right = pr.curveF.Mul(right, &P.X)
-	right = pr.curveF.Add(right, b)
-	return left, right
-}
-
 // IsOnCurve returns a boolean indicating if the G1 point is in the curve.
 func (pr Pairing) IsOnCurve(P *G1Affine) frontend.Variable {
-	left, right := pr.computeCurveEquation(P)
+	left, right := pr.g1.computeCurveEquation(P)
 	diff := pr.curveF.Sub(left, right)
 	return pr.curveF.IsZero(diff)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	pr.g1.AssertIsOnG1(P)
+}
+
+// IsOnG1 returns a boolean indicating if the G1 point is in the subgroup. The
+// method assumes that the point is already on the curve. Call
+// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
+	// 1 - is Q on curve
+	isOnCurve := pr.IsOnCurve(P)
+	// 2 - is Q in the subgroup
+	phiP := pr.g1.phi(P)
+	_P := pr.g1.scalarMulBySeedSquare(phiP)
+	_P = pr.curve.Neg(_P)
+	isInSubgroup := pr.g1.IsEqual(_P, phiP)
+	return pr.api.And(isOnCurve, isInSubgroup)
 }
 
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
@@ -219,20 +225,6 @@ func (pr Pairing) IsOnTwist(Q *G2Affine) frontend.Variable {
 	left, right := pr.g2.computeTwistEquation(Q)
 	diff := pr.Ext2.Sub(left, right)
 	return pr.Ext2.IsZero(diff)
-}
-
-func (pr Pairing) AssertIsOnG1(P *G1Affine) {
-	// 1- Check P is on the curve
-	pr.AssertIsOnCurve(P)
-
-	// 2- Check P has the right subgroup order
-	// [x²]ϕ(P)
-	phiP := pr.g1.phi(P)
-	_P := pr.g1.scalarMulBySeedSquare(phiP)
-	_P = pr.curve.Neg(_P)
-
-	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
-	pr.curve.AssertIsEqual(_P, P)
 }
 
 func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
