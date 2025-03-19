@@ -81,7 +81,7 @@ func (d *digest) unpackU8digest(digest [8]uints.U32) []uints.U8 {
 	return ret
 }
 
-func (d *digest) FixedLengthSum(length frontend.Variable, minLenOpt ...int) []uints.U8 {
+func (d *digest) FixedLengthSum(minLen int, length frontend.Variable) []uints.U8 {
 	// we need to do two things here -- first the padding has to be put to the
 	// right place. For that we need to know how many blocks we have used. We
 	// need to fit at least 9 more bytes (padding byte and 8 bytes for input
@@ -93,12 +93,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable, minLenOpt ...int) []ui
 
 	maxLen := len(d.in)
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxLen+64+8)), false)
-
-	minLen := 0
-	if len(minLenOpt) == 1 {
-		minLen = minLenOpt[0]
-		comparator.AssertIsLessEq(minLen, length)
-	}
+	comparator.AssertIsLessEq(minLen, length)
 
 	data := make([]uints.U8, maxLen)
 	copy(data, d.in)
