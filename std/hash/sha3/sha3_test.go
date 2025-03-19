@@ -10,7 +10,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	zkhash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
@@ -202,37 +201,5 @@ func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
 				}, fmt.Sprintf("length=%d", length))
 			}
 		}, fmt.Sprintf("hash=%s", name))
-	}
-}
-
-func Test_SHA3FixedLengthSum_WithMinLen_VS_Zero(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	for name := range testCases {
-		name := name
-		strategy := testCases[name]
-		h := strategy.native()
-		sumLen := h.Size()
-
-		circuit1 := &sha3FixedLengthSumCircuit{
-			In:       make([]uints.U8, maxLen),
-			Expected: make([]uints.U8, sumLen),
-			hasher:   name,
-		}
-
-		cs1, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit1)
-		assert.NoError(err)
-
-		circuit2 := &sha3FixedLengthSumWithMinLenCircuit{
-			In:       make([]uints.U8, maxLen),
-			Expected: make([]uints.U8, sumLen),
-			hasher:   name,
-		}
-
-		cs2, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit2)
-		assert.NoError(err)
-
-		fmt.Printf("maxLen=%d, minLen=%d, hash=%s, nbConstraints: %d vs %d(withMinLen)\n",
-			maxLen, minLen, name, cs1.GetNbConstraints(), cs2.GetNbConstraints())
 	}
 }
