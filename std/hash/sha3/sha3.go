@@ -41,14 +41,16 @@ func (d *digest) Sum() []uints.U8 {
 
 func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
-	comparator.AssertIsLessEq(minLen, length)
+	// in case the lower bound on the length of input is given, check that the input is long enough
+	if d.minimalLength > 0 {
+		comparator.AssertIsLessEq(d.minimalLength, length)
+	}
 
-	padded, numberOfBlocks := d.paddingFixedWidth(minLen, length)
+	padded, numberOfBlocks := d.paddingFixedWidth(length)
 
 	blocks := d.composeBlocks(padded)
 
-	minNbOfBlocks := minLen / d.rate
-	d.absorbingFixedWidth(minNbOfBlocks, blocks, numberOfBlocks)
+	d.absorbingFixedWidth(blocks, numberOfBlocks)
 
 	return d.squeezeBlocks()
 }
@@ -72,7 +74,7 @@ func (d *digest) padding() []uints.U8 {
 	return padded
 }
 
-func (d *digest) paddingFixedWidth(minLen int, length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
+func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
 	numberOfBlocks = frontend.Variable(0)
 	maxLen := len(d.in)
 	padded = make([]uints.U8, maxLen)
@@ -80,7 +82,7 @@ func (d *digest) paddingFixedWidth(minLen int, length frontend.Variable) (padded
 	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
 
 	// When i < minLen or i > maxLen, it is completely unnecessary
-	for i := minLen; i <= maxLen; i++ {
+	for i := d.minimalLength; i <= maxLen; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
 		switch q := d.rate - ((i) % d.rate); q {
 		case 1:
@@ -127,7 +129,8 @@ func (d *digest) absorbing(blocks [][]uints.U64) {
 	}
 }
 
-func (d *digest) absorbingFixedWidth(minNbOfBlocks int, blocks [][]uints.U64, nbBlocks frontend.Variable) {
+func (d *digest) absorbingFixedWidth(blocks [][]uints.U64, nbBlocks frontend.Variable) {
+	minNbOfBlocks := d.minimalLength / d.rate
 	var state [25]uints.U64
 	var resultState [25]uints.U64
 	copy(state[:], d.state[:])
