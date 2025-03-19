@@ -1,16 +1,24 @@
 package evmprecompiles
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+func init() {
+	solver.RegisterHint(g1SqrtRatioHint)
+}
+
 type FpApi = emulated.Field[emulated.BLS12381Fp]
 type FpElement = emulated.Element[emulated.BLS12381Fp]
 type G1Affine = sw_emulated.AffinePoint[emulated.BLS12381Fp]
 
-func g1IsogenyXNumerator(api frontend.API, x FpElement) (FpElement, error) {
+func g1IsogenyXNumerator(api *FpApi, x FpElement) (FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -32,7 +40,7 @@ func g1IsogenyXNumerator(api frontend.API, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyXDenominator(api frontend.API, x FpElement) (FpElement, error) {
+func g1IsogenyXDenominator(api *FpApi, x FpElement) (FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -52,7 +60,7 @@ func g1IsogenyXDenominator(api frontend.API, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyYNumerator(api frontend.API, x FpElement) (FpElement, error) {
+func g1IsogenyYNumerator(api *FpApi, x FpElement) (FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -78,7 +86,7 @@ func g1IsogenyYNumerator(api frontend.API, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyYDenominator(api frontend.API, x FpElement) (FpElement, error) {
+func g1IsogenyYDenominator(api *FpApi, x FpElement) (FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -125,6 +133,55 @@ func g1MulByZ(api *FpApi, z, x *FpElement) {
 	*z = *api.Mul(&eleven, x)
 }
 
+// g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
+// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
+// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
+// The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
+//
+// nativeInputs[0] = u, nativeInputs[1]=v
+// nativeOutput[0] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+
+			var z, u, v fp.Element
+
+			u.SetBigInt(inputs[0])
+			v.SetBigInt(inputs[1])
+
+			// https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-optimized-sqrt_ratio-for-q- (3 mod 4)
+			var tv1 fp.Element
+			tv1.Square(&v) // 1. tv1 = v²
+			var tv2 fp.Element
+			tv2.Mul(&u, &v)     // 2. tv2 = u * v
+			tv1.Mul(&tv1, &tv2) // 3. tv1 = tv1 * tv2
+
+			var y1 fp.Element
+			{
+				var c1 big.Int
+				// c1 = 1000602388805416848354447456433976039139220704984751971333014534031007912622709466110671907282253916009473568139946
+				c1.SetBytes([]byte{6, 128, 68, 122, 142, 95, 249, 166, 146, 198, 233, 237, 144, 210, 235, 53, 217, 29, 210, 225, 60, 225, 68, 175, 217, 204, 52, 168, 61, 172, 61, 137, 7, 170, 255, 255, 172, 84, 255, 255, 238, 127, 191, 255, 255, 255, 234, 170}) // c1 = (q - 3) / 4     # Integer arithmetic
+
+				y1.Exp(tv1, &c1) // 4. y1 = tv1ᶜ¹
+			}
+
+			y1.Mul(&y1, &tv2) // 5. y1 = y1 * tv2
+
+			var y2 fp.Element
+			// c2 = sqrt(-Z)
+			tv3 := fp.Element{17544630987809824292, 17306709551153317753, 8299808889594647786, 5930295261504720397, 675038575008112577, 167386374569371918}
+			y2.Mul(&y1, &tv3)              // 6. y2 = y1 * c2
+			tv3.Square(&y1)                // 7. tv3 = y1²
+			tv3.Mul(&tv3, &v)              // 8. tv3 = tv3 * v
+			isQNr := tv3.NotEqual(&u)      // 9. isQR = tv3 == u
+			z.Select(int(isQNr), &y1, &y2) // 10. y = CMOV(y2, y1, isQR)
+			z.BigInt(outputs[0])
+			y1.BigInt(outputs[1])
+
+			return nil
+		})
+}
+
 // https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 // MapToCurve1 implements the SSWU map
 // No cofactor clearing or isogeny
@@ -143,58 +200,64 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 	tv1 := fpApi.Mul(u, u) // 1.  tv1 = u²
 
 	//mul tv1 by Z
-	g1MulByZ(&tv1, &tv1) // 2.  tv1 = Z * tv1
+	g1MulByZ(fpApi, tv1, tv1) // 2.  tv1 = Z * tv1
 
 	// var tv2 fp.Element
-	// tv2.Square(&tv1)    // 3.  tv2 = tv1²
-	// tv2.Add(&tv2, &tv1) // 4.  tv2 = tv2 + tv1
+	tv2 := fpApi.Mul(tv1, tv1) // 3.  tv2 = tv1²
+	tv2 = fpApi.Add(tv2, tv1)  // 4.  tv2 = tv2 + tv1
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	// tv4.SetOne()
-	// tv3.Add(&tv2, &tv4)                // 5.  tv3 = tv2 + 1
-	// tv3.Mul(&tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
+	tv4 := emulated.ValueOf[emulated.BLS12381Fp]("1")
+	tv3 := fpApi.Add(tv2, &tv4)               // 5.  tv3 = tv2 + 1
+	tv3 = fpApi.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
+	tv2IsZero := fpApi.IsZero(tv2)
 
-	// // tv4 = Z
-	// tv4 = fp.Element{9830232086645309404, 1112389714365644829, 8603885298299447491, 11361495444721768256, 5788602283869803809, 543934104870762216}
+	// tv4 = Z
+	tv4 = emulated.ValueOf[emulated.BLS12381Fp]("11")
 
-	// tv2.Neg(&tv2)
-	// tv4.Select(int(tv2NZero), &tv4, &tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
-	// tv4.Mul(&tv4, &sswuIsoCurveCoeffA)    // 8.  tv4 = A * tv4
+	tv2 = fpApi.Neg(tv2)                        // tv2.Neg(&tv2)
+	tv4 = *fpApi.Select(tv2IsZero, &tv4, tv2)   // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	tv4 = *fpApi.Mul(&tv4, &sswuIsoCurveCoeffA) // 8.  tv4 = A * tv4
 
-	// tv2.Square(&tv3) // 9.  tv2 = tv3²
+	tv2 = fpApi.Mul(tv3, tv3) // 9.  tv2 = tv3²
 
-	// var tv6 fp.Element
-	// tv6.Square(&tv4) // 10. tv6 = tv4²
+	tv6 := fpApi.Mul(&tv4, &tv4) // 10. tv6 = tv4²
 
-	// var tv5 fp.Element
-	// tv5.Mul(&tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
+	tv5 := *fpApi.Mul(tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
 
-	// tv2.Add(&tv2, &tv5) // 12. tv2 = tv2 + tv5
-	// tv2.Mul(&tv2, &tv3) // 13. tv2 = tv2 * tv3
-	// tv6.Mul(&tv6, &tv4) // 14. tv6 = tv6 * tv4
+	tv2 = fpApi.Add(tv2, &tv5) // 12. tv2 = tv2 + tv5
+	tv2 = fpApi.Mul(tv2, tv3)  // 13. tv2 = tv2 * tv3
+	tv6 = fpApi.Mul(tv6, &tv4) // 14. tv6 = tv6 * tv4
 
-	// tv5.Mul(&tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
-	// tv2.Add(&tv2, &tv5)                // 16. tv2 = tv2 + tv5
+	tv5 = *fpApi.Mul(tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
+	tv2 = fpApi.Add(tv2, &tv5)                 // 16. tv2 = tv2 + tv5
 
 	// var x fp.Element
-	// x.Mul(&tv1, &tv3) // 17.   x = tv1 * tv3
+	x := fpApi.Mul(tv1, tv3) // 17.   x = tv1 * tv3
 
-	// var y1 fp.Element
-	// gx1NSquare := g1SqrtRatio(&y1, &tv2, &tv6) // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+	hint, err := fpApi.NewHint(g1SqrtRatioHint, 2, tv2, tv6)
+	if err != nil {
+		return res, err
+	}
+
+	// TODO constrain gx1NSquare and y1
+	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
+	gx1NSquare := hint[0]
+	y1 := hint[1] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
 	// var y fp.Element
-	// y.Mul(&tv1, u) // 19.   y = tv1 * u
+	y := fpApi.Mul(tv1, u) // 19.   y = tv1 * u
 
-	// y.Mul(&y, &y1) // 20.   y = y * y1
+	y = fpApi.Mul(y, y1) // 20.   y = y * y1
 
-	// x.Select(int(gx1NSquare), &tv3, &x) // 21.   x = CMOV(x, tv3, is_gx1_square)
-	// y.Select(int(gx1NSquare), &y1, &y)  // 22.   y = CMOV(y, y1, is_gx1_square)
+	x = fpApi.Select(gx1NSquare, x, tv3) // 21.   x = CMOV(x, tv3, is_gx1_square)
+	y = fpApi.Select(gx1NSquare, y, y1)  // 22.   y = CMOV(y, y1, is_gx1_square)
 
-	// y1.Neg(&y)
-	// y.Select(int(g1Sgn0(u)^g1Sgn0(&y)), &y, &y1)
+	y1 = fpApi.Neg(y)
+	// y = fpApi.Select() // y.Select(int(g1Sgn0(u)^g1Sgn0(&y)), &y, &y1)
 
 	// // 23.  e1 = sgn0(u) == sgn0(y)
 	// // 24.   y = CMOV(-y, y, e1)
