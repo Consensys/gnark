@@ -17,7 +17,7 @@ import (
 )
 
 type testCase struct {
-	zk     func(api frontend.API) (zkhash.BinaryFixedLengthHasher, error)
+	zk     func(api frontend.API, opts ...zkhash.Option) (zkhash.BinaryFixedLengthHasher, error)
 	native func() hash.Hash
 }
 
@@ -96,6 +96,9 @@ type sha3FixedLengthSumCircuit struct {
 	Expected []uints.U8
 	Length   frontend.Variable
 	hasher   string
+
+	// minimal length of the input is the circuit parameter
+	minimalLength int
 }
 
 func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
@@ -103,7 +106,7 @@ func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
 	if !ok {
 		return fmt.Errorf("hash function unknown: %s", c.hasher)
 	}
-	h, err := newHasher.zk(api)
+	h, err := newHasher.zk(api, zkhash.WithMinimalLength(c.minimalLength))
 	if err != nil {
 		return err
 	}
@@ -112,7 +115,7 @@ func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
 		return err
 	}
 	h.Write(c.In)
-	res := h.FixedLengthSum(0, c.Length)
+	res := h.FixedLengthSum(c.Length)
 
 	for i := range c.Expected {
 		uapi.ByteAssertEq(c.Expected[i], res[i])
@@ -163,35 +166,6 @@ const (
 	maxLen = 1710
 )
 
-type sha3FixedLengthSumWithMinLenCircuit struct {
-	In       []uints.U8
-	Expected []uints.U8
-	Length   frontend.Variable
-	hasher   string
-}
-
-func (c *sha3FixedLengthSumWithMinLenCircuit) Define(api frontend.API) error {
-	newHasher, ok := testCases[c.hasher]
-	if !ok {
-		return fmt.Errorf("hash function unknown: %s", c.hasher)
-	}
-	h, err := newHasher.zk(api)
-	if err != nil {
-		return err
-	}
-	uapi, err := uints.New[uints.U64](api)
-	if err != nil {
-		return err
-	}
-	h.Write(c.In)
-	res := h.FixedLengthSum(minLen, c.Length)
-
-	for i := range c.Expected {
-		uapi.ByteAssertEq(c.Expected[i], res[i])
-	}
-	return nil
-}
-
 func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
 	assert := test.NewAssert(t)
 	in := make([]byte, maxLen)
@@ -208,16 +182,18 @@ func TestSHA3FixedLengthSumWithMinLen(t *testing.T) {
 					h.Write(in[:length])
 					expected := h.Sum(nil)
 
-					circuit := &sha3FixedLengthSumWithMinLenCircuit{
-						In:       make([]uints.U8, maxLen),
-						Expected: make([]uints.U8, len(expected)),
-						hasher:   name,
+					circuit := &sha3FixedLengthSumCircuit{
+						In:            make([]uints.U8, maxLen),
+						Expected:      make([]uints.U8, len(expected)),
+						hasher:        name,
+						minimalLength: minLen,
 					}
 
-					witness := &sha3FixedLengthSumWithMinLenCircuit{
-						In:       uints.NewU8Array(in),
-						Expected: uints.NewU8Array(expected),
-						Length:   length,
+					witness := &sha3FixedLengthSumCircuit{
+						In:            uints.NewU8Array(in),
+						Expected:      uints.NewU8Array(expected),
+						Length:        length,
+						minimalLength: minLen,
 					}
 
 					if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
