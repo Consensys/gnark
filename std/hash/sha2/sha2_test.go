@@ -60,11 +60,6 @@ type sha2FixedLengthCircuit struct {
 	minimalLength int
 }
 
-const (
-	minLen = 56
-	maxLen = 144
-)
-
 func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 	h, err := New(api, hash.WithMinimalLength(c.minimalLength))
 	if err != nil {
@@ -86,14 +81,15 @@ func (c *sha2FixedLengthCircuit) Define(api frontend.API) error {
 }
 
 func TestSHA2FixedLengthSum(t *testing.T) {
+	const maxLen = 144
 	assert := test.NewAssert(t)
 	bts := make([]byte, maxLen)
 	_, err := rand.Reader.Read(bts)
 	assert.NoError(err)
 
-	for _, lengthBound := range []int{0, 31, 32, 33, 63, 64, 65} {
-		circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, maxLen), minimalLength: lengthBound}
-		for _, length := range []int{0, 1, 31, 32, 33, 63, 64, 65, maxLen} {
+	for _, lengthBound := range []int{0, 1, 63, 64, 65, len(bts)} {
+		circuit := &sha2FixedLengthCircuit{In: make([]uints.U8, len(bts)), minimalLength: lengthBound}
+		for _, length := range []int{0, 1, 63, 64, 65, len(bts)} {
 			assert.Run(func(assert *test.Assert) {
 				dgst := sha256.Sum256(bts[:length])
 				witness := &sha2FixedLengthCircuit{
@@ -103,10 +99,10 @@ func TestSHA2FixedLengthSum(t *testing.T) {
 				}
 
 				err = test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
-				if length >= lengthBound && err != nil {
-					t.Fatal(err)
-				} else if length < lengthBound && err == nil {
-					t.Fatal("expected error")
+				if length >= lengthBound {
+					assert.NoError(err)
+				} else if length < lengthBound {
+					assert.Error(err, "expected error for length < lengthBound")
 				}
 			}, fmt.Sprintf("bound=%d/length=%d", lengthBound, length))
 		}
