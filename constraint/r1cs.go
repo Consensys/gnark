@@ -17,6 +17,9 @@ type R1CS interface {
 
 	// GetR1CIterator returns an R1CIterator to iterate on the R1C constraints of the system.
 	GetR1CIterator() R1CIterator
+
+	// GetLogs returns all log entries
+	GetLogs() []LogEntry
 }
 
 // R1CIterator facilitates iterating through R1C constraints.
