@@ -58,9 +58,9 @@ func g1IsogenyXDenominator(api *FpApi, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyYNumerator(api *FpApi, x FpElement) (FpElement, error) {
+func g1IsogenyYNumerator(api *FpApi, x, y FpElement) (FpElement, error) {
 
-	return g1EvalPolynomial(
+	ix, err := g1EvalPolynomial(
 		api,
 		false,
 		[]FpElement{
@@ -82,6 +82,12 @@ func g1IsogenyYNumerator(api *FpApi, x FpElement) (FpElement, error) {
 			emulated.ValueOf[emulated.BLS12381Fp]("0x15e6be4e990f03ce4ea50b3b42df2eb5cb181d8f84965a3957add4fa95af01b2b665027efec01c7704b456be69c8b604"),
 		},
 		x)
+	if err != nil {
+		return ix, err
+	}
+
+	ix = *api.Mul(&ix, &y)
+	return ix, nil
 }
 
 func g1IsogenyYDenominator(api *FpApi, x FpElement) (FpElement, error) {
@@ -122,6 +128,36 @@ func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x FpElem
 		res = *api.Add(&res, &coefficients[i])
 	}
 	return res, nil
+
+}
+
+func g1Isogeny(fpApi *FpApi, p *G1Affine) error {
+
+	den := make([]FpElement, 2)
+	var err error
+
+	den[1], err = g1IsogenyYDenominator(fpApi, p.X)
+	if err != nil {
+		return err
+	}
+	den[0], err = g1IsogenyXDenominator(fpApi, p.X)
+	if err != nil {
+		return err
+	}
+
+	p.Y, err = g1IsogenyYNumerator(fpApi, p.X, p.Y)
+	if err != nil {
+		return err
+	}
+	p.X, err = g1IsogenyXNumerator(fpApi, p.X)
+	if err != nil {
+		return err
+	}
+
+	p.X = *fpApi.Div(&p.X, &den[0])
+	p.Y = *fpApi.Div(&p.Y, &den[1])
+
+	return nil
 
 }
 
@@ -254,7 +290,7 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 	y1 := hint[1] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
 	// var y fp.Element
-	y := fpApi.Mul(tv1, u) // 19.   y = tv1 * u
+	y := fpApi.Mul(tv1, u) // 19.  	 y = tv1 * u
 
 	y = fpApi.Mul(y, y1) // 20.   y = y * y1
 
