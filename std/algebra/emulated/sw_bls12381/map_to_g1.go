@@ -180,6 +180,13 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 		})
 }
 
+// g1Sgn0 returns the parity of a
+func g1Sgn0(api *FpApi, a *FpElement) frontend.Variable {
+	aReduced := api.Reduce(a)
+	ab := api.ToBits(aReduced)
+	return ab[0]
+}
+
 // https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 // MapToCurve1 implements the SSWU map
 // No cofactor clearing or isogeny
@@ -255,14 +262,14 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 	y = fpApi.Select(gx1NSquare, y, y1)  // 22.   y = CMOV(y, y1, is_gx1_square)
 
 	y1 = fpApi.Neg(y)
-	// y = fpApi.Select() // y.Select(int(g1Sgn0(u)^g1Sgn0(&y)), &y, &y1)
+	sel := api.IsZero(api.Sub(g1Sgn0(fpApi, u), g1Sgn0(fpApi, y)))
+	y = fpApi.Select(sel, y1, y)
 
 	// // 23.  e1 = sgn0(u) == sgn0(y)
 	// // 24.   y = CMOV(-y, y, e1)
 
-	// x.Div(&x, &tv4) // 25.   x = x / tv4
+	x = fpApi.Div(x, &tv4) // 25.   x = x / tv4
 
-	// return G1Affine{x, y}
+	return G1Affine{X: *x, Y: *y}, nil
 
-	return res, nil
 }
