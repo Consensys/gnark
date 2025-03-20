@@ -343,8 +343,8 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	for i := range inputs {
 		XB0A0[i] = inputs[i].P.X.B0.A0
 		XB0A1[i] = inputs[i].P.X.B0.A1
-		XB1A0[i] = inputs[i].P.Y.B1.A0
-		XB1A1[i] = inputs[i].P.Y.B1.A1
+		XB1A0[i] = inputs[i].P.X.B1.A0
+		XB1A1[i] = inputs[i].P.X.B1.A1
 		YB0A0[i] = inputs[i].P.Y.B0.A0
 		YB0A1[i] = inputs[i].P.Y.B0.A1
 		YB1A0[i] = inputs[i].P.Y.B1.A0
