@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestGkrPermutation(t *testing.T) {
+func TestGkrCompression(t *testing.T) {
 	const n = 2
 	var k int64
 	ins := make([][2]frontend.Variable, n)
@@ -22,8 +22,10 @@ func TestGkrPermutation(t *testing.T) {
 
 		x[0].SetInt64(k)
 		x[1].SetInt64(k + 1)
+		y0 := x[1]
 
 		require.NoError(t, bls12377Permutation().Permutation(x[:]))
+		x[1].Add(&x[1], &y0)
 		outs[i] = x[1]
 
 		k += 2
@@ -46,10 +48,10 @@ type testGkrPermutationCircuit struct {
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 
-	pos2 := NewGkrPermutations(api)
+	pos2 := NewGkrCompressions(api)
 	api.AssertIsEqual(len(c.Ins), len(c.Outs))
 	for i := range c.Ins {
-		api.AssertIsEqual(c.Outs[i], pos2.Permute(c.Ins[i][0], c.Ins[i][1]))
+		api.AssertIsEqual(c.Outs[i], pos2.Compress(c.Ins[i][0], c.Ins[i][1]))
 	}
 
 	return nil

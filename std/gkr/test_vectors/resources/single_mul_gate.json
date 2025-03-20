@@ -8,7 +8,7 @@
     "inputs": []
   },
   {
-    "gate": "mul",
+    "gate": "mul2",
     "inputs": [0, 1]
   }
 ]
