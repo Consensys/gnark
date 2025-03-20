@@ -219,6 +219,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -246,6 +247,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -273,6 +275,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -300,6 +303,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -327,6 +331,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -686,4 +691,87 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 	}
 	v.pairing.AssertIsEqual(pairing, &vk.E)
 	return nil
+}
+
+// SwitchVerification key switches the verification key based on the provided
+// index idx. Can be used for recursive verification based on the verification
+// key index.
+func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(idx frontend.Variable, vks []VerifyingKey[G1El, G2El, GtEl]) (VerifyingKey[G1El, G2El, GtEl], error) {
+	var ret VerifyingKey[G1El, G2El, GtEl]
+	if len(vks) == 0 {
+		return ret, fmt.Errorf("no verifying keys provided")
+	}
+	if len(vks) == 1 {
+		v.api.AssertIsEqual(idx, 0)
+		return vks[0], nil
+	}
+	// commitment info
+	for i := 1; i < len(vks); i++ {
+		if len(vks[i].PublicAndCommitmentCommitted) != len(vks[0].PublicAndCommitmentCommitted) {
+			return ret, fmt.Errorf("invalid number of commitments")
+		}
+		for j := range vks[i].PublicAndCommitmentCommitted {
+			if len(vks[i].PublicAndCommitmentCommitted[j]) != len(vks[0].PublicAndCommitmentCommitted[j]) {
+				return ret, fmt.Errorf("invalid number of public committed variables")
+			}
+			for k := range vks[i].PublicAndCommitmentCommitted[j] {
+				if vks[i].PublicAndCommitmentCommitted[j][k] != vks[0].PublicAndCommitmentCommitted[j][k] {
+					return ret, fmt.Errorf("invalid public committed variable index")
+				}
+			}
+		}
+		if len(vks[i].CommitmentKeys) != len(vks[0].CommitmentKeys) {
+			return ret, fmt.Errorf("invalid number of commitment keys")
+		}
+	}
+	ret.PublicAndCommitmentCommitted = make([][]int, len(vks[0].PublicAndCommitmentCommitted))
+	for i := range vks[0].PublicAndCommitmentCommitted {
+		ret.PublicAndCommitmentCommitted[i] = make([]int, len(vks[0].PublicAndCommitmentCommitted[i]))
+		copy(ret.PublicAndCommitmentCommitted[i], vks[0].PublicAndCommitmentCommitted[i])
+	}
+
+	ret.CommitmentKeys = make([]pedersen.VerifyingKey[G2El], len(vks[0].CommitmentKeys))
+	for i := range ret.CommitmentKeys {
+		cmtBss := make([]*G2El, len(vks))
+		cmtBexs := make([]*G2El, len(vks))
+		for j := range vks {
+			cmtBss[j] = &vks[j].CommitmentKeys[i].G
+			cmtBexs[j] = &vks[j].CommitmentKeys[i].GSigmaNeg
+		}
+		ret.CommitmentKeys[i].G = *v.pairing.MuxG2(idx, cmtBss...)
+		ret.CommitmentKeys[i].GSigmaNeg = *v.pairing.MuxG2(idx, cmtBexs...)
+	}
+	// switch E
+	Es := make([]*GtEl, len(vks))
+	for i := range vks {
+		Es[i] = &vks[i].E
+	}
+	ret.E = *v.pairing.MuxGt(idx, Es...)
+
+	// Switch K
+	for i := 1; i < len(vks); i++ {
+		if len(vks[i].G1.K) != len(vks[0].G1.K) {
+			return ret, fmt.Errorf("invalid number of K elements")
+		}
+	}
+	ret.G1.K = make([]G1El, len(vks[0].G1.K))
+	for i := range ret.G1.K {
+		Ks := make([]*G1El, len(vks))
+		for j := range vks {
+			Ks[j] = &vks[j].G1.K[i]
+		}
+		ret.G1.K[i] = *v.curve.Mux(idx, Ks...)
+	}
+
+	// Switch G2
+	gammaNegs := make([]*G2El, len(vks))
+	deltaNegs := make([]*G2El, len(vks))
+	for i := range vks {
+		gammaNegs[i] = &vks[i].G2.GammaNeg
+		deltaNegs[i] = &vks[i].G2.DeltaNeg
+	}
+	ret.G2.GammaNeg = *v.pairing.MuxG2(idx, gammaNegs...)
+	ret.G2.DeltaNeg = *v.pairing.MuxG2(idx, deltaNegs...)
+
+	return ret, nil
 }
