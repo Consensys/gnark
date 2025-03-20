@@ -219,6 +219,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -246,6 +247,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -273,6 +275,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -300,6 +303,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -327,6 +331,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
 			}
 		}
+		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
