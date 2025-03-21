@@ -240,6 +240,9 @@ func ClearCofactor(g *G1, q *G1Affine) (*G1Affine, error) {
 	z = g.doubleAndAdd(z, q)
 	z = g.doubleN(z, 16)
 
+	// Add assign
+	z = g.add(z, q)
+
 	return z, nil
 
 }
