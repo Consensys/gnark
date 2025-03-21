@@ -131,33 +131,33 @@ func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x FpElem
 
 }
 
-func g1Isogeny(fpApi *FpApi, p *G1Affine) error {
+func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 
 	den := make([]FpElement, 2)
 	var err error
 
 	den[1], err = g1IsogenyYDenominator(fpApi, p.X)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	den[0], err = g1IsogenyXDenominator(fpApi, p.X)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	p.Y, err = g1IsogenyYNumerator(fpApi, p.X, p.Y)
+	y, err := g1IsogenyYNumerator(fpApi, p.X, p.Y)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	p.X, err = g1IsogenyXNumerator(fpApi, p.X)
+	x, err := g1IsogenyXNumerator(fpApi, p.X)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	p.X = *fpApi.Div(&p.X, &den[0])
-	p.Y = *fpApi.Div(&p.Y, &den[1])
+	x = *fpApi.Div(&x, &den[0])
+	y = *fpApi.Div(&y, &den[1])
 
-	return nil
+	return &G1Affine{X: x, Y: y}, nil
 
 }
 
@@ -221,6 +221,57 @@ func g1Sgn0(api *FpApi, a *FpElement) frontend.Variable {
 	aReduced := api.Reduce(a)
 	ab := api.ToBits(aReduced)
 	return ab[0]
+}
+
+func ClearCofactor(g *G1, q *G1Affine) (*G1Affine, error) {
+
+	// cf https://eprint.iacr.org/2019/403.pdf, 5
+
+	// mulBySeed
+	z := g.double(q)
+	z = g.add(z, q)
+	z = g.double(z)
+	z = g.doubleAndAdd(z, q)
+	z = g.doubleN(z, 2)
+	z = g.doubleAndAdd(z, q)
+	z = g.doubleN(z, 8)
+	z = g.doubleAndAdd(z, q)
+	z = g.doubleN(z, 31)
+	z = g.doubleAndAdd(z, q)
+	z = g.doubleN(z, 16)
+
+	return z, nil
+
+}
+
+// MapToG1 invokes the SSWU map, and guarantees that the result is in g1
+func MapToG1(api frontend.API, u *FpElement) (*G1Affine, error) {
+
+	res, err := MapToCurve1(api, u)
+	if err != nil {
+		return nil, err
+	}
+	//this is in an isogenous curve
+	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
+	if err != nil {
+		return nil, err
+	}
+	z, err := g1Isogeny(fpApi, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	g1, err := NewG1(api)
+	if err != nil {
+		return nil, err
+	}
+
+	z, err = ClearCofactor(g1, z)
+	if err != nil {
+		return nil, err
+	}
+
+	return z, nil
 }
 
 // https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
