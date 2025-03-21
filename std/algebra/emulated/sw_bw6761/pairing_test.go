@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -264,6 +265,99 @@ func TestGroupMembershipSolve(t *testing.T) {
 	}
 	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type MuxesCircuits struct {
+	InG2       []G2Affine
+	InGt       []GTEl
+	SelG2      frontend.Variable
+	SelGt      frontend.Variable
+	ExpectedG2 G2Affine
+	ExpectedGt GTEl
+}
+
+func (c *MuxesCircuits) Define(api frontend.API) error {
+	g2api, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2: %w", err)
+	}
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	var inG2 []*G2Affine
+	for i := range c.InG2 {
+		inG2 = append(inG2, &c.InG2[i])
+	}
+	var inGt []*GTEl
+	for i := range c.InGt {
+		inGt = append(inGt, &c.InGt[i])
+	}
+	g2 := pairing.MuxG2(c.SelG2, inG2...)
+	gt := pairing.MuxGt(c.SelGt, inGt...)
+	if len(c.InG2) == 0 {
+		if g2 != nil {
+			return fmt.Errorf("mux G2: expected nil, got %v", g2)
+		}
+	} else {
+		g2api.AssertIsEqual(g2, &c.ExpectedG2)
+	}
+	if len(c.InGt) == 0 {
+		if gt != nil {
+			return fmt.Errorf("mux Gt: expected nil, got %v", gt)
+		}
+	} else {
+		pairing.AssertIsEqual(gt, &c.ExpectedGt)
+	}
+	return nil
+}
+
+func TestPairingMuxes(t *testing.T) {
+	assert := test.NewAssert(t)
+	var err error
+	for _, nbPairs := range []int{0, 1, 2, 3, 4, 5} {
+		assert.Run(func(assert *test.Assert) {
+			g2s := make([]bw6761.G2Affine, nbPairs)
+			gts := make([]bw6761.GT, nbPairs)
+			var p bw6761.G1Affine
+			witG2s := make([]G2Affine, nbPairs)
+			witGts := make([]GTEl, nbPairs)
+			for i := range nbPairs {
+				p, g2s[i] = randomG1G2Affines()
+				gts[i], err = bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{g2s[i]})
+				assert.NoError(err)
+				witG2s[i] = NewG2Affine(g2s[i])
+				witGts[i] = NewGTEl(gts[i])
+			}
+			circuit := MuxesCircuits{InG2: make([]G2Affine, nbPairs), InGt: make([]GTEl, nbPairs)}
+			var witness MuxesCircuits
+			if nbPairs > 0 {
+				selG2, err := rand.Int(rand.Reader, big.NewInt(int64(nbPairs)))
+				assert.NoError(err)
+				selGt, err := rand.Int(rand.Reader, big.NewInt(int64(nbPairs)))
+				assert.NoError(err)
+				expectedG2 := witG2s[selG2.Int64()]
+				expectedGt := witGts[selGt.Int64()]
+				witness = MuxesCircuits{
+					InG2:       witG2s,
+					InGt:       witGts,
+					SelG2:      selG2,
+					SelGt:      selGt,
+					ExpectedG2: expectedG2,
+					ExpectedGt: expectedGt,
+				}
+			} else {
+				witness = MuxesCircuits{
+					InG2:  witG2s,
+					InGt:  witGts,
+					SelG2: big.NewInt(0),
+					SelGt: big.NewInt(0),
+				}
+			}
+			err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err)
+		}, fmt.Sprintf("nbPairs=%d", nbPairs))
+	}
 }
 
 // bench
