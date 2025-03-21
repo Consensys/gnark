@@ -501,6 +501,10 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 	return &ret
 }
 
+func (pr *Pairing) IsEqual(e1, e2 *GT) frontend.Variable {
+	return e1.Sub(pr.api, *e1, *e2).IsZero(pr.api)
+}
+
 func (p *Pairing) AssertIsOnG1(P *G1Affine) {
 	panic("not implemented")
 }

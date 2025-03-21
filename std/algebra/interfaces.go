@@ -100,6 +100,9 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
 
+	// IsEqual returns 1 if both inputs are equal, 0 otherwise.
+	IsEqual(*GtEl, *GtEl) frontend.Variable
+
 	// AssertIsOnG1 asserts that the input is on the G1 curve.
 	AssertIsOnG1(*G1El)
 

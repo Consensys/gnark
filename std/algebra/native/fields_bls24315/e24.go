@@ -152,6 +152,17 @@ func (e *E24) Mul(api frontend.API, e1, e2 E24) *E24 {
 	return e
 }
 
+func (e *E24) IsZero(api frontend.API) frontend.Variable {
+	isZero := e.D0.C0.IsZero(api)
+	isZero = api.And(isZero, e.D0.C1.IsZero(api))
+	isZero = api.And(isZero, e.D0.C2.IsZero(api))
+	isZero = api.And(isZero, e.D1.C0.IsZero(api))
+	isZero = api.And(isZero, e.D1.C1.IsZero(api))
+	isZero = api.And(isZero, e.D1.C2.IsZero(api))
+	return isZero
+}
+
+
 // Square squares an element in Fp24
 func (e *E24) Square(api frontend.API, x E24) *E24 {
 

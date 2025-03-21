@@ -153,6 +153,20 @@ func (e *E12) Mul(api frontend.API, e1, e2 E12) *E12 {
 	return e
 }
 
+func (e *E12) IsZero(api frontend.API) frontend.Variable {
+	isZero := e.C0.B0.IsZero(api)
+	isZero = api.And(isZero, e.C0.B1.IsZero(api))
+	isZero = api.And(isZero, e.C0.B2.IsZero(api))
+	isZero = api.And(isZero, e.C1.B0.IsZero(api))
+	isZero = api.And(isZero, e.C1.B1.IsZero(api))
+	isZero = api.And(isZero, e.C1.B2.IsZero(api))
+	return isZero
+}
+
+func (e *E12) IsEqual(api frontend.API, x, y *E12) frontend.Variable {
+	return e.Sub(api, *x, *y).IsZero(api)
+}
+
 // Square squares an element in Fp12
 func (e *E12) Square(api frontend.API, x E12) *E12 {
 
