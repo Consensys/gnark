@@ -173,7 +173,7 @@ func g1MulByZ(api *FpApi, z, x *FpElement) {
 // The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
 //
 // nativeInputs[0] = u, nativeInputs[1]=v
-// nativeOutput[0] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
 func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
@@ -186,6 +186,7 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 			// https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-optimized-sqrt_ratio-for-q- (3 mod 4)
 			var tv1 fp.Element
 			tv1.Square(&v) // 1. tv1 = v²
+
 			var tv2 fp.Element
 			tv2.Mul(&u, &v)     // 2. tv2 = u * v
 			tv1.Mul(&tv1, &tv2) // 3. tv1 = tv1 * tv2
@@ -209,8 +210,12 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 			tv3.Mul(&tv3, &v)              // 8. tv3 = tv3 * v
 			isQNr := tv3.NotEqual(&u)      // 9. isQR = tv3 == u
 			z.Select(int(isQNr), &y1, &y2) // 10. y = CMOV(y2, y1, isQR)
+
+			if isQNr != 0 {
+				isQNr = 1
+			}
 			z.BigInt(outputs[0])
-			y1.BigInt(outputs[1])
+			outputs[1] = big.NewInt(int64(isQNr))
 
 			return nil
 		})
@@ -254,6 +259,7 @@ func MapToG1(api frontend.API, u *FpElement) (*G1Affine, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	//this is in an isogenous curve
 	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
 	if err != nil {
@@ -340,8 +346,8 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 
 	// TODO constrain gx1NSquare and y1
 	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
-	gx1NSquare := hint[0]
-	y1 := hint[1] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+	gx1NSquare := hint[1].Limbs[0]
+	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
 	// var y fp.Element
 	y := fpApi.Mul(tv1, u) // 19.  	 y = tv1 * u
@@ -352,8 +358,9 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 	y = fpApi.Select(gx1NSquare, y, y1)  // 22.   y = CMOV(y, y1, is_gx1_square)
 
 	y1 = fpApi.Neg(y)
+	y1 = fpApi.Reduce(y1)
 	sel := api.IsZero(api.Sub(g1Sgn0(fpApi, u), g1Sgn0(fpApi, y)))
-	y = fpApi.Select(sel, y1, y)
+	y = fpApi.Select(sel, y, y1)
 
 	// // 23.  e1 = sgn0(u) == sgn0(y)
 	// // 24.   y = CMOV(-y, y, e1)
