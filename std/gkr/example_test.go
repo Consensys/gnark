@@ -60,6 +60,19 @@ func Example() {
 		return
 	}, 4))
 
+	// combine the operations that define the first change to p.X
+	// input = [XX, S]
+	// p.X = 9XX² - 2S
+	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"x1", func(input ...fr.Element) (X fr.Element) {
+		var M, T fr.Element
+		M.Double(&input[0]).Add(&M, &input[0]) // 414: M.Double(&XX).Add(&M, &XX)
+		T.Square(&M)                           // 419: T.Square(&M)
+		X = T                                  // 420: p.X = T
+		T.Double(&input[1])                    // 421: T.Double(&S)
+		X.Sub(&X, &T)                          // 422: p.X.Sub(&p.X, &T)
+		return
+	}, 2))
+
 	// we have a lot of squaring operations, which we'd rather look at as single-input
 	assertNoError(gkrBw6761.RegisterGate("square", func(input ...fr.Element) (res fr.Element) {
 		res.Square(&input[0])
@@ -187,12 +200,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	}, 4))
 	S := gkrApi.NamedGate(c.gateNamePrefix+"s1", X, YY, XX, YYYY) // 409 - 413
 	// 414: M.Double(&XX).Add(&M, &XX)
-	// Note that (but don't explicitly compute) that M = 3XX
-
-	// 	p.Z.Add(&p.Z, &p.Y).
-	//		Square(&p.Z).
-	//		Sub(&p.Z, &YY).
-	//		Sub(&p.Z, &ZZ)
+	// Note (but don't explicitly compute) that M = 3XX
 
 	// combine the operations that define the first change to p.Z
 	// input = [p.Z, p.Y, YY, ZZ]
@@ -205,6 +213,19 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return
 	}, 4))
 	Z = gkrApi.NamedGate(c.gateNamePrefix+"z1", Z, Y, YY, ZZ) // 415 - 418
+
+	// combine the operations that define the first change to p.X
+	// input = [XX, S]
+	// p.X = 9XX² - 2S
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"x1", func(api frontend.API, input ...frontend.Variable) (X frontend.Variable) {
+		M := api.Mul(input[0], 3)            // 414: M.Double(&XX).Add(&M, &XX)
+		T := api.Mul(M, M)                   // 419: T.Square(&M)
+		X = api.Sub(T, api.Mul(input[1], 2)) // 420: p.X = T
+		//                                          421: T.Double(&S)
+		//                                          422: p.X.Sub(&p.X, &T)
+		return
+	}, 2))
+	X = gkrApi.NamedGate(c.gateNamePrefix+"x1", XX, S) // 419-422
 
 	// solve and prove the circuit
 	solution, err := gkrApi.Solve(api)
