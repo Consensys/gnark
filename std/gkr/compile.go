@@ -2,6 +2,7 @@ package gkr
 
 import (
 	"errors"
+	"fmt"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -108,9 +109,14 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
 	for i := range circuit {
 		v := &circuit[i]
-		if v.IsInput() {
+		in, out := v.IsInput(), v.IsOutput()
+		if in && out {
+			return Solution{}, fmt.Errorf("unused input (variable #%d)", i)
+		}
+
+		if in {
 			solveHintNIn += nbInstances - len(v.Dependencies)
-		} else if v.IsOutput() {
+		} else if out {
 			solveHintNOut += nbInstances
 		}
 	}
