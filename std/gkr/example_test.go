@@ -38,7 +38,7 @@ func Example() {
 	// combine the operations that define the first value assigned to variable S
 	// input = [X, YY, XX, YYYY]
 	// S = 2 * [(X + YY)² - XX - YYYY]
-	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s1", func(input ...fr.Element) (S fr.Element) {
+	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s", func(input ...fr.Element) (S fr.Element) {
 		S.
 			Add(&input[0], &input[1]). // 409: S.Add(&p.X, &YY)
 			Square(&S). // 410: S.Square(&S).
