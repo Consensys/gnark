@@ -8,7 +8,7 @@ import (
 )
 
 // DivMod returns quotient = x / y and modulus = x % y
-// If y == 0, a division-by-zero run-time panic occurs.
+// If y == 0, a error compile-time panic occurs.
 //
 // DivMod implements Euclidean division and modulus:
 //
