@@ -49,10 +49,10 @@ func Example() {
 		return
 	}, 4))
 
-	// combine the operations that define the first change to p.Z
+	// combine the operations that define the assignment to p.Z
 	// input = [p.Z, p.Y, YY, ZZ]
 	// Z = (p.Z + p.Y)² - YY - ZZ
-	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"z1", func(input ...fr.Element) (Z fr.Element) {
+	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"z", func(input ...fr.Element) (Z fr.Element) {
 		Z.Add(&input[0], &input[1]) // 415: p.Z.Add(&p.Z, &p.Y).
 		Z.Square(&Z)                // 416: p.Z.Square(&p.Z).
 		Z.Sub(&Z, &input[2])        // 417: Sub(&p.Z, &YY).
@@ -60,10 +60,10 @@ func Example() {
 		return
 	}, 4))
 
-	// combine the operations that define the first change to p.X
+	// combine the operations that define the assignment to p.X
 	// input = [XX, S]
 	// p.X = 9XX² - 2S
-	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"x1", func(input ...fr.Element) (X fr.Element) {
+	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"x", func(input ...fr.Element) (X fr.Element) {
 		var M, T fr.Element
 		M.Double(&input[0]).Add(&M, &input[0]) // 414: M.Double(&XX).Add(&M, &XX)
 		T.Square(&M)                           // 419: T.Square(&M)
@@ -72,6 +72,20 @@ func Example() {
 		X.Sub(&X, &T)                          // 422: p.X.Sub(&p.X, &T)
 		return
 	}, 2))
+
+	// combine the operations that define the assignment to p.Y
+	// input = [S, p.X, XX, YYYY]
+	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"y", func(input ...fr.Element) (Y fr.Element) {
+		Y.Double(&input[2]).Add(&Y, &input[2]) // 414: M.Double(&XX).Add(&M, &XX)
+		input[2] = Y
+
+		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
+			Mul(&Y, &input[2])                                         // 424: p.Y.Mul(&p.Y, &M).
+		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: M.Double(&YYYY).Double(&M).Double(&M)
+		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
+
+		return
+	}, 4))
 
 	// we have a lot of squaring operations, which we'd rather look at as single-input
 	assertNoError(gkrBw6761.RegisterGate("square", func(input ...fr.Element) (res fr.Element) {
@@ -191,41 +205,55 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	ZZ := gkrApi.NamedGate("square", Z)    // 408: ZZ.Square(&p.Z)
 
 	// define the SNARK version of the custom gates, similarly to the ones in Example
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"s1", func(api frontend.API, input ...frontend.Variable) (S frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"s", func(api frontend.API, input ...frontend.Variable) (S frontend.Variable) {
 		S = api.Add(input[0], input[1])    // 409: S.Add(&p.X, &YY)
 		S = api.Mul(S, S)                  // 410: S.Square(&S).
 		S = api.Sub(S, input[2], input[3]) // 411: Sub(&S, &XX).
 		//                                    412: Sub(&S, &YYYY).
 		return api.Add(S, S) // 413: Double(&S)
 	}, 4))
-	S := gkrApi.NamedGate(c.gateNamePrefix+"s1", X, YY, XX, YYYY) // 409 - 413
+	S := gkrApi.NamedGate(c.gateNamePrefix+"s", X, YY, XX, YYYY) // 409 - 413
 	// 414: M.Double(&XX).Add(&M, &XX)
 	// Note (but don't explicitly compute) that M = 3XX
 
-	// combine the operations that define the first change to p.Z
+	// combine the operations that define the assignment to p.Z
 	// input = [p.Z, p.Y, YY, ZZ]
 	// Z = (p.Z + p.Y)² - YY - ZZ
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"z1", func(api frontend.API, input ...frontend.Variable) (Z frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"z", func(api frontend.API, input ...frontend.Variable) (Z frontend.Variable) {
 		Z = api.Add(input[0], input[1])    // 415: p.Z.Add(&p.Z, &p.Y).
 		Z = api.Mul(Z, Z)                  // 416: p.Z.Square(&p.Z).
 		Z = api.Sub(Z, input[2], input[3]) // 417: Sub(&p.Z, &YY).
 		//                                    418: Sub(&p.Z, &ZZ).
 		return
 	}, 4))
-	Z = gkrApi.NamedGate(c.gateNamePrefix+"z1", Z, Y, YY, ZZ) // 415 - 418
+	Z = gkrApi.NamedGate(c.gateNamePrefix+"z", Z, Y, YY, ZZ) // 415 - 418
 
-	// combine the operations that define the first change to p.X
+	// combine the operations that define the assignment to p.X
 	// input = [XX, S]
 	// p.X = 9XX² - 2S
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"x1", func(api frontend.API, input ...frontend.Variable) (X frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"x", func(api frontend.API, input ...frontend.Variable) (X frontend.Variable) {
 		M := api.Mul(input[0], 3)            // 414: M.Double(&XX).Add(&M, &XX)
-		T := api.Mul(M, M)                   // 419: T.Square(&M)
+		T := api.Mul(M, M)                   //     419: T.Square(&M)
 		X = api.Sub(T, api.Mul(input[1], 2)) // 420: p.X = T
 		//                                          421: T.Double(&S)
 		//                                          422: p.X.Sub(&p.X, &T)
 		return
 	}, 2))
-	X = gkrApi.NamedGate(c.gateNamePrefix+"x1", XX, S) // 419-422
+	X = gkrApi.NamedGate(c.gateNamePrefix+"x", XX, S) // 419-422
+
+	// combine the operations that define the assignment to p.Y
+	// input = [S, p.X, XX, YYYY]
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"y", func(api frontend.API, input ...frontend.Variable) (Y frontend.Variable) {
+		input[2] = api.Mul(3, input[2]) // 414: M.Double(&XX).Add(&M, &XX)
+
+		Y = api.Sub(input[0], input[1]) //         423: p.Y.Sub(&S, &p.X).
+		Y = api.Mul(Y, input[2])        //         424:     Mul(&p.Y, &M)
+		//                                         425: M.Double(&YYYY).Double(&M).Double(&M)
+		Y = api.Sub(Y, api.Mul(input[3], 8)) // 426: p.Y.Sub(&p.Y, &YYYY)
+
+		return
+	}, 4))
+	Y = gkrApi.NamedGate(c.gateNamePrefix+"y", S, X, XX, YYYY) // 423 - 426
 
 	// solve and prove the circuit
 	solution, err := gkrApi.Solve(api)
@@ -234,7 +262,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	}
 
 	// check the output
-	XOut := solution.Export(S) // TODO do this with actual output values
+	XOut := solution.Export(X) // TODO do this with actual output values
 	for i := range XOut {
 		api.AssertIsEqual(XOut[i], c.XOut[i])
 	}
