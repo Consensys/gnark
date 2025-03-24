@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/arith"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/permutation/keccakf"
@@ -75,32 +76,43 @@ func (d *digest) padding() []uints.U8 {
 }
 
 func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
-	numberOfBlocks = frontend.Variable(0)
+	numberOfBlocks, remainder := arith.DivMod(d.api, length, uint(d.rate))
+
 	maxLen := len(d.in)
+	maxPaddingCount := d.rate - maxLen%d.rate
+	maxTotalLen := maxLen + maxPaddingCount
+
 	padded = make([]uints.U8, maxLen)
 	copy(padded[:], d.in[:])
-	padded = append(padded, uints.NewU8Array(make([]uint8, d.rate))...)
+	padded = append(padded, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
 
-	// When i < minLen or i > maxLen, it is completely unnecessary
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxTotalLen)), false)
+
+	// When i < minLen or i > maxLen, padding dsbyte is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
-		switch q := d.rate - ((i) % d.rate); q {
-		case 1:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte^0x80, padded[i].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+1)/d.rate, numberOfBlocks)
-		case 2:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
-			padded[i+1].Val = d.api.Select(reachEnd, 0x80, padded[i+1].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+2)/d.rate, numberOfBlocks)
-		default:
-			padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
-			for j := 0; j < q-2; j++ {
-				padded[i+1+j].Val = d.api.Select(reachEnd, 0, padded[i+1+j].Val)
-			}
-			padded[i+q-1].Val = d.api.Select(reachEnd, 0x80, padded[i+q-1].Val)
-			numberOfBlocks = d.api.Select(reachEnd, (i+q)/d.rate, numberOfBlocks)
-		}
+		padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
 	}
+
+	// When i <= minLen or i >= maxLen, padding 0 is completely unnecessary
+	for i := d.minimalLength + 1; i < maxLen; i++ {
+		isPaddingPos := comparator.IsLess(length, i)
+		padded[i].Val = d.api.Select(isPaddingPos, 0, padded[i].Val)
+	}
+
+	paddingCount := d.api.Sub(d.rate, remainder)
+	totalLen := d.api.Add(length, paddingCount)
+	lastPaddingPos := d.api.Sub(totalLen, 1)
+
+	isPaddingOne := cmp.IsEqual(d.api, paddingCount, 1)
+	lastPaddedByte := d.api.Select(isPaddingOne, d.dsbyte^0x80, 0x80)
+
+	// When i < minLen, padding 0x80 is completely unnecessary
+	for i := d.minimalLength; i < maxTotalLen; i++ {
+		isLastPaddingPos := cmp.IsEqual(d.api, i, lastPaddingPos)
+		padded[i].Val = d.api.Select(isLastPaddingPos, lastPaddedByte, padded[i].Val)
+	}
+
 	return padded, numberOfBlocks
 }
 
