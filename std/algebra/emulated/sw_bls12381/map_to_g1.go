@@ -32,8 +32,8 @@ func g1IsogenyXNumerator(api *FpApi, x FpElement) (FpElement, error) {
 			emulated.ValueOf[emulated.BLS12381Fp]("0x17b81e7701abdbe2e8743884d1117e53356de5ab275b4db1a682c62ef0f2753339b7c8f8c8f475af9ccb5618e3f0c88e"),
 			emulated.ValueOf[emulated.BLS12381Fp]("0x80d3cf1f9a78fc47b90b33563be990dc43b756ce79f5574a2c596c928c5d1de4fa295f296b74e956d71986a8497e317"),
 			emulated.ValueOf[emulated.BLS12381Fp]("0x169b1f8e1bcfa7c42e0c37515d138f22dd2ecb803a0c5c99676314baf4bb1b7fa3190b2edc0327797f241067be390c9e"),
-			emulated.ValueOf[emulated.BLS12381Fp](" 0x10321da079ce07e272d8ec09d2565b0dfa7dccdde6787f96d50af36003b14866f69b771f8c285decca67df3f1605fb7b"),
-			emulated.ValueOf[emulated.BLS12381Fp](" 0x6e08c248e260e70bd1e962381edee3d31d79d7e22c837bc23c0bf1bc24c6b68c24b1b80b64d391fa9c8ba2e8ba2d229"),
+			emulated.ValueOf[emulated.BLS12381Fp]("0x10321da079ce07e272d8ec09d2565b0dfa7dccdde6787f96d50af36003b14866f69b771f8c285decca67df3f1605fb7b"),
+			emulated.ValueOf[emulated.BLS12381Fp]("0x6e08c248e260e70bd1e962381edee3d31d79d7e22c837bc23c0bf1bc24c6b68c24b1b80b64d391fa9c8ba2e8ba2d229"),
 		},
 		x)
 }

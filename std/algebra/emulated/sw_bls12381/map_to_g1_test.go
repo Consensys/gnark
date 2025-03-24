@@ -1,7 +1,6 @@
 package sw_bls12381
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -47,12 +46,12 @@ func TestClearCofactor(t *testing.T) {
 }
 
 // Test MapToCurve
-type MapToCurve struct {
+type MapToCurveCircuit struct {
 	U   FpElement
 	Res G1Affine
 }
 
-func (circuit *MapToCurve) Define(api frontend.API) error {
+func (circuit *MapToCurveCircuit) Define(api frontend.API) error {
 
 	g, err := NewG1(api)
 	if err != nil {
@@ -63,7 +62,6 @@ func (circuit *MapToCurve) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	api.Println(r.Y.Limbs...)
 
 	g.AssertIsEqual(&r, &circuit.Res)
 
@@ -76,13 +74,50 @@ func TestMapToCurve(t *testing.T) {
 	var a fp.Element
 	a.SetRandom()
 	g := bls12381.MapToCurve1(&a)
-	fmt.Printf("g.Y = %s\n", g.Y.String())
 
-	witness := MapToCurve{
+	witness := MapToCurveCircuit{
 		U:   emulated.ValueOf[emulated.BLS12381Fp](a.String()),
 		Res: NewG1Affine(g),
 	}
-	err := test.IsSolved(&MapToCurve{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&MapToCurveCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
+}
+
+// Test Map to G1
+type MapToG1Circuit struct {
+	A FpElement
+	R G1Affine
+}
+
+func (circuit *MapToG1Circuit) Define(api frontend.API) error {
+
+	res, err := MapToG1(api, &circuit.A)
+	if err != nil {
+		return err
+	}
+
+	g, err := NewG1(api)
+	if err != nil {
+		return err
+	}
+
+	g.AssertIsEqual(res, &circuit.R)
+
+	return nil
+}
+
+func TestMapToG1(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	var a fp.Element
+	a.SetRandom()
+	g := bls12381.MapToG1(a)
+
+	witness := MapToG1Circuit{
+		A: emulated.ValueOf[emulated.BLS12381Fp](a.String()),
+		R: NewG1Affine(g),
+	}
+	err := test.IsSolved(&MapToG1Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
