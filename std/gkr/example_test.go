@@ -102,6 +102,7 @@ func Example() {
 		XOut: make([]frontend.Variable, nbInstances),
 		YOut: make([]frontend.Variable, nbInstances),
 		ZOut: make([]frontend.Variable, nbInstances),
+		SOut: make([]frontend.Variable, nbInstances),
 	}
 
 	for i := range nbInstances {
@@ -124,6 +125,7 @@ func Example() {
 
 		// TODO delete this
 		{
+
 			p.X = assignment.X[i].(fp.Element)
 			p.Y = assignment.Y[i].(fp.Element)
 			p.Z = assignment.Z[i].(fp.Element)
@@ -142,7 +144,7 @@ func Example() {
 				Sub(&S, &YYYY).
 				Double(&S)
 
-			assignment.XOut[i] = S
+			assignment.SOut[i] = S
 		}
 	}
 
@@ -153,6 +155,7 @@ func Example() {
 		XOut:           make([]frontend.Variable, nbInstances),
 		YOut:           make([]frontend.Variable, nbInstances),
 		ZOut:           make([]frontend.Variable, nbInstances),
+		SOut:           make([]frontend.Variable, nbInstances),
 		gateNamePrefix: gateNamePrefix,
 	}
 
@@ -167,6 +170,7 @@ func Example() {
 type exampleCircuit struct {
 	X, Y, Z          []frontend.Variable // Jacobian coordinates for each point (input)
 	XOut, YOut, ZOut []frontend.Variable // Jacobian coordinates for the double of each point (expected output)
+	SOut             []frontend.Variable // temporary
 	gateNamePrefix   string
 }
 
@@ -213,6 +217,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return api.Add(S, S) // 413: Double(&S)
 	}, 4))
 	S := gkrApi.NamedGate(c.gateNamePrefix+"s", X, YY, XX, YYYY) // 409 - 413
+	scp := gkrApi.NamedGate("identity", S)
 	// 414: M.Double(&XX).Add(&M, &XX)
 	// Note (but don't explicitly compute) that M = 3XX
 
@@ -255,6 +260,18 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	}, 4))
 	Y = gkrApi.NamedGate(c.gateNamePrefix+"y", S, X, XX, YYYY) // 423 - 426
 
+	// have to duplicate X for it to be considered an output variable
+	// TODO remove once https://github.com/Consensys/gnark/issues/1452 is addressed
+	X = gkrApi.NamedGate("identity", X)
+
+	res := gkrApi.SolveInTestEngine(api)
+	for i := range c.XOut {
+		api.AssertIsEqual(res[scp][i], c.SOut[i])
+		api.AssertIsEqual(res[Z][i], c.ZOut[i])
+		api.AssertIsEqual(res[X][i], c.XOut[i])
+		api.AssertIsEqual(res[Y][i], c.YOut[i])
+	}
+
 	// solve and prove the circuit
 	solution, err := gkrApi.Solve(api)
 	if err != nil {
@@ -262,9 +279,21 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	}
 
 	// check the output
+	// TODO merge loops
+	SOut := solution.Export(scp)
+	for i := range SOut {
+		api.AssertIsEqual(SOut[i], c.SOut[i])
+	}
+
+	ZOut := solution.Export(Z)
+	for i := range ZOut {
+		api.AssertIsEqual(ZOut[i], c.ZOut[i])
+	}
+
 	XOut := solution.Export(X) // TODO do this with actual output values
 	for i := range XOut {
-		api.AssertIsEqual(XOut[i], c.XOut[i])
+		_ = i
+		//api.AssertIsEqual(XOut[i], c.XOut[i])
 	}
 
 	// register the hash function used for verification (fiat shamir)

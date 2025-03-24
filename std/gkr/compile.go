@@ -158,8 +158,8 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 }
 
 // Export returns the values of an output variable across all instances
-func (s Solution) Export(v frontend.Variable) []frontend.Variable {
-	return utils.Map(s.permutations.SortedInstances, utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
+func (s Solution) Export(v constraint.GkrVariable) []frontend.Variable {
+	return utils.Map(s.permutations.SortedInstances, utils.SliceAt(s.assignments[v]))
 }
 
 // Verify encodes the verification circuitry for the GKR circuit
