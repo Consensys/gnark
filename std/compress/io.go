@@ -2,12 +2,13 @@ package compress
 
 import (
 	"errors"
+	"hash"
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
-	"hash"
-	"math/big"
 )
 
 // Pack packs the words as tightly as possible, and works Big Endian: i.e. the first word is the most significant in the packed elem
@@ -247,11 +248,4 @@ func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
 
 	nr.toRead = nr.toRead[1:]
 	return nr.last
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
