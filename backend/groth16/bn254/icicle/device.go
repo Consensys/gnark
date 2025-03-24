@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/logger"
-	icicle_runtime "github.com/ingonyama-zk/icicle/v3/wrappers/golang/runtime"
+	icicle_runtime "github.com/ingonyama-zk/icicle-gnark/v3/wrappers/golang/runtime"
 )
 
 var onceWarmUpDevice sync.Once
