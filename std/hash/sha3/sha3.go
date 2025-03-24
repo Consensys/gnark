@@ -76,7 +76,7 @@ func (d *digest) padding() []uints.U8 {
 }
 
 func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
-	numberOfBlocks, remainder := arith.DivMod(d.api, length, uint(d.rate))
+	quotient, modulus := arith.DivMod(d.api, length, uint(d.rate))
 
 	maxLen := len(d.in)
 	maxPaddingCount := d.rate - maxLen%d.rate
@@ -100,7 +100,7 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 		padded[i].Val = d.api.Select(isPaddingPos, 0, padded[i].Val)
 	}
 
-	paddingCount := d.api.Sub(d.rate, remainder)
+	paddingCount := d.api.Sub(d.rate, modulus)
 	totalLen := d.api.Add(length, paddingCount)
 	lastPaddingPos := d.api.Sub(totalLen, 1)
 
@@ -113,7 +113,7 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 		padded[i].Val = d.api.Select(isLastPaddingPos, lastPaddedByte, padded[i].Val)
 	}
 
-	return padded, numberOfBlocks
+	return padded, d.api.Add(quotient, 1)
 }
 
 func (d *digest) composeBlocks(padded []uints.U8) [][]uints.U64 {
