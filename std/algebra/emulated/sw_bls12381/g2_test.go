@@ -23,7 +23,7 @@ func (c *mulG2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		panic(err)
 	}
-	res := g2.scalarMulGeneric(&c.In, &c.S)
+	res := g2.scalarMulGLV(&c.In, &c.S)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }

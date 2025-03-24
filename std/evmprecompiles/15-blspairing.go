@@ -24,7 +24,7 @@ import (
 // logic but we prefer a minimal number of circuits (2).
 //
 // See the methods [ECPairMillerLoopAndMul] and [ECPairMillerLoopAndFinalExpCheck] for the fixed circuits.
-// See the method [ECPairBLSIsOnG2] for the check that Qᵢ are on G2.
+// See the methods [ECPairBLSIsOnG1] and [ECPairBLSIsOnG2] for the check that Pᵢ and Qᵢ are on G1 and resp. G2.
 //
 // [BLS12_PAIRING_CHECK]: https://eips.ethereum.org/EIPS/eip-2537
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
