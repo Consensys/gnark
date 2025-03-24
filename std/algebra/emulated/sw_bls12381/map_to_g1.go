@@ -161,12 +161,6 @@ func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 
 }
 
-// g1MulByZ multiplies x by [11] and stores the result in z
-func g1MulByZ(api *FpApi, z, x *FpElement) {
-	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
-	*z = *api.Mul(&eleven, x)
-}
-
 // g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
 // if not, we get sqrt(Z * u / v). Recall that Z is non-residue
 // If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
@@ -252,47 +246,16 @@ func ClearCofactor(g *G1, q *G1Affine) (*G1Affine, error) {
 
 }
 
-// MapToG1 invokes the SSWU map, and guarantees that the result is in g1
-func MapToG1(api frontend.API, u *FpElement) (*G1Affine, error) {
-
-	res, err := MapToCurve1(api, u)
-	if err != nil {
-		return nil, err
-	}
-
-	//this is in an isogenous curve
-	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
-	if err != nil {
-		return nil, err
-	}
-	z, err := g1Isogeny(fpApi, &res)
-	if err != nil {
-		return nil, err
-	}
-
-	g1, err := NewG1(api)
-	if err != nil {
-		return nil, err
-	}
-
-	z, err = ClearCofactor(g1, z)
-	if err != nil {
-		return nil, err
-	}
-
-	return z, nil
-}
-
 // https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 // MapToCurve1 implements the SSWU map
 // No cofactor clearing or isogeny
-func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
+func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 
 	var res G1Affine
 
 	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
 	if err != nil {
-		return res, err
+		return &res, err
 	}
 
 	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp]("0x144698a3b8e9433d693a02c96d4982b0ea985383ee66a8d8e8981aefd881ac98936f8da0e0f97f5cf428082d584c1d")
@@ -300,8 +263,9 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 
 	tv1 := fpApi.Mul(u, u) // 1.  tv1 = u²
 
-	//mul tv1 by Z
-	g1MulByZ(fpApi, tv1, tv1) // 2.  tv1 = Z * tv1
+	//mul tv1 by Z ( g1MulByZ)
+	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
+	tv1 = fpApi.Mul(&eleven, tv1)
 
 	// var tv2 fp.Element
 	tv2 := fpApi.Mul(tv1, tv1) // 3.  tv2 = tv1²
@@ -309,39 +273,39 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	tv4 := emulated.ValueOf[emulated.BLS12381Fp]("1")
-	tv3 := fpApi.Add(tv2, &tv4)               // 5.  tv3 = tv2 + 1
+	_tv4 := emulated.ValueOf[emulated.BLS12381Fp]("1")
+	tv3 := fpApi.Add(tv2, &_tv4)              // 5.  tv3 = tv2 + 1
 	tv3 = fpApi.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
 	tv2IsZero := fpApi.IsZero(tv2)
 
 	// tv4 = Z
-	tv4 = emulated.ValueOf[emulated.BLS12381Fp]("11")
+	_tv4 = emulated.ValueOf[emulated.BLS12381Fp]("11")
 
-	tv2 = fpApi.Neg(tv2)                        // tv2.Neg(&tv2)
-	tv4 = *fpApi.Select(tv2IsZero, &tv4, tv2)   // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
-	tv4 = *fpApi.Mul(&tv4, &sswuIsoCurveCoeffA) // 8.  tv4 = A * tv4
+	tv2 = fpApi.Neg(tv2)                       // tv2.Neg(&tv2)
+	tv4 := fpApi.Select(tv2IsZero, &_tv4, tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	tv4 = fpApi.Mul(tv4, &sswuIsoCurveCoeffA)  // 8.  tv4 = A * tv4
 
 	tv2 = fpApi.Mul(tv3, tv3) // 9.  tv2 = tv3²
 
-	tv6 := fpApi.Mul(&tv4, &tv4) // 10. tv6 = tv4²
+	tv6 := fpApi.Mul(tv4, tv4) // 10. tv6 = tv4²
 
-	tv5 := *fpApi.Mul(tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
+	tv5 := fpApi.Mul(tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
 
-	tv2 = fpApi.Add(tv2, &tv5) // 12. tv2 = tv2 + tv5
-	tv2 = fpApi.Mul(tv2, tv3)  // 13. tv2 = tv2 * tv3
-	tv6 = fpApi.Mul(tv6, &tv4) // 14. tv6 = tv6 * tv4
+	tv2 = fpApi.Add(tv2, tv5) // 12. tv2 = tv2 + tv5
+	tv2 = fpApi.Mul(tv2, tv3) // 13. tv2 = tv2 * tv3
+	tv6 = fpApi.Mul(tv6, tv4) // 14. tv6 = tv6 * tv4
 
-	tv5 = *fpApi.Mul(tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
-	tv2 = fpApi.Add(tv2, &tv5)                 // 16. tv2 = tv2 + tv5
+	tv5 = fpApi.Mul(tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
+	tv2 = fpApi.Add(tv2, tv5)                 // 16. tv2 = tv2 + tv5
 
 	// var x fp.Element
 	x := fpApi.Mul(tv1, tv3) // 17.   x = tv1 * tv3
 
 	hint, err := fpApi.NewHint(g1SqrtRatioHint, 2, tv2, tv6)
 	if err != nil {
-		return res, err
+		return &res, err
 	}
 
 	// TODO constrain gx1NSquare and y1
@@ -365,8 +329,39 @@ func MapToCurve1(api frontend.API, u *FpElement) (G1Affine, error) {
 	// // 23.  e1 = sgn0(u) == sgn0(y)
 	// // 24.   y = CMOV(-y, y, e1)
 
-	x = fpApi.Div(x, &tv4) // 25.   x = x / tv4
+	x = fpApi.Div(x, tv4) // 25.   x = x / tv4
 
-	return G1Affine{X: *x, Y: *y}, nil
+	return &G1Affine{X: *x, Y: *y}, nil
 
+}
+
+// MapToG1 invokes the SSWU map, and guarantees that the result is in g1
+func MapToG1(api frontend.API, u *FpElement) (*G1Affine, error) {
+
+	res, err := MapToCurve1(api, u)
+	if err != nil {
+		return nil, err
+	}
+
+	//this is in an isogenous curve
+	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
+	if err != nil {
+		return nil, err
+	}
+	z, err := g1Isogeny(fpApi, res)
+	if err != nil {
+		return nil, err
+	}
+
+	g1, err := NewG1(api)
+	if err != nil {
+		return nil, err
+	}
+
+	z, err = ClearCofactor(g1, z)
+	if err != nil {
+		return nil, err
+	}
+
+	return z, nil
 }
