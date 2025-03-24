@@ -101,7 +101,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 
 	maxLen := len(d.in)
 	maxPaddingCount := 64 - maxLen%64
-	if maxLen%64 >= 56 {
+	if maxPaddingCount <= 8 {
 		maxPaddingCount += 64
 	}
 	maxTotalLen := maxLen + maxPaddingCount
@@ -129,22 +129,23 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
-	// When i < minLen or i > maxLen, padding 1 0r 0 is completely unnecessary
+	// When i < minLen or i > maxLen, padding 1 is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
+	}
 
+	// When i <= minLen or i >= maxLen, padding 0 is completely unnecessary
+	for i := d.minimalLength + 1; i < maxLen; i++ {
 		isPaddingPos := comparator.IsLess(length, i)
 		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
 	// When i <= minLen, padding length is completely unnecessary
-	for i := d.minimalLength + 1; i < maxTotalLen; i++ {
+	for i := d.minimalLength + 1; i <= maxTotalLen-8; i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
-			if i+j < maxTotalLen {
-				data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
-			}
+			data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
 		}
 	}
 
