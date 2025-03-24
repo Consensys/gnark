@@ -63,7 +63,7 @@ func (circuit *MapToCurveCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	g.AssertIsEqual(&r, &circuit.Res)
+	g.AssertIsEqual(r, &circuit.Res)
 
 	return nil
 }
