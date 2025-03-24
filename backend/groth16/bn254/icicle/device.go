@@ -22,7 +22,11 @@ func warmUpDevice() {
 		device := icicle_runtime.CreateDevice("CUDA", 0)
 		log.Debug().Int32("id", device.Id).Str("type", device.GetDeviceType()).Msg("ICICLE device created")
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
-			err := icicle_runtime.WarmUpDevice()
+			stream, err := icicle_runtime.CreateStream()
+			if err != icicle_runtime.Success {
+				panic(fmt.Sprintf("ICICLE create stream error: %s", err.AsString()))
+			}
+			err = icicle_runtime.WarmUpDevice(stream)
 			if err != icicle_runtime.Success {
 				panic(fmt.Sprintf("ICICLE device warmup error: %s", err.AsString()))
 			}
