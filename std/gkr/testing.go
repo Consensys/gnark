@@ -3,6 +3,7 @@ package gkr
 import (
 	"errors"
 	"fmt"
+	stdHash "github.com/consensys/gnark/std/hash"
 	"math/big"
 	"sync"
 
@@ -25,10 +26,49 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+type solveInTestEngineSettings struct {
+	hashName string
+}
+
+type SolveInTestEngineOption func(*solveInTestEngineSettings)
+
+func WithHashName(name string) SolveInTestEngineOption {
+	return func(s *solveInTestEngineSettings) {
+		s.hashName = name
+	}
+}
+
 // SolveInTestEngine solves the defined circuit directly inside the SNARK circuit. This means that the method does not compute the GKR proof of the circuit and does not embed the GKR proof verifier inside a SNARK.
 // The output is the values of all variables, across all instances; i.e. indexed variable-first, instance-second.
 // This method only works under the test engine and should only be called to debug a GKR circuit, as the GKR prover's errors can be obscure.
-func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable {
+func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTestEngineOption) [][]frontend.Variable {
+	var s solveInTestEngineSettings
+	for _, o := range options {
+		o(&s)
+	}
+	if s.hashName != "" {
+		// hash something and make sure it gives the same answer both on prover and verifier sides
+		// TODO @Tabaie If indeed cheap, move this feature to Verify so that it is always run
+		h, err := stdHash.GetFieldHasher(s.hashName, parentApi)
+		if err != nil {
+			panic(err)
+		}
+		nbBytes := (parentApi.Compiler().FieldBitLen() + 7) / 8
+		toHash := frontend.Variable(0)
+		for i := range nbBytes {
+			toHash = parentApi.Add(toHash, toHash, i%256)
+		}
+		h.Reset()
+		h.Write(toHash)
+		hashed := h.Sum()
+
+		hintOut, err := parentApi.Compiler().NewHint(CheckHashHint(s.hashName), 1, toHash, hashed)
+		if err != nil {
+			panic(err)
+		}
+		parentApi.AssertIsEqual(hintOut[0], hashed) // the hint already checks this
+	}
+
 	res := make([][]frontend.Variable, len(api.toStore.Circuit))
 	var degreeTestedGates sync.Map
 	for i, w := range api.toStore.Circuit {

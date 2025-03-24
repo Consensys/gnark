@@ -1,7 +1,9 @@
 package gkr
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
@@ -12,6 +14,7 @@ import (
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
+	"hash"
 	"math/big"
 )
 
@@ -98,5 +101,52 @@ func ProveHintPlaceholder(hashName string) solver.Hint {
 		}
 
 		return errors.New("unsupported modulus")
+	}
+}
+
+func CheckHashHint(hashName string) solver.Hint {
+	return func(mod *big.Int, ins, outs []*big.Int) error {
+		if len(ins) != 2 || len(outs) != 1 {
+			return errors.New("invalid number of inputs/outputs")
+		}
+
+		var (
+			builder func() hash.Hash
+			err     error
+		)
+		if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
+			builder, err = bls12377.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
+			builder, err = bls12381.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
+			builder, err = bls24315.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
+			builder, err = bls24317.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
+			builder, err = bn254.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
+			builder, err = bw6633.GetHashBuilder(hashName)
+		} else if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
+			builder, err = bw6761.GetHashBuilder(hashName)
+		} else {
+			return errors.New("unsupported modulus")
+		}
+
+		if err != nil {
+			return err
+		}
+
+		toHash := ins[0].Bytes()
+		expectedHash := ins[1].Bytes()
+
+		hsh := builder()
+		hsh.Write(toHash)
+		hashed := hsh.Sum(nil)
+
+		if !bytes.Equal(hashed, expectedHash) {
+			return fmt.Errorf("hash mismatch: expected %x, got %x", expectedHash, hashed)
+		}
+
+		return nil
 	}
 }

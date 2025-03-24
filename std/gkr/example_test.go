@@ -3,18 +3,19 @@ package gkr_test
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
-	gcHash "github.com/consensys/gnark-crypto/hash"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	"hash"
+	"math/big"
 )
 
 func Example() {
@@ -22,7 +23,10 @@ func Example() {
 	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
 	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
-	const gateNamePrefix = "bls12-377-jac-double-"
+	const (
+		gateNamePrefix = "bls12-377-jac-double-"
+		fsHashName     = "const"
+	)
 
 	// Every gate needs to be defined over a concrete field, used by the GKR prover,
 	// and over a frontend.API, used by the in-SNARK GKR verifier.
@@ -157,10 +161,12 @@ func Example() {
 		ZOut:           make([]frontend.Variable, nbInstances),
 		SOut:           make([]frontend.Variable, nbInstances),
 		gateNamePrefix: gateNamePrefix,
+		fsHashName:     fsHashName,
 	}
 
 	// register the hash function used for verifying the GKR proof (prover side)
-	bw6761.RegisterHashBuilder("mimc", gcHash.MIMC_BW6_761.New)
+	//bw6761.RegisterHashBuilder("mimc", gcHash.MIMC_BW6_761.New)
+	bw6761.RegisterHashBuilder(fsHashName, func() hash.Hash { return constHasherBw6761{} })
 
 	assertNoError(test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
 
@@ -172,6 +178,7 @@ type exampleCircuit struct {
 	XOut, YOut, ZOut []frontend.Variable // Jacobian coordinates for the double of each point (expected output)
 	SOut             []frontend.Variable // temporary
 	gateNamePrefix   string
+	fsHashName       string // name of the hash function used for Fiat-Shamir in the GKR verifier
 }
 
 func (c *exampleCircuit) Define(api frontend.API) error {
@@ -292,22 +299,80 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	XOut := solution.Export(X) // TODO do this with actual output values
 	for i := range XOut {
-		_ = i
-		//api.AssertIsEqual(XOut[i], c.XOut[i])
+		api.AssertIsEqual(XOut[i], c.XOut[i])
+	}
+
+	YOut := solution.Export(Y)
+	for i := range YOut {
+		api.AssertIsEqual(YOut[i], c.YOut[i])
 	}
 
 	// register the hash function used for verification (fiat shamir)
-	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
+	/*stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
+	})*/
+
+	stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
+		return &constHasherSnark{api: api}, nil
 	})
 
 	// verify the proof
-	return solution.Verify("mimc")
+	return solution.Verify(c.fsHashName)
 }
 
 func assertNoError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+type constHasherBw6761 struct{}
+
+func (constHasherBw6761) Write(p []byte) (int, error) {
+	for i := 0; i < len(p); i += fr.Bytes {
+		var I big.Int
+		I.SetBytes(p[i:min(len(p), i+fr.Bytes)])
+		fmt.Print(I.Text(10), " ")
+	}
+	return len(p), nil
+}
+
+func (constHasherBw6761) Sum(p []byte) []byte {
+	if p != nil {
+		panic("unexpected input")
+	}
+	fmt.Println()
+	var b [fr.Bytes]byte
+	b[len(b)-1] = 1
+	return b[:]
+}
+
+func (constHasherBw6761) Reset() {
+}
+
+func (constHasherBw6761) Size() int {
+	return fr.Bytes
+}
+
+func (constHasherBw6761) BlockSize() int {
+	return fr.Bytes
+}
+
+type constHasherSnark struct {
+	api frontend.API
+	v   []frontend.Variable
+}
+
+func (h *constHasherSnark) Sum() frontend.Variable {
+	h.api.Println(h.v...)
+	return 1
+}
+
+func (h *constHasherSnark) Write(v ...frontend.Variable) {
+	h.v = append(h.v, v...)
+}
+
+func (h *constHasherSnark) Reset() {
+	h.v = h.v[:0]
 }
