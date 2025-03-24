@@ -41,12 +41,6 @@ func (d *digest) Sum() []uints.U8 {
 }
 
 func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
-	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(len(d.in))), false)
-	// in case the lower bound on the length of input is given, check that the input is long enough
-	if d.minimalLength > 0 {
-		comparator.AssertIsLessEq(d.minimalLength, length)
-	}
-
 	padded, numberOfBlocks := d.paddingFixedWidth(length)
 
 	blocks := d.composeBlocks(padded)
@@ -87,6 +81,10 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	padded = append(padded, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
 
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxTotalLen)), false)
+	// in case the lower bound on the length of input is given, check that the input is long enough
+	if d.minimalLength > 0 {
+		comparator.AssertIsLessEq(d.minimalLength, length)
+	}
 
 	// When i < minLen or i > maxLen, padding dsbyte is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
