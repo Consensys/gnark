@@ -70,21 +70,21 @@ func (d *digest) padding() []uints.U8 {
 }
 
 func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8, numberOfBlocks frontend.Variable) {
-	quotient, modulus := arith.DivMod(d.api, length, uint(d.rate))
-
 	maxLen := len(d.in)
 	maxPaddingCount := d.rate - maxLen%d.rate
 	maxTotalLen := maxLen + maxPaddingCount
-
-	padded = make([]uints.U8, maxLen)
-	copy(padded[:], d.in[:])
-	padded = append(padded, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
 
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxTotalLen)), false)
 	// in case the lower bound on the length of input is given, check that the input is long enough
 	if d.minimalLength > 0 {
 		comparator.AssertIsLessEq(d.minimalLength, length)
 	}
+
+	padded = make([]uints.U8, maxLen)
+	copy(padded[:], d.in[:])
+	padded = append(padded, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
+
+	quotient, modulus := arith.DivMod(d.api, length, uint(d.rate))
 
 	// When i < minLen or i > maxLen, padding dsbyte is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
