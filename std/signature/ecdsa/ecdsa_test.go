@@ -264,5 +264,5 @@ func TestEcdsaPublicKeyIsVerifiedNegative(t *testing.T) {
 	}
 	assert := test.NewAssert(t)
 	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.Error(err)
 }
