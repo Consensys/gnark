@@ -56,7 +56,7 @@ func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTest
 		nbBytes := (parentApi.Compiler().FieldBitLen() + 7) / 8
 		toHash := frontend.Variable(0)
 		for i := range nbBytes {
-			toHash = parentApi.Add(toHash, toHash, i%256)
+			toHash = parentApi.Add(parentApi.Mul(toHash, 256), i%256)
 		}
 		h.Reset()
 		h.Write(toHash)

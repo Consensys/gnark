@@ -9,17 +9,17 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
-	gcHash "github.com/consensys/gnark-crypto/hash"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	"hash"
 	"math/big"
+	"testing"
 )
 
-func Example() {
+func TestExample(*testing.T) {
 	// This example computes the double of multiple BLS12-377 G1 points, which can be computed natively over BW6-761.
 	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
 	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
@@ -166,7 +166,8 @@ func Example() {
 	}
 
 	// register the hash function used for verifying the GKR proof (prover side)
-	bw6761.RegisterHashBuilder(fsHashName, gcHash.MIMC_BW6_761.New)
+	//bw6761.RegisterHashBuilder(fsHashName, func() hash.Hash { return hashReporter{gcHash.MIMC_BW6_761.New()} })
+	bw6761.RegisterHashBuilder("const", func() hash.Hash { return constHasherBw6761{} })
 
 	assertNoError(test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
 
@@ -272,9 +273,12 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	X = gkrApi.NamedGate("identity", X)
 
 	// register the hash function used for verification (fiat shamir)
-	stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
+	/*stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
-		return &m, err
+		return &hashReporterSnark{h: &m, api: api}, err
+	})*/
+	stdHash.Register("const", func(api frontend.API) (stdHash.FieldHasher, error) {
+		return &constHasherSnark{api: api}, nil
 	})
 
 	res := gkrApi.SolveInTestEngine(api, gkr.WithHashName(c.fsHashName))
@@ -317,6 +321,65 @@ func assertNoError(err error) {
 	}
 }
 
+type hashReporter struct {
+	h hash.Hash
+}
+
+func (h hashReporter) Write(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i += fr.Bytes {
+		var I big.Int
+		I.SetBytes(p[i:min(len(p), i+fr.Bytes)])
+		fmt.Print(I.Text(10), " ")
+	}
+	return h.h.Write(p)
+}
+
+func (h hashReporter) Sum(b []byte) []byte {
+	if b != nil {
+		panic("unexpected input")
+	}
+	b = h.h.Sum(b)
+	fmt.Println("\n<-", new(big.Int).SetBytes(b).Text(10))
+	return b
+}
+
+func (h hashReporter) Reset() {
+	h.h.Reset()
+}
+
+func (h hashReporter) Size() int {
+	return h.h.Size()
+}
+
+func (h hashReporter) BlockSize() int {
+	return h.h.BlockSize()
+}
+
+type hashReporterSnark struct {
+	h   stdHash.FieldHasher
+	api frontend.API
+	v   []frontend.Variable
+}
+
+func (h *hashReporterSnark) Sum() frontend.Variable {
+	h.api.Println(h.v...)
+	res := h.h.Sum()
+	h.api.Println("<-", res)
+	return res
+}
+
+func (h *hashReporterSnark) Write(v ...frontend.Variable) {
+	h.v = append(h.v, v...)
+	h.h.Write(v...)
+}
+
+func (h *hashReporterSnark) Reset() {
+	h.v = h.v[:0]
+	h.h.Reset()
+}
+
+const constHash byte = 3
+
 type constHasherBw6761 struct{}
 
 func (constHasherBw6761) Write(p []byte) (int, error) {
@@ -334,7 +397,7 @@ func (constHasherBw6761) Sum(p []byte) []byte {
 	}
 	fmt.Println()
 	var b [fr.Bytes]byte
-	b[len(b)-1] = 1
+	b[len(b)-1] = constHash
 	return b[:]
 }
 
@@ -347,4 +410,22 @@ func (constHasherBw6761) Size() int {
 
 func (constHasherBw6761) BlockSize() int {
 	return fr.Bytes
+}
+
+type constHasherSnark struct {
+	api frontend.API
+	v   []frontend.Variable
+}
+
+func (h *constHasherSnark) Sum() frontend.Variable {
+	h.api.Println(h.v...)
+	return constHash
+}
+
+func (h *constHasherSnark) Write(v ...frontend.Variable) {
+	h.v = append(h.v, v...)
+}
+
+func (h *constHasherSnark) Reset() {
+	h.v = h.v[:0]
 }

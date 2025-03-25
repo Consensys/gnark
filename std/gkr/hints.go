@@ -1,7 +1,6 @@
 package gkr
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -137,14 +136,14 @@ func CheckHashHint(hashName string) solver.Hint {
 		}
 
 		toHash := ins[0].Bytes()
-		expectedHash := ins[1].Bytes()
+		expectedHash := ins[1]
 
 		hsh := builder()
 		hsh.Write(toHash)
 		hashed := hsh.Sum(nil)
 
-		if !bytes.Equal(hashed, expectedHash) {
-			return fmt.Errorf("hash mismatch: expected %x, got %x", expectedHash, hashed)
+		if hashed := new(big.Int).SetBytes(hashed); hashed.Cmp(expectedHash) != 0 {
+			return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash.String(), hashed.String())
 		}
 
 		outs[0].SetBytes(hashed)
