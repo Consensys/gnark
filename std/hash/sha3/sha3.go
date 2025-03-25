@@ -102,8 +102,8 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	totalLen := d.api.Add(length, paddingCount)
 	lastPaddingPos := d.api.Sub(totalLen, 1)
 
-	isPaddingOne := cmp.IsEqual(d.api, paddingCount, 1)
-	lastPaddedByte := d.api.Select(isPaddingOne, d.dsbyte^0x80, 0x80)
+	isOnlyPaddedOneCount := cmp.IsEqual(d.api, paddingCount, 1)
+	lastPaddedByte := d.api.Select(isOnlyPaddedOneCount, d.dsbyte^0x80, 0x80)
 
 	// When i < minLen, padding 0x80 is completely unnecessary
 	for i := d.minimalLength; i < maxTotalLen; i++ {

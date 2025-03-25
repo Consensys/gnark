@@ -129,7 +129,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
-	// When i < minLen or i > maxLen, padding 1 is completely unnecessary
+	// When i < minLen or i > maxLen, padding 0x80 is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
@@ -141,7 +141,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
-	// When i <= minLen, padding length is completely unnecessary
+	// When i <= minLen or i > maxTotalLen-8, padding length is completely unnecessary
 	for i := d.minimalLength + 1; i <= maxTotalLen-8; i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
