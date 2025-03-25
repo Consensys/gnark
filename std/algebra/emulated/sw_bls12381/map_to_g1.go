@@ -16,7 +16,7 @@ func init() {
 type FpApi = emulated.Field[emulated.BLS12381Fp]
 type FpElement = emulated.Element[emulated.BLS12381Fp]
 
-func g1IsogenyXNumerator(api *FpApi, x FpElement) (FpElement, error) {
+func g1IsogenyXNumerator(api *FpApi, x *FpElement) (*FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -38,7 +38,7 @@ func g1IsogenyXNumerator(api *FpApi, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyXDenominator(api *FpApi, x FpElement) (FpElement, error) {
+func g1IsogenyXDenominator(api *FpApi, x *FpElement) (*FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -58,7 +58,7 @@ func g1IsogenyXDenominator(api *FpApi, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1IsogenyYNumerator(api *FpApi, x, y FpElement) (FpElement, error) {
+func g1IsogenyYNumerator(api *FpApi, x, y *FpElement) (*FpElement, error) {
 
 	ix, err := g1EvalPolynomial(
 		api,
@@ -86,11 +86,11 @@ func g1IsogenyYNumerator(api *FpApi, x, y FpElement) (FpElement, error) {
 		return ix, err
 	}
 
-	ix = *api.Mul(&ix, &y)
+	ix = api.Mul(ix, y)
 	return ix, nil
 }
 
-func g1IsogenyYDenominator(api *FpApi, x FpElement) (FpElement, error) {
+func g1IsogenyYDenominator(api *FpApi, x *FpElement) (*FpElement, error) {
 
 	return g1EvalPolynomial(
 		api,
@@ -115,17 +115,18 @@ func g1IsogenyYDenominator(api *FpApi, x FpElement) (FpElement, error) {
 		x)
 }
 
-func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x FpElement) (FpElement, error) {
+func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x *FpElement) (*FpElement, error) {
 
-	res := coefficients[len(coefficients)-1]
-
+	var res *FpElement
 	if monic {
-		res = *api.Add(&res, &x)
+		res = api.Add(&coefficients[len(coefficients)-1], x)
+	} else {
+		res = &coefficients[len(coefficients)-1]
 	}
 
 	for i := len(coefficients) - 2; i >= 0; i-- {
-		res = *api.Mul(&res, &x)
-		res = *api.Add(&res, &coefficients[i])
+		res = api.Mul(res, x)
+		res = api.Add(res, &coefficients[i])
 	}
 	return res, nil
 
@@ -133,31 +134,31 @@ func g1EvalPolynomial(api *FpApi, monic bool, coefficients []FpElement, x FpElem
 
 func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 
-	den := make([]FpElement, 2)
+	den := make([]*FpElement, 2)
 	var err error
 
-	den[1], err = g1IsogenyYDenominator(fpApi, p.X)
+	den[1], err = g1IsogenyYDenominator(fpApi, &p.X)
 	if err != nil {
 		return nil, err
 	}
-	den[0], err = g1IsogenyXDenominator(fpApi, p.X)
-	if err != nil {
-		return nil, err
-	}
-
-	y, err := g1IsogenyYNumerator(fpApi, p.X, p.Y)
-	if err != nil {
-		return nil, err
-	}
-	x, err := g1IsogenyXNumerator(fpApi, p.X)
+	den[0], err = g1IsogenyXDenominator(fpApi, &p.X)
 	if err != nil {
 		return nil, err
 	}
 
-	x = *fpApi.Div(&x, &den[0])
-	y = *fpApi.Div(&y, &den[1])
+	y, err := g1IsogenyYNumerator(fpApi, &p.X, &p.Y)
+	if err != nil {
+		return nil, err
+	}
+	x, err := g1IsogenyXNumerator(fpApi, &p.X)
+	if err != nil {
+		return nil, err
+	}
 
-	return &G1Affine{X: x, Y: y}, nil
+	x = fpApi.Div(x, den[0])
+	y = fpApi.Div(y, den[1])
+
+	return &G1Affine{X: *x, Y: *y}, nil
 
 }
 
@@ -250,12 +251,12 @@ func ClearCofactor(g *G1, q *G1Affine) (*G1Affine, error) {
 // MapToCurve1 implements the SSWU map
 // No cofactor clearing or isogeny
 func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
-
-	var res G1Affine
+	one := emulated.ValueOf[emulated.BLS12381Fp]("1")
+	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
 
 	fpApi, err := emulated.NewField[emulated.BLS12381Fp](api)
 	if err != nil {
-		return &res, err
+		return nil, err
 	}
 
 	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp]("0x144698a3b8e9433d693a02c96d4982b0ea985383ee66a8d8e8981aefd881ac98936f8da0e0f97f5cf428082d584c1d")
@@ -264,7 +265,6 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 	tv1 := fpApi.Mul(u, u) // 1.  tv1 = u²
 
 	//mul tv1 by Z ( g1MulByZ)
-	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
 	tv1 = fpApi.Mul(&eleven, tv1)
 
 	// var tv2 fp.Element
@@ -273,19 +273,17 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	_tv4 := emulated.ValueOf[emulated.BLS12381Fp]("1")
-	tv3 := fpApi.Add(tv2, &_tv4)              // 5.  tv3 = tv2 + 1
+	tv3 := fpApi.Add(tv2, &one)               // 5.  tv3 = tv2 + 1
 	tv3 = fpApi.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
 	tv2IsZero := fpApi.IsZero(tv2)
 
 	// tv4 = Z
-	_tv4 = emulated.ValueOf[emulated.BLS12381Fp]("11")
 
-	tv2 = fpApi.Neg(tv2)                       // tv2.Neg(&tv2)
-	tv4 := fpApi.Select(tv2IsZero, &_tv4, tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
-	tv4 = fpApi.Mul(tv4, &sswuIsoCurveCoeffA)  // 8.  tv4 = A * tv4
+	tv2 = fpApi.Neg(tv2)                         // tv2.Neg(&tv2)
+	tv4 := fpApi.Select(tv2IsZero, &eleven, tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	tv4 = fpApi.Mul(tv4, &sswuIsoCurveCoeffA)    // 8.  tv4 = A * tv4
 
 	tv2 = fpApi.Mul(tv3, tv3) // 9.  tv2 = tv3²
 
@@ -305,7 +303,7 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 
 	hint, err := fpApi.NewHint(g1SqrtRatioHint, 2, tv2, tv6)
 	if err != nil {
-		return &res, err
+		return nil, err
 	}
 
 	// TODO constrain gx1NSquare and y1
