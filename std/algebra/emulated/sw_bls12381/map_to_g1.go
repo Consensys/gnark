@@ -324,7 +324,7 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 	isQR := api.Sub(1, gx1NSquare)
 	cond2 := api.And(isQR, isQRWitness)
 
-	cond := api.Or(cond1, cond2)
+	cond := api.Xor(cond1, cond2)
 	api.AssertIsEqual(cond, 1)
 
 	// var y fp.Element
