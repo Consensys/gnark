@@ -147,6 +147,8 @@ func CheckHashHint(hashName string) solver.Hint {
 			return fmt.Errorf("hash mismatch: expected %x, got %x", expectedHash, hashed)
 		}
 
+		outs[0].SetBytes(hashed)
+
 		return nil
 	}
 }

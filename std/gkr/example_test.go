@@ -9,12 +9,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
+	gcHash "github.com/consensys/gnark-crypto/hash"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
-	"hash"
 	"math/big"
 )
 
@@ -165,8 +166,7 @@ func Example() {
 	}
 
 	// register the hash function used for verifying the GKR proof (prover side)
-	//bw6761.RegisterHashBuilder("mimc", gcHash.MIMC_BW6_761.New)
-	bw6761.RegisterHashBuilder(fsHashName, func() hash.Hash { return constHasherBw6761{} })
+	bw6761.RegisterHashBuilder(fsHashName, gcHash.MIMC_BW6_761.New)
 
 	assertNoError(test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
 
@@ -271,7 +271,13 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// TODO remove once https://github.com/Consensys/gnark/issues/1452 is addressed
 	X = gkrApi.NamedGate("identity", X)
 
-	res := gkrApi.SolveInTestEngine(api)
+	// register the hash function used for verification (fiat shamir)
+	stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
+		m, err := mimc.NewMiMC(api)
+		return &m, err
+	})
+
+	res := gkrApi.SolveInTestEngine(api, gkr.WithHashName(c.fsHashName))
 	for i := range c.XOut {
 		api.AssertIsEqual(res[scp][i], c.SOut[i])
 		api.AssertIsEqual(res[Z][i], c.ZOut[i])
@@ -292,30 +298,14 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(SOut[i], c.SOut[i])
 	}
 
+	XOut := solution.Export(X)
+	YOut := solution.Export(Y)
 	ZOut := solution.Export(Z)
-	for i := range ZOut {
-		api.AssertIsEqual(ZOut[i], c.ZOut[i])
-	}
-
-	XOut := solution.Export(X) // TODO do this with actual output values
 	for i := range XOut {
 		api.AssertIsEqual(XOut[i], c.XOut[i])
-	}
-
-	YOut := solution.Export(Y)
-	for i := range YOut {
 		api.AssertIsEqual(YOut[i], c.YOut[i])
+		api.AssertIsEqual(ZOut[i], c.ZOut[i])
 	}
-
-	// register the hash function used for verification (fiat shamir)
-	/*stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})*/
-
-	stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
-		return &constHasherSnark{api: api}, nil
-	})
 
 	// verify the proof
 	return solution.Verify(c.fsHashName)
@@ -357,22 +347,4 @@ func (constHasherBw6761) Size() int {
 
 func (constHasherBw6761) BlockSize() int {
 	return fr.Bytes
-}
-
-type constHasherSnark struct {
-	api frontend.API
-	v   []frontend.Variable
-}
-
-func (h *constHasherSnark) Sum() frontend.Variable {
-	h.api.Println(h.v...)
-	return 1
-}
-
-func (h *constHasherSnark) Write(v ...frontend.Variable) {
-	h.v = append(h.v, v...)
-}
-
-func (h *constHasherSnark) Reset() {
-	h.v = h.v[:0]
 }
