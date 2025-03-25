@@ -298,7 +298,6 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 	tv5 = fpApi.Mul(tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
 	tv2 = fpApi.Add(tv2, tv5)                 // 16. tv2 = tv2 + tv5
 
-	// var x fp.Element
 	x := fpApi.Mul(tv1, tv3) // 17.   x = tv1 * tv3
 
 	hint, err := fpApi.NewHint(g1SqrtRatioHint, 2, tv2, tv6)
@@ -306,10 +305,27 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 		return nil, err
 	}
 
+	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+
 	// TODO constrain gx1NSquare and y1
 	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
 	gx1NSquare := hint[1].Limbs[0]
-	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+
+	api.AssertIsBoolean(gx1NSquare)
+	y1Squarev := fpApi.Mul(y1, y1)
+	y1Squarev = fpApi.Mul(y1Squarev, tv6)
+	uz := fpApi.Mul(tv2, &eleven)
+	ysvMinusuz := fpApi.Sub(y1Squarev, uz)
+	isQNRWitness := fpApi.IsZero(ysvMinusuz)
+	cond1 := api.And(isQNRWitness, gx1NSquare)
+
+	ysvMinusu := fpApi.Sub(y1Squarev, tv2)
+	isQRWitness := fpApi.IsZero(ysvMinusu)
+	isQR := api.Sub(1, gx1NSquare)
+	cond2 := api.And(isQR, isQRWitness)
+
+	cond := api.Or(cond1, cond2)
+	api.AssertIsEqual(cond, 1)
 
 	// var y fp.Element
 	y := fpApi.Mul(tv1, u) // 19.  	 y = tv1 * u
