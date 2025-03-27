@@ -433,6 +433,7 @@ func init() {
 }
 
 func registerMiMCGate() {
+	// register mimc gate
 	panicIfError(RegisterGate("mimc", func(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
@@ -445,6 +446,7 @@ func registerMiMCGate() {
 		return api.Mul(sumCubed, sumCubed, sum)
 	}, 2, WithDegree(7)))
 
+	// register fr version of mimc gate
 	panicIfError(gkr.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
 		var sum fr.Element
 
@@ -472,31 +474,6 @@ func (c constPseudoHash) Write(...frontend.Variable) {}
 func (c constPseudoHash) Reset() {}
 
 var mimcFrTotalCalls = 0
-
-// Copied from gnark-crypto TODO: Make public?
-type mimcCipherGate struct {
-	ark fr.Element
-}
-
-func (m mimcCipherGate) Evaluate(input ...fr.Element) (res fr.Element) {
-	var sum fr.Element
-
-	sum.
-		Add(&input[0], &input[1]).
-		Add(&sum, &m.ark)
-
-	res.Square(&sum)    // sum^2
-	res.Mul(&res, &sum) // sum^3
-	res.Square(&res)    //sum^6
-	res.Mul(&res, &sum) //sum^7
-
-	mimcFrTotalCalls++
-	return
-}
-
-func (m mimcCipherGate) Degree() int {
-	return 7
-}
 
 type mimcNoGkrCircuit struct {
 	X         []frontend.Variable

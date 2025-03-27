@@ -154,10 +154,16 @@ func (w *bn254WrapperApi) AssertIsLessOrEqual(frontend.Variable, frontend.Variab
 func (w *bn254WrapperApi) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
 	for i, v := range a {
-		if x := w.cast(v); w.err == nil {
-			toPrint[i] = x[i]
+		var x fr.Element
+		if _, err := x.SetInterface(v); err != nil {
+			if s, ok := v.(string); ok {
+				toPrint[i] = s
+				continue
+			} else {
+				w.newError("not numeric or string")
+			}
 		} else {
-			return
+			toPrint[i] = x.String()
 		}
 	}
 	fmt.Println(toPrint...)
