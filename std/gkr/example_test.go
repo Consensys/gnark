@@ -3,7 +3,6 @@ package gkr_test
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
@@ -16,8 +15,6 @@ import (
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
-	"hash"
-	"math/big"
 )
 
 func Example() {
@@ -47,10 +44,10 @@ func Example() {
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s", func(input ...fr.Element) (S fr.Element) {
 		S.
 			Add(&input[0], &input[1]). // 409: S.Add(&p.X, &YY)
-			Square(&S).                // 410: S.Square(&S).
-			Sub(&S, &input[2]).        // 411: Sub(&S, &XX).
-			Sub(&S, &input[3]).        // 412: Sub(&S, &YYYY).
-			Double(&S)                 // 413: Double(&S)
+			Square(&S). // 410: S.Square(&S).
+			Sub(&S, &input[2]). // 411: Sub(&S, &XX).
+			Sub(&S, &input[3]). // 412: Sub(&S, &YYYY).
+			Double(&S) // 413: Double(&S)
 
 		return
 	}, 4))
@@ -86,7 +83,7 @@ func Example() {
 		input[2] = Y
 
 		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
-						Mul(&Y, &input[2]) // 424: Mul(&p.Y, &M).
+			Mul(&Y, &input[2])                                         // 424: Mul(&p.Y, &M).
 		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
 		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
 
@@ -316,38 +313,4 @@ func assertNoError(err error) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-type hashReporter struct {
-	h hash.Hash
-}
-
-func (h hashReporter) Write(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i += fr.Bytes {
-		var I big.Int
-		I.SetBytes(p[i:min(len(p), i+fr.Bytes)])
-		fmt.Print(I.Text(10), " ")
-	}
-	return h.h.Write(p)
-}
-
-func (h hashReporter) Sum(b []byte) []byte {
-	if b != nil {
-		panic("unexpected input")
-	}
-	b = h.h.Sum(b)
-	fmt.Println("\n<-", new(big.Int).SetBytes(b).Text(10))
-	return b
-}
-
-func (h hashReporter) Reset() {
-	h.h.Reset()
-}
-
-func (h hashReporter) Size() int {
-	return h.h.Size()
-}
-
-func (h hashReporter) BlockSize() int {
-	return h.h.BlockSize()
 }
