@@ -1,18 +1,13 @@
 package gkr
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
-	bn254Gkr "github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
-	"github.com/consensys/gnark/std/gkr/internal"
-	"strconv"
-	"sync"
-
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
+	"strconv"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -42,144 +37,6 @@ func (g *Gate) SolvableVar() int {
 // NbIn returns the number of inputs to the gate (its fan-in)
 func (g *Gate) NbIn() int {
 	return g.nbIn
-}
-
-var (
-	gates     = make(map[string]*Gate)
-	gatesLock sync.Mutex
-)
-
-/*type registerGateSettings struct {
-	solvableVar               int
-	noSolvableVarVerification bool
-	noDegreeVerification    bool
-	degree                  int
-}*/
-
-// here options are not defined as functions on settings to make translation to their field counterpart easier
-// TODO @Tabaie once GKR is moved to gnark, use the same options/settings type for all curves, obviating this
-
-type registerGateOptionType byte
-
-const (
-	registerGateOptionTypeWithSolvableVar registerGateOptionType = iota
-	registerGateOptionTypeWithUnverifiedSolvableVar
-	registerGateOptionTypeWithNoSolvableVar
-	registerGateOptionTypeWithUnverifiedDegree
-	registerGateOptionTypeWithDegree
-)
-
-type registerGateOption struct {
-	tp    registerGateOptionType
-	param int
-}
-
-// WithSolvableVar gives the index of a variable of degree 1 in the gate's polynomial. RegisterGate will return an error if the given index is not correct.
-func WithSolvableVar(linearVar int) *registerGateOption {
-	return &registerGateOption{
-		tp:    registerGateOptionTypeWithSolvableVar,
-		param: linearVar,
-	}
-}
-
-// WithUnverifiedSolvableVar sets the index of a variable of degree 1 in the gate's polynomial. RegisterGate will not verify that the given index is correct.
-func WithUnverifiedSolvableVar(linearVar int) *registerGateOption {
-	return &registerGateOption{
-		tp:    registerGateOptionTypeWithUnverifiedSolvableVar,
-		param: linearVar,
-	}
-}
-
-// WithNoSolvableVar sets the gate as having no variable of degree 1. RegisterGate will not check the correctness of this claim.
-func WithNoSolvableVar() *registerGateOption {
-	return &registerGateOption{
-		tp: registerGateOptionTypeWithNoSolvableVar,
-	}
-}
-
-// WithUnverifiedDegree sets the degree of the gate. RegisterGate will not verify that the given degree is correct.
-func WithUnverifiedDegree(degree int) *registerGateOption {
-	return &registerGateOption{
-		tp:    registerGateOptionTypeWithUnverifiedDegree,
-		param: degree,
-	}
-}
-
-// WithDegree sets the degree of the gate. RegisterGate will return an error if the degree is not correct.
-func WithDegree(degree int) *registerGateOption {
-	return &registerGateOption{
-		tp:    registerGateOptionTypeWithDegree,
-		param: degree,
-	}
-}
-
-// RegisterGate creates a gate object and stores it in the gates registry
-// name is a human-readable name for the gate
-// f is the polynomial function defining the gate
-// nbIn is the number of inputs to the gate
-// NB! This package generally expects certain properties of the gate to be invariant across all curves.
-// In particular the degree is computed and verified over BN254. If the leading coefficient is divided by
-// the curve's order, the degree will be computed incorrectly.
-func RegisterGate(name string, f GateFunction, nbIn int, options ...*registerGateOption) error {
-	frF := internal.ToBn254GateFunction(f) // delegate tests to bn254
-	var nameRand [4]byte
-	if _, err := rand.Read(nameRand[:]); err != nil {
-		return err
-	}
-	frName := fmt.Sprintf("%s-test-%x", name, nameRand)
-	frOptions := make([]bn254Gkr.RegisterGateOption, 0, len(options))
-
-	// translate options
-	for _, opt := range options {
-		switch opt.tp {
-		case registerGateOptionTypeWithSolvableVar:
-			frOptions = append(frOptions, bn254Gkr.WithSolvableVar(opt.param))
-		case registerGateOptionTypeWithUnverifiedSolvableVar:
-			frOptions = append(frOptions, bn254Gkr.WithUnverifiedSolvableVar(opt.param))
-		case registerGateOptionTypeWithNoSolvableVar:
-			frOptions = append(frOptions, bn254Gkr.WithNoSolvableVar())
-		case registerGateOptionTypeWithUnverifiedDegree:
-			frOptions = append(frOptions, bn254Gkr.WithUnverifiedDegree(opt.param))
-		case registerGateOptionTypeWithDegree:
-			frOptions = append(frOptions, bn254Gkr.WithDegree(opt.param))
-		default:
-			return fmt.Errorf("unknown option type %d", opt.tp)
-		}
-	}
-
-	if err := bn254Gkr.RegisterGate(frName, frF, nbIn, frOptions...); err != nil {
-		return err
-	}
-	bn254Gate := bn254Gkr.GetGate(frName)
-	bn254Gkr.RemoveGate(frName)
-
-	gatesLock.Lock()
-	defer gatesLock.Unlock()
-
-	gates[name] = &Gate{
-		Evaluate:    f,
-		nbIn:        nbIn,
-		degree:      bn254Gate.Degree(),
-		solvableVar: bn254Gate.SolvableVar(),
-	}
-
-	return nil
-}
-
-func GetGate(name string) *Gate {
-	gatesLock.Lock()
-	defer gatesLock.Unlock()
-	return gates[name]
-}
-
-func RemoveGate(name string) bool {
-	gatesLock.Lock()
-	defer gatesLock.Unlock()
-	_, found := gates[name]
-	if found {
-		delete(gates, name)
-	}
-	return found
 }
 
 type Wire struct {
@@ -383,13 +240,6 @@ func ProofSize(c Circuit, logNbInstances int) int {
 		}
 	}
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string {

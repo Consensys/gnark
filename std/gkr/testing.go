@@ -83,7 +83,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			return errors.New("gate must have one output")
 		}
 		if ecc.BLS12_377.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls12377.GetGate(gateName)
+			gate := gkrBls12377.GetGate(gkrBls12377.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -103,7 +103,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BN254.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBn254.GetGate(gateName)
+			gate := gkrBn254.GetGate(gkrBn254.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -123,7 +123,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS24_315.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls24315.GetGate(gateName)
+			gate := gkrBls24315.GetGate(gkrBls24315.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -143,7 +143,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BW6_761.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBw6761.GetGate(gateName)
+			gate := gkrBw6761.GetGate(gkrBw6761.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -163,7 +163,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS12_381.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls12381.GetGate(gateName)
+			gate := gkrBls12381.GetGate(gkrBls12381.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -183,7 +183,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS24_317.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls24317.GetGate(gateName)
+			gate := gkrBls24317.GetGate(gkrBls24317.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
@@ -203,7 +203,7 @@ func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BW6_633.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBw6633.GetGate(gateName)
+			gate := gkrBw6633.GetGate(gkrBw6633.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}

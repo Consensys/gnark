@@ -30,7 +30,7 @@ type GkrSolvingData struct {
 func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		if resCircuit[i].Gate = gkr.GetGate(noPtr[i].Gate); resCircuit[i].Gate == nil && noPtr[i].Gate != "" {
+		if resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate)); resCircuit[i].Gate == nil && noPtr[i].Gate != "" {
 			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
 		}
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
