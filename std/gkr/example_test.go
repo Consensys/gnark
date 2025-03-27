@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
@@ -54,7 +53,7 @@ func Example() {
 
 	// combine the operations that define the assignment to p.Z
 	// input = [p.Z, p.Y, YY, ZZ]
-	// Z = (p.Z + p.Y)² - YY - ZZ
+	// p.Z = (p.Z + p.Y)² - YY - ZZ
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"z", func(input ...fr.Element) (Z fr.Element) {
 		Z.Add(&input[0], &input[1]) // 415: p.Z.Add(&p.Z, &p.Y).
 		Z.Square(&Z)                // 416: p.Z.Square(&p.Z).
@@ -78,6 +77,7 @@ func Example() {
 
 	// combine the operations that define the assignment to p.Y
 	// input = [S, p.X, XX, YYYY]
+	// p.Y = (S - p.X) * 3 * XX - 8 * YYYY
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"y", func(input ...fr.Element) (Y fr.Element) {
 		Y.Double(&input[2]).Add(&Y, &input[2]) // 414: M.Double(&XX).Add(&M, &XX)
 		input[2] = Y
@@ -105,7 +105,6 @@ func Example() {
 		XOut: make([]frontend.Variable, nbInstances),
 		YOut: make([]frontend.Variable, nbInstances),
 		ZOut: make([]frontend.Variable, nbInstances),
-		SOut: make([]frontend.Variable, nbInstances),
 	}
 
 	for i := range nbInstances {
@@ -125,30 +124,6 @@ func Example() {
 		assignment.XOut[i] = p.X
 		assignment.YOut[i] = p.Y
 		assignment.ZOut[i] = p.Z
-
-		// TODO delete this
-		{
-
-			p.X = assignment.X[i].(fp.Element)
-			p.Y = assignment.Y[i].(fp.Element)
-			p.Z = assignment.Z[i].(fp.Element)
-
-			var XX, YY, YYYY, ZZ, S, M, T fp.Element
-
-			_, _ = M, T
-
-			XX.Square(&p.X)
-			YY.Square(&p.Y)
-			YYYY.Square(&YY)
-			ZZ.Square(&p.Z)
-			S.Add(&p.X, &YY).
-				Square(&S).
-				Sub(&S, &XX).
-				Sub(&S, &YYYY).
-				Double(&S)
-
-			assignment.SOut[i] = S
-		}
 	}
 
 	circuit := exampleCircuit{
@@ -158,7 +133,6 @@ func Example() {
 		XOut:           make([]frontend.Variable, nbInstances),
 		YOut:           make([]frontend.Variable, nbInstances),
 		ZOut:           make([]frontend.Variable, nbInstances),
-		SOut:           make([]frontend.Variable, nbInstances),
 		gateNamePrefix: gateNamePrefix,
 		fsHashName:     fsHashName,
 	}
@@ -174,7 +148,6 @@ func Example() {
 type exampleCircuit struct {
 	X, Y, Z          []frontend.Variable // Jacobian coordinates for each point (input)
 	XOut, YOut, ZOut []frontend.Variable // Jacobian coordinates for the double of each point (expected output)
-	SOut             []frontend.Variable // temporary
 	gateNamePrefix   gkr.GateName
 	fsHashName       string // name of the hash function used for Fiat-Shamir in the GKR verifier
 }
@@ -222,7 +195,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return api.Add(S, S) // 413: Double(&S)
 	}, 4))
 	S := gkrApi.NamedGate(c.gateNamePrefix+"s", X, YY, XX, YYYY) // 409 - 413
-	scp := gkrApi.NamedGate("identity", S)
+
 	// 414: M.Double(&XX).Add(&M, &XX)
 	// Note (but don't explicitly compute) that M = 3XX
 
@@ -253,7 +226,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	// combine the operations that define the assignment to p.Y
 	// input = [S, p.X, XX, YYYY]
-	// p.Y =
+	// p.Y = (S - p.X) * 3 * XX - 8 * YYYY
 	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"y", func(api frontend.API, input ...frontend.Variable) (Y frontend.Variable) {
 		Y = api.Sub(input[0], input[1]) //         423: p.Y.Sub(&S, &p.X).
 		Y = api.Mul(Y, input[2], 3)     //    414: M.Double(&XX).Add(&M, &XX)
@@ -275,14 +248,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return &m, err
 	})
 
-	res := gkrApi.SolveInTestEngine(api, gkr.WithHashName(c.fsHashName))
-	for i := range c.XOut {
-		api.AssertIsEqual(res[scp][i], c.SOut[i])
-		api.AssertIsEqual(res[Z][i], c.ZOut[i])
-		api.AssertIsEqual(res[X][i], c.XOut[i])
-		api.AssertIsEqual(res[Y][i], c.YOut[i])
-	}
-
 	// solve and prove the circuit
 	solution, err := gkrApi.Solve(api)
 	if err != nil {
@@ -290,11 +255,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	}
 
 	// check the output
-	// TODO merge loops
-	SOut := solution.Export(scp)
-	for i := range SOut {
-		api.AssertIsEqual(SOut[i], c.SOut[i])
-	}
 
 	XOut := solution.Export(X)
 	YOut := solution.Export(Y)
