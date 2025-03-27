@@ -2,6 +2,7 @@ package gkr
 
 import (
 	"fmt"
+	gcHash "github.com/consensys/gnark-crypto/hash"
 	"hash"
 	"math/rand"
 	"strconv"
@@ -22,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
-	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -386,9 +386,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func registerMiMC() {
-	bn254.RegisterHashBuilder("mimc", func() hash.Hash {
-		return bn254MiMC.NewMiMC()
-	})
+	bn254.RegisterHashBuilder("mimc", gcHash.MIMC_BN254.New)
 	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err

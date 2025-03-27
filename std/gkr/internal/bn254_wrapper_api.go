@@ -21,13 +21,12 @@ func ToBn254GateFunction(f func(frontend.API, ...frontend.Variable) frontend.Var
 	var wrapper bn254WrapperApi
 
 	return func(x ...fr.Element) fr.Element {
-		if wrapper.err != nil {
-			return fr.Element{}
-		}
 		res := f(&wrapper, utils.Map(x, func(x fr.Element) frontend.Variable {
 			return &x
 		})...).(*fr.Element)
-
+		if wrapper.err != nil {
+			panic(wrapper.err)
+		}
 		return *res
 	}
 }
