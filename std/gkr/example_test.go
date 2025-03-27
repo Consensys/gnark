@@ -81,16 +81,19 @@ func TestExample(*testing.T) {
 	// combine the operations that define the assignment to p.Y
 	// input = [S, p.X, XX, YYYY]
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"y", func(input ...fr.Element) (Y fr.Element) {
+		fmt.Println("in", input[0].String(), input[1].String(), input[2].String(), input[3].String())
 		Y.Double(&input[2]).Add(&Y, &input[2]) // 414: M.Double(&XX).Add(&M, &XX)
 		input[2] = Y
 
 		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
-			Mul(&Y, &input[2])                                         // 424: p.Y.Mul(&p.Y, &M).
-		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: M.Double(&YYYY).Double(&M).Double(&M)
+			Mul(&Y, &input[2])                                         // 424: Mul(&p.Y, &M).
+		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
 		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
 
+		fmt.Println("out", Y.String())
 		return
 	}, 4))
+	fmt.Println("y gate registered")
 
 	// we have a lot of squaring operations, which we'd rather look at as single-input
 	assertNoError(gkrBw6761.RegisterGate("square", func(input ...fr.Element) (res fr.Element) {
@@ -256,16 +259,22 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	// combine the operations that define the assignment to p.Y
 	// input = [S, p.X, XX, YYYY]
+	// p.Y =
 	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"y", func(api frontend.API, input ...frontend.Variable) (Y frontend.Variable) {
-		input[2] = api.Mul(3, input[2]) // 414: M.Double(&XX).Add(&M, &XX)
+
+		api.Println("SNARK in", input[0], input[1], input[2], input[3])
 
 		Y = api.Sub(input[0], input[1]) //         423: p.Y.Sub(&S, &p.X).
-		Y = api.Mul(Y, input[2])        //         424:     Mul(&p.Y, &M)
-		//                                         425: M.Double(&YYYY).Double(&M).Double(&M)
-		Y = api.Sub(Y, api.Mul(input[3], 8)) // 426: p.Y.Sub(&p.Y, &YYYY)
+		Y = api.Mul(Y, input[2], 3)     //    414: M.Double(&XX).Add(&M, &XX)
+		//                                         424:Mul(&p.Y, &M)
+		Y = api.Sub(Y, api.Mul(input[3], 8)) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
+		//                                         426: p.Y.Sub(&p.Y, &YYYY)
+
+		api.Println("SNARK out", Y)
 
 		return
 	}, 4))
+	fmt.Println("y gate registered")
 	Y = gkrApi.NamedGate(c.gateNamePrefix+"y", S, X, XX, YYYY) // 423 - 426
 
 	// have to duplicate X for it to be considered an output variable
@@ -379,6 +388,7 @@ func (h *hashReporterSnark) Reset() {
 }
 
 const constHash byte = 3
+const printHashes = false
 
 type constHasherBw6761 struct{}
 
@@ -386,7 +396,9 @@ func (constHasherBw6761) Write(p []byte) (int, error) {
 	for i := 0; i < len(p); i += fr.Bytes {
 		var I big.Int
 		I.SetBytes(p[i:min(len(p), i+fr.Bytes)])
-		fmt.Print(I.Text(10), " ")
+		if printHashes {
+			fmt.Print(I.Text(10), " ")
+		}
 	}
 	return len(p), nil
 }
@@ -395,7 +407,9 @@ func (constHasherBw6761) Sum(p []byte) []byte {
 	if p != nil {
 		panic("unexpected input")
 	}
-	fmt.Println()
+	if printHashes {
+		fmt.Println()
+	}
 	var b [fr.Bytes]byte
 	b[len(b)-1] = constHash
 	return b[:]
@@ -418,7 +432,9 @@ type constHasherSnark struct {
 }
 
 func (h *constHasherSnark) Sum() frontend.Variable {
-	h.api.Println(h.v...)
+	if printHashes {
+		h.api.Println(h.v...)
+	}
 	return constHash
 }
 
