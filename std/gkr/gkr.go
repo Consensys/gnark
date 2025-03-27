@@ -367,7 +367,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = GetGate("identity")
+			c[i].Gate = GetGate(Identity)
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
