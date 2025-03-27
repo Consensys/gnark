@@ -329,7 +329,6 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	wirePrefix := o.transcriptPrefix + "w"
 	var baseChallenge []frontend.Variable
 	for i := len(c) - 1; i >= 0; i-- {
-		api.Println("verifying wire", i)
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
