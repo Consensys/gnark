@@ -181,7 +181,7 @@ type exampleCircuit struct {
 	X, Y, Z          []frontend.Variable // Jacobian coordinates for each point (input)
 	XOut, YOut, ZOut []frontend.Variable // Jacobian coordinates for the double of each point (expected output)
 	SOut             []frontend.Variable // temporary
-	gateNamePrefix   string
+	gateNamePrefix   gkr.GateName
 	fsHashName       string // name of the hash function used for Fiat-Shamir in the GKR verifier
 }
 
