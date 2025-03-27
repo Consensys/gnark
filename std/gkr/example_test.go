@@ -47,10 +47,10 @@ func Example() {
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s", func(input ...fr.Element) (S fr.Element) {
 		S.
 			Add(&input[0], &input[1]). // 409: S.Add(&p.X, &YY)
-			Square(&S). // 410: S.Square(&S).
-			Sub(&S, &input[2]). // 411: Sub(&S, &XX).
-			Sub(&S, &input[3]). // 412: Sub(&S, &YYYY).
-			Double(&S) // 413: Double(&S)
+			Square(&S).                // 410: S.Square(&S).
+			Sub(&S, &input[2]).        // 411: Sub(&S, &XX).
+			Sub(&S, &input[3]).        // 412: Sub(&S, &YYYY).
+			Double(&S)                 // 413: Double(&S)
 
 		return
 	}, 4))
@@ -86,7 +86,7 @@ func Example() {
 		input[2] = Y
 
 		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
-			Mul(&Y, &input[2])                                         // 424: Mul(&p.Y, &M).
+						Mul(&Y, &input[2]) // 424: Mul(&p.Y, &M).
 		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
 		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
 
