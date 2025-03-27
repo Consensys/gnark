@@ -534,18 +534,6 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 	return proof, nil
 }
 
-func init() {
-	panicIfError(RegisterGate("mul2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
-		return api.Mul(x[0], x[1])
-	}, 2, WithUnverifiedDegree(2), WithNoSolvableVar()))
-	panicIfError(RegisterGate("add2", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
-		return api.Add(x[0], x[1])
-	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
-	panicIfError(RegisterGate("identity", func(api frontend.API, x ...frontend.Variable) frontend.Variable {
-		return x[0]
-	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
-}
-
 func panicIfError(err error) {
 	if err != nil {
 		panic(err)

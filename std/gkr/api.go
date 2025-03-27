@@ -9,16 +9,16 @@ func frontendVarToInt(a constraint.GkrVariable) int {
 	return int(a)
 }
 
-func (api *API) NamedGate(gate string, in ...constraint.GkrVariable) constraint.GkrVariable {
+func (api *API) NamedGate(gate GateName, in ...constraint.GkrVariable) constraint.GkrVariable {
 	api.toStore.Circuit = append(api.toStore.Circuit, constraint.GkrWire{
-		Gate:   gate,
+		Gate:   string(gate),
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
 	return constraint.GkrVariable(len(api.toStore.Circuit) - 1)
 }
 
-func (api *API) namedGate2PlusIn(gate string, in1, in2 constraint.GkrVariable, in ...constraint.GkrVariable) constraint.GkrVariable {
+func (api *API) namedGate2PlusIn(gate GateName, in1, in2 constraint.GkrVariable, in ...constraint.GkrVariable) constraint.GkrVariable {
 	inCombined := make([]constraint.GkrVariable, 2+len(in))
 	inCombined[0] = in1
 	inCombined[1] = in2

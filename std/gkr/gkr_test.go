@@ -249,7 +249,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		if circuit[i].Gate = GetGate(wireInfo.Gate); circuit[i].Gate == nil && wireInfo.Gate != "" {
+		if circuit[i].Gate = GetGate(GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}

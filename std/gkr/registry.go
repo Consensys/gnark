@@ -2,12 +2,15 @@ package gkr
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr/internal"
 	"sync"
 )
 
+type GateName string
+
 var (
-	gates     = make(map[string]*Gate)
+	gates     = make(map[GateName]*Gate)
 	gatesLock sync.Mutex
 )
 
@@ -70,7 +73,7 @@ func WithDegree(degree int) RegisterGateOption {
 // NB! This package generally expects certain properties of the gate to be invariant across all curves.
 // In particular the degree is computed and verified over BN254. If the leading coefficient is divided by
 // the curve's order, the degree will be computed incorrectly.
-func RegisterGate(name string, f GateFunction, nbIn int, options ...RegisterGateOption) error {
+func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGateOption) error {
 	s := registerGateSettings{degree: -1, solvableVar: -1}
 	for _, option := range options {
 		option(&s)
@@ -112,8 +115,34 @@ func RegisterGate(name string, f GateFunction, nbIn int, options ...RegisterGate
 	return nil
 }
 
-func GetGate(name string) *Gate {
+func GetGate(name GateName) *Gate {
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
 	return gates[name]
+}
+
+const (
+	Identity GateName = "identity" // Identity gate: x -> x
+	Add2     GateName = "add2"     // Add2 gate: (x, y) -> x + y
+	Sub2     GateName = "sub2"     // Sub2 gate: (x, y) -> x - y
+	Neg      GateName = "neg"      // Neg gate: x -> -x
+	Mul2     GateName = "mul2"     // Mul2 gate: (x, y) -> x * y
+)
+
+func init() {
+	panicIfError(RegisterGate(Mul2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Mul(x[0], x[1])
+	}, 2, WithUnverifiedDegree(2), WithNoSolvableVar()))
+	panicIfError(RegisterGate(Add2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[1])
+	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
+	panicIfError(RegisterGate(Identity, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return x[0]
+	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
+	panicIfError(RegisterGate(Neg, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Neg(x[0])
+	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
+	panicIfError(RegisterGate(Sub2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+		return api.Sub(x[0], x[1])
+	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
 }

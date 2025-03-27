@@ -63,11 +63,11 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 				for i, in := range w.Inputs {
 					ins[i] = res[in][instanceI]
 				}
-				expectedV, err := parentApi.Compiler().NewHint(frGateHint(w.Gate, &degreeTestedGates), 1, ins...)
+				expectedV, err := parentApi.Compiler().NewHint(frGateHint(GateName(w.Gate), &degreeTestedGates), 1, ins...)
 				if err != nil {
 					panic(err)
 				}
-				res[wireI][instanceI] = GetGate(w.Gate).Evaluate(parentApi, ins...)
+				res[wireI][instanceI] = GetGate(GateName(w.Gate)).Evaluate(parentApi, ins...)
 				parentApi.AssertIsEqual(expectedV[0], res[wireI][instanceI]) // snark and raw gate evaluations must agree
 			}
 		}
@@ -75,7 +75,7 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 	return res
 }
 
-func frGateHint(gateName string, degreeTestedGates *sync.Map) hint.Hint {
+func frGateHint(gateName GateName, degreeTestedGates *sync.Map) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
 		const dummyGateName = "dummy-solve-in-test-engine-gate"
 		var degreeFr, nbInFr, solvableVarFr int
