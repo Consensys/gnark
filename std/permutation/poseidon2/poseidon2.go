@@ -53,6 +53,7 @@ func NewPoseidon2(api frontend.API) (*Permutation, error) {
 		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
 	// TODO: we don't have default parameters for other curves yet. Update this when we do.
 	case ecc.BN254:
+		// The parameters selected below match those used by the GetDefaultParameters() function in gnark-crypto@v0.17.0
 		params := poseidonbn254.NewParameters(2, 6, 50)
 		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
 	default:
