@@ -50,8 +50,11 @@ func NewPoseidon2(api frontend.API) (*Permutation, error) {
 	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
 	case ecc.BLS12_377:
 		params := poseidonbls12377.GetDefaultParameters()
-		return NewPoseidon2FromParameters(api, 2, params.NbFullRounds, params.NbPartialRounds)
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
 	// TODO: we don't have default parameters for other curves yet. Update this when we do.
+	case ecc.BN254:
+		params := poseidonbls12377.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
 	default:
 		return nil, fmt.Errorf("field %s not supported", api.Compiler().Field().String())
 	}
