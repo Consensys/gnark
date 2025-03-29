@@ -153,7 +153,9 @@ func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
 // When |a - b| >= 2^absDiffUpp.BitLen(), a panic is occurred,
-// then the method has no return value, and a proof can not be generated
+// then the method has no return value, and a proof can not be generated.
+// It is recommended to use the IsLess method to get a valid return value
+// in https://github.com/Consensys/gnark/blob/master/std/math/cmp/generic.go
 func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b)
 	if err != nil {
@@ -168,7 +170,9 @@ func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 
 // IsLessEq returns 1 if a <= b, and returns 0 if a > b.
 // When |a - b| > 2^absDiffUpp.BitLen(), a panic is occurred,
-// then the method has no return value, and a proof can not be generated
+// then the method has no return value, and a proof can not be generated.
+// It is recommended to use the IsLessOrEqual method to get a valid return value
+// in https://github.com/Consensys/gnark/blob/master/std/math/cmp/generic.go
 func (bc BoundedComparator) IsLessEq(a, b frontend.Variable) frontend.Variable {
 	// a <= b <==> a < b + 1
 	return bc.IsLess(a, bc.api.Add(b, 1))
