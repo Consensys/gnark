@@ -1,11 +1,12 @@
 package cmp_test
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/test"
-	"math/big"
-	"testing"
 )
 
 func TestAssertIsLessEq(t *testing.T) {
@@ -140,6 +141,29 @@ type minCircuit struct {
 func (c *minCircuit) Define(api frontend.API) error {
 	comparator := cmp.NewBoundedComparator(api, big.NewInt(15), false)
 	api.AssertIsEqual(c.WantMin, comparator.Min(c.A, c.B))
+
+	return nil
+}
+
+type boundedComparatorCircuit struct {
+	A frontend.Variable
+
+	WantIsLess   int
+	WantIsLessEq int
+	Bound        int
+}
+
+func (c *boundedComparatorCircuit) Define(api frontend.API) error {
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(int64(c.Bound)), false)
+	if c.WantIsLess == 1 {
+		comparator.AssertIsLess(c.A, c.Bound)
+	}
+	if c.WantIsLessEq == 1 {
+		comparator.AssertIsLessEq(c.A, c.Bound)
+	}
+
+	api.AssertIsEqual(c.WantIsLess, comparator.IsLess(c.A, c.Bound))
+	api.AssertIsEqual(c.WantIsLessEq, comparator.IsLessEq(c.A, c.Bound))
 
 	return nil
 }
