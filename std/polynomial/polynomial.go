@@ -121,14 +121,25 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 
 // InterpolateLDE fits a polynomial f of degree len(values)-1 such that f(i) = values[i] whenever defined. Returns f(at)
 func InterpolateLDE(api frontend.API, at frontend.Variable, values []frontend.Variable) frontend.Variable {
-	deltaAt := computeDeltaAtNaive(api, at, len(values))
-
 	res := frontend.Variable(0)
 
-	for i, c := range values {
-		res = api.Add(res,
-			api.Mul(c, deltaAt[i]),
-		)
+	factInv := api.Inverse(negFactorial(len(values) - 1))
+
+	for i := range values {
+		delta := factInv
+
+		for j := 0; j < len(values); j++ {
+			if i != j {
+				delta = api.Mul(delta, api.Sub(at, j))
+			}
+		}
+
+		res = api.Add(res, api.Mul(values[i], delta))
+
+		if i+1 < len(values) {
+			factAdjustment := api.DivUnchecked(i+1-len(values), i+1)
+			factInv = api.Mul(factAdjustment, factInv)
+		}
 	}
 
 	return res
