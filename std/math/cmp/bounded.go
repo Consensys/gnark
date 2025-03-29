@@ -2,10 +2,11 @@ package cmp
 
 import (
 	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"math/big"
 )
 
 func init() {
@@ -151,6 +152,8 @@ func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
 }
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
+// When |a - b| >= 2^absDiffUpp.BitLen(), a panic is occurred,
+// then the method has no return value, and a proof can not be generated
 func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b)
 	if err != nil {
@@ -164,6 +167,8 @@ func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 }
 
 // IsLessEq returns 1 if a <= b, and returns 0 if a > b.
+// When |a - b| > 2^absDiffUpp.BitLen(), a panic is occurred,
+// then the method has no return value, and a proof can not be generated
 func (bc BoundedComparator) IsLessEq(a, b frontend.Variable) frontend.Variable {
 	// a <= b <==> a < b + 1
 	return bc.IsLess(a, bc.api.Add(b, 1))

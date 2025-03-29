@@ -156,7 +156,7 @@ type boundedComparatorCircuit struct {
 }
 
 func (c *boundedComparatorCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewBoundedComparator(api, big.NewInt(int64(c.Bound)), false)
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(int64(c.Bound)), true)
 	if c.WantIsLess == 1 {
 		comparator.AssertIsLess(c.A, c.Bound)
 	}
