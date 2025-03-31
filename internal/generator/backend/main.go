@@ -20,46 +20,53 @@ var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 func main() {
 
 	bls12_377 := templateData{
-		RootPath: "../../../backend/{?}/bls12-377/",
-		CSPath:   "../../../constraint/bls12-377/",
-		Curve:    "BLS12-377",
-		CurveID:  "BLS12_377",
+		RootPath:    "../../../backend/{?}/bls12-377/",
+		CSPath:      "../../../constraint/bls12-377/",
+		Curve:       "BLS12-377",
+		CurveID:     "BLS12_377",
+		ElementType: "U64",
 	}
 	bls12_381 := templateData{
-		RootPath: "../../../backend/{?}/bls12-381/",
-		CSPath:   "../../../constraint/bls12-381/",
-		Curve:    "BLS12-381",
-		CurveID:  "BLS12_381",
+		RootPath:    "../../../backend/{?}/bls12-381/",
+		CSPath:      "../../../constraint/bls12-381/",
+		Curve:       "BLS12-381",
+		CurveID:     "BLS12_381",
+		ElementType: "U64",
 	}
 	bn254 := templateData{
-		RootPath: "../../../backend/{?}/bn254/",
-		CSPath:   "../../../constraint/bn254/",
-		Curve:    "BN254",
-		CurveID:  "BN254",
+		RootPath:    "../../../backend/{?}/bn254/",
+		CSPath:      "../../../constraint/bn254/",
+		Curve:       "BN254",
+		CurveID:     "BN254",
+		ElementType: "U64",
 	}
 	bw6_761 := templateData{
-		RootPath: "../../../backend/{?}/bw6-761/",
-		CSPath:   "../../../constraint/bw6-761/",
-		Curve:    "BW6-761",
-		CurveID:  "BW6_761",
+		RootPath:    "../../../backend/{?}/bw6-761/",
+		CSPath:      "../../../constraint/bw6-761/",
+		Curve:       "BW6-761",
+		CurveID:     "BW6_761",
+		ElementType: "U64",
 	}
 	bls24_315 := templateData{
-		RootPath: "../../../backend/{?}/bls24-315/",
-		CSPath:   "../../../constraint/bls24-315/",
-		Curve:    "BLS24-315",
-		CurveID:  "BLS24_315",
+		RootPath:    "../../../backend/{?}/bls24-315/",
+		CSPath:      "../../../constraint/bls24-315/",
+		Curve:       "BLS24-315",
+		CurveID:     "BLS24_315",
+		ElementType: "U64",
 	}
 	bls24_317 := templateData{
-		RootPath: "../../../backend/{?}/bls24-317/",
-		CSPath:   "../../../constraint/bls24-317/",
-		Curve:    "BLS24-317",
-		CurveID:  "BLS24_317",
+		RootPath:    "../../../backend/{?}/bls24-317/",
+		CSPath:      "../../../constraint/bls24-317/",
+		Curve:       "BLS24-317",
+		CurveID:     "BLS24_317",
+		ElementType: "U64",
 	}
 	bw6_633 := templateData{
-		RootPath: "../../../backend/{?}/bw6-633/",
-		CSPath:   "../../../constraint/bw6-633/",
-		Curve:    "BW6-633",
-		CurveID:  "BW6_633",
+		RootPath:    "../../../backend/{?}/bw6-633/",
+		CSPath:      "../../../constraint/bw6-633/",
+		Curve:       "BW6-633",
+		CurveID:     "BW6_633",
+		ElementType: "U64",
 	}
 	tiny_field := templateData{
 		RootPath:          "../../../internal/smallfields/tinyfield/",
@@ -69,14 +76,16 @@ func main() {
 		noBackend:         true,
 		NoGKR:             true,
 		AutoGenerateField: "0x2f",
+		ElementType:       "U64",
 	}
 	baby_bear_field := templateData{
-		CSPath:    "../../../constraint/babybear/",
-		Curve:     "babybear",
-		CurveID:   "UNKNOWN",
-		OnlyField: true,
-		noBackend: true,
-		NoGKR:     true,
+		CSPath:      "../../../constraint/babybear/",
+		Curve:       "babybear",
+		CurveID:     "UNKNOWN",
+		OnlyField:   true,
+		noBackend:   true,
+		NoGKR:       true,
+		ElementType: "U32",
 	}
 
 	datas := []templateData{
@@ -229,4 +238,5 @@ type templateData struct {
 	OnlyField         bool   // use field from gnark-crypto. Import package is deduced from Curve field
 	noBackend         bool
 	NoGKR             bool
+	ElementType       string
 }
