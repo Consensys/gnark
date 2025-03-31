@@ -235,11 +235,11 @@ func (assert *Assert) parseAssignment(circuit frontend.Circuit, assignment front
 	return _witness{full: full, public: public, assignment: assignment}
 }
 
-type fnSetup func(ccs constraint.ConstraintSystem, curve ecc.ID) (
+type fnSetup func(ccs constraint.ConstraintSystem[constraint.U64], curve ecc.ID) (
 	pk, vk any,
 	pkBuilder, vkBuilder, proofBuilder func() any,
 	err error)
-type fnProve func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error)
+type fnProve func(ccs constraint.ConstraintSystem[constraint.U64], pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error)
 type fnVerify func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error
 
 // tBackend abstracts the backend implementation in the test package.
@@ -251,14 +251,14 @@ type tBackend struct {
 
 var (
 	_groth16 = tBackend{
-		setup: func(ccs constraint.ConstraintSystem, curve ecc.ID) (
+		setup: func(ccs constraint.ConstraintSystem[constraint.U64], curve ecc.ID) (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
 			pk, vk, err = groth16.Setup(ccs)
 			return pk, vk, func() any { return groth16.NewProvingKey(curve) }, func() any { return groth16.NewVerifyingKey(curve) }, func() any { return groth16.NewProof(curve) }, err
 		},
-		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
+		prove: func(ccs constraint.ConstraintSystem[constraint.U64], pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return groth16.Prove(ccs, pk.(groth16.ProvingKey), fullWitness, opts...)
 		},
 		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
@@ -267,7 +267,7 @@ var (
 	}
 
 	_plonk = tBackend{
-		setup: func(ccs constraint.ConstraintSystem, curve ecc.ID) (
+		setup: func(ccs constraint.ConstraintSystem[constraint.U64], curve ecc.ID) (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
@@ -278,7 +278,7 @@ var (
 			pk, vk, err = plonk.Setup(ccs, srs, srsLagrange)
 			return pk, vk, func() any { return plonk.NewProvingKey(curve) }, func() any { return plonk.NewVerifyingKey(curve) }, func() any { return plonk.NewProof(curve) }, err
 		},
-		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
+		prove: func(ccs constraint.ConstraintSystem[constraint.U64], pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return plonk.Prove(ccs, pk.(plonk.ProvingKey), fullWitness, opts...)
 		},
 		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {

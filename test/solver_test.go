@@ -105,7 +105,7 @@ func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
 
 type permutter struct {
 	circuit           frontend.Circuit
-	constraintSystems [2]constraint.ConstraintSystem
+	constraintSystems [2]constraint.ConstraintSystem[constraint.U64]
 	witness           []tinyfield.Element
 	hints             []solver.Hint
 }

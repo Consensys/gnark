@@ -112,7 +112,7 @@ func lazySchema(circuit frontend.Circuit) func() *schema.Schema {
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem[constraint.U64], error) {
 	var newBuilder frontend.NewBuilder
 
 	switch backendID {

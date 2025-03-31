@@ -61,7 +61,7 @@ var (
 
 // NewSRS returns a pair of [kzg.SRS]; one in canonical form, the other in Lagrange form.
 // Default options use a memory cache, see [Option] for more details & options.
-func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS, lagrange kzg.SRS, err error) {
+func NewSRS(ccs constraint.ConstraintSystem[constraint.U64], opts ...Option) (canonical kzg.SRS, lagrange kzg.SRS, err error) {
 
 	nbConstraints := ccs.GetNbConstraints()
 	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
