@@ -66,7 +66,7 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 	// reset the stateful blueprints
 	for i := range cs.Blueprints {
-		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful); ok {
+		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful[constraint.U32]); ok {
 			b.Reset()
 		}
 	}
@@ -135,7 +135,7 @@ func (cs *system) CurveID() ecc.ID {
 	return ecc.UNKNOWN
 }
 
-func (cs *system) GetCoefficient(i int) (r constraint.Element) {
+func (cs *system) GetCoefficient(i int) (r constraint.U32) {
 	copy(r[:], cs.Coefficients[i][:])
 	return
 }
