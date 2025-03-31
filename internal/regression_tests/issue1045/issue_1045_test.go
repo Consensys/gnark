@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -65,7 +66,7 @@ func TestCircuitCompile(t *testing.T) {
 	for _, bb := range []struct {
 		builder frontend.NewBuilder
 		tag     string
-	}{{scs.NewBuilder, "scs"}, {r1cs.NewBuilder, "r1cs"}} {
+	}{{scs.NewBuilder, "scs"}, {r1cs.NewBuilder[constraint.U64], "r1cs"}} {
 		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), bb.builder, &Circuit{})
 		assert.NoError(err)
 		f, err := os.Create("testdata/issue1045." + bb.tag)
