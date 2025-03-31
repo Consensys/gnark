@@ -31,9 +31,27 @@ import (
 //     if zkpID == backend.GROTH16	→ R1CS
 //     if zkpID == backend.PLONK 	→ SparseR1CS
 //
-// initialCapacity is an optional parameter that reserves memory in slices
-// it should be set to the estimated number of constraints in the circuit, if known.
+// For implementation which compiles the circuit optimized for a small-field modulus, see [CompileU32].
 func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[constraint.U64], error) {
+	if !constraint.FitsElement[constraint.U64](field) {
+		return nil, fmt.Errorf("field %s is not compatible with U64", field)
+	}
+	return compile(field, newBuilder, circuit, opts...)
+}
+
+// CompileU32 is a variant of [Compile] which is optimized for small field
+// modulus.
+//
+// NB! When compiling for a small field modulus, then the resulting [constraint.ConstraintSystem] is not
+// compatible with pairing based backends.
+func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[constraint.U32], error) {
+	if !constraint.FitsElement[constraint.U32](field) {
+		return nil, fmt.Errorf("field %s is not compatible with U32", field)
+	}
+	return compile(field, newBuilder, circuit, opts...)
+}
+
+func compile[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[E], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
