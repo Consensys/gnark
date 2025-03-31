@@ -131,7 +131,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit) {
+func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem[constraint.U64], frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

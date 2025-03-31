@@ -270,7 +270,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS, kzg.SRS) {
+func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem[constraint.U64], frontend.Circuit, kzg.SRS, kzg.SRS) {
 	const nbConstraints = (1 << 12) - 3
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

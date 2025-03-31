@@ -178,7 +178,7 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 //		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
-func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
+func Prove(r1cs constraint.ConstraintSystem[constraint.U64], pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 	switch _r1cs := r1cs.(type) {
 	case *cs_bls12377.R1CS:
 		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), fullWitness, opts...)
@@ -217,7 +217,7 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 //
 // Two main solutions to this deployment issues are: running the Setup through a MPC (multi party computation)
 // or using a ZKP backend like PLONK where the per-circuit Setup is deterministic.
-func Setup(r1cs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
+func Setup(r1cs constraint.ConstraintSystem[constraint.U64]) (ProvingKey, VerifyingKey, error) {
 
 	switch _r1cs := r1cs.(type) {
 	case *cs_bls12377.R1CS:
@@ -283,7 +283,7 @@ func Setup(r1cs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 // DummySetup create a random ProvingKey with provided R1CS
 // it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
-func DummySetup(r1cs constraint.ConstraintSystem) (ProvingKey, error) {
+func DummySetup(r1cs constraint.ConstraintSystem[constraint.U64]) (ProvingKey, error) {
 	switch _r1cs := r1cs.(type) {
 	case *cs_bls12377.R1CS:
 		var pk groth16_bls12377.ProvingKey
@@ -421,8 +421,8 @@ func NewProof(curveID ecc.ID) Proof {
 
 // NewCS instantiate a concrete curved-typed R1CS and return a R1CS interface
 // This method exists for (de)serialization purposes
-func NewCS(curveID ecc.ID) constraint.ConstraintSystem {
-	var r1cs constraint.ConstraintSystem
+func NewCS(curveID ecc.ID) constraint.ConstraintSystem[constraint.U64] {
+	var r1cs constraint.ConstraintSystem[constraint.U64]
 	switch curveID {
 	case ecc.BN254:
 		r1cs = &cs_bn254.R1CS{}
