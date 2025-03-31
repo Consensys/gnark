@@ -4,6 +4,7 @@
 package frontend
 
 import (
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
@@ -17,7 +18,9 @@ type Variable interface{}
 // returned by the API.
 func IsCanonical(v Variable) bool {
 	switch v.(type) {
-	case expr.LinearExpression, *expr.LinearExpression, expr.Term, *expr.Term:
+	case expr.LinearExpression[constraint.U32], *expr.LinearExpression[constraint.U32], expr.Term[constraint.U32], *expr.Term[constraint.U32]:
+		return true
+	case expr.LinearExpression[constraint.U64], *expr.LinearExpression[constraint.U64], expr.Term[constraint.U64], *expr.Term[constraint.U64]:
 		return true
 	}
 	return false

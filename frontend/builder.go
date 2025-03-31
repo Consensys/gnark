@@ -68,12 +68,12 @@ type Compiler interface {
 }
 
 // Builder represents a constraint system builder
-type Builder interface {
+type Builder[E constraint.Element] interface {
 	API
 	Compiler
 
 	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
-	Compile() (constraint.ConstraintSystem, error)
+	Compile() (constraint.ConstraintSystem[E], error)
 
 	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()

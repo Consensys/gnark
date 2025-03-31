@@ -33,7 +33,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[constraint.U64], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
@@ -64,7 +64,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	return builder.Compile()
 }
 
-func parseCircuit(builder Builder, circuit Circuit) (err error) {
+func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (err error) {
 	// ensure circuit.Define has pointer receiver
 	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
@@ -130,7 +130,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	return
 }
 
-func callDeferred(builder Builder) error {
+func callDeferred[E constraint.Element](builder Builder[E]) error {
 	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
 		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
