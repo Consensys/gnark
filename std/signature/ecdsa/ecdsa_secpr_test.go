@@ -114,13 +114,13 @@ func TestEcdsaP384PreHashed(t *testing.T) {
 
 }
 
-var ccsBench constraint.ConstraintSystem
+var ccsBench constraint.ConstraintSystem[constraint.U64]
 
 func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
 	var circuit EcdsaCircuit[emulated.P384Fp, emulated.P384Fr]
 
-	var ccs constraint.ConstraintSystem
+	var ccs constraint.ConstraintSystem[constraint.U64]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)

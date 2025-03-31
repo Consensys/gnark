@@ -55,7 +55,7 @@ func (c *InnerCircuitNativeWoCommit) Define(api frontend.API) error {
 	return nil
 }
 
-func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
+func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem[constraint.U64], native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
 	assert.NoError(err)
 	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
@@ -187,7 +187,7 @@ func (c *InnerCircuitCommit) Define(api frontend.API) error {
 	return nil
 }
 
-func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
+func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem[constraint.U64], native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
 	assert.NoError(err)
@@ -346,10 +346,10 @@ func (c *InnerCircuitParametric) Define(api frontend.API) error {
 	return nil
 }
 
-func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]constraint.ConstraintSystem, []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
+func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]constraint.ConstraintSystem[constraint.U64], []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
 	var err error
 
-	ccss := make([]constraint.ConstraintSystem, nbParams)
+	ccss := make([]constraint.ConstraintSystem[constraint.U64], nbParams)
 	vks := make([]native_plonk.VerifyingKey, nbParams)
 	pks := make([]native_plonk.ProvingKey, nbParams)
 	for i := range ccss {
@@ -375,7 +375,7 @@ func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]c
 	return ccss, vks, pks
 }
 
-func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss []constraint.ConstraintSystem, vks []native_plonk.VerifyingKey, pks []native_plonk.ProvingKey) (int, witness.Witness, native_plonk.Proof) {
+func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss []constraint.ConstraintSystem[constraint.U64], vks []native_plonk.VerifyingKey, pks []native_plonk.ProvingKey) (int, witness.Witness, native_plonk.Proof) {
 	rndIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(ccss))))
 	assert.NoError(err)
 	idx := int(rndIdx.Int64())
@@ -677,10 +677,10 @@ func (c *AggregationDiffPubs[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	return nil
 }
 
-func getParametricSetups2[FR emulated.FieldParams](assert *test.Assert, field *big.Int, nbParams, nbInner int) ([]constraint.ConstraintSystem, []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
+func getParametricSetups2[FR emulated.FieldParams](assert *test.Assert, field *big.Int, nbParams, nbInner int) ([]constraint.ConstraintSystem[constraint.U64], []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
 	var err error
 
-	ccss := make([]constraint.ConstraintSystem, nbParams+1)
+	ccss := make([]constraint.ConstraintSystem[constraint.U64], nbParams+1)
 	vks := make([]native_plonk.VerifyingKey, nbParams+1)
 	pks := make([]native_plonk.ProvingKey, nbParams+1)
 	for i := range ccss {
@@ -708,7 +708,7 @@ func getParametricSetups2[FR emulated.FieldParams](assert *test.Assert, field *b
 	return ccss, vks, pks
 }
 
-func getHubProof(assert *test.Assert, outer, field *big.Int, witness []witness.Witness, ccs constraint.ConstraintSystem, vk native_plonk.VerifyingKey, pk native_plonk.ProvingKey) (native_plonk.Proof, fr_bls12377.Element) {
+func getHubProof(assert *test.Assert, outer, field *big.Int, witness []witness.Witness, ccs constraint.ConstraintSystem[constraint.U64], vk native_plonk.VerifyingKey, pk native_plonk.ProvingKey) (native_plonk.Proof, fr_bls12377.Element) {
 	witnesses := make([]fr_bls12377.Element, len(witness))
 	root := fr_bls12377.One()
 	for i := range witness {

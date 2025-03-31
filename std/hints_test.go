@@ -7,7 +7,7 @@ import (
 func ExampleRegisterHints() {
 	// this constraint system correspond to a circuit using gnark/std components which rely on hints
 	// like bits.ToNAF(...)
-	var ccs constraint.ConstraintSystem
+	var ccs constraint.ConstraintSystem[constraint.U64]
 
 	// since package bits is not imported, the hint NNAF is not registered
 	// --> solver.RegisterHint(bits.NNAF)

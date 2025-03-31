@@ -258,7 +258,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 // PlaceholderProof returns a placeholder proof witness to be use for compiling
 // the outer circuit for witness alignment. For actual witness assignment use
 // [ValueOfProof].
-func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) Proof[FR, G1El, G2El] {
+func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem[constraint.U64]) Proof[FR, G1El, G2El] {
 	nbCommitments := len(ccs.GetCommitments().CommitmentIndexes())
 	ret := Proof[FR, G1El, G2El]{
 		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
@@ -638,7 +638,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 // PlaceholderBaseVerifyingKey returns placeholder of the base verification key
 // common to circuits with same size, same number of public inputs and same
 // number of commitments.
-func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) BaseVerifyingKey[FR, G1El, G2El] {
+func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem[constraint.U64]) BaseVerifyingKey[FR, G1El, G2El] {
 	nbPublic := ccs.GetNbPublicVariables()
 	return BaseVerifyingKey[FR, G1El, G2El]{
 		NbPublicVariables: uint64(nbPublic),
@@ -648,7 +648,7 @@ func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1Element
 
 // PlaceholderCircuitVerifyingKey returns the placeholder for the unique part of
 // the verification key with same [BaseVerifyingKey].
-func PlaceholderCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT](ccs constraint.ConstraintSystem) CircuitVerifyingKey[FR, G1El] {
+func PlaceholderCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT](ccs constraint.ConstraintSystem[constraint.U64]) CircuitVerifyingKey[FR, G1El] {
 	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
 	return CircuitVerifyingKey[FR, G1El]{
 		CommitmentConstraintIndexes: make([]frontend.Variable, len(commitmentIndexes)),
@@ -658,7 +658,7 @@ func PlaceholderCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1Elem
 
 // PlaceholderVerifyingKey returns placeholder of the verification key for
 // compiling the outer circuit.
-func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
+func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem[constraint.U64]) VerifyingKey[FR, G1El, G2El] {
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey:    PlaceholderBaseVerifyingKey[FR, G1El, G2El](ccs),
 		CircuitVerifyingKey: PlaceholderCircuitVerifyingKey[FR, G1El](ccs),
@@ -733,7 +733,7 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 // PlaceholderWitness creates a stub witness which can be used to allocate the
 // variables in the circuit if the actual witness is not yet known. It takes
 // into account the number of public inputs and number of used commitments.
-func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem) Witness[FR] {
+func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem[constraint.U64]) Witness[FR] {
 	return Witness[FR]{
 		Public: make([]emulated.Element[FR], ccs.GetNbPublicVariables()),
 	}

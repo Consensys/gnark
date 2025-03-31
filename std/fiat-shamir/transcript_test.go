@@ -136,7 +136,7 @@ func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
 	var circuit FiatShamirCircuit
 
-	var ccs constraint.ConstraintSystem
+	var ccs constraint.ConstraintSystem[constraint.U64]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)

@@ -44,7 +44,7 @@ func (c *InnerCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem[constraint.U64], groth16.VerifyingKey, witness.Witness, groth16.Proof) {
 	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuit{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
@@ -349,7 +349,7 @@ func (c *InnerCircuitCommitment) Define(api frontend.API) error {
 	return nil
 }
 
-func getInnerCommitment(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+func getInnerCommitment(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem[constraint.U64], groth16.VerifyingKey, witness.Witness, groth16.Proof) {
 	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuitCommitment{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
@@ -481,7 +481,7 @@ func (c *innerParametricCircuit) Define(api frontend.API) error {
 // circuit and verifies it. It returns the circuit, the verifying key, the
 // public witness and the proof.
 func getInnerParametric(assert *test.Assert, nbConstraints int, field, outer *big.Int) (
-	constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof,
+	constraint.ConstraintSystem[constraint.U64], groth16.VerifyingKey, witness.Witness, groth16.Proof,
 ) {
 	dummyCcs, err := frontend.Compile(field, r1cs.NewBuilder, &innerParametricCircuit{
 		nbConstraints: nbConstraints,
@@ -551,7 +551,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 	assert := test.NewAssert(t)
 	var err error
 
-	ccss := make([]constraint.ConstraintSystem, nbCircuit)
+	ccss := make([]constraint.ConstraintSystem[constraint.U64], nbCircuit)
 	vks := make([]groth16.VerifyingKey, nbCircuit)
 	witnesses := make([]witness.Witness, nbCircuit)
 	proofs := make([]groth16.Proof, nbCircuit)

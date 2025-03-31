@@ -379,7 +379,7 @@ func BenchmarkPairing(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	var ccs constraint.ConstraintSystem
+	var ccs constraint.ConstraintSystem[constraint.U64]
 	b.Run("compile scs", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {

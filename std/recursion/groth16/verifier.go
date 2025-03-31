@@ -152,7 +152,7 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 	return ret, nil
 }
 
-func PlaceholderProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) Proof[G1El, G2El] {
+func PlaceholderProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem[constraint.U64]) Proof[G1El, G2El] {
 	return Proof[G1El, G2El]{
 		Commitments: make([]pedersen.Commitment[G1El], len(ccs.GetCommitments().(constraint.Groth16Commitments))),
 	}
@@ -173,7 +173,7 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra
 // constraint system. The size of the verifying key depends on the number of
 // public inputs and commitments used, this method allocates sufficient space
 // regardless of the actual verifying key.
-func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
+func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem[constraint.U64]) VerifyingKey[G1El, G2El, GtEl] {
 	commitments := ccs.GetCommitments().(constraint.Groth16Commitments)
 	commitmentWires := commitments.CommitmentIndexes()
 
@@ -502,7 +502,7 @@ type Witness[FR emulated.FieldParams] struct {
 // PlaceholderWitness creates a stub witness which can be used to allocate the
 // variables in the circuit if the actual witness is not yet known. It takes
 // into account the number of public inputs and number of used commitments.
-func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem) Witness[FR] {
+func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem[constraint.U64]) Witness[FR] {
 	return Witness[FR]{
 		Public: make([]emulated.Element[FR], ccs.GetNbPublicVariables()-1),
 	}
