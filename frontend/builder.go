@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
+type NewBuilder func(*big.Int, CompileConfig) (Builder[constraint.U64], error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
