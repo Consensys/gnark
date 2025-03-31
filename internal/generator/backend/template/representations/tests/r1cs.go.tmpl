@@ -32,7 +32,11 @@ func TestSerialization(t *testing.T) {
 			}
 		{{- end}}
 
-		r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder,	tc.Circuit)
+		{{ if eq .ElementType "U64" }}
+		r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+		{{ else if eq .ElementType "U32" }}
+		r1cs1, err := frontend.CompileU32(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+		{{ end -}}
 		if err != nil {
 			t.Fatal(err)
 		}
