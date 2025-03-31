@@ -1,4 +1,4 @@
-package smallfields
+package smallfields_test
 
 import (
 	"testing"
