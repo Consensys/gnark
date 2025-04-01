@@ -39,7 +39,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// compile a second time to ensure determinism
-			r1cs2, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.CompileU32(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
