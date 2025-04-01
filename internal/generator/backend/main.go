@@ -79,7 +79,7 @@ func main() {
 		panic(err)
 	}
 
-	datas := []templateData{
+	data := []templateData{
 		bls12_377,
 		bls12_381,
 		bn254,
@@ -90,11 +90,14 @@ func main() {
 		tiny_field,
 	}
 
-	const importCurve = "../imports.go.tmpl"
+	const (
+		importCurve = "../imports.go.tmpl"
+		repoRoot    = "../../../"
+	)
 
 	var wg sync.WaitGroup
 
-	for _, d := range datas {
+	for _, d := range data {
 
 		wg.Add(1)
 
@@ -129,8 +132,43 @@ func main() {
 
 			// gkr backend
 			if d.Curve != "tinyfield" {
+				// solver and proof delegator TODO merge with "backend" below
 				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
 				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
+					panic(err)
+				}
+
+				curvePackageName := strings.ToLower(d.Curve)
+				cfg := struct {
+					config.FieldDependency
+					GkrPackagePath string
+				}{
+					config.FieldDependency{
+						ElementType:      "fr.Element",
+						FieldPackageName: "fr",
+						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
+					},
+					"github.com/consensys/gnark/internal/gkr/" + curvePackageName,
+				}
+				gkrPackageDirRelPath := filepath.Join(repoRoot+"internal/gkr/", curvePackageName)
+
+				// test vector utils
+				packagePath := filepath.Join(gkrPackageDirRelPath, "test_vector_utils")
+				entries = []bavard.Entry{
+					{File: filepath.Join(packagePath, "test_vector_utils.go"), Templates: []string{"test_vector_utils.go.tmpl"}},
+				}
+
+				if err := bgen.Generate(cfg, "test_vector_utils", "./template/gkr/", entries...); err != nil {
+					panic(err)
+				}
+
+				// sumcheck backend
+				packagePath = filepath.Join(gkrPackageDirRelPath, "sumcheck")
+				entries = []bavard.Entry{
+					{File: filepath.Join(packagePath, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
+					{File: filepath.Join(packagePath, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
+				}
+				if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
 					panic(err)
 				}
 			}
