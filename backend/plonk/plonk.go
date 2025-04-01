@@ -103,7 +103,7 @@ type VerifyingKey interface {
 // The kzg SRS must be provided in canonical and lagrange form.
 // For test purposes, see test/unsafekzg package. With an existing SRS generated through MPC in canonical form,
 // gnark-crypto offers the ToLagrangeG1 method to convert it to lagrange form.
-func Setup(ccs constraint.ConstraintSystem[constraint.U64], srs, srsLagrange kzg.SRS) (ProvingKey, VerifyingKey, error) {
+func Setup(ccs constraint.ConstraintSystem, srs, srsLagrange kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -132,7 +132,7 @@ func Setup(ccs constraint.ConstraintSystem[constraint.U64], srs, srsLagrange kzg
 //		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs constraint.ConstraintSystem[constraint.U64], pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
+func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -222,8 +222,8 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 
 // NewCS instantiate a concrete curved-typed SparseR1CS and return a ConstraintSystem interface
 // This method exists for (de)serialization purposes
-func NewCS(curveID ecc.ID) constraint.ConstraintSystem[constraint.U64] {
-	var r1cs constraint.ConstraintSystem[constraint.U64]
+func NewCS(curveID ecc.ID) constraint.ConstraintSystem {
+	var r1cs constraint.ConstraintSystem
 	switch curveID {
 	case ecc.BN254:
 		r1cs = &cs_bn254.SparseR1CS{}
@@ -326,7 +326,7 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 // SRSSize returns the required size of the kzg SRS for a given constraint system
 // Note that the SRS size in Lagrange form is a power of 2,
 // and the SRS size in canonical form need few extra elements (3) to account for the blinding factors
-func SRSSize(ccs constraint.ConstraintSystem[constraint.U64]) (sizeCanonical, sizeLagrange int) {
+func SRSSize(ccs constraint.ConstraintSystem) (sizeCanonical, sizeLagrange int) {
 	nbConstraints := ccs.GetNbConstraints()
 	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
 

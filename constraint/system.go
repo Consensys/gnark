@@ -8,8 +8,21 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 )
 
-// ConstraintSystem interface that all constraint systems implement.
-type ConstraintSystem[E Element] interface {
+// ConstraintSystem is an interfaces that all constraint systems implement. This
+// is the typed implementation using wide uint64 element representation,
+// allowing to support all supported pairing based backends.
+type ConstraintSystem = ConstraintSystemGeneric[U64]
+
+// ConstraintSystemU32 is an interfaces that all constraint systems implement.
+// This is typed implementation for small field implementations. Small field
+// implementations are not supported by pairing based backends, but can be
+// exported for external use.
+type ConstraintSystemU32 = ConstraintSystemGeneric[U32]
+
+// ConstraintSystem interface that all constraint systems implement. This is the
+// generic interface, see the aliased specific implementations
+// [ConstraintSystem] and [ConstraintSystemU32].
+type ConstraintSystemGeneric[E Element] interface {
 	io.WriterTo
 	io.ReaderFrom
 	Field[E]

@@ -32,7 +32,7 @@ import (
 //     if zkpID == backend.PLONK 	→ SparseR1CS
 //
 // For implementation which compiles the circuit optimized for a small-field modulus, see [CompileU32].
-func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[constraint.U64], error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
 	if !constraint.FitsElement[constraint.U64](field) {
 		return nil, fmt.Errorf("field %s is not compatible with U64", field)
 	}
@@ -44,14 +44,14 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 //
 // NB! When compiling for a small field modulus, then the resulting [constraint.ConstraintSystem] is not
 // compatible with pairing based backends.
-func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[constraint.U32], error) {
+func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemU32, error) {
 	if !constraint.FitsElement[constraint.U32](field) {
 		return nil, fmt.Errorf("field %s is not compatible with U32", field)
 	}
 	return compile(field, newBuilder, circuit, opts...)
 }
 
-func compile[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem[E], error) {
+func compile[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options

@@ -294,7 +294,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
 
-func (builder *builder[E]) Compile() (constraint.ConstraintSystem[E], error) {
+func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
 	log.Info().
 		Int("nbConstraints", builder.cs.GetNbConstraints()).

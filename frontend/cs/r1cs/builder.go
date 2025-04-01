@@ -273,7 +273,7 @@ func init() {
 }
 
 // Compile constructs a rank-1 constraint system
-func (builder *builder[E]) Compile() (constraint.ConstraintSystem[E], error) {
+func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], error) {
 	// TODO if already compiled, return builder.cs object
 	log := logger.Logger()
 	log.Info().

@@ -4,7 +4,7 @@
 package constraint
 
 type SparseR1CS[E Element] interface {
-	ConstraintSystem[E]
+	ConstraintSystemGeneric[E]
 
 	// AddSparseR1C adds a constraint to the constraint system.
 	AddSparseR1C(c SparseR1C, bID BlueprintID) int
