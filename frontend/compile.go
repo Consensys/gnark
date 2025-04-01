@@ -31,9 +31,27 @@ import (
 //     if zkpID == backend.GROTH16	→ R1CS
 //     if zkpID == backend.PLONK 	→ SparseR1CS
 //
-// initialCapacity is an optional parameter that reserves memory in slices
-// it should be set to the estimated number of constraints in the circuit, if known.
+// For implementation which compiles the circuit optimized for a small-field modulus, see [CompileU32].
 func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
+	if !constraint.FitsElement[constraint.U64](field) {
+		return nil, fmt.Errorf("field %s is not compatible with U64", field)
+	}
+	return compile(field, newBuilder, circuit, opts...)
+}
+
+// CompileU32 is a variant of [Compile] which is optimized for small field
+// modulus.
+//
+// NB! When compiling for a small field modulus, then the resulting [constraint.ConstraintSystem] is not
+// compatible with pairing based backends.
+func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemU32, error) {
+	if !constraint.FitsElement[constraint.U32](field) {
+		return nil, fmt.Errorf("field %s is not compatible with U32", field)
+	}
+	return compile(field, newBuilder, circuit, opts...)
+}
+
+func compile[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
@@ -64,7 +82,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	return builder.Compile()
 }
 
-func parseCircuit(builder Builder, circuit Circuit) (err error) {
+func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (err error) {
 	// ensure circuit.Define has pointer receiver
 	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
@@ -130,7 +148,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	return
 }
 
-func callDeferred(builder Builder) error {
+func callDeferred[E constraint.Element](builder Builder[E]) error {
 	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
 		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)

@@ -10,6 +10,7 @@
 package rangecheck
 
 import (
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -18,7 +19,7 @@ import (
 // only for documentation purposes. If we import the package then godoc knows
 // how to refer to package r1cs and we get nice links in godoc. We import the
 // package anyway in test.
-var _ = r1cs.NewBuilder
+var _ = r1cs.NewBuilder[constraint.U64]
 
 // New returns a new range checker depending on the frontend capabilities.
 func New(api frontend.API) frontend.Rangechecker {

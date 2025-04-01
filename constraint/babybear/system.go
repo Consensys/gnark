@@ -16,7 +16,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr "github.com/consensys/gnark-crypto/field/babybear"
 )
 
 type R1CS = system
@@ -66,7 +66,7 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 	// reset the stateful blueprints
 	for i := range cs.Blueprints {
-		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful[constraint.U64]); ok {
+		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful[constraint.U32]); ok {
 			b.Reset()
 		}
 	}
@@ -132,10 +132,10 @@ func (cs *system) GetNbCoefficients() int {
 
 // CurveID returns curve ID as defined in gnark-crypto
 func (cs *system) CurveID() ecc.ID {
-	return ecc.BN254
+	return ecc.UNKNOWN
 }
 
-func (cs *system) GetCoefficient(i int) (r constraint.U64) {
+func (cs *system) GetCoefficient(i int) (r constraint.U32) {
 	copy(r[:], cs.Coefficients[i][:])
 	return
 }

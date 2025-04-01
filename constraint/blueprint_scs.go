@@ -14,29 +14,29 @@ var (
 // Encodes
 //
 //	qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-type BlueprintGenericSparseR1C struct {
+type BlueprintGenericSparseR1C[E Element] struct {
 }
 
-func (b *BlueprintGenericSparseR1C) CalldataSize() int {
+func (b *BlueprintGenericSparseR1C[E]) CalldataSize() int {
 	return 9 // number of fields in SparseR1C
 }
-func (b *BlueprintGenericSparseR1C) NbConstraints() int {
+func (b *BlueprintGenericSparseR1C[E]) NbConstraints() int {
 	return 1
 }
 
-func (b *BlueprintGenericSparseR1C) NbOutputs(inst Instruction) int {
+func (b *BlueprintGenericSparseR1C[E]) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintGenericSparseR1C) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+func (b *BlueprintGenericSparseR1C[E]) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
 	return updateInstructionTree(inst.Calldata[0:3], tree)
 }
 
-func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+func (b *BlueprintGenericSparseR1C[E]) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
 	*to = append(*to, c.XA, c.XB, c.XC, c.QL, c.QR, c.QO, c.QM, c.QC, uint32(c.Commitment))
 }
 
-func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
+func (b *BlueprintGenericSparseR1C[E]) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
 
 	c.XA = inst.Calldata[0]
@@ -50,7 +50,7 @@ func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, inst Instr
 	c.Commitment = CommitmentConstraint(inst.Calldata[8])
 }
 
-func (b *BlueprintGenericSparseR1C) Solve(s Solver, inst Instruction) error {
+func (b *BlueprintGenericSparseR1C[E]) Solve(s Solver[E], inst Instruction) error {
 	var c SparseR1C
 	b.DecompressSparseR1C(&c, inst)
 	if c.Commitment != NOT {
@@ -126,7 +126,7 @@ func (b *BlueprintGenericSparseR1C) Solve(s Solver, inst Instruction) error {
 	return nil
 }
 
-func (b *BlueprintGenericSparseR1C) checkConstraint(c *SparseR1C, s Solver) error {
+func (b *BlueprintGenericSparseR1C[E]) checkConstraint(c *SparseR1C, s Solver[E]) error {
 	l := s.GetValue(c.QL, c.XA)
 	r := s.GetValue(c.QR, c.XB)
 	m0 := s.GetValue(c.QM, c.XA)
@@ -156,27 +156,27 @@ func (b *BlueprintGenericSparseR1C) checkConstraint(c *SparseR1C, s Solver) erro
 // Encodes
 //
 //	qM⋅(xaxb)  == xc
-type BlueprintSparseR1CMul struct{}
+type BlueprintSparseR1CMul[E Element] struct{}
 
-func (b *BlueprintSparseR1CMul) CalldataSize() int {
+func (b *BlueprintSparseR1CMul[E]) CalldataSize() int {
 	return 4
 }
-func (b *BlueprintSparseR1CMul) NbConstraints() int {
+func (b *BlueprintSparseR1CMul[E]) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CMul) NbOutputs(inst Instruction) int {
+func (b *BlueprintSparseR1CMul[E]) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CMul) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+func (b *BlueprintSparseR1CMul[E]) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
 	return updateInstructionTree(inst.Calldata[0:3], tree)
 }
 
-func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+func (b *BlueprintSparseR1CMul[E]) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
 	*to = append(*to, c.XA, c.XB, c.XC, c.QM)
 }
 
-func (b *BlueprintSparseR1CMul) Solve(s Solver, inst Instruction) error {
+func (b *BlueprintSparseR1CMul[E]) Solve(s Solver[E], inst Instruction) error {
 	// qM⋅(xaxb)  == xc
 	m0 := s.GetValue(inst.Calldata[3], inst.Calldata[0])
 	m1 := s.GetValue(CoeffIdOne, inst.Calldata[1])
@@ -187,7 +187,7 @@ func (b *BlueprintSparseR1CMul) Solve(s Solver, inst Instruction) error {
 	return nil
 }
 
-func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
+func (b *BlueprintSparseR1CMul[E]) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
 	c.XA = inst.Calldata[0]
 	c.XB = inst.Calldata[1]
@@ -200,27 +200,27 @@ func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, inst Instructi
 // Encodes
 //
 //	qL⋅xa + qR⋅xb + qC == xc
-type BlueprintSparseR1CAdd struct{}
+type BlueprintSparseR1CAdd[E Element] struct{}
 
-func (b *BlueprintSparseR1CAdd) CalldataSize() int {
+func (b *BlueprintSparseR1CAdd[E]) CalldataSize() int {
 	return 6
 }
-func (b *BlueprintSparseR1CAdd) NbConstraints() int {
+func (b *BlueprintSparseR1CAdd[E]) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CAdd) NbOutputs(inst Instruction) int {
+func (b *BlueprintSparseR1CAdd[E]) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CAdd) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+func (b *BlueprintSparseR1CAdd[E]) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
 	return updateInstructionTree(inst.Calldata[0:3], tree)
 }
 
-func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+func (b *BlueprintSparseR1CAdd[E]) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
 	*to = append(*to, c.XA, c.XB, c.XC, c.QL, c.QR, c.QC)
 }
 
-func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, inst Instruction) error {
+func (blueprint *BlueprintSparseR1CAdd[E]) Solve(s Solver[E], inst Instruction) error {
 	// a + b + k == c
 	a := s.GetValue(inst.Calldata[3], inst.Calldata[0])
 	b := s.GetValue(inst.Calldata[4], inst.Calldata[1])
@@ -233,7 +233,7 @@ func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, inst Instruction) error 
 	return nil
 }
 
-func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
+func (b *BlueprintSparseR1CAdd[E]) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
 	c.XA = inst.Calldata[0]
 	c.XB = inst.Calldata[1]
@@ -249,27 +249,27 @@ func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, inst Instructi
 //
 //	qL⋅xa + qM⋅(xa*xa)  == 0
 //	that is v + -v*v == 0
-type BlueprintSparseR1CBool struct{}
+type BlueprintSparseR1CBool[E Element] struct{}
 
-func (b *BlueprintSparseR1CBool) CalldataSize() int {
+func (b *BlueprintSparseR1CBool[E]) CalldataSize() int {
 	return 3
 }
-func (b *BlueprintSparseR1CBool) NbConstraints() int {
+func (b *BlueprintSparseR1CBool[E]) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CBool) NbOutputs(inst Instruction) int {
+func (b *BlueprintSparseR1CBool[E]) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CBool) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+func (b *BlueprintSparseR1CBool[E]) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
 	return updateInstructionTree(inst.Calldata[0:1], tree)
 }
 
-func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+func (b *BlueprintSparseR1CBool[E]) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
 	*to = append(*to, c.XA, c.QL, c.QM)
 }
 
-func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, inst Instruction) error {
+func (blueprint *BlueprintSparseR1CBool[E]) Solve(s Solver[E], inst Instruction) error {
 	// all wires are already solved, we just check the constraint.
 	v1 := s.GetValue(inst.Calldata[1], inst.Calldata[0])
 	v2 := s.GetValue(inst.Calldata[2], inst.Calldata[0])
@@ -282,7 +282,7 @@ func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, inst Instruction) error
 	return nil
 }
 
-func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
+func (b *BlueprintSparseR1CBool[E]) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
 	c.XA = inst.Calldata[0]
 	c.XB = c.XA

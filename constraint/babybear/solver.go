@@ -20,7 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr "github.com/consensys/gnark-crypto/field/babybear"
 )
 
 // solver represent the state of the solver during a call to System.Solve(...)
@@ -45,13 +45,6 @@ type solver struct {
 }
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
-	// add GKR options to overwrite the placeholder
-	if cs.GkrInfo.Is() {
-		var gkrData GkrSolvingData
-		opts = append(opts,
-			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
-	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
 	if err != nil {
@@ -332,18 +325,18 @@ func (solver *solver) divByCoeff(res *fr.Element, cID uint32) {
 }
 
 // Implement constraint.Solver
-func (s *solver) GetValue(cID, vID uint32) constraint.U64 {
-	var r constraint.U64
+func (s *solver) GetValue(cID, vID uint32) constraint.U32 {
+	var r constraint.U32
 	e := s.computeTerm(constraint.Term{CID: cID, VID: vID})
 	copy(r[:], e[:])
 	return r
 }
-func (s *solver) GetCoeff(cID uint32) constraint.U64 {
-	var r constraint.U64
+func (s *solver) GetCoeff(cID uint32) constraint.U32 {
+	var r constraint.U32
 	copy(r[:], s.Coefficients[cID][:])
 	return r
 }
-func (s *solver) SetValue(vID uint32, f constraint.U64) {
+func (s *solver) SetValue(vID uint32, f constraint.U32) {
 	s.set(int(vID), *(*fr.Element)(f[:]))
 }
 
@@ -353,7 +346,7 @@ func (s *solver) IsSolved(vID uint32) bool {
 
 // Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
 // evaluates it and return the result and the number of uint32 word read.
-func (s *solver) Read(calldata []uint32) (constraint.U64, int) {
+func (s *solver) Read(calldata []uint32) (constraint.U32, int) {
 	if s.Type == constraint.SystemSparseR1CS {
 		if calldata[0] != 1 {
 			panic("invalid calldata")
@@ -369,7 +362,7 @@ func (s *solver) Read(calldata []uint32) (constraint.U64, int) {
 		j += 2
 	}
 
-	var ret constraint.U64
+	var ret constraint.U32
 	copy(ret[:], r[:])
 	return ret, j
 }
@@ -393,7 +386,7 @@ func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratc
 	}
 
 	// blueprint declared "I know how to solve this."
-	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U64]); ok {
+	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U32]); ok {
 		if err := bc.Solve(solver, inst); err != nil {
 			return solver.wrapErrWithDebugInfo(cID, err)
 		}

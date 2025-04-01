@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
-func TestQuickSort(t *testing.T) {
-
-	toSort := make(expr.LinearExpression, 12)
+func testQuickSortParametric[E constraint.Element](t *testing.T) {
+	toSort := make(expr.LinearExpression[E], 12)
 	rand := 3
 	for i := 0; i < 12; i++ {
 		toSort[i].VID = rand
@@ -33,12 +33,16 @@ func TestQuickSort(t *testing.T) {
 			t.Fatal("err sorting linear expression")
 		}
 	}
+}
 
+func TestQuickSort(t *testing.T) {
+	testQuickSortParametric[constraint.U64](t)
+	testQuickSortParametric[constraint.U32](t)
 }
 
 func TestReduce(t *testing.T) {
 
-	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
+	cs := newBuilder[constraint.U64](ecc.BN254.ScalarField(), frontend.CompileConfig{})
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
@@ -50,7 +54,7 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(expr.LinearExpression)
+	toTest := (cs.Add(a, b, c, d, e, f)).(expr.LinearExpression[constraint.U64])
 
 	// check sizes
 	if len(toTest) != 3 {
@@ -60,7 +64,7 @@ func TestReduce(t *testing.T) {
 }
 
 func TestCompress(t *testing.T) {
-	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{CompressThreshold: 3})
+	cs := newBuilder[constraint.U64](ecc.BN254.ScalarField(), frontend.CompileConfig{CompressThreshold: 3})
 	vars := make([]frontend.Variable, 4)
 	for i := range vars {
 		v := cs.newInternalVariable()
@@ -69,18 +73,18 @@ func TestCompress(t *testing.T) {
 
 	// if add two variables, then should not compress
 	v1 := cs.Add(vars[0], vars[1])
-	if vli1 := v1.(expr.LinearExpression); len(vli1) != 2 {
+	if vli1 := v1.(expr.LinearExpression[constraint.U64]); len(vli1) != 2 {
 		t.Fatalf("expected linear expression length 2, got %d", len(vli1))
 	}
 	// if add three vars, then should compress
 	v2 := cs.Add(vars[0], vars[1], vars[2])
-	if vli2 := v2.(expr.LinearExpression); len(vli2) != 1 {
+	if vli2 := v2.(expr.LinearExpression[constraint.U64]); len(vli2) != 1 {
 		t.Fatalf("expected linear expression length 1, got %d", len(vli2))
 	}
 }
 
 func BenchmarkReduce(b *testing.B) {
-	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
+	cs := newBuilder[constraint.U64](ecc.BN254.ScalarField(), frontend.CompileConfig{})
 	// 4 interesting cases;
 	// Add many small linear expressions
 	// Add few large linear expressions
