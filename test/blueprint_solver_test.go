@@ -49,11 +49,11 @@ func testBigIntToUint32Slice[E constraint.Element](t *testing.T, modulus *big.In
 	b1 := big.NewInt(0)
 	b2 := big.NewInt(0)
 
-	randSource := rand.New(rand.NewSource(time.Now().Unix()))
+	randSource := rand.New(rand.NewSource(time.Now().Unix())) //#nosec G404 -- This is a false positive
 
 	for i := 0; i < 50; i++ {
-		b1.Rand(randSource, s.q) //#nosec G404 -- This is a false positive
-		b2.Rand(randSource, s.q) //#nosec G404 -- This is a false positive
+		b1.Rand(randSource, s.q)
+		b2.Rand(randSource, s.q)
 		wb1 := wrappedBigInt{Int: b1, modulus: modulus}
 		wb2 := wrappedBigInt{Int: b2, modulus: modulus}
 		var to []uint32
