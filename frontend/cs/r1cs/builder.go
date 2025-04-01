@@ -311,7 +311,7 @@ func (builder *builder[E]) constantValue(v frontend.Variable) (E, bool) {
 			// and are always reduced to one element. may not always be true?
 			return zero, false
 		}
-		if _v[0].Coeff.IsZero() {
+		if _v[0].Coeff == zero { // fast path for zero comparison to avoid overhead of calling IsZero
 			return zero, true
 		}
 		if !(_v[0].WireID() == 0) { // public ONE WIRE

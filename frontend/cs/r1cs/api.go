@@ -117,6 +117,7 @@ func (builder *builder[E]) add(vars []expr.LinearExpression[E], sub bool, capaci
 	}
 	curr := -1
 
+	var zero E
 	// process all the terms from all the inputs, in sorted order
 	for len(builder.heap) > 0 {
 		lID, tID := builder.heap[0].lID, builder.heap[0].tID
@@ -130,7 +131,8 @@ func (builder *builder[E]) add(vars []expr.LinearExpression[E], sub bool, capaci
 			builder.heap.fix(0)
 		}
 		t := &vars[lID][tID]
-		if t.Coeff.IsZero() {
+
+		if t.Coeff == zero { // fast path to avoid function call overhead when calling t.Coeff.IsZero()
 			continue // is this really needed?
 		}
 		if curr != -1 && t.VID == (*res)[curr].VID {
