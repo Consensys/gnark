@@ -428,7 +428,7 @@ func TestPedersen(t *testing.T) {
 
 func TestPhase2Serialization(t *testing.T) {
 	t.Skip("skipping unit test for BLS12-381 so as not to clog the CI")
-	testRoundtrip := func(_cs constraint.ConstraintSystem[constraint.U64]) {
+	testRoundtrip := func(_cs constraint.ConstraintSystem) {
 		var (
 			p1 Phase1
 			p2 Phase2

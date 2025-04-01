@@ -36,7 +36,7 @@ func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem[constraint.U64], groth16.ProvingKey, groth16.VerifyingKey) {
+func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey) {
 	_r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(t, err)
 
@@ -46,7 +46,7 @@ func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem[
 	return _r1cs, pk, vk
 }
 
-func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem[constraint.U64], pk groth16.ProvingKey) (witness.Witness, groth16.Proof) {
+func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (witness.Witness, groth16.Proof) {
 	_witness, err := frontend.NewWitness(assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(t, err)
 

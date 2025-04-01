@@ -30,7 +30,7 @@ func TestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 
-			r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.CompileU32(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
