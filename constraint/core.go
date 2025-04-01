@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/smallfields"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
@@ -202,7 +203,7 @@ func (system *System) CheckSerializationHeader() error {
 		return fmt.Errorf("when parsing serialized modulus: %s", system.ScalarField)
 	}
 	curveID := utils.FieldToCurve(scalarField)
-	if curveID == ecc.UNKNOWN && !smallfields.IsSmallField(scalarField) {
+	if curveID == ecc.UNKNOWN && !(smallfields.IsSmallField(scalarField) || scalarField.Cmp(tinyfield.Modulus()) == 0) {
 		return fmt.Errorf("unsupported scalar field %s", scalarField.Text(16))
 	}
 	system.q = new(big.Int).Set(scalarField)
