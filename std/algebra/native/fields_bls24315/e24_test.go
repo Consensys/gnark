@@ -393,7 +393,7 @@ func TestFrobeniusFp24(t *testing.T) {
 }
 
 // benches
-var ccsBench constraint.ConstraintSystem[constraint.U64]
+var ccsBench constraint.ConstraintSystem
 
 func BenchmarkMulE24(b *testing.B) {
 	var c fp24Mul
