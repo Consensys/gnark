@@ -90,11 +90,7 @@ func main() {
 		tiny_field,
 	}
 
-	const (
-		importCurve = "../imports.go.tmpl"
-		repoRoot    = "../../../"
-	)
-
+	const importCurve = "../imports.go.tmpl"
 	var wg sync.WaitGroup
 
 	for _, d := range data {
@@ -134,43 +130,16 @@ func main() {
 			if d.Curve != "tinyfield" {
 				// solver and proof delegator TODO merge with "backend" below
 				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
-				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
-					panic(err)
-				}
+				err := bgen.Generate(d, "cs", "./template/representations/", entries...)
+				assertNoError(err)
 
 				curvePackageName := strings.ToLower(d.Curve)
-				cfg := struct {
-					config.FieldDependency
-					GkrPackagePath string
-				}{
-					config.FieldDependency{
-						ElementType:      "fr.Element",
-						FieldPackageName: "fr",
-						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
-					},
-					"github.com/consensys/gnark/internal/gkr/" + curvePackageName,
-				}
-				gkrPackageDirRelPath := filepath.Join(repoRoot+"internal/gkr/", curvePackageName)
-
-				// test vector utils
-				packagePath := filepath.Join(gkrPackageDirRelPath, "test_vector_utils")
-				entries = []bavard.Entry{
-					{File: filepath.Join(packagePath, "test_vector_utils.go"), Templates: []string{"test_vector_utils.go.tmpl"}},
-				}
-
-				if err := bgen.Generate(cfg, "test_vector_utils", "./template/gkr/", entries...); err != nil {
-					panic(err)
-				}
-
-				// sumcheck backend
-				packagePath = filepath.Join(gkrPackageDirRelPath, "sumcheck")
-				entries = []bavard.Entry{
-					{File: filepath.Join(packagePath, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
-					{File: filepath.Join(packagePath, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
-				}
-				if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
-					panic(err)
-				}
+				err = generateGkrBackend(config.FieldDependency{
+					ElementType:      "fr.Element",
+					FieldPackageName: "fr",
+					FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
+				}, curvePackageName)
+				assertNoError(err)
 			}
 
 			entries = []bavard.Entry{
@@ -241,6 +210,26 @@ func main() {
 
 	}
 
+	wg.Add(1)
+	// GKR test vectors
+	go func() {
+		// generate sumcheck for small-rational
+		err := generateGkrBackend(config.FieldDependency{
+			ElementType:      "small_rational.SmallRational",
+			FieldPackagePath: "github.com/consensys/gnark/internal/small_rational",
+			FieldPackageName: "small_rational",
+		}, "small_rational")
+		assertNoError(err)
+
+		// generate test vectors for sumcheck
+		cmd := exec.Command("go", "run", "./sumcheck/test_vectors")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		assertNoError(cmd.Run())
+
+		wg.Done()
+	}()
+
 	wg.Wait()
 
 	// run go fmt on whole directory
@@ -260,4 +249,46 @@ type templateData struct {
 	CurveID   string
 	noBackend bool
 	NoGKR     bool
+}
+
+func generateGkrBackend(fieldDep config.FieldDependency, curvePackageName string) error {
+	const repoRoot = "../../../"
+
+	gkrPackageDirRelPath := filepath.Join(repoRoot+"internal/gkr/", curvePackageName)
+
+	cfg := struct {
+		config.FieldDependency
+		GkrPackagePath string
+	}{
+		fieldDep,
+		"github.com/consensys/gnark/internal/gkr/" + curvePackageName,
+	}
+
+	// test vector utils
+	packagePath := filepath.Join(gkrPackageDirRelPath, "test_vector_utils")
+	entries := []bavard.Entry{
+		{File: filepath.Join(packagePath, "test_vector_utils.go"), Templates: []string{"test_vector_utils.go.tmpl"}},
+	}
+
+	if err := bgen.Generate(cfg, "test_vector_utils", "./template/gkr/", entries...); err != nil {
+		return err
+	}
+
+	// sumcheck backend
+	packagePath = filepath.Join(gkrPackageDirRelPath, "sumcheck")
+	entries = []bavard.Entry{
+		{File: filepath.Join(packagePath, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
+		{File: filepath.Join(packagePath, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
+	}
+	if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func assertNoError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

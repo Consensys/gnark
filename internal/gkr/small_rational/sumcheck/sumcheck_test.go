@@ -7,10 +7,10 @@ package sumcheck
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/gkr/bw6-633/test_vector_utils"
+	"github.com/consensys/gnark/internal/gkr/small_rational/test_vector_utils"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"math/bits"
@@ -22,7 +22,7 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) ProveFinalEval(r []fr.Element) interface{} {
+func (c singleMultilinClaim) ProveFinalEval(r []small_rational.SmallRational) interface{} {
 	return nil // verifier can compute the final eval itself
 }
 
@@ -39,24 +39,24 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	for i := len(g)/2 + 1; i < len(g); i++ {
 		sum.Add(&sum, &g[i])
 	}
-	return []fr.Element{sum}
+	return []small_rational.SmallRational{sum}
 }
 
-func (c singleMultilinClaim) Combine(fr.Element) polynomial.Polynomial {
+func (c singleMultilinClaim) Combine(small_rational.SmallRational) polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
-func (c *singleMultilinClaim) Next(r fr.Element) polynomial.Polynomial {
+func (c *singleMultilinClaim) Next(r small_rational.SmallRational) polynomial.Polynomial {
 	c.g.Fold(r)
 	return sumForX1One(c.g)
 }
 
 type singleMultilinLazyClaim struct {
 	g          polynomial.MultiLin
-	claimedSum fr.Element
+	claimedSum small_rational.SmallRational
 }
 
-func (c singleMultilinLazyClaim) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof interface{}) error {
+func (c singleMultilinLazyClaim) VerifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof interface{}) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -64,7 +64,7 @@ func (c singleMultilinLazyClaim) VerifyFinalEval(r []fr.Element, combinationCoef
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) CombinedSum(combinationCoeffs fr.Element) fr.Element {
+func (c singleMultilinLazyClaim) CombinedSum(combinationCoeffs small_rational.SmallRational) small_rational.SmallRational {
 	return c.claimedSum
 }
 

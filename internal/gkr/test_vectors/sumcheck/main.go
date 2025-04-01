@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
@@ -105,6 +104,8 @@ func runAll(relPath string) error {
 }
 
 func main() {
+	// read the test vectors file, generate the proof, make sure it verifies,
+	// and add the proof to the same file
 	if err := runAll("sumcheck/test_vectors/vectors.json"); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)

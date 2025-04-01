@@ -4,8 +4,8 @@
 package polynomial
 
 import (
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/small_rational"
 	"math/bits"
 )
 
