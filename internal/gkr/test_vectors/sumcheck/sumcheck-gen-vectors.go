@@ -1,9 +1,10 @@
-package main
+package sumcheck
 
 import (
 	"encoding/json"
 	"fmt"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
@@ -11,6 +12,7 @@ import (
 	"math/bits"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 )
 
 func runMultilin(testCaseInfo *TestCaseInfo) error {
@@ -22,8 +24,11 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 		return err
 	}
 
-	var hsh hash.Hash
-	var err error
+	var (
+		hsh hash.Hash
+		err error
+	)
+
 	if hsh, err = test_vector_utils.HashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
@@ -54,6 +59,10 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 	if err = sumcheck.Verify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
+
+	pprof.StopCPUProfile()
+	//return f.Close()
+
 	return nil
 }
 
@@ -66,7 +75,11 @@ func run(testCaseInfo *TestCaseInfo) error {
 	}
 }
 
-func runAll(relPath string) error {
+func Generate() error {
+	// read the test vectors file, generate the proof, make sure it verifies,
+	// and add the proof to the same file
+	const relPath = "sumcheck/test_vectors/vectors.json"
+
 	var filename string
 	var err error
 	if filename, err = filepath.Abs(relPath); err != nil {
@@ -101,15 +114,6 @@ func runAll(relPath string) error {
 	}
 
 	return os.WriteFile(filename, bytes, 0)
-}
-
-func main() {
-	// read the test vectors file, generate the proof, make sure it verifies,
-	// and add the proof to the same file
-	if err := runAll("sumcheck/test_vectors/vectors.json"); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
 }
 
 type TestCasesInfo map[string]*TestCaseInfo

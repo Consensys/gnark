@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	sumcheckTestVectors "github.com/consensys/gnark/internal/gkr/test_vectors/sumcheck"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -223,10 +224,7 @@ func main() {
 		assertNoError(err)
 
 		fmt.Println("generating test vectors for sumcheck")
-		cmd := exec.Command("go", "run", "./sumcheck/test_vectors")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		assertNoError(cmd.Run())
+		assertNoError(sumcheckTestVectors.Generate())
 
 		wg.Done()
 	}()
