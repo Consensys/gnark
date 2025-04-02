@@ -221,8 +221,8 @@ func main() {
 	wg.Add(1)
 	// GKR test vectors
 	go func() {
-		// generate sumcheck for small-rational
-		err := generateGkrBackend(gkrConfig{
+		// generate gkr and sumcheck for small-rational
+		cfg := gkrConfig{
 			FieldDependency: config.FieldDependency{
 				ElementType:      "small_rational.SmallRational",
 				FieldPackagePath: "github.com/consensys/gnark/internal/small_rational",
@@ -230,8 +230,19 @@ func main() {
 			},
 			GkrPackageRelativePath: "internal/gkr/small_rational",
 			CanUseFFT:              false,
-		})
-		assertNoError(err)
+		}
+		assertNoError(generateGkrBackend(cfg))
+
+		// generate gkr test vector generator
+		cfg.GenerateTestVectors = true
+		cfg.OutsideGkrPackage = true
+
+		assertNoError(bgen.Generate(cfg, "gkr", "./template/gkr/",
+			bavard.Entry{
+				File:      "../../gkr/test_vectors/gkr/gkr-gen-vectors.go",
+				Templates: []string{"gkr.test.vectors.gen.go.tmpl", "gkr.test.vectors.go.tmpl"},
+			},
+		))
 
 		fmt.Println("generating test vectors for sumcheck")
 		assertNoError(sumcheckTestVectors.Generate()) // TODO CRITICAL This must be an independent process so that it's compiled before being run]
