@@ -4,7 +4,7 @@
 package polynomial
 
 import (
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational"
+	"github.com/consensys/gnark/internal/small_rational"
 )
 
 // Do as little as possible to instantiate the interface

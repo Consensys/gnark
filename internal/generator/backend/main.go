@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -221,7 +222,7 @@ func main() {
 		}, "small_rational")
 		assertNoError(err)
 
-		// generate test vectors for sumcheck
+		fmt.Println("generating test vectors for sumcheck")
 		cmd := exec.Command("go", "run", "./sumcheck/test_vectors")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
