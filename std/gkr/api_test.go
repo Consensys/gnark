@@ -434,7 +434,7 @@ func init() {
 
 func registerMiMCGate() {
 	// register mimc gate
-	panicIfError(RegisterGate("mimc", func(api frontend.API, input ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate("mimc", func(api GateAPI, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
 		if len(input) != 2 {
