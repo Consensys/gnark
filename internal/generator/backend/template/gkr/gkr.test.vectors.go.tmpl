@@ -132,7 +132,7 @@ type TestCase struct {
 	Proof           {{$Proof}}
 	FullAssignment  {{$WireAssignment}}
 	InOutAssignment {{$WireAssignment}}
-	{{if .RetainTestCaseRawInfo}}Info TestCaseInfo{{end}}
+	{{if .GenerateTestVectors}}Info TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it{{end}}
 }
 
 type TestCaseInfo struct {
@@ -231,7 +231,7 @@ func newTestCase(path string) (*TestCase, error) {
 				Proof:           proof,
 				Hash:            _hash,
 				Circuit:         circuit,
-				{{if .RetainTestCaseRawInfo }}Info: info,{{end}}
+				{{if .GenerateTestVectors }}Info: info,{{end}}
 			}
 
 			testCases[path] = tCase
