@@ -185,6 +185,30 @@ func (vector Vector) Swap(i, j int) {
 	vector[i], vector[j] = vector[j], vector[i]
 }
 
+// SetRandom sets the elements in vector to independent uniform random values in [0, q).
+//
+// This might error only if reading from crypto/rand.Reader errors,
+// in which case the values in vector are undefined.
+func (vector Vector) SetRandom() error {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MustSetRandom sets the elements in vector to independent uniform random values in [0, q).
+//
+// It panics if reading from crypto/rand.Reader errors.
+func (vector Vector) MustSetRandom() {
+	for i := range vector {
+		if _, err := vector[i].SetRandom(); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func addVecGeneric(res, a, b Vector) {
 	if len(a) != len(b) || len(a) != len(res) {
 		panic("vector.Add: vectors don't have the same length")

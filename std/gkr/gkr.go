@@ -3,26 +3,78 @@ package gkr
 import (
 	"errors"
 	"fmt"
-	"strconv"
-
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
+	"strconv"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
-// Gate must be a low-degree polynomial
-type Gate interface {
-	Evaluate(frontend.API, ...frontend.Variable) frontend.Variable
-	Degree() int
+// GateAPI is a limited version of frontend.API,
+// allowing ring arithmetic operations
+type GateAPI interface {
+	// ---------------------------------------------------------------------------------------------
+	// Arithmetic
+
+	// Add returns res = i1+i2+...in
+	Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
+
+	// MulAcc sets and return a = a + (b*c).
+	//
+	// ! The method may mutate a without allocating a new result. If the input
+	// is used elsewhere, then first initialize new variable, for example by
+	// doing:
+	//
+	//     acopy := api.Mul(a, 1)
+	//     acopy = api.MulAcc(acopy, b, c)
+	//
+	// ! But it may not modify a, always use MulAcc(...) result for correctness.
+	MulAcc(a, b, c frontend.Variable) frontend.Variable
+
+	// Neg returns -i
+	Neg(i1 frontend.Variable) frontend.Variable
+
+	// Sub returns res = i1 - i2 - ...in
+	Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
+
+	// Mul returns res = i1 * i2 * ... in
+	Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
+
+	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
+	// whose value will be resolved at runtime when computed by the solver
+	Println(a ...frontend.Variable)
+}
+type GateFunction func(GateAPI, ...frontend.Variable) frontend.Variable
+
+// A Gate is a low-degree multivariate polynomial
+type Gate struct {
+	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
+	nbIn        int          // number of inputs
+	degree      int          // total degree of f
+	solvableVar int          // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+}
+
+// Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
+func (g *Gate) Degree() int {
+	return g.degree
+}
+
+// SolvableVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
+func (g *Gate) SolvableVar() int {
+	return g.solvableVar
+}
+
+// NbIn returns the number of inputs to the gate (its fan-in)
+func (g *Gate) NbIn() int {
+	return g.nbIn
 }
 
 type Wire struct {
-	Gate            Gate
+	Gate            *Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
@@ -224,13 +276,6 @@ func ProofSize(c Circuit, logNbInstances int) int {
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
@@ -349,16 +394,6 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	return nil
 }
 
-type IdentityGate struct{}
-
-func (IdentityGate) Evaluate(_ frontend.API, input ...frontend.Variable) frontend.Variable {
-	return input[0]
-}
-
-func (IdentityGate) Degree() int {
-	return 1
-}
-
 // outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
 func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 	res := make([][]int, len(c))
@@ -366,7 +401,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = IdentityGate{}
+			c[i].Gate = GetGate(Identity)
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -533,39 +568,8 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 	return proof, nil
 }
 
-type MulGate struct{}
-
-func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("mul has fan-in 2")
+func panicIfError(err error) {
+	if err != nil {
+		panic(err)
 	}
-	return api.Mul(x[0], x[1])
-}
-
-// TODO: Degree must take nbInputs as an argument and return degree = nbInputs
-func (g MulGate) Degree() int {
-	return 2
-}
-
-type AddGate struct{}
-
-func (a AddGate) Evaluate(api frontend.API, v ...frontend.Variable) frontend.Variable {
-	switch len(v) {
-	case 0:
-		return 0
-	case 1:
-		return v[0]
-	}
-	rest := v[2:]
-	return api.Add(v[0], v[1], rest...)
-}
-
-func (a AddGate) Degree() int {
-	return 1
-}
-
-var Gates = map[string]Gate{
-	"identity": IdentityGate{},
-	"add":      AddGate{},
-	"mul":      MulGate{},
 }
