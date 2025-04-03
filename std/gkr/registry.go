@@ -2,6 +2,7 @@ package gkr
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"sync"
 )
@@ -18,6 +19,7 @@ type registerGateSettings struct {
 	noSolvableVarVerification bool
 	noDegreeVerification      bool
 	degree                    int
+	curves                    []ecc.ID
 }
 
 // TODO @Tabaie once GKR is moved to gnark, use the same options/settings type for all curves, obviating this
@@ -65,46 +67,56 @@ func WithDegree(degree int) RegisterGateOption {
 	}
 }
 
-// RegisterGate creates a gate object and stores it in the gates registry
-// name is a human-readable name for the gate
-// f is the polynomial function defining the gate
-// nbIn is the number of inputs to the gate
+// WithCurves limits the curves on which the properties of the gate are verified.
+func WithCurves(id ...ecc.ID) RegisterGateOption {
+	return func(settings *registerGateSettings) {
+		settings.curves = id
+	}
+}
+
+// RegisterGate creates a gate object and stores it in the gates registry:
+//   - name is a human-readable name for the gate
+//   - f is the polynomial function defining the gate
+//   - nbIn is the number of inputs to the gate
+//
 // NB! This package generally expects certain properties of the gate to be invariant across all curves.
 // In particular the degree is computed and verified over BN254. If the leading coefficient is divided by
 // the curve's order, the degree will be computed incorrectly.
 func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGateOption) error {
-	s := registerGateSettings{degree: -1, solvableVar: -1}
+	s := registerGateSettings{degree: -1, solvableVar: -1, curves: []ecc.ID{ecc.BLS12_377, ecc.BLS12_381, ecc.BLS24_315, ecc.BLS24_317, ecc.BN254, ecc.BW6_633, ecc.BW6_761}}
 	for _, option := range options {
 		option(&s)
 	}
 
-	frF := ToBn254GateFunction(f)
+	for _, curve := range s.curves {
+		frF := f.toFrGateFunction(curve)
 
-	if s.degree == -1 { // find a degree
-		if s.noDegreeVerification {
-			panic("invalid settings")
-		}
-		const maxAutoDegreeBound = 32
-		var err error
-		if s.degree, err = frF.FindDegree(maxAutoDegreeBound, nbIn); err != nil {
-			return fmt.Errorf("for gate %s: %v", name, err)
-		}
-	} else {
-		if !s.noDegreeVerification { // check that the given degree is correct
-			if err := frF.VerifyDegree(s.degree, nbIn); err != nil {
+		if s.degree == -1 { // find a degree
+			if s.noDegreeVerification {
+				panic("invalid settings")
+			}
+			const maxAutoDegreeBound = 32
+			var err error
+			if s.degree, err = frF.FindDegree(maxAutoDegreeBound, nbIn); err != nil {
 				return fmt.Errorf("for gate %s: %v", name, err)
 			}
+		} else {
+			if !s.noDegreeVerification { // check that the given degree is correct
+				if err := frF.VerifyDegree(s.degree, nbIn); err != nil {
+					return fmt.Errorf("for gate %s: %v", name, err)
+				}
+			}
 		}
-	}
 
-	if s.solvableVar == -1 {
-		if !s.noSolvableVarVerification { // find a solvable variable
-			s.solvableVar = frF.FindSolvableVar(nbIn)
-		}
-	} else {
-		// solvable variable given
-		if !s.noSolvableVarVerification && !frF.IsVarSolvable(s.solvableVar, nbIn) {
-			return fmt.Errorf("cannot verify the solvability of variable %d in gate %s", s.solvableVar, name)
+		if s.solvableVar == -1 {
+			if !s.noSolvableVarVerification { // find a solvable variable
+				s.solvableVar = frF.FindSolvableVar(nbIn)
+			}
+		} else {
+			// solvable variable given
+			if !s.noSolvableVarVerification && !frF.IsVarSolvable(s.solvableVar, nbIn) {
+				return fmt.Errorf("cannot verify the solvability of variable %d in gate %s", s.solvableVar, name)
+			}
 		}
 	}
 
@@ -114,6 +126,9 @@ func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGa
 	return nil
 }
 
+// GetGate returns the gate object associated with the given name.
+// It returns nil if the gate is not registered.
+// To register a gate, use RegisterGate.
 func GetGate(name GateName) *Gate {
 	gatesLock.Lock()
 	defer gatesLock.Unlock()

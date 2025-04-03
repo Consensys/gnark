@@ -134,7 +134,7 @@ func (engine *field) FromInterface(i interface{}) constraint.Element {
 		// need to clean that --> some code path are dissimilar
 		// for example setting a fr.Element from an fp.Element
 		// fails with the above but succeeds through big int... (2-chains)
-		b := utils.FromInterface(i)
+		b := utils.ForceFromInterface(i)
 		e.SetBigInt(&b)
 	}
 	var r constraint.Element
