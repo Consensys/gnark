@@ -29,7 +29,7 @@ func (api *API) namedGate2PlusIn(gate GateName, in1, in2 constraint.GkrVariable,
 }
 
 func (api *API) Add(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("add2", i1, i2)
+	return api.namedGate2PlusIn(Add2, i1, i2)
 }
 
 func (api *API) Neg(i1 constraint.GkrVariable) constraint.GkrVariable {
@@ -37,9 +37,9 @@ func (api *API) Neg(i1 constraint.GkrVariable) constraint.GkrVariable {
 }
 
 func (api *API) Sub(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("sub2", i1, i2)
+	return api.namedGate2PlusIn(Sub2, i1, i2)
 }
 
 func (api *API) Mul(i1, i2 constraint.GkrVariable) constraint.GkrVariable {
-	return api.namedGate2PlusIn("mul2", i1, i2)
+	return api.namedGate2PlusIn(Mul2, i1, i2)
 }

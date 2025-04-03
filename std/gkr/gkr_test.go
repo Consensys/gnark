@@ -258,7 +258,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 }
 
 func init() {
-	panicIfError(RegisterGate("select-input-3", func(api frontend.API, in ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate("select-input-3", func(api GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
 	}, 3, WithDegree(1)))
 }

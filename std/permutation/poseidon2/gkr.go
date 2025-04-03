@@ -3,10 +3,11 @@ package poseidon2
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/constraint/solver"
 	"hash"
 	"math/big"
 	"sync"
+
+	"github.com/consensys/gnark/constraint/solver"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -24,7 +25,7 @@ import (
 // extKeyGate applies the external matrix mul, then adds the round key
 // because of its symmetry, we don't need to define distinct x1 and x2 versions of it
 func extKeyGate(roundKey *big.Int) gkr.GateFunction {
-	return func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	return func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
 			panic("expected 2 inputs")
 		}
@@ -33,7 +34,7 @@ func extKeyGate(roundKey *big.Int) gkr.GateFunction {
 }
 
 // pow4Gate computes a -> a⁴
-func pow4Gate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func pow4Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 1 {
 		panic("expected 1 input")
 	}
@@ -44,7 +45,7 @@ func pow4Gate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 }
 
 // pow4TimesGate computes a, b -> a⁴ * b
-func pow4TimesGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func pow4TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 1 input")
 	}
@@ -55,7 +56,7 @@ func pow4TimesGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 }
 
 // pow2Gate computes a -> a²
-func pow2Gate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func pow2Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 1 {
 		panic("expected 1 input")
 	}
@@ -63,7 +64,7 @@ func pow2Gate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 }
 
 // pow2TimesGate computes a, b -> a² * b
-func pow2TimesGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func pow2TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -75,7 +76,7 @@ func pow2TimesGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 // TODO @Tabaie try eliminating the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
 
 // extGate2 applies the external matrix mul, outputting the second element of the result
-func extGate2(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func extGate2(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -84,7 +85,7 @@ func extGate2(api frontend.API, x ...frontend.Variable) frontend.Variable {
 
 // intKeyGate2 applies the internal matrix mul, then adds the round key
 func intKeyGate2(roundKey *big.Int) gkr.GateFunction {
-	return func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	return func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
 			panic("expected 2 inputs")
 		}
@@ -93,7 +94,7 @@ func intKeyGate2(roundKey *big.Int) gkr.GateFunction {
 }
 
 // extGate applies the first row of the external matrix
-func extGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func extGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -101,7 +102,7 @@ func extGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
 }
 
 // extAddGate applies the first row of the external matrix to the first two elements and adds the third
-func extAddGate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 3 {
 		panic("expected 3 inputs")
 	}

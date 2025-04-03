@@ -2,12 +2,13 @@ package gkr
 
 import (
 	"fmt"
-	gcHash "github.com/consensys/gnark-crypto/hash"
 	"hash"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
+
+	gcHash "github.com/consensys/gnark-crypto/hash"
 
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
@@ -432,7 +433,7 @@ func init() {
 
 func registerMiMCGate() {
 	// register mimc gate
-	panicIfError(RegisterGate("mimc", func(api frontend.API, input ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate("mimc", func(api GateAPI, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
 		if len(input) != 2 {
