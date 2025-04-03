@@ -78,10 +78,6 @@ func WithCurves(id ...ecc.ID) RegisterGateOption {
 //   - name is a human-readable name for the gate
 //   - f is the polynomial function defining the gate
 //   - nbIn is the number of inputs to the gate
-//
-// NB! This package generally expects certain properties of the gate to be invariant across all curves.
-// In particular the degree is computed and verified over BN254. If the leading coefficient is divided by
-// the curve's order, the degree will be computed incorrectly.
 func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGateOption) error {
 	s := registerGateSettings{degree: -1, solvableVar: -1, curves: []ecc.ID{ecc.BLS12_377, ecc.BLS12_381, ecc.BLS24_315, ecc.BLS24_317, ecc.BN254, ecc.BW6_633, ecc.BW6_761}}
 	for _, option := range options {
