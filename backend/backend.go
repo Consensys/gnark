@@ -122,6 +122,19 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 	}
 }
 
+// WithZeknoxAcceleration requests to use [ZEKNOX] GPU proving backend for the
+// prover. This option requires that the program is compiled with `zeknox` build
+// tag and the ZEKNOX dependencies are properly installed. See [ZEKNOX] for
+// installation description.
+//
+// [ZEKNOX]: https://github.com/okx/zeknox
+func WithZeknoxAcceleration() ProverOption {
+	return func(pc *ProverConfig) error {
+		pc.Accelerator = "zeknox"
+		return nil
+	}
+}
+
 // WithIcicleAcceleration requests to use [ICICLE] GPU proving backend for the
 // prover. This option requires that the program is compiled with `icicle` build
 // tag and the ICICLE dependencies are properly installed. See [ICICLE] for
