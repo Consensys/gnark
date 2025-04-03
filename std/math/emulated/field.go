@@ -190,7 +190,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 	if _, isConst := f.constantValue(a); isConst {
 		// enforce constant element limbs not to be large.
 		for i := range a.Limbs {
-			val := utils.FromInterface(a.Limbs[i])
+			val := utils.ForceFromInterface(a.Limbs[i])
 			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
 				panic("constant element limb wider than emulated parameter")
 			}
@@ -205,7 +205,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 			// running in a test engine. In either case, we must check that if
 			// this limb is a [*big.Int] that its bitwidth is less than the
 			// NbBits.
-			val := utils.FromInterface(a.Limbs[i])
+			val := utils.ForceFromInterface(a.Limbs[i])
 			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
 				panic("non-canonical integer limb wider than emulated parameter")
 			}

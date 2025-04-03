@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"reflect"
@@ -25,7 +26,7 @@ type toBigIntInterface interface {
 // and no prefix is accepted.
 //
 // panics if the input is invalid
-func FromInterface(input interface{}) big.Int {
+func FromInterface(input interface{}) (big.Int, error) {
 	var r big.Int
 
 	switch v := input.(type) {
@@ -55,26 +56,34 @@ func FromInterface(input interface{}) big.Int {
 		r.SetInt64(int64(v))
 	case string:
 		if _, ok := r.SetString(v, 0); !ok {
-			panic("unable to set big.Int from string " + v)
+			return big.Int{}, fmt.Errorf("unable to set big.Int from string \"%s\"", v)
 		}
 	case []byte:
 		r.SetBytes(v)
 	default:
 		if v, ok := input.(toBigIntInterface); ok {
 			v.ToBigIntRegular(&r)
-			return r
+			return r, nil
 		} else if reflect.ValueOf(input).Kind() == reflect.Pointer {
 			vv := reflect.ValueOf(input)
 			if vv.CanInterface() {
 				if v, ok := vv.Interface().(toBigIntInterface); ok {
 					v.ToBigIntRegular(&r)
-					return r
+					return r, nil
 				}
 			}
 		}
-		panic(reflect.TypeOf(input).String() + " to big.Int not supported")
+		return big.Int{}, fmt.Errorf("%T  to big.Int not supported", input)
 	}
 
+	return r, nil
+}
+
+func ForceFromInterface(input interface{}) big.Int {
+	r, err := FromInterface(input)
+	if err != nil {
+		panic(err)
+	}
 	return r
 }
 

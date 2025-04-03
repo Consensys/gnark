@@ -85,7 +85,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 	e.A1 = api.Sub(u, l31)
 
 	// 1C
-	buSquare := utils.FromInterface(ext.uSquare)
+	buSquare := utils.ForceFromInterface(ext.uSquare)
 	l41 := api.Mul(bd, buSquare)
 	e.A0 = api.Add(ac, l41)
 
@@ -97,7 +97,7 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 
 	c0 := api.Sub(x.A0, x.A1)
-	buSquare := utils.FromInterface(ext.uSquare)
+	buSquare := utils.ForceFromInterface(ext.uSquare)
 	c3 := api.Mul(x.A1, buSquare)
 	c3 = api.Sub(x.A0, c3)
 	c2 := api.Mul(x.A0, x.A1)

@@ -27,7 +27,7 @@ func (system *System) NewDebugInfo(errName string, i ...interface{}) DebugInfo {
 		case Term:
 			l.WriteVariable(LinearExpression{v}, &sbb)
 		default:
-			_v := utils.FromInterface(v)
+			_v := utils.ForceFromInterface(v)
 			sbb.WriteString(_v.String())
 		}
 	}
