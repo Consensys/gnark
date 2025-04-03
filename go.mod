@@ -14,7 +14,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
 	github.com/icza/bitio v1.1.0
-	github.com/ingonyama-zk/icicle/v3 v3.1.1-0.20241118092657-fccdb2f0921b
+	github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2
 	github.com/leanovate/gopter v0.2.11
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0

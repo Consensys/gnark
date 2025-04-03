@@ -127,7 +127,7 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 // tag and the ICICLE dependencies are properly installed. See [ICICLE] for
 // installation description.
 //
-// [ICICLE]: https://github.com/ingonyama-zk/icicle
+// [ICICLE]: https://github.com/ingonyama-zk/icicle-gnark
 func WithIcicleAcceleration() ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.Accelerator = "icicle"
