@@ -38,7 +38,7 @@ func (s *blueprintSolver) IsSolved(vID uint32) bool {
 // implements constraint.Field
 
 func (s *blueprintSolver) FromInterface(i interface{}) constraint.Element {
-	b := utils.FromInterface(i)
+	b := utils.ForceFromInterface(i)
 	return s.toElement(&b)
 }
 

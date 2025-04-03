@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
 
@@ -20,11 +21,22 @@ func TestFromInterfaceValidFormats(t *testing.T) {
 	var a fr.Element
 	_, _ = a.SetRandom()
 
-	_ = FromInterface(a)
-	_ = FromInterface(&a)
-	_ = FromInterface(12)
-	_ = FromInterface(big.NewInt(-42))
-	_ = FromInterface(*big.NewInt(42))
-	_ = FromInterface("8000")
+	_, err := FromInterface(a)
+	assert.NoError(t, err)
+
+	_, err = FromInterface(&a)
+	assert.NoError(t, err)
+
+	_, err = FromInterface(12)
+	assert.NoError(t, err)
+
+	_, err = FromInterface(big.NewInt(-42))
+	assert.NoError(t, err)
+
+	_, err = FromInterface(*big.NewInt(42))
+	assert.NoError(t, err)
+
+	_, err = FromInterface("8000")
+	assert.NoError(t, err)
 
 }
