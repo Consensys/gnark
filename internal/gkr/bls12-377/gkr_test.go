@@ -442,6 +442,7 @@ func proofEquals(expected Proof, seen Proof) error {
 	}
 	return nil
 }
+
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
 	c := mimcCircuit(mimcDepth)

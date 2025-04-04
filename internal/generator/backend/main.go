@@ -230,7 +230,7 @@ func main() {
 			},
 			GkrPackageRelativePath: "internal/gkr/small_rational",
 			CanUseFFT:              false,
-			NoMiMC:                 true,
+			NoGkrTests:             true,
 		}
 		assertNoError(generateGkrBackend(cfg))
 
@@ -293,6 +293,7 @@ func generateGkrBackend(cfg gkrConfig) error {
 		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
 		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
 	}
+
 	if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
 		return err
 	}
@@ -302,7 +303,12 @@ func generateGkrBackend(cfg gkrConfig) error {
 	entries = []bavard.Entry{
 		{File: filepath.Join(packageDir, "gkr.go"), Templates: []string{"gkr.go.tmpl"}},
 		{File: filepath.Join(packageDir, "registry.go"), Templates: []string{"registry.go.tmpl"}},
-		{File: filepath.Join(packageDir, "gkr_test.go"), Templates: []string{"gkr.test.go.tmpl", "gkr.test.vectors.go.tmpl"}},
+	}
+
+	if !cfg.NoGkrTests {
+		entries = append(entries, bavard.Entry{
+			File: filepath.Join(packageDir, "gkr_test.go"), Templates: []string{"gkr.test.go.tmpl", "gkr.test.vectors.go.tmpl"},
+		})
 	}
 
 	if err := bgen.Generate(cfg, "gkr", "./template/gkr/", entries...); err != nil {
@@ -314,11 +320,12 @@ func generateGkrBackend(cfg gkrConfig) error {
 
 type gkrConfig struct {
 	config.FieldDependency
-	GkrPackageRelativePath string
-	CanUseFFT              bool
-	OutsideGkrPackage      bool
-	GenerateTestVectors    bool
-	NoMiMC                 bool // if the MiMC hash is not implemented for the field
+	GkrPackageRelativePath  string // the GKR package, relative to the repo root
+	TestVectorsRelativePath string // the test vectors, relative to the current package
+	CanUseFFT               bool
+	OutsideGkrPackage       bool
+	GenerateTestVectors     bool
+	NoGkrTests              bool
 }
 
 func assertNoError(err error) {
