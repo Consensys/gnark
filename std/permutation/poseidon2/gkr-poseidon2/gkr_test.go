@@ -1,4 +1,4 @@
-package poseidon2
+package gkr_poseidon2
 
 import (
 	"fmt"

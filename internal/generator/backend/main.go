@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"github.com/consensys/gnark-crypto/field/generator/config"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,7 +11,6 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/field/generator"
-	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
 const copyrightHolder = "Consensys Software Inc."
@@ -79,7 +80,7 @@ func main() {
 		panic(err)
 	}
 
-	datas := []templateData{
+	data := []templateData{
 		bls12_377,
 		bls12_381,
 		bn254,
@@ -91,10 +92,9 @@ func main() {
 	}
 
 	const importCurve = "../imports.go.tmpl"
-
 	var wg sync.WaitGroup
 
-	for _, d := range datas {
+	for _, d := range data {
 
 		wg.Add(1)
 
@@ -129,10 +129,24 @@ func main() {
 
 			// gkr backend
 			if d.Curve != "tinyfield" {
+				// solver and proof delegator TODO merge with "backend" below
 				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
-				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
-					panic(err)
+				err := bgen.Generate(d, "cs", "./template/representations/", entries...)
+				assertNoError(err)
+
+				curvePackageName := strings.ToLower(d.Curve)
+
+				cfg := gkrConfig{
+					FieldDependency: config.FieldDependency{
+						ElementType:      "fr.Element",
+						FieldPackageName: "fr",
+						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
+					},
+					GkrPackageRelativePath: "internal/gkr/" + curvePackageName,
+					CanUseFFT:              true,
 				}
+
+				assertNoError(generateGkrBackend(cfg))
 			}
 
 			entries = []bavard.Entry{
@@ -203,6 +217,41 @@ func main() {
 
 	}
 
+	wg.Add(1)
+	// GKR test vectors
+	go func() {
+		// generate gkr and sumcheck for small-rational
+		cfg := gkrConfig{
+			FieldDependency: config.FieldDependency{
+				ElementType:      "small_rational.SmallRational",
+				FieldPackagePath: "github.com/consensys/gnark/internal/small_rational",
+				FieldPackageName: "small_rational",
+			},
+			GkrPackageRelativePath: "internal/gkr/small_rational",
+			CanUseFFT:              false,
+			NoGkrTests:             true,
+		}
+		assertNoError(generateGkrBackend(cfg))
+
+		// generate gkr test vector generator
+		cfg.GenerateTestVectors = true
+		cfg.OutsideGkrPackage = true
+
+		assertNoError(bgen.Generate(cfg, "gkr", "./template/gkr/",
+			bavard.Entry{
+				File:      "../../gkr/test_vectors/gkr/gkr-gen-vectors.go",
+				Templates: []string{"gkr.test.vectors.gen.go.tmpl", "gkr.test.vectors.go.tmpl"},
+			},
+		))
+
+		fmt.Println("generating test vectors for gkr and sumcheck")
+		cmd := exec.Command("go", "run", "../../gkr/test_vectors")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		assertNoError(cmd.Run())
+		wg.Done()
+	}()
+
 	wg.Wait()
 
 	// run go fmt on whole directory
@@ -222,4 +271,64 @@ type templateData struct {
 	CurveID   string
 	noBackend bool
 	NoGKR     bool
+}
+
+func generateGkrBackend(cfg gkrConfig) error {
+	const repoRoot = "../../../"
+	packageOutPath := filepath.Join(repoRoot, cfg.GkrPackageRelativePath)
+
+	// test vector utils
+	packageDir := filepath.Join(packageOutPath, "test_vector_utils")
+	entries := []bavard.Entry{
+		{File: filepath.Join(packageDir, "test_vector_utils.go"), Templates: []string{"test_vector_utils.go.tmpl"}},
+	}
+
+	if err := bgen.Generate(cfg, "test_vector_utils", "./template/gkr/", entries...); err != nil {
+		return err
+	}
+
+	// sumcheck backend
+	packageDir = filepath.Join(packageOutPath, "sumcheck")
+	entries = []bavard.Entry{
+		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
+		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
+	}
+
+	if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
+		return err
+	}
+
+	// gkr backend
+	packageDir = packageOutPath
+	entries = []bavard.Entry{
+		{File: filepath.Join(packageDir, "gkr.go"), Templates: []string{"gkr.go.tmpl"}},
+		{File: filepath.Join(packageDir, "registry.go"), Templates: []string{"registry.go.tmpl"}},
+	}
+
+	if !cfg.NoGkrTests {
+		entries = append(entries, bavard.Entry{
+			File: filepath.Join(packageDir, "gkr_test.go"), Templates: []string{"gkr.test.go.tmpl", "gkr.test.vectors.go.tmpl"},
+		})
+	}
+
+	if err := bgen.Generate(cfg, "gkr", "./template/gkr/", entries...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type gkrConfig struct {
+	config.FieldDependency
+	GkrPackageRelativePath string // the GKR package, relative to the repo root
+	CanUseFFT              bool
+	OutsideGkrPackage      bool
+	GenerateTestVectors    bool
+	NoGkrTests             bool
+}
+
+func assertNoError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

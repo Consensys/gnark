@@ -8,12 +8,12 @@ package cs
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
+	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 	"hash"
 	"math/big"
