@@ -8,26 +8,18 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/consensys/bavard"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/gkr/small_rational"
+	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
 	"hash"
 	"os"
 	"path/filepath"
 	"reflect"
-
-	"github.com/consensys/bavard"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational"
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational/gkr"
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational/polynomial"
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational/sumcheck"
-	"github.com/consensys/gnark-crypto/internal/generator/test_vector_utils/small_rational/test_vector_utils"
 )
-
-func main() {
-	if err := GenerateVectors(); err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-}
 
 func GenerateVectors() error {
 	testDirPath, err := filepath.Abs("gkr/test_vectors")

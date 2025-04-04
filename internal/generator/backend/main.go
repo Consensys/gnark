@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/field/generator/config"
-	sumcheckTestVectors "github.com/consensys/gnark/internal/gkr/test_vectors/sumcheck"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,10 +244,11 @@ func main() {
 			},
 		))
 
-		fmt.Println("generating test vectors for sumcheck")
-		assertNoError(sumcheckTestVectors.Generate()) // TODO CRITICAL This must be an independent process so that it's compiled before being run]
-		// TODO it also needs to run after everything else is done
-
+		fmt.Println("generating test vectors for gkr and sumcheck")
+		/*cmd := exec.Command("go", "run", "../../gkr/test_vectors")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		assertNoError(cmd.Run())*/
 		wg.Done()
 	}()
 

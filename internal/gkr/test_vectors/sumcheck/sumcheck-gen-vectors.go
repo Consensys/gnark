@@ -75,7 +75,7 @@ func run(testCaseInfo *TestCaseInfo) error {
 	}
 }
 
-func Generate() error {
+func GenerateVectors() error {
 	// read the test vectors file, generate the proof, make sure it verifies,
 	// and add the proof to the same file
 	const relPath = "sumcheck/test_vectors/vectors.json"
