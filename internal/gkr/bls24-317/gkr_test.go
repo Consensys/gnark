@@ -11,10 +11,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/polynomial"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/sumcheck"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/test_vector_utils"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/gkr/bls24-317/sumcheck"
+	"github.com/consensys/gnark/internal/gkr/bls24-317/test_vector_utils"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"os"
@@ -442,7 +442,6 @@ func proofEquals(expected Proof, seen Proof) error {
 	}
 	return nil
 }
-
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
 	c := mimcCircuit(mimcDepth)

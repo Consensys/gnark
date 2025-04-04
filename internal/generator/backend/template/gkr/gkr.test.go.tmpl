@@ -1,10 +1,13 @@
 
 import (
 	"{{.FieldPackagePath}}"
-	"{{.FieldPackagePath}}/mimc"
+	{{- if not .NoMiMC }}
+		"{{.FieldPackagePath}}/mimc"
+		"time"
+	{{- end }}
 	"{{.FieldPackagePath}}/polynomial"
-	"{{.FieldPackagePath}}/sumcheck"
-	"{{.FieldPackagePath}}/test_vector_utils"
+	"github.com/consensys/gnark/{{.GkrPackageRelativePath}}/sumcheck"
+	"github.com/consensys/gnark/{{.GkrPackageRelativePath}}/test_vector_utils"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +19,6 @@ import (
 	"path/filepath"
 	"encoding/json"
 	"reflect"
-	"time"
 )
 
 {{$topologicalSort := select (eq .ElementType "fr.Element") "TopologicalSort" "topologicalSort"}}
@@ -439,6 +441,7 @@ func proofEquals(expected Proof, seen Proof) error {
 	return nil
 }
 
+{{- if not .NoMiMC }}
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
 	c := mimcCircuit(mimcDepth)
@@ -470,6 +473,8 @@ func BenchmarkGkrMimc19(b *testing.B) {
 func BenchmarkGkrMimc17(b *testing.B) {
 	benchmarkGkrMiMC(b, 1<<17, 91)
 }
+
+{{- end }}
 
 func TestTopSortTrivial(t *testing.T) {
 	c := make(Circuit, 2)
@@ -510,7 +515,7 @@ func TestTopSortWide(t *testing.T) {
 {{template "gkrTestVectors" .}}
 
 func TestRegisterGateDegreeDetection(t *testing.T) {
-	testGate := func(name GateName, f func(...fr.Element) fr.Element, nbIn, degree int) {
+	testGate := func(name GateName, f func(...{{.ElementType}}) {{.ElementType}}, nbIn, degree int) {
 		t.Run(string(name), func(t *testing.T) {
 			name = name + "-register-gate-test"
 
@@ -526,27 +531,27 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 		})
 	}
 
-	testGate("select", func(x ...fr.Element) fr.Element {
+	testGate("select", func(x ...{{.ElementType}}) {{.ElementType}} {
 		return x[0]
 	}, 3, 1)
 
-	testGate("add2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("add2", func(x ...{{.ElementType}}) {{.ElementType}} {
+		var res {{.ElementType}}
 		res.Add(&x[0], &x[1])
 		res.Add(&res, &x[2])
 		return res
 	}, 3, 1)
 
-	testGate("mul2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("mul2", func(x ...{{.ElementType}}) {{.ElementType}} {
+		var res {{.ElementType}}
 		res.Mul(&x[0], &x[1])
 		return res
 	}, 2, 2)
 
 	testGate("mimc", mimcRound, 2, 7)
 
-	testGate("sub2PlusOne", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("sub2PlusOne", func(x ...{{.ElementType}}) {{.ElementType}} {
+		var res {{.ElementType}}
 		res.
 			SetOne().
 			Add(&res, &x[0]).
@@ -558,8 +563,8 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		const gateName GateName = "zero-register-gate-test"
 		expectedError := fmt.Errorf("for gate %s: %v", gateName, errZeroFunction)
-		zeroGate := func(x ...fr.Element) fr.Element {
-			var res fr.Element
+		zeroGate := func(x ...{{.ElementType}}) {{.ElementType}} {
+			var res {{.ElementType}}
 			return res
 		}
 		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1))
@@ -571,19 +576,19 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 func TestIsAdditive(t *testing.T) {
 
 	// f: x,y -> x² + xy
-	f := func(x ...fr.Element) fr.Element {
+	f := func(x ...{{.ElementType}}) {{.ElementType}} {
 		if len(x) != 2 {
 			panic("bivariate input needed")
 		}
-		var res fr.Element
+		var res {{.ElementType}}
 		res.Add(&x[0], &x[1])
 		res.Mul(&res, &x[0])
 		return res
 	}
 
 	// g: x,y -> x² + 3y
-	g := func(x ...fr.Element) fr.Element {
-		var res, y3 fr.Element
+	g := func(x ...{{.ElementType}}) {{.ElementType}} {
+		var res, y3 {{.ElementType}}
 		res.Square(&x[0])
 		y3.Mul(&x[1], &three)
 		res.Add(&res, &y3)
@@ -592,7 +597,7 @@ func TestIsAdditive(t *testing.T) {
 
 	// h: x -> 2x
 	// but it edits it input
-	h := func(x ...fr.Element) fr.Element {
+	h := func(x ...{{.ElementType}}) {{.ElementType}} {
 		x[0].Double(&x[0])
 		return x[0]
 	}

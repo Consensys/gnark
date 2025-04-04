@@ -10,11 +10,10 @@ import (
 	"fmt"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
+	"github.com/consensys/gnark/internal/gkr/small_rational/test_vector_utils"
 	"github.com/consensys/gnark/internal/small_rational"
-	"github.com/consensys/gnark/internal/small_rational/mimc"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/internal/small_rational/sumcheck"
-	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"os"
@@ -22,7 +21,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 )
 
 func TestNoGateTwoInstances(t *testing.T) {
@@ -443,38 +441,6 @@ func proofEquals(expected Proof, seen Proof) error {
 	return nil
 }
 
-func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
-	fmt.Println("creating circuit structure")
-	c := mimcCircuit(mimcDepth)
-
-	in0 := make([]fr.Element, nbInstances)
-	in1 := make([]fr.Element, nbInstances)
-	setRandomSlice(in0)
-	setRandomSlice(in1)
-
-	fmt.Println("evaluating circuit")
-	start := time.Now().UnixMicro()
-	assignment := WireAssignment{&c[0]: in0, &c[1]: in1}.Complete(c)
-	solved := time.Now().UnixMicro() - start
-	fmt.Println("solved in", solved, "μs")
-
-	//b.ResetTimer()
-	fmt.Println("constructing proof")
-	start = time.Now().UnixMicro()
-	_, err := Prove(c, assignment, fiatshamir.WithHash(mimc.NewMiMC()))
-	proved := time.Now().UnixMicro() - start
-	fmt.Println("proved in", proved, "μs")
-	assert.NoError(b, err)
-}
-
-func BenchmarkGkrMimc19(b *testing.B) {
-	benchmarkGkrMiMC(b, 1<<19, 91)
-}
-
-func BenchmarkGkrMimc17(b *testing.B) {
-	benchmarkGkrMiMC(b, 1<<17, 91)
-}
-
 func TestTopSortTrivial(t *testing.T) {
 	c := make(Circuit, 2)
 	c[0].Inputs = []*Wire{&c[1]}
@@ -732,7 +698,7 @@ func newTestCase(path string) (*TestCase, error) {
 }
 
 func TestRegisterGateDegreeDetection(t *testing.T) {
-	testGate := func(name GateName, f func(...fr.Element) fr.Element, nbIn, degree int) {
+	testGate := func(name GateName, f func(...small_rational.SmallRational) small_rational.SmallRational, nbIn, degree int) {
 		t.Run(string(name), func(t *testing.T) {
 			name = name + "-register-gate-test"
 
@@ -748,27 +714,27 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 		})
 	}
 
-	testGate("select", func(x ...fr.Element) fr.Element {
+	testGate("select", func(x ...small_rational.SmallRational) small_rational.SmallRational {
 		return x[0]
 	}, 3, 1)
 
-	testGate("add2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("add2", func(x ...small_rational.SmallRational) small_rational.SmallRational {
+		var res small_rational.SmallRational
 		res.Add(&x[0], &x[1])
 		res.Add(&res, &x[2])
 		return res
 	}, 3, 1)
 
-	testGate("mul2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("mul2", func(x ...small_rational.SmallRational) small_rational.SmallRational {
+		var res small_rational.SmallRational
 		res.Mul(&x[0], &x[1])
 		return res
 	}, 2, 2)
 
 	testGate("mimc", mimcRound, 2, 7)
 
-	testGate("sub2PlusOne", func(x ...fr.Element) fr.Element {
-		var res fr.Element
+	testGate("sub2PlusOne", func(x ...small_rational.SmallRational) small_rational.SmallRational {
+		var res small_rational.SmallRational
 		res.
 			SetOne().
 			Add(&res, &x[0]).
@@ -780,8 +746,8 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		const gateName GateName = "zero-register-gate-test"
 		expectedError := fmt.Errorf("for gate %s: %v", gateName, errZeroFunction)
-		zeroGate := func(x ...fr.Element) fr.Element {
-			var res fr.Element
+		zeroGate := func(x ...small_rational.SmallRational) small_rational.SmallRational {
+			var res small_rational.SmallRational
 			return res
 		}
 		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1))
@@ -793,19 +759,19 @@ func TestRegisterGateDegreeDetection(t *testing.T) {
 func TestIsAdditive(t *testing.T) {
 
 	// f: x,y -> x² + xy
-	f := func(x ...fr.Element) fr.Element {
+	f := func(x ...small_rational.SmallRational) small_rational.SmallRational {
 		if len(x) != 2 {
 			panic("bivariate input needed")
 		}
-		var res fr.Element
+		var res small_rational.SmallRational
 		res.Add(&x[0], &x[1])
 		res.Mul(&res, &x[0])
 		return res
 	}
 
 	// g: x,y -> x² + 3y
-	g := func(x ...fr.Element) fr.Element {
-		var res, y3 fr.Element
+	g := func(x ...small_rational.SmallRational) small_rational.SmallRational {
+		var res, y3 small_rational.SmallRational
 		res.Square(&x[0])
 		y3.Mul(&x[1], &three)
 		res.Add(&res, &y3)
@@ -814,7 +780,7 @@ func TestIsAdditive(t *testing.T) {
 
 	// h: x -> 2x
 	// but it edits it input
-	h := func(x ...fr.Element) fr.Element {
+	h := func(x ...small_rational.SmallRational) small_rational.SmallRational {
 		x[0].Double(&x[0])
 		return x[0]
 	}

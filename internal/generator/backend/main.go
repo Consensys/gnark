@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/field/generator/config"
 	sumcheckTestVectors "github.com/consensys/gnark/internal/gkr/test_vectors/sumcheck"
 	"os"
 	"os/exec"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/field/generator"
-	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
 const copyrightHolder = "Consensys Software Inc."
@@ -230,6 +230,7 @@ func main() {
 			},
 			GkrPackageRelativePath: "internal/gkr/small_rational",
 			CanUseFFT:              false,
+			NoMiMC:                 true,
 		}
 		assertNoError(generateGkrBackend(cfg))
 
@@ -317,6 +318,7 @@ type gkrConfig struct {
 	CanUseFFT              bool
 	OutsideGkrPackage      bool
 	GenerateTestVectors    bool
+	NoMiMC                 bool // if the MiMC hash is not implemented for the field
 }
 
 func assertNoError(err error) {
