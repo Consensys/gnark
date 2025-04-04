@@ -178,9 +178,7 @@ func (g1 *G1) computeCurveEquation(P *G1Affine) (left, right *baseEl) {
 	b := g1.curveF.Select(selector, g1.curveF.Zero(), &four)
 
 	left = g1.curveF.Mul(&P.Y, &P.Y)
-	right = g1.curveF.Mul(&P.X, &P.X)
-	right = g1.curveF.Mul(right, &P.X)
-	right = g1.curveF.Add(right, b)
+	right = g1.curveF.Eval([][]*emulated.Element[BaseField]{{&P.X, &P.X, &P.X}, {b}}, []int{1, 1})
 	return left, right
 }
 

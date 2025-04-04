@@ -316,9 +316,8 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.g1.AssertIsOnG1(P)
 }
 
-// IsOnG1 returns a boolean indicating if the G1 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+// IsOnG1 returns a boolean indicating if the G1 point is on the curve and in
+// the prime subgroup.
 func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnCurve(P)
@@ -345,9 +344,8 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.g2.AssertIsOnG2(Q)
 }
 
-// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+// IsOnG2 returns a boolean indicating if the G2 point is on the curve and in
+// the prime subgroup.
 func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnTwist(Q)
@@ -713,26 +711,6 @@ func (pr Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluat
 	res.Y = *yr
 
 	return &res, &line1, &line2
-}
-
-// tangentCompute computes the tangent line to p1, but does not compute [2]p1.
-func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
-
-	// λ = 3x²/2y
-	n := pr.Ext2.Square(&p1.X)
-	three := big.NewInt(3)
-	n = pr.Ext2.MulByConstElement(n, three)
-	d := pr.Ext2.Double(&p1.Y)
-	λ := pr.Ext2.DivUnchecked(n, d)
-
-	var line lineEvaluation
-	mone := pr.curveF.NewElement(-1)
-	line.R0 = *λ
-	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {mone, &λ.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
-
-	return &line
-
 }
 
 // MillerLoopAndMul computes the Miller loop between P and Q

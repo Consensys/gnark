@@ -494,9 +494,8 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.g2.AssertIsEqual(Q, _Q)
 }
 
-// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+// IsOnG2 returns a boolean indicating if the G2 point is on the curve and in
+// the subgroup.
 func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnTwist(Q)

@@ -177,7 +177,7 @@ func (g2 *G2) AddUnified(p, q *G2Affine) *G2Affine {
 	yr := g2.Sub(&p.P.X, xr)
 	yr = g2.Mul(yr, λ)
 	yr = g2.Sub(yr, &p.P.Y)
-	result := G2Affine{
+	result := &G2Affine{
 		P:     g2AffP{X: *xr, Y: *yr},
 		Lines: nil,
 	}
@@ -188,13 +188,13 @@ func (g2 *G2) AddUnified(p, q *G2Affine) *G2Affine {
 		Lines: nil,
 	}
 	// if p=([0,0],[0,0]) return q
-	result = *g2.Select(selector1, q, &result)
+	result = g2.Select(selector1, q, result)
 	// if q=([0,0],[0,0]) return p
-	result = *g2.Select(selector2, p, &result)
+	result = g2.Select(selector2, p, result)
 	// if p.y + q.y = 0, return ([0,0],[0,0])
-	result = *g2.Select(selector3, &infinity, &result)
+	result = g2.Select(selector3, &infinity, result)
 
-	return &result
+	return result
 }
 
 func (g2 G2) add(p, q *G2Affine) *G2Affine {
@@ -416,6 +416,7 @@ func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2
 	b := g2.Ext2.Select(selector, g2.Ext2.Zero(), &bTwist)
 
 	left = g2.Ext2.Square(&Q.P.Y)
+	// TODO: use Eval for right
 	right = g2.Ext2.Square(&Q.P.X)
 	right = g2.Ext2.Mul(right, &Q.P.X)
 	right = g2.Ext2.Add(right, b)
@@ -497,8 +498,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 	}
 
 	var st ScalarField
-	sr := g2.fr.Reduce(s)
-	sBits := g2.fr.ToBits(sr)
+	sBits := g2.fr.ToBitsCanonical(s)
 	n := st.Modulus().BitLen()
 	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
 		n = cfg.NbScalarBits
@@ -590,7 +590,6 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 
 	s1bits := g2.fr.ToBits(s1)
 	s2bits := g2.fr.ToBits(s2)
-	nbits := 129
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [3]*G2Affine
@@ -687,23 +686,7 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 
-	// when nbits is odd, we need to handle the first iteration separately
-	if nbits%2 == 0 {
-		// Acc = [2]Acc ± Q ± Φ(Q)
-		T := &G2Affine{
-			P: g2AffP{
-				X: *g2.Ext2.Select(g2.api.Xor(s1bits[nbits-1], s2bits[nbits-1]), &T12.P.X, &T5.P.X),
-				Y: *g2.Ext2.Lookup2(s1bits[nbits-1], s2bits[nbits-1], &T5.P.Y, &T12.P.Y, &T15.P.Y, &T2.P.Y),
-			},
-		}
-		// We don't use doubleAndAdd here as it would involve edge cases
-		// when bits are 00 (T==-Acc) or 11 (T==Acc).
-		Acc = g2.double(Acc)
-		Acc = g2.add(Acc, T)
-	} else {
-		// when nbits is even we start the main loop at normally nbits - 1
-		nbits++
-	}
+	nbits := 130
 	for i := nbits - 2; i > 0; i -= 2 {
 		// selectorY takes values in [0,15]
 		selectorY := g2.api.Add(
