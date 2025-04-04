@@ -9,21 +9,21 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	gkrBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/gkr"
 	frBls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	gkrBls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/gkr"
 	frBls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	gkrBls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/gkr"
 	frBls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
-	gkrBls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/gkr"
 	frBn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	gkrBn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	frBw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	gkrBw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/gkr"
 	frBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	gkrBls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
+	gkrBls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
+	gkrBls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
+	gkrBls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
+	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
+	gkrBw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
+	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 )
 
 type solveInTestEngineSettings struct {
