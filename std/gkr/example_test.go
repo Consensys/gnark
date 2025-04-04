@@ -6,10 +6,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
+	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -159,7 +159,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	gkrApi := gkr.NewApi()
 
-	assertNoError(gkr.RegisterGate("square", func(api frontend.API, input ...frontend.Variable) (res frontend.Variable) {
+	assertNoError(gkr.RegisterGate("square", func(api gkr.GateAPI, input ...frontend.Variable) (res frontend.Variable) {
 		return api.Mul(input[0], input[0])
 	}, 1))
 
@@ -187,7 +187,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	ZZ := gkrApi.NamedGate("square", Z)    // 408: ZZ.Square(&p.Z)
 
 	// define the SNARK version of the custom gates, similarly to the ones in Example
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"s", func(api frontend.API, input ...frontend.Variable) (S frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"s", func(api gkr.GateAPI, input ...frontend.Variable) (S frontend.Variable) {
 		S = api.Add(input[0], input[1])    // 409: S.Add(&p.X, &YY)
 		S = api.Mul(S, S)                  // 410: S.Square(&S).
 		S = api.Sub(S, input[2], input[3]) // 411: Sub(&S, &XX).
@@ -202,7 +202,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// combine the operations that define the assignment to p.Z
 	// input = [p.Z, p.Y, YY, ZZ]
 	// Z = (p.Z + p.Y)² - YY - ZZ
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"z", func(api frontend.API, input ...frontend.Variable) (Z frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"z", func(api gkr.GateAPI, input ...frontend.Variable) (Z frontend.Variable) {
 		Z = api.Add(input[0], input[1])    // 415: p.Z.Add(&p.Z, &p.Y).
 		Z = api.Mul(Z, Z)                  // 416: p.Z.Square(&p.Z).
 		Z = api.Sub(Z, input[2], input[3]) // 417: Sub(&p.Z, &YY).
@@ -214,7 +214,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// combine the operations that define the assignment to p.X
 	// input = [XX, S]
 	// p.X = 9XX² - 2S
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"x", func(api frontend.API, input ...frontend.Variable) (X frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"x", func(api gkr.GateAPI, input ...frontend.Variable) (X frontend.Variable) {
 		M := api.Mul(input[0], 3)            // 414: M.Double(&XX).Add(&M, &XX)
 		T := api.Mul(M, M)                   //     419: T.Square(&M)
 		X = api.Sub(T, api.Mul(input[1], 2)) // 420: p.X = T
@@ -227,7 +227,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// combine the operations that define the assignment to p.Y
 	// input = [S, p.X, XX, YYYY]
 	// p.Y = (S - p.X) * 3 * XX - 8 * YYYY
-	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"y", func(api frontend.API, input ...frontend.Variable) (Y frontend.Variable) {
+	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"y", func(api gkr.GateAPI, input ...frontend.Variable) (Y frontend.Variable) {
 		Y = api.Sub(input[0], input[1]) //         423: p.Y.Sub(&S, &p.X).
 		Y = api.Mul(Y, input[2], 3)     //    414: M.Double(&XX).Add(&M, &XX)
 		//                                         424:Mul(&p.Y, &M)
