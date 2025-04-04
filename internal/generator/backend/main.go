@@ -320,12 +320,11 @@ func generateGkrBackend(cfg gkrConfig) error {
 
 type gkrConfig struct {
 	config.FieldDependency
-	GkrPackageRelativePath  string // the GKR package, relative to the repo root
-	TestVectorsRelativePath string // the test vectors, relative to the current package
-	CanUseFFT               bool
-	OutsideGkrPackage       bool
-	GenerateTestVectors     bool
-	NoGkrTests              bool
+	GkrPackageRelativePath string // the GKR package, relative to the repo root
+	CanUseFFT              bool
+	OutsideGkrPackage      bool
+	GenerateTestVectors    bool
+	NoGkrTests             bool
 }
 
 func assertNoError(err error) {

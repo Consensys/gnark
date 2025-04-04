@@ -402,7 +402,7 @@ func generateTestVerifier(path string) func(t *testing.T) {
 
 func TestGkrVectors(t *testing.T) {
 
-	testDirPath := ""
+	const testDirPath = "../test_vectors/gkr"
 	dirEntries, err := os.ReadDir(testDirPath)
 	assert.NoError(t, err)
 	for _, dirEntry := range dirEntries {
