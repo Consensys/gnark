@@ -3,7 +3,7 @@
 		"type": "const",
 		"val": -1
 	},
-	"circuit": "resources/two_inputs_select-input-3_gate.json",
+	"circuit": "circuits/two_inputs_select-input-3_gate.json",
 	"input": [
 		[
 			0,

@@ -245,10 +245,10 @@ func main() {
 		))
 
 		fmt.Println("generating test vectors for gkr and sumcheck")
-		/*cmd := exec.Command("go", "run", "../../gkr/test_vectors")
+		cmd := exec.Command("go", "run", "../../gkr/test_vectors")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		assertNoError(cmd.Run())*/
+		assertNoError(cmd.Run())
 		wg.Done()
 	}()
 

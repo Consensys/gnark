@@ -3,7 +3,7 @@
 		"type": "const",
 		"val": -1
 	},
-	"circuit": "resources/single_input_two_outs.json",
+	"circuit": "circuits/single_input_two_outs.json",
 	"input": [
 		[
 			1,

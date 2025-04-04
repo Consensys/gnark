@@ -3,7 +3,7 @@
 		"type": "const",
 		"val": -1
 	},
-	"circuit": "resources/single_mul_gate.json",
+	"circuit": "circuits/single_mul_gate.json",
 	"input": [
 		[
 			4,
