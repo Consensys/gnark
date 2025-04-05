@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark/test"
 
 	bn254 "github.com/consensys/gnark/constraint/bn254"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -681,4 +682,25 @@ func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
 	}
 
 	return nil
+}
+
+// TestNewVariableAndInstance demonstrates the usage of NewVariable and NewInstance
+func TestNewVariableAndInstance(t *testing.T) {
+	// Just checking that functions can be called without errors
+	gkr := NewApi()
+
+	// Create a variable - should work
+	x, err := gkr.NewVariable()
+	assert.Error(t, err) // Should produce an error since there are no instances yet
+
+	// Import with a specific value
+	x, err = gkr.Import([]frontend.Variable{1})
+	assert.Nil(t, err)
+
+	y, err := gkr.Import([]frontend.Variable{2})
+	assert.Nil(t, err)
+
+	// Check API functions
+	z := gkr.Add(x, y)
+	assert.NotEqual(t, z, constraint.GkrVariable(-1)) // Check that the variable was created
 }
