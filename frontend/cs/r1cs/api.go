@@ -628,6 +628,68 @@ func (builder *builder) Println(a ...frontend.Variable) {
 	builder.cs.AddLog(log)
 }
 
+func (builder *builder) Printf(format string, args ...frontend.Variable) {
+	var log constraint.LogEntry
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	}
+
+	var sbb strings.Builder
+	formatIndex := 0
+
+	// Parse the format string and match placeholders with args
+	for _, arg := range args {
+		// Search for the next format specifier
+		nextPercent := strings.Index(format[formatIndex:], "%")
+		if nextPercent == -1 {
+			// No more placeholders; add remaining format string and break
+			sbb.WriteString(format[formatIndex:])
+			break
+		}
+
+		// Add the part of the format string before the next %
+		sbb.WriteString(format[formatIndex : formatIndex+nextPercent])
+		formatIndex += nextPercent + 1 // Move past %
+
+		// Handle format specifier
+		if formatIndex < len(format) {
+			specifier := format[formatIndex]
+			formatIndex++ // Move past the specifier
+
+			switch specifier {
+			case 's', 'd', 'f', 'x': // Supported format specifiers
+				if v, ok := arg.(expr.LinearExpression); ok {
+					assertIsSet(v)
+					sbb.WriteString("%" + string(specifier))
+					log.ToResolve = append(log.ToResolve, builder.getLinearExpression(v))
+				} else {
+					builder.printArg(&log, &sbb, arg)
+				}
+			default:
+				// Unsupported specifier; add it directly
+				sbb.WriteByte('%')
+				sbb.WriteByte(specifier)
+			}
+		} else {
+			// Malformed format string (ends with %)
+			sbb.WriteByte('%')
+		}
+	}
+
+	// Add remaining format string after the last placeholder
+	if formatIndex < len(format) {
+		sbb.WriteString(format[formatIndex:])
+	}
+
+	// Set the format string for the log entry
+	log.Format = sbb.String()
+
+	// Add the log entry to the circuit's constraint system
+	builder.cs.AddLog(log)
+}
+
 func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	leafCount, err := schema.Walk(a, tVariable, nil)
