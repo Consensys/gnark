@@ -1221,6 +1221,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 		return ret, fmt.Errorf("no circuit verification keys given")
 	}
 	if len(cvks) == 1 {
+		// we don't need to switch. But the index needs to be 0.
+		v.api.AssertIsEqual(idx, 0)
 		return VerifyingKey[FR, G1El, G2El]{
 			BaseVerifyingKey:    bvk,
 			CircuitVerifyingKey: cvks[0],

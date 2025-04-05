@@ -433,8 +433,34 @@ func init() {
 }
 
 func registerMiMCGate() {
-	Gates["mimc"] = MiMCCipherGate{Ark: 0}
-	gkr.Gates["mimc"] = mimcCipherGate{}
+	// register mimc gate
+	panicIfError(RegisterGate("mimc", func(api GateAPI, input ...frontend.Variable) frontend.Variable {
+		mimcSnarkTotalCalls++
+
+		if len(input) != 2 {
+			panic("mimc has fan-in 2")
+		}
+		sum := api.Add(input[0], input[1] /*, m.Ark*/)
+
+		sumCubed := api.Mul(sum, sum, sum) // sum^3
+		return api.Mul(sumCubed, sumCubed, sum)
+	}, 2, WithDegree(7)))
+
+	// register fr version of mimc gate
+	panicIfError(gkr.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
+		var sum fr.Element
+
+		sum.
+			Add(&input[0], &input[1]) //.Add(&sum, &m.ark)
+
+		res.Square(&sum)    // sum^2
+		res.Mul(&res, &sum) // sum^3
+		res.Square(&res)    //sum^6
+		res.Mul(&res, &sum) //sum^7
+
+		mimcFrTotalCalls++
+		return res
+	}, 2, gkr.WithDegree(7)))
 }
 
 type constPseudoHash int
@@ -448,31 +474,6 @@ func (c constPseudoHash) Write(...frontend.Variable) {}
 func (c constPseudoHash) Reset() {}
 
 var mimcFrTotalCalls = 0
-
-// Copied from gnark-crypto TODO: Make public?
-type mimcCipherGate struct {
-	ark fr.Element
-}
-
-func (m mimcCipherGate) Evaluate(input ...fr.Element) (res fr.Element) {
-	var sum fr.Element
-
-	sum.
-		Add(&input[0], &input[1]).
-		Add(&sum, &m.ark)
-
-	res.Square(&sum)    // sum^2
-	res.Mul(&res, &sum) // sum^3
-	res.Square(&res)    //sum^6
-	res.Mul(&res, &sum) //sum^7
-
-	mimcFrTotalCalls++
-	return
-}
-
-func (m mimcCipherGate) Degree() int {
-	return 7
-}
 
 type mimcNoGkrCircuit struct {
 	X         []frontend.Variable
@@ -597,7 +598,6 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	registerMiMC()
 	for i := 0; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(5, 1<<2, "-20")
 		assert.Run(func(assert *test.Assert) {
@@ -608,7 +608,6 @@ func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 
 func TestMiMCFullDepthNoDepSolveWithMiMCHash(t *testing.T) {
 	assert := test.NewAssert(t)
-	registerMiMC()
 	circuit, assignment := mimcNoDepCircuits(5, 1<<2, "mimc")
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
