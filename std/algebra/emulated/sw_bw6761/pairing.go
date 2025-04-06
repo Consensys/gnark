@@ -227,6 +227,10 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
 
+func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
+	return pr.Ext6.IsEqual(x, y)
+}
+
 func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
