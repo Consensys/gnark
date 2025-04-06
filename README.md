@@ -184,7 +184,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```
 
-For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle). **NB! ICICLE CUDA kernels are covered by a special license for now. Follow the instructions to download and set up the kernels.**
+For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle-gnark).
 
 ## Citing
 
