@@ -298,9 +298,8 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
 			block := nbOuter + i
 			for j := 0; j < nbInner; j++ {
-				step.Set(&s[j][i])
 				operands[j].Set(&s[j][block])
-				step.Sub(&operands[j], &step)
+				step.Sub(&operands[j], &s[j][i])
 				for d := 1; d < degGJ; d++ {
 					operands[d*nbInner+j].Add(&operands[(d-1)*nbInner+j], &step)
 				}
