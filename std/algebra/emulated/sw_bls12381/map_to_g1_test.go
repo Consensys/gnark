@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -22,16 +23,12 @@ func (circuit *ClearCofactorCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	clearedPoint, err := ClearCofactor(g, &circuit.Point)
-	if err != nil {
-		return err
-	}
+	clearedPoint := g.ClearCofactor(&circuit.Point)
 	g.AssertIsEqual(clearedPoint, &circuit.Res)
 	return nil
 }
 
 func TestClearCofactor(t *testing.T) {
-
 	assert := test.NewAssert(t)
 	_, _, g1, _ := bls12381.Generators()
 	var g2 bls12381.G1Affine
@@ -47,18 +44,17 @@ func TestClearCofactor(t *testing.T) {
 
 // Test MapToCurve
 type MapToCurveCircuit struct {
-	U   FpElement
+	U   emulated.Element[BaseField]
 	Res G1Affine
 }
 
 func (circuit *MapToCurveCircuit) Define(api frontend.API) error {
-
 	g, err := NewG1(api)
 	if err != nil {
 		return err
 	}
 
-	r, err := MapToCurve1(api, &circuit.U)
+	r, err := g.MapToCurve1(&circuit.U)
 	if err != nil {
 		return err
 	}
@@ -86,18 +82,16 @@ func TestMapToCurve(t *testing.T) {
 
 // Test Map to G1
 type MapToG1Circuit struct {
-	A FpElement
+	A emulated.Element[BaseField]
 	R G1Affine
 }
 
 func (circuit *MapToG1Circuit) Define(api frontend.API) error {
-
-	res, err := MapToG1(api, &circuit.A)
-	if err != nil {
-		return err
-	}
-
 	g, err := NewG1(api)
+	if err != nil {
+		return fmt.Errorf("new G1: %w", err)
+	}
+	res, err := g.MapToG1(&circuit.A)
 	if err != nil {
 		return err
 	}
