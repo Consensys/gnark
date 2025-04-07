@@ -2,9 +2,9 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/gkr/internal"
 	"sync"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 type GateName string
@@ -79,7 +79,7 @@ func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGa
 		option(&s)
 	}
 
-	frF := internal.ToBn254GateFunction(f)
+	frF := ToBn254GateFunction(f)
 
 	if s.degree == -1 { // find a degree
 		if s.noDegreeVerification {
@@ -130,19 +130,19 @@ const (
 )
 
 func init() {
-	panicIfError(RegisterGate(Mul2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate(Mul2, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Mul(x[0], x[1])
 	}, 2, WithUnverifiedDegree(2), WithNoSolvableVar()))
-	panicIfError(RegisterGate(Add2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate(Add2, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Add(x[0], x[1])
 	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
-	panicIfError(RegisterGate(Identity, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate(Identity, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return x[0]
 	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
-	panicIfError(RegisterGate(Neg, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate(Neg, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Neg(x[0])
 	}, 1, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
-	panicIfError(RegisterGate(Sub2, func(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	panicIfError(RegisterGate(Sub2, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(x[0], x[1])
 	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
 }
