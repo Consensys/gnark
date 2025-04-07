@@ -27,16 +27,16 @@ type GateFunction func(...fr.Element) fr.Element
 type Gate struct {
 	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
 	nbIn        int          // number of inputs
-	degree      int          // total degree of f
+	degree      int          // total degree of g
 	solvableVar int          // if there is a solvable variable, its index, -1 otherwise
 }
 
-// Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
+// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
 func (g *Gate) Degree() int {
 	return g.degree
 }
 
-// SolvableVar returns I such that x_I can always be determined from {x_i} - {x_I} and f(x...). If there is no such variable, it returns -1.
+// SolvableVar returns I such that x_I can always be determined from {xᵢ} - x_I and f(x...). If there is no such variable, it returns -1.
 func (g *Gate) SolvableVar() int {
 	return g.solvableVar
 }
@@ -88,10 +88,13 @@ type WireAssignment map[*Wire]polynomial.MultiLin
 
 type Proof []sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
+// eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
+// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *Wire
-	evaluationPoints   [][]fr.Element
-	claimedEvaluations []fr.Element
+	wire               *Wire          // the wire for which we are making the claim, with value w
+	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
+	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ), allegedly
 	manager            *claimsManager // WARNING: Circular references
 }
 
@@ -103,6 +106,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
+// CombinedSum returns ∑ᵢ aⁱ yᵢ
 func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(a fr.Element) fr.Element {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(&a)
@@ -112,10 +116,22 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
+// VerifyFinalEval finalizes the verification of w.
+// The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
+// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
+// Both purportedValue and the vector r have been randomized during the sumcheck protocol.
+// By taking the w term out of the sum we get the equivalent claim that
+// for E := ∑ eq(xᵢ, r), it must be that E w(r) = purportedValue.
+// If w is an input wire, the verifier can directly check its evaluation at r.
+// Otherwise, the prover makes claims about the evaluation of w's input wires,
+// wᵢ, at r, to be verified later.
+// The claims are communicated through the proof parameter.
+// The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
+// the main claim, by checking E w(wᵢ(r)...) = purportedValue.
 func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof interface{}) error {
 	inputEvaluationsNoRedundancy := proof.([]fr.Element)
 
-	// the eq terms
+	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
 	for i := numClaims - 2; i >= 0; i-- {
@@ -124,11 +140,11 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 		evaluation.Add(&evaluation, &eq)
 	}
 
-	// the g(...) term
+	// the w(...) term
 	var gateEvaluation fr.Element
-	if e.wire.IsInput() {
+	if e.wire.IsInput() { // just compute w(r)
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
-	} else {
+	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		inputEvaluations := make([]fr.Element, len(e.wire.Inputs))
 		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
 
@@ -142,7 +158,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 				// defer verification, store new claim
 				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
 				proofI++
-			}
+			} // TODO WHERE ARE THE INPUT EVALS ADDED TO FS TRANSCRIPT?
 			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
 		}
 		if proofI != len(inputEvaluationsNoRedundancy) {
@@ -159,39 +175,48 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 	return errors.New("incompatible evaluations")
 }
 
+// eqTimesGateEvalSumcheckClaims is a claim for sumcheck (prover side).
+// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// Its purpose is to batch the proving of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckClaims struct {
-	wire               *Wire
-	evaluationPoints   [][]fr.Element // x in the paper
-	claimedEvaluations []fr.Element   // y in the paper
+	wire               *Wire          // the wire for which we are making the claim, with value w
+	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
+	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ)
 	manager            *claimsManager
 
-	inputPreprocessors []polynomial.MultiLin // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
+	inputPreprocessors []polynomial.MultiLin // the values of wᵢ (input to the gate of w) over the hypercube (across all instances)
 
-	eq polynomial.MultiLin // ∑_i τ_i eq(x_i, -)
+	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
 }
 
+// Combine the multiple claims into one claim using a random combination (combinationCoeff or c).
+// From the original multiple claims of w(xᵢ) = yᵢ, we get a single claim
+// ∑ᵢ,ₕ cⁱ eq(xᵢ, h) w(h) = ∑ᵢ cⁱ yᵢ, where h iterates over the hypercube (circuit instances) and
+// i iterates over the claims.
+// Equivalently, we could say ∑ᵢ cⁱ yᵢ = ∑ₕ,ᵢ cⁱ eq(xᵢ, h) w(h) = ∑ₕ w(h) ∑ᵢ cⁱ eq(xᵢ, h).
+// Thus if we initially compute E := ∑ᵢ cⁱ eq(xᵢ, -), our claim will find the simpler form
+// ∑ᵢ cⁱ yᵢ = ∑ₕ w(h) E(h), where the sum-checked polynomial is of degree deg(g) + 1,
+// and deg(g) is the total degree of the polynomial defining the gate g of which w is the output.
+// The output of Combine is the first sumcheck claim, i.e. ∑₍ₕ₁,ₕ₂,...₎ w(X, h₁, h₂, ...) E(X, h₁, h₂, ...)..
 func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff fr.Element) polynomial.Polynomial {
 	varsNum := c.VarsNum()
 	eqLength := 1 << varsNum
 	claimsNum := c.ClaimsNum()
-	// initialize the eq tables
+	// initialize the eq tables ( E )
 	c.eq = c.manager.memPool.Make(eqLength)
 
 	c.eq[0].SetOne()
 	c.eq.Eq(c.evaluationPoints[0])
 
+	// E := eq(x₀, -)
 	newEq := polynomial.MultiLin(c.manager.memPool.Make(eqLength))
 	aI := combinationCoeff
 
-	for k := 1; k < claimsNum; k++ { //TODO: parallelizable?
-		// define eq_k = aᵏ eq(x_k1, ..., x_kn, *, ..., *) where x_ki are the evaluation points
+	// E += cⁱ eq(xᵢ, -)
+	for k := 1; k < claimsNum; k++ {
 		newEq[0].Set(&aI)
 
 		c.eqAcc(c.eq, newEq, c.evaluationPoints[k])
-
-		// newEq.Eq(c.evaluationPoints[k])
-		// eqAsPoly := polynomial.Polynomial(c.eq) //just semantics
-		// eqAsPoly.Add(eqAsPoly, polynomial.Polynomial(newEq))
 
 		if k+1 < claimsNum {
 			aI.Mul(&aI, &combinationCoeff)
@@ -200,16 +225,16 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff fr.Element) pol
 
 	c.manager.memPool.Dump(newEq)
 
-	// from this point on the claim is a rather simple one: g = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
-
 	return c.computeGJ()
 }
 
-// eqAcc sets m to an eq table at q and then adds it to e
+// eqAcc sets m to an eq table at q and then adds it to e.
+// m <- eq(q, -).
+// e <- e + m
 func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.Element) {
 	n := len(q)
 
-	//At the end of each iteration, m(h₁, ..., hₙ) = Eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
+	//At the end of each iteration, m(h₁, ..., hₙ) = eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
 	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
 		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
 		const threshold = 1 << 6
@@ -219,8 +244,8 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.E
 				j0 := j << (n - i)    // bᵢ₊₁ = 0
 				j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
 
-				m[j1].Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-				m[j0].Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+				m[j1].Mul(&q[i], &m[j0])  // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+				m[j0].Sub(&m[j0], &m[j1]) // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 			}
 		} else {
 			c.manager.workers.Submit(k, func(start, end int) {
@@ -228,8 +253,8 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.E
 					j0 := j << (n - i)    // bᵢ₊₁ = 0
 					j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
 
-					m[j1].Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-					m[j0].Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+					m[j1].Mul(&q[i], &m[j0])  // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+					m[j0].Sub(&m[j0], &m[j1]) // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 				}
 			}, 1024).Wait()
 		}
@@ -240,19 +265,19 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.E
 			e[i].Add(&e[i], &m[i])
 		}
 	}, 512).Wait()
-
-	// e.Add(e, polynomial.Polynomial(m))
 }
 
-// computeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
-// the polynomial is represented by the evaluations g_j(1), g_j(2), ..., g_j(deg(g_j)).
-// The value g_j(0) is inferred from the equation g_j(0) + g_j(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
+// computeGJ: gⱼ = ∑_{0≤h<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, h...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., Xⱼ, h...) g( w₀(r₁, ..., Xⱼ, h...), ... ).
+// the polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
+// The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
-	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
+	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
 	nbGateIn := len(c.inputPreprocessors)
 
-	// Let f ∈ { E(r₁, ..., X_j, d...) } ∪ {P_ul(r₁, ..., X_j, d...) }. It is linear in X_j, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
+	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
+	// they are linear in Xⱼ.
+	// So for f ∈ { E(r₁, ..., Xⱼ, h...) } ∪ {wᵢ(r₁, ..., Xⱼ, h...) }, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
 	s := make([]polynomial.MultiLin, nbGateIn+1)
 	s[0] = c.eq
 	copy(s[1:], c.inputPreprocessors)
@@ -267,7 +292,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 		var step fr.Element
 
 		res := make([]fr.Element, degGJ)
-		operands := make([]fr.Element, degGJ*nbInner)
+		operands := make([]fr.Element, degGJ*nbInner) // the eq value, followed by input to the gate
 
 		for i := start; i < end; i++ {
 
@@ -306,12 +331,10 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 		c.manager.workers.Submit(nbOuter, computeAll, minBlockSize).Wait()
 	}
 
-	// Perf-TODO: Separate functions Gate.TotalDegree and Gate.Degree(i) so that we get to use possibly smaller values for degGJ. Won't help with MiMC though
-
 	return gJ
 }
 
-// Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
+// Next first folds the "preprocessing" and "eq" polynomials then compute the new gⱼ
 func (c *eqTimesGateEvalSumcheckClaims) Next(element fr.Element) polynomial.Polynomial {
 	const minBlockSize = 512
 	n := len(c.eq) / 2
