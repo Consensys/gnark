@@ -27,7 +27,7 @@ type GateFunction func(...fr.Element) fr.Element
 type Gate struct {
 	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
 	nbIn        int          // number of inputs
-	degree      int          // total degree of g
+	degree      int          // total degree of the polynomial
 	solvableVar int          // if there is a solvable variable, its index, -1 otherwise
 }
 
