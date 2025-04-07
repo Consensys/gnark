@@ -277,57 +277,65 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
 	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
 	// they are linear in Xⱼ.
-	// So for f ∈ { E(r₁, ..., Xⱼ, h...) } ∪ {wᵢ(r₁, ..., Xⱼ, h...) }, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
-	s := make([]polynomial.MultiLin, nbGateIn+1)
-	s[0] = c.eq
-	copy(s[1:], c.inputPreprocessors)
+	// So for f ∈ { E(r₁, ..., Xⱼ, h...) } ∪ {wᵢ(r₁, ..., Xⱼ, h...) }, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables.
+	// ml are such multilinear polynomials the evaluations of which over different values of Xⱼ are computed in this stepwise manner.
+	ml := make([]polynomial.MultiLin, nbGateIn+1)
+	ml[0] = c.eq
+	copy(ml[1:], c.inputPreprocessors)
+
+	sumSize := len(c.eq) / 2 // the range of h, over which we sum
 
 	// Perf-TODO: Collate once at claim "combination" time and not again. then, even folding can be done in one operation every time "next" is called
-	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
-	nbOuter := len(s[0]) / 2
 
 	gJ := make([]small_rational.SmallRational, degGJ)
 	var mu sync.Mutex
-	computeAll := func(start, end int) {
+	computeAll := func(start, end int) { // compute method to allow parallelization across instances
 		var step small_rational.SmallRational
 
 		res := make([]small_rational.SmallRational, degGJ)
-		operands := make([]small_rational.SmallRational, degGJ*nbInner) // the eq value, followed by input to the gate
+		// evaluations of ml, laid out as:
+		// ml[0](1, h...), ml[1](1, h...), ..., ml[len(ml)-1](1, h...),
+		// ml[0](2, h...), ml[1](2, h...), ..., ml[len(ml)-1](2, h...),
+		// ...
+		// ml[0](degGJ, h...), ml[2](degGJ, h...), ..., ml[len(ml)-1](degGJ, h...)
+		// Thus the contribution of the
+		mlEvals := make([]small_rational.SmallRational, degGJ*len(ml))
 
-		for i := start; i < end; i++ {
+		for h := start; h < end; h++ { // h counts across instances
 
-			block := nbOuter + i
-			for j := 0; j < nbInner; j++ {
-				operands[j].Set(&s[j][block])
-				step.Sub(&operands[j], &s[j][i])
+			evalAt1Index := sumSize + h
+			for k := range ml {
+				// d = 0
+				mlEvals[k].Set(&ml[k][evalAt1Index]) // evaluation at Xⱼ = 1. Can be taken directly from the table.
+				step.Sub(&mlEvals[k], &ml[k][h])     // step = ml[k](1) - ml[k](0)
 				for d := 1; d < degGJ; d++ {
-					operands[d*nbInner+j].Add(&operands[(d-1)*nbInner+j], &step)
+					mlEvals[d*len(ml)+k].Add(&mlEvals[(d-1)*len(ml)+k], &step)
 				}
 			}
 
-			_s := 0
-			_e := nbInner
-			for d := 0; d < degGJ; d++ {
-				summand := c.wire.Gate.Evaluate(operands[_s+1 : _e]...)
-				summand.Mul(&summand, &operands[_s])
-				res[d].Add(&res[d], &summand)
-				_s, _e = _e, _e+nbInner
+			eIndex := 0
+			nextEIndex := len(ml)
+			for d := range degGJ {
+				summand := c.wire.Gate.Evaluate(mlEvals[eIndex+1 : nextEIndex]...)
+				summand.Mul(&summand, &mlEvals[eIndex])
+				res[d].Add(&res[d], &summand) // collect contributions into the sum from start to end
+				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
 			}
 		}
 		mu.Lock()
-		for i := 0; i < len(gJ); i++ {
-			gJ[i].Add(&gJ[i], &res[i])
+		for i := range gJ {
+			gJ[i].Add(&gJ[i], &res[i]) // collect into the complete sum
 		}
 		mu.Unlock()
 	}
 
 	const minBlockSize = 64
 
-	if nbOuter < minBlockSize {
+	if sumSize < minBlockSize {
 		// no parallelization
-		computeAll(0, nbOuter)
+		computeAll(0, sumSize)
 	} else {
-		c.manager.workers.Submit(nbOuter, computeAll, minBlockSize).Wait()
+		c.manager.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
 	}
 
 	return gJ
