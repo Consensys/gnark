@@ -10,15 +10,14 @@ import (
 )
 
 type FpApi = emulated.Field[emulated.BLS12381Fp]
-type FpElement = emulated.Element[emulated.BLS12381Fp]
 
-func g1EvalPolynomial(api *FpApi, monic bool, coefficients []fp.Element, x *FpElement) (*FpElement, error) {
+func g1EvalFixedPolynomial(api *FpApi, monic bool, coefficients []fp.Element, x *baseEl) (*baseEl, error) {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
 		emulatedCoefficient := emulated.ValueOf[emulated.BLS12381Fp](coefficients[i])
 		emuCoefficients[i] = &emulatedCoefficient
 	}
-	var res *FpElement
+	var res *baseEl
 	if monic {
 		res = api.Add(emuCoefficients[len(emuCoefficients)-1], x)
 	} else {
@@ -35,20 +34,20 @@ func g1EvalPolynomial(api *FpApi, monic bool, coefficients []fp.Element, x *FpEl
 
 func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 	isogenyMap := hash_to_curve.G1IsogenyMap()
-	ydenom, err := g1EvalPolynomial(fpApi, true, isogenyMap[3], &p.X)
+	ydenom, err := g1EvalFixedPolynomial(fpApi, true, isogenyMap[3], &p.X)
 	if err != nil {
 		return nil, fmt.Errorf("y denom: %w", err)
 	}
-	xdenom, err := g1EvalPolynomial(fpApi, true, isogenyMap[1], &p.X)
+	xdenom, err := g1EvalFixedPolynomial(fpApi, true, isogenyMap[1], &p.X)
 	if err != nil {
 		return nil, fmt.Errorf("x denom: %w", err)
 	}
-	y, err := g1EvalPolynomial(fpApi, false, isogenyMap[2], &p.X)
+	y, err := g1EvalFixedPolynomial(fpApi, false, isogenyMap[2], &p.X)
 	if err != nil {
 		return nil, fmt.Errorf("y num: %w", err)
 	}
 	y = fpApi.Mul(y, &p.Y)
-	x, err := g1EvalPolynomial(fpApi, false, isogenyMap[0], &p.X)
+	x, err := g1EvalFixedPolynomial(fpApi, false, isogenyMap[0], &p.X)
 	if err != nil {
 		return nil, fmt.Errorf("x num: %w", err)
 	}
@@ -58,7 +57,7 @@ func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 }
 
 // g1Sgn0 returns the parity of a
-func g1Sgn0(api *FpApi, a *FpElement) frontend.Variable {
+func g1Sgn0(api *FpApi, a *baseEl) frontend.Variable {
 	aReduced := api.Reduce(a)
 	ab := api.ToBits(aReduced)
 	return ab[0]
@@ -91,7 +90,7 @@ func ClearCofactor(g *G1, q *G1Affine) (*G1Affine, error) {
 // https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 // MapToCurve1 implements the SSWU map
 // No cofactor clearing or isogeny
-func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
+func MapToCurve1(api frontend.API, u *baseEl) (*G1Affine, error) {
 	one := emulated.ValueOf[emulated.BLS12381Fp]("1")
 	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
 
@@ -191,7 +190,7 @@ func MapToCurve1(api frontend.API, u *FpElement) (*G1Affine, error) {
 }
 
 // MapToG1 invokes the SSWU map, and guarantees that the result is in g1
-func MapToG1(api frontend.API, u *FpElement) (*G1Affine, error) {
+func MapToG1(api frontend.API, u *baseEl) (*G1Affine, error) {
 
 	res, err := MapToCurve1(api, u)
 	if err != nil {
