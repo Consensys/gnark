@@ -184,7 +184,7 @@ type eqTimesGateEvalSumcheckClaims struct {
 	claimedEvaluations []small_rational.SmallRational   // yᵢ = w(xᵢ)
 	manager            *claimsManager
 
-	inputPreprocessors []polynomial.MultiLin // the values of wᵢ (input to the gate of w) over the hypercube (across all instances)
+	input []polynomial.MultiLin // input[i](h₁, ..., hₘ₋ⱼ) = wᵢ(r₁, r₂, ..., rⱼ₋₁, h₁, ..., hₘ₋ⱼ)
 
 	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
 }
@@ -273,7 +273,7 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []smal
 func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
 	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
-	nbGateIn := len(c.inputPreprocessors)
+	nbGateIn := len(c.input)
 
 	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
 	// they are linear in Xⱼ.
@@ -281,7 +281,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	// ml are such multilinear polynomials the evaluations of which over different values of Xⱼ are computed in this stepwise manner.
 	ml := make([]polynomial.MultiLin, nbGateIn+1)
 	ml[0] = c.eq
-	copy(ml[1:], c.inputPreprocessors)
+	copy(ml[1:], c.input)
 
 	sumSize := len(c.eq) / 2 // the range of h, over which we sum
 
@@ -341,22 +341,23 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	return gJ
 }
 
-// Next first folds the "preprocessing" and "eq" polynomials then compute the new gⱼ
-func (c *eqTimesGateEvalSumcheckClaims) Next(element small_rational.SmallRational) polynomial.Polynomial {
+// Next first folds the input and E polynomials at the given verifier challenge then computes the new gⱼ.
+// Thus, j <- j+1 and rⱼ = challenge.
+func (c *eqTimesGateEvalSumcheckClaims) Next(challenge small_rational.SmallRational) polynomial.Polynomial {
 	const minBlockSize = 512
 	n := len(c.eq) / 2
 	if n < minBlockSize {
 		// no parallelization
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			c.inputPreprocessors[i].Fold(element)
+		for i := 0; i < len(c.input); i++ {
+			c.input[i].Fold(challenge)
 		}
-		c.eq.Fold(element)
+		c.eq.Fold(challenge)
 	} else {
-		wgs := make([]*sync.WaitGroup, len(c.inputPreprocessors))
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			wgs[i] = c.manager.workers.Submit(n, c.inputPreprocessors[i].FoldParallel(element), minBlockSize)
+		wgs := make([]*sync.WaitGroup, len(c.input))
+		for i := 0; i < len(c.input); i++ {
+			wgs[i] = c.manager.workers.Submit(n, c.input[i].FoldParallel(challenge), minBlockSize)
 		}
-		c.manager.workers.Submit(n, c.eq.FoldParallel(element), minBlockSize).Wait()
+		c.manager.workers.Submit(n, c.eq.FoldParallel(challenge), minBlockSize).Wait()
 		for _, wg := range wgs {
 			wg.Wait()
 		}
@@ -373,22 +374,23 @@ func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
 	return len(c.claimedEvaluations)
 }
 
+// ProveFinalEval provides the values wᵢ(r₁, ..., rₙ)
 func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []small_rational.SmallRational) interface{} {
 
 	//defer the proof, return list of claims
 	evaluations := make([]small_rational.SmallRational, 0, len(c.wire.Inputs))
-	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.inputPreprocessors))
+	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
 	noMoreClaimsAllowed[c.wire] = struct{}{}
 
 	for inI, in := range c.wire.Inputs {
-		puI := c.inputPreprocessors[inI]
+		wI := c.input[inI]
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
-			puI.Fold(r[len(r)-1])
-			c.manager.add(in, r, puI[0])
-			evaluations = append(evaluations, puI[0])
+			wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
+			c.manager.add(in, r, wI[0])
+			evaluations = append(evaluations, wI[0])
 		}
-		c.manager.memPool.Dump(puI)
+		c.manager.memPool.Dump(wI)
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
@@ -443,12 +445,12 @@ func (m *claimsManager) getClaim(wire *Wire) *eqTimesGateEvalSumcheckClaims {
 	}
 
 	if wire.IsInput() {
-		res.inputPreprocessors = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wire])}
+		res.input = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wire])}
 	} else {
-		res.inputPreprocessors = make([]polynomial.MultiLin, len(wire.Inputs))
+		res.input = make([]polynomial.MultiLin, len(wire.Inputs))
 
 		for inputI, inputW := range wire.Inputs {
-			res.inputPreprocessors[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
+			res.input[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
 		}
 	}
 	return res
