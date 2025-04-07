@@ -24,7 +24,10 @@ func HashToG2(api frontend.API, msg []uints.U8, dst []byte) (*G2Affine, error) {
 	}
 	ext2 := fields_bls12381.NewExt2(api)
 	mapper := newMapper(api, ext2, fp)
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, err
+	}
 
 	// Steps:
 	// 1. u = hash_to_field(msg, 2)
@@ -51,7 +54,7 @@ func HashToG2(api frontend.API, msg []uints.U8, dst []byte) (*G2Affine, error) {
 	Q0 = mapper.isogeny(&Q0.P.X, &Q0.P.Y)
 	Q1 = mapper.isogeny(&Q1.P.X, &Q1.P.Y)
 
-	R := g2.addUnified(Q0, Q1)
+	R := g2.AddUnified(Q0, Q1)
 
 	return clearCofactor(g2, fp, R), nil
 }
@@ -210,7 +213,7 @@ func (m sswuMapper) sgn0(x *fields_bls12381.E2) frontend.Variable {
 func (m sswuMapper) sqrtRatio(u, v *fields_bls12381.E2) (frontend.Variable, *fields_bls12381.E2) {
 	// Steps
 	// 1. extract the base values of u, v, then compute G2SqrtRatio with gnark-crypto
-	x, err := m.fp.NewHint(GetHints()[0], 3, &u.A0, &u.A1, &v.A0, &v.A1)
+	x, err := m.fp.NewHint(sqrtRatioHint, 3, &u.A0, &u.A1, &v.A0, &v.A1)
 	if err != nil {
 		panic("failed to calculate sqrtRatio with gnark-crypto " + err.Error())
 	}
@@ -359,11 +362,11 @@ func clearCofactor(g2 *G2, fp *emulated.Field[emparams.BLS12381Fp], p *G2Affine)
 	// 5.  t3 = t3 - t2
 	t3 = g2.sub(t3, t2)
 	// 6.  t2 = t1 + t2
-	t2 = g2.addUnified(t1, t2)
+	t2 = g2.AddUnified(t1, t2)
 	// 7.  t2 = c1 * t2
 	t2 = g2.scalarMulBySeed(t2)
 	// 8.  t3 = t3 + t2
-	t3 = g2.addUnified(t3, t2)
+	t3 = g2.AddUnified(t3, t2)
 	// 9.  t3 = t3 - t1
 	t3 = g2.sub(t3, t1)
 	// 10.  Q = t3 - P

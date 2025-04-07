@@ -89,7 +89,10 @@ func (c *mapToCurveCircuit) Define(api frontend.API) error {
 	e := fields_bls12381.E2{A0: *ele1, A1: *ele2}
 	affine := mapper.mapToCurve(e)
 
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
 	g2.AssertIsEqual(affine, &c.Res)
 
 	return nil
@@ -126,7 +129,10 @@ type clearCofactorCircuit struct {
 }
 
 func (c *clearCofactorCircuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
 	fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	res := clearCofactor(g2, fp, &c.In)
 	g2.AssertIsEqual(res, &c.Res)
@@ -164,7 +170,10 @@ func (c *hashToG2Circuit) Define(api frontend.API) error {
 		return e
 	}
 
-	g2 := NewG2(api)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }

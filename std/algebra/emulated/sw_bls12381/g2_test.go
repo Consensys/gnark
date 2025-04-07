@@ -100,8 +100,11 @@ type addG2UnifiedCircuit struct {
 }
 
 func (c *addG2UnifiedCircuit) Define(api frontend.API) error {
-	g2 := NewG2(api)
-	res := g2.addUnified(&c.In1, &c.In2)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	res := g2.AddUnified(&c.In1, &c.In2)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }

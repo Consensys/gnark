@@ -39,16 +39,20 @@ func sqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return fmt.Errorf("expecting 3 outputs")
 		}
 
-		var z0, z1, u0, u1, v0, v1 fp.Element
-		u0.SetBigInt(inputs[0])
-		u1.SetBigInt(inputs[1])
-		v0.SetBigInt(inputs[2])
-		v1.SetBigInt(inputs[3])
+		var z, u, v bls12381.E2
+		u.A0.SetBigInt(inputs[0])
+		u.A1.SetBigInt(inputs[1])
+		v.A0.SetBigInt(inputs[2])
+		v.A1.SetBigInt(inputs[3])
 
-		// b := bls12381.G2SqrtRatio(&z0, &z1, &u0, &u1, &v0, &v1)
-		// outputs[0].SetUint64(b)
-		z0.BigInt(outputs[1])
-		z1.BigInt(outputs[2])
+		res := hash_to_curve.G2SqrtRatio(&z, &u, &v)
+		if res != 0 {
+			res = 1
+		}
+
+		outputs[0].SetUint64(res)
+		z.A0.BigInt(outputs[1])
+		z.A1.BigInt(outputs[2])
 		return nil
 	})
 }
