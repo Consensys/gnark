@@ -7,6 +7,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -23,6 +25,7 @@ func GetHints() []solver.Hint {
 		millerLoopAndCheckFinalExpHint,
 		decomposeScalarG1Subscalars,
 		decomposeScalarG1Signs,
+		g1SqrtRatioHint,
 	}
 }
 
@@ -329,4 +332,28 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 
 		return nil
 	})
+}
+
+// g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
+// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
+// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
+// The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
+//
+// nativeInputs[0] = u, nativeInputs[1]=v
+// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var u, v, z fp.Element
+			u.SetBigInt(inputs[0])
+			v.SetBigInt(inputs[1])
+
+			isQNr := hash_to_curve.G1SqrtRatio(&z, &u, &v)
+			if isQNr != 0 {
+				isQNr = 1
+			}
+			z.BigInt(outputs[0])
+			outputs[1].SetInt64(int64(isQNr))
+			return nil
+		})
 }

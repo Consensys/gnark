@@ -1,17 +1,9 @@
 package sw_bls12381
 
 import (
-	"math/big"
-
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
-
-func init() {
-	solver.RegisterHint(g1SqrtRatioHint)
-}
 
 type FpApi = emulated.Field[emulated.BLS12381Fp]
 type FpElement = emulated.Element[emulated.BLS12381Fp]
@@ -160,60 +152,6 @@ func g1Isogeny(fpApi *FpApi, p *G1Affine) (*G1Affine, error) {
 
 	return &G1Affine{X: *x, Y: *y}, nil
 
-}
-
-// g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
-// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
-// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
-// The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
-//
-// nativeInputs[0] = u, nativeInputs[1]=v
-// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
-func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-
-			var z, u, v fp.Element
-
-			u.SetBigInt(inputs[0])
-			v.SetBigInt(inputs[1])
-
-			// https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-optimized-sqrt_ratio-for-q- (3 mod 4)
-			var tv1 fp.Element
-			tv1.Square(&v) // 1. tv1 = v²
-
-			var tv2 fp.Element
-			tv2.Mul(&u, &v)     // 2. tv2 = u * v
-			tv1.Mul(&tv1, &tv2) // 3. tv1 = tv1 * tv2
-
-			var y1 fp.Element
-			{
-				var c1 big.Int
-				// c1 = 1000602388805416848354447456433976039139220704984751971333014534031007912622709466110671907282253916009473568139946
-				c1.SetBytes([]byte{6, 128, 68, 122, 142, 95, 249, 166, 146, 198, 233, 237, 144, 210, 235, 53, 217, 29, 210, 225, 60, 225, 68, 175, 217, 204, 52, 168, 61, 172, 61, 137, 7, 170, 255, 255, 172, 84, 255, 255, 238, 127, 191, 255, 255, 255, 234, 170}) // c1 = (q - 3) / 4     # Integer arithmetic
-
-				y1.Exp(tv1, &c1) // 4. y1 = tv1ᶜ¹
-			}
-
-			y1.Mul(&y1, &tv2) // 5. y1 = y1 * tv2
-
-			var y2 fp.Element
-			// c2 = sqrt(-Z)
-			tv3 := fp.Element{17544630987809824292, 17306709551153317753, 8299808889594647786, 5930295261504720397, 675038575008112577, 167386374569371918}
-			y2.Mul(&y1, &tv3)              // 6. y2 = y1 * c2
-			tv3.Square(&y1)                // 7. tv3 = y1²
-			tv3.Mul(&tv3, &v)              // 8. tv3 = tv3 * v
-			isQNr := tv3.NotEqual(&u)      // 9. isQR = tv3 == u
-			z.Select(int(isQNr), &y1, &y2) // 10. y = CMOV(y2, y1, isQR)
-
-			if isQNr != 0 {
-				isQNr = 1
-			}
-			z.BigInt(outputs[0])
-			outputs[1] = big.NewInt(int64(isQNr))
-
-			return nil
-		})
 }
 
 // g1Sgn0 returns the parity of a
