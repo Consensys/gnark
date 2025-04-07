@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	security_level       = 128
 	len_per_base_element = 64
 )
 
