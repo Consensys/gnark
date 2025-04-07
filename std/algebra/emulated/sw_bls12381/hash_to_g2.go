@@ -213,7 +213,7 @@ func (m sswuMapper) sgn0(x *fields_bls12381.E2) frontend.Variable {
 func (m sswuMapper) sqrtRatio(u, v *fields_bls12381.E2) (frontend.Variable, *fields_bls12381.E2) {
 	// Steps
 	// 1. extract the base values of u, v, then compute G2SqrtRatio with gnark-crypto
-	x, err := m.fp.NewHint(sqrtRatioHint, 3, &u.A0, &u.A1, &v.A0, &v.A1)
+	x, err := m.fp.NewHint(g2SqrtRatioHint, 3, &u.A0, &u.A1, &v.A0, &v.A1)
 	if err != nil {
 		panic("failed to calculate sqrtRatio with gnark-crypto " + err.Error())
 	}
