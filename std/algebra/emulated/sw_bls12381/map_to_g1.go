@@ -9,8 +9,6 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type FpApi = emulated.Field[emulated.BLS12381Fp]
-
 func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) (*baseEl, error) {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
@@ -62,6 +60,9 @@ func (g1 *G1) sgn0(a *baseEl) frontend.Variable {
 	return ab[0]
 }
 
+// ClearCofactor clears the cofactor of a point in G1.
+//
+// See: https://eprint.iacr.org/2019/403.pdf, 5
 func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 	// cf https://eprint.iacr.org/2019/403.pdf, 5
 
