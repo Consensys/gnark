@@ -19,11 +19,11 @@ import (
 // Claims to a multi-sumcheck statement. i.e. one of the form ∑_{0≤i<2ⁿ} fⱼ(i) = cⱼ for 1 ≤ j ≤ m.
 // Later evolving into a claim of the form gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...)
 type Claims interface {
-	Combine(a small_rational.SmallRational) polynomial.Polynomial // Combine into the 0ᵗʰ sumcheck subclaim. Create g := ∑_{1≤j≤m} aʲ⁻¹fⱼ for which now we seek to prove ∑_{0≤i<2ⁿ} g(i) = c := ∑_{1≤j≤m} aʲ⁻¹cⱼ. Return g₁.
-	Next(small_rational.SmallRational) polynomial.Polynomial      // Return the evaluations gⱼ(k) for 1 ≤ k < degⱼ(g). Update the claim to gⱼ₊₁ for the input value as rⱼ
-	VarsNum() int                                                 //number of variables
-	ClaimsNum() int                                               //number of claims
-	ProveFinalEval(r []small_rational.SmallRational) interface{}  //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+	Combine(a small_rational.SmallRational) polynomial.Polynomial                   // Combine into the 0ᵗʰ sumcheck subclaim. Create g := ∑_{1≤j≤m} aʲ⁻¹fⱼ for which now we seek to prove ∑_{0≤i<2ⁿ} g(i) = c := ∑_{1≤j≤m} aʲ⁻¹cⱼ. Return g₁.
+	Next(small_rational.SmallRational) polynomial.Polynomial                        // Return the evaluations gⱼ(k) for 1 ≤ k < degⱼ(g). Update the claim to gⱼ₊₁ for the input value as rⱼ
+	VarsNum() int                                                                   //number of variables
+	ClaimsNum() int                                                                 //number of claims
+	ProveFinalEval(r []small_rational.SmallRational) []small_rational.SmallRational //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
 // LazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
@@ -32,13 +32,13 @@ type LazyClaims interface {
 	VarsNum() int                                                            // VarsNum = n
 	CombinedSum(a small_rational.SmallRational) small_rational.SmallRational // CombinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
 	Degree(i int) int                                                        //Degree of the total claim in the i'th variable
-	VerifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof interface{}) error
+	VerifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error
 }
 
 // Proof of a multi-sumcheck statement.
 type Proof struct {
-	PartialSumPolys []polynomial.Polynomial `json:"partialSumPolys"`
-	FinalEvalProof  interface{}             `json:"finalEvalProof"` //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+	PartialSumPolys []polynomial.Polynomial        `json:"partialSumPolys"`
+	FinalEvalProof  []small_rational.SmallRational `json:"finalEvalProof"` //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
 func setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.Settings) (challengeNames []string, err error) {
@@ -149,7 +149,7 @@ func Verify(claims LazyClaims, proof Proof, transcriptSettings fiatshamir.Settin
 	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 	gJR := claims.CombinedSum(combinationCoeff)    // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
-	for j := 0; j < claims.VarsNum(); j++ {
+	for j := range claims.VarsNum() {
 		if len(proof.PartialSumPolys[j]) != claims.Degree(j) {
 			return errors.New("malformed proof")
 		}

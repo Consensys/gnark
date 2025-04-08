@@ -128,7 +128,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
@@ -374,6 +374,7 @@ func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
 
 // ProveFinalEval provides the values wᵢ(r₁, ..., rₙ)
 func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []fr.Element) []fr.Element {
+
 	//defer the proof, return list of claims
 	evaluations := make([]fr.Element, 0, len(c.wire.Inputs))
 	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.

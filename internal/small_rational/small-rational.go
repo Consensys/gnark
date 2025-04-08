@@ -402,6 +402,11 @@ func (z *SmallRational) Bytes() [Bytes]byte {
 	return res
 }
 
+func (z *SmallRational) Marshal() []byte {
+	res := z.Bytes()
+	return res[:]
+}
+
 func bytesToBigIntSigned(src []byte) big.Int {
 	var res big.Int
 	res.SetBytes(src[1:])

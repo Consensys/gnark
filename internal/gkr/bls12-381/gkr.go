@@ -128,9 +128,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof interface{}) error {
-	inputEvaluationsNoRedundancy := proof.([]fr.Element)
-
+func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
@@ -375,7 +373,7 @@ func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
 }
 
 // ProveFinalEval provides the values wᵢ(r₁, ..., rₙ)
-func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []fr.Element) interface{} {
+func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []fr.Element) []fr.Element {
 
 	//defer the proof, return list of claims
 	evaluations := make([]fr.Element, 0, len(c.wire.Inputs))
@@ -667,11 +665,9 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof.([]fr.Element)
-			baseChallenge = make([][]byte, len(finalEvalProof))
-			for j := range finalEvalProof {
-				bytes := finalEvalProof[j].Bytes()
-				baseChallenge[j] = bytes[:]
+			baseChallenge = make([][]byte, len(proof[i].FinalEvalProof))
+			for j := range proof[i].FinalEvalProof {
+				baseChallenge[j] = proof[i].FinalEvalProof[j].Marshal()
 			}
 		}
 		// the verifier checks a single claim about input wires itself
@@ -708,11 +704,10 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 		}
 
 		proofW := proof[i]
-		finalEvalProof := proofW.FinalEvalProof.([]fr.Element)
 		claim := claims.getLazyClaim(wire)
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(proofW.FinalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
 			}
 
@@ -725,11 +720,10 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 			}
 		} else if err = sumcheck.Verify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-		); err == nil {
-			baseChallenge = make([][]byte, len(finalEvalProof))
-			for j := range finalEvalProof {
-				bytes := finalEvalProof[j].Bytes()
-				baseChallenge[j] = bytes[:]
+		); err == nil { // incorporate prover claims about w's input into the transcript
+			baseChallenge = make([][]byte, len(proofW.FinalEvalProof))
+			for j := range baseChallenge {
+				baseChallenge[j] = proofW.FinalEvalProof[j].Marshal()
 			}
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
@@ -883,9 +877,8 @@ func (p Proof) SerializeToBigInts(outs []*big.Int) {
 			offset += len(poly)
 		}
 		if p[i].FinalEvalProof != nil {
-			finalEvalProof := p[i].FinalEvalProof.([]fr.Element)
-			frToBigInts(outs[offset:], finalEvalProof)
-			offset += len(finalEvalProof)
+			frToBigInts(outs[offset:], p[i].FinalEvalProof)
+			offset += len(p[i].FinalEvalProof)
 		}
 	}
 }
