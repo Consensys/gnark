@@ -416,10 +416,12 @@ func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2
 	b := g2.Ext2.Select(selector, g2.Ext2.Zero(), &bTwist)
 
 	left = g2.Ext2.Square(&Q.P.Y)
-	// TODO: use Eval for right
-	right = g2.Ext2.Square(&Q.P.X)
-	right = g2.Ext2.Mul(right, &Q.P.X)
-	right = g2.Ext2.Add(right, b)
+	mone := g2.fp.NewElement(-1)
+	right = &fields_bls12381.E2{
+		A0: *g2.fp.Eval([][]*baseEl{{&Q.P.X.A0, &Q.P.X.A0, &Q.P.X.A0}, {mone, &Q.P.X.A0, &Q.P.X.A1, &Q.P.X.A1}, {&b.A0}}, []int{1, 3, 1}),
+		A1: *g2.fp.Eval([][]*baseEl{{&Q.P.X.A1, &Q.P.X.A0, &Q.P.X.A0}, {mone, &Q.P.X.A1, &Q.P.X.A1, &Q.P.X.A1}, {&b.A1}}, []int{3, 1, 1}),
+	}
+
 	return left, right
 }
 

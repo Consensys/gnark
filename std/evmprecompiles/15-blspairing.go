@@ -43,6 +43,10 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 	for i := 0; i < n; i++ {
 		// 1- Check that Pᵢ are on G1
 		pair.AssertIsOnG1(P[i])
+		// N.B.: curve membership cannot be done in the zkEVM for BLS12-381
+		// because the prime occupies 48 bytes and the zkEVM modular arithmetic
+		// module only supports 32 byte operations.
+		//
 		// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck`)
 	}
 

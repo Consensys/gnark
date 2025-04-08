@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -21,7 +22,7 @@ type mulG2Circuit struct {
 func (c *mulG2Circuit) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	res1 := g2.scalarMulGLV(&c.In, &c.S)
 	res2 := g2.scalarMulGeneric(&c.In, &c.S)
@@ -57,7 +58,7 @@ type addG2Circuit struct {
 func (c *addG2Circuit) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	res := g2.add(&c.In1, &c.In2)
 	g2.AssertIsEqual(res, &c.Res)
@@ -87,7 +88,7 @@ type doubleG2Circuit struct {
 func (c *doubleG2Circuit) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	res := g2.double(&c.In1)
 	g2.AssertIsEqual(res, &c.Res)
@@ -118,7 +119,7 @@ type doubleAndAddG2Circuit struct {
 func (c *doubleAndAddG2Circuit) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	res := g2.doubleAndAdd(&c.In1, &c.In2)
 	g2.AssertIsEqual(res, &c.Res)
@@ -149,7 +150,7 @@ type scalarMulG2BySeedCircuit struct {
 func (c *scalarMulG2BySeedCircuit) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	res := g2.scalarMulBySeed(&c.In1)
 	g2.AssertIsEqual(res, &c.Res)
@@ -179,7 +180,7 @@ type MultiScalarMulTest struct {
 func (c *MultiScalarMulTest) Define(api frontend.API) error {
 	g2, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	ps := make([]*G2Affine, len(c.Points))
 	for i := range c.Points {
