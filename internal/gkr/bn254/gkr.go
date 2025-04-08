@@ -128,7 +128,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, inputEvaluations []fr.Element) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
@@ -144,7 +144,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		inputEvaluations := make([]fr.Element, len(e.wire.Inputs))
-		indexesInProof := make(map[*Wire]int, len(inputEvaluations))
+		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
 
 		proofI := 0
 		for inI, in := range e.wire.Inputs {
@@ -154,13 +154,13 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 				indexesInProof[in] = indexInProof
 
 				// defer verification, store new claim
-				e.manager.add(in, r, inputEvaluations[indexInProof])
+				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
 				proofI++
 			} // TODO WHERE ARE THE INPUT EVALS ADDED TO FS TRANSCRIPT?
-			inputEvaluations[inI] = inputEvaluations[indexInProof]
+			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
 		}
-		if proofI != len(inputEvaluations) {
-			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluations), proofI)
+		if proofI != len(inputEvaluationsNoRedundancy) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
 		gateEvaluation = e.wire.Gate.Evaluate(inputEvaluations...)
 	}
