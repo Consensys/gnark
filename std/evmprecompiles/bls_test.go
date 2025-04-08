@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -103,7 +102,7 @@ func (c *ecmsmg1BLSCircuit) Define(api frontend.API) error {
 func TestECMSMG1BLSCircuit(t *testing.T) {
 	assert := test.NewAssert(t)
 	P := make([]bls12381.G1Affine, 10)
-	S := make([]fr_bls12381.Element, 10)
+	S := make([]fr.Element, 10)
 	for i := 0; i < 10; i++ {
 		S[i].SetRandom()
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
@@ -216,7 +215,7 @@ func (c *ecmsmg2BLSCircuit) Define(api frontend.API) error {
 func TestECMSMG2BLSCircuit(t *testing.T) {
 	assert := test.NewAssert(t)
 	P := make([]bls12381.G2Affine, 10)
-	S := make([]fr_bls12381.Element, 10)
+	S := make([]fr.Element, 10)
 	for i := 0; i < 10; i++ {
 		S[i].SetRandom()
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
