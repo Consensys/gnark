@@ -29,7 +29,11 @@ func BlsAssertG2Verification(api frontend.API, pub G1Affine, sig G2Affine, msg [
 	g1GNeg.Neg(&g1Gen)
 	g1GN := NewG1Affine(g1GNeg)
 
-	h, e := HashToG2(api, msg, []byte(g2_dst))
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	h, e := g2.HashToG2(msg, []byte(g2_dst))
 	if e != nil {
 		return e
 	}
