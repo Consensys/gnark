@@ -684,7 +684,7 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 	}
 }
 
-// GetWireConstraints returns the pairs (constraintID, wireLocation) for the
+// GetWireConstraintsNoDuplicate returns the pairs (constraintID, wireLocation) for the
 // given wires in the compiled constraint system:
 //   - constraintID is the index of the constraint in the constraint system.
 //   - wireLocation is the location of the wire in the constraint (0=xA or 1=xB).
@@ -697,8 +697,8 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 //
 // The method only returns a single pair (constraintID, wireLocation) for every
 // unique wire (removing duplicates). The order of the returned pairs is not the
-// same as for the given arguments.
-func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
+// same as for the given arguments. It is however, deterministic order.
+func (builder *builder) GetWireConstraintsN(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
 	// construct a lookup table table for later quick access when iterating over instructions
 	lookup := make(map[int]struct{})
 	for _, w := range wires {
