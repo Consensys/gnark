@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/hash/tofield"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -85,8 +84,8 @@ func (g2 *G2) evalFixedPolynomial(monic bool, coefficients []bls12381.E2, x *fie
 	emuCoefficients := make([]*fields_bls12381.E2, len(coefficients))
 	for i := 0; i < len(coefficients); i++ {
 		emuCoefficients[i] = &fields_bls12381.E2{
-			A0: emulated.ValueOf[emparams.BLS12381Fp](coefficients[i].A0),
-			A1: emulated.ValueOf[emparams.BLS12381Fp](coefficients[i].A1),
+			A0: *g2.fp.NewElement(coefficients[i].A0),
+			A1: *g2.fp.NewElement(coefficients[i].A1),
 		}
 	}
 	var res *fields_bls12381.E2
