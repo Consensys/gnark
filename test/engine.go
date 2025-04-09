@@ -583,7 +583,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) *big.Int {
 	case big.Int:
 		return &vv
 	default:
-		b := utils.FromInterface(i1)
+		b := utils.ForceFromInterface(i1)
 		b.Mod(&b, e.modulus())
 		return &b
 	}

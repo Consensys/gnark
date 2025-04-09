@@ -70,7 +70,7 @@ func ValueOf[T FieldParams](constant interface{}) Element[T] {
 func newConstElement[T FieldParams](v interface{}, isWitness bool) *Element[T] {
 	var fp T
 	// convert to big.Int
-	bValue := utils.FromInterface(v)
+	bValue := utils.ForceFromInterface(v)
 
 	// mod reduce
 	if fp.Modulus().Cmp(&bValue) != 0 {
