@@ -760,8 +760,7 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 // wire in the constraint system, by order of the constraints.
 //
 //   - If a variable is a constant. It will introduct an adhoc term and it will
-//     be added each time the constant appears. This is sub-optimal but this
-//     should not happen often.
+//     be reused each time the constant appears.
 //
 //   - The function tolerates that a wire is missing if addMissing is true even
 //     if the wire is not a witness element. This is allows supporting variables
