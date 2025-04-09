@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
@@ -19,6 +20,10 @@ type G2 struct {
 	u1, w, w2  *emulated.Element[BaseField]
 	eigenvalue *emulated.Element[ScalarField]
 	v          *fields_bls12381.E2
+
+	// SSWU map coefficients
+	sswuCoeffA, sswuCoeffB *fields_bls12381.E2
+	sswuZ                  *fields_bls12381.E2
 }
 
 type g2AffP struct {
@@ -61,6 +66,20 @@ func NewG2(api frontend.API) (*G2, error) {
 		A0: emulated.ValueOf[BaseField]("2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
 		A1: emulated.ValueOf[BaseField]("1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"),
 	}
+	sswuCoeffA, sswuCoeffB := hash_to_curve.G2SSWUIsogenyCurveCoefficients()
+	coeffA := &fields_bls12381.E2{
+		A0: *fp.NewElement(sswuCoeffA.A0),
+		A1: *fp.NewElement(sswuCoeffA.A1),
+	}
+	coeffB := &fields_bls12381.E2{
+		A0: *fp.NewElement(sswuCoeffB.A0),
+		A1: *fp.NewElement(sswuCoeffB.A1),
+	}
+	sswuZ := hash_to_curve.G2SSWUIsogenyZ()
+	z := &fields_bls12381.E2{
+		A0: *fp.NewElement(sswuZ.A0),
+		A1: *fp.NewElement(sswuZ.A1),
+	}
 	return &G2{
 		api:        api,
 		fp:         fp,
@@ -71,6 +90,10 @@ func NewG2(api frontend.API) (*G2, error) {
 		eigenvalue: &eigenvalue,
 		u1:         &u1,
 		v:          &v,
+		// SSWU map
+		sswuCoeffA: coeffA,
+		sswuCoeffB: coeffB,
+		sswuZ:      z,
 	}, nil
 }
 
