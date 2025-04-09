@@ -1,7 +1,6 @@
 package sw_bls12381
 
 import (
-	"bytes"
 	"encoding/hex"
 	"testing"
 
@@ -9,10 +8,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls12381fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/hash/tofield"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -264,80 +260,4 @@ func TestHashToG2TestSolve(t *testing.T) {
 		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
-}
-
-type hashToG2BenchCircuit struct {
-	Msg []byte
-	Dst []byte
-}
-
-func (c *hashToG2BenchCircuit) Define(api frontend.API) error {
-	g2, err := NewG2(api)
-	if err != nil {
-		return err
-	}
-	_, e := g2.HashToG2(uints.NewU8Array(c.Msg), c.Dst)
-	return e
-}
-
-func BenchmarkHashToG2(b *testing.B) {
-
-	dst := getDst()
-
-	msg := "abcd"
-	witness := hashToG2BenchCircuit{
-		Msg: []uint8(msg),
-		Dst: dst,
-	}
-	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-	if err != nil {
-		b.Fatal(err)
-	}
-	var ccs constraint.ConstraintSystem
-	b.Run("compile scs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &hashToG2BenchCircuit{}); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	var buf bytes.Buffer
-	_, err = ccs.WriteTo(&buf)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
-	b.Run("solve scs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if _, err := ccs.Solve(w); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	b.Run("compile r1cs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &hashToG2BenchCircuit{}); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-	buf.Reset()
-	_, err = ccs.WriteTo(&buf)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
-
-	b.Run("solve r1cs", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if _, err := ccs.Solve(w); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
 }
