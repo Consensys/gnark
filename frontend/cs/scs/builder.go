@@ -788,8 +788,16 @@ func (builder *builder) GetWiresConstraintExact(wires []frontend.Variable, addMi
 	// canonical variables: therefore not to constants and not too terms
 	// with a coeff different from 1. This may add constraints but has the
 	// benefit of making it simpler to read the LRO values.
-	wireIDsSet := make(map[int]struct{})
-	wireTerms := make([]expr.Term, len(wires))
+	var (
+		wireIDsSet = make(map[int]struct{})
+		wireTerms  = make([]expr.Term, len(wires))
+
+		// constantWiresMap registers the wires that we create to represent
+		// the constants that appear in the input. It helps avoiding to
+		// create too many unncessary adhoc terms for the same constant.
+		constantWiresMap = make(map[constraint.Element]expr.Term)
+	)
+
 	for i, w := range wires {
 		ww, ok := w.(expr.Term)
 		if !ok {
@@ -797,8 +805,12 @@ func (builder *builder) GetWiresConstraintExact(wires []frontend.Variable, addMi
 			// where "w" was a constant. There, we can assume that this
 			// condition and the next one are mutually exclusive.
 			c := builder.cs.FromInterface(w)
-			o := builder.newInternalVariable()
-			builder.addAddGate(expr.Term{}, expr.Term{}, uint32(o.VID), c)
+			o, oWasFound := constantWiresMap[c]
+			if !oWasFound {
+				o = builder.newInternalVariable()
+				constantWiresMap[c] = o
+				builder.addAddGate(expr.Term{}, expr.Term{}, uint32(o.VID), c)
+			}
 			ww = o
 		}
 
