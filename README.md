@@ -162,6 +162,45 @@ func main() {
 
 ### GPU Support
 
+#### Zeknox Library
+Unlock free GPU acceleration with [OKX zeknox library](https://github.com/okx/zeknox).
+
+##### Download prebuilt binaries
+```sh
+curl -L -o libzeknox.a https://github.com/okx/zeknox/releases/download/v1.0.1/bn254-msm-86-89-90-libzeknox.a
+curl -L -o libblst.a https://github.com/okx/zeknox/releases/download/v1.0.1/libblst.a
+sudo cp libblst.a libzeknox.a /usr/local/lib/
+```
+
+If you want to build from source, see guide in https://github.com/okx/zeknox.
+
+##### Enjoy GPU
+
+`groth16.Prove(r1cs, pk, witnessData, backend.WithZeknoxAcceleration())`
+
+```sh
+go run -tags=zeknox examples/zeknox/main.go
+# (place -tags before the filename)
+```
+
+##### Test
+Add the following code to [mimc_test.go](examples/mimc/mimc_test.go)
+```go
+import (
+	"github.com/consensys/gnark/backend"
+	// keep the other imports
+)
+// ...
+assert.ProverSucceeded(&mimcCircuit, &Circuit{
+		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
+		Hash:     "12886436712380113721405259596386800092738845035233065858332878701083870690753",
+	}, test.WithCurves(ecc.BN254), test.WithProverOpts(backend.WithZeknoxAcceleration()))
+```
+
+```sh
+go test github.com/consensys/gnark/examples/mimc -tags=prover_checks,zeknox
+```
+
 #### ICICLE Library
 
 The following schemes and curves support experimental use of Ingonyama's ICICLE GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
@@ -179,7 +218,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
 ```go
     // toggle on
     proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
-    
+
     // toggle off
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```

@@ -40,6 +40,7 @@ import (
 	groth16_bls24317 "github.com/consensys/gnark/backend/groth16/bls24-317"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	icicle_bn254 "github.com/consensys/gnark/backend/groth16/bn254/icicle"
+	zeknox_bn254 "github.com/consensys/gnark/backend/groth16/bn254/zeknox"
 	groth16_bw6633 "github.com/consensys/gnark/backend/groth16/bw6-633"
 	groth16_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 )
@@ -187,6 +188,9 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), fullWitness, opts...)
 
 	case *cs_bn254.R1CS:
+		if zeknox_bn254.HasZeknox {
+			return zeknox_bn254.Prove(_r1cs, pk.(*zeknox_bn254.ProvingKey), fullWitness, opts...)
+		}
 		if icicle_bn254.HasIcicle {
 			return icicle_bn254.Prove(_r1cs, pk.(*icicle_bn254.ProvingKey), fullWitness, opts...)
 		}
@@ -236,6 +240,13 @@ func Setup(r1cs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 		return &pk, &vk, nil
 	case *cs_bn254.R1CS:
 		var vk groth16_bn254.VerifyingKey
+		if zeknox_bn254.HasZeknox {
+			var pk zeknox_bn254.ProvingKey
+			if err := zeknox_bn254.Setup(_r1cs, &pk, &vk); err != nil {
+				return nil, nil, err
+			}
+			return &pk, &vk, nil
+		}
 		if icicle_bn254.HasIcicle {
 			var pk icicle_bn254.ProvingKey
 			if err := icicle_bn254.Setup(_r1cs, &pk, &vk); err != nil {
@@ -298,6 +309,13 @@ func DummySetup(r1cs constraint.ConstraintSystem) (ProvingKey, error) {
 		}
 		return &pk, nil
 	case *cs_bn254.R1CS:
+		if zeknox_bn254.HasZeknox {
+			var pk zeknox_bn254.ProvingKey
+			if err := zeknox_bn254.DummySetup(_r1cs, &pk); err != nil {
+				return nil, err
+			}
+			return &pk, nil
+		}
 		if icicle_bn254.HasIcicle {
 			var pk icicle_bn254.ProvingKey
 			if err := icicle_bn254.DummySetup(_r1cs, &pk); err != nil {
@@ -346,6 +364,9 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	switch curveID {
 	case ecc.BN254:
 		pk = &groth16_bn254.ProvingKey{}
+		if zeknox_bn254.HasZeknox {
+			pk = &zeknox_bn254.ProvingKey{}
+		}
 		if icicle_bn254.HasIcicle {
 			pk = icicle_bn254.NewProvingKey()
 		}
