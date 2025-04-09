@@ -30,7 +30,7 @@ func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *base
 
 }
 
-func (g1 *G1) isogeny(p *G1Affine) (*G1Affine, error) {
+func (g1 *G1) isogeny(p *G1Affine) *G1Affine {
 	isogenyMap := hash_to_curve.G1IsogenyMap()
 	ydenom := g1.evalFixedPolynomial(true, isogenyMap[3], &p.X)
 	xdenom := g1.evalFixedPolynomial(true, isogenyMap[1], &p.X)
@@ -39,7 +39,7 @@ func (g1 *G1) isogeny(p *G1Affine) (*G1Affine, error) {
 	x := g1.evalFixedPolynomial(false, isogenyMap[0], &p.X)
 	x = g1.curveF.Div(x, xdenom)
 	y = g1.curveF.Div(y, ydenom)
-	return &G1Affine{X: *x, Y: *y}, nil
+	return &G1Affine{X: *x, Y: *y}
 }
 
 // g1Sgn0 returns the parity of a
@@ -178,13 +178,7 @@ func (g1 *G1) MapToG1(u *baseEl) (*G1Affine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("map to curve: %w", err)
 	}
-
-	z, err := g1.isogeny(res)
-	if err != nil {
-		return nil, fmt.Errorf("isogeny: %w", err)
-	}
-
+	z := g1.isogeny(res)
 	z = g1.ClearCofactor(z)
-
 	return z, nil
 }
