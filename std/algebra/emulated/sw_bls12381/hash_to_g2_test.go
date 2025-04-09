@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls12381fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -122,6 +123,69 @@ func TestMapToCurveTestSolve(t *testing.T) {
 		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
+}
+
+type MapToCurve2CircuitDirect struct {
+	In       fields_bls12381.E2
+	Expected G2Affine
+}
+
+func (c *MapToCurve2CircuitDirect) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	res, err := g2.MapToCurve2(&c.In)
+	if err != nil {
+		return err
+	}
+	g2.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestMapToCurve2Direct(t *testing.T) {
+	assert := test.NewAssert(t)
+	var e2 bls12381.E2
+	e2.A0.SetRandom()
+	e2.A1.SetRandom()
+
+	res := bls12381.MapToCurve2(&e2)
+
+	assignment := MapToCurve2CircuitDirect{
+		In:       fields_bls12381.FromE2(&e2),
+		Expected: NewG2Affine(res),
+	}
+	err := test.IsSolved(&MapToCurve2CircuitDirect{}, &assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type TestG2IsogenyCircuit struct {
+	In       G2Affine
+	Expected G2Affine
+}
+
+func (c *TestG2IsogenyCircuit) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	res := g2.isogeny(&c.In)
+	g2.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestG2Isogeny(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Set(&in)
+	hash_to_curve.G2Isogeny(&res.X, &res.Y)
+	assignment := TestG2IsogenyCircuit{
+		In:       NewG2Affine(in),
+		Expected: NewG2Affine(res),
+	}
+	err := test.IsSolved(&TestG2IsogenyCircuit{}, &assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 type clearCofactorCircuit struct {
