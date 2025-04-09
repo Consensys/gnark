@@ -433,7 +433,7 @@ func (g2 *G2) MapToCurve2(u *fields_bls12381.E2) *G2Affine {
 	// 4.  tv2 = tv2 + tv1
 	tv2 = g2.Ext2.Add(tv2, tv1)
 	// 5.  tv3 = tv2 + 1
-	tv3 := g2.Ext2.Add(tv2, g2.ext2.One())
+	tv3 := g2.Ext2.Add(tv2, g2.Ext2.One())
 	// 6.  tv3 = B * tv3
 	tv3 = g2.Ext2.Mul(&m.B, tv3)
 	// 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
