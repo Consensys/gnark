@@ -315,7 +315,7 @@ type MuxesCircuits struct {
 func (c *MuxesCircuits) Define(api frontend.API) error {
 	g2api, err := NewG2(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G2 struct: %w", err)
 	}
 	pairing, err := NewPairing(api)
 	if err != nil {

@@ -41,6 +41,9 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 		panic(err)
 	}
 	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️)
+	// N.B.: BN254 has a prime order so G1 membership boils down to curve
+	// membership only, which is checked in the zkEVM.
+	//
 	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck`)
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1

@@ -301,10 +301,6 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
 	return &ret
 }
 
-func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
-	pr.curve.AssertIsOnCurve(P)
-}
-
 // IsOnCurve returns a boolean indicating if the G1 point is in the curve.
 func (pr Pairing) IsOnCurve(P *G1Affine) frontend.Variable {
 	left, right := pr.g1.computeCurveEquation(P)

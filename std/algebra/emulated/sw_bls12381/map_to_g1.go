@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) (*baseEl, error) {
+func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
 		emulatedCoefficient := emulated.ValueOf[emulated.BLS12381Fp](coefficients[i])
@@ -26,29 +26,17 @@ func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *base
 		res = g1.curveF.Mul(res, x)
 		res = g1.curveF.Add(res, emuCoefficients[i])
 	}
-	return res, nil
+	return res
 
 }
 
 func (g1 *G1) isogeny(p *G1Affine) (*G1Affine, error) {
 	isogenyMap := hash_to_curve.G1IsogenyMap()
-	ydenom, err := g1.evalFixedPolynomial(true, isogenyMap[3], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("y denom: %w", err)
-	}
-	xdenom, err := g1.evalFixedPolynomial(true, isogenyMap[1], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("x denom: %w", err)
-	}
-	y, err := g1.evalFixedPolynomial(false, isogenyMap[2], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("y num: %w", err)
-	}
+	ydenom := g1.evalFixedPolynomial(true, isogenyMap[3], &p.X)
+	xdenom := g1.evalFixedPolynomial(true, isogenyMap[1], &p.X)
+	y := g1.evalFixedPolynomial(false, isogenyMap[2], &p.X)
 	y = g1.curveF.Mul(y, &p.Y)
-	x, err := g1.evalFixedPolynomial(false, isogenyMap[0], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("x num: %w", err)
-	}
+	x := g1.evalFixedPolynomial(false, isogenyMap[0], &p.X)
 	x = g1.curveF.Div(x, xdenom)
 	y = g1.curveF.Div(y, ydenom)
 	return &G1Affine{X: *x, Y: *y}, nil
@@ -90,16 +78,17 @@ func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 //
 // See: https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
-	one := emulated.ValueOf[emulated.BLS12381Fp]("1")
-	eleven := emulated.ValueOf[emulated.BLS12381Fp]("11")
+	one := g1.curveF.One()
+	z := emulated.ValueOf[emulated.BLS12381Fp](hash_to_curve.G1SSWUIsogenyZ())
 
-	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp]("0x144698a3b8e9433d693a02c96d4982b0ea985383ee66a8d8e8981aefd881ac98936f8da0e0f97f5cf428082d584c1d")
-	sswuIsoCurveCoeffB := emulated.ValueOf[emulated.BLS12381Fp]("0x12e2908d11688030018b12e8753eee3b2016c1f0f24f4070a0b9c14fcef35ef55a23215a316ceaa5d1cc48e98e172be0")
+	sswuIsoCurveCoeffAValue, sswuIsoCurveCoeffBValue := hash_to_curve.G1SSWUIsogenyCurveCoefficients()
+	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp](sswuIsoCurveCoeffAValue)
+	sswuIsoCurveCoeffB := emulated.ValueOf[emulated.BLS12381Fp](sswuIsoCurveCoeffBValue)
 
 	tv1 := g1.curveF.Mul(u, u) // 1.  tv1 = u²
 
 	//mul tv1 by Z ( g1MulByZ)
-	tv1 = g1.curveF.Mul(&eleven, tv1)
+	tv1 = g1.curveF.Mul(&z, tv1)
 
 	// var tv2 fp.Element
 	tv2 := g1.curveF.Mul(tv1, tv1) // 3.  tv2 = tv1²
@@ -107,7 +96,7 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	tv3 := g1.curveF.Add(tv2, &one)               // 5.  tv3 = tv2 + 1
+	tv3 := g1.curveF.Add(tv2, one)                // 5.  tv3 = tv2 + 1
 	tv3 = g1.curveF.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
@@ -115,9 +104,9 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	// tv4 = Z
 
-	tv2 = g1.curveF.Neg(tv2)                         // tv2.Neg(&tv2)
-	tv4 := g1.curveF.Select(tv2IsZero, &eleven, tv2) // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
-	tv4 = g1.curveF.Mul(tv4, &sswuIsoCurveCoeffA)    // 8.  tv4 = A * tv4
+	tv2 = g1.curveF.Neg(tv2)                      // tv2.Neg(&tv2)
+	tv4 := g1.curveF.Select(tv2IsZero, &z, tv2)   // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	tv4 = g1.curveF.Mul(tv4, &sswuIsoCurveCoeffA) // 8.  tv4 = A * tv4
 
 	tv2 = g1.curveF.Mul(tv3, tv3) // 9.  tv2 = tv3²
 
@@ -148,7 +137,7 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 	g1.api.AssertIsBoolean(gx1NSquare)
 	y1Squarev := g1.curveF.Mul(y1, y1)
 	y1Squarev = g1.curveF.Mul(y1Squarev, tv6)
-	uz := g1.curveF.Mul(tv2, &eleven)
+	uz := g1.curveF.Mul(tv2, &z)
 	ysvMinusuz := g1.curveF.Sub(y1Squarev, uz)
 	isQNRWitness := g1.curveF.IsZero(ysvMinusuz)
 	cond1 := g1.api.And(isQNRWitness, gx1NSquare)

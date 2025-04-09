@@ -1109,6 +1109,26 @@ func (e Ext6) AssertIsEqual(a, b *E6) {
 
 }
 
+func (e Ext6) IsEqual(x, y *E6) frontend.Variable {
+	diff0 := e.fp.Sub(&x.A0, &y.A0)
+	diff1 := e.fp.Sub(&x.A1, &y.A1)
+	diff2 := e.fp.Sub(&x.A2, &y.A2)
+	diff3 := e.fp.Sub(&x.A3, &y.A3)
+	diff4 := e.fp.Sub(&x.A4, &y.A4)
+	diff5 := e.fp.Sub(&x.A5, &y.A5)
+	isZero0 := e.fp.IsZero(diff0)
+	isZero1 := e.fp.IsZero(diff1)
+	isZero2 := e.fp.IsZero(diff2)
+	isZero3 := e.fp.IsZero(diff3)
+	isZero4 := e.fp.IsZero(diff4)
+	isZero5 := e.fp.IsZero(diff5)
+
+	return e.api.And(
+		e.api.And(e.api.And(isZero0, isZero1), e.api.And(isZero2, isZero3)),
+		e.api.And(isZero4, isZero5),
+	)
+}
+
 func (e Ext6) Copy(x *E6) *E6 {
 	return &E6{
 		A0: x.A0,
