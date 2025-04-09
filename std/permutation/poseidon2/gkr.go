@@ -3,10 +3,11 @@ package poseidon2
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/constraint/solver"
 	"hash"
 	"math/big"
 	"sync"
+
+	"github.com/consensys/gnark/constraint/solver"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"

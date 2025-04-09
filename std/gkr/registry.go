@@ -2,8 +2,9 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/frontend"
 	"sync"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 type GateName string
@@ -78,7 +79,7 @@ func RegisterGate(name GateName, f GateFunction, nbIn int, options ...RegisterGa
 		option(&s)
 	}
 
-	frF := ToBn254GateFunction(f)
+	frF := toBn254GateFunction(f)
 
 	if s.degree == -1 { // find a degree
 		if s.noDegreeVerification {
