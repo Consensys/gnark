@@ -756,7 +756,7 @@ func (builder *builder) GetWireConstraintsN(wires []frontend.Variable, addMissin
 // several times at different positions in [vars], it will not deduplicate
 // unlike [GetWireConstraints]. The function has also a different way to deal
 // with constants and missing wires. If the same variabes is passed, then the
-// same wire ID is returned. The function returns the first occurence of the
+// same wire ID is returned. The function returns the first occurrence of the
 // wire in the constraint system, by order of the constraints.
 //
 //   - If a variable is a constant. It will introduct an adhoc term and it will
