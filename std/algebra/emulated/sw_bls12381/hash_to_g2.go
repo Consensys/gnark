@@ -90,7 +90,7 @@ func (g2 *G2) evalFixedPolynomial(monic bool, coefficients []bls12381.E2, x *fie
 	}
 	var res *fields_bls12381.E2
 	if monic {
-		res = g2.Add(emuCoefficients[0], x)
+		res = g2.Add(emuCoefficients[len(emuCoefficients)-1], x)
 	} else {
 		res = emuCoefficients[len(emuCoefficients)-1]
 	}
