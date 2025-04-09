@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) (*baseEl, error) {
+func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
 		emulatedCoefficient := emulated.ValueOf[emulated.BLS12381Fp](coefficients[i])
@@ -26,29 +26,17 @@ func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *base
 		res = g1.curveF.Mul(res, x)
 		res = g1.curveF.Add(res, emuCoefficients[i])
 	}
-	return res, nil
+	return res
 
 }
 
 func (g1 *G1) isogeny(p *G1Affine) (*G1Affine, error) {
 	isogenyMap := hash_to_curve.G1IsogenyMap()
-	ydenom, err := g1.evalFixedPolynomial(true, isogenyMap[3], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("y denom: %w", err)
-	}
-	xdenom, err := g1.evalFixedPolynomial(true, isogenyMap[1], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("x denom: %w", err)
-	}
-	y, err := g1.evalFixedPolynomial(false, isogenyMap[2], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("y num: %w", err)
-	}
+	ydenom := g1.evalFixedPolynomial(true, isogenyMap[3], &p.X)
+	xdenom := g1.evalFixedPolynomial(true, isogenyMap[1], &p.X)
+	y := g1.evalFixedPolynomial(false, isogenyMap[2], &p.X)
 	y = g1.curveF.Mul(y, &p.Y)
-	x, err := g1.evalFixedPolynomial(false, isogenyMap[0], &p.X)
-	if err != nil {
-		return nil, fmt.Errorf("x num: %w", err)
-	}
+	x := g1.evalFixedPolynomial(false, isogenyMap[0], &p.X)
 	x = g1.curveF.Div(x, xdenom)
 	y = g1.curveF.Div(y, ydenom)
 	return &G1Affine{X: *x, Y: *y}, nil
