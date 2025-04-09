@@ -7,14 +7,14 @@ toolchain go1.22.6
 require (
 	github.com/bits-and-blooms/bitset v1.20.0
 	github.com/blang/semver/v4 v4.0.0
-	github.com/consensys/bavard v0.1.29
+	github.com/consensys/bavard v0.1.31-0.20250314194434-b30d4344e6d4
 	github.com/consensys/compress v0.2.5
-	github.com/consensys/gnark-crypto v0.16.1-0.20250217214835-5ed804970f85
+	github.com/consensys/gnark-crypto v0.17.1-0.20250326164229-5fd6610ac2a1
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
 	github.com/icza/bitio v1.1.0
-	github.com/ingonyama-zk/icicle/v3 v3.1.1-0.20241118092657-fccdb2f0921b
+	github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2
 	github.com/leanovate/gopter v0.2.11
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
