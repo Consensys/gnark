@@ -79,16 +79,16 @@ func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 // See: https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 	one := g1.curveF.One()
-	z := emulated.ValueOf[emulated.BLS12381Fp](hash_to_curve.G1SSWUIsogenyZ())
+	z := g1.curveF.NewElement(hash_to_curve.G1SSWUIsogenyZ())
 
 	sswuIsoCurveCoeffAValue, sswuIsoCurveCoeffBValue := hash_to_curve.G1SSWUIsogenyCurveCoefficients()
-	sswuIsoCurveCoeffA := emulated.ValueOf[emulated.BLS12381Fp](sswuIsoCurveCoeffAValue)
-	sswuIsoCurveCoeffB := emulated.ValueOf[emulated.BLS12381Fp](sswuIsoCurveCoeffBValue)
+	sswuIsoCurveCoeffA := g1.curveF.NewElement(sswuIsoCurveCoeffAValue)
+	sswuIsoCurveCoeffB := g1.curveF.NewElement(sswuIsoCurveCoeffBValue)
 
 	tv1 := g1.curveF.Mul(u, u) // 1.  tv1 = u²
 
 	//mul tv1 by Z ( g1MulByZ)
-	tv1 = g1.curveF.Mul(&z, tv1)
+	tv1 = g1.curveF.Mul(z, tv1)
 
 	// var tv2 fp.Element
 	tv2 := g1.curveF.Mul(tv1, tv1) // 3.  tv2 = tv1²
@@ -96,30 +96,30 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	tv3 := g1.curveF.Add(tv2, one)                // 5.  tv3 = tv2 + 1
-	tv3 = g1.curveF.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
+	tv3 := g1.curveF.Add(tv2, one)               // 5.  tv3 = tv2 + 1
+	tv3 = g1.curveF.Mul(tv3, sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
 	tv2IsZero := g1.curveF.IsZero(tv2)
 
 	// tv4 = Z
 
-	tv2 = g1.curveF.Neg(tv2)                      // tv2.Neg(&tv2)
-	tv4 := g1.curveF.Select(tv2IsZero, &z, tv2)   // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
-	tv4 = g1.curveF.Mul(tv4, &sswuIsoCurveCoeffA) // 8.  tv4 = A * tv4
+	tv2 = g1.curveF.Neg(tv2)                     // tv2.Neg(&tv2)
+	tv4 := g1.curveF.Select(tv2IsZero, z, tv2)   // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0)
+	tv4 = g1.curveF.Mul(tv4, sswuIsoCurveCoeffA) // 8.  tv4 = A * tv4
 
 	tv2 = g1.curveF.Mul(tv3, tv3) // 9.  tv2 = tv3²
 
 	tv6 := g1.curveF.Mul(tv4, tv4) // 10. tv6 = tv4²
 
-	tv5 := g1.curveF.Mul(tv6, &sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
+	tv5 := g1.curveF.Mul(tv6, sswuIsoCurveCoeffA) // 11. tv5 = A * tv6
 
 	tv2 = g1.curveF.Add(tv2, tv5) // 12. tv2 = tv2 + tv5
 	tv2 = g1.curveF.Mul(tv2, tv3) // 13. tv2 = tv2 * tv3
 	tv6 = g1.curveF.Mul(tv6, tv4) // 14. tv6 = tv6 * tv4
 
-	tv5 = g1.curveF.Mul(tv6, &sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
-	tv2 = g1.curveF.Add(tv2, tv5)                 // 16. tv2 = tv2 + tv5
+	tv5 = g1.curveF.Mul(tv6, sswuIsoCurveCoeffB) // 15. tv5 = B * tv6
+	tv2 = g1.curveF.Add(tv2, tv5)                // 16. tv2 = tv2 + tv5
 
 	x := g1.curveF.Mul(tv1, tv3) // 17.   x = tv1 * tv3
 
@@ -130,14 +130,13 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
-	// TODO constrain gx1NSquare and y1
 	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
 	gx1NSquare := hint[1].Limbs[0]
 
 	g1.api.AssertIsBoolean(gx1NSquare)
 	y1Squarev := g1.curveF.Mul(y1, y1)
 	y1Squarev = g1.curveF.Mul(y1Squarev, tv6)
-	uz := g1.curveF.Mul(tv2, &z)
+	uz := g1.curveF.Mul(tv2, z)
 	ysvMinusuz := g1.curveF.Sub(y1Squarev, uz)
 	isQNRWitness := g1.curveF.IsZero(ysvMinusuz)
 	cond1 := g1.api.And(isQNRWitness, gx1NSquare)
