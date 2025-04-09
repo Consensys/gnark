@@ -265,8 +265,21 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(ZOut[i], c.ZOut[i])
 	}
 
+	challenges := make([]frontend.Variable, 0, len(c.X)*6)
+	challenges = append(challenges, XOut...)
+	challenges = append(challenges, YOut...)
+	challenges = append(challenges, ZOut...)
+	challenges = append(challenges, c.X...)
+	challenges = append(challenges, c.Y...)
+	challenges = append(challenges, c.Z...)
+
+	challenge, err := api.(frontend.Committer).Commit(challenges...)
+	if err != nil {
+		return err
+	}
+
 	// verify the proof
-	return solution.Verify(c.fsHashName)
+	return solution.Verify(c.fsHashName, challenge)
 }
 
 func assertNoError(err error) {
