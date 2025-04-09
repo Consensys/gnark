@@ -1,11 +1,14 @@
 package cmp_test
 
 import (
+	"fmt"
+	"math/big"
+	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/test"
-	"math/big"
-	"testing"
 )
 
 func TestAssertIsLessEq(t *testing.T) {
@@ -142,4 +145,73 @@ func (c *minCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.WantMin, comparator.Min(c.A, c.B))
 
 	return nil
+}
+
+type boundedComparatorCircuit struct {
+	A frontend.Variable
+
+	WantIsLess   int
+	WantIsLessEq int
+	Bound        int
+}
+
+func (c *boundedComparatorCircuit) Define(api frontend.API) error {
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(int64(c.Bound)), true)
+	if c.WantIsLess == 1 {
+		comparator.AssertIsLess(c.A, c.Bound)
+	}
+	if c.WantIsLessEq == 1 {
+		comparator.AssertIsLessEq(c.A, c.Bound)
+	}
+
+	api.AssertIsEqual(c.WantIsLess, comparator.IsLess(c.A, c.Bound))
+	api.AssertIsEqual(c.WantIsLessEq, comparator.IsLessEq(c.A, c.Bound))
+
+	return nil
+}
+
+type boundedComparatorTestCase struct {
+	A int
+
+	WantIsLess   int
+	WantIsLessEq int
+	Bound        int
+
+	expectedSuccess bool
+}
+
+func TestBoundedComparator(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var testCases []boundedComparatorTestCase
+	for bound := 2; bound <= 15; bound++ {
+		c := 1 << (big.NewInt(int64(bound)).BitLen())
+		for i := 0; i <= bound+5; i++ {
+			testCase := boundedComparatorTestCase{
+				A: i, Bound: bound, WantIsLess: 1, WantIsLessEq: 1, expectedSuccess: true}
+			if i >= bound {
+				testCase.WantIsLess = 0
+				if i > bound {
+					testCase.WantIsLessEq = 0
+				}
+			}
+			if i-bound >= c {
+				testCase.expectedSuccess = false
+			}
+			testCases = append(testCases, testCase)
+		}
+	}
+
+	for _, tc := range testCases {
+		assert.Run(func(assert *test.Assert) {
+			circuit := &boundedComparatorCircuit{Bound: tc.Bound, WantIsLess: tc.WantIsLess, WantIsLessEq: tc.WantIsLessEq}
+			assignment := &boundedComparatorCircuit{A: tc.A}
+			err := test.IsSolved(circuit, assignment, ecc.BN254.ScalarField())
+			if tc.expectedSuccess {
+				assert.NoError(err)
+			} else {
+				assert.Error(err)
+			}
+		}, fmt.Sprintf("bound=%d a=%d", tc.Bound, tc.A))
+	}
 }

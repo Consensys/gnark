@@ -99,7 +99,7 @@ type API interface {
 	//
 	// If the absolute difference between the variables i1 and i2 is known, then
 	// it is more efficient to use the bounded methods in package
-	// [github.com/consensys/gnark/std/math/bits].
+	// [https://github.com/Consensys/gnark/blob/master/std/math/cmp].
 	Cmp(i1, i2 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
@@ -121,7 +121,7 @@ type API interface {
 	//
 	// If the absolute difference between the variables b and bound is known, then
 	// it is more efficient to use the bounded methods in package
-	// [github.com/consensys/gnark/std/math/bits].
+	// [https://github.com/Consensys/gnark/blob/master/std/math/cmp].
 	AssertIsLessOrEqual(v Variable, bound Variable)
 
 	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
