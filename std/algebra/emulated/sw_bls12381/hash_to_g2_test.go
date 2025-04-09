@@ -80,19 +80,20 @@ type mapToCurveCircuit struct {
 func (c *mapToCurveCircuit) Define(api frontend.API) error {
 	msg := uints.NewU8Array(c.Msg)
 	fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	ext2 := fields_bls12381.NewExt2(api)
-	mapper := newMapper(api, ext2, fp)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
 
 	uniformBytes, _ := tofield.ExpandMsgXmd(api, msg, c.Dst, 128)
 	ele1 := bytesToElement(api, fp, uniformBytes[:64])
 	ele2 := bytesToElement(api, fp, uniformBytes[64:])
 	e := fields_bls12381.E2{A0: *ele1, A1: *ele2}
-	affine := mapper.mapToCurve(e)
-
-	g2, err := NewG2(api)
+	affine, err := g2.MapToCurve2(&e)
 	if err != nil {
 		return err
 	}
+
 	g2.AssertIsEqual(affine, &c.Res)
 
 	return nil
@@ -133,8 +134,7 @@ func (c *clearCofactorCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	res := clearCofactor(g2, fp, &c.In)
+	res := g2.ClearCofactor(&c.In)
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }
@@ -165,15 +165,15 @@ type hashToG2Circuit struct {
 }
 
 func (c *hashToG2Circuit) Define(api frontend.API) error {
-	res, e := HashToG2(api, uints.NewU8Array(c.Msg), c.Dst)
-	if e != nil {
-		return e
-	}
-
 	g2, err := NewG2(api)
 	if err != nil {
 		return err
 	}
+	res, e := g2.HashToG2(uints.NewU8Array(c.Msg), c.Dst)
+	if e != nil {
+		return e
+	}
+
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }
@@ -208,7 +208,11 @@ type hashToG2BenchCircuit struct {
 }
 
 func (c *hashToG2BenchCircuit) Define(api frontend.API) error {
-	_, e := HashToG2(api, uints.NewU8Array(c.Msg), c.Dst)
+	g2, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	_, e := g2.HashToG2(uints.NewU8Array(c.Msg), c.Dst)
 	return e
 }
 
