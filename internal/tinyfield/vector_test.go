@@ -234,7 +234,7 @@ func BenchmarkVectorOps(b *testing.B) {
 	b1 := make(Vector, N)
 	c1 := make(Vector, N)
 	var mixer Element
-	mixer.SetRandom()
+	mixer.MustSetRandom()
 	for i := 1; i < N; i++ {
 		a1[i-1].SetUint64(uint64(i)).
 			Mul(&a1[i-1], &mixer)
