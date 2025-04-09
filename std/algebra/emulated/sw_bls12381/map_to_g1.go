@@ -78,7 +78,7 @@ func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 //
 // See: https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html#name-simplified-swu-method
 func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
-	one := emulated.ValueOf[emulated.BLS12381Fp]("1")
+	one := g1.curveF.One()
 	z := emulated.ValueOf[emulated.BLS12381Fp](hash_to_curve.G1SSWUIsogenyZ())
 
 	sswuIsoCurveCoeffAValue, sswuIsoCurveCoeffBValue := hash_to_curve.G1SSWUIsogenyCurveCoefficients()
@@ -96,7 +96,7 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	// var tv3 fp.Element
 	// var tv4 fp.Element
-	tv3 := g1.curveF.Add(tv2, &one)               // 5.  tv3 = tv2 + 1
+	tv3 := g1.curveF.Add(tv2, one)                // 5.  tv3 = tv2 + 1
 	tv3 = g1.curveF.Mul(tv3, &sswuIsoCurveCoeffB) // 6.  tv3 = B * tv3
 
 	// tv2NZero := g1NotZero(&tv2)
