@@ -130,7 +130,6 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
-	// TODO constrain gx1NSquare and y1
 	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
 	gx1NSquare := hint[1].Limbs[0]
 
