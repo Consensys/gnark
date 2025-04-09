@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/mpcsetup"
@@ -57,6 +58,7 @@ type Phase2 struct {
 
 	// Challenge is the hash of the PREVIOUS contribution
 	Challenge []byte
+	options *Phase2Options
 }
 
 const (
@@ -202,47 +204,57 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 		}
 	}
 
-	// Prepare Lagrange coefficients of [τ...]₁, [τ...]₂, [ατ...]₁, [βτ...]₁
-	coeffTau1 := lagrangeCoeffsG1(commons.G1.Tau, n)           // [L_{ω⁰}(τ)]₁, [L_{ω¹}(τ)]₁, ... where ω is a primitive sizeᵗʰ root of unity
-	coeffTau2 := lagrangeCoeffsG2(commons.G2.Tau, n)           // [L_{ω⁰}(τ)]₂, [L_{ω¹}(τ)]₂, ...
-	coeffAlphaTau1 := lagrangeCoeffsG1(commons.G1.AlphaTau, n) // [L_{ω⁰}(ατ)]₁, [L_{ω¹}(ατ)]₁, ...
-	coeffBetaTau1 := lagrangeCoeffsG1(commons.G1.BetaTau, n)   // [L_{ω⁰}(βτ)]₁, [L_{ω¹}(βτ)]₁, ...
-
 	nbInternal, nbSecret, nbPublic := r1cs.GetNbVariables()
 	nWires := nbInternal + nbSecret + nbPublic
 	var evals Phase2Evaluations
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 	evals.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentInfo.CommitmentIndexes(), nbPublic)
-	evals.G1.A = make([]curve.G1Affine, nWires) // recall: A are the left coefficients in DIZK parlance
-	evals.G1.B = make([]curve.G1Affine, nWires) // recall: B are the right coefficients in DIZK parlance
-	evals.G2.B = make([]curve.G2Affine, nWires) // recall: A only appears in 𝔾₁ elements in the proof, but B needs to appear in a 𝔾₂ element so the verifier can compute something resembling (A.x).(B.x) via pairings
+	evals.G1.A = make([]curve.G1Affine, nWires)
+	evals.G1.B = make([]curve.G1Affine, nWires)
+	evals.G2.B = make([]curve.G2Affine, nWires)
 	bA := make([]curve.G1Affine, nWires)
 	aB := make([]curve.G1Affine, nWires)
 	C := make([]curve.G1Affine, nWires)
 
-	i := 0
+	// Process constraints in batches to reduce memory usage
+	batchSize := 1000
 	it := r1cs.GetR1CIterator()
-	for c := it.Next(); c != nil; c = it.Next() {
-		// each constraint is sparse, i.e. involves a small portion of all variables.
-		// so we iterate over the variables involved and add the constraint's contribution
-		// to every variable's A, B, and C values
+	
+	for i := 0; i < n; i += batchSize {
+		end := i + batchSize
+		if end > n {
+			end = n
+		}
+		
+		// Compute coefficients for current batch
+		coeffTau1 := lagrangeCoeffsG1(commons.G1.Tau[i:end], end-i)
+		coeffTau2 := lagrangeCoeffsG2(commons.G2.Tau[i:end], end-i)
+		coeffAlphaTau1 := lagrangeCoeffsG1(commons.G1.AlphaTau[i:end], end-i)
+		coeffBetaTau1 := lagrangeCoeffsG1(commons.G1.BetaTau[i:end], end-i)
 
-		// A
-		for _, t := range c.L {
-			accumulateG1(&evals.G1.A[t.WireID()], t, &coeffTau1[i])
-			accumulateG1(&bA[t.WireID()], t, &coeffBetaTau1[i])
+		// Process constraints in current batch
+		for j := i; j < end; j++ {
+			c := it.Next()
+			if c == nil {
+				break
+			}
+
+			// A
+			for _, t := range c.L {
+				accumulateG1(&evals.G1.A[t.WireID()], t, &coeffTau1[j-i])
+				accumulateG1(&bA[t.WireID()], t, &coeffBetaTau1[j-i])
+			}
+			// B
+			for _, t := range c.R {
+				accumulateG1(&evals.G1.B[t.WireID()], t, &coeffTau1[j-i])
+				accumulateG2(&evals.G2.B[t.WireID()], t, &coeffTau2[j-i])
+				accumulateG1(&aB[t.WireID()], t, &coeffAlphaTau1[j-i])
+			}
+			// C
+			for _, t := range c.O {
+				accumulateG1(&C[t.WireID()], t, &coeffTau1[j-i])
+			}
 		}
-		// B
-		for _, t := range c.R {
-			accumulateG1(&evals.G1.B[t.WireID()], t, &coeffTau1[i])
-			accumulateG2(&evals.G2.B[t.WireID()], t, &coeffTau2[i])
-			accumulateG1(&aB[t.WireID()], t, &coeffAlphaTau1[i])
-		}
-		// C
-		for _, t := range c.O {
-			accumulateG1(&C[t.WireID()], t, &coeffTau1[i])
-		}
-		i++
 	}
 
 	// Prepare default contribution
@@ -251,7 +263,6 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	p.Parameters.G2.Delta = g2
 
 	// Build Z in PK as τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
-	// τⁱ(τⁿ - 1)  = τ⁽ⁱ⁺ⁿ⁾ - τⁱ  for i ∈ [0, n-2]
 	p.Parameters.G1.Z = make([]curve.G1Affine, n)
 	for i := range n - 1 {
 		p.Parameters.G1.Z[i].Sub(&commons.G1.Tau[i+n], &commons.G1.Tau[i])
@@ -274,11 +285,11 @@ func (p *Phase2) Initialize(r1cs *cs.R1CS, commons *SrsCommons) Phase2Evaluation
 	nbCommitted := internal.NbElements(commitments.GetPrivateCommitted())
 
 	// Evaluate PKK
-
 	p.Parameters.G1.PKK = make([]curve.G1Affine, 0, nbInternal+nbSecret-nbCommitted-len(commitments))
 	evals.G1.VKK = make([]curve.G1Affine, 0, nbPublic+len(commitments))
 	committedIterator := internal.NewMergeIterator(commitments.GetPrivateCommitted())
 	nbCommitmentsSeen := 0
+
 	for j := 0; j < nWires; j++ {
 		// since as yet δ, γ = 1, the VKK and PKK are computed identically, as βA + αB + C
 		var tmp curve.G1Affine
@@ -335,4 +346,80 @@ func (p *Phase2) hash() []byte {
 		panic(err)
 	}
 	return sha.Sum(nil)
+}
+
+// Phase2Contribution represents a participant's contribution to Phase2
+type Phase2Contribution struct {
+	// TauG2 is a point on the G2 curve obtained as a result of Phase2
+	TauG2 curve.G2Affine
+}
+
+// GeneratePhase2Contribution generates a contribution for Phase2 using provided options
+func GeneratePhase2Contribution(options *Phase2Options) (*Phase2Contribution, error) {
+	if options == nil {
+		options = DefaultPhase2Options()
+	}
+
+	// Generate random tau value
+	tau := new(fr.Element)
+	randomBytes := make([]byte, fr.Bytes)
+	if _, err := io.ReadFull(options.RandomSource, randomBytes); err != nil {
+		return nil, err
+	}
+	tau.SetBytes(randomBytes)
+
+	// Compute tau * G2
+	var tauG2 curve.G2Affine
+	tauG2.ScalarMultiplication(&curve.G2Affine{}, tau.ToBigIntRegular(new(big.Int)))
+
+	return &Phase2Contribution{
+		TauG2: tauG2,
+	}, nil
+}
+
+// GeneratePhase2ContributionWithDefaultOptions generates a Phase2 contribution with default options
+func GeneratePhase2ContributionWithDefaultOptions() (*Phase2Contribution, error) {
+	return GeneratePhase2Contribution(DefaultPhase2Options())
+}
+
+// NewPhase2 creates a new Phase2 instance with specified options
+func NewPhase2(options *Phase2Options) *Phase2 {
+	if options == nil {
+		options = DefaultPhase2Options()
+	}
+	return &Phase2{
+		options: options,
+	}
+}
+
+// DefaultRandomSource returns the default random source
+func DefaultRandomSource() io.Reader {
+	return bytes.NewReader(make([]byte, 32))
+}
+
+// GenerateContribution generates a contribution for Phase2
+func (p *Phase2) GenerateContribution() error {
+	// Use random source from options
+	randomSource := p.options.RandomSource
+	if randomSource == nil {
+		randomSource = DefaultRandomSource()
+	}
+
+	// Generate random value
+	randomBytes := make([]byte, fr.Bytes)
+	if _, err := io.ReadFull(randomSource, randomBytes); err != nil {
+		return err
+	}
+
+	// Create field element from random bytes
+	tau := new(fr.Element)
+	tau.SetBytes(randomBytes)
+
+	// Update Phase2 parameters
+	p.update(tau, nil)
+
+	// Generate update proofs
+	p.Contribute()
+
+	return nil
 }
