@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -306,4 +307,38 @@ func TestECPairBLSBLSMulBatch(t *testing.T) {
 		}, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
+}
+
+// 16: mapToG1 check
+type eCMapToG1BLSCircuit struct {
+	A emulated.Element[emulated.BLS12381Fp]
+	R sw_bls12381.G1Affine
+}
+
+func (c *eCMapToG1BLSCircuit) Define(api frontend.API) error {
+
+	g, err := sw_bls12381.NewG1(api)
+	if err != nil {
+		return fmt.Errorf("new G1: %w", err)
+	}
+	r := ECMapToG1BLS(api, &c.A)
+	g.AssertIsEqual(r, &c.R)
+
+	return nil
+}
+
+func TestECMapToG1(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	var a fp.Element
+	a.SetRandom()
+	g := bls12381.MapToG1(a)
+
+	witness := eCMapToG1BLSCircuit{
+		A: emulated.ValueOf[emulated.BLS12381Fp](a.String()),
+		R: sw_bls12381.NewG1Affine(g),
+	}
+
+	err := test.IsSolved(&eCMapToG1BLSCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }

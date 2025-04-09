@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
@@ -113,5 +114,34 @@ func TestMapToG1(t *testing.T) {
 		R: NewG1Affine(g),
 	}
 	err := test.IsSolved(&MapToG1Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type IsogenyG1Circuit struct {
+	In  G1Affine
+	Res G1Affine
+}
+
+func (c *IsogenyG1Circuit) Define(api frontend.API) error {
+	g, err := NewG1(api)
+	if err != nil {
+		return err
+	}
+	res := g.isogeny(&c.In)
+	g.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestIsogenyG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	in, _ := randomG1G2Affines()
+	var res bls12381.G1Affine
+	res.Set(&in)
+	hash_to_curve.G1Isogeny(&res.X, &res.Y)
+	witness := IsogenyG1Circuit{
+		In:  NewG1Affine(in),
+		Res: NewG1Affine(res),
+	}
+	err := test.IsSolved(&IsogenyG1Circuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
