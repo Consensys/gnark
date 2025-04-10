@@ -94,7 +94,7 @@ func (w Wire) unhashedFinalEvalProofElemIndex() int {
 			continue
 		}
 
-		if w.Inputs[i].Gate.SolvableVar() != -1 {
+		if i == w.Gate.SolvableVar() {
 			return indexInProof
 		}
 
