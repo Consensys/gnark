@@ -156,7 +156,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []small_rational.S
 				// defer verification, store new claim
 				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
 				proofI++
-			} // TODO WHERE ARE THE INPUT EVALS ADDED TO FS TRANSCRIPT?
+			}
 			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
 		}
 		if proofI != len(inputEvaluationsNoRedundancy) {
