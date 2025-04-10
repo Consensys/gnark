@@ -164,7 +164,7 @@ func BenchmarkSolve(b *testing.B) {
 
 	b.Run("r1cs", func(b *testing.B) {
 		var c circuit
-		ccs, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), scs.NewBuilder, &c, frontend.WithCompressThreshold(10))
+		ccs, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), r1cs.NewBuilder, &c, frontend.WithCompressThreshold(10))
 		if err != nil {
 			b.Fatal(err)
 		}
