@@ -36,7 +36,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	if !constraint.FitsElement[constraint.U64](field) {
 		return nil, fmt.Errorf("field %s is not compatible with U64", field)
 	}
-	return compile(field, newBuilder, circuit, opts...)
+	return CompileGeneric(field, newBuilder, circuit, opts...)
 }
 
 // CompileU32 is a variant of [Compile] which is optimized for small field
@@ -48,10 +48,14 @@ func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts 
 	if !constraint.FitsElement[constraint.U32](field) {
 		return nil, fmt.Errorf("field %s is not compatible with U32", field)
 	}
-	return compile(field, newBuilder, circuit, opts...)
+	return CompileGeneric(field, newBuilder, circuit, opts...)
 }
 
-func compile[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
+// CompileGeneric is a generic version of [Compile] and [CompileU32]. It is
+// mainly for allowing for type switching, for users the methods [Compile] and
+// [CompileU32] are more convenient as are explicitily constrained to specific
+// types.
+func CompileGeneric[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
