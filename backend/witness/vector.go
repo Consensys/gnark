@@ -14,6 +14,7 @@ import (
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/field/babybear"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -41,6 +42,9 @@ func newVector(field *big.Int, size int) (any, error) {
 		}
 		if field.Cmp(babybear.Modulus()) == 0 {
 			return make(babybear.Vector, size), nil
+		}
+		if field.Cmp(koalabear.Modulus()) == 0 {
+			return make(koalabear.Vector, size), nil
 		}
 		return nil, errors.New("unsupported modulus")
 	}
@@ -84,6 +88,10 @@ func newFrom(from any, n int) (any, error) {
 		a := make(babybear.Vector, n)
 		copy(a, wt)
 		return a, nil
+	case koalabear.Vector:
+		a := make(koalabear.Vector, n)
+		copy(a, wt)
+		return a, nil
 	default:
 		return nil, errors.New("unsupported modulus")
 	}
@@ -107,6 +115,10 @@ func leafType(v any) reflect.Type {
 		return reflect.TypeOf(fr_bw6633.Element{})
 	case tinyfield.Vector:
 		return reflect.TypeOf(tinyfield.Element{})
+	case babybear.Vector:
+		return reflect.TypeOf(babybear.Element{})
+	case koalabear.Vector:
+		return reflect.TypeOf(koalabear.Element{})
 	default:
 		panic("invalid input")
 	}
@@ -163,6 +175,12 @@ func set(v any, index int, value any) error {
 		_, err := pv[index].SetInterface(value)
 		return err
 	case babybear.Vector:
+		if index >= len(pv) {
+			return errors.New("out of bounds")
+		}
+		_, err := pv[index].SetInterface(value)
+		return err
+	case koalabear.Vector:
 		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
@@ -232,6 +250,20 @@ func iterate(v any) chan any {
 			}
 			close(chValues)
 		}()
+	case babybear.Vector:
+		go func() {
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
+			}
+			close(chValues)
+		}()
+	case koalabear.Vector:
+		go func() {
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
+			}
+			close(chValues)
+		}()
 	default:
 		panic("invalid input")
 	}
@@ -258,6 +290,8 @@ func resize(v any, n int) any {
 		return make(tinyfield.Vector, n)
 	case babybear.Vector:
 		return make(babybear.Vector, n)
+	case koalabear.Vector:
+		return make(koalabear.Vector, n)
 	default:
 		panic("invalid input")
 	}
