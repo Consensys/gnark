@@ -66,7 +66,7 @@ func TestCircuitCompile(t *testing.T) {
 	for _, bb := range []struct {
 		builder frontend.NewBuilder
 		tag     string
-	}{{scs.NewBuilder, "scs"}, {r1cs.NewBuilder[constraint.U64], "r1cs"}} {
+	}{{scs.NewBuilder[constraint.U64], "scs"}, {r1cs.NewBuilder[constraint.U64], "r1cs"}} {
 		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), bb.builder, &Circuit{})
 		assert.NoError(err)
 		f, err := os.Create("testdata/issue1045." + bb.tag)
