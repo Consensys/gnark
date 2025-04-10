@@ -7,6 +7,7 @@ package cs_test
 
 import (
 	"bytes"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -30,7 +31,7 @@ func TestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 
-			r1cs1, err := frontend.CompileU32(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,7 +40,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// compile a second time to ensure determinism
-			r1cs2, err := frontend.CompileU32(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +147,7 @@ func BenchmarkSolve(b *testing.B) {
 
 	b.Run("scs", func(b *testing.B) {
 		var c circuit
-		ccs, err := frontend.Compile(fr.Modulus(), scs.NewBuilder, &c)
+		ccs, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), scs.NewBuilder, &c)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -160,7 +161,7 @@ func BenchmarkSolve(b *testing.B) {
 
 	b.Run("r1cs", func(b *testing.B) {
 		var c circuit
-		ccs, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, &c, frontend.WithCompressThreshold(10))
+		ccs, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), scs.NewBuilder, &c, frontend.WithCompressThreshold(10))
 		if err != nil {
 			b.Fatal(err)
 		}
