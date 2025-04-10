@@ -109,6 +109,37 @@ func (w Wire) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
+// unhashedFinalEvalProofElemIndex returns the index of a
+// value in the final evaluation proof whose hashing can
+// safely be skipped, due to its solvability.
+// If no such value exists, it returns -1.
+func (w Wire) unhashedFinalEvalProofElemIndex() int {
+	if w.Gate.SolvableVar() == -1 {
+		return -1
+	}
+	indexInProof := 0
+	visited := make(map[*Wire]struct{}, len(w.Inputs))
+	for i := range w.Inputs { // it is possible in case of repeated values that this optimization
+		// goes to waste: for example if g := x^2 + y + z, given the input (w', w', w").
+		// only y is recorded as a solvable variable, but it is already excluded from hashing because
+		// it is getting a repeated input.
+		// If we had recorded ALL solvable vars, we could have also skipped the hashing of z.
+		// But it is rather strange for a user to define a circuit that way.
+
+		if _, ok := visited[w.Inputs[i]]; ok {
+			continue
+		}
+
+		if i == w.Gate.SolvableVar() {
+			return indexInProof
+		}
+
+		visited[w.Inputs[i]] = struct{}{}
+		indexInProof++
+	}
+	return -1
+}
+
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment map[*Wire]polynomial.MultiLin
 
@@ -357,6 +388,19 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenge
 	return
 }
 
+// getBaseChallenge returns parts of the prover's final evaluation claims
+// that need to be incorporated in the Fiat-Shamir transcript.
+func getBaseChallenge(wire *Wire, finalEvalProof []frontend.Variable) []frontend.Variable {
+	baseChallenge := make([]frontend.Variable, 0, len(finalEvalProof))
+	skipHashingOf := wire.unhashedFinalEvalProofElemIndex()
+	for j := range finalEvalProof {
+		if j != skipHashingOf {
+			baseChallenge = append(baseChallenge, finalEvalProof[j])
+		}
+	}
+	return baseChallenge
+}
+
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
 func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
@@ -398,7 +442,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		} else if err = sumcheck.Verify(
 			api, claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil {
-			baseChallenge = proofW.FinalEvalProof
+			baseChallenge = getBaseChallenge(wire, proofW.FinalEvalProof)
 		} else {
 			return err
 		}
