@@ -172,7 +172,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 	// the w(...) term
 	var gateEvaluation fr.Element
 	if e.wire.IsInput() { // just compute w(r)
-		if inputEvaluationsNoRedundancy != nil {
+		if len(inputEvaluationsNoRedundancy) != 0 {
 			return errors.New("final evaluation proof not needed for input wire")
 		}
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
