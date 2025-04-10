@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -29,34 +30,12 @@ import (
 // This method only works under the test engine and should only be called to debug a GKR circuit, as the GKR prover's errors can be obscure.
 func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable {
 	res := make([][]frontend.Variable, len(api.toStore.Circuit))
-	degreeTestedGates := make(map[string]struct{})
+	var degreeTestedGates sync.Map
 	for i, w := range api.toStore.Circuit {
 		res[i] = make([]frontend.Variable, api.nbInstances())
 		copy(res[i], api.assignments[i])
 		if len(w.Inputs) == 0 {
 			continue
-		}
-		degree := Gates[w.Gate].Degree()
-		var degreeFr int
-		if parentApi.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-			degreeFr = gkrBls12377.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BN254.ScalarField()) == 0 {
-			degreeFr = gkrBn254.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-			degreeFr = gkrBls24315.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BW6_761.ScalarField()) == 0 {
-			degreeFr = gkrBw6761.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-			degreeFr = gkrBls12381.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-			degreeFr = gkrBls24317.Gates[w.Gate].Degree()
-		} else if parentApi.Compiler().Field().Cmp(ecc.BW6_633.ScalarField()) == 0 {
-			degreeFr = gkrBw6633.Gates[w.Gate].Degree()
-		} else {
-			panic("field not yet supported")
-		}
-		if degree != degreeFr {
-			panic(fmt.Errorf("gate \"%s\" degree mismatch: SNARK %d, Raw %d", w.Gate, degree, degreeFr))
 		}
 	}
 	for instanceI := range api.nbInstances() {
@@ -84,11 +63,11 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 				for i, in := range w.Inputs {
 					ins[i] = res[in][instanceI]
 				}
-				expectedV, err := parentApi.Compiler().NewHint(frGateHint(w.Gate, degreeTestedGates), 1, ins...)
+				expectedV, err := parentApi.Compiler().NewHint(frGateHint(GateName(w.Gate), &degreeTestedGates), 1, ins...)
 				if err != nil {
 					panic(err)
 				}
-				res[wireI][instanceI] = Gates[w.Gate].Evaluate(parentApi, ins...)
+				res[wireI][instanceI] = GetGate(GateName(w.Gate)).Evaluate(parentApi, ins...)
 				parentApi.AssertIsEqual(expectedV[0], res[wireI][instanceI]) // snark and raw gate evaluations must agree
 			}
 		}
@@ -96,23 +75,27 @@ func (api *API) SolveInTestEngine(parentApi frontend.API) [][]frontend.Variable 
 	return res
 }
 
-func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hint {
+func frGateHint(gateName GateName, degreeTestedGates *sync.Map) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
+		const dummyGateName = "dummy-solve-in-test-engine-gate"
+		var degreeFr, nbInFr, solvableVarFr int
 		if len(outs) != 1 {
 			return errors.New("gate must have one output")
 		}
 		if ecc.BLS12_377.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls12377.Gates[gateName]
+			gate := gkrBls12377.GetGate(gkrBls12377.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBls12377.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBls12377.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls12377.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBls12377.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -120,17 +103,19 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BN254.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBn254.Gates[gateName]
+			gate := gkrBn254.GetGate(gkrBn254.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBn254.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBn254.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBn254.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBn254.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -138,17 +123,19 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS24_315.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls24315.Gates[gateName]
+			gate := gkrBls24315.GetGate(gkrBls24315.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBls24315.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBls24315.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls24315.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBls24315.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -156,17 +143,19 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BW6_761.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBw6761.Gates[gateName]
+			gate := gkrBw6761.GetGate(gkrBw6761.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBw6761.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBw6761.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBw6761.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBw6761.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -174,17 +163,19 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS12_381.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls12381.Gates[gateName]
+			gate := gkrBls12381.GetGate(gkrBls12381.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBls12381.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBls12381.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls12381.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBls12381.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -192,17 +183,19 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BLS24_317.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBls24317.Gates[gateName]
+			gate := gkrBls24317.GetGate(gkrBls24317.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBls24317.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBls24317.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBls24317.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
-
 			x := make([]frBls24317.Element, len(ins))
 			for i := range ins {
 				x[i].SetBigInt(ins[i])
@@ -210,15 +203,18 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 			y := gate.Evaluate(x...)
 			y.BigInt(outs[0])
 		} else if ecc.BW6_633.ScalarField().Cmp(mod) == 0 {
-			gate := gkrBw6633.Gates[gateName]
+			gate := gkrBw6633.GetGate(gkrBw6633.GateName(gateName))
 			if gate == nil {
 				return fmt.Errorf("gate \"%s\" not found", gateName)
 			}
-			if _, ok := degreeTestedGates[gateName]; !ok {
-				if err := gkrBw6633.TestGateDegree(gate, len(ins)); err != nil {
-					return fmt.Errorf("gate %s: %w", gateName, err)
+			degreeFr = gate.Degree()
+			nbInFr = gate.NbIn()
+			solvableVarFr = gate.SolvableVar()
+			if _, ok := degreeTestedGates.Load(gateName); !ok {
+				// re-register the gate to make sure the degree is correct
+				if err := gkrBw6633.RegisterGate(dummyGateName, gate.Evaluate, nbInFr, gkrBw6633.WithDegree(degreeFr)); err != nil {
+					return err
 				}
-				degreeTestedGates[gateName] = struct{}{}
 			}
 			x := make([]frBw6633.Element, len(ins))
 			for i := range ins {
@@ -229,6 +225,21 @@ func frGateHint(gateName string, degreeTestedGates map[string]struct{}) hint.Hin
 		} else {
 			return errors.New("field not supported")
 		}
+
+		degreeTestedGates.Store(gateName, struct{}{})
+
+		if degreeFr != GetGate(gateName).Degree() {
+			return fmt.Errorf("gate \"%s\" degree mismatch: SNARK %d, Raw %d", gateName, GetGate(gateName).Degree(), degreeFr)
+		}
+
+		if nbInFr != len(ins) { // TODO @Tabaie also check against GetGate(gateName].NbIn()
+			return fmt.Errorf("gate \"%s\" input count mismatch: SNARK %d, Raw %d", gateName, len(ins), nbInFr)
+		}
+
+		if solvableVarFr != GetGate(gateName).SolvableVar() {
+			return fmt.Errorf("gate \"%s\" designated solvable variable mismatch: SNARK %d, Raw %d", gateName, GetGate(gateName).SolvableVar(), solvableVarFr)
+		}
+
 		return nil
 	}
 }

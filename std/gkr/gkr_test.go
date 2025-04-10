@@ -249,8 +249,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		var found bool
-		if circuit[i].Gate, found = Gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+		if circuit[i].Gate = GetGate(GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -258,18 +257,10 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 	return
 }
 
-type _select int
-
 func init() {
-	Gates["select-input-3"] = _select(2)
-}
-
-func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
-	return in[g]
-}
-
-func (g _select) Degree() int {
-	return 1
+	panicIfError(RegisterGate("select-input-3", func(api GateAPI, in ...frontend.Variable) frontend.Variable {
+		return in[2]
+	}, 3, WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof

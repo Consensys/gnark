@@ -722,7 +722,7 @@ func (builder *builder[E]) ToCanonicalVariable(v frontend.Variable) frontend.Can
 //
 // The method only returns a single pair (constraintID, wireLocation) for every
 // unique wire (removing duplicates). The order of the returned pairs is not the
-// same as for the given arguments.
+// same as for the given arguments. It is however, deterministic order.
 func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
 	// construct a lookup table table for later quick access when iterating over instructions
 	lookup := make(map[int]struct{})
@@ -772,6 +772,133 @@ func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMiss
 	}
 	if len(lookup) > 0 {
 		return nil, fmt.Errorf("constraint with wire not found in circuit")
+	}
+	return res, nil
+}
+
+// GetWiresConstraintExact works as [GetWireConstraints], but returns an
+// exact wire for each constraint. That is if the caller passes the same wire
+// several times at different positions in [vars], it will not deduplicate
+// unlike [GetWireConstraints]. The function has also a different way to deal
+// with constants and missing wires. If the same variabes is passed, then the
+// same wire ID is returned. The function returns the first occurrence of the
+// wire in the constraint system, by order of the constraints.
+//
+//   - If a variable is a constant. It will introduct an adhoc term and it will
+//     be reused each time the constant appears.
+//
+//   - The function tolerates that a wire is missing if addMissing is true even
+//     if the wire is not a witness element. This is allows supporting variables
+//     that are constrained through hints only.
+//
+// For instance,
+// ```
+//
+//	GetWiresConstraintsExact([]frontend.Variable{a, a, b, a, c}) => wa, wa, wb, wa, wc
+//
+// ```
+//
+// while,
+//
+// ```
+//
+//	GetWiresConstraintsNoDuplicate([]frontend.Variable{a, a, b, a, c}) => wa, wb, wc
+//
+// ```
+func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
+
+	// wireIDsSet stores the indices of all the wires involved in the input.
+	// We want to ensure that all the stored variables do corresponds to
+	// canonical variables: therefore not to constants and not too terms
+	// with a coeff different from 1. This may add constraints but has the
+	// benefit of making it simpler to read the LRO values.
+	var (
+		wireIDsSet = make(map[int]struct{})
+		wireTerms  = make([]expr.Term[E], len(wires))
+
+		// constantWiresMap registers the wires that we create to represent
+		// the constants that appear in the input. It helps avoiding to
+		// create too many unncessary adhoc terms for the same constant.
+		constantWiresMap = make(map[E]expr.Term[E])
+	)
+
+	for i, w := range wires {
+		ww, ok := w.(expr.Term[E])
+		if !ok {
+			// In the case of a Plonk circuit. It will only cover the case
+			// where "w" was a constant. There, we can assume that this
+			// condition and the next one are mutually exclusive.
+			c := builder.cs.FromInterface(w)
+			o, oWasFound := constantWiresMap[c]
+			if !oWasFound {
+				o = builder.newInternalVariable()
+				constantWiresMap[c] = o
+				builder.addAddGate(expr.Term[E]{}, expr.Term[E]{}, uint32(o.VID), c)
+			}
+			ww = o
+		}
+
+		if ww.Coeff != builder.tOne {
+			o := builder.newInternalVariable()
+			var zero E
+			builder.addAddGate(ww, expr.Term[E]{}, uint32(o.VID), zero)
+			ww = o
+		}
+
+		wireIDsSet[ww.VID] = struct{}{}
+		wireTerms[i] = ww
+	}
+
+	// This loop attempts to find the wire IDs in the constraint system and
+	// gives a localization for each. The loop removes items from [wireIDsSets]
+	// when they are found. This will allow us to identify the wires that are
+	// missing from the constraint system. This can happen when wires are
+	// unconstrained.
+	var (
+		foundWireIDPosition = make(map[int][2]int)
+		nbPub               = builder.cs.GetNbPublicVariables()
+		iterator            = builder.cs.GetSparseR1CIterator()
+	)
+
+	for c, constraintIdx := iterator.Next(), 0; c != nil; c, constraintIdx = iterator.Next(), constraintIdx+1 {
+		if _, ok := wireIDsSet[int(c.XA)]; ok {
+			foundWireIDPosition[int(c.XA)] = [2]int{nbPub + constraintIdx, 0}
+			delete(wireIDsSet, int(c.XA))
+		}
+		if _, ok := wireIDsSet[int(c.XB)]; ok {
+			foundWireIDPosition[int(c.XB)] = [2]int{nbPub + constraintIdx, 1}
+			delete(wireIDsSet, int(c.XB))
+		}
+		if _, ok := wireIDsSet[int(c.XC)]; ok {
+			foundWireIDPosition[int(c.XC)] = [2]int{nbPub + constraintIdx, 2}
+			delete(wireIDsSet, int(c.XC))
+		}
+		if len(wireIDsSet) == 0 {
+			// we can break early if we found constraints for all the wires
+			break
+		}
+	}
+
+	if addMissing {
+		for k := range wireIDsSet {
+			constraintIdx := builder.cs.AddSparseR1C(constraint.SparseR1C{
+				XA: uint32(k),
+				XC: uint32(k),
+				QL: constraint.CoeffIdOne,
+				QO: constraint.CoeffIdMinusOne,
+			}, builder.genericGate)
+			foundWireIDPosition[k] = [2]int{nbPub + constraintIdx, 0}
+			delete(wireIDsSet, k)
+		}
+	}
+
+	if len(wireIDsSet) > 0 {
+		return nil, fmt.Errorf("wires not found in constraint system: %v", wireIDsSet)
+	}
+
+	res := make([][2]int, len(wires))
+	for i, w := range wireTerms {
+		res[i] = foundWireIDPosition[w.VID]
 	}
 	return res, nil
 }
