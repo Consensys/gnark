@@ -73,6 +73,37 @@ func (w Wire) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
+// unhashedFinalEvalProofElemIndex returns the index of a
+// value in the final evaluation proof whose hashing can
+// safely be skipped, due to its solvability.
+// If no such value exists, it returns -1.
+func (w Wire) unhashedFinalEvalProofElemIndex() int {
+	if w.Gate.SolvableVar() == -1 {
+		return -1
+	}
+	indexInProof := 0
+	visited := make(map[*Wire]struct{}, len(w.Inputs))
+	for i := range w.Inputs { // it is possible in case of repeated values that this optimization
+		// goes to waste: for example if g := x^2 + y + z, given the input (w', w', w").
+		// only y is recorded as a solvable variable, but it is already excluded from hashing because
+		// it is getting a repeated input.
+		// If we had recorded ALL solvable vars, we could have also skipped the hashing of z.
+		// But it is rather strange for a user to define a circuit that way.
+
+		if _, ok := visited[w.Inputs[i]]; ok {
+			continue
+		}
+
+		if w.Inputs[i].Gate.SolvableVar() != -1 {
+			return indexInProof
+		}
+
+		visited[w.Inputs[i]] = struct{}{}
+		indexInProof++
+	}
+	return -1
+}
+
 func (c Circuit) maxGateDegree() int {
 	res := 1
 	for i := range c {
@@ -141,6 +172,9 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, comb
 	// the w(...) term
 	var gateEvaluation fr.Element
 	if e.wire.IsInput() { // just compute w(r)
+		if len(inputEvaluationsNoRedundancy) != 0 {
+			return errors.New("final evaluation proof not needed for input wire")
+		}
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		inputEvaluations := make([]fr.Element, len(e.wire.Inputs))
@@ -377,13 +411,13 @@ func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []fr.Element) []fr.Elem
 
 	//defer the proof, return list of claims
 	evaluations := make([]fr.Element, 0, len(c.wire.Inputs))
-	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
-	noMoreClaimsAllowed[c.wire] = struct{}{}
+	visited := make(map[*Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
+	visited[c.wire] = struct{}{}
 
 	for inI, in := range c.wire.Inputs {
 		wI := c.input[inI]
-		if _, found := noMoreClaimsAllowed[in]; !found {
-			noMoreClaimsAllowed[in] = struct{}{}
+		if _, found := visited[in]; !found {
+			visited[in] = struct{}{}
 			wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
 			c.manager.add(in, r, wI[0])
 			evaluations = append(evaluations, wI[0])
@@ -624,6 +658,19 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Elem
 	return res, nil
 }
 
+// getBaseChallenge returns parts of the prover's final evaluation claims
+// that need to be incorporated in the Fiat-Shamir transcript.
+func getBaseChallenge(wire *Wire, finalEvalProof []fr.Element) [][]byte {
+	baseChallenge := make([][]byte, 0, len(finalEvalProof))
+	skipHashingOf := wire.unhashedFinalEvalProofElemIndex()
+	for j := range finalEvalProof {
+		if j != skipHashingOf {
+			baseChallenge = append(baseChallenge, finalEvalProof[j].Marshal())
+		}
+	}
+	return baseChallenge
+}
+
 // Prove consistency of the claimed assignment
 func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
 	o, err := setup(c, assignment, transcriptSettings, options...)
@@ -664,11 +711,7 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 			); err != nil {
 				return proof, err
 			}
-
-			baseChallenge = make([][]byte, len(proof[i].FinalEvalProof))
-			for j := range proof[i].FinalEvalProof {
-				baseChallenge[j] = proof[i].FinalEvalProof[j].Marshal()
-			}
+			baseChallenge = getBaseChallenge(wire, proof[i].FinalEvalProof)
 		}
 		// the verifier checks a single claim about input wires itself
 		claims.deleteClaim(wire)
@@ -721,10 +764,7 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 		} else if err = sumcheck.Verify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil { // incorporate prover claims about w's input into the transcript
-			baseChallenge = make([][]byte, len(proofW.FinalEvalProof))
-			for j := range baseChallenge {
-				baseChallenge[j] = proofW.FinalEvalProof[j].Marshal()
-			}
+			baseChallenge = getBaseChallenge(wire, proof[i].FinalEvalProof)
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
 		}
