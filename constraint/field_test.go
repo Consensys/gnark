@@ -142,6 +142,24 @@ func TestFitsElement(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewElement(t *testing.T) {
+	assert := require.New(t)
+	assert.Panics(func() {
+		NewElement[U64](nil)
+	})
+	assert.Panics(func() {
+		NewElement[U32](nil)
+	})
+	for _, l := range []int{0, 1, 2, 3, 5, 6} {
+		assert.Panics(func() {
+			NewElement[U32](make([]byte, l))
+		})
 	}
+	for _, l := range []int{0, 1, 2, 3, 4, 5, 7, 8, 9} {
+		assert.Panics(func() {
+			NewElement[U64](make([]byte, l))
+		})
 	}
 }
