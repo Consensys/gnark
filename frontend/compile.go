@@ -53,7 +53,7 @@ func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts 
 
 // CompileGeneric is a generic version of [Compile] and [CompileU32]. It is
 // mainly for allowing for type switching, for users the methods [Compile] and
-// [CompileU32] are more convenient as are explicitily constrained to specific
+// [CompileU32] are more convenient as are explicitly constrained to specific
 // types.
 func CompileGeneric[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
