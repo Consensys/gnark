@@ -87,6 +87,15 @@ func main() {
 		NoGKR:       true,
 		ElementType: "U32",
 	}
+	koala_bear_field := templateData{
+		CSPath:      "../../../constraint/koalabear/",
+		Curve:       "koalabear",
+		CurveID:     "UNKNOWN",
+		OnlyField:   true,
+		noBackend:   true,
+		NoGKR:       true,
+		ElementType: "U32",
+	}
 
 	datas := []templateData{
 		bls12_377,
@@ -98,6 +107,7 @@ func main() {
 		bw6_633,
 		tiny_field,
 		baby_bear_field,
+		koala_bear_field,
 	}
 
 	const importCurve = "../imports.go.tmpl"
