@@ -102,6 +102,45 @@ func TestNewElementRoundtrip(t *testing.T) {
 
 }
 
+func TestFitsElement(t *testing.T) {
+	for _, tc := range []struct {
+		isU32        bool
+		field        *big.Int
+		expectedFits bool
+	}{
+		{false, ecc.BN254.ScalarField(), true},
+		{false, ecc.BLS12_377.ScalarField(), true},
+		{false, ecc.BLS12_381.ScalarField(), true},
+		{false, ecc.BLS24_315.ScalarField(), true},
+		{false, ecc.BLS24_317.ScalarField(), true},
+		{false, ecc.BW6_761.ScalarField(), true},
+		{false, ecc.BW6_633.ScalarField(), true},
+		{false, tinyfield.Modulus(), true},
+		{false, babybear.Modulus(), false},
+		{false, koalabear.Modulus(), false},
+
+		{true, ecc.BN254.ScalarField(), false},
+		{true, ecc.BLS12_377.ScalarField(), false},
+		{true, ecc.BLS12_381.ScalarField(), false},
+		{true, ecc.BLS24_315.ScalarField(), false},
+		{true, ecc.BLS24_317.ScalarField(), false},
+		{true, ecc.BW6_761.ScalarField(), false},
+		{true, ecc.BW6_633.ScalarField(), false},
+		{true, tinyfield.Modulus(), false},
+		{true, babybear.Modulus(), true},
+		{true, koalabear.Modulus(), true},
+	} {
+		t.Run(fmt.Sprintf("isU32=%v,field=%s", tc.isU32, tc.field), func(t *testing.T) {
+			var res bool
+			if tc.isU32 {
+				res = FitsElement[U32](tc.field)
+			} else {
+				res = FitsElement[U64](tc.field)
+			}
+			if res != tc.expectedFits {
+				t.Fatalf("expected %v, got %v", tc.expectedFits, res)
+			}
+		})
 	}
 	}
 	}
