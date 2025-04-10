@@ -35,7 +35,7 @@ import (
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
-// NewBuilder returns a new R1CS builder which implements frontend.API.
+// NewBuilder returns a new R1CS builder which implements [frontend.API].
 // Additionally, this builder also implements [frontend.Committer].
 func NewBuilder[E constraint.Element](field *big.Int, config frontend.CompileConfig) (frontend.Builder[E], error) {
 	return newBuilder[E](field, config), nil
