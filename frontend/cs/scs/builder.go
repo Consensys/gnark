@@ -34,8 +34,8 @@ import (
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
-func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder[constraint.U64], error) {
-	return newBuilder[constraint.U64](field, config), nil
+func NewBuilder[E constraint.Element](field *big.Int, config frontend.CompileConfig) (frontend.Builder[E], error) {
+	return newBuilder[E](field, config), nil
 }
 
 type builder[E constraint.Element] struct {
