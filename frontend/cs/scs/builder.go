@@ -11,6 +11,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/babybear"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
@@ -30,6 +31,7 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6633r1cs "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
+	koalabearr1cs "github.com/consensys/gnark/constraint/koalabear"
 	"github.com/consensys/gnark/constraint/solver"
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
@@ -112,6 +114,10 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 		default:
 			if field.Cmp(babybear.Modulus()) == 0 {
 				bT.cs = babybearr1cs.NewSparseR1CS(config.Capacity)
+				break
+			}
+			if field.Cmp(koalabear.Modulus()) == 0 {
+				bT.cs = koalabearr1cs.NewSparseR1CS(config.Capacity)
 				break
 			}
 			panic("not implemented")
