@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/gkr/bn254/sumcheck"
 	"math/big"
 	"strconv"
 	"sync"
@@ -86,7 +85,7 @@ func (c Circuit) maxGateDegree() int {
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment map[*Wire]polynomial.MultiLin
 
-type Proof []sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
+type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 // eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
@@ -98,25 +97,25 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) ClaimsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) varsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
-// CombinedSum returns ∑ᵢ aⁱ yᵢ
-func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(a fr.Element) fr.Element {
+// combinedSum returns ∑ᵢ aⁱ yᵢ
+func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a fr.Element) fr.Element {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(&a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-// VerifyFinalEval finalizes the verification of w.
+// verifyFinalEval finalizes the verification of w.
 // The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
 // ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
 // Both purportedValue and the vector r have been randomized during the sumcheck protocol.
@@ -128,7 +127,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
@@ -187,7 +186,7 @@ type eqTimesGateEvalSumcheckClaims struct {
 	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
 }
 
-// Combine the multiple claims into one claim using a random combination (combinationCoeff or c).
+// combine the multiple claims into one claim using a random combination (combinationCoeff or c).
 // From the original multiple claims of w(xᵢ) = yᵢ, we get a single claim
 // ∑ᵢ,ₕ cⁱ eq(xᵢ, h) w(h) = ∑ᵢ cⁱ yᵢ, where h iterates over the hypercube (circuit instances) and
 // i iterates over the claims.
@@ -195,11 +194,11 @@ type eqTimesGateEvalSumcheckClaims struct {
 // Thus if we initially compute E := ∑ᵢ cⁱ eq(xᵢ, -), our claim will find the simpler form
 // ∑ᵢ cⁱ yᵢ = ∑ₕ w(h) E(h), where the sum-checked polynomial is of degree deg(g) + 1,
 // and deg(g) is the total degree of the polynomial defining the gate g of which w is the output.
-// The output of Combine is the first sumcheck claim, i.e. ∑₍ₕ₁,ₕ₂,...₎ w(X, h₁, h₂, ...) E(X, h₁, h₂, ...)..
-func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff fr.Element) polynomial.Polynomial {
-	varsNum := c.VarsNum()
+// The output of combine is the first sumcheck claim, i.e. ∑₍ₕ₁,ₕ₂,...₎ w(X, h₁, h₂, ...) E(X, h₁, h₂, ...)..
+func (c *eqTimesGateEvalSumcheckClaims) combine(combinationCoeff fr.Element) polynomial.Polynomial {
+	varsNum := c.varsNum()
 	eqLength := 1 << varsNum
-	claimsNum := c.ClaimsNum()
+	claimsNum := c.claimsNum()
 	// initialize the eq tables ( E )
 	c.eq = c.manager.memPool.Make(eqLength)
 
@@ -339,9 +338,9 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	return gJ
 }
 
-// Next first folds the input and E polynomials at the given verifier challenge then computes the new gⱼ.
+// next first folds the input and E polynomials at the given verifier challenge then computes the new gⱼ.
 // Thus, j <- j+1 and rⱼ = challenge.
-func (c *eqTimesGateEvalSumcheckClaims) Next(challenge fr.Element) polynomial.Polynomial {
+func (c *eqTimesGateEvalSumcheckClaims) next(challenge fr.Element) polynomial.Polynomial {
 	const minBlockSize = 512
 	n := len(c.eq) / 2
 	if n < minBlockSize {
@@ -364,16 +363,16 @@ func (c *eqTimesGateEvalSumcheckClaims) Next(challenge fr.Element) polynomial.Po
 	return c.computeGJ()
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) VarsNum() int {
+func (c *eqTimesGateEvalSumcheckClaims) varsNum() int {
 	return len(c.evaluationPoints[0])
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
+func (c *eqTimesGateEvalSumcheckClaims) claimsNum() int {
 	return len(c.claimedEvaluations)
 }
 
-// ProveFinalEval provides the values wᵢ(r₁, ..., rₙ)
-func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []fr.Element) []fr.Element {
+// proveFinalEval provides the values wᵢ(r₁, ..., rₙ)
+func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
 
 	//defer the proof, return list of claims
 	evaluations := make([]fr.Element, 0, len(c.wire.Inputs))
@@ -654,20 +653,20 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 
 		claim := claims.getClaim(wire)
 		if wire.noProof() { // input wires with one claim only
-			proof[i] = sumcheck.Proof{
-				PartialSumPolys: []polynomial.Polynomial{},
-				FinalEvalProof:  []fr.Element{},
+			proof[i] = sumcheckProof{
+				partialSumPolys: []polynomial.Polynomial{},
+				finalEvalProof:  []fr.Element{},
 			}
 		} else {
-			if proof[i], err = sumcheck.Prove(
+			if proof[i], err = sumcheckProve(
 				claim, fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 			); err != nil {
 				return proof, err
 			}
 
-			baseChallenge = make([][]byte, len(proof[i].FinalEvalProof))
-			for j := range proof[i].FinalEvalProof {
-				baseChallenge[j] = proof[i].FinalEvalProof[j].Marshal()
+			baseChallenge = make([][]byte, len(proof[i].finalEvalProof))
+			for j := range proof[i].finalEvalProof {
+				baseChallenge[j] = proof[i].finalEvalProof[j].Marshal()
 			}
 		}
 		// the verifier checks a single claim about input wires itself
@@ -707,7 +706,7 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 		claim := claims.getLazyClaim(wire)
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(proofW.FinalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
 			}
 
@@ -718,12 +717,12 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 					return errors.New("incorrect input wire claim")
 				}
 			}
-		} else if err = sumcheck.Verify(
+		} else if err = sumcheckVerify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil { // incorporate prover claims about w's input into the transcript
-			baseChallenge = make([][]byte, len(proofW.FinalEvalProof))
+			baseChallenge = make([][]byte, len(proofW.finalEvalProof))
 			for j := range baseChallenge {
-				baseChallenge[j] = proofW.FinalEvalProof[j].Marshal()
+				baseChallenge[j] = proofW.finalEvalProof[j].Marshal()
 			}
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
@@ -868,19 +867,23 @@ func (a WireAssignment) NumVars() int {
 }
 
 // SerializeToBigInts flattens a proof object into the given slice of big.Ints
-// useful in gnark hints. TODO: Change propagation: Once this is merged, it will duplicate some code in std/gkr/bn254Prover.go. Remove that in favor of this
-func (p Proof) SerializeToBigInts(outs []*big.Int) {
+// useful in gnark hints.
+func (p Proof) SerializeToBigInts(outs []*big.Int) error {
 	offset := 0
 	for i := range p {
-		for _, poly := range p[i].PartialSumPolys {
+		for _, poly := range p[i].partialSumPolys {
 			frToBigInts(outs[offset:], poly)
 			offset += len(poly)
 		}
-		if p[i].FinalEvalProof != nil {
-			frToBigInts(outs[offset:], p[i].FinalEvalProof)
-			offset += len(p[i].FinalEvalProof)
+		if p[i].finalEvalProof != nil {
+			frToBigInts(outs[offset:], p[i].finalEvalProof)
+			offset += len(p[i].finalEvalProof)
 		}
 	}
+	if offset != len(outs) {
+		return fmt.Errorf("expected %d elements, got %d", offset, len(outs))
+	}
+	return nil
 }
 
 func frToBigInts(dst []*big.Int, src []fr.Element) {

@@ -62,7 +62,7 @@ func prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	// defines the number of rounds.
 	nbVars := claims.NbVars()
 	proof.RoundPolyEvaluations = make([]nativePolynomial, nbVars)
-	// the first round in the sumcheck is without verifier challenge. Combine challenges and provers sends the first polynomial
+	// the first round in the sumcheck is without verifier challenge. combine challenges and provers sends the first polynomial
 	proof.RoundPolyEvaluations[0] = claims.Combine(combinationCoef)
 
 	challenges := make([]*big.Int, nbVars)
