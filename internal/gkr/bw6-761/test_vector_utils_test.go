@@ -14,20 +14,20 @@ import (
 	"strings"
 )
 
-func ToElement(i int64) *fr.Element {
+func toElement(i int64) *fr.Element {
 	var res fr.Element
 	res.SetInt64(i)
 	return &res
 }
 
-type HashDescription map[string]interface{}
+type hashDescription map[string]interface{}
 
-func HashFromDescription(d HashDescription) (hash.Hash, error) {
+func hashFromDescription(d hashDescription) (hash.Hash, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
 			startState := int64(d["val"].(float64))
-			return &MessageCounter{startState: startState, step: 0, state: startState}, nil
+			return &messageCounter{startState: startState, step: 0, state: startState}, nil
 		default:
 			return nil, fmt.Errorf("unknown fake hash type \"%s\"", _type)
 		}
@@ -35,19 +35,19 @@ func HashFromDescription(d HashDescription) (hash.Hash, error) {
 	return nil, fmt.Errorf("hash description missing type")
 }
 
-type MessageCounter struct {
+type messageCounter struct {
 	startState int64
 	state      int64
 	step       int64
 }
 
-func (m *MessageCounter) Write(p []byte) (n int, err error) {
+func (m *messageCounter) Write(p []byte) (n int, err error) {
 	inputBlockSize := (len(p)-1)/fr.Bytes + 1
 	m.state += int64(inputBlockSize) * m.step
 	return len(p), nil
 }
 
-func (m *MessageCounter) Sum(b []byte) []byte {
+func (m *messageCounter) Sum(b []byte) []byte {
 	inputBlockSize := (len(b)-1)/fr.Bytes + 1
 	resI := m.state + int64(inputBlockSize)*m.step
 	var res fr.Element
@@ -56,52 +56,52 @@ func (m *MessageCounter) Sum(b []byte) []byte {
 	return resBytes[:]
 }
 
-func (m *MessageCounter) Reset() {
+func (m *messageCounter) Reset() {
 	m.state = m.startState
 }
 
-func (m *MessageCounter) Size() int {
+func (m *messageCounter) Size() int {
 	return fr.Bytes
 }
 
-func (m *MessageCounter) BlockSize() int {
+func (m *messageCounter) BlockSize() int {
 	return fr.Bytes
 }
 
-func NewMessageCounter(startState, step int) hash.Hash {
-	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step)}
+func newMessageCounter(startState, step int) hash.Hash {
+	transcript := &messageCounter{startState: int64(startState), state: int64(startState), step: int64(step)}
 	return transcript
 }
 
-func NewMessageCounterGenerator(startState, step int) func() hash.Hash {
+func newMessageCounterGenerator(startState, step int) func() hash.Hash {
 	return func() hash.Hash {
-		return NewMessageCounter(startState, step)
+		return newMessageCounter(startState, step)
 	}
 }
 
-type ListHash []fr.Element
+type listHash []fr.Element
 
-func (h *ListHash) Write(p []byte) (n int, err error) {
+func (h *listHash) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (h *ListHash) Sum(b []byte) []byte {
+func (h *listHash) Sum(b []byte) []byte {
 	res := (*h)[0].Bytes()
 	*h = (*h)[1:]
 	return res[:]
 }
 
-func (h *ListHash) Reset() {
+func (h *listHash) Reset() {
 }
 
-func (h *ListHash) Size() int {
+func (h *listHash) Size() int {
 	return fr.Bytes
 }
 
-func (h *ListHash) BlockSize() int {
+func (h *listHash) BlockSize() int {
 	return fr.Bytes
 }
-func SetElement(z *fr.Element, value interface{}) (*fr.Element, error) {
+func setElement(z *fr.Element, value interface{}) (*fr.Element, error) {
 
 	// TODO: Put this in element.SetString?
 	switch v := value.(type) {
@@ -132,10 +132,10 @@ func SetElement(z *fr.Element, value interface{}) (*fr.Element, error) {
 	return z.SetInterface(value)
 }
 
-func SliceToElementSlice[T any](slice []T) ([]fr.Element, error) {
+func sliceToElementSlice[T any](slice []T) ([]fr.Element, error) {
 	elementSlice := make([]fr.Element, len(slice))
 	for i, v := range slice {
-		if _, err := SetElement(&elementSlice[i], v); err != nil {
+		if _, err := setElement(&elementSlice[i], v); err != nil {
 			return nil, err
 		}
 	}
@@ -185,7 +185,7 @@ func ElementToInterface(x *fr.Element) interface{} {
 	return x.Text(10)
 }
 
-func ElementSliceToInterfaceSlice(x interface{}) []interface{} {
+func elementSliceToInterfaceSlice(x interface{}) []interface{} {
 	if x == nil {
 		return nil
 	}
@@ -200,7 +200,7 @@ func ElementSliceToInterfaceSlice(x interface{}) []interface{} {
 	return res
 }
 
-func ElementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
+func elementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
 	if x == nil {
 		return nil
 	}
@@ -209,7 +209,7 @@ func ElementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
 
 	res := make([][]interface{}, X.Len())
 	for i := range res {
-		res[i] = ElementSliceToInterfaceSlice(X.Index(i).Interface())
+		res[i] = elementSliceToInterfaceSlice(X.Index(i).Interface())
 	}
 
 	return res

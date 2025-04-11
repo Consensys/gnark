@@ -7,15 +7,14 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
 	"reflect"
-	"strings"
 )
 
-func toElement(i int64) *fr.Element {
-	var res fr.Element
+func toElement(i int64) *small_rational.SmallRational {
+	var res small_rational.SmallRational
 	res.SetInt64(i)
 	return &res
 }
@@ -42,15 +41,15 @@ type messageCounter struct {
 }
 
 func (m *messageCounter) Write(p []byte) (n int, err error) {
-	inputBlockSize := (len(p)-1)/fr.Bytes + 1
+	inputBlockSize := (len(p)-1)/small_rational.Bytes + 1
 	m.state += int64(inputBlockSize) * m.step
 	return len(p), nil
 }
 
 func (m *messageCounter) Sum(b []byte) []byte {
-	inputBlockSize := (len(b)-1)/fr.Bytes + 1
+	inputBlockSize := (len(b)-1)/small_rational.Bytes + 1
 	resI := m.state + int64(inputBlockSize)*m.step
-	var res fr.Element
+	var res small_rational.SmallRational
 	res.SetInt64(int64(resI))
 	resBytes := res.Bytes()
 	return resBytes[:]
@@ -61,11 +60,11 @@ func (m *messageCounter) Reset() {
 }
 
 func (m *messageCounter) Size() int {
-	return fr.Bytes
+	return small_rational.Bytes
 }
 
 func (m *messageCounter) BlockSize() int {
-	return fr.Bytes
+	return small_rational.Bytes
 }
 
 func newMessageCounter(startState, step int) hash.Hash {
@@ -79,7 +78,7 @@ func newMessageCounterGenerator(startState, step int) func() hash.Hash {
 	}
 }
 
-type listHash []fr.Element
+type listHash []small_rational.SmallRational
 
 func (h *listHash) Write(p []byte) (n int, err error) {
 	return len(p), nil
@@ -95,54 +94,24 @@ func (h *listHash) Reset() {
 }
 
 func (h *listHash) Size() int {
-	return fr.Bytes
+	return small_rational.Bytes
 }
 
 func (h *listHash) BlockSize() int {
-	return fr.Bytes
-}
-func setElement(z *fr.Element, value interface{}) (*fr.Element, error) {
-
-	// TODO: Put this in element.SetString?
-	switch v := value.(type) {
-	case string:
-
-		if sep := strings.Split(v, "/"); len(sep) == 2 {
-			var denom fr.Element
-			if _, err := z.SetString(sep[0]); err != nil {
-				return nil, err
-			}
-			if _, err := denom.SetString(sep[1]); err != nil {
-				return nil, err
-			}
-			denom.Inverse(&denom)
-			z.Mul(z, &denom)
-			return z, nil
-		}
-
-	case float64:
-		asInt := int64(v)
-		if float64(asInt) != v {
-			return nil, fmt.Errorf("cannot currently parse float")
-		}
-		z.SetInt64(asInt)
-		return z, nil
-	}
-
-	return z.SetInterface(value)
+	return small_rational.Bytes
 }
 
-func sliceToElementSlice[T any](slice []T) ([]fr.Element, error) {
-	elementSlice := make([]fr.Element, len(slice))
+func sliceToElementSlice[T any](slice []T) ([]small_rational.SmallRational, error) {
+	elementSlice := make([]small_rational.SmallRational, len(slice))
 	for i, v := range slice {
-		if _, err := setElement(&elementSlice[i], v); err != nil {
+		if _, err := elementSlice[i].SetInterface(v); err != nil {
 			return nil, err
 		}
 	}
 	return elementSlice, nil
 }
 
-func SliceEquals(a []fr.Element, b []fr.Element) error {
+func SliceEquals(a []small_rational.SmallRational, b []small_rational.SmallRational) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
@@ -154,7 +123,7 @@ func SliceEquals(a []fr.Element, b []fr.Element) error {
 	return nil
 }
 
-func SliceSliceEquals(a [][]fr.Element, b [][]fr.Element) error {
+func SliceSliceEquals(a [][]small_rational.SmallRational, b [][]small_rational.SmallRational) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
@@ -178,7 +147,7 @@ func PolynomialSliceEquals(a []polynomial.Polynomial, b []polynomial.Polynomial)
 	return nil
 }
 
-func ElementToInterface(x *fr.Element) interface{} {
+func ElementToInterface(x *small_rational.SmallRational) interface{} {
 	if i := x.BigInt(nil); i != nil {
 		return i
 	}
@@ -194,7 +163,7 @@ func elementSliceToInterfaceSlice(x interface{}) []interface{} {
 
 	res := make([]interface{}, X.Len())
 	for i := range res {
-		xI := X.Index(i).Interface().(fr.Element)
+		xI := X.Index(i).Interface().(small_rational.SmallRational)
 		res[i] = ElementToInterface(&xI)
 	}
 	return res

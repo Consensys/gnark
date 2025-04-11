@@ -83,7 +83,7 @@ func run(absPath string) error {
         return err
     }
 
-    err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(NewMessageCounter(2, 0)))
+    err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
     if err == nil {
 	    return fmt.Errorf("bad proof accepted")
     }
@@ -97,11 +97,11 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 
 		partialSumPolys := make([][]interface{}, len(proof[i].partialSumPolys))
 		for k, partialK := range proof[i].partialSumPolys {
-			partialSumPolys[k] = ElementSliceToInterfaceSlice(partialK)
+			partialSumPolys[k] = elementSliceToInterfaceSlice(partialK)
 		}
 
 		res[i] = PrintableSumcheckProof{
-			FinalEvalProof:  ElementSliceToInterfaceSlice(proof[i].finalEvalProof),
+			FinalEvalProof:  elementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
 	}

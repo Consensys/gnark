@@ -614,7 +614,7 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].partialSumPolys[k], err = SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = sliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -631,7 +631,7 @@ type TestCase struct {
 }
 
 type TestCaseInfo struct {
-	Hash    HashDescription `json:"hash"`
+	Hash    hashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
 	Input   [][]interface{} `json:"input"`
 	Output  [][]interface{} `json:"output"`
@@ -662,7 +662,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = HashFromDescription(info.Hash); err != nil {
+			if _hash, err = hashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
 			var proof Proof
@@ -693,7 +693,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []fr.Element
-					if wireAssignment, err = SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
 						return nil, err
 					}
 

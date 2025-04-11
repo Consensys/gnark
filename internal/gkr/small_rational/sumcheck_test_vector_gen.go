@@ -16,7 +16,7 @@ import (
 func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 
 	var poly polynomial.MultiLin
-	if v, err := SliceToElementSlice(testCaseInfo.Values); err == nil {
+	if v, err := sliceToElementSlice(testCaseInfo.Values); err == nil {
 		poly = v
 	} else {
 		return err
@@ -27,7 +27,7 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		err error
 	)
 
-	if hsh, err = HashFromDescription(testCaseInfo.Hash); err != nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
 
@@ -39,7 +39,7 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 	testCaseInfo.Proof = sumcheckToPrintableProof(proof)
 
 	// Verification
-	if v, _err := SliceToElementSlice(testCaseInfo.Values); _err == nil {
+	if v, _err := sliceToElementSlice(testCaseInfo.Values); _err == nil {
 		poly = v
 	} else {
 		return _err
@@ -53,7 +53,7 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		return fmt.Errorf("proof rejected: %v", err)
 	}
 
-	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], ToElement(1))
+	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
 	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
@@ -118,7 +118,7 @@ type sumcheckTestCasesInfo map[string]*sumcheckTestCaseInfo
 
 type sumcheckTestCaseInfo struct {
 	Type        string                 `json:"type"`
-	Hash        HashDescription        `json:"hash"`
+	Hash        hashDescription        `json:"hash"`
 	Values      []interface{}          `json:"values"`
 	Description string                 `json:"description"`
 	Proof       SumcheckPrintableProof `json:"proof"`
@@ -135,7 +135,7 @@ func sumcheckToPrintableProof(proof sumcheckProof) (printable SumcheckPrintableP
 		panic("null expected")
 	}
 	printable.FinalEvalProof = struct{}{}
-	printable.PartialSumPolys = ElementSliceSliceToInterfaceSliceSlice(proof.partialSumPolys)
+	printable.PartialSumPolys = elementSliceSliceToInterfaceSliceSlice(proof.partialSumPolys)
 	return
 }
 

@@ -90,7 +90,7 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(NewMessageCounter(2, 0)))
+	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
 	if err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
@@ -104,11 +104,11 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 
 		partialSumPolys := make([][]interface{}, len(proof[i].partialSumPolys))
 		for k, partialK := range proof[i].partialSumPolys {
-			partialSumPolys[k] = ElementSliceToInterfaceSlice(partialK)
+			partialSumPolys[k] = elementSliceToInterfaceSlice(partialK)
 		}
 
 		res[i] = PrintableSumcheckProof{
-			FinalEvalProof:  ElementSliceToInterfaceSlice(proof[i].finalEvalProof),
+			FinalEvalProof:  elementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
 	}
@@ -218,7 +218,7 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].partialSumPolys[k], err = SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = sliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -236,7 +236,7 @@ type TestCase struct {
 }
 
 type TestCaseInfo struct {
-	Hash    HashDescription `json:"hash"`
+	Hash    hashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
 	Input   [][]interface{} `json:"input"`
 	Output  [][]interface{} `json:"output"`
@@ -267,7 +267,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = HashFromDescription(info.Hash); err != nil {
+			if _hash, err = hashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
 			var proof Proof
@@ -298,7 +298,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []small_rational.SmallRational
-					if wireAssignment, err = SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
 						return nil, err
 					}
 
