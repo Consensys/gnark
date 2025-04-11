@@ -28,7 +28,7 @@ type GkrSolvingData struct {
 	workers     *utils.WorkerPool
 }
 
-const unigate = true
+const unigate = false
 
 func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
