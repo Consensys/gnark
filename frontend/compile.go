@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -31,9 +34,39 @@ import (
 //     if zkpID == backend.GROTH16	→ R1CS
 //     if zkpID == backend.PLONK 	→ SparseR1CS
 //
-// initialCapacity is an optional parameter that reserves memory in slices
-// it should be set to the estimated number of constraints in the circuit, if known.
+// For implementation which compiles the circuit optimized for a small-field modulus, see [CompileU32].
 func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
+	if !constraint.FitsElement[constraint.U64](field) {
+		var supported []string
+		for _, c := range gnark.Curves() {
+			supported = append(supported, c.String())
+		}
+		return nil, fmt.Errorf("can not compile over field %s. This method supports compiling over scalar fields of supported curves: %s. For compiling over small fields use frontend.CompileU32", field, strings.Join(supported, ", "))
+	}
+	return CompileGeneric(field, newBuilder, circuit, opts...)
+}
+
+// CompileU32 is a variant of [Compile] which is optimized for small field
+// modulus.
+//
+// NB! When compiling for a small field modulus, then the resulting [constraint.ConstraintSystem] is not
+// compatible with pairing based backends.
+func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemU32, error) {
+	if !constraint.FitsElement[constraint.U32](field) {
+		var supported []string
+		for _, c := range smallfields.Supported() {
+			supported = append(supported, c.String())
+		}
+		return nil, fmt.Errorf("can not compile over field %s. This method only supports the following moduli: %s. For compiling over scalar fields of supported elliptic curves use frontend.Compile", field, strings.Join(supported, ", "))
+	}
+	return CompileGeneric(field, newBuilder, circuit, opts...)
+}
+
+// CompileGeneric is a generic version of [Compile] and [CompileU32]. It is
+// mainly for allowing for type switching, for users the methods [Compile] and
+// [CompileU32] are more convenient as are explicitly constrained to specific
+// types.
+func CompileGeneric[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
@@ -64,7 +97,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	return builder.Compile()
 }
 
-func parseCircuit(builder Builder, circuit Circuit) (err error) {
+func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (err error) {
 	// ensure circuit.Define has pointer receiver
 	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
@@ -130,7 +163,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	return
 }
 
-func callDeferred(builder Builder) error {
+func callDeferred[E constraint.Element](builder Builder[E]) error {
 	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
 		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)

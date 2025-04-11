@@ -24,8 +24,22 @@ import (
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
 
-// Table holds all the entries and queries.
-type Table struct {
+// Table allows to insert and query values in a lookup table.
+type Table interface {
+	// Insert inserts a new entry into the lookup table and returns its index.
+	// It panics if the table is already committed.
+	Insert(val frontend.Variable) (index int)
+
+	// Lookup looks up values from the lookup tables given by the indices inds. It
+	// returns a variable for every index. It panics during compile time when
+	// looking up from a committed or empty table. It panics during solving time
+	// when the index is out of bounds.
+	Lookup(inds ...frontend.Variable) (vals []frontend.Variable)
+}
+
+// table is the parametric implementation of the lookup table. For usage use
+// [Table] instead to avoid referencing to the type parameter.
+type table[E constraint.Element] struct {
 	api frontend.API
 
 	entries   []frontend.Variable
@@ -36,7 +50,7 @@ type Table struct {
 	// the blueprint stores the lookup table entries once
 	// such that each query only need to store the indexes to lookup
 	bID       constraint.BlueprintID
-	blueprint constraint.BlueprintLookupHint
+	blueprint constraint.BlueprintLookupHint[E]
 }
 
 type result struct {
@@ -46,18 +60,29 @@ type result struct {
 
 // New returns a new [*Table]. It additionally defers building the
 // log-derivative argument.
-func New(api frontend.API) *Table {
-	t := &Table{api: api}
-	api.Compiler().Defer(t.commit)
+func New(api frontend.API) Table {
+	if constraint.FitsElement[constraint.U32](api.Compiler().Field()) {
+		t := &table[constraint.U32]{api: api}
+		api.Compiler().Defer(t.commit)
 
-	// each table has a unique blueprint
-	t.bID = api.Compiler().AddBlueprint(&t.blueprint)
-	return t
+		// each table has a unique blueprint
+		t.bID = api.Compiler().AddBlueprint(&t.blueprint)
+		return t
+	}
+	if constraint.FitsElement[constraint.U64](api.Compiler().Field()) {
+		t := &table[constraint.U64]{api: api}
+		api.Compiler().Defer(t.commit)
+
+		// each table has a unique blueprint
+		t.bID = api.Compiler().AddBlueprint(&t.blueprint)
+		return t
+	}
+	panic("unsupported field type")
 }
 
 // Insert inserts variable val into the lookup table and returns its index as a
 // constant. It panics if the table is already committed.
-func (t *Table) Insert(val frontend.Variable) (index int) {
+func (t *table[E]) Insert(val frontend.Variable) (index int) {
 	if t.immutable {
 		panic("inserting into committed lookup table")
 	}
@@ -74,7 +99,7 @@ func (t *Table) Insert(val frontend.Variable) (index int) {
 // returns a variable for every index. It panics during compile time when
 // looking up from a committed or empty table. It panics during solving time
 // when the index is out of bounds.
-func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
+func (t *table[E]) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
 	if t.immutable {
 		panic("looking up from a committed lookup table")
 	}
@@ -89,7 +114,7 @@ func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
 
 // performLookup performs the lookup and returns the resulting variables.
 // underneath, it does use the blueprint to encode the lookup hint.
-func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
+func (t *table[E]) performLookup(inds []frontend.Variable) []frontend.Variable {
 	// to build the instruction, we need to first encode its dependency as a calldata []uint32 slice.
 	// * calldata[0] is the length of the calldata,
 	// * calldata[1] is the number of entries in the table we consider.
@@ -131,7 +156,7 @@ func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
 	return internalVariables
 }
 
-func (t *Table) entryTable() [][]frontend.Variable {
+func (t *table[E]) entryTable() [][]frontend.Variable {
 	tbl := make([][]frontend.Variable, len(t.entries))
 	for i := range t.entries {
 		tbl[i] = []frontend.Variable{i, t.entries[i]}
@@ -139,7 +164,7 @@ func (t *Table) entryTable() [][]frontend.Variable {
 	return tbl
 }
 
-func (t *Table) resultsTable() [][]frontend.Variable {
+func (t *table[E]) resultsTable() [][]frontend.Variable {
 	tbl := make([][]frontend.Variable, len(t.results))
 	for i := range t.results {
 		tbl[i] = []frontend.Variable{t.results[i].ind, t.results[i].val}
@@ -147,6 +172,6 @@ func (t *Table) resultsTable() [][]frontend.Variable {
 	return tbl
 }
 
-func (t *Table) commit(api frontend.API) error {
+func (t *table[E]) commit(api frontend.API) error {
 	return logderivarg.Build(api, t.entryTable(), t.resultsTable())
 }

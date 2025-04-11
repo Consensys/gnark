@@ -172,7 +172,7 @@ func TestVectorOps(t *testing.T) {
 		return true
 	}
 
-	sizes := []int{1, 2, 3, 4, 8, 9, 15, 16, 509, 510, 511, 512, 513, 514}
+	sizes := []int{1, 2, 3, 4, 8, 9, 15, 16, 24, 509, 510, 511, 512, 513, 514}
 	type genPair struct {
 		g1, g2 gopter.Gen
 		label  string
@@ -328,17 +328,17 @@ func genVector(size int) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		g := make(Vector, size)
 		mixer := Element{
-			genParams.NextUint64(),
+			uint32(genParams.NextUint64()),
 		}
-		if qElement[0] != ^uint64(0) {
+		if qElement[0] != ^uint32(0) {
 			mixer[0] %= (qElement[0] + 1)
 		}
 
 		for !mixer.smallerThanModulus() {
 			mixer = Element{
-				genParams.NextUint64(),
+				uint32(genParams.NextUint64()),
 			}
-			if qElement[0] != ^uint64(0) {
+			if qElement[0] != ^uint32(0) {
 				mixer[0] %= (qElement[0] + 1)
 			}
 		}

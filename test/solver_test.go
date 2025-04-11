@@ -19,7 +19,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -29,7 +29,7 @@ const permutterBound = 3
 // r1cs + sparser1cs
 const nbSystems = 2
 
-var builders [2]frontend.NewBuilder
+var builders [2]frontend.NewBuilderU32
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
@@ -105,7 +105,7 @@ func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
 
 type permutter struct {
 	circuit           frontend.Circuit
-	constraintSystems [2]constraint.ConstraintSystem
+	constraintSystems [2]constraint.ConstraintSystemU32
 	witness           []tinyfield.Element
 	hints             []solver.Hint
 }
@@ -114,7 +114,7 @@ type permutter struct {
 func (p *permutter) permuteAndTest(index int) error {
 
 	for i := 0; i < len(tinyfieldElements); i++ {
-		p.witness[index].SetUint64(tinyfieldElements[i])
+		p.witness[index].SetUint64(uint64(tinyfieldElements[i]))
 		if index == len(p.witness)-1 {
 
 			// we have a unique permutation
@@ -249,7 +249,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) err
 	// compile the systems
 	for i := 0; i < nbSystems; i++ {
 
-		ccs, err := frontend.Compile(tinyfield.Modulus(), builders[i], circuit)
+		ccs, err := frontend.CompileU32(tinyfield.Modulus(), builders[i], circuit)
 		if err != nil {
 			return err
 		}

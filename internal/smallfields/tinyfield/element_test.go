@@ -192,7 +192,7 @@ func BenchmarkElementSqrt(b *testing.B) {
 
 func BenchmarkElementMul(b *testing.B) {
 	x := Element{
-		14,
+		25,
 	}
 	benchResElement.SetOne()
 	b.ResetTimer()
@@ -203,7 +203,7 @@ func BenchmarkElementMul(b *testing.B) {
 
 func BenchmarkElementCmp(b *testing.B) {
 	x := Element{
-		14,
+		25,
 	}
 	benchResElement = x
 	benchResElement[0] = 0
@@ -2089,6 +2089,41 @@ func TestElementJSON(t *testing.T) {
 	assert.Equal(s, decodedS, " json with strings  -> element  failed")
 
 }
+func TestElementMul2ExpNegN(t *testing.T) {
+	t.Parallel()
+
+	parameters := gopter.DefaultTestParameters()
+	if testing.Short() {
+		parameters.MinSuccessfulTests = nbFuzzShort
+	} else {
+		parameters.MinSuccessfulTests = nbFuzz
+	}
+
+	properties := gopter.NewProperties(parameters)
+
+	genA := gen()
+
+	properties.Property("x * 2⁻ᵏ == Mul2ExpNegN(x, k) for 0 <= k <= 32", prop.ForAll(
+		func(a testPairElement) bool {
+
+			var b, e, two Element
+			var c [33]Element
+			two.SetUint64(2)
+			for n := 0; n < 33; n++ {
+				e.Exp(two, big.NewInt(int64(n))).Inverse(&e)
+				b.Mul(&a.element, &e)
+				c[n].Mul2ExpNegN(&a.element, uint32(n))
+				if !c[n].Equal(&b) {
+					return false
+				}
+			}
+			return true
+		},
+		genA,
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
 
 type testPairElement struct {
 	element Element
@@ -2100,17 +2135,17 @@ func gen() gopter.Gen {
 		var g testPairElement
 
 		g.element = Element{
-			genParams.NextUint64(),
+			uint32(genParams.NextUint64()),
 		}
-		if qElement[0] != ^uint64(0) {
+		if qElement[0] != ^uint32(0) {
 			g.element[0] %= (qElement[0] + 1)
 		}
 
 		for !g.element.smallerThanModulus() {
 			g.element = Element{
-				genParams.NextUint64(),
+				uint32(genParams.NextUint64()),
 			}
-			if qElement[0] != ^uint64(0) {
+			if qElement[0] != ^uint32(0) {
 				g.element[0] %= (qElement[0] + 1)
 			}
 		}
@@ -2125,18 +2160,18 @@ func genRandomFq(genParams *gopter.GenParameters) Element {
 	var g Element
 
 	g = Element{
-		genParams.NextUint64(),
+		uint32(genParams.NextUint64()),
 	}
 
-	if qElement[0] != ^uint64(0) {
+	if qElement[0] != ^uint32(0) {
 		g[0] %= (qElement[0] + 1)
 	}
 
 	for !g.smallerThanModulus() {
 		g = Element{
-			genParams.NextUint64(),
+			uint32(genParams.NextUint64()),
 		}
-		if qElement[0] != ^uint64(0) {
+		if qElement[0] != ^uint32(0) {
 			g[0] %= (qElement[0] + 1)
 		}
 	}
@@ -2148,8 +2183,8 @@ func genFull() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		a := genRandomFq(genParams)
 
-		var carry uint64
-		a[0], _ = bits.Add64(a[0], qElement[0], carry)
+		var carry uint32
+		a[0], _ = bits.Add32(a[0], qElement[0], carry)
 
 		genResult := gopter.NewGenResult(a, gopter.NoShrinker)
 		return genResult
