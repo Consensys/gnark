@@ -867,8 +867,8 @@ func (a WireAssignment) NumVars() int {
 }
 
 // SerializeToBigInts flattens a proof object into the given slice of big.Ints
-// useful in gnark hints. TODO: Change propagation: Once this is merged, it will duplicate some code in std/gkr/bn254Prover.go. Remove that in favor of this
-func (p Proof) SerializeToBigInts(outs []*big.Int) {
+// useful in gnark hints.
+func (p Proof) SerializeToBigInts(outs []*big.Int) error {
 	offset := 0
 	for i := range p {
 		for _, poly := range p[i].partialSumPolys {
@@ -880,6 +880,10 @@ func (p Proof) SerializeToBigInts(outs []*big.Int) {
 			offset += len(p[i].finalEvalProof)
 		}
 	}
+	if offset != len(outs) {
+		return fmt.Errorf("expected %d elements, got %d", offset, len(outs))
+	}
+	return nil
 }
 
 func frToBigInts(dst []*big.Int, src []fr.Element) {
