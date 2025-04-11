@@ -145,7 +145,7 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) ProveFinalEval([]small_rational.SmallRational) interface{} {
+func (c singleMultilinClaim) ProveFinalEval([]small_rational.SmallRational) []small_rational.SmallRational {
 	return nil // verifier can compute the final eval itself
 }
 
@@ -179,7 +179,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum small_rational.SmallRational
 }
 
-func (c singleMultilinLazyClaim) VerifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, _ interface{}) error {
+func (c singleMultilinLazyClaim) VerifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, _ []small_rational.SmallRational) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil

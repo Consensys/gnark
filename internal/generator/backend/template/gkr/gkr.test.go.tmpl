@@ -424,11 +424,11 @@ func proofEquals(expected Proof, seen Proof) error {
 		xSeen := seen[i]
 
 		if xSeen.FinalEvalProof == nil {
-			if seenFinalEval := x.FinalEvalProof.([]fr.Element); len(seenFinalEval) != 0 {
+			if seenFinalEval := x.FinalEvalProof; len(seenFinalEval) != 0 {
 				return fmt.Errorf("length mismatch %d ≠ %d", 0, len(seenFinalEval))
 			}
 		} else {
-			if err := test_vector_utils.SliceEquals(x.FinalEvalProof.([]fr.Element), xSeen.FinalEvalProof.([]fr.Element)); err != nil {
+			if err := test_vector_utils.SliceEquals(x.FinalEvalProof, xSeen.FinalEvalProof); err != nil {
 				return fmt.Errorf("final evaluation proof mismatch")
 			}
 		}
