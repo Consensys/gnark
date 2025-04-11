@@ -211,11 +211,11 @@ func newTestCase(path string) (*TestCase, error) {
 			for _, w := range sorted {
 				if w.IsOutput() {
 				{{if $CheckOutputCorrectness}}
-					if err = SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+					if err = sliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
 						return nil, fmt.Errorf("assignment mismatch: %v", err)
 					}
 				{{else}}
-					info.Output = append(info.Output, ElementSliceToInterfaceSlice(inOutAssignment[w]))
+					info.Output = append(info.Output, elementSliceToInterfaceSlice(inOutAssignment[w]))
 				{{end}}
 				}
 			}

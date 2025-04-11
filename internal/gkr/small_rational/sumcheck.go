@@ -37,8 +37,8 @@ type sumcheckLazyClaims interface {
 
 // sumcheckProof of a multi-statement.
 type sumcheckProof struct {
-	partialSumPolys []polynomial.Polynomial        `json:"partialSumPolys"`
-	finalEvalProof  []small_rational.SmallRational `json:"finalEvalProof"` //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+	partialSumPolys []polynomial.Polynomial
+	finalEvalProof  []small_rational.SmallRational //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
 func setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.Settings) (challengeNames []string, err error) {

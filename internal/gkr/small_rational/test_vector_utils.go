@@ -111,7 +111,7 @@ func sliceToElementSlice[T any](slice []T) ([]small_rational.SmallRational, erro
 	return elementSlice, nil
 }
 
-func SliceEquals(a []small_rational.SmallRational, b []small_rational.SmallRational) error {
+func sliceEquals(a []small_rational.SmallRational, b []small_rational.SmallRational) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
@@ -123,31 +123,31 @@ func SliceEquals(a []small_rational.SmallRational, b []small_rational.SmallRatio
 	return nil
 }
 
-func SliceSliceEquals(a [][]small_rational.SmallRational, b [][]small_rational.SmallRational) error {
+func sliceSliceEquals(a [][]small_rational.SmallRational, b [][]small_rational.SmallRational) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
 	for i := range a {
-		if err := SliceEquals(a[i], b[i]); err != nil {
+		if err := sliceEquals(a[i], b[i]); err != nil {
 			return fmt.Errorf("at index %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func PolynomialSliceEquals(a []polynomial.Polynomial, b []polynomial.Polynomial) error {
+func polynomialSliceEquals(a []polynomial.Polynomial, b []polynomial.Polynomial) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
 	for i := range a {
-		if err := SliceEquals(a[i], b[i]); err != nil {
+		if err := sliceEquals(a[i], b[i]); err != nil {
 			return fmt.Errorf("at index %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func ElementToInterface(x *small_rational.SmallRational) interface{} {
+func elementToInterface(x *small_rational.SmallRational) interface{} {
 	if i := x.BigInt(nil); i != nil {
 		return i
 	}
@@ -164,7 +164,7 @@ func elementSliceToInterfaceSlice(x interface{}) []interface{} {
 	res := make([]interface{}, X.Len())
 	for i := range res {
 		xI := X.Index(i).Interface().(small_rational.SmallRational)
-		res[i] = ElementToInterface(&xI)
+		res[i] = elementToInterface(&xI)
 	}
 	return res
 }

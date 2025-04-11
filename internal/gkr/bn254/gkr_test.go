@@ -705,7 +705,7 @@ func newTestCase(path string) (*TestCase, error) {
 			for _, w := range sorted {
 				if w.IsOutput() {
 
-					if err = SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+					if err = sliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
 						return nil, fmt.Errorf("assignment mismatch: %v", err)
 					}
 
