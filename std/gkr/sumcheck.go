@@ -15,13 +15,13 @@ type sumcheckLazyClaims interface {
 	varsNum() int                                                        // varsNum = n
 	combinedSum(api frontend.API, a frontend.Variable) frontend.Variable // combinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
 	degree(i int) int                                                    // degree of the total claim in the i'th variable
-	verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error
+	verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof []frontend.Variable) error
 }
 
 // sumcheckProof of a multi-sumcheck statement.
 type sumcheckProof struct {
 	PartialSumPolys []polynomial.Polynomial
-	FinalEvalProof  interface{}
+	FinalEvalProof  []frontend.Variable
 }
 
 func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fiatshamir.Settings) ([]string, error) {

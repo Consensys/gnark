@@ -22,7 +22,7 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) ProveFinalEval(r []fr.Element) interface{} {
+func (c singleMultilinClaim) ProveFinalEval(r []fr.Element) []fr.Element {
 	return nil // verifier can compute the final eval itself
 }
 
@@ -56,7 +56,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum fr.Element
 }
 
-func (c singleMultilinLazyClaim) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof interface{}) error {
+func (c singleMultilinLazyClaim) VerifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof []fr.Element) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil

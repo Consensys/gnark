@@ -171,9 +171,8 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 				offset += len(poly)
 			}
 			if proof[i].FinalEvalProof != nil {
-				finalEvalProof := proof[i].FinalEvalProof.([]fr.Element)
-				frToBigInts(outs[offset:], finalEvalProof)
-				offset += len(finalEvalProof)
+				frToBigInts(outs[offset:], proof[i].FinalEvalProof)
+				offset += len(proof[i].FinalEvalProof)
 			}
 		}
 
