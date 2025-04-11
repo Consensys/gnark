@@ -1,4 +1,4 @@
-package gkr
+package gates
 
 import (
 	"fmt"
@@ -145,4 +145,33 @@ func init() {
 	panicIfError(RegisterGate(Sub2, func(api GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(x[0], x[1])
 	}, 2, WithUnverifiedDegree(1), WithUnverifiedSolvableVar(0)))
+}
+
+func panicIfError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// A Gate is a low-degree multivariate polynomial
+type Gate struct {
+	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
+	nbIn        int          // number of inputs
+	degree      int          // total degree of the polynomial
+	solvableVar int          // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+}
+
+// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
+func (g *Gate) Degree() int {
+	return g.degree
+}
+
+// SolvableVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
+func (g *Gate) SolvableVar() int {
+	return g.solvableVar
+}
+
+// NbIn returns the number of inputs to the gate (its fan-in)
+func (g *Gate) NbIn() int {
+	return g.nbIn
 }

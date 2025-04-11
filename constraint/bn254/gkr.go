@@ -15,6 +15,7 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	algo_utils "github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkr/gates"
 	"hash"
 	"math/big"
 	"sync"
@@ -27,10 +28,20 @@ type GkrSolvingData struct {
 	workers     *utils.WorkerPool
 }
 
+const unigate = true
+
 func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		if resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate)); resCircuit[i].Gate == nil && noPtr[i].Gate != "" {
+		if unigate {
+			if noPtr[i].Gate != "" {
+				gateFunc := gates.ToBn254GateFunction(gates.GetGate(gates.GateName(noPtr[i].Gate)).Evaluate)
+				if err := gkr.RegisterGate(gkr.GateName(noPtr[i].Gate), gateFunc, len(noPtr[i].Inputs)); err != nil {
+					return nil, fmt.Errorf("while registering gate \"%s\": %w", noPtr[i].Gate, err)
+				}
+				resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate))
+			}
+		} else if resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate)); resCircuit[i].Gate == nil && noPtr[i].Gate != "" {
 			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
 		}
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))

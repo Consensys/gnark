@@ -1,31 +1,5 @@
 package gkr
 
-import (
-	"errors"
-	"fmt"
-	stdHash "github.com/consensys/gnark/std/hash"
-	"math/big"
-	"sync"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	frBls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	frBls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	frBls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
-	frBn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	frBw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	frBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	hint "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
-	gkrBls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
-	gkrBls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	gkrBls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
-	gkrBls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
-	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	gkrBw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
-	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
-)
-
 type solveInTestEngineSettings struct {
 	hashName string
 }
@@ -38,82 +12,84 @@ func WithHashName(name string) SolveInTestEngineOption {
 	}
 }
 
+/*
 // SolveInTestEngine solves the defined circuit directly inside the SNARK circuit. This means that the method does not compute the GKR proof of the circuit and does not embed the GKR proof verifier inside a SNARK.
 // The output is the values of all variables, across all instances; i.e. indexed variable-first, instance-second.
 // This method only works under the test engine and should only be called to debug a GKR circuit, as the GKR prover's errors can be obscure.
-func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTestEngineOption) [][]frontend.Variable {
-	var s solveInTestEngineSettings
-	for _, o := range options {
-		o(&s)
-	}
-	if s.hashName != "" {
-		// hash something and make sure it gives the same answer both on prover and verifier sides
-		// TODO @Tabaie If indeed cheap, move this feature to Verify so that it is always run
-		h, err := stdHash.GetFieldHasher(s.hashName, parentApi)
-		if err != nil {
-			panic(err)
-		}
-		nbBytes := (parentApi.Compiler().FieldBitLen() + 7) / 8
-		toHash := frontend.Variable(0)
-		for i := range nbBytes {
-			toHash = parentApi.Add(parentApi.Mul(toHash, 256), i%256)
-		}
-		h.Reset()
-		h.Write(toHash)
-		hashed := h.Sum()
 
-		hintOut, err := parentApi.Compiler().NewHint(CheckHashHint(s.hashName), 1, toHash, hashed)
-		if err != nil {
-			panic(err)
+	func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTestEngineOption) [][]frontend.Variable {
+		var s solveInTestEngineSettings
+		for _, o := range options {
+			o(&s)
 		}
-		parentApi.AssertIsEqual(hintOut[0], hashed) // the hint already checks this
-	}
-
-	res := make([][]frontend.Variable, len(api.toStore.Circuit))
-	var degreeTestedGates sync.Map
-	for i, w := range api.toStore.Circuit {
-		res[i] = make([]frontend.Variable, api.nbInstances())
-		copy(res[i], api.assignments[i])
-		if len(w.Inputs) == 0 {
-			continue
-		}
-	}
-	for instanceI := range api.nbInstances() {
-		for wireI, w := range api.toStore.Circuit {
-			if len(w.Dependencies) != 0 && len(w.Inputs) != 0 {
-				panic(fmt.Errorf("non-input wire %d should not have dependencies", wireI))
+		if s.hashName != "" {
+			// hash something and make sure it gives the same answer both on prover and verifier sides
+			// TODO @Tabaie If indeed cheap, move this feature to Verify so that it is always run
+			h, err := stdHash.GetFieldHasher(s.hashName, parentApi)
+			if err != nil {
+				panic(err)
 			}
-			for _, dep := range w.Dependencies {
-				if dep.InputInstance == instanceI {
-					if dep.OutputInstance >= instanceI {
-						panic(fmt.Errorf("out of order dependency not yet supported in SolveInTestEngine; (wire %d, instance %d) depends on (wire %d, instance %d)", wireI, instanceI, dep.OutputWire, dep.OutputInstance))
+			nbBytes := (parentApi.Compiler().FieldBitLen() + 7) / 8
+			toHash := frontend.Variable(0)
+			for i := range nbBytes {
+				toHash = parentApi.Add(parentApi.Mul(toHash, 256), i%256)
+			}
+			h.Reset()
+			h.Write(toHash)
+			hashed := h.Sum()
+
+			hintOut, err := parentApi.Compiler().NewHint(CheckHashHint(s.hashName), 1, toHash, hashed)
+			if err != nil {
+				panic(err)
+			}
+			parentApi.AssertIsEqual(hintOut[0], hashed) // the hint already checks this
+		}
+
+		res := make([][]frontend.Variable, len(api.toStore.Circuit))
+		var degreeTestedGates sync.Map
+		for i, w := range api.toStore.Circuit {
+			res[i] = make([]frontend.Variable, api.nbInstances())
+			copy(res[i], api.assignments[i])
+			if len(w.Inputs) == 0 {
+				continue
+			}
+		}
+		for instanceI := range api.nbInstances() {
+			for wireI, w := range api.toStore.Circuit {
+				if len(w.Dependencies) != 0 && len(w.Inputs) != 0 {
+					panic(fmt.Errorf("non-input wire %d should not have dependencies", wireI))
+				}
+				for _, dep := range w.Dependencies {
+					if dep.InputInstance == instanceI {
+						if dep.OutputInstance >= instanceI {
+							panic(fmt.Errorf("out of order dependency not yet supported in SolveInTestEngine; (wire %d, instance %d) depends on (wire %d, instance %d)", wireI, instanceI, dep.OutputWire, dep.OutputInstance))
+						}
+						if res[wireI][instanceI] != nil {
+							panic(fmt.Errorf("dependency (wire %d, instance %d) <- (wire %d, instance %d) attempting to override existing value assignment", wireI, instanceI, dep.OutputWire, dep.OutputInstance))
+						}
+						res[wireI][instanceI] = res[dep.OutputWire][dep.OutputInstance]
 					}
-					if res[wireI][instanceI] != nil {
-						panic(fmt.Errorf("dependency (wire %d, instance %d) <- (wire %d, instance %d) attempting to override existing value assignment", wireI, instanceI, dep.OutputWire, dep.OutputInstance))
-					}
-					res[wireI][instanceI] = res[dep.OutputWire][dep.OutputInstance]
 				}
-			}
 
-			if res[wireI][instanceI] == nil { // no assignment or dependency
-				if len(w.Inputs) == 0 {
-					panic(fmt.Errorf("input wire %d, instance %d has no dependency or explicit assignment", wireI, instanceI))
+				if res[wireI][instanceI] == nil { // no assignment or dependency
+					if len(w.Inputs) == 0 {
+						panic(fmt.Errorf("input wire %d, instance %d has no dependency or explicit assignment", wireI, instanceI))
+					}
+					ins := make([]frontend.Variable, len(w.Inputs))
+					for i, in := range w.Inputs {
+						ins[i] = res[in][instanceI]
+					}
+					expectedV, err := parentApi.Compiler().NewHint(frGateHint(GateName(w.Gate), &degreeTestedGates), 1, ins...)
+					if err != nil {
+						panic(err)
+					}
+					res[wireI][instanceI] = GetGate(GateName(w.Gate)).Evaluate(parentApi, ins...)
+					parentApi.AssertIsEqual(expectedV[0], res[wireI][instanceI]) // snark and raw gate evaluations must agree
 				}
-				ins := make([]frontend.Variable, len(w.Inputs))
-				for i, in := range w.Inputs {
-					ins[i] = res[in][instanceI]
-				}
-				expectedV, err := parentApi.Compiler().NewHint(frGateHint(GateName(w.Gate), &degreeTestedGates), 1, ins...)
-				if err != nil {
-					panic(err)
-				}
-				res[wireI][instanceI] = GetGate(GateName(w.Gate)).Evaluate(parentApi, ins...)
-				parentApi.AssertIsEqual(expectedV[0], res[wireI][instanceI]) // snark and raw gate evaluations must agree
 			}
 		}
+		return res
 	}
-	return res
-}
 
 func frGateHint(gateName GateName, degreeTestedGates *sync.Map) hint.Hint {
 	return func(mod *big.Int, ins, outs []*big.Int) error {
@@ -283,3 +259,4 @@ func frGateHint(gateName GateName, degreeTestedGates *sync.Map) hint.Hint {
 		return nil
 	}
 }
+*/

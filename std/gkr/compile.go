@@ -3,6 +3,7 @@ package gkr
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/std/gkr/gates"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -229,7 +230,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = Wire{
-			Gate:            GetGate(ite(w.IsInput(), GateName(w.Gate), Identity)),
+			Gate:            gates.GetGate(ite(w.IsInput(), gates.GateName(w.Gate), gates.Identity)),
 			Inputs:          utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}
