@@ -5,8 +5,6 @@
 
 package tinyfield
 
-import "math/bits"
-
 // MulBy3 x *= 3 (mod q)
 func MulBy3(x *Element) {
 	var y Element
@@ -28,6 +26,19 @@ func MulBy13(x *Element) {
 	x.Mul(x, &y)
 }
 
+// Mul2ExpNegN multiplies x by -1/2^n
+//
+// Since the Montgomery constant is 2^32, the Montgomery form of 1/2^n is
+// 2^{32-n}. Montgomery reduction works provided the input is < 2^32 so this
+// works for 0 <= n <= 32.
+//
+// N.B. n must be < 33.
+func (z *Element) Mul2ExpNegN(x *Element, n uint32) *Element {
+	v := uint64(x[0]) << (32 - n)
+	z[0] = montReduce(v)
+	return z
+}
+
 func fromMont(z *Element) {
 	_fromMontGeneric(z)
 }
@@ -35,37 +46,21 @@ func fromMont(z *Element) {
 func reduce(z *Element) {
 	_reduceGeneric(z)
 }
+func montReduce(v uint64) uint32 {
+	m := uint32(v) * qInvNeg
+	t := uint32((v + uint64(m)*q) >> 32)
+	if t >= q {
+		t -= q
+	}
+	return t
+}
 
 // Mul z = x * y (mod q)
 //
 // x and y must be less than q
 func (z *Element) Mul(x, y *Element) *Element {
-
-	// In fact, since the modulus R fits on one register, the CIOS algorithm gets reduced to standard REDC (textbook Montgomery reduction):
-	// hi, lo := x * y
-	// m := (lo * qInvNeg) mod R
-	// (*) r := (hi * R + lo + m * q) / R
-	// reduce r if necessary
-
-	// On the emphasized line, we get r = hi + (lo + m * q) / R
-	// If we write hi2, lo2 = m * q then R | m * q - lo2 ⇒ R | (lo * qInvNeg) q - lo2 = -lo - lo2
-	// This shows lo + lo2 = 0 mod R. i.e. lo + lo2 = 0 if lo = 0 and R otherwise.
-	// Which finally gives (lo + m * q) / R = (lo + lo2 + R hi2) / R = hi2 + (lo+lo2) / R = hi2 + (lo != 0)
-	// This "optimization" lets us do away with one MUL instruction on ARM architectures and is available for all q < R.
-
-	hi, lo := bits.Mul64(x[0], y[0])
-	if lo != 0 {
-		hi++ // x[0] * y[0] ≤ 2¹²⁸ - 2⁶⁵ + 1, meaning hi ≤ 2⁶⁴ - 2 so no need to worry about overflow
-	}
-	m := lo * qInvNeg
-	hi2, _ := bits.Mul64(m, q)
-	r, carry := bits.Add64(hi2, hi, 0)
-	if carry != 0 || r >= q {
-		// we need to reduce
-		r -= q
-	}
-	z[0] = r
-
+	v := uint64(x[0]) * uint64(y[0])
+	z[0] = montReduce(v)
 	return z
 }
 
@@ -74,32 +69,8 @@ func (z *Element) Mul(x, y *Element) *Element {
 // x must be less than q
 func (z *Element) Square(x *Element) *Element {
 	// see Mul for algorithm documentation
-
-	// In fact, since the modulus R fits on one register, the CIOS algorithm gets reduced to standard REDC (textbook Montgomery reduction):
-	// hi, lo := x * y
-	// m := (lo * qInvNeg) mod R
-	// (*) r := (hi * R + lo + m * q) / R
-	// reduce r if necessary
-
-	// On the emphasized line, we get r = hi + (lo + m * q) / R
-	// If we write hi2, lo2 = m * q then R | m * q - lo2 ⇒ R | (lo * qInvNeg) q - lo2 = -lo - lo2
-	// This shows lo + lo2 = 0 mod R. i.e. lo + lo2 = 0 if lo = 0 and R otherwise.
-	// Which finally gives (lo + m * q) / R = (lo + lo2 + R hi2) / R = hi2 + (lo+lo2) / R = hi2 + (lo != 0)
-	// This "optimization" lets us do away with one MUL instruction on ARM architectures and is available for all q < R.
-
-	hi, lo := bits.Mul64(x[0], x[0])
-	if lo != 0 {
-		hi++ // x[0] * y[0] ≤ 2¹²⁸ - 2⁶⁵ + 1, meaning hi ≤ 2⁶⁴ - 2 so no need to worry about overflow
-	}
-	m := lo * qInvNeg
-	hi2, _ := bits.Mul64(m, q)
-	r, carry := bits.Add64(hi2, hi, 0)
-	if carry != 0 || r >= q {
-		// we need to reduce
-		r -= q
-	}
-	z[0] = r
-
+	v := uint64(x[0]) * uint64(x[0])
+	z[0] = montReduce(v)
 	return z
 }
 

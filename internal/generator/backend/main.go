@@ -76,7 +76,7 @@ func main() {
 		noBackend:         true,
 		NoGKR:             true,
 		AutoGenerateField: "0x2f",
-		ElementType:       "U64",
+		ElementType:       "U32",
 	}
 	baby_bear_field := templateData{
 		CSPath:      "../../../constraint/babybear/",
@@ -126,7 +126,7 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				if err := generator.GenerateFF(conf, d.RootPath); err != nil {
+				if err := generator.GenerateFF(conf, d.RootPath, generator.WithASM(nil)); err != nil {
 					panic(err)
 				}
 			}

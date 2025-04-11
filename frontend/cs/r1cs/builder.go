@@ -103,15 +103,15 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 		case ecc.BLS24_317:
 			bldrT.cs = bls24317r1cs.NewR1CS(config.Capacity)
 		default:
-			if field.Cmp(tinyfield.Modulus()) == 0 {
-				bldrT.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
-				break
-			}
 			panic("not implemented")
 		}
 	case *builder[constraint.U32]:
 		switch curve {
 		default:
+			if field.Cmp(tinyfield.Modulus()) == 0 {
+				bldrT.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
+				break
+			}
 			if field.Cmp(babybear.Modulus()) == 0 {
 				bldrT.cs = babybearr1cs.NewR1CS(config.Capacity)
 				break
