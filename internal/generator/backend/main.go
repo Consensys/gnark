@@ -142,8 +142,8 @@ func main() {
 						FieldPackageName: "fr",
 						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
 					},
-					GkrPackageRelativePath: "internal/gkr/" + curvePackageName,
-					CanUseFFT:              true,
+					GkrPackageName: curvePackageName,
+					CanUseFFT:      true,
 				}
 
 				assertNoError(generateGkrBackend(cfg))
@@ -227,10 +227,10 @@ func main() {
 				FieldPackagePath: "github.com/consensys/gnark/internal/small_rational",
 				FieldPackageName: "small_rational",
 			},
-			GkrPackageRelativePath: "internal/gkr/small_rational",
-			CanUseFFT:              false,
-			NoGkrTests:             true,
-			GenerateTestVectors:    true,
+			GkrPackageName:      "small_rational",
+			CanUseFFT:           false,
+			NoGkrTests:          true,
+			GenerateTestVectors: true,
 		}
 		assertNoError(generateGkrBackend(cfg))
 
@@ -264,8 +264,7 @@ type templateData struct {
 }
 
 func generateGkrBackend(cfg gkrConfig) error {
-	const repoRoot = "../../../"
-	packageDir := filepath.Join(repoRoot, cfg.GkrPackageRelativePath)
+	packageDir := filepath.Join("../../../internal/gkr", cfg.GkrPackageName)
 
 	testVectorUtilsFileName := "test_vector_utils_test.go"
 	if cfg.GenerateTestVectors {
@@ -303,11 +302,10 @@ func generateGkrBackend(cfg gkrConfig) error {
 
 type gkrConfig struct {
 	config.FieldDependency
-	GkrPackageRelativePath string // the GKR package, relative to the repo root
-	CanUseFFT              bool
-	OutsideGkrPackage      bool
-	GenerateTestVectors    bool
-	NoGkrTests             bool
+	GkrPackageName      string // the GKR package, relative to the repo root
+	CanUseFFT           bool
+	GenerateTestVectors bool
+	NoGkrTests          bool
 }
 
 func assertNoError(err error) {
