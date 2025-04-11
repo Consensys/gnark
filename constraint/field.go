@@ -6,9 +6,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark"
-	"github.com/consensys/gnark-crypto/field/babybear"
-	"github.com/consensys/gnark-crypto/field/koalabear"
-	"github.com/consensys/gnark/internal/smallfields/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields"
 )
 
 // U32 represents an element on a single uint32 limb
@@ -70,7 +68,7 @@ func FitsElement[E Element](modulus *big.Int) bool {
 	var e E
 	switch any(e).(type) {
 	case U32:
-		if modulus.Cmp(babybear.Modulus()) == 0 || modulus.Cmp(koalabear.Modulus()) == 0 {
+		if smallfields.IsSmallField(modulus) {
 			return true
 		}
 		return false
@@ -79,10 +77,6 @@ func FitsElement[E Element](modulus *big.Int) bool {
 			if modulus.Cmp(c.ScalarField()) == 0 {
 				return true
 			}
-		}
-		// XXX(ivokub): currently we compile tinyfield to 64 bits, but should change to U32
-		if modulus.Cmp(tinyfield.Modulus()) == 0 {
-			return true
 		}
 		return false
 	default:

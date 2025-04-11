@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -34,7 +37,11 @@ import (
 // For implementation which compiles the circuit optimized for a small-field modulus, see [CompileU32].
 func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
 	if !constraint.FitsElement[constraint.U64](field) {
-		return nil, fmt.Errorf("field %s is not compatible with U64", field)
+		var supported []string
+		for _, c := range gnark.Curves() {
+			supported = append(supported, c.String())
+		}
+		return nil, fmt.Errorf("can not compile over field %s. This method supports compiling over scalar fields of supported curves: %s. For compiling over small fields use frontend.CompileU32", field, strings.Join(supported, ", "))
 	}
 	return CompileGeneric(field, newBuilder, circuit, opts...)
 }
@@ -46,7 +53,11 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 // compatible with pairing based backends.
 func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemU32, error) {
 	if !constraint.FitsElement[constraint.U32](field) {
-		return nil, fmt.Errorf("field %s is not compatible with U32", field)
+		var supported []string
+		for _, c := range smallfields.Supported() {
+			supported = append(supported, c.String())
+		}
+		return nil, fmt.Errorf("can not compile over field %s. This method only supports the following moduli: %s. For compiling over scalar fields of supported elliptic curves use frontend.Compile", field, strings.Join(supported, ", "))
 	}
 	return CompileGeneric(field, newBuilder, circuit, opts...)
 }

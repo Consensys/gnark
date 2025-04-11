@@ -32,7 +32,7 @@ var testCases = []struct {
 	supportsCompile bool
 }{
 	{"goldilocks", goldilocks.Modulus(), false},
-	{"tinyfield", tinyfield.Modulus(), false},
+	{"tinyfield", tinyfield.Modulus(), true},
 	{"babybear", babybear.Modulus(), true},
 	{"koalabear", koalabear.Modulus(), true},
 }

@@ -6,12 +6,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/field/babybear"
-	"github.com/consensys/gnark-crypto/field/koalabear"
-	"github.com/consensys/gnark/internal/smallfields/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,33 +102,36 @@ func TestNewElementRoundtrip(t *testing.T) {
 }
 
 func TestFitsElement(t *testing.T) {
-	for _, tc := range []struct {
+	type tc struct {
 		isU32        bool
 		field        *big.Int
 		expectedFits bool
-	}{
-		{false, ecc.BN254.ScalarField(), true},
-		{false, ecc.BLS12_377.ScalarField(), true},
-		{false, ecc.BLS12_381.ScalarField(), true},
-		{false, ecc.BLS24_315.ScalarField(), true},
-		{false, ecc.BLS24_317.ScalarField(), true},
-		{false, ecc.BW6_761.ScalarField(), true},
-		{false, ecc.BW6_633.ScalarField(), true},
-		{false, tinyfield.Modulus(), true},
-		{false, babybear.Modulus(), false},
-		{false, koalabear.Modulus(), false},
-
-		{true, ecc.BN254.ScalarField(), false},
-		{true, ecc.BLS12_377.ScalarField(), false},
-		{true, ecc.BLS12_381.ScalarField(), false},
-		{true, ecc.BLS24_315.ScalarField(), false},
-		{true, ecc.BLS24_317.ScalarField(), false},
-		{true, ecc.BW6_761.ScalarField(), false},
-		{true, ecc.BW6_633.ScalarField(), false},
-		{true, tinyfield.Modulus(), false},
-		{true, babybear.Modulus(), true},
-		{true, koalabear.Modulus(), true},
-	} {
+	}
+	var tcs []tc
+	for _, c := range gnark.Curves() {
+		tcs = append(tcs, tc{
+			isU32:        false,
+			field:        c.ScalarField(),
+			expectedFits: true},
+			tc{
+				isU32:        true,
+				field:        c.ScalarField(),
+				expectedFits: false,
+			})
+	}
+	for _, c := range smallfields.Supported() {
+		tcs = append(tcs,
+			tc{
+				isU32:        true,
+				field:        c,
+				expectedFits: true},
+			tc{
+				isU32:        false,
+				field:        c,
+				expectedFits: false,
+			})
+	}
+	for _, tc := range tcs {
 		t.Run(fmt.Sprintf("isU32=%v,field=%s", tc.isU32, tc.field), func(t *testing.T) {
 			var res bool
 			if tc.isU32 {
