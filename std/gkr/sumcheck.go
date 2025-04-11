@@ -1,4 +1,4 @@
-package sumcheck
+package gkr
 
 import (
 	"errors"
@@ -9,17 +9,17 @@ import (
 	"github.com/consensys/gnark/std/polynomial"
 )
 
-// LazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
-type LazyClaims interface {
-	ClaimsNum() int                                                      // ClaimsNum = m
-	VarsNum() int                                                        // VarsNum = n
-	CombinedSum(api frontend.API, a frontend.Variable) frontend.Variable // CombinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
-	Degree(i int) int                                                    //Degree of the total claim in the i'th variable
-	VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error
+// sumcheckLazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
+type sumcheckLazyClaims interface {
+	claimsNum() int                                                      // claimsNum = m
+	varsNum() int                                                        // varsNum = n
+	combinedSum(api frontend.API, a frontend.Variable) frontend.Variable // combinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
+	degree(i int) int                                                    // degree of the total claim in the i'th variable
+	verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error
 }
 
-// Proof of a multi-sumcheck statement.
-type Proof struct {
+// sumcheckProof of a multi-sumcheck statement.
+type sumcheckProof struct {
 	PartialSumPolys []polynomial.Polynomial
 	FinalEvalProof  interface{}
 }
@@ -55,9 +55,9 @@ func next(transcript *fiatshamir.Transcript, bindings []frontend.Variable, remai
 	return res, err
 }
 
-func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings fiatshamir.Settings) error {
+func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckProof, transcriptSettings fiatshamir.Settings) error {
 
-	remainingChallengeNames, err := setupTranscript(api, claims.ClaimsNum(), claims.VarsNum(), &transcriptSettings)
+	remainingChallengeNames, err := setupTranscript(api, claims.claimsNum(), claims.varsNum(), &transcriptSettings)
 	transcript := transcriptSettings.Transcript
 	if err != nil {
 		return err
@@ -65,28 +65,28 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 
 	var combinationCoeff frontend.Variable
 
-	if claims.ClaimsNum() >= 2 {
+	if claims.claimsNum() >= 2 {
 		if combinationCoeff, err = next(transcript, []frontend.Variable{}, &remainingChallengeNames); err != nil {
 			return err
 		}
 	}
 
-	r := make([]frontend.Variable, claims.VarsNum())
+	r := make([]frontend.Variable, claims.varsNum())
 
 	// Just so that there is enough room for gJ to be reused
-	maxDegree := claims.Degree(0)
-	for j := 1; j < claims.VarsNum(); j++ {
-		if d := claims.Degree(j); d > maxDegree {
+	maxDegree := claims.degree(0)
+	for j := 1; j < claims.varsNum(); j++ {
+		if d := claims.degree(j); d > maxDegree {
 			maxDegree = d
 		}
 	}
 
-	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
-	gJR := claims.CombinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.varsNum()
+	gJR := claims.combinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
-	for j := 0; j < claims.VarsNum(); j++ {
+	for j := 0; j < claims.varsNum(); j++ {
 		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
-		if len(partialSumPoly) != claims.Degree(j) {
+		if len(partialSumPoly) != claims.degree(j) {
 			return errors.New("malformed proof") //Malformed proof
 		}
 		copy(gJ[1:], partialSumPoly)
@@ -98,9 +98,9 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 			return err
 		}
 
-		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.Degree(j)+1)])
+		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.degree(j)+1)])
 	}
 
-	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof)
+	return claims.verifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof)
 
 }
