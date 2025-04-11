@@ -28,12 +28,12 @@ type GkrSolvingData struct {
 	workers     *utils.WorkerPool
 }
 
-const unigate = false
+const Unigate = false
 
 func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		if unigate {
+		if Unigate {
 			if noPtr[i].Gate != "" {
 				gateFunc := gates.ToBn254GateFunction(gates.GetGate(gates.GateName(noPtr[i].Gate)).Evaluate)
 				if err := gkr.RegisterGate(gkr.GateName(noPtr[i].Gate), gateFunc, len(noPtr[i].Inputs)); err != nil {

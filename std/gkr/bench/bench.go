@@ -43,6 +43,15 @@ func permutationSnark(api gates.GateAPI, in ...frontend.Variable) frontend.Varia
 }
 
 func main() {
+
+	var isUnigate string
+	if !cs2.Unigate {
+		isUnigate = "NOT_"
+	}
+	isUnigate = isUnigate + "unigate"
+
+	fmt.Println(isUnigate)
+
 	ark.SetUint64(0x1234567890abcdef)
 
 	panicIfError(gkrFr.RegisterGate(gateName, permutation, 2))
