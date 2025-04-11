@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/sumcheck"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -112,7 +111,7 @@ func (w Wire) noProof() bool {
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment map[*Wire]polynomial.MultiLin
 
-type Proof []sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
+type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 // eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
@@ -124,7 +123,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-// VerifyFinalEval finalizes the verification of w.
+// verifyFinalEval finalizes the verification of w.
 // The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
 // ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
 // Both purportedValue and the vector r have been randomized during the sumcheck protocol.
@@ -136,7 +135,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, inputEvaluationsNoRedundancy []frontend.Variable) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, inputEvaluationsNoRedundancy []frontend.Variable) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
@@ -178,20 +177,20 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 	return nil
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) ClaimsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) varsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
+func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(api, a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
@@ -395,7 +394,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 				evaluation := assignment[wire].Evaluate(api, claim.evaluationPoints[0])
 				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 			}
-		} else if err = sumcheck.Verify(
+		} else if err = verifySumcheck(
 			api, claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil {
 			baseChallenge = proofW.FinalEvalProof

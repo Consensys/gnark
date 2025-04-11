@@ -163,22 +163,9 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 			return err
 		}
 
-		// serialize proof: TODO: In gnark-crypto?
-		offset := 0
-		for i := range proof {
-			for _, poly := range proof[i].PartialSumPolys {
-				frToBigInts(outs[offset:], poly)
-				offset += len(poly)
-			}
-			if proof[i].FinalEvalProof != nil {
-				frToBigInts(outs[offset:], proof[i].FinalEvalProof)
-				offset += len(proof[i].FinalEvalProof)
-			}
-		}
-
 		data.dumpAssignments()
 
-		return nil
+		return proof.SerializeToBigInts(outs)
 
 	}
 }
