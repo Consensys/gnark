@@ -602,19 +602,19 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof = make([]fr.Element, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				if _, err := test_vector_utils.SetElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
+				if _, err := SetElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
 					return nil, err
 				}
 			}
 		}
 
-		proof[i] = sumcheck.Proof{
-			PartialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
-			FinalEvalProof:  finalEvalProof,
+		proof[i] = sumcheckProof{
+			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
+			finalEvalProof:  finalEvalProof,
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].PartialSumPolys[k], err = test_vector_utils.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -631,11 +631,11 @@ type TestCase struct {
 }
 
 type TestCaseInfo struct {
-	Hash    test_vector_utils.HashDescription `json:"hash"`
-	Circuit string                            `json:"circuit"`
-	Input   [][]interface{}                   `json:"input"`
-	Output  [][]interface{}                   `json:"output"`
-	Proof   PrintableProof                    `json:"proof"`
+	Hash    HashDescription `json:"hash"`
+	Circuit string          `json:"circuit"`
+	Input   [][]interface{} `json:"input"`
+	Output  [][]interface{} `json:"output"`
+	Proof   PrintableProof  `json:"proof"`
 }
 
 var testCases = make(map[string]*TestCase)
@@ -662,7 +662,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = test_vector_utils.HashFromDescription(info.Hash); err != nil {
+			if _hash, err = HashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
 			var proof Proof
@@ -693,7 +693,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []fr.Element
-					if wireAssignment, err = test_vector_utils.SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = SliceToElementSlice(assignmentRaw); err != nil {
 						return nil, err
 					}
 
@@ -707,7 +707,7 @@ func newTestCase(path string) (*TestCase, error) {
 			for _, w := range sorted {
 				if w.IsOutput() {
 
-					if err = test_vector_utils.SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+					if err = SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
 						return nil, fmt.Errorf("assignment mismatch: %v", err)
 					}
 

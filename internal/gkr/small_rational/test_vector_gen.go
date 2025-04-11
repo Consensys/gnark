@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/gkr/small_rational"
-	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
@@ -21,7 +19,7 @@ import (
 )
 
 func GenerateVectors() error {
-	testDirPath, err := filepath.Abs("../../gkr/test_vectors/gkr")
+	testDirPath, err := filepath.Abs("../../gkr/test_vectors")
 	if err != nil {
 		return err
 	}
@@ -59,8 +57,8 @@ func run(absPath string) error {
 
 	transcriptSetting := fiatshamir.WithHash(testCase.Hash)
 
-	var proof gkr.Proof
-	proof, err = gkr.Prove(testCase.Circuit, testCase.FullAssignment, transcriptSetting)
+	var proof Proof
+	proof, err = Prove(testCase.Circuit, testCase.FullAssignment, transcriptSetting)
 	if err != nil {
 		return err
 	}
@@ -82,7 +80,7 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = gkr.Verify(testCase.Circuit, testCase.InOutAssignment, proof, transcriptSetting)
+	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, transcriptSetting)
 	if err != nil {
 		return err
 	}
@@ -92,25 +90,25 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = gkr.Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(small_rational.NewMessageCounter(2, 0)))
+	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(NewMessageCounter(2, 0)))
 	if err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 	return nil
 }
 
-func toPrintableProof(proof gkr.Proof) (PrintableProof, error) {
+func toPrintableProof(proof Proof) (PrintableProof, error) {
 	res := make(PrintableProof, len(proof))
 
 	for i := range proof {
 
-		partialSumPolys := make([][]interface{}, len(proof[i].PartialSumPolys))
-		for k, partialK := range proof[i].PartialSumPolys {
-			partialSumPolys[k] = small_rational.ElementSliceToInterfaceSlice(partialK)
+		partialSumPolys := make([][]interface{}, len(proof[i].partialSumPolys))
+		for k, partialK := range proof[i].partialSumPolys {
+			partialSumPolys[k] = ElementSliceToInterfaceSlice(partialK)
 		}
 
 		res[i] = PrintableSumcheckProof{
-			FinalEvalProof:  small_rational.ElementSliceToInterfaceSlice(proof[i].FinalEvalProof),
+			FinalEvalProof:  ElementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
 	}
@@ -118,15 +116,15 @@ func toPrintableProof(proof gkr.Proof) (PrintableProof, error) {
 }
 
 type WireInfo struct {
-	Gate   gkr.GateName `json:"gate"`
-	Inputs []int        `json:"inputs"`
+	Gate   GateName `json:"gate"`
+	Inputs []int    `json:"inputs"`
 }
 
 type CircuitInfo []WireInfo
 
-var circuitCache = make(map[string]gkr.Circuit)
+var circuitCache = make(map[string]Circuit)
 
-func getCircuit(path string) (gkr.Circuit, error) {
+func getCircuit(path string) (Circuit, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -149,11 +147,11 @@ func getCircuit(path string) (gkr.Circuit, error) {
 	}
 }
 
-func (c CircuitInfo) toCircuit() (circuit gkr.Circuit) {
-	circuit = make(gkr.Circuit, len(c))
+func (c CircuitInfo) toCircuit() (circuit Circuit) {
+	circuit = make(Circuit, len(c))
 	for i := range c {
-		circuit[i].Gate = gkr.GetGate(c[i].Gate)
-		circuit[i].Inputs = make([]*gkr.Wire, len(c[i].Inputs))
+		circuit[i].Gate = GetGate(c[i].Gate)
+		circuit[i].Inputs = make([]*Wire, len(c[i].Inputs))
 		for k, inputCoord := range c[i].Inputs {
 			input := &circuit[inputCoord]
 			circuit[i].Inputs[k] = input
@@ -176,18 +174,18 @@ func mimcRound(input ...small_rational.SmallRational) (res small_rational.SmallR
 }
 
 const (
-	MiMC         gkr.GateName = "mimc"
-	SelectInput3 gkr.GateName = "select-input-3"
+	MiMC         GateName = "mimc"
+	SelectInput3 GateName = "select-input-3"
 )
 
 func init() {
-	if err := gkr.RegisterGate(MiMC, mimcRound, 2, gkr.WithUnverifiedDegree(7)); err != nil {
+	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
 		panic(err)
 	}
 
-	if err := gkr.RegisterGate(SelectInput3, func(input ...small_rational.SmallRational) small_rational.SmallRational {
+	if err := RegisterGate(SelectInput3, func(input ...small_rational.SmallRational) small_rational.SmallRational {
 		return input[2]
-	}, 3, gkr.WithUnverifiedDegree(1)); err != nil {
+	}, 3, WithUnverifiedDegree(1)); err != nil {
 		panic(err)
 	}
 }
@@ -199,8 +197,8 @@ type PrintableSumcheckProof struct {
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 }
 
-func unmarshalProof(printable PrintableProof) (gkr.Proof, error) {
-	proof := make(gkr.Proof, len(printable))
+func unmarshalProof(printable PrintableProof) (Proof, error) {
+	proof := make(Proof, len(printable))
 	for i := range printable {
 		finalEvalProof := []small_rational.SmallRational(nil)
 
@@ -214,13 +212,13 @@ func unmarshalProof(printable PrintableProof) (gkr.Proof, error) {
 			}
 		}
 
-		proof[i] = sumcheck.Proof{
-			PartialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
-			FinalEvalProof:  finalEvalProof,
+		proof[i] = sumcheckProof{
+			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
+			finalEvalProof:  finalEvalProof,
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].PartialSumPolys[k], err = small_rational.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -229,20 +227,20 @@ func unmarshalProof(printable PrintableProof) (gkr.Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gkr.Circuit
+	Circuit         Circuit
 	Hash            hash.Hash
-	Proof           gkr.Proof
-	FullAssignment  gkr.WireAssignment
-	InOutAssignment gkr.WireAssignment
+	Proof           Proof
+	FullAssignment  WireAssignment
+	InOutAssignment WireAssignment
 	Info            TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
 }
 
 type TestCaseInfo struct {
-	Hash    small_rational.HashDescription `json:"hash"`
-	Circuit string                         `json:"circuit"`
-	Input   [][]interface{}                `json:"input"`
-	Output  [][]interface{}                `json:"output"`
-	Proof   PrintableProof                 `json:"proof"`
+	Hash    HashDescription `json:"hash"`
+	Circuit string          `json:"circuit"`
+	Input   [][]interface{} `json:"input"`
+	Output  [][]interface{} `json:"output"`
+	Proof   PrintableProof  `json:"proof"`
 }
 
 var testCases = make(map[string]*TestCase)
@@ -264,23 +262,23 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			var circuit gkr.Circuit
+			var circuit Circuit
 			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = small_rational.HashFromDescription(info.Hash); err != nil {
+			if _hash, err = HashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
-			var proof gkr.Proof
+			var proof Proof
 			if proof, err = unmarshalProof(info.Proof); err != nil {
 				return nil, err
 			}
 
-			fullAssignment := make(gkr.WireAssignment)
-			inOutAssignment := make(gkr.WireAssignment)
+			fullAssignment := make(WireAssignment)
+			inOutAssignment := make(WireAssignment)
 
-			sorted := gkr.TopologicalSort(circuit)
+			sorted := topologicalSort(circuit)
 
 			inI, outI := 0, 0
 			for _, w := range sorted {
@@ -300,7 +298,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []small_rational.SmallRational
-					if wireAssignment, err = small_rational.SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = SliceToElementSlice(assignmentRaw); err != nil {
 						return nil, err
 					}
 
@@ -311,12 +309,12 @@ func newTestCase(path string) (*TestCase, error) {
 
 			fullAssignment.Complete(circuit)
 
-			info.Output = make([][]interface{}, 0, outI)
-
 			for _, w := range sorted {
 				if w.IsOutput() {
 
-					info.Output = append(info.Output, small_rational.ElementSliceToInterfaceSlice(inOutAssignment[w]))
+					if err = SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+						return nil, fmt.Errorf("assignment mismatch: %v", err)
+					}
 
 				}
 			}

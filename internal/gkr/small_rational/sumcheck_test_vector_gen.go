@@ -1,10 +1,9 @@
-package sumcheck
+package gkr
 
 import (
 	"encoding/json"
 	"fmt"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
@@ -14,10 +13,10 @@ import (
 	"runtime/pprof"
 )
 
-func runMultilin(testCaseInfo *TestCaseInfo) error {
+func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 
 	var poly polynomial.MultiLin
-	if v, err := small_rational.SliceToElementSlice(testCaseInfo.Values); err == nil {
+	if v, err := SliceToElementSlice(testCaseInfo.Values); err == nil {
 		poly = v
 	} else {
 		return err
@@ -28,19 +27,19 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 		err error
 	)
 
-	if hsh, err = small_rational.HashFromDescription(testCaseInfo.Hash); err != nil {
+	if hsh, err = HashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
 
-	proof, err := sumcheck.Prove(
+	proof, err := sumcheckProve(
 		&singleMultilinClaim{poly}, fiatshamir.WithHash(hsh))
 	if err != nil {
 		return err
 	}
-	testCaseInfo.Proof = toPrintableProof(proof)
+	testCaseInfo.Proof = sumcheckToPrintableProof(proof)
 
 	// Verification
-	if v, _err := small_rational.SliceToElementSlice(testCaseInfo.Values); _err == nil {
+	if v, _err := SliceToElementSlice(testCaseInfo.Values); _err == nil {
 		poly = v
 	} else {
 		return _err
@@ -50,12 +49,12 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 		return err
 	}
 
-	if err = sumcheck.Verify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err != nil {
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err != nil {
 		return fmt.Errorf("proof rejected: %v", err)
 	}
 
-	proof.PartialSumPolys[0][0].Add(&proof.PartialSumPolys[0][0], small_rational.ToElement(1))
-	if err = sumcheck.Verify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
+	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], ToElement(1))
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 
@@ -65,7 +64,7 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 	return nil
 }
 
-func run(testCaseInfo *TestCaseInfo) error {
+func runSumcheck(testCaseInfo *sumcheckTestCaseInfo) error {
 	switch testCaseInfo.Type {
 	case "multilin":
 		return runMultilin(testCaseInfo)
@@ -74,7 +73,7 @@ func run(testCaseInfo *TestCaseInfo) error {
 	}
 }
 
-func GenerateVectors() error {
+func GenerateSumcheckVectors() error {
 	// read the test vectors file, generate the proof, make sure it verifies,
 	// and add the proof to the same file
 	const relPath = "../../gkr/test_vectors/sumcheck/vectors.json"
@@ -91,14 +90,14 @@ func GenerateVectors() error {
 		return err
 	}
 
-	var testCasesInfo TestCasesInfo
+	var testCasesInfo sumcheckTestCasesInfo
 	if err = json.Unmarshal(bytes, &testCasesInfo); err != nil {
 		return err
 	}
 
 	failed := false
 	for name, testCase := range testCasesInfo {
-		if err = run(testCase); err != nil {
+		if err = runSumcheck(testCase); err != nil {
 			fmt.Println(name, ":", err)
 			failed = true
 		}
@@ -115,28 +114,28 @@ func GenerateVectors() error {
 	return os.WriteFile(filename, bytes, 0)
 }
 
-type TestCasesInfo map[string]*TestCaseInfo
+type sumcheckTestCasesInfo map[string]*sumcheckTestCaseInfo
 
-type TestCaseInfo struct {
-	Type        string                         `json:"type"`
-	Hash        small_rational.HashDescription `json:"hash"`
-	Values      []interface{}                  `json:"values"`
-	Description string                         `json:"description"`
-	Proof       PrintableProof                 `json:"proof"`
-	ClaimedSum  interface{}                    `json:"claimedSum"`
+type sumcheckTestCaseInfo struct {
+	Type        string                 `json:"type"`
+	Hash        HashDescription        `json:"hash"`
+	Values      []interface{}          `json:"values"`
+	Description string                 `json:"description"`
+	Proof       SumcheckPrintableProof `json:"proof"`
+	ClaimedSum  interface{}            `json:"claimedSum"`
 }
 
-type PrintableProof struct {
+type SumcheckPrintableProof struct {
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
 }
 
-func toPrintableProof(proof sumcheck.Proof) (printable PrintableProof) {
-	if proof.FinalEvalProof != nil {
+func sumcheckToPrintableProof(proof sumcheckProof) (printable SumcheckPrintableProof) {
+	if proof.finalEvalProof != nil {
 		panic("null expected")
 	}
 	printable.FinalEvalProof = struct{}{}
-	printable.PartialSumPolys = small_rational.ElementSliceSliceToInterfaceSliceSlice(proof.PartialSumPolys)
+	printable.PartialSumPolys = ElementSliceSliceToInterfaceSliceSlice(proof.partialSumPolys)
 	return
 }
 
@@ -144,15 +143,15 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) ProveFinalEval([]small_rational.SmallRational) []small_rational.SmallRational {
+func (c singleMultilinClaim) proveFinalEval([]small_rational.SmallRational) []small_rational.SmallRational {
 	return nil // verifier can compute the final eval itself
 }
 
-func (c singleMultilinClaim) VarsNum() int {
+func (c singleMultilinClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
 }
 
-func (c singleMultilinClaim) ClaimsNum() int {
+func (c singleMultilinClaim) claimsNum() int {
 	return 1
 }
 
@@ -164,11 +163,11 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []small_rational.SmallRational{sum}
 }
 
-func (c singleMultilinClaim) Combine(small_rational.SmallRational) polynomial.Polynomial {
+func (c singleMultilinClaim) combine(small_rational.SmallRational) polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
-func (c *singleMultilinClaim) Next(r small_rational.SmallRational) polynomial.Polynomial {
+func (c *singleMultilinClaim) next(r small_rational.SmallRational) polynomial.Polynomial {
 	c.g.Fold(r)
 	return sumForX1One(c.g)
 }
@@ -178,7 +177,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum small_rational.SmallRational
 }
 
-func (c singleMultilinLazyClaim) VerifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, _ []small_rational.SmallRational) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, _ []small_rational.SmallRational) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -186,18 +185,18 @@ func (c singleMultilinLazyClaim) VerifyFinalEval(r []small_rational.SmallRationa
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) CombinedSum(small_rational.SmallRational) small_rational.SmallRational {
+func (c singleMultilinLazyClaim) combinedSum(small_rational.SmallRational) small_rational.SmallRational {
 	return c.claimedSum
 }
 
-func (c singleMultilinLazyClaim) Degree(int) int {
+func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
 }
 
-func (c singleMultilinLazyClaim) ClaimsNum() int {
+func (c singleMultilinLazyClaim) claimsNum() int {
 	return 1
 }
 
-func (c singleMultilinLazyClaim) VarsNum() int {
+func (c singleMultilinLazyClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
 }

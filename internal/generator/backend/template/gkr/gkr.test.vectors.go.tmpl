@@ -10,13 +10,8 @@
 {{$Wire             := print $GkrPackagePrefix "Wire"}}
 {{$CircuitLayer     := print $GkrPackagePrefix "CircuitLayer"}}
 
-{{$PackagePrefix := ""}}
-{{- if .OutsideGkrPackage}}
-	{{$PackagePrefix = "gkr."}}
-{{end}}
-
 type WireInfo struct {
-	Gate   {{$PackagePrefix}}GateName `json:"gate"`
+	Gate   GateName `json:"gate"`
 	Inputs []int  `json:"inputs"`
 }
 
@@ -50,7 +45,7 @@ func getCircuit(path string) ({{$Circuit}}, error) {
 func (c CircuitInfo) toCircuit() (circuit {{$Circuit}}) {
 	circuit = make({{$Circuit}}, len(c))
 	for i := range c {
-		circuit[i].Gate = {{$PackagePrefix}}GetGate(c[i].Gate)
+		circuit[i].Gate = GetGate(c[i].Gate)
 		circuit[i].Inputs = make([]*{{$Wire}}, len(c[i].Inputs))
 		for k, inputCoord := range c[i].Inputs {
 			input := &circuit[inputCoord]
@@ -74,18 +69,18 @@ func mimcRound(input ...{{.ElementType}}) (res {{.ElementType}}) {
 }
 
 const (
-	MiMC {{$PackagePrefix}}GateName = "mimc"
-	SelectInput3 {{$PackagePrefix}}GateName = "select-input-3"
+	MiMC GateName = "mimc"
+	SelectInput3 GateName = "select-input-3"
 )
 
 func init() {
-	if err := {{$PackagePrefix}}RegisterGate(MiMC, mimcRound, 2, {{$PackagePrefix}}WithUnverifiedDegree(7)); err != nil {
+	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
 		panic(err)
 	}
 
-	if err := {{$PackagePrefix}}RegisterGate(SelectInput3, func(input ...{{.ElementType}}) {{.ElementType}} {
+	if err := RegisterGate(SelectInput3, func(input ...{{.ElementType}}) {{.ElementType}} {
 		return input[2]
-	}, 3, {{$PackagePrefix}}WithUnverifiedDegree(1)); err != nil {
+	}, 3, WithUnverifiedDegree(1)); err != nil {
 		panic(err)
 	}
 }
@@ -112,13 +107,13 @@ func unmarshalProof(printable PrintableProof) ({{$Proof}}, error) {
 			}
 		}
 
-		proof[i] = sumcheck.Proof{
-			PartialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
-			FinalEvalProof:  finalEvalProof,
+		proof[i] = sumcheckProof{
+			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
+			finalEvalProof:  finalEvalProof,
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].PartialSumPolys[k], err = test_vector_utils.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -136,7 +131,7 @@ type TestCase struct {
 }
 
 type TestCaseInfo struct {
-	Hash    test_vector_utils.HashDescription `json:"hash"`
+	Hash    HashDescription `json:"hash"`
 	Circuit string                            `json:"circuit"`
 	Input   [][]interface{}                   `json:"input"`
 	Output  [][]interface{}                   `json:"output"`
@@ -167,7 +162,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = test_vector_utils.HashFromDescription(info.Hash); err != nil {
+			if _hash, err = HashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
 			var proof {{$Proof}}
@@ -198,7 +193,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []{{.ElementType}}
-					if wireAssignment, err = test_vector_utils.SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = SliceToElementSlice(assignmentRaw); err != nil {
 					return nil, err
 					}
 
@@ -216,11 +211,11 @@ func newTestCase(path string) (*TestCase, error) {
 			for _, w := range sorted {
 				if w.IsOutput() {
 				{{if $CheckOutputCorrectness}}
-					if err = test_vector_utils.SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+					if err = SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
 						return nil, fmt.Errorf("assignment mismatch: %v", err)
 					}
 				{{else}}
-					info.Output = append(info.Output, test_vector_utils.ElementSliceToInterfaceSlice(inOutAssignment[w]))
+					info.Output = append(info.Output, ElementSliceToInterfaceSlice(inOutAssignment[w]))
 				{{end}}
 				}
 			}
@@ -246,7 +241,7 @@ func newTestCase(path string) (*TestCase, error) {
 {{end}}
 
 {{- define "setElement element value elementType"}}
-{{- if eq .elementType "fr.Element"}} test_vector_utils.SetElement(&{{.element}}, {{.value}})
+{{- if eq .elementType "fr.Element"}} SetElement(&{{.element}}, {{.value}})
 {{- else if eq .elementType "small_rational.SmallRational"}} {{.element}}.SetInterface({{.value}})
 {{- else}}
 {{print "\"UNEXPECTED TYPE" .elementType "\""}}

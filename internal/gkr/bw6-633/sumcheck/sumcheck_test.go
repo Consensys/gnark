@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/gkr/bw6-633/test_vector_utils"
+	"github.com/consensys/gnark/internal/gkr/bw6-633"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"math/bits"
@@ -111,7 +111,7 @@ func testSumcheckSingleClaimMultilin(polyInt []uint64, hashGenerator func() hash
 		return err
 	}
 
-	proof.PartialSumPolys[0][0].Add(&proof.PartialSumPolys[0][0], test_vector_utils.ToElement(1))
+	proof.PartialSumPolys[0][0].Add(&proof.PartialSumPolys[0][0], gkr.ToElement(1))
 	lazyClaim = singleMultilinLazyClaim{g: poly, claimedSum: poly.Sum()}
 	if Verify(lazyClaim, proof, fiatshamir.WithHash(hashGenerator())) == nil {
 		return fmt.Errorf("bad proof accepted")
@@ -136,7 +136,7 @@ func TestSumcheckDeterministicHashSingleClaimMultilin(t *testing.T) {
 			if step == 0 && startState == 1 { // unlucky case where a bad proof would be accepted
 				continue
 			}
-			hashGens = append(hashGens, test_vector_utils.NewMessageCounterGenerator(startState, step))
+			hashGens = append(hashGens, gkr.NewMessageCounterGenerator(startState, step))
 		}
 	}
 

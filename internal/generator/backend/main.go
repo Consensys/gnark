@@ -230,19 +230,9 @@ func main() {
 			GkrPackageRelativePath: "internal/gkr/small_rational",
 			CanUseFFT:              false,
 			NoGkrTests:             true,
+			GenerateTestVectors:    true,
 		}
 		assertNoError(generateGkrBackend(cfg))
-
-		// generate gkr test vector generator
-		cfg.GenerateTestVectors = true
-		cfg.OutsideGkrPackage = true
-
-		assertNoError(bgen.Generate(cfg, "gkr", "./template/gkr/",
-			bavard.Entry{
-				File:      "../../gkr/test_vectors/gkr/gkr-gen-vectors.go",
-				Templates: []string{"gkr.test.vectors.gen.go.tmpl", "gkr.test.vectors.go.tmpl"},
-			},
-		))
 
 		fmt.Println("generating test vectors for gkr and sumcheck")
 		cmd := exec.Command("go", "run", "../../gkr/test_vectors")
@@ -275,39 +265,31 @@ type templateData struct {
 
 func generateGkrBackend(cfg gkrConfig) error {
 	const repoRoot = "../../../"
-	packageOutPath := filepath.Join(repoRoot, cfg.GkrPackageRelativePath)
+	packageDir := filepath.Join(repoRoot, cfg.GkrPackageRelativePath)
 
-	// test vector utils
-	packageDir := filepath.Join(packageOutPath, "test_vector_utils")
-	entries := []bavard.Entry{
-		{File: filepath.Join(packageDir, "test_vector_utils.go"), Templates: []string{"test_vector_utils.go.tmpl"}},
-	}
-
-	if err := bgen.Generate(cfg, "test_vector_utils", "./template/gkr/", entries...); err != nil {
-		return err
-	}
-
-	// sumcheck backend
-	packageDir = filepath.Join(packageOutPath, "sumcheck")
-	entries = []bavard.Entry{
-		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
-		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
-	}
-
-	if err := bgen.Generate(cfg, "sumcheck", "./template/gkr/", entries...); err != nil {
-		return err
+	testVectorUtilsFileName := "test_vector_utils_test.go"
+	if cfg.GenerateTestVectors {
+		testVectorUtilsFileName = "test_vector_utils.go" // needs to be accessible to two separate packages
 	}
 
 	// gkr backend
-	packageDir = packageOutPath
-	entries = []bavard.Entry{
+	entries := []bavard.Entry{
 		{File: filepath.Join(packageDir, "gkr.go"), Templates: []string{"gkr.go.tmpl"}},
 		{File: filepath.Join(packageDir, "registry.go"), Templates: []string{"registry.go.tmpl"}},
+		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
+		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl"}},
+		{File: filepath.Join(packageDir, testVectorUtilsFileName), Templates: []string{"test_vector_utils.go.tmpl"}},
 	}
 
 	if !cfg.NoGkrTests {
 		entries = append(entries, bavard.Entry{
 			File: filepath.Join(packageDir, "gkr_test.go"), Templates: []string{"gkr.test.go.tmpl", "gkr.test.vectors.go.tmpl"},
+		})
+	}
+
+	if cfg.GenerateTestVectors {
+		entries = append(entries, bavard.Entry{
+			File: filepath.Join(packageDir, "test_vector_gen.go"), Templates: []string{"gkr.test.vectors.gen.go.tmpl", "gkr.test.vectors.go.tmpl"},
 		})
 	}
 
