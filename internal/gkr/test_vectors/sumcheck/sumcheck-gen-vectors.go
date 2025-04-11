@@ -7,7 +7,6 @@ import (
 	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
 	"hash"
 	"math/bits"
 	"os"
@@ -18,7 +17,7 @@ import (
 func runMultilin(testCaseInfo *TestCaseInfo) error {
 
 	var poly polynomial.MultiLin
-	if v, err := test_vector_utils.SliceToElementSlice(testCaseInfo.Values); err == nil {
+	if v, err := small_rational.SliceToElementSlice(testCaseInfo.Values); err == nil {
 		poly = v
 	} else {
 		return err
@@ -29,7 +28,7 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 		err error
 	)
 
-	if hsh, err = test_vector_utils.HashFromDescription(testCaseInfo.Hash); err != nil {
+	if hsh, err = small_rational.HashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
 
@@ -41,7 +40,7 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 	testCaseInfo.Proof = toPrintableProof(proof)
 
 	// Verification
-	if v, _err := test_vector_utils.SliceToElementSlice(testCaseInfo.Values); _err == nil {
+	if v, _err := small_rational.SliceToElementSlice(testCaseInfo.Values); _err == nil {
 		poly = v
 	} else {
 		return _err
@@ -55,7 +54,7 @@ func runMultilin(testCaseInfo *TestCaseInfo) error {
 		return fmt.Errorf("proof rejected: %v", err)
 	}
 
-	proof.PartialSumPolys[0][0].Add(&proof.PartialSumPolys[0][0], test_vector_utils.ToElement(1))
+	proof.PartialSumPolys[0][0].Add(&proof.PartialSumPolys[0][0], small_rational.ToElement(1))
 	if err = sumcheck.Verify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
@@ -119,12 +118,12 @@ func GenerateVectors() error {
 type TestCasesInfo map[string]*TestCaseInfo
 
 type TestCaseInfo struct {
-	Type        string                            `json:"type"`
-	Hash        test_vector_utils.HashDescription `json:"hash"`
-	Values      []interface{}                     `json:"values"`
-	Description string                            `json:"description"`
-	Proof       PrintableProof                    `json:"proof"`
-	ClaimedSum  interface{}                       `json:"claimedSum"`
+	Type        string                         `json:"type"`
+	Hash        small_rational.HashDescription `json:"hash"`
+	Values      []interface{}                  `json:"values"`
+	Description string                         `json:"description"`
+	Proof       PrintableProof                 `json:"proof"`
+	ClaimedSum  interface{}                    `json:"claimedSum"`
 }
 
 type PrintableProof struct {
@@ -137,7 +136,7 @@ func toPrintableProof(proof sumcheck.Proof) (printable PrintableProof) {
 		panic("null expected")
 	}
 	printable.FinalEvalProof = struct{}{}
-	printable.PartialSumPolys = test_vector_utils.ElementSliceSliceToInterfaceSliceSlice(proof.PartialSumPolys)
+	printable.PartialSumPolys = small_rational.ElementSliceSliceToInterfaceSliceSlice(proof.PartialSumPolys)
 	return
 }
 

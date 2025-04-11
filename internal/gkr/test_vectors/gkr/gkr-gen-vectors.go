@@ -14,7 +14,6 @@ import (
 	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/internal/small_rational/test_vector_utils"
 	"hash"
 	"os"
 	"path/filepath"
@@ -93,7 +92,7 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = gkr.Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(2, 0)))
+	err = gkr.Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(small_rational.NewMessageCounter(2, 0)))
 	if err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
@@ -107,11 +106,11 @@ func toPrintableProof(proof gkr.Proof) (PrintableProof, error) {
 
 		partialSumPolys := make([][]interface{}, len(proof[i].PartialSumPolys))
 		for k, partialK := range proof[i].PartialSumPolys {
-			partialSumPolys[k] = test_vector_utils.ElementSliceToInterfaceSlice(partialK)
+			partialSumPolys[k] = small_rational.ElementSliceToInterfaceSlice(partialK)
 		}
 
 		res[i] = PrintableSumcheckProof{
-			FinalEvalProof:  test_vector_utils.ElementSliceToInterfaceSlice(proof[i].FinalEvalProof),
+			FinalEvalProof:  small_rational.ElementSliceToInterfaceSlice(proof[i].FinalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
 	}
@@ -221,7 +220,7 @@ func unmarshalProof(printable PrintableProof) (gkr.Proof, error) {
 		}
 		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].PartialSumPolys[k], err = test_vector_utils.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].PartialSumPolys[k], err = small_rational.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -239,11 +238,11 @@ type TestCase struct {
 }
 
 type TestCaseInfo struct {
-	Hash    test_vector_utils.HashDescription `json:"hash"`
-	Circuit string                            `json:"circuit"`
-	Input   [][]interface{}                   `json:"input"`
-	Output  [][]interface{}                   `json:"output"`
-	Proof   PrintableProof                    `json:"proof"`
+	Hash    small_rational.HashDescription `json:"hash"`
+	Circuit string                         `json:"circuit"`
+	Input   [][]interface{}                `json:"input"`
+	Output  [][]interface{}                `json:"output"`
+	Proof   PrintableProof                 `json:"proof"`
 }
 
 var testCases = make(map[string]*TestCase)
@@ -270,7 +269,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 			var _hash hash.Hash
-			if _hash, err = test_vector_utils.HashFromDescription(info.Hash); err != nil {
+			if _hash, err = small_rational.HashFromDescription(info.Hash); err != nil {
 				return nil, err
 			}
 			var proof gkr.Proof
@@ -301,7 +300,7 @@ func newTestCase(path string) (*TestCase, error) {
 				}
 				if assignmentRaw != nil {
 					var wireAssignment []small_rational.SmallRational
-					if wireAssignment, err = test_vector_utils.SliceToElementSlice(assignmentRaw); err != nil {
+					if wireAssignment, err = small_rational.SliceToElementSlice(assignmentRaw); err != nil {
 						return nil, err
 					}
 
@@ -317,7 +316,7 @@ func newTestCase(path string) (*TestCase, error) {
 			for _, w := range sorted {
 				if w.IsOutput() {
 
-					info.Output = append(info.Output, test_vector_utils.ElementSliceToInterfaceSlice(inOutAssignment[w]))
+					info.Output = append(info.Output, small_rational.ElementSliceToInterfaceSlice(inOutAssignment[w]))
 
 				}
 			}
