@@ -10,7 +10,6 @@ import (
 	"fmt"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/gkr/small_rational/sumcheck"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"math/big"
@@ -27,16 +26,16 @@ type GateFunction func(...small_rational.SmallRational) small_rational.SmallRati
 type Gate struct {
 	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
 	nbIn        int          // number of inputs
-	degree      int          // total degree of f
+	degree      int          // total degree of the polynomial
 	solvableVar int          // if there is a solvable variable, its index, -1 otherwise
 }
 
-// Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
+// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
 func (g *Gate) Degree() int {
 	return g.degree
 }
 
-// SolvableVar returns I such that x_I can always be determined from {x_i} - {x_I} and f(x...). If there is no such variable, it returns -1.
+// SolvableVar returns I such that x_I can always be determined from {xᵢ} - x_I and f(x...). If there is no such variable, it returns -1.
 func (g *Gate) SolvableVar() int {
 	return g.solvableVar
 }
@@ -86,36 +85,50 @@ func (c Circuit) maxGateDegree() int {
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment map[*Wire]polynomial.MultiLin
 
-type Proof []sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
+type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
+// eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
+// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *Wire
-	evaluationPoints   [][]small_rational.SmallRational
-	claimedEvaluations []small_rational.SmallRational
-	manager            *claimsManager // WARNING: Circular references
+	wire               *Wire                            // the wire for which we are making the claim, with value w
+	evaluationPoints   [][]small_rational.SmallRational // xᵢ: the points at which the prover has made claims about the evaluation of w
+	claimedEvaluations []small_rational.SmallRational   // yᵢ = w(xᵢ), allegedly
+	manager            *claimsManager                   // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) ClaimsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) varsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(a small_rational.SmallRational) small_rational.SmallRational {
+// combinedSum returns ∑ᵢ aⁱ yᵢ
+func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a small_rational.SmallRational) small_rational.SmallRational {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(&a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof interface{}) error {
-	inputEvaluationsNoRedundancy := proof.([]small_rational.SmallRational)
-
-	// the eq terms
+// verifyFinalEval finalizes the verification of w.
+// The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
+// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
+// Both purportedValue and the vector r have been randomized during the sumcheck protocol.
+// By taking the w term out of the sum we get the equivalent claim that
+// for E := ∑ eq(xᵢ, r), it must be that E w(r) = purportedValue.
+// If w is an input wire, the verifier can directly check its evaluation at r.
+// Otherwise, the prover makes claims about the evaluation of w's input wires,
+// wᵢ, at r, to be verified later.
+// The claims are communicated through the proof parameter.
+// The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
+// the main claim, by checking E w(wᵢ(r)...) = purportedValue.
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.SmallRational, combinationCoeff, purportedValue small_rational.SmallRational, inputEvaluationsNoRedundancy []small_rational.SmallRational) error {
+	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
 	for i := numClaims - 2; i >= 0; i-- {
@@ -124,11 +137,11 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []small_rational.S
 		evaluation.Add(&evaluation, &eq)
 	}
 
-	// the g(...) term
+	// the w(...) term
 	var gateEvaluation small_rational.SmallRational
-	if e.wire.IsInput() {
+	if e.wire.IsInput() { // just compute w(r)
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
-	} else {
+	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		inputEvaluations := make([]small_rational.SmallRational, len(e.wire.Inputs))
 		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
 
@@ -159,39 +172,48 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(r []small_rational.S
 	return errors.New("incompatible evaluations")
 }
 
+// eqTimesGateEvalSumcheckClaims is a claim for sumcheck (prover side).
+// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// Its purpose is to batch the proving of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckClaims struct {
-	wire               *Wire
-	evaluationPoints   [][]small_rational.SmallRational // x in the paper
-	claimedEvaluations []small_rational.SmallRational   // y in the paper
+	wire               *Wire                            // the wire for which we are making the claim, with value w
+	evaluationPoints   [][]small_rational.SmallRational // xᵢ: the points at which the prover has made claims about the evaluation of w
+	claimedEvaluations []small_rational.SmallRational   // yᵢ = w(xᵢ)
 	manager            *claimsManager
 
-	inputPreprocessors []polynomial.MultiLin // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
+	input []polynomial.MultiLin // input[i](h₁, ..., hₘ₋ⱼ) = wᵢ(r₁, r₂, ..., rⱼ₋₁, h₁, ..., hₘ₋ⱼ)
 
-	eq polynomial.MultiLin // ∑_i τ_i eq(x_i, -)
+	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff small_rational.SmallRational) polynomial.Polynomial {
-	varsNum := c.VarsNum()
+// combine the multiple claims into one claim using a random combination (combinationCoeff or c).
+// From the original multiple claims of w(xᵢ) = yᵢ, we get a single claim
+// ∑ᵢ,ₕ cⁱ eq(xᵢ, h) w(h) = ∑ᵢ cⁱ yᵢ, where h iterates over the hypercube (circuit instances) and
+// i iterates over the claims.
+// Equivalently, we could say ∑ᵢ cⁱ yᵢ = ∑ₕ,ᵢ cⁱ eq(xᵢ, h) w(h) = ∑ₕ w(h) ∑ᵢ cⁱ eq(xᵢ, h).
+// Thus if we initially compute E := ∑ᵢ cⁱ eq(xᵢ, -), our claim will find the simpler form
+// ∑ᵢ cⁱ yᵢ = ∑ₕ w(h) E(h), where the sum-checked polynomial is of degree deg(g) + 1,
+// and deg(g) is the total degree of the polynomial defining the gate g of which w is the output.
+// The output of combine is the first sumcheck claim, i.e. ∑₍ₕ₁,ₕ₂,...₎ w(X, h₁, h₂, ...) E(X, h₁, h₂, ...)..
+func (c *eqTimesGateEvalSumcheckClaims) combine(combinationCoeff small_rational.SmallRational) polynomial.Polynomial {
+	varsNum := c.varsNum()
 	eqLength := 1 << varsNum
-	claimsNum := c.ClaimsNum()
-	// initialize the eq tables
+	claimsNum := c.claimsNum()
+	// initialize the eq tables ( E )
 	c.eq = c.manager.memPool.Make(eqLength)
 
 	c.eq[0].SetOne()
 	c.eq.Eq(c.evaluationPoints[0])
 
+	// E := eq(x₀, -)
 	newEq := polynomial.MultiLin(c.manager.memPool.Make(eqLength))
 	aI := combinationCoeff
 
-	for k := 1; k < claimsNum; k++ { //TODO: parallelizable?
-		// define eq_k = aᵏ eq(x_k1, ..., x_kn, *, ..., *) where x_ki are the evaluation points
+	// E += cⁱ eq(xᵢ, -)
+	for k := 1; k < claimsNum; k++ {
 		newEq[0].Set(&aI)
 
 		c.eqAcc(c.eq, newEq, c.evaluationPoints[k])
-
-		// newEq.Eq(c.evaluationPoints[k])
-		// eqAsPoly := polynomial.Polynomial(c.eq) //just semantics
-		// eqAsPoly.Add(eqAsPoly, polynomial.Polynomial(newEq))
 
 		if k+1 < claimsNum {
 			aI.Mul(&aI, &combinationCoeff)
@@ -200,16 +222,16 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff small_rational.
 
 	c.manager.memPool.Dump(newEq)
 
-	// from this point on the claim is a rather simple one: g = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
-
 	return c.computeGJ()
 }
 
-// eqAcc sets m to an eq table at q and then adds it to e
+// eqAcc sets m to an eq table at q and then adds it to e.
+// m <- eq(q, -).
+// e <- e + m
 func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []small_rational.SmallRational) {
 	n := len(q)
 
-	//At the end of each iteration, m(h₁, ..., hₙ) = Eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
+	//At the end of each iteration, m(h₁, ..., hₙ) = eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
 	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
 		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
 		const threshold = 1 << 6
@@ -219,8 +241,8 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []smal
 				j0 := j << (n - i)    // bᵢ₊₁ = 0
 				j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
 
-				m[j1].Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-				m[j0].Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+				m[j1].Mul(&q[i], &m[j0])  // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+				m[j0].Sub(&m[j0], &m[j1]) // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 			}
 		} else {
 			c.manager.workers.Submit(k, func(start, end int) {
@@ -228,8 +250,8 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []smal
 					j0 := j << (n - i)    // bᵢ₊₁ = 0
 					j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
 
-					m[j1].Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-					m[j0].Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+					m[j1].Mul(&q[i], &m[j0])  // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 1) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+					m[j0].Sub(&m[j0], &m[j1]) // eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) eq(qᵢ₊₁, 0) = eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 				}
 			}, 1024).Wait()
 		}
@@ -240,93 +262,99 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []smal
 			e[i].Add(&e[i], &m[i])
 		}
 	}, 512).Wait()
-
-	// e.Add(e, polynomial.Polynomial(m))
 }
 
-// computeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
-// the polynomial is represented by the evaluations g_j(1), g_j(2), ..., g_j(deg(g_j)).
-// The value g_j(0) is inferred from the equation g_j(0) + g_j(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
+// computeGJ: gⱼ = ∑_{0≤h<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, h...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., Xⱼ, h...) g( w₀(r₁, ..., Xⱼ, h...), ... ).
+// the polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
+// The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
-	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
-	nbGateIn := len(c.inputPreprocessors)
+	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
+	nbGateIn := len(c.input)
 
-	// Let f ∈ { E(r₁, ..., X_j, d...) } ∪ {P_ul(r₁, ..., X_j, d...) }. It is linear in X_j, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
-	s := make([]polynomial.MultiLin, nbGateIn+1)
-	s[0] = c.eq
-	copy(s[1:], c.inputPreprocessors)
+	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
+	// they are linear in Xⱼ.
+	// So for f ∈ { E(r₁, ..., Xⱼ, h...) } ∪ {wᵢ(r₁, ..., Xⱼ, h...) }, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables.
+	// ml are such multilinear polynomials the evaluations of which over different values of Xⱼ are computed in this stepwise manner.
+	ml := make([]polynomial.MultiLin, nbGateIn+1)
+	ml[0] = c.eq
+	copy(ml[1:], c.input)
+
+	sumSize := len(c.eq) / 2 // the range of h, over which we sum
 
 	// Perf-TODO: Collate once at claim "combination" time and not again. then, even folding can be done in one operation every time "next" is called
-	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
-	nbOuter := len(s[0]) / 2
 
 	gJ := make([]small_rational.SmallRational, degGJ)
 	var mu sync.Mutex
-	computeAll := func(start, end int) {
+	computeAll := func(start, end int) { // compute method to allow parallelization across instances
 		var step small_rational.SmallRational
 
 		res := make([]small_rational.SmallRational, degGJ)
-		operands := make([]small_rational.SmallRational, degGJ*nbInner)
+		// evaluations of ml, laid out as:
+		// ml[0](1, h...), ml[1](1, h...), ..., ml[len(ml)-1](1, h...),
+		// ml[0](2, h...), ml[1](2, h...), ..., ml[len(ml)-1](2, h...),
+		// ...
+		// ml[0](degGJ, h...), ml[2](degGJ, h...), ..., ml[len(ml)-1](degGJ, h...)
+		// Thus the contribution of the
+		mlEvals := make([]small_rational.SmallRational, degGJ*len(ml))
 
-		for i := start; i < end; i++ {
+		for h := start; h < end; h++ { // h counts across instances
 
-			block := nbOuter + i
-			for j := 0; j < nbInner; j++ {
-				step.Set(&s[j][i])
-				operands[j].Set(&s[j][block])
-				step.Sub(&operands[j], &step)
+			evalAt1Index := sumSize + h
+			for k := range ml {
+				// d = 0
+				mlEvals[k].Set(&ml[k][evalAt1Index]) // evaluation at Xⱼ = 1. Can be taken directly from the table.
+				step.Sub(&mlEvals[k], &ml[k][h])     // step = ml[k](1) - ml[k](0)
 				for d := 1; d < degGJ; d++ {
-					operands[d*nbInner+j].Add(&operands[(d-1)*nbInner+j], &step)
+					mlEvals[d*len(ml)+k].Add(&mlEvals[(d-1)*len(ml)+k], &step)
 				}
 			}
 
-			_s := 0
-			_e := nbInner
-			for d := 0; d < degGJ; d++ {
-				summand := c.wire.Gate.Evaluate(operands[_s+1 : _e]...)
-				summand.Mul(&summand, &operands[_s])
-				res[d].Add(&res[d], &summand)
-				_s, _e = _e, _e+nbInner
+			eIndex := 0
+			nextEIndex := len(ml)
+			for d := range degGJ {
+				summand := c.wire.Gate.Evaluate(mlEvals[eIndex+1 : nextEIndex]...)
+				summand.Mul(&summand, &mlEvals[eIndex])
+				res[d].Add(&res[d], &summand) // collect contributions into the sum from start to end
+				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
 			}
 		}
 		mu.Lock()
-		for i := 0; i < len(gJ); i++ {
-			gJ[i].Add(&gJ[i], &res[i])
+		for i := range gJ {
+			gJ[i].Add(&gJ[i], &res[i]) // collect into the complete sum
 		}
 		mu.Unlock()
 	}
 
 	const minBlockSize = 64
 
-	if nbOuter < minBlockSize {
+	if sumSize < minBlockSize {
 		// no parallelization
-		computeAll(0, nbOuter)
+		computeAll(0, sumSize)
 	} else {
-		c.manager.workers.Submit(nbOuter, computeAll, minBlockSize).Wait()
+		c.manager.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
 	}
-
-	// Perf-TODO: Separate functions Gate.TotalDegree and Gate.Degree(i) so that we get to use possibly smaller values for degGJ. Won't help with MiMC though
 
 	return gJ
 }
 
-// Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
-func (c *eqTimesGateEvalSumcheckClaims) Next(element small_rational.SmallRational) polynomial.Polynomial {
+// next first folds the input and E polynomials at the given verifier challenge then computes the new gⱼ.
+// Thus, j <- j+1 and rⱼ = challenge.
+func (c *eqTimesGateEvalSumcheckClaims) next(challenge small_rational.SmallRational) polynomial.Polynomial {
 	const minBlockSize = 512
 	n := len(c.eq) / 2
 	if n < minBlockSize {
 		// no parallelization
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			c.inputPreprocessors[i].Fold(element)
+		for i := 0; i < len(c.input); i++ {
+			c.input[i].Fold(challenge)
 		}
-		c.eq.Fold(element)
+		c.eq.Fold(challenge)
 	} else {
-		wgs := make([]*sync.WaitGroup, len(c.inputPreprocessors))
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			wgs[i] = c.manager.workers.Submit(n, c.inputPreprocessors[i].FoldParallel(element), minBlockSize)
+		wgs := make([]*sync.WaitGroup, len(c.input))
+		for i := 0; i < len(c.input); i++ {
+			wgs[i] = c.manager.workers.Submit(n, c.input[i].FoldParallel(challenge), minBlockSize)
 		}
-		c.manager.workers.Submit(n, c.eq.FoldParallel(element), minBlockSize).Wait()
+		c.manager.workers.Submit(n, c.eq.FoldParallel(challenge), minBlockSize).Wait()
 		for _, wg := range wgs {
 			wg.Wait()
 		}
@@ -335,30 +363,31 @@ func (c *eqTimesGateEvalSumcheckClaims) Next(element small_rational.SmallRationa
 	return c.computeGJ()
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) VarsNum() int {
+func (c *eqTimesGateEvalSumcheckClaims) varsNum() int {
 	return len(c.evaluationPoints[0])
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
+func (c *eqTimesGateEvalSumcheckClaims) claimsNum() int {
 	return len(c.claimedEvaluations)
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) ProveFinalEval(r []small_rational.SmallRational) interface{} {
+// proveFinalEval provides the values wᵢ(r₁, ..., rₙ)
+func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []small_rational.SmallRational) []small_rational.SmallRational {
 
 	//defer the proof, return list of claims
 	evaluations := make([]small_rational.SmallRational, 0, len(c.wire.Inputs))
-	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.inputPreprocessors))
+	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
 	noMoreClaimsAllowed[c.wire] = struct{}{}
 
 	for inI, in := range c.wire.Inputs {
-		puI := c.inputPreprocessors[inI]
+		wI := c.input[inI]
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
-			puI.Fold(r[len(r)-1])
-			c.manager.add(in, r, puI[0])
-			evaluations = append(evaluations, puI[0])
+			wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
+			c.manager.add(in, r, wI[0])
+			evaluations = append(evaluations, wI[0])
 		}
-		c.manager.memPool.Dump(puI)
+		c.manager.memPool.Dump(wI)
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
@@ -413,12 +442,12 @@ func (m *claimsManager) getClaim(wire *Wire) *eqTimesGateEvalSumcheckClaims {
 	}
 
 	if wire.IsInput() {
-		res.inputPreprocessors = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wire])}
+		res.input = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wire])}
 	} else {
-		res.inputPreprocessors = make([]polynomial.MultiLin, len(wire.Inputs))
+		res.input = make([]polynomial.MultiLin, len(wire.Inputs))
 
 		for inputI, inputW := range wire.Inputs {
-			res.inputPreprocessors[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
+			res.input[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
 		}
 	}
 	return res
@@ -494,7 +523,7 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	}
 
 	if o.sorted == nil {
-		o.sorted = TopologicalSort(c)
+		o.sorted = topologicalSort(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -624,22 +653,20 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 
 		claim := claims.getClaim(wire)
 		if wire.noProof() { // input wires with one claim only
-			proof[i] = sumcheck.Proof{
-				PartialSumPolys: []polynomial.Polynomial{},
-				FinalEvalProof:  []small_rational.SmallRational{},
+			proof[i] = sumcheckProof{
+				partialSumPolys: []polynomial.Polynomial{},
+				finalEvalProof:  []small_rational.SmallRational{},
 			}
 		} else {
-			if proof[i], err = sumcheck.Prove(
+			if proof[i], err = sumcheckProve(
 				claim, fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 			); err != nil {
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof.([]small_rational.SmallRational)
-			baseChallenge = make([][]byte, len(finalEvalProof))
-			for j := range finalEvalProof {
-				bytes := finalEvalProof[j].Bytes()
-				baseChallenge[j] = bytes[:]
+			baseChallenge = make([][]byte, len(proof[i].finalEvalProof))
+			for j := range proof[i].finalEvalProof {
+				baseChallenge[j] = proof[i].finalEvalProof[j].Marshal()
 			}
 		}
 		// the verifier checks a single claim about input wires itself
@@ -676,11 +703,10 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 		}
 
 		proofW := proof[i]
-		finalEvalProof := proofW.FinalEvalProof.([]small_rational.SmallRational)
 		claim := claims.getLazyClaim(wire)
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
 			}
 
@@ -691,13 +717,12 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 					return errors.New("incorrect input wire claim")
 				}
 			}
-		} else if err = sumcheck.Verify(
+		} else if err = sumcheckVerify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-		); err == nil {
-			baseChallenge = make([][]byte, len(finalEvalProof))
-			for j := range finalEvalProof {
-				bytes := finalEvalProof[j].Bytes()
-				baseChallenge[j] = bytes[:]
+		); err == nil { // incorporate prover claims about w's input into the transcript
+			baseChallenge = make([][]byte, len(proofW.finalEvalProof))
+			for j := range baseChallenge {
+				baseChallenge[j] = proofW.finalEvalProof[j].Marshal()
 			}
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
@@ -774,12 +799,12 @@ func statusList(c Circuit) []int {
 	return res
 }
 
-// TopologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
+// topologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
 // occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
 // Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func TopologicalSort(c Circuit) []*Wire {
+func topologicalSort(c Circuit) []*Wire {
 	var data topSortData
 	data.index = indexMap(c)
 	data.outputs = outputsList(c, data.index)
@@ -800,7 +825,7 @@ func TopologicalSort(c Circuit) []*Wire {
 // Complete the circuit evaluation from input values
 func (a WireAssignment) Complete(c Circuit) WireAssignment {
 
-	sortedWires := TopologicalSort(c)
+	sortedWires := topologicalSort(c)
 	nbInstances := a.NumInstances()
 	maxNbIns := 0
 
@@ -842,20 +867,23 @@ func (a WireAssignment) NumVars() int {
 }
 
 // SerializeToBigInts flattens a proof object into the given slice of big.Ints
-// useful in gnark hints. TODO: Change propagation: Once this is merged, it will duplicate some code in std/gkr/bn254Prover.go. Remove that in favor of this
-func (p Proof) SerializeToBigInts(outs []*big.Int) {
+// useful in gnark hints.
+func (p Proof) SerializeToBigInts(outs []*big.Int) error {
 	offset := 0
 	for i := range p {
-		for _, poly := range p[i].PartialSumPolys {
+		for _, poly := range p[i].partialSumPolys {
 			frToBigInts(outs[offset:], poly)
 			offset += len(poly)
 		}
-		if p[i].FinalEvalProof != nil {
-			finalEvalProof := p[i].FinalEvalProof.([]small_rational.SmallRational)
-			frToBigInts(outs[offset:], finalEvalProof)
-			offset += len(finalEvalProof)
+		if p[i].finalEvalProof != nil {
+			frToBigInts(outs[offset:], p[i].finalEvalProof)
+			offset += len(p[i].finalEvalProof)
 		}
 	}
+	if offset != len(outs) {
+		return fmt.Errorf("expected %d elements, got %d", offset, len(outs))
+	}
+	return nil
 }
 
 func frToBigInts(dst []*big.Int, src []small_rational.SmallRational) {

@@ -3,8 +3,6 @@ import (
 	"{{.FieldPackagePath}}"
 	"{{.FieldPackagePath}}/mimc"
 	"{{.FieldPackagePath}}/polynomial"
-	"github.com/consensys/gnark/{{.GkrPackageRelativePath}}/sumcheck"
-	"github.com/consensys/gnark/{{.GkrPackageRelativePath}}/test_vector_utils"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/stretchr/testify/assert"
@@ -18,8 +16,6 @@ import (
 	"reflect"
 	"time"
 )
-
-{{$topologicalSort := select (eq .ElementType "fr.Element") "TopologicalSort" "topologicalSort"}}
 
 func TestNoGateTwoInstances(t *testing.T) {
 	// Testing a single instance is not possible because the sumcheck implementation doesn't cover the trivial 0-variate case
@@ -117,11 +113,11 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 		return &manager
 	}
 
-	transcriptGen := test_vector_utils.NewMessageCounterGenerator(4, 1)
+	transcriptGen := newMessageCounterGenerator(4, 1)
 
-	proof, err := sumcheck.Prove(claimsManagerGen().getClaim(wire), fiatshamir.WithHash(transcriptGen(), nil))
+	proof, err := sumcheckProve(claimsManagerGen().getClaim(wire), fiatshamir.WithHash(transcriptGen(), nil))
 	assert.NoError(t, err)
-	err = sumcheck.Verify(claimsManagerGen().getLazyClaim(wire), proof, fiatshamir.WithHash(transcriptGen(), nil))
+	err = sumcheckVerify(claimsManagerGen().getLazyClaim(wire), proof, fiatshamir.WithHash(transcriptGen(), nil))
 	assert.NoError(t, err)
 }
 
@@ -188,12 +184,12 @@ func testNoGate(t *testing.T, inputAssignments ...[]{{.ElementType}}) {
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0]}
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err)
 
 	// Even though a hash is called here, the proof is empty
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
 }
 
@@ -206,13 +202,13 @@ func testSingleAddGate(t *testing.T, inputAssignments ...[]{{.ElementType}}) {
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t,err)
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 }
 
@@ -226,13 +222,13 @@ func testSingleMulGate(t *testing.T, inputAssignments ...[]{{.ElementType}}) {
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err)
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 }
 
@@ -251,13 +247,13 @@ func testSingleInputTwoIdentityGates(t *testing.T, inputAssignments ...[]{{.Elem
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0]}.Complete(c)
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err, "proof rejected")
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 }
 
@@ -272,14 +268,14 @@ func testSingleMimcCipherGate(t *testing.T, inputAssignments ...[]{{.ElementType
 	t.Log("Evaluating all circuit wires")
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
 	t.Log("Circuit evaluation complete")
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
 	t.Log("Proof complete")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err, "proof rejected")
 
 	t.Log("Successful verification complete")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 	t.Log("Unsuccessful verification complete")
 }
@@ -298,13 +294,13 @@ func testSingleInputTwoIdentityGatesComposed(t *testing.T, inputAssignments ...[
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0]}.Complete(c)
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err, "proof rejected")
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 }
 
@@ -330,15 +326,15 @@ func testMimc(t *testing.T, numRounds int, inputAssignments ...[]{{.ElementType}
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
 	t.Log("Circuit evaluation complete")
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
 
 	t.Log("Proof finished")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err, "proof rejected")
 
 	t.Log("Successful verification finished")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 	t.Log("Unsuccessful verification finished")
 }
@@ -357,13 +353,13 @@ func testATimesBSquared(t *testing.T, numRounds int, inputAssignments ...[]{{.El
 
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(0, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err, "proof rejected")
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(1, 1)))
+	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 }
 
@@ -391,14 +387,14 @@ func generateTestVerifier(path string) func(t *testing.T) {
 		assert.NoError(t, err, "proof rejected")
 		testCase, err = newTestCase(path)
 		assert.NoError(t, err)
-		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(test_vector_utils.NewMessageCounter(2, 0)))
+		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
 }
 
 func TestGkrVectors(t *testing.T) {
 
-	const testDirPath = "../test_vectors/gkr"
+	const testDirPath = "../test_vectors/"
 	dirEntries, err := os.ReadDir(testDirPath)
 	assert.NoError(t, err)
 	for _, dirEntry := range dirEntries {
@@ -423,16 +419,16 @@ func proofEquals(expected Proof, seen Proof) error {
 	for i, x := range expected {
 		xSeen := seen[i]
 
-		if xSeen.FinalEvalProof == nil {
-			if seenFinalEval := x.FinalEvalProof.([]fr.Element); len(seenFinalEval) != 0 {
+		if xSeen.finalEvalProof == nil {
+			if seenFinalEval := x.finalEvalProof; len(seenFinalEval) != 0 {
 				return fmt.Errorf("length mismatch %d ≠ %d", 0, len(seenFinalEval))
 			}
 		} else {
-			if err := test_vector_utils.SliceEquals(x.FinalEvalProof.([]fr.Element), xSeen.FinalEvalProof.([]fr.Element)); err != nil {
+			if err := sliceEquals(x.finalEvalProof, xSeen.finalEvalProof); err != nil {
 				return fmt.Errorf("final evaluation proof mismatch")
 			}
 		}
-		if err := test_vector_utils.PolynomialSliceEquals(x.PartialSumPolys, xSeen.PartialSumPolys); err != nil {
+		if err := polynomialSliceEquals(x.partialSumPolys, xSeen.partialSumPolys); err != nil {
 			return err
 		}
 	}
@@ -474,7 +470,7 @@ func BenchmarkGkrMimc17(b *testing.B) {
 func TestTopSortTrivial(t *testing.T) {
 	c := make(Circuit, 2)
 	c[0].Inputs = []*Wire{&c[1]}
-	sorted := {{$topologicalSort}}(c)
+	sorted := topologicalSort(c)
 	assert.Equal(t, []*Wire{&c[1], &c[0]}, sorted)
 }
 
@@ -484,7 +480,7 @@ func TestTopSortDeep(t *testing.T) {
 	c[1].Inputs = []*Wire{&c[3]}
 	c[2].Inputs = []*Wire{}
 	c[3].Inputs = []*Wire{&c[0]}
-	sorted := {{$topologicalSort}}(c)
+	sorted := topologicalSort(c)
 	assert.Equal(t, []*Wire{&c[2], &c[0], &c[3], &c[1]}, sorted)
 }
 
@@ -501,7 +497,7 @@ func TestTopSortWide(t *testing.T) {
 	c[8].Inputs = []*Wire{&c[4], &c[3]}
 	c[9].Inputs = []*Wire{}
 
-	sorted := {{$topologicalSort}}(c)
+	sorted := topologicalSort(c)
 	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
 	assert.Equal(t, sortedExpected, sorted)
