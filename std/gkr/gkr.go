@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/sumcheck"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -55,11 +54,11 @@ type GateFunction func(GateAPI, ...frontend.Variable) frontend.Variable
 type Gate struct {
 	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
 	nbIn        int          // number of inputs
-	degree      int          // total degree of f
+	degree      int          // total degree of the polynomial
 	solvableVar int          // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 }
 
-// Degree returns the total degree of the gate's polynomial i.e. Degree(xy²) = 3
+// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
 func (g *Gate) Degree() int {
 	return g.degree
 }
@@ -112,8 +111,11 @@ func (w Wire) noProof() bool {
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment map[*Wire]polynomial.MultiLin
 
-type Proof []sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
+type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
+// eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
+// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
 	wire               *Wire
 	evaluationPoints   [][]frontend.Variable
@@ -121,10 +123,20 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error {
-	inputEvaluationsNoRedundancy := proof.([]frontend.Variable)
-
-	// the eq terms
+// verifyFinalEval finalizes the verification of w.
+// The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
+// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
+// Both purportedValue and the vector r have been randomized during the sumcheck protocol.
+// By taking the w term out of the sum we get the equivalent claim that
+// for E := ∑ eq(xᵢ, r), it must be that E w(r) = purportedValue.
+// If w is an input wire, the verifier can directly check its evaluation at r.
+// Otherwise, the prover makes claims about the evaluation of w's input wires,
+// wᵢ, at r, to be verified later.
+// The claims are communicated through the proof parameter.
+// The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
+// the main claim, by checking E w(wᵢ(r)...) = purportedValue.
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, inputEvaluationsNoRedundancy []frontend.Variable) error {
+	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
 	for i := numClaims - 2; i >= 0; i-- {
@@ -165,20 +177,20 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 	return nil
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) ClaimsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) varsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
+func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(api, a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
+func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
@@ -370,11 +382,10 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		}
 
 		proofW := proof[i]
-		finalEvalProof := proofW.FinalEvalProof.([]frontend.Variable)
 		claim := claims.getLazyClaim(wire)
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(proofW.FinalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
 			}
 
@@ -383,10 +394,10 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 				evaluation := assignment[wire].Evaluate(api, claim.evaluationPoints[0])
 				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 			}
-		} else if err = sumcheck.Verify(
+		} else if err = verifySumcheck(
 			api, claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil {
-			baseChallenge = finalEvalProof
+			baseChallenge = proofW.FinalEvalProof
 		} else {
 			return err
 		}
@@ -510,7 +521,7 @@ func (p Proof) Serialize() []frontend.Variable {
 		for j := range p[i].PartialSumPolys {
 			size += len(p[i].PartialSumPolys[j])
 		}
-		size += len(p[i].FinalEvalProof.([]frontend.Variable))
+		size += len(p[i].FinalEvalProof)
 	}
 
 	res := make([]frontend.Variable, 0, size)
@@ -518,7 +529,7 @@ func (p Proof) Serialize() []frontend.Variable {
 		for j := range p[i].PartialSumPolys {
 			res = append(res, p[i].PartialSumPolys[j]...)
 		}
-		res = append(res, p[i].FinalEvalProof.([]frontend.Variable)...)
+		res = append(res, p[i].FinalEvalProof...)
 	}
 	if len(res) != size {
 		panic("bug") // TODO: Remove

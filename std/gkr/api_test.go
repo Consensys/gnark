@@ -23,14 +23,13 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -263,7 +262,7 @@ func TestApiMul(t *testing.T) {
 	y, err = api.Import([]frontend.Variable{nil, nil})
 	require.NoError(t, err)
 	z = api.Mul(x, y)
-	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
+	assertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {

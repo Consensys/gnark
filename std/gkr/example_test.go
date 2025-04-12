@@ -3,13 +3,14 @@ package gkr_test
 import (
 	"encoding/binary"
 	"errors"
+
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	gkrBw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
+	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
