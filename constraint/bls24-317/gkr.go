@@ -8,12 +8,12 @@ package cs
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
+	gkr "github.com/consensys/gnark/internal/gkr/bls24-317"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 	"hash"
 	"math/big"
@@ -163,23 +163,9 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 			return err
 		}
 
-		// serialize proof: TODO: In gnark-crypto?
-		offset := 0
-		for i := range proof {
-			for _, poly := range proof[i].PartialSumPolys {
-				frToBigInts(outs[offset:], poly)
-				offset += len(poly)
-			}
-			if proof[i].FinalEvalProof != nil {
-				finalEvalProof := proof[i].FinalEvalProof.([]fr.Element)
-				frToBigInts(outs[offset:], finalEvalProof)
-				offset += len(finalEvalProof)
-			}
-		}
-
 		data.dumpAssignments()
 
-		return nil
+		return proof.SerializeToBigInts(outs)
 
 	}
 }

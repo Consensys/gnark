@@ -61,8 +61,8 @@ github.com/consensys/bavard v0.1.31-0.20250314194434-b30d4344e6d4 h1:0J+ppRic2ZX
 github.com/consensys/bavard v0.1.31-0.20250314194434-b30d4344e6d4/go.mod h1:k/zVjHHC4B+PQy1Pg7fgvG3ALicQw540Crag8qx+dZs=
 github.com/consensys/compress v0.2.5 h1:gJr1hKzbOD36JFsF1AN8lfXz1yevnJi1YolffY19Ntk=
 github.com/consensys/compress v0.2.5/go.mod h1:pyM+ZXiNUh7/0+AUjUf9RKUM6vSH7T/fsn5LLS0j1Tk=
-github.com/consensys/gnark-crypto v0.17.1-0.20250326164229-5fd6610ac2a1 h1:6cK71BoMAjWHNl+EpvBh2PDDa0PIeoz1KFJ/6R16DjQ=
-github.com/consensys/gnark-crypto v0.17.1-0.20250326164229-5fd6610ac2a1/go.mod h1:uV1HwfBwGRj50DGK3LbDLeCvq0RX/vFXST3CRSAu0Fs=
+github.com/consensys/gnark-crypto v0.17.1-0.20250331132656-820ac1d108bd h1:og4X8KhBpFv37u0PuXLz7yOLz9vwOcpTX4pKfbbwtgM=
+github.com/consensys/gnark-crypto v0.17.1-0.20250331132656-820ac1d108bd/go.mod h1:uV1HwfBwGRj50DGK3LbDLeCvq0RX/vFXST3CRSAu0Fs=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/consensys/gnark/std/compress/internal"
 	"os"
 	"testing"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,8 +132,8 @@ func TestNoCompression(t *testing.T) {
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
-		D:       test_vector_utils.ToVariableSlice(d),
+		C:       internal.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       internal.ToVariableSlice(d),
 		CBegin:  0,
 		CLength: len(c),
 		DLength: len(d),
@@ -175,8 +175,8 @@ func Test3c2943withHeader(t *testing.T) {
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
-		D:       test_vector_utils.ToVariableSlice(d),
+		C:       internal.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       internal.ToVariableSlice(d),
 		CBegin:  10,
 		CLength: len(c) - 10,
 		DLength: len(d),
@@ -201,9 +201,9 @@ func TestOutBufTooShort(t *testing.T) {
 	}
 
 	assignment := decompressionLengthTestCircuit{
-		C:               test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		C:               internal.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
 		CLength:         len(c),
-		D:               test_vector_utils.ToVariableSlice(d[:len(d)-truncationAmount]),
+		D:               internal.ToVariableSlice(d[:len(d)-truncationAmount]),
 		ExpectedDLength: -1,
 	}
 
@@ -315,8 +315,8 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
-		D:       test_vector_utils.ToVariableSlice(d),
+		C:       internal.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
+		D:       internal.ToVariableSlice(d),
 		CBegin:  s.cBegin,
 		CLength: len(s.compressed),
 		DLength: len(d),
@@ -341,7 +341,7 @@ type decompressionLengthTestCircuit struct {
 }
 
 func (c *decompressionLengthTestCircuit) Define(api frontend.API) error {
-	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(nil))
+	dict := internal.ToVariableSlice(lzss.AugmentDict(nil))
 	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict); err != nil {
 		return err
 	} else {
