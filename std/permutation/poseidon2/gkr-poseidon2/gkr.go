@@ -3,7 +3,6 @@ package gkr_poseidon2
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	"hash"
 	"math/big"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	gkrPoseidon2Bls12377 "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal/bls12-377"
 )
 

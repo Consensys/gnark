@@ -15,7 +15,7 @@ type bn254WrapperApi struct {
 	err error
 }
 
-func ToBn254GateFunction(f func(GateAPI, ...frontend.Variable) frontend.Variable) gkr.GateFunction {
+func toBn254GateFunction(f func(GateAPI, ...frontend.Variable) frontend.Variable) gkr.GateFunction {
 	var wrapper bn254WrapperApi
 
 	return func(x ...fr.Element) fr.Element {
