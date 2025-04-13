@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	gcHash "github.com/consensys/gnark-crypto/hash"
+
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
@@ -21,15 +23,13 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
-	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -262,7 +262,7 @@ func TestApiMul(t *testing.T) {
 	y, err = api.Import([]frontend.Variable{nil, nil})
 	require.NoError(t, err)
 	z = api.Mul(x, y)
-	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
+	assertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
@@ -386,9 +386,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func registerMiMC() {
-	bn254.RegisterHashBuilder("mimc", func() hash.Hash {
-		return bn254MiMC.NewMiMC()
-	})
+	bn254.RegisterHashBuilder("mimc", gcHash.MIMC_BN254.New)
 	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err

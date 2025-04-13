@@ -1,24 +1,26 @@
-package poseidon2
+package gkr_poseidon2
 
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	"hash"
 	"math/big"
 	"sync"
+
+	"github.com/consensys/gnark/constraint/solver"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	gkrPoseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2/gkrgates"
 	"github.com/consensys/gnark/constraint"
 	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
+	gkrPoseidon2Bls12377 "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal/bls12-377"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -156,7 +158,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 
 	// poseidon2 parameters
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
-	gateNamer := gkrPoseidon2Bls12377.RoundGateNamer(poseidon2Bls12377.GetDefaultParameters())
+	gateNamer := internal.RoundGateNamer[gkr.GateName](poseidon2Bls12377.GetDefaultParameters())
 	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
@@ -198,7 +200,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	// register and apply external matrix multiplication and round key addition
 	// round dependent due to the round key
 	extKeySBox := func(round, varI int, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gkr.GateName(gateNamer.Linear(varI, round))
+		gate := gateNamer.Linear(varI, round)
 		if err = gkr.RegisterGate(gate, extKeyGate(frToInt(&roundKeysFr[round][varI])), 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)); err != nil {
 			return -1
 		}
@@ -210,7 +212,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	// for the second variable
 	// round independent due to the round key
 	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
-		gate := gkr.GateName(gateNamer.Linear(yI, round))
+		gate := gateNamer.Linear(yI, round)
 		if err = gkr.RegisterGate(gate, intKeyGate2(frToInt(&roundKeysFr[round][1])), 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)); err != nil {
 			return -1
 		}
@@ -234,7 +236,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 		// still using the external matrix, since the linear operation still belongs to a full (canonical) round
 		x1 := extKeySBox(halfRf, xI, x, y)
 
-		gate := gkr.GateName(gateNamer.Linear(yI, halfRf))
+		gate := gateNamer.Linear(yI, halfRf)
 		if err = gkr.RegisterGate(gate, extGate2, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)); err != nil {
 			return nil, -1, err
 		}
@@ -245,7 +247,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
 
-		gate := gkr.GateName(gateNamer.Linear(yI, i))
+		gate := gateNamer.Linear(yI, i)
 		if err = gkr.RegisterGate(gate, intKeyGate2(zero), 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)); err != nil {
 			return nil, -1, err
 		}
@@ -265,7 +267,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	}
 
 	// apply the external matrix one last time to obtain the final value of y
-	gate := gkr.GateName(gateNamer.Linear(yI, rP+rF))
+	gate := gateNamer.Linear(yI, rP+rF)
 	if err = gkr.RegisterGate(gate, extAddGate, 3, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)); err != nil {
 		return nil, -1, err
 	}

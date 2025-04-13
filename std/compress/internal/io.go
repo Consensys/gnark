@@ -147,3 +147,12 @@ func BreakUpBytesIntoCrumbsHint(_ *big.Int, ins, outs []*big.Int) error {
 func BreakUpBytesIntoHalfHint(_ *big.Int, ins, outs []*big.Int) error { // todo find catchy name for 4 bits
 	return breakUpBytesIntoWords(4, ins, outs)
 }
+
+// TODO @Tabaie: useful util (equivalent function used in GKR package). Find a better home for it
+func ToVariableSlice[T any](slice []T) []frontend.Variable {
+	res := make([]frontend.Variable, len(slice))
+	for i := range slice {
+		res[i] = slice[i]
+	}
+	return res
+}

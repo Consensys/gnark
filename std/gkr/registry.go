@@ -2,8 +2,9 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/frontend"
 	"sync"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 type GateName string
