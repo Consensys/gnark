@@ -3,9 +3,8 @@ package test
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/field/babybear"
-	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -146,7 +145,7 @@ type wrappedBigInt struct {
 }
 
 func (w wrappedBigInt) Compress(to *[]uint32) {
-	if w.modulus.Cmp(babybear.Modulus()) == 0 || w.modulus.Cmp(koalabear.Modulus()) == 0 {
+	if smallfields.IsSmallField(w.modulus) {
 		e := bigIntToElement[constraint.U32](w.Int)
 		*to = append(*to, uint32(e[0]))
 	} else {
