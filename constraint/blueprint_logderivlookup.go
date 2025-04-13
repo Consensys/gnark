@@ -10,7 +10,7 @@ import (
 
 // BlueprintLookupHint is a blueprint that facilitates the lookup of values in a table.
 // It is essentially a hint to the solver, but enables storing the table entries only once.
-type BlueprintLookupHint struct {
+type BlueprintLookupHint[E Element] struct {
 	EntriesCalldata []uint32
 
 	// stores the maxLevel of the entries computed by WireWalker
@@ -19,15 +19,16 @@ type BlueprintLookupHint struct {
 	maxLevelOffset   int
 
 	// cache the resolved entries by the solver
-	cachedEntries []Element
+	cachedEntries []E
 	cachedOffset  int
 	lock          sync.Mutex
 }
 
 // ensures BlueprintLookupHint implements the BlueprintStateful interface
-var _ BlueprintStateful = (*BlueprintLookupHint)(nil)
+var _ BlueprintStateful[U32] = (*BlueprintLookupHint[U32])(nil)
+var _ BlueprintStateful[U64] = (*BlueprintLookupHint[U64])(nil)
 
-func (b *BlueprintLookupHint) Solve(s Solver, inst Instruction) error {
+func (b *BlueprintLookupHint[E]) Solve(s Solver[E], inst Instruction) error {
 	nbEntries := int(inst.Calldata[1])
 
 	// check if we already cached the entries
@@ -36,7 +37,8 @@ func (b *BlueprintLookupHint) Solve(s Solver, inst Instruction) error {
 		// we need to cache more entries
 		offset, delta := b.cachedOffset, 0
 		for i := len(b.cachedEntries); i < nbEntries; i++ {
-			b.cachedEntries = append(b.cachedEntries, Element{})
+			var zero E
+			b.cachedEntries = append(b.cachedEntries, zero)
 			b.cachedEntries[i], delta = s.Read(b.EntriesCalldata[offset:])
 			offset += delta
 		}
@@ -50,7 +52,7 @@ func (b *BlueprintLookupHint) Solve(s Solver, inst Instruction) error {
 	nbInputs := int(inst.Calldata[2])
 
 	// read the inputs from the instruction
-	inputs := make([]Element, nbInputs)
+	inputs := make([]E, nbInputs)
 	offset, delta := 3, 0
 	for i := 0; i < nbInputs; i++ {
 		inputs[i], delta = s.Read(inst.Calldata[offset:])
@@ -71,7 +73,7 @@ func (b *BlueprintLookupHint) Solve(s Solver, inst Instruction) error {
 	return nil
 }
 
-func (b *BlueprintLookupHint) Reset() {
+func (b *BlueprintLookupHint[E]) Reset() {
 	// first we need to compute the capacity; that is 1 element per linear expression in the entries.
 	// this must be accurate since solver is multi threaded and we don't want to resize the slice
 	// while the solver is running.
@@ -82,24 +84,24 @@ func (b *BlueprintLookupHint) Reset() {
 		i += 2 * n // skip the linear expression
 	}
 
-	b.cachedEntries = make([]Element, 0, capacity)
+	b.cachedEntries = make([]E, 0, capacity)
 	b.cachedOffset = 0
 }
 
-func (b *BlueprintLookupHint) CalldataSize() int {
+func (b *BlueprintLookupHint[E]) CalldataSize() int {
 	// variable size
 	return -1
 }
-func (b *BlueprintLookupHint) NbConstraints() int {
+func (b *BlueprintLookupHint[E]) NbConstraints() int {
 	return 0
 }
 
 // NbOutputs return the number of output wires this blueprint creates.
-func (b *BlueprintLookupHint) NbOutputs(inst Instruction) int {
+func (b *BlueprintLookupHint[E]) NbOutputs(inst Instruction) int {
 	return int(inst.Calldata[2])
 }
 
-func (b *BlueprintLookupHint) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+func (b *BlueprintLookupHint[E]) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
 	// depend on the table UP to the number of entries at time of instruction creation.
 	nbEntries := int(inst.Calldata[1])
 

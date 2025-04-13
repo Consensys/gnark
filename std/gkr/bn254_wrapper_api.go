@@ -3,9 +3,10 @@ package gkr
 import (
 	"errors"
 	"fmt"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/bn254"
 	"github.com/consensys/gnark/internal/utils"
 )
 

@@ -2,22 +2,23 @@ package internal
 
 import (
 	"errors"
+	"math/big"
+
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
-	"math/big"
 )
 
 // TODO Use std/rangecheck instead
 type RangeChecker struct {
 	api    frontend.API
-	tables map[uint]*logderivlookup.Table
+	tables map[uint]logderivlookup.Table
 }
 
 func NewRangeChecker(api frontend.API) *RangeChecker {
-	return &RangeChecker{api: api, tables: make(map[uint]*logderivlookup.Table)}
+	return &RangeChecker{api: api, tables: make(map[uint]logderivlookup.Table)}
 }
 
 func (r *RangeChecker) AssertLessThan(bound uint, c ...frontend.Variable) {
@@ -145,4 +146,13 @@ func BreakUpBytesIntoCrumbsHint(_ *big.Int, ins, outs []*big.Int) error {
 
 func BreakUpBytesIntoHalfHint(_ *big.Int, ins, outs []*big.Int) error { // todo find catchy name for 4 bits
 	return breakUpBytesIntoWords(4, ins, outs)
+}
+
+// TODO @Tabaie: useful util (equivalent function used in GKR package). Find a better home for it
+func ToVariableSlice[T any](slice []T) []frontend.Variable {
+	res := make([]frontend.Variable, len(slice))
+	for i := range slice {
+		res[i] = slice[i]
+	}
+	return res
 }

@@ -351,13 +351,20 @@ func getTagSet() cbor.TagSet {
 
 	addType(reflect.TypeOf(BlueprintGenericHint{}))
 	addType(reflect.TypeOf(BlueprintGenericR1C{}))
-	addType(reflect.TypeOf(BlueprintGenericSparseR1C{}))
-	addType(reflect.TypeOf(BlueprintSparseR1CAdd{}))
-	addType(reflect.TypeOf(BlueprintSparseR1CMul{}))
-	addType(reflect.TypeOf(BlueprintSparseR1CBool{}))
-	addType(reflect.TypeOf(BlueprintLookupHint{}))
 	addType(reflect.TypeOf(Groth16Commitments{}))
 	addType(reflect.TypeOf(PlonkCommitments{}))
+
+	addType(reflect.TypeOf(BlueprintGenericSparseR1C[U32]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CAdd[U32]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CMul[U32]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CBool[U32]{}))
+	addType(reflect.TypeOf(BlueprintLookupHint[U32]{}))
+
+	addType(reflect.TypeOf(BlueprintGenericSparseR1C[U64]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CAdd[U64]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CMul[U64]{}))
+	addType(reflect.TypeOf(BlueprintSparseR1CBool[U64]{}))
+	addType(reflect.TypeOf(BlueprintLookupHint[U64]{}))
 
 	return ts
 }
