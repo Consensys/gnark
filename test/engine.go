@@ -116,12 +116,17 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
 
-	// first we reset the stateful blueprints
-	for i := range e.blueprints {
-		if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
-			b.Reset()
+	// XXX(@ivokub): commented out - this seems to match the implementation of native solver,
+	// but we always create new test engine when calling `IsSolved`, so this slice is always empty.
+	// Skipping this allows us to avoid making test engine generic.
+	/*
+		// first we reset the stateful blueprints
+		for i := range e.blueprints {
+			if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
+				b.Reset()
+			}
 		}
-	}
+	*/
 
 	if err = c.Define(e); err != nil {
 		return fmt.Errorf("define: %w", err)
@@ -683,10 +688,8 @@ func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
 }
 
-// AddInstruction is used to add custom instructions to the constraint system.
-// In constraint system, this is asynchronous. In here, we do it synchronously.
-func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
-	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable)
+func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable[E])
 
 	// create a dummy instruction
 	inst := constraint.Instruction{
@@ -704,7 +707,7 @@ func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) [
 	}
 
 	// solve the blueprint synchronously
-	s := blueprintSolver{
+	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
 		q:                 e.q,
 	}
@@ -715,10 +718,29 @@ func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) [
 	return r
 }
 
+// AddInstruction is used to add custom instructions to the constraint system.
+// In constraint system, this is asynchronous. In here, we do it synchronously.
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	if constraint.FitsElement[constraint.U32](e.q) {
+		return addInstructionGeneric[constraint.U32](e, bID, calldata)
+	}
+	if constraint.FitsElement[constraint.U64](e.q) {
+		return addInstructionGeneric[constraint.U64](e, bID, calldata)
+	}
+	panic("unsupported field")
+}
+
 // AddBlueprint adds a custom blueprint to the constraint system.
 func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
-	if _, ok := b.(constraint.BlueprintSolvable); !ok {
-		panic("unsupported blueprint in test engine")
+	if constraint.FitsElement[constraint.U32](e.q) {
+		if _, ok := b.(constraint.BlueprintSolvable[constraint.U32]); !ok {
+			panic("unsupported blueprint in test engine")
+		}
+	}
+	if constraint.FitsElement[constraint.U64](e.q) {
+		if _, ok := b.(constraint.BlueprintSolvable[constraint.U64]); !ok {
+			panic("unsupported blueprint in test engine")
+		}
 	}
 	e.blueprints = append(e.blueprints, b)
 	return constraint.BlueprintID(len(e.blueprints) - 1)
@@ -738,7 +760,7 @@ func (e *engine) InternalVariable(vID uint32) frontend.Variable {
 // this is used in custom blueprints to return a variable than can be encoded in blueprints
 func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
 	r := e.toBigInt(v)
-	return wrappedBigInt{r}
+	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {

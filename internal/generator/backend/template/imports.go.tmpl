@@ -1,14 +1,18 @@
 {{- define "import_fr" }}
-	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"	
+    {{- if ne .AutoGenerateField "" }}
+	fr "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fr "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 	{{- end}}
 {{- end }}
 
 {{- define "import_fp" }}
-	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"
+    {{- if ne .AutoGenerateField "" }}
+	fp "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fp "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fp"
 	{{- end}}
@@ -20,19 +24,15 @@
 {{- end}}
 
 {{- define "import_curve" }}
-	{{- if ne .Curve "tinyfield"}}
-	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"
-	{{- else }}
+	{{- if ne .AutoGenerateField "" }}
 	"github.com/consensys/gnark-crypto/ecc"
+	{{- else}}
+	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"
 	{{- end}}
 {{- end }}
 
 {{- define "import_backend_cs" }}
-	{{- if eq .Curve "tinyfield"}}
-	"github.com/consensys/gnark/constraint/tinyfield"
-	{{- else}}
-	cs "github.com/consensys/gnark/constraint/{{toLower .Curve}}"
-	{{- end}}
+	cs "github.com/consensys/gnark/constraint/{{toLower .Curve }}"
 {{- end }}
 
 {{- define "import_fft" }}
@@ -40,8 +40,8 @@
 {{- end }}
 
 {{- define "import_witness" }}
-	{{- if eq .Curve "tinyfield"}}
-	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/tinyfield/witness"
+    {{- if ne .AutoGenerateField "" | or .OnlyField}}
+	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/smallfields/{{ .Curve }}/witness"
 	{{- else}}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
 	{{- end}}
