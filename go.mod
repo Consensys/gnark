@@ -9,12 +9,12 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.31-0.20250406004941-2db259e4b582
 	github.com/consensys/compress v0.2.5
-	github.com/consensys/gnark-crypto v0.17.1-0.20250409113232-424096f3f868
+	github.com/consensys/gnark-crypto v0.17.1-0.20250413232955-6b6896cc6e82
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
 	github.com/icza/bitio v1.1.0
-	github.com/ingonyama-zk/icicle/v3 v3.1.1-0.20241118092657-fccdb2f0921b
+	github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2
 	github.com/leanovate/gopter v0.2.11
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
