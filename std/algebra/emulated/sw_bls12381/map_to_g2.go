@@ -246,7 +246,7 @@ func (g2 *G2) MapToCurve2(u *fields_bls12381.E2) (*G2Affine, error) {
 	e1 := g2.api.Xor(sgn0U, sgn0Y) // we keep in mind that e1 = 1-(sgn0U == sgn0Y) as in gnark-crypto
 	// 24.   y = CMOV(-y, y, e1)
 	yNeg := g2.Ext2.Neg(y)
-	y = g2.Ext2.Select(e1, y, yNeg)
+	y = g2.Ext2.Select(e1, yNeg, y) // contrary to gnark-crypto, if e1=1 we select yNeg and y otherwise
 	// 25.   x = x / tv4
 	x = g2.Ext2.DivUnchecked(x, tv4)
 	// 26. return (x, y)
