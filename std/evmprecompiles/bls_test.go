@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -340,5 +341,37 @@ func TestECMapToG1(t *testing.T) {
 	}
 
 	err := test.IsSolved(&eCMapToG1BLSCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type ECMapToG2BLSCircuit struct {
+	A fields_bls12381.E2
+	R sw_bls12381.G2Affine
+}
+
+func (c *ECMapToG2BLSCircuit) Define(api frontend.API) error {
+	g, err := sw_bls12381.NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2: %w", err)
+	}
+	r := ECMapToG2BLS(api, &c.A)
+	g.AssertIsEqual(r, &c.R)
+
+	return nil
+}
+
+func TestECMapToG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	var a bls12381.E2
+	a.A0.SetRandom()
+	a.A1.SetRandom()
+	g := bls12381.MapToG2(a)
+
+	witness := ECMapToG2BLSCircuit{
+		A: fields_bls12381.FromE2(&a),
+		R: sw_bls12381.NewG2Affine(g),
+	}
+
+	err := test.IsSolved(&ECMapToG2BLSCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
