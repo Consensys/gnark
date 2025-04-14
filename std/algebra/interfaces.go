@@ -115,4 +115,7 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// most efficient for power of two lengths of the inputs, but works for any
 	// number of inputs.
 	MuxGt(sel frontend.Variable, inputs ...*GtEl) *GtEl
+
+	// IsEqual checks if the two inputs are equal. It returns a frontend.Variable.
+	IsEqual(a, b *GtEl) frontend.Variable
 }

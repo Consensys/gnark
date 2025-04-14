@@ -106,6 +106,42 @@ func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
 }
 
+func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff1 := c.api.Sub(&x.C0.B0.A1, &y.C0.B0.A1)
+	diff2 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff3 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff4 := c.api.Sub(&x.C0.B1.A0, &y.C0.B1.A0)
+	diff5 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff6 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff7 := c.api.Sub(&x.C1.B0.A1, &y.C1.B0.A1)
+	diff8 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff9 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+	diff10 := c.api.Sub(&x.C1.B1.A0, &y.C1.B1.A0)
+	diff11 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+
+	isZero0 := c.api.IsZero(diff0)
+	isZero1 := c.api.IsZero(diff1)
+	isZero2 := c.api.IsZero(diff2)
+	isZero3 := c.api.IsZero(diff3)
+	isZero4 := c.api.IsZero(diff4)
+	isZero5 := c.api.IsZero(diff5)
+	isZero6 := c.api.IsZero(diff6)
+	isZero7 := c.api.IsZero(diff7)
+	isZero8 := c.api.IsZero(diff8)
+	isZero9 := c.api.IsZero(diff9)
+	isZero10 := c.api.IsZero(diff10)
+	isZero11 := c.api.IsZero(diff11)
+
+	return c.api.And(
+		c.api.And(
+			c.api.And(c.api.And(isZero0, isZero1), c.api.And(isZero2, isZero3)),
+			c.api.And(c.api.And(isZero4, isZero5), c.api.And(isZero6, isZero7)),
+		),
+		c.api.And(c.api.And(isZero8, isZero9), c.api.And(isZero10, isZero11)),
+	)
+}
+
 // Neg negates P and returns the result. Does not modify P.
 func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	res := &G1Affine{
