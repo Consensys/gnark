@@ -116,14 +116,15 @@ func (g2 *G2) isogeny(p *G2Affine) *G2Affine {
 }
 
 func (g2 *G2) sgn0(x *fields_bls12381.E2) frontend.Variable {
+	// https://www.rfc-editor.org/rfc/rfc9380.html#name-the-sgn0-function case m=2
 	x0Bits := g2.fp.ToBitsCanonical(&x.A0)
 	x1Bits := g2.fp.ToBitsCanonical(&x.A1)
-	sign0 := x0Bits[0]
-	zero0 := g2.api.IsZero(sign0)
-	sign1 := x1Bits[0]
-	tv := g2.api.And(zero0, sign1)
-	s := g2.api.Or(sign0, tv)
-	return s
+
+	sign0 := x0Bits[0]                                 // 1. sign_0 = x_0 mod 2
+	zero0 := g2.fp.IsZero(&x.A0)                       // 2. zero_0 = x_0 == 0
+	sign1 := x1Bits[0]                                 // 3. sign_1 = x_1 mod 2
+	sign := g2.api.Or(sign0, g2.api.And(zero0, sign1)) // 4. s = sign_0 OR (zero_0 AND sign_1)
+	return sign
 }
 
 // sqrtRatio computes u/v and returns (isQR, y) where isQR indicates if the
