@@ -1,8 +1,7 @@
 module github.com/consensys/gnark
 
 go 1.22
-
-toolchain go1.22.6
+toolchain go1.24.1
 
 require (
 	github.com/bits-and-blooms/bitset v1.20.0
@@ -19,7 +18,7 @@ require (
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 	golang.org/x/sync v0.11.0
 )
