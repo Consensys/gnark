@@ -131,7 +131,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
+		startH := time.Now()
 		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		log.Debug().Dur("computeH took", time.Since(startH)).Msg("computed H")
 		solution.A = nil
 		solution.B = nil
 		solution.C = nil

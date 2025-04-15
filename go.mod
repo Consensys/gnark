@@ -1,8 +1,8 @@
 module github.com/consensys/gnark
 
-go 1.22
+go 1.22.2
 
-toolchain go1.22.6
+toolchain go1.23.1
 
 require (
 	github.com/bits-and-blooms/bitset v1.20.0
@@ -16,6 +16,7 @@ require (
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2
 	github.com/leanovate/gopter v0.2.11
+	github.com/okx/zeknox v1.0.1
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
