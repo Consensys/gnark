@@ -70,13 +70,17 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		A0: emulated.ValueOf[BaseField]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
 		A1: emulated.ValueOf[BaseField]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
 	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new g2: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
 		Ext2:   fields_bn254.NewExt2(api),
 		curveF: ba,
 		curve:  curve,
-		g2:     NewG2(api),
+		g2:     g2,
 		bTwist: &bTwist,
 	}, nil
 }
@@ -490,9 +494,8 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.g2.AssertIsEqual(Q, _Q)
 }
 
-// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+// IsOnG2 returns a boolean indicating if the G2 point is on the curve and in
+// the subgroup.
 func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnTwist(Q)
