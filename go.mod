@@ -2,6 +2,8 @@ module github.com/consensys/gnark
 
 go 1.23.0
 
+toolchain go1.23.8
+
 require (
 	github.com/bits-and-blooms/bitset v1.20.0
 	github.com/blang/semver/v4 v4.0.0
