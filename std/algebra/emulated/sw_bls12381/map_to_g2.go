@@ -83,7 +83,7 @@ func (g2 *G2) sqrtRatio(u, v *fields_bls12381.E2) (frontend.Variable, *fields_bl
 	nb := g2.api.IsZero(b)
 	b2 := g2.api.And(nb, bY2vZu)
 
-	cmp := g2.api.Or(b1, b2)
+	cmp := g2.api.Xor(b1, b2)
 	g2.api.AssertIsEqual(cmp, 1)
 
 	return b, &y, nil
