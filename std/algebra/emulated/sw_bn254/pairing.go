@@ -975,3 +975,13 @@ func (pr Pairing) AssertMillerLoopAndFinalExpIsOne(P *G1Affine, Q *G2Affine, pre
 	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
 	pr.AssertIsEqual(t2, pr.Ext12.One())
 }
+
+// AssertMillerLoopAndFinalExpIsNotOne computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and checks that the result is not 1.
+//
+// This method is needed for evmprecompiles/ecpair.
+func (pr Pairing) AssertMillerLoopAndFinalExpIsNotOne(P *G1Affine, Q *G2Affine, previous *GTEl) {
+	ml, _ := pr.MillerLoopAndMul(P, Q, previous)
+	fe := pr.FinalExponentiation(ml)
+	pr.AssertIsDifferent(fe, pr.Ext12.One())
+}

@@ -376,7 +376,6 @@ func TestECMapToG2(t *testing.T) {
 	assert.NoError(err)
 }
 
-// -------------------
 type ecPairFailBLSBatchCircuit struct {
 	P  sw_bls12381.G1Affine
 	NP sw_bls12381.G1Affine
@@ -413,7 +412,7 @@ func (c *ecPairFailBLSBatchCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestECPairFailBLSBLSMulBatch(t *testing.T) {
+func TestECPairFailBLSMulBatch(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, p, q := bls12381.Generators()
 

@@ -101,3 +101,30 @@ func ECPairMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bn254.GT
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
 	return nil
 }
+
+// ECPairFail...
+func ECPairFail(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
+	if len(P) != len(Q) {
+		panic("P and Q length mismatch")
+	}
+	if len(P) < 2 {
+		panic("invalid multipairing size bound")
+	}
+	n := len(P)
+	pair, err := sw_bn254.NewPairing(api)
+	if err != nil {
+		panic(err)
+	}
+	// Check that ∏ᵢ e(Pᵢ, Qᵢ) != 1
+	ml := pair.Ext12.One()
+	for i := 0; i < n-1; i++ {
+		// fixed circuit 1
+		ml, err = pair.MillerLoopAndMul(P[i], Q[i], ml)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// fixed circuit 2
+	pair.AssertMillerLoopAndFinalExpIsNotOne(P[n-1], Q[n-1], ml)
+}

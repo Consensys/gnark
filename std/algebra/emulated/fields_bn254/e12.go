@@ -458,6 +458,21 @@ func (e Ext12) AssertIsEqual(a, b *E12) {
 	e.fp.AssertIsEqual(&a.A11, &b.A11)
 }
 
+func (e Ext12) AssertIsDifferent(a, b *E12) {
+	e.fp.AssertIsDifferent(&a.A0, &b.A0)
+	e.fp.AssertIsDifferent(&a.A1, &b.A1)
+	e.fp.AssertIsDifferent(&a.A2, &b.A2)
+	e.fp.AssertIsDifferent(&a.A3, &b.A3)
+	e.fp.AssertIsDifferent(&a.A4, &b.A4)
+	e.fp.AssertIsDifferent(&a.A5, &b.A5)
+	e.fp.AssertIsDifferent(&a.A6, &b.A6)
+	e.fp.AssertIsDifferent(&a.A7, &b.A7)
+	e.fp.AssertIsDifferent(&a.A8, &b.A8)
+	e.fp.AssertIsDifferent(&a.A9, &b.A9)
+	e.fp.AssertIsDifferent(&a.A10, &b.A10)
+	e.fp.AssertIsDifferent(&a.A11, &b.A11)
+}
+
 func (e Ext12) IsEqual(x, y *E12) frontend.Variable {
 	diff0 := e.fp.Sub(&x.A0, &y.A0)
 	diff1 := e.fp.Sub(&x.A1, &y.A1)

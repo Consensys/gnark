@@ -180,3 +180,66 @@ func TestECPairMulBatch(t *testing.T) {
 		assert.NoError(err)
 	}
 }
+
+type ecPairFailBatchCircuit struct {
+	P  sw_bn254.G1Affine
+	NP sw_bn254.G1Affine
+	DP sw_bn254.G1Affine
+	Q  sw_bn254.G2Affine
+	n  int
+}
+
+func (c *ecPairFailBatchCircuit) Define(api frontend.API) error {
+	Q := make([]*sw_bn254.G2Affine, c.n)
+	for i := range Q {
+		Q[i] = &c.Q
+	}
+	switch c.n {
+	case 2:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP}, Q)
+	case 3:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.NP, &c.NP, &c.DP}, Q)
+	case 4:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 5:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 6:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 7:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 8:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 9:
+		ECPairFail(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	default:
+		return fmt.Errorf("not handled %d", c.n)
+	}
+	return nil
+}
+
+func TestECPairFailMulBatch(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, p, q := bn254.Generators()
+
+	var u, v fr.Element
+	u.SetRandom()
+	v.SetRandom()
+
+	p.ScalarMultiplication(&p, u.BigInt(new(big.Int)))
+	q.ScalarMultiplication(&q, v.BigInt(new(big.Int)))
+
+	var dp, np bn254.G1Affine
+	dp.Double(&p)
+	np.Double(&p)
+
+	for i := 2; i < 10; i++ {
+		err := test.IsSolved(&ecPairFailBatchCircuit{n: i}, &ecPairFailBatchCircuit{
+			n:  i,
+			P:  sw_bn254.NewG1Affine(p),
+			NP: sw_bn254.NewG1Affine(np),
+			DP: sw_bn254.NewG1Affine(dp),
+			Q:  sw_bn254.NewG2Affine(q),
+		}, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+}
