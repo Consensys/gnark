@@ -26,6 +26,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Subscalars,
 		decomposeScalarG1Signs,
 		g1SqrtRatioHint,
+		g2SqrtRatioHint,
 	}
 }
 
@@ -356,4 +357,31 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 			outputs[1].SetInt64(int64(isQNr))
 			return nil
 		})
+}
+
+func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 4 {
+			return fmt.Errorf("expecting 4 inputs")
+		}
+		if len(outputs) != 3 {
+			return fmt.Errorf("expecting 3 outputs")
+		}
+
+		var z, u, v bls12381.E2
+		u.A0.SetBigInt(inputs[0])
+		u.A1.SetBigInt(inputs[1])
+		v.A0.SetBigInt(inputs[2])
+		v.A1.SetBigInt(inputs[3])
+
+		isQNr := hash_to_curve.G2SqrtRatio(&z, &u, &v)
+		if isQNr != 0 {
+			isQNr = 1
+		}
+
+		outputs[0].SetUint64(isQNr)
+		z.A0.BigInt(outputs[1])
+		z.A1.BigInt(outputs[2])
+		return nil
+	})
 }

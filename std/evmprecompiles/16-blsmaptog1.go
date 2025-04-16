@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-// ECMapToG1BLS implements[BLS12_MAP_FP_TO_G1] precompile contract at address 0x10.
+// ECMapToG1BLS implements [BLS12_MAP_FP_TO_G1] precompile contract at address 0x10.
 //
 // [ECMapToG1BLS]: https://eips.ethereum.org/EIPS/eip-2537
 func ECMapToG1BLS(api frontend.API, u *emulated.Element[emulated.BLS12381Fp]) *sw_emulated.AffinePoint[emulated.BLS12381Fp] {
