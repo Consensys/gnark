@@ -375,3 +375,67 @@ func TestECMapToG2(t *testing.T) {
 	err := test.IsSolved(&ECMapToG2BLSCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+// -------------------
+type ecPairFailBLSBatchCircuit struct {
+	P  sw_bls12381.G1Affine
+	NP sw_bls12381.G1Affine
+	DP sw_bls12381.G1Affine
+	Q  sw_bls12381.G2Affine
+	n  int
+}
+
+func (c *ecPairFailBLSBatchCircuit) Define(api frontend.API) error {
+	Q := make([]*sw_bls12381.G2Affine, c.n)
+	for i := range Q {
+		Q[i] = &c.Q
+	}
+	switch c.n {
+	case 2:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP}, Q)
+	case 3:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.NP, &c.NP, &c.DP}, Q)
+	case 4:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 5:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 6:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 7:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 8:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 9:
+		ECPairFailBLS(api, []*sw_emulated.AffinePoint[emulated.BLS12381Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	default:
+		return fmt.Errorf("not handled %d", c.n)
+	}
+	return nil
+}
+
+func TestECPairFailBLSBLSMulBatch(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, p, q := bls12381.Generators()
+
+	var u, v fr.Element
+	u.SetRandom()
+	v.SetRandom()
+
+	p.ScalarMultiplication(&p, u.BigInt(new(big.Int)))
+	q.ScalarMultiplication(&q, v.BigInt(new(big.Int)))
+
+	var dp, np bls12381.G1Affine
+	dp.Double(&p)
+	np.Double(&p)
+
+	for i := 2; i < 10; i++ {
+		err := test.IsSolved(&ecPairFailBLSBatchCircuit{n: i}, &ecPairFailBLSBatchCircuit{
+			n:  i,
+			P:  sw_bls12381.NewG1Affine(p),
+			NP: sw_bls12381.NewG1Affine(np),
+			DP: sw_bls12381.NewG1Affine(dp),
+			Q:  sw_bls12381.NewG2Affine(q),
+		}, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+}

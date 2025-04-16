@@ -187,3 +187,7 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 // 	}
 // 	f.api.AssertIsDifferent(res, 0)
 // }
+
+func (f *Field[T]) AssertIsDifferent(a, b *Element[T]) {
+	f.api.AssertIsEqual(f.IsZero(f.Sub(a, b)), 0)
+}
