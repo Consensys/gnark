@@ -684,6 +684,25 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	return res, nil
 }
 
+func (e *engine) WideCommit(width int, v ...frontend.Variable) ([]frontend.Variable, error) {
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	res := make([]frontend.Variable, width)
+	for i := 0; i < width; i++ {
+		hasher.Read(buf)
+		resi := new(big.Int).SetBytes(buf)
+		resi.Mod(resi, e.modulus())
+		res[i] = new(big.Int).Set(resi)
+	}
+	return res, nil
+}
+
 func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
 }
