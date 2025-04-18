@@ -17,13 +17,40 @@ func FromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 }
 
 func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConversionOption) frontend.Variable {
-
 	cfg := baseConversionConfig{}
 
 	for _, o := range opts {
 		if err := o(&cfg); err != nil {
 			panic(err)
 		}
+	}
+
+	// Check if all digits are constants
+	allConstant := true
+	constantDigits := make([]*big.Int, len(digits))
+
+	for i, digit := range digits {
+		val, isConstant := api.Compiler().ConstantValue(digit)
+		if !isConstant {
+			allConstant = false
+			break
+		}
+		constantDigits[i] = val
+	}
+
+	// If all digits are constants, compute the result directly without adding constraints
+	if allConstant {
+		result := new(big.Int)
+
+		for i := 0; i < len(constantDigits); i++ {
+			// Add 2^i * digit
+			c := new(big.Int).Lsh(big.NewInt(1), uint(i))
+			term := new(big.Int).Mul(c, constantDigits[i])
+			result.Add(result, term)
+		}
+
+		// Return the constant result directly
+		return result
 	}
 
 	// Σbi = Σ (2**i * b[i])
@@ -44,6 +71,46 @@ func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 }
 
 func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
+	// Check if v is a constant
+	if val, isConstant := api.Compiler().ConstantValue(v); isConstant {
+		// parse options
+		cfg := baseConversionConfig{
+			NbDigits:             api.Compiler().FieldBitLen(),
+			UnconstrainedOutputs: false,
+		}
+
+		for _, o := range opts {
+			if err := o(&cfg); err != nil {
+				panic(err)
+			}
+		}
+
+		// If the input is a constant, compute the binary digits directly
+		nbBits := cfg.NbDigits
+		if nbBits > api.Compiler().FieldBitLen() {
+			// Cap to field bit length for constants, then add zeros later
+			nbBits = api.Compiler().FieldBitLen()
+		}
+
+		// Convert constant value to binary directly
+		bits := make([]frontend.Variable, cfg.NbDigits)
+
+		// Break the constant into binary digits
+		for i := 0; i < nbBits; i++ {
+			bitValue := new(big.Int).Rsh(val, uint(i))
+			bitValue.And(bitValue, big.NewInt(1))
+			bits[i] = bitValue
+		}
+
+		// Fill remaining bits with zeros if we need more than fieldBitLen
+		for i := nbBits; i < cfg.NbDigits; i++ {
+			bits[i] = 0
+		}
+
+		return bits
+	}
+
+	// Original non-constant implementation follows
 	// parse options
 	cfg := baseConversionConfig{
 		NbDigits:             api.Compiler().FieldBitLen(),
