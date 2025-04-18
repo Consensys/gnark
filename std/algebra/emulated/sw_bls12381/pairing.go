@@ -750,6 +750,17 @@ func (pr Pairing) AssertMillerLoopAndFinalExpIsNotOne(P *G1Affine, Q *G2Affine, 
 // millerLoopAndFinalExpResult computes the Miller loop between P and Q,
 // multiplies it in 𝔽p¹² by previous and returns the result.
 func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
+	res, err := pr.MillerLoopAndMul(P, Q, previous)
+	if err != nil {
+		return nil
+	}
+	res = pr.FinalExponentiation(res)
+	return res
+}
+
+// millerLoopAndFinalExpResultOpt computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and returns the result.
+func (pr Pairing) millerLoopAndFinalExpResultOpt(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
 	tower := pr.ToTower(previous)
 
 	// hint the non-residue witness
