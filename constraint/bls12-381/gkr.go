@@ -8,12 +8,12 @@ package cs
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
+	gkr "github.com/consensys/gnark/internal/gkr/bls12-381"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 	"hash"
 	"math/big"
@@ -29,9 +29,8 @@ type GkrSolvingData struct {
 
 func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
-	var found bool
 	for i := range noPtr {
-		if resCircuit[i].Gate, found = gkr.Gates[noPtr[i].Gate]; !found && noPtr[i].Gate != "" {
+		if resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate)); resCircuit[i].Gate == nil && noPtr[i].Gate != "" {
 			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
 		}
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
@@ -164,23 +163,9 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 			return err
 		}
 
-		// serialize proof: TODO: In gnark-crypto?
-		offset := 0
-		for i := range proof {
-			for _, poly := range proof[i].PartialSumPolys {
-				frToBigInts(outs[offset:], poly)
-				offset += len(poly)
-			}
-			if proof[i].FinalEvalProof != nil {
-				finalEvalProof := proof[i].FinalEvalProof.([]fr.Element)
-				frToBigInts(outs[offset:], finalEvalProof)
-				offset += len(finalEvalProof)
-			}
-		}
-
 		data.dumpAssignments()
 
-		return nil
+		return proof.SerializeToBigInts(outs)
 
 	}
 }

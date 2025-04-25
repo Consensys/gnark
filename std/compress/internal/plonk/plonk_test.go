@@ -1,9 +1,11 @@
-package plonk
+package plonk_test
 
 import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"reflect"
 	"testing"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 )
 
@@ -65,8 +66,8 @@ func TestCustomConstraint(t *testing.T) {
 		circuit.oVal[i] = sum
 	}
 
-	assignment.A = test_vector_utils.ToVariableSlice(circuit.aVal)
-	assignment.B = test_vector_utils.ToVariableSlice(circuit.bVal)
+	assignment.A = internal.ToVariableSlice(circuit.aVal)
+	assignment.B = internal.ToVariableSlice(circuit.bVal)
 
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
@@ -123,10 +124,10 @@ func (c *customConstraintCircuit) Define(api frontend.API) error {
 	for i := range c.A {
 		a, b, o := ifConstThenElse(api, c.mode[i]&1, c.aVal[i], c.A[i]), ifConstThenElse(api, c.mode[i]&2, c.bVal[i], c.B[i]), ifConstThenElse(api, c.mode[i]&4, c.oVal[i], c.O[i])
 
-		_o := EvaluateExpression(api, a, b, c.qL[i], c.qR[i], c.qM[i], c.qC[i])
+		_o := plonk.EvaluateExpression(api, a, b, c.qL[i], c.qR[i], c.qM[i], c.qC[i])
 		api.AssertIsEqual(_o, o)
 
-		AddConstraint(api, a, b, o, c.qL[i], c.qR[i], -1, c.qM[i], c.qC[i])
+		plonk.AddConstraint(api, a, b, o, c.qL[i], c.qR[i], -1, c.qM[i], c.qC[i])
 	}
 
 	return nil

@@ -332,5 +332,5 @@ func (h *Permutation) Compress(left, right frontend.Variable) frontend.Variable 
 	if err := h.Permutation(vars[:]); err != nil {
 		panic(err) // this would never happen
 	}
-	return vars[1]
+	return h.api.Add(vars[1], right)
 }

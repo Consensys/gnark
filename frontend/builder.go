@@ -8,7 +8,25 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
+// NewBuilder is a function that creates a new constraint system builder for a
+// given field. It takes a field modulus and a CompileConfig as arguments and
+// returns a Builder interface and an error. The Builder interface provides
+// methods for building and compiling the constraint system.
+//
+// gnark currently implements two builder constructors:
+//   - r1cs.NewBuilder
+//   - plonk.NewBuilder.
+//
+// For a constructor optimized for small field modulus, use [NewBuilderU32] instead.
+type NewBuilder = NewBuilderGeneric[constraint.U64]
+
+// NewBuilderU32 is a function that creates a new constraint system builder
+// for a given small field modulus. See [NewBuilder] for more details.
+type NewBuilderU32 = NewBuilderGeneric[constraint.U32]
+
+// NewBuilderGeneric is a generic function that creates a new constraint system
+// builder for a given field. See [NewBuilder] for more details.
+type NewBuilderGeneric[E constraint.Element] func(*big.Int, CompileConfig) (Builder[E], error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
@@ -68,12 +86,12 @@ type Compiler interface {
 }
 
 // Builder represents a constraint system builder
-type Builder interface {
+type Builder[E constraint.Element] interface {
 	API
 	Compiler
 
 	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
-	Compile() (constraint.ConstraintSystem, error)
+	Compile() (constraint.ConstraintSystemGeneric[E], error)
 
 	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()

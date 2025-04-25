@@ -2,6 +2,7 @@ package gkr
 
 import (
 	"errors"
+	"fmt"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -108,9 +109,14 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
 	for i := range circuit {
 		v := &circuit[i]
-		if v.IsInput() {
+		in, out := v.IsInput(), v.IsOutput()
+		if in && out {
+			return Solution{}, fmt.Errorf("unused input (variable #%d)", i)
+		}
+
+		if in {
 			solveHintNIn += nbInstances - len(v.Dependencies)
-		} else if v.IsOutput() {
+		} else if out {
 			solveHintNOut += nbInstances
 		}
 	}
@@ -152,8 +158,8 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 }
 
 // Export returns the values of an output variable across all instances
-func (s Solution) Export(v frontend.Variable) []frontend.Variable {
-	return utils.Map(s.permutations.SortedInstances, utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
+func (s Solution) Export(v constraint.GkrVariable) []frontend.Variable {
+	return utils.Map(s.permutations.SortedInstances, utils.SliceAt(s.assignments[v]))
 }
 
 // Verify encodes the verification circuitry for the GKR circuit
@@ -223,7 +229,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = Wire{
-			Gate:            ite(w.IsInput(), Gates[w.Gate], Gate(IdentityGate{})),
+			Gate:            GetGate(ite(w.IsInput(), GateName(w.Gate), Identity)),
 			Inputs:          utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}

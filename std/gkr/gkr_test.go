@@ -196,8 +196,8 @@ func getTestCase(path string) (*TestCase, error) {
 
 			cse.Proof = unmarshalProof(info.Proof)
 
-			cse.Input = ToVariableSliceSlice(info.Input)
-			cse.Output = ToVariableSliceSlice(info.Output)
+			cse.Input = toVariableSliceSlice(info.Input)
+			cse.Output = toVariableSliceSlice(info.Output)
 			cse.Hash = info.Hash
 			cse.Name = path
 			testCases[path] = cse
@@ -249,8 +249,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		var found bool
-		if circuit[i].Gate, found = Gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+		if circuit[i].Gate = GetGate(GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -258,18 +257,10 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 	return
 }
 
-type _select int
-
 func init() {
-	Gates["select-input-3"] = _select(2)
-}
-
-func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
-	return in[g]
-}
-
-func (g _select) Degree() int {
-	return 1
+	panicIfError(RegisterGate("select-input-3", func(api GateAPI, in ...frontend.Variable) frontend.Variable {
+		return in[2]
+	}, 3, WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof
@@ -287,7 +278,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				finalEvalProof[k] = ToVariable(finalEvalSlice.Index(k).Interface())
+				finalEvalProof[k] = toVariable(finalEvalSlice.Index(k).Interface())
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
@@ -296,7 +287,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 
 		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
 		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = ToVariableSlice(printable[i].PartialSumPolys[k])
+			proof[i].PartialSumPolys[k] = toVariableSlice(printable[i].PartialSumPolys[k])
 		}
 	}
 	return
@@ -342,8 +333,8 @@ func TestTopSortSingleGate(t *testing.T) {
 	c[0].Inputs = []*Wire{&c[1], &c[2]}
 	sorted := topologicalSort(c)
 	expected := []*Wire{&c[1], &c[2], &c[0]}
-	assert.True(t, SliceEqual(sorted, expected)) //TODO: Remove
-	AssertSliceEqual(t, sorted, expected)
+	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
+	assertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].nbUniqueOutputs, 0)
 	assert.Equal(t, c[1].nbUniqueOutputs, 1)
 	assert.Equal(t, c[2].nbUniqueOutputs, 1)
@@ -376,50 +367,6 @@ func TestTopSortWide(t *testing.T) {
 	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
 	assert.Equal(t, sortedExpected, sorted)
-}
-
-func ToVariable(v interface{}) frontend.Variable {
-	switch vT := v.(type) {
-	case float64:
-		return int(vT)
-	default:
-		return v
-	}
-}
-
-func ToVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
-	variableSlice = make([]frontend.Variable, len(slice))
-	for i := range slice {
-		variableSlice[i] = ToVariable(slice[i])
-	}
-	return
-}
-
-func ToVariableSliceSlice[V any](sliceSlice [][]V) (variableSliceSlice [][]frontend.Variable) {
-	variableSliceSlice = make([][]frontend.Variable, len(sliceSlice))
-	for i := range sliceSlice {
-		variableSliceSlice[i] = ToVariableSlice(sliceSlice[i])
-	}
-	return
-}
-
-func AssertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
-	assert.Equal(t, len(expected), len(seen))
-	for i := range seen {
-		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
-	}
-}
-
-func SliceEqual[T comparable](expected, seen []T) bool {
-	if len(expected) != len(seen) {
-		return false
-	}
-	for i := range seen {
-		if expected[i] != seen[i] {
-			return false
-		}
-	}
-	return true
 }
 
 type HashDescription map[string]interface{}

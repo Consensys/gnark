@@ -28,6 +28,7 @@ func NewG1Affine(v bls12381.G1Affine) G1Affine {
 }
 
 type G1 struct {
+	api    frontend.API
 	curveF *emulated.Field[BaseField]
 	w      *emulated.Element[BaseField]
 }
@@ -39,9 +40,19 @@ func NewG1(api frontend.API) (*G1, error) {
 	}
 	w := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	return &G1{
+		api:    api,
 		curveF: ba,
 		w:      &w,
 	}, nil
+}
+
+func (g1 G1) neg(p *G1Affine) *G1Affine {
+	xr := &p.X
+	yr := g1.curveF.Neg(&p.Y)
+	return &G1Affine{
+		X: *xr,
+		Y: *yr,
+	}
 }
 
 func (g1 *G1) phi(q *G1Affine) *G1Affine {
@@ -155,6 +166,53 @@ func (g1 *G1) scalarMulBySeedSquare(q *G1Affine) *G1Affine {
 	z = g1.doubleN(z, 32)
 
 	return z
+}
+
+func (g1 *G1) computeCurveEquation(P *G1Affine) (left, right *baseEl) {
+	// Curve: Y² == X³ + aX + b, where a=0 and b=4
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if P=(0,0) we assign b=0 otherwise 4, and continue
+	selector := g1.api.And(g1.curveF.IsZero(&P.X), g1.curveF.IsZero(&P.Y))
+	four := emulated.ValueOf[BaseField]("4")
+	b := g1.curveF.Select(selector, g1.curveF.Zero(), &four)
+
+	left = g1.curveF.Mul(&P.Y, &P.Y)
+	right = g1.curveF.Eval([][]*emulated.Element[BaseField]{{&P.X, &P.X, &P.X}, {b}}, []int{1, 1})
+	return left, right
+}
+
+func (g1 *G1) AssertIsOnCurve(P *G1Affine) {
+	left, right := g1.computeCurveEquation(P)
+	g1.curveF.AssertIsEqual(left, right)
+}
+
+func (g1 *G1) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	g1.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// [x²]ϕ(P)
+	phiP := g1.phi(P)
+	_P := g1.scalarMulBySeedSquare(phiP)
+	_P = g1.neg(_P)
+
+	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	g1.AssertIsEqual(_P, P)
+}
+
+// AssertIsEqual asserts that p and q are the same point.
+func (g1 *G1) AssertIsEqual(p, q *G1Affine) {
+	g1.curveF.AssertIsEqual(&p.X, &q.X)
+	g1.curveF.AssertIsEqual(&p.Y, &q.Y)
+}
+
+func (g1 *G1) IsEqual(p, q *G1Affine) frontend.Variable {
+	xDiff := g1.curveF.Sub(&p.X, &q.X)
+	yDiff := g1.curveF.Sub(&p.Y, &q.Y)
+	xIsZero := g1.curveF.IsZero(xDiff)
+	yIsZero := g1.curveF.IsZero(yDiff)
+	return g1.api.And(xIsZero, yIsZero)
 }
 
 // NewScalar allocates a witness from the native scalar and returns it.

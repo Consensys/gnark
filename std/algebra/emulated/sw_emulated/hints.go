@@ -100,9 +100,6 @@ func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		if len(outputs) != 2 {
 			return errors.New("expecting two outputs")
 		}
-		if len(outputs) != 2 {
-			return errors.New("expecting two outputs")
-		}
 		if field.Cmp(elliptic.P256().Params().P) == 0 {
 			var fp emparams.P256Fp
 			var fr emparams.P256Fr

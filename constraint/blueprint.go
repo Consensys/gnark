@@ -26,24 +26,24 @@ type Blueprint interface {
 
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact
 // with this object to perform run time logic, solve constraints and assign values in the solution.
-type Solver interface {
-	Field
+type Solver[E Element] interface {
+	Field[E]
 
-	GetValue(cID, vID uint32) Element
-	GetCoeff(cID uint32) Element
-	SetValue(vID uint32, f Element)
+	GetValue(cID, vID uint32) E
+	GetCoeff(cID uint32) E
+	SetValue(vID uint32, f E)
 	IsSolved(vID uint32) bool
 
 	// Read interprets input calldata as a LinearExpression,
 	// evaluates it and return the result and the number of uint32 word read.
-	Read(calldata []uint32) (Element, int)
+	Read(calldata []uint32) (E, int)
 }
 
 // BlueprintSolvable represents a blueprint that knows how to solve itself.
-type BlueprintSolvable interface {
+type BlueprintSolvable[E Element] interface {
 	Blueprint
 	// Solve may return an error if the decoded constraint / calldata is unsolvable.
-	Solve(s Solver, instruction Instruction) error
+	Solve(s Solver[E], instruction Instruction) error
 }
 
 // BlueprintR1C indicates that the blueprint and associated calldata encodes a R1C
@@ -68,8 +68,8 @@ type BlueprintHint interface {
 }
 
 // BlueprintStateful indicates that the blueprint can be reset to its initial state.
-type BlueprintStateful interface {
-	BlueprintSolvable
+type BlueprintStateful[E Element] interface {
+	BlueprintSolvable[E]
 
 	// Reset is called by the solver between invocation of Solve.
 	Reset()

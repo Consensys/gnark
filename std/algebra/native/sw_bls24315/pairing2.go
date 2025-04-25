@@ -255,6 +255,75 @@ func NewPairing(api frontend.API) *Pairing {
 	}
 }
 
+func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := c.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff1 := c.api.Sub(&x.D0.C0.B0.A1, &y.D0.C0.B0.A1)
+	diff2 := c.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff3 := c.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff4 := c.api.Sub(&x.D0.C0.B1.A0, &y.D0.C0.B1.A0)
+	diff5 := c.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff6 := c.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff7 := c.api.Sub(&x.D0.C1.B0.A1, &y.D0.C1.B0.A1)
+	diff8 := c.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff9 := c.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff10 := c.api.Sub(&x.D0.C1.B1.A0, &y.D0.C1.B1.A0)
+	diff11 := c.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff12 := c.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff13 := c.api.Sub(&x.D1.C0.B0.A1, &y.D1.C0.B0.A1)
+	diff14 := c.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff15 := c.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff16 := c.api.Sub(&x.D1.C0.B1.A0, &y.D1.C0.B1.A0)
+	diff17 := c.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff18 := c.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff19 := c.api.Sub(&x.D1.C1.B0.A1, &y.D1.C1.B0.A1)
+	diff20 := c.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff21 := c.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+	diff22 := c.api.Sub(&x.D1.C1.B1.A0, &y.D1.C1.B1.A0)
+	diff23 := c.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+
+	isZero0 := c.api.IsZero(diff0)
+	isZero1 := c.api.IsZero(diff1)
+	isZero2 := c.api.IsZero(diff2)
+	isZero3 := c.api.IsZero(diff3)
+	isZero4 := c.api.IsZero(diff4)
+	isZero5 := c.api.IsZero(diff5)
+	isZero6 := c.api.IsZero(diff6)
+	isZero7 := c.api.IsZero(diff7)
+	isZero8 := c.api.IsZero(diff8)
+	isZero9 := c.api.IsZero(diff9)
+	isZero10 := c.api.IsZero(diff10)
+	isZero11 := c.api.IsZero(diff11)
+	isZero12 := c.api.IsZero(diff12)
+	isZero13 := c.api.IsZero(diff13)
+	isZero14 := c.api.IsZero(diff14)
+	isZero15 := c.api.IsZero(diff15)
+	isZero16 := c.api.IsZero(diff16)
+	isZero17 := c.api.IsZero(diff17)
+	isZero18 := c.api.IsZero(diff18)
+	isZero19 := c.api.IsZero(diff19)
+	isZero20 := c.api.IsZero(diff20)
+	isZero21 := c.api.IsZero(diff21)
+	isZero22 := c.api.IsZero(diff22)
+	isZero23 := c.api.IsZero(diff23)
+
+	return c.api.And(
+		c.api.And(
+			c.api.And(
+				c.api.And(c.api.And(isZero0, isZero1), c.api.And(isZero2, isZero3)),
+				c.api.And(c.api.And(isZero4, isZero5), c.api.And(isZero6, isZero7)),
+			),
+			c.api.And(
+				c.api.And(c.api.And(isZero8, isZero9), c.api.And(isZero10, isZero11)),
+				c.api.And(c.api.And(isZero12, isZero13), c.api.And(isZero14, isZero15)),
+			),
+		),
+		c.api.And(
+			c.api.And(c.api.And(isZero16, isZero17), c.api.And(isZero18, isZero19)),
+			c.api.And(c.api.And(isZero20, isZero21), c.api.And(isZero22, isZero23)),
+		),
+	)
+}
+
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
 // modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.

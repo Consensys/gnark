@@ -3,8 +3,8 @@
 
 package constraint
 
-type R1CS interface {
-	ConstraintSystem
+type R1CS[E Element] interface {
+	ConstraintSystemGeneric[E]
 
 	// AddR1C adds a constraint to the system and returns its id
 	// This does not check for validity of the constraint.
