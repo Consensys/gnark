@@ -132,7 +132,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	}
 
 	// 3 - subgroup check
-	// g1.AssertIsOnG1(res)
+	g1.AssertIsOnG1(res)
 
 	// 4 - check logic with the mask
 
