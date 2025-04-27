@@ -27,6 +27,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Signs,
 		g1SqrtRatioHint,
 		g2SqrtRatioHint,
+		unmarshallHint,
 	}
 }
 
