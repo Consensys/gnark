@@ -1,8 +1,6 @@
 package sw_bls12381
 
 import (
-	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -135,14 +133,4 @@ func TestUnmmarshalPoint(t *testing.T) {
 	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
-}
-
-func TestMisc(t *testing.T) {
-	var a big.Int
-	a.SetUint64(258)
-	bb := a.Bytes()
-	for i := 0; i < len(bb); i++ {
-		fmt.Printf("%x ", bb[i])
-	}
-	fmt.Println("")
 }
