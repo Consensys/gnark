@@ -95,18 +95,18 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	if err != nil {
 		return nil, err
 	}
-	mask := uints.NewU32(0x1FFFFFFF) // Little endian [LSB .. MSB]
+	mask := uints.NewU32(0x1FFFFFFF) // mask = [0xFF, 0xFF, 0xFF, 0x1F]
 	firstFourBytes := uapi.PackMSB(
 		compressedPoint[0],
 		compressedPoint[1],
 		compressedPoint[2],
 		compressedPoint[3])
-	firstFourBytes = uapi.And(mask, firstFourBytes)
-	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytes)
-	bufCompressedPoint := make([]uints.U8, nbBytes)
-	copy(bufCompressedPoint, unpackedFirstFourBytes)
-	copy(bufCompressedPoint[4:], compressedPoint[4:])
-	x, err := deserialise[BaseField](g1.api, compressedPoint[1:])
+	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
+	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	unmaskedXCoord := make([]uints.U8, nbBytes)
+	copy(unmaskedXCoord, unpackedFirstFourBytes)
+	copy(unmaskedXCoord[4:], compressedPoint[4:])
+	x, err := deserialise[BaseField](g1.api, unmaskedXCoord)
 
 	// 1 - hint y coordinate of the result
 	if len(compressedPoint) != nbBytes {
@@ -131,9 +131,8 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 		Y: *y,
 	}
 
-	// forced to convert the mask to emulated variable...
-
 	// 3 - subgroup check
+	// g1.AssertIsOnG1(res)
 
 	// 4 - check logic with the mask
 
