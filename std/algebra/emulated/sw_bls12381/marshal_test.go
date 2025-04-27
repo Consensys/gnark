@@ -110,6 +110,7 @@ func (c *unmarshallPoint) Define(api frontend.API) error {
 		return err
 	}
 
+	g.curveF.AssertIsEqual(&point.X, &c.X)
 	g.curveF.AssertIsEqual(&point.Y, &c.Y)
 
 	return nil
