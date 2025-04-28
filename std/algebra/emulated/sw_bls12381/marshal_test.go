@@ -30,14 +30,14 @@ func (c *deserialiseCircuit) Define(api frontend.API) error {
 	}
 
 	{
-		r, err := deserialise[BaseField](api, c.InBaseField)
+		r, err := Deserialise[BaseField](api, c.InBaseField)
 		if err != nil {
 			return err
 		}
 		g.curveF.AssertIsEqual(&c.RBaseField, r)
 	}
 	{
-		r, err := deserialise[ScalarField](api, c.InScalarField)
+		r, err := Deserialise[ScalarField](api, c.InScalarField)
 		if err != nil {
 			return err
 		}
