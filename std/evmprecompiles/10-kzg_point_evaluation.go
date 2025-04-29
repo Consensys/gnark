@@ -2,6 +2,7 @@ package evmprecompiles
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/commitments/kzg"
@@ -22,9 +23,8 @@ var (
 //
 // The data is encoded as follows:
 //
-// z, y are the point at which the proof is opened and the clamied value
-// comCompressed is the commitment compressed on 48 bytes
-// proofCompressed is the proof compressed on 48 bytes
+// [versioned_hash | z     | y   | commitment | proof     ]
+// <-- 32b -->      <-32b-><-32b-><-- 48b   --><-- 48b -->
 //
 // with z and y being padded 32 byte big endian values.
 // commitment and proof are 48 bytes, encoded following https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/
@@ -35,22 +35,40 @@ var (
 // TODO vk should be hardcoded
 func KzgPointEvaluation(
 	api frontend.API,
-	z, y *emulated.Element[emulated.BLS12381Fr],
-	comCompressed, proofCompressed []uints.U8,
+	data []uints.U8,
 	vk kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine],
-) []uints.U8 {
+) ([]uints.U8, error) {
 
 	// Verify commitment matches versioned_hash
 
 	// Verify KZG proof
-	nbBytes := fp.Bytes
+	fpSize := fp.Bytes
 	g1, err := sw_bls12381.NewG1(api)
 	if err != nil {
 		panic(err)
 	}
 
-	comSerialised := make([]uints.U8, nbBytes)
-	copy(comSerialised, comCompressed)
+	frSize := fr.Bytes
+	offset := 32
+	pointSerialised := make([]uints.U8, frSize)
+	copy(pointSerialised, data[offset:])
+	offset += 32
+	point, err := sw_bls12381.Deserialise[sw_bls12381.ScalarField](api, pointSerialised)
+	if err != nil {
+		return nil, err
+	}
+
+	claimedValueSerialised := make([]uints.U8, frSize)
+	copy(claimedValueSerialised, data[offset:])
+	offset += 32
+	claimedValue, err := sw_bls12381.Deserialise[sw_bls12381.ScalarField](api, claimedValueSerialised)
+	if err != nil {
+		return nil, err
+	}
+
+	comSerialised := make([]uints.U8, fpSize)
+	copy(comSerialised, data[offset:])
+	offset += 48
 	com, err := g1.UnmarshalCompressed(comSerialised)
 	if err != nil {
 		panic(err)
@@ -59,19 +77,20 @@ func KzgPointEvaluation(
 		G1El: *com,
 	}
 
-	proofSerialised := make([]uints.U8, nbBytes)
-	copy(proofSerialised, proofCompressed)
+	proofSerialised := make([]uints.U8, fpSize)
+	copy(proofSerialised, data[offset:])
+	offset += 48
 	proof, err := g1.UnmarshalCompressed(proofSerialised)
 	if err != nil {
 		panic(err)
 	}
 	proofKzgFormat := kzg.OpeningProof[emulated.BLS12381Fr, sw_bls12381.G1Affine]{
 		Quotient:     *proof,
-		ClaimedValue: *y,
+		ClaimedValue: *claimedValue,
 	}
 
 	v, err := kzg.NewVerifier[emulated.BLS12381Fr, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](api)
-	v.CheckOpeningProof(commitmentKzgFormat, proofKzgFormat, *z, vk)
+	v.CheckOpeningProof(commitmentKzgFormat, proofKzgFormat, *point, vk)
 
 	// Return FIELD_ELEMENTS_PER_BLOB and BLS_MODULUS as padded 32 byte big endian values
 	var res [64]uints.U8
@@ -79,5 +98,5 @@ func KzgPointEvaluation(
 		res[i] = uints.NewU8(blobPrecompileReturnValueBytes[i])
 	}
 
-	return res[:]
+	return res[:], nil
 }

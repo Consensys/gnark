@@ -6,13 +6,11 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/commitments/kzg"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
@@ -24,16 +22,16 @@ const (
 )
 
 type kzgPointEvaluationPrecompile struct {
-	Point           emulated.Element[sw_bls12381.ScalarField]
-	ClaimedValue    emulated.Element[sw_bls12381.ScalarField]
-	ComCompressed   []uints.U8
-	ProofCompressed []uints.U8
-	Vk              kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+	Data []uints.U8
+	Vk   kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
 }
 
 func (c *kzgPointEvaluationPrecompile) Define(api frontend.API) error {
 
-	res := KzgPointEvaluation(api, &c.Point, &c.ClaimedValue, c.ComCompressed, c.ProofCompressed, c.Vk)
+	res, err := KzgPointEvaluation(api, c.Data, c.Vk)
+	if err != nil {
+		return err
+	}
 
 	if len(res) != len(blobPrecompileReturnValueBytes) {
 		return errors.New("wrong size return value")
@@ -65,25 +63,30 @@ func TestKzgPointOpeningPrecompile(t *testing.T) {
 	point.SetRandom()
 	proof, err := kzg_bls12381.Open(f, point, srs.Pk)
 	assert.NoError(err)
+
+	pointSerialised := point.Bytes()
+	claimedValueSerialised := proof.ClaimedValue.Bytes()
 	comSerialised := com.Bytes()
 	proofSerialised := proof.H.Bytes()
-	nbBytesSerialised := fp.Bytes
+
+	totalSize := 32 + 32 + 32 + 48 + 48
+	inputs := make([]byte, totalSize)
+	offset := 32
+	copy(inputs[offset:], pointSerialised[:])
+	offset += 32
+	copy(inputs[offset:], claimedValueSerialised[:])
+	offset += 32
+	copy(inputs[offset:], comSerialised[:])
+	offset += 48
+	copy(inputs[offset:], proofSerialised[:])
 
 	var witness, circuit kzgPointEvaluationPrecompile
-	witness.Point = emulated.ValueOf[sw_bls12381.ScalarField](point)
-	witness.ClaimedValue = emulated.ValueOf[sw_bls12381.ScalarField](proof.ClaimedValue)
-	witness.ComCompressed = make([]uints.U8, nbBytesSerialised)
-	for i := 0; i < nbBytesSerialised; i++ {
-		witness.ComCompressed[i] = uints.NewU8(comSerialised[i])
-	}
-	witness.ProofCompressed = make([]uints.U8, nbBytesSerialised)
-	for i := 0; i < nbBytesSerialised; i++ {
-		witness.ProofCompressed[i] = uints.NewU8(proofSerialised[i])
+	witness.Data = make([]uints.U8, totalSize)
+	circuit.Data = make([]uints.U8, totalSize)
+	for i := 0; i < totalSize; i++ {
+		witness.Data[i] = uints.NewU8(inputs[i])
 	}
 	witness.Vk, err = kzg.ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
-	assert.NoError(err)
-	circuit.ComCompressed = make([]uints.U8, nbBytesSerialised)
-	circuit.ProofCompressed = make([]uints.U8, nbBytesSerialised)
 
 	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
