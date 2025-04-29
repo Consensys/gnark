@@ -53,7 +53,7 @@ func KzgPointEvaluation(
 	pointSerialised := make([]uints.U8, frSize)
 	copy(pointSerialised, data[offset:])
 	offset += 32
-	point, err := sw_bls12381.Deserialise[sw_bls12381.ScalarField](api, pointSerialised)
+	point, err := sw_bls12381.Unmarshall[sw_bls12381.ScalarField](api, pointSerialised)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func KzgPointEvaluation(
 	claimedValueSerialised := make([]uints.U8, frSize)
 	copy(claimedValueSerialised, data[offset:])
 	offset += 32
-	claimedValue, err := sw_bls12381.Deserialise[sw_bls12381.ScalarField](api, claimedValueSerialised)
+	claimedValue, err := sw_bls12381.Unmarshall[sw_bls12381.ScalarField](api, claimedValueSerialised)
 	if err != nil {
 		return nil, err
 	}
