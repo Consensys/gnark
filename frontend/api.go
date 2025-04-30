@@ -124,7 +124,7 @@ type API interface {
 	// [github.com/consensys/gnark/std/math/bits].
 	AssertIsLessOrEqual(v Variable, bound Variable)
 
-	// Println behaves like fmt.Println but accepts cd.Variable as parameter
+	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...Variable)
 

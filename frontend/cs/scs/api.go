@@ -22,7 +22,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 )
 
-func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// separate the constant part from the variables
 	vars, k := builder.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
@@ -39,7 +39,7 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	return builder.splitSum(vars[0], vars[1:], &k)
 }
 
-func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+func (builder *builder[E]) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 
 	if fastTrack := builder.mulAccFastTrack(a, b, c); fastTrack != nil {
 		return fastTrack
@@ -53,18 +53,18 @@ func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 // let a = a' * α, b = b' * β, c = c' * α
 // then a + b * c = a' * α + (b' * c') (β * α)
 // thus qL = a', qR = 0, qM = b'c'
-func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Variable {
+func (builder *builder[E]) mulAccFastTrack(a, b, c frontend.Variable) frontend.Variable {
 	var (
-		aVar, bVar, cVar expr.Term
+		aVar, bVar, cVar expr.Term[E]
 		ok               bool
 	)
-	if aVar, ok = a.(expr.Term); !ok {
+	if aVar, ok = a.(expr.Term[E]); !ok {
 		return nil
 	}
-	if bVar, ok = b.(expr.Term); !ok {
+	if bVar, ok = b.(expr.Term[E]); !ok {
 		return nil
 	}
-	if cVar, ok = c.(expr.Term); !ok {
+	if cVar, ok = c.(expr.Term[E]); !ok {
 		return nil
 	}
 
@@ -77,21 +77,22 @@ func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Vari
 	}
 
 	res := builder.newInternalVariable()
-	builder.addPlonkConstraint(sparseR1C{
+	var zero E
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa:         aVar.VID,
 		xb:         bVar.VID,
 		xc:         res.VID,
 		qL:         aVar.Coeff,
-		qR:         constraint.Element{},
+		qR:         zero,
 		qO:         builder.tMinusOne,
 		qM:         builder.cs.Mul(bVar.Coeff, cVar.Coeff),
-		qC:         constraint.Element{},
+		qC:         zero,
 		commitment: 0,
 	})
 	return res
 }
 
-func (builder *builder) neg(in []frontend.Variable) []frontend.Variable {
+func (builder *builder[E]) neg(in []frontend.Variable) []frontend.Variable {
 	res := make([]frontend.Variable, len(in))
 
 	for i := 0; i < len(in); i++ {
@@ -100,22 +101,22 @@ func (builder *builder) neg(in []frontend.Variable) []frontend.Variable {
 	return res
 }
 
-func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	r := builder.neg(append([]frontend.Variable{i2}, in...))
 	return builder.Add(i1, r[0], r[1:]...)
 }
 
-func (builder *builder) Neg(i1 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Neg(i1 frontend.Variable) frontend.Variable {
 	if n, ok := builder.constantValue(i1); ok {
 		n = builder.cs.Neg(n)
 		return builder.cs.ToBigInt(n)
 	}
-	v := i1.(expr.Term)
+	v := i1.(expr.Term[E])
 	v.Coeff = builder.cs.Neg(v.Coeff)
 	return v
 }
 
-func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	vars, k := builder.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
 		return builder.cs.ToBigInt(k)
@@ -134,12 +135,12 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 // returns t*m
-func (builder *builder) mulConstant(t expr.Term, m constraint.Element) expr.Term {
+func (builder *builder[E]) mulConstant(t expr.Term[E], m E) expr.Term[E] {
 	t.Coeff = builder.cs.Mul(t.Coeff, m)
 	return t
 }
 
-func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
 
@@ -156,34 +157,34 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 			panic("inverse by constant(0)")
 		}
 		c2, _ = builder.cs.Inverse(c2)
-		return builder.mulConstant(i1.(expr.Term), c2)
+		return builder.mulConstant(i1.(expr.Term[E]), c2)
 	}
 	if i1Constant {
 		res := builder.Inverse(i2)
-		return builder.mulConstant(res.(expr.Term), c1)
+		return builder.mulConstant(res.(expr.Term[E]), c1)
 	}
 
 	// res * i2 == i1
 	res := builder.newInternalVariable()
-	builder.addPlonkConstraint(sparseR1C{
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: res.VID,
-		xb: i2.(expr.Term).VID,
-		xc: i1.(expr.Term).VID,
-		qM: i2.(expr.Term).Coeff,
-		qO: builder.cs.Neg(i1.(expr.Term).Coeff),
+		xb: i2.(expr.Term[E]).VID,
+		xc: i1.(expr.Term[E]).VID,
+		qM: i2.(expr.Term[E]).Coeff,
+		qO: builder.cs.Neg(i1.(expr.Term[E]).Coeff),
 	})
 
 	return res
 }
 
-func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Div(i1, i2 frontend.Variable) frontend.Variable {
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	builder.Inverse(i2)
 
 	return builder.DivUnchecked(i1, i2)
 }
 
-func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := builder.constantValue(i1); ok {
 		if c.IsZero() {
 			panic("inverse by constant(0)")
@@ -191,11 +192,11 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 		c, _ = builder.cs.Inverse(c)
 		return builder.cs.ToBigInt(c)
 	}
-	t := i1.(expr.Term)
+	t := i1.(expr.Term[E])
 	res := builder.newInternalVariable()
 
 	// res * i1 - 1 == 0
-	constraint := sparseR1C{
+	constraint := sparseR1C[E]{
 		xa: res.VID,
 		xb: t.VID,
 		qM: t.Coeff,
@@ -215,7 +216,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 // ---------------------------------------------------------------------------------------------
 // Bit operations
 
-func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (builder *builder[E]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()
 	if len(n) == 1 {
@@ -228,11 +229,11 @@ func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 	return bits.ToBinary(builder, i1, bits.WithNbDigits(nbBits))
 }
 
-func (builder *builder) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (builder *builder[E]) FromBinary(b ...frontend.Variable) frontend.Variable {
 	return bits.FromBinary(builder, b)
 }
 
-func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Xor(a, b frontend.Variable) frontend.Variable {
 	// pre condition: a, b must be booleans
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
@@ -263,7 +264,7 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 		_b = _a
 	}
 	if bConstant {
-		xa := a.(expr.Term)
+		xa := a.(expr.Term[E])
 		// 1 - 2b
 		qL := builder.tOne
 		qL = builder.cs.Sub(qL, _b)
@@ -271,7 +272,7 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 		qL = builder.cs.Mul(qL, xa.Coeff)
 
 		// (1-2b)a + b == res
-		builder.addPlonkConstraint(sparseR1C{
+		builder.addPlonkConstraint(sparseR1C[E]{
 			xa: xa.VID,
 			xc: res.VID,
 			qL: qL,
@@ -281,8 +282,8 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 		// builder.addPlonkConstraint(xa, xb, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b))
 		return res
 	}
-	xa := a.(expr.Term)
-	xb := b.(expr.Term)
+	xa := a.(expr.Term[E])
+	xb := b.(expr.Term[E])
 
 	// -a - b + 2ab + res == 0
 	qM := builder.tOne
@@ -293,7 +294,7 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 	qL := builder.cs.Neg(xa.Coeff)
 	qR := builder.cs.Neg(xb.Coeff)
 
-	builder.addPlonkConstraint(sparseR1C{
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: xa.VID,
 		xb: xb.VID,
 		xc: res.VID,
@@ -306,7 +307,7 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 	return res
 }
 
-func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Or(a, b frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
 
@@ -336,8 +337,8 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 	}
 	res := builder.newInternalVariable()
 	builder.MarkBoolean(res)
-	xa := a.(expr.Term)
-	xb := b.(expr.Term)
+	xa := a.(expr.Term[E])
+	xb := b.(expr.Term[E])
 	// -a - b + ab + res == 0
 
 	qM := builder.cs.Mul(xa.Coeff, xb.Coeff)
@@ -345,7 +346,7 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 	qL := builder.cs.Neg(xa.Coeff)
 	qR := builder.cs.Neg(xb.Coeff)
 
-	builder.addPlonkConstraint(sparseR1C{
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: xa.VID,
 		xb: xb.VID,
 		xc: res.VID,
@@ -357,7 +358,7 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 	return res
 }
 
-func (builder *builder) And(a, b frontend.Variable) frontend.Variable {
+func (builder *builder[E]) And(a, b frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
 	res := builder.Mul(a, b)
@@ -368,7 +369,7 @@ func (builder *builder) And(a, b frontend.Variable) frontend.Variable {
 // ---------------------------------------------------------------------------------------------
 // Conditionals
 
-func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
 	_b, bConstant := builder.constantValue(b)
 
 	if bConstant {
@@ -390,7 +391,7 @@ func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) fr
 	return builder.Add(l, i2)
 }
 
-func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 	// ensure that bits are actually bits. Adds no constraints if the variables
 	// are already constrained.
 	builder.AssertIsBoolean(b0)
@@ -436,7 +437,7 @@ func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 
 }
 
-func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) IsZero(i1 frontend.Variable) frontend.Variable {
 	if a, ok := builder.constantValue(i1); ok {
 		if a.IsZero() {
 			return 1
@@ -447,7 +448,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	a := i1.(expr.Term)
+	a := i1.(expr.Term[E])
 	m := builder.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
@@ -459,8 +460,8 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a*x + m - 1 == 0
-	X := x[0].(expr.Term)
-	builder.addPlonkConstraint(sparseR1C{
+	X := x[0].(expr.Term[E])
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: a.VID,
 		xb: X.VID,
 		xc: m.VID,
@@ -470,7 +471,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	})
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	builder.addPlonkConstraint(sparseR1C{
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: a.VID,
 		xb: m.VID,
 		qM: a.Coeff,
@@ -481,7 +482,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	return m
 }
 
-func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder[E]) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	nbBits := builder.cs.FieldBitLen()
 	// in AssertIsLessOrEq we omitted comparison against modulus for the left
@@ -508,7 +509,7 @@ func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 	return res
 }
 
-func (builder *builder) Println(a ...frontend.Variable) {
+func (builder *builder[E]) Println(a ...frontend.Variable) {
 	var log constraint.LogEntry
 
 	// prefix log line with file.go:line
@@ -522,7 +523,7 @@ func (builder *builder) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(expr.Term); ok {
+		if v, ok := arg.(expr.Term[E]); ok {
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
@@ -539,7 +540,7 @@ func (builder *builder) Println(a ...frontend.Variable) {
 	builder.cs.AddLog(log)
 }
 
-func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
+func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	leafCount, err := schema.Walk(a, tVariable, nil)
 	count := leafCount.Public + leafCount.Secret
@@ -560,7 +561,7 @@ func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder,
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(expr.Term)
+		v := tValue.Interface().(expr.Term[E])
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
 		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(v.Coeff, v.VID)})
@@ -571,23 +572,23 @@ func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder,
 	sbb.WriteByte('}')
 }
 
-func (builder *builder) Compiler() frontend.Compiler {
+func (builder *builder[E]) Compiler() frontend.Compiler {
 	return builder
 }
 
-func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
-	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
+	v = filterConstants[E](v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 
 	committed := make([]int, len(v))
 
 	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
-		vINeg := builder.Neg(vI).(expr.Term)
+		vINeg := builder.Neg(vI).(expr.Term[E])
 		committed[i] = builder.cs.GetNbConstraints()
 		// a constraint to enforce consistency between the commitment and committed value
 		// - v + comm(n) = 0
-		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
+		builder.addPlonkConstraint(sparseR1C[E]{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
 	inputs := make([]frontend.Variable, len(v)+1)
@@ -598,10 +599,10 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		return nil, err
 	}
 
-	commitmentVar := builder.Neg(outs[0]).(expr.Term)
+	commitmentVar := builder.Neg(outs[0]).(expr.Term[E])
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
 	// RHS will be provided by both prover and verifier independently, as for a public wire
-	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
+	builder.addPlonkConstraint(sparseR1C[E]{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
 		CommitmentIndex: commitmentConstraintIndex,
@@ -610,7 +611,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 }
 
 // EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
-func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+func (builder *builder[E]) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
 	_, aConstant := builder.constantValue(a)
 	_, bConstant := builder.constantValue(b)
 	if aConstant || bConstant {
@@ -623,21 +624,21 @@ func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, 
 	}
 
 	res := builder.newInternalVariable()
-	builder.addPlonkConstraint(sparseR1C{
-		xa: a.(expr.Term).VID,
-		xb: b.(expr.Term).VID,
+	builder.addPlonkConstraint(sparseR1C[E]{
+		xa: a.(expr.Term[E]).VID,
+		xb: b.(expr.Term[E]).VID,
 		xc: res.VID,
-		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
-		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term[E]).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term[E]).Coeff),
 		qO: builder.tMinusOne,
-		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term[E]).Coeff, b.(expr.Term[E]).Coeff)),
 		qC: builder.cs.FromInterface(qC),
 	})
 	return res
 }
 
 // AddPlonkConstraint asserts qL.a + qR.b + qO.o + qM.ab + qC = 0
-func (builder *builder) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
+func (builder *builder[E]) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
 	_, aConstant := builder.constantValue(a)
 	_, bConstant := builder.constantValue(b)
 	_, oConstant := builder.constantValue(o)
@@ -655,32 +656,32 @@ func (builder *builder) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO
 		return
 	}
 
-	builder.addPlonkConstraint(sparseR1C{
-		xa: a.(expr.Term).VID,
-		xb: b.(expr.Term).VID,
-		xc: o.(expr.Term).VID,
-		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
-		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
-		qO: builder.cs.Mul(builder.cs.FromInterface(qO), o.(expr.Term).Coeff),
-		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+	builder.addPlonkConstraint(sparseR1C[E]{
+		xa: a.(expr.Term[E]).VID,
+		xb: b.(expr.Term[E]).VID,
+		xc: o.(expr.Term[E]).VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term[E]).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term[E]).Coeff),
+		qO: builder.cs.Mul(builder.cs.FromInterface(qO), o.(expr.Term[E]).Coeff),
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term[E]).Coeff, b.(expr.Term[E]).Coeff)),
 		qC: builder.cs.FromInterface(qC),
 	})
 }
 
-func filterConstants(v []frontend.Variable) []frontend.Variable {
+func filterConstants[E constraint.Element](v []frontend.Variable) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(v))
 	for _, vI := range v {
-		if _, ok := vI.(expr.Term); ok {
+		if _, ok := vI.(expr.Term[E]); ok {
 			res = append(res, vI)
 		}
 	}
 	return res
 }
 
-func (*builder) FrontendType() frontendtype.Type {
+func (*builder[E]) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
 }
 
-func (builder *builder) SetGkrInfo(info constraint.GkrInfo) error {
+func (builder *builder[E]) SetGkrInfo(info constraint.GkrInfo) error {
 	return builder.cs.AddGkr(info)
 }

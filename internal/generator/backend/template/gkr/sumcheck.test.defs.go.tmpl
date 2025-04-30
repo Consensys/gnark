@@ -1,0 +1,65 @@
+{{ define "sumcheckTestDefs" }}
+
+type singleMultilinClaim struct {
+	g polynomial.MultiLin
+}
+
+func (c singleMultilinClaim) proveFinalEval(r []{{.ElementType}}) []{{.ElementType}} {
+	return nil // verifier can compute the final eval itself
+}
+
+func (c singleMultilinClaim) varsNum() int {
+	return bits.TrailingZeros(uint(len(c.g)))
+}
+
+func (c singleMultilinClaim) claimsNum() int {
+	return 1
+}
+
+func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
+	sum := g[len(g)/2]
+	for i := len(g)/2 + 1; i < len(g); i++ {
+		sum.Add(&sum, &g[i])
+	}
+	return []{{.ElementType}}{sum}
+}
+
+func (c singleMultilinClaim) combine({{.ElementType}}) polynomial.Polynomial {
+	return sumForX1One(c.g)
+}
+
+func (c *singleMultilinClaim) next(r {{.ElementType}}) polynomial.Polynomial {
+	c.g.Fold(r)
+	return sumForX1One(c.g)
+}
+
+type singleMultilinLazyClaim struct {
+	g          polynomial.MultiLin
+	claimedSum {{.ElementType}}
+}
+
+func (c singleMultilinLazyClaim) verifyFinalEval(r []{{.ElementType}}, combinationCoeff {{.ElementType}}, purportedValue {{.ElementType}}, proof []{{.ElementType}}) error {
+	val := c.g.Evaluate(r, nil)
+	if val.Equal(&purportedValue) {
+		return nil
+	}
+	return fmt.Errorf("mismatch")
+}
+
+func (c singleMultilinLazyClaim) combinedSum(combinationCoeffs {{.ElementType}}) {{.ElementType}} {
+	return c.claimedSum
+}
+
+func (c singleMultilinLazyClaim) degree(i int) int {
+	return 1
+}
+
+func (c singleMultilinLazyClaim) claimsNum() int {
+	return 1
+}
+
+func (c singleMultilinLazyClaim) varsNum() int {
+	return bits.TrailingZeros(uint(len(c.g)))
+}
+
+{{ end }}

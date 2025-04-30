@@ -1500,3 +1500,50 @@ func testFastPaths[T FieldParams](t *testing.T) {
 
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
 }
+
+type TestAssertIsDifferentCircuit[T FieldParams] struct {
+	A, B   Element[T]
+	addMod bool
+}
+
+func (c *TestAssertIsDifferentCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	b := &c.B
+	if c.addMod {
+		b = f.Add(b, f.Modulus())
+	}
+	f.AssertIsDifferent(&c.A, b)
+	return nil
+}
+
+func TestAssertIsDifferent(t *testing.T) {
+	testAssertIsDifferent[Goldilocks](t)
+	testAssertIsDifferent[Secp256k1Fp](t)
+	testAssertIsDifferent[BN254Fp](t)
+}
+
+func testAssertIsDifferent[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	circuitNoMod := &TestAssertIsDifferentCircuit[T]{addMod: false}
+	var fp T
+	a, _ := rand.Int(rand.Reader, fp.Modulus())
+	assignment1 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](a)}
+	var b *big.Int
+	for {
+		b, _ = rand.Int(rand.Reader, fp.Modulus())
+		if b.Cmp(a) == 0 {
+			continue
+		}
+		break
+	}
+	assignment2 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](b)}
+	assert.CheckCircuit(circuitNoMod, test.WithInvalidAssignment(assignment1), test.WithValidAssignment(assignment2))
+
+	circuitWithMod := &TestAssertIsDifferentCircuit[T]{addMod: true}
+	assignment3 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](a)}
+	assignment4 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](b)}
+	assert.CheckCircuit(circuitWithMod, test.WithInvalidAssignment(assignment3), test.WithValidAssignment(assignment4))
+}

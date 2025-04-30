@@ -851,8 +851,8 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	if cfg.CompleteArithmetic {
-		res1 := c.scalarMulGLV(p1, s1, opts...)
-		res2 := c.scalarMulGLV(p2, s2, opts...)
+		res1 := c.scalarMulGLVAndFakeGLV(p1, s1, opts...)
+		res2 := c.scalarMulGLVAndFakeGLV(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
 	} else {
 		return c.jointScalarMulGLVUnsafe(p1, p2, s1, s2)
@@ -1094,10 +1094,10 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 // ScalarMulBase computes [s]g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
 //
-// ScalarMul calls scalarMulBaseGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
+// ScalarMul calls scalarMulBaseGeneric or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
-		return c.scalarMulGLV(c.Generator(), s, opts...)
+		return c.scalarMulGLVAndFakeGLV(c.Generator(), s, opts...)
 
 	} else {
 		return c.scalarMulBaseGeneric(s, opts...)

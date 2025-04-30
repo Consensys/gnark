@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/compress/lzss"
-	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
 	"github.com/icza/bitio"
@@ -50,9 +49,9 @@ func TestRecombineBytes(t *testing.T) {
 	}
 
 	assignment := recombineBytesCircuit{
-		Bytes:      test_vector_utils.ToVariableSlice(_bytes),
-		Bits:       test_vector_utils.ToVariableSlice(bits),
-		Recombined: test_vector_utils.ToVariableSlice(recombined),
+		Bytes:      internal.ToVariableSlice(_bytes),
+		Bits:       internal.ToVariableSlice(bits),
+		Recombined: internal.ToVariableSlice(recombined),
 	}
 
 	lzss.RegisterHints()

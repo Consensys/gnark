@@ -136,7 +136,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	return dLength, nil
 }
 
-func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.Table {
+func sliceToTable(api frontend.API, slice []frontend.Variable) logderivlookup.Table {
 	table := logderivlookup.New(api)
 	for i := range slice {
 		table.Insert(slice[i])
@@ -145,7 +145,7 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 }
 
 // the "address" is zero when we don't have a backref delimiter
-func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs ...lzss.BackrefType) *logderivlookup.Table {
+func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs ...lzss.BackrefType) logderivlookup.Table {
 	if len(backRefs) != 2 {
 		panic("two backref types are expected, due to opts at the end of the function")
 	}

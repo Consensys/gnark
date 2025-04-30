@@ -13,7 +13,7 @@ func ExampleSparseR1CS_GetSparseR1Cs() {
 	// and build the linear expressions "manually".
 	// note: R1CS apis are more mature; SparseR1CS apis are going to change in the next release(s).
 	scs := cs.NewSparseR1CS(0)
-	blueprint := scs.AddBlueprint(&constraint.BlueprintGenericSparseR1C{})
+	blueprint := scs.AddBlueprint(&constraint.BlueprintGenericSparseR1C[constraint.U64]{})
 
 	Y := scs.AddPublicVariable("Y")
 	X := scs.AddSecretVariable("X")

@@ -14,7 +14,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint builder (i1 == i2)
-func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
 
@@ -37,8 +37,8 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
-	s := builder.Sub(i1, i2).(expr.LinearExpression)
+func (builder *builder[E]) AssertIsDifferent(i1, i2 frontend.Variable) {
+	s := builder.Sub(i1, i2).(expr.LinearExpression[E])
 	if len(s) == 1 && s[0].Coeff.IsZero() {
 		panic("AssertIsDifferent(x,x) will never be satisfied")
 	}
@@ -47,7 +47,7 @@ func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 }
 
 // AssertIsBoolean adds an assertion in the constraint builder (v == 0 ∥ v == 1)
-func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
+func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 
 	v := builder.toVariable(i1)
 
@@ -77,7 +77,7 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	}
 }
 
-func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
+func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
 	i1 = builder.MulAcc(builder.Mul(-3, i1), i1, i1)
 	i1 = builder.MulAcc(builder.Mul(2, i1), i1, i1)
 	builder.AssertIsEqual(i1, 0)
@@ -89,7 +89,7 @@ func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *builder[E]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	cv, vConst := builder.constantValue(v)
 	cb, bConst := builder.constantValue(bound)
 
@@ -112,7 +112,7 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 	builder.mustBeLessOrEqVar(v, bound)
 }
 
-func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
+func (builder *builder[E]) mustBeLessOrEqVar(a, bound frontend.Variable) {
 	// here bound is NOT a constant,
 	// but a can be either constant or a wire.
 
@@ -161,7 +161,7 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 // MustBeLessOrEqCst asserts that value represented using its bit decomposition
 // aBits is less or equal than constant bound. The method boolean constraints
 // the bits in aBits, so the caller can provide unconstrained bits.
-func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
+func (builder *builder[E]) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
 	if len(aBits) > nbBits {
