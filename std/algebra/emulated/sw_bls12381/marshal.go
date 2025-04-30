@@ -66,7 +66,11 @@ func unmarshallHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 	}
 	for i := 0; i < nbBytes; i++ {
 		tmp := inputs[i].Bytes()
-		xCoord[i] = tmp[len(tmp)-1] // tmp is in big endian
+		if len(tmp) == 0 {
+			xCoord[i] = 0
+		} else {
+			xCoord[i] = tmp[len(tmp)-1] // tmp is in big endian
+		}
 	}
 
 	var point bls12381.G1Affine
