@@ -1,9 +1,12 @@
 package evmprecompiles
 
 import (
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/commitments/kzg"
+	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -33,6 +36,7 @@ var (
 // TODO vk should be hardcoded
 func KzgPointEvaluation(
 	api frontend.API,
+	versionnedHash []uints.U8,
 	z, y emulated.Element[sw_bls12381.ScalarField],
 	comSerialised []uints.U8,
 	proofSerialised []uints.U8,
@@ -52,18 +56,19 @@ func KzgPointEvaluation(
 	commitmentKzgFormat := kzg.Commitment[sw_bls12381.G1Affine]{
 		G1El: *com,
 	}
+
 	// verify commitment matches versioned_hash
-	// sizeCompressedPoint := 48
-	// h, err := sha2.New(api, hash.WithMinimalLength(sizeCompressedPoint))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// h.Write(comSerialised)
-	// hashedKzg := h.FixedLengthSum(32)
-	// api.AssertIsEqual(hashedKzg[0].Val, blobCommitmentVersionKZG)
-	// for i := 1; i < len(hashedKzg); i++ {
-	// 	api.AssertIsEqual(hashedKzg[i].Val, data[i].Val)
-	// }
+	sizeCompressedPoint := fp.Bytes
+	h, err := sha2.New(api, hash.WithMinimalLength(sizeCompressedPoint))
+	if err != nil {
+		return nil, err
+	}
+	h.Write(comSerialised)
+	hashedKzg := h.FixedLengthSum(sizeCompressedPoint)
+	api.AssertIsEqual(versionnedHash[0].Val, blobCommitmentVersionKZG)
+	for i := 1; i < len(hashedKzg); i++ {
+		api.AssertIsEqual(hashedKzg[i].Val, versionnedHash[i].Val)
+	}
 
 	quotient, err := g1.UnmarshalCompressed(proofSerialised)
 	if err != nil {
