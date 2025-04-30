@@ -777,7 +777,7 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 //
 // ```
 //
-//	GetWiresConstraintsNoDuplicate([]frontend.Variable{a, a, b, a, c}) => wa, wb, wc
+//	GetWiresConstraints([]frontend.Variable{a, a, b, a, c}) => wa, wb, wc
 //
 // ```
 func (builder *builder) GetWiresConstraintExact(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
