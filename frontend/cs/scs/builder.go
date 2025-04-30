@@ -726,12 +726,14 @@ func (builder *builder[E]) ToCanonicalVariable(v frontend.Variable) frontend.Can
 func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
 	// construct a lookup table table for later quick access when iterating over instructions
 	lookup := make(map[int]struct{})
-	for _, w := range wires {
+	wireTerms := make([]expr.Term[E], len(wires)) // stores the term of each wire.
+	for i, w := range wires {
 		ww, ok := w.(expr.Term[E])
 		if !ok {
 			panic("input wire is not a Term")
 		}
 		lookup[ww.WireID()] = struct{}{}
+		wireTerms[i] = ww
 	}
 	nbPub := builder.cs.GetNbPublicVariables()
 	res := make([][2]int, 0, len(wires))
@@ -756,7 +758,15 @@ func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMiss
 	}
 	if addMissing {
 		nbWitnessWires := builder.cs.GetNbPublicVariables() + builder.cs.GetNbSecretVariables()
-		for k := range lookup {
+		// It is important to iterate over wireTerms here as doing it over [lookup]
+		// would result in a non-deterministic order of constraints.
+		for _, ww := range wireTerms {
+
+			if _, ok := lookup[ww.WireID()]; !ok {
+				continue
+			}
+
+			k := ww.WireID()
 			if k >= nbWitnessWires {
 				return nil, fmt.Errorf("addMissing is true, but wire %d is not a witness", k)
 			}
@@ -766,6 +776,7 @@ func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMiss
 				QL: constraint.CoeffIdOne,
 				QO: constraint.CoeffIdMinusOne,
 			}, builder.genericGate)
+
 			res = append(res, [2]int{nbPub + constraintIdx, 0})
 			delete(lookup, k)
 		}
@@ -812,6 +823,9 @@ func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, ad
 	// canonical variables: therefore not to constants and not too terms
 	// with a coeff different from 1. This may add constraints but has the
 	// benefit of making it simpler to read the LRO values.
+	//
+	// wireIDsSetOrdered stores the same values as wireIDsSet but in order
+	// of insertion. This is necessary to ensure
 	var (
 		wireIDsSet = make(map[int]struct{})
 		wireTerms  = make([]expr.Term[E], len(wires))
@@ -880,15 +894,24 @@ func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, ad
 	}
 
 	if addMissing {
-		for k := range wireIDsSet {
+		for _, ww := range wireTerms {
+
+			// The above loop removes the wireIDs from the set when they are
+			// found. This means that a wireID is missing if and only if it
+			// is still in [wireIDsSet].
+			if _, isIndeedMissing := wireIDsSet[ww.VID]; !isIndeedMissing {
+				continue
+			}
+
 			constraintIdx := builder.cs.AddSparseR1C(constraint.SparseR1C{
-				XA: uint32(k),
-				XC: uint32(k),
+				XA: uint32(ww.VID),
+				XC: uint32(ww.VID),
 				QL: constraint.CoeffIdOne,
 				QO: constraint.CoeffIdMinusOne,
 			}, builder.genericGate)
-			foundWireIDPosition[k] = [2]int{nbPub + constraintIdx, 0}
-			delete(wireIDsSet, k)
+
+			foundWireIDPosition[ww.VID] = [2]int{nbPub + constraintIdx, 0}
+			delete(wireIDsSet, ww.VID)
 		}
 	}
 
