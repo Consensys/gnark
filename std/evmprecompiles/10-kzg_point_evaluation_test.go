@@ -25,7 +25,7 @@ const (
 )
 
 type kzgPointEvaluationPrecompile struct {
-	VersionHash     []uints.U8
+	VersionnedHash  []uints.U8
 	Z               emulated.Element[sw_bls12381.ScalarField]
 	Y               emulated.Element[sw_bls12381.ScalarField]
 	ComSerialised   []uints.U8
@@ -35,7 +35,7 @@ type kzgPointEvaluationPrecompile struct {
 
 func (c *kzgPointEvaluationPrecompile) Define(api frontend.API) error {
 
-	res, err := KzgPointEvaluation(api, c.Z, c.Y, c.ComSerialised, c.ProofSerialised, c.Vk)
+	res, err := KzgPointEvaluation(api, c.VersionnedHash, c.Z, c.Y, c.ComSerialised, c.ProofSerialised, c.Vk)
 	if err != nil {
 		return err
 	}
@@ -79,9 +79,9 @@ func TestKzgPointOpeningPrecompile(t *testing.T) {
 	h[0] = blobCommitmentVersionKZG
 
 	var witness, circuit kzgPointEvaluationPrecompile
-	witness.VersionHash = make([]uints.U8, 32)
+	witness.VersionnedHash = make([]uints.U8, 32)
 	for i := 0; i < 32; i++ {
-		witness.VersionHash[i] = uints.NewU8(h[i])
+		witness.VersionnedHash[i] = uints.NewU8(h[i])
 	}
 	witness.Z = emulated.ValueOf[sw_bls12381.ScalarField](point)
 	witness.Y = emulated.ValueOf[sw_bls12381.ScalarField](proof.ClaimedValue)
@@ -93,7 +93,7 @@ func TestKzgPointOpeningPrecompile(t *testing.T) {
 	}
 	witness.Vk, err = kzg.ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
 
-	circuit.VersionHash = make([]uints.U8, 32)
+	circuit.VersionnedHash = make([]uints.U8, 32)
 	circuit.ComSerialised = make([]uints.U8, fp.Bytes)
 	circuit.ProofSerialised = make([]uints.U8, fp.Bytes)
 
