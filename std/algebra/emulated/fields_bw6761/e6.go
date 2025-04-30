@@ -128,11 +128,6 @@ func (e Ext6) IsZero(x *E6) frontend.Variable {
 	return isZero
 }
 
-func (e Ext6) IsEqual(x, y *E6) frontend.Variable {
-	diff := e.Sub(x, y)
-	return e.IsZero(diff)
-}
-
 func (e Ext6) Double(x *E6) *E6 {
 	two := big.NewInt(2)
 	a0 := e.fp.MulConst(&x.A0, two)

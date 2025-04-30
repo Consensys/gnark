@@ -187,11 +187,6 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
 
-func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
-	diff := pr.Ext12.Sub(x, y)
-	return pr.Ext12.IsEqual(diff, pr.Ext12.Zero())
-}
-
 func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
