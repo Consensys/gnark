@@ -108,7 +108,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
 				bstart := i * Bytes
 				bend := bstart + Bytes
 				b := bSlice[bstart:bend]
-				z[0] = binary.BigEndian.Uint64(b[0:8])
+				z[0] = binary.BigEndian.Uint32(b[0:4])
 
 				if !z.smallerThanModulus() {
 					atomic.AddUint64(&cptErrors, 1)
