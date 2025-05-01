@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
@@ -179,13 +180,13 @@ const (
 )
 
 func init() {
-	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
+	if err := RegisterGate(MiMC, mimcRound, 2, gkr.NewRegisterGateSettings(gkr.WithUnverifiedDegree(7))); err != nil {
 		panic(err)
 	}
 
 	if err := RegisterGate(SelectInput3, func(input ...small_rational.SmallRational) small_rational.SmallRational {
 		return input[2]
-	}, 3, WithUnverifiedDegree(1)); err != nil {
+	}, 3, gkr.NewRegisterGateSettings(gkr.WithUnverifiedDegree(1))); err != nil {
 		panic(err)
 	}
 }

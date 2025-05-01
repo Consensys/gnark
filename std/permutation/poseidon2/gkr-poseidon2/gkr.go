@@ -176,7 +176,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	}
 
 	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
-	if err = gkr.RegisterGate("pow4", pow4Gate, 1, gkr.WithUnverifiedDegree(4), gkr.WithNoSolvableVar()); err != nil {
+	if err = gkr.RegisterGate("pow4", pow4Gate, 1, gkr.WithBls12377Impl(), gkr.WithUnverifiedDegree(4), gkr.WithNoSolvableVar()); err != nil {
 		return nil, -1, err
 	}
 	if err = gkr.RegisterGate("pow4Times", pow4TimesGate, 2, gkr.WithUnverifiedDegree(5), gkr.WithNoSolvableVar()); err != nil {

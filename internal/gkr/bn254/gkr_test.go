@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/gkr"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"os"
@@ -573,13 +574,13 @@ const (
 )
 
 func init() {
-	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
+	if err := RegisterGate(MiMC, mimcRound, 2, gkr.NewRegisterGateSettings(gkr.WithUnverifiedDegree(7))); err != nil {
 		panic(err)
 	}
 
 	if err := RegisterGate(SelectInput3, func(input ...fr.Element) fr.Element {
 		return input[2]
-	}, 3, WithUnverifiedDegree(1)); err != nil {
+	}, 3, gkr.NewRegisterGateSettings(gkr.WithUnverifiedDegree(1))); err != nil {
 		panic(err)
 	}
 }
