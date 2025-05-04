@@ -99,14 +99,18 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	if err != nil {
 		return nil, err
 	}
-	mask := uints.NewU32(0x1FFFFFFF) // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	mask := uints.NewU32(0x1FFFFFFF)   // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	unmask := uints.NewU32(0xE0000000) // unmaks = ^mask
 	firstFourBytes := uapi.PackMSB(
 		compressedPoint[0],
 		compressedPoint[1],
 		compressedPoint[2],
 		compressedPoint[3])
+	firstFourBytesPrefix := uapi.And(unmask, firstFourBytes)
 	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
 	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	unpackedFirstFourBytesPrefix := uapi.UnpackMSB(firstFourBytesPrefix)
+	prefix := unpackedFirstFourBytesPrefix[0]
 	unmaskedXCoord := make([]uints.U8, nbBytes)
 	copy(unmaskedXCoord, unpackedFirstFourBytes)
 	copy(unmaskedXCoord[4:], compressedPoint[4:])
@@ -136,9 +140,27 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	}
 
 	// 3 - subgroup check
-	g1.AssertIsOnG1(res)
+
+	// if the point is infinity, we do the subgroup check on the base point (otherwise the subgroup
+	// check fails for (0,0) ). We check later on that the actual point is equal to (0,0).
+	compressedInfinity := 0xc0 // b1100 0000
+	isCompressedInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix.Val))
+	_, _, g, _ := bls12381.Generators()
+	base := NewG1Affine(g)
+	resTmpX := g1.curveF.Select(isCompressedInfinity, &base.X, x)
+	resTmpY := g1.curveF.Select(isCompressedInfinity, &base.Y, y)
+	resTmp := &G1Affine{
+		X: *resTmpX,
+		Y: *resTmpY,
+	}
+	g1.AssertIsOnG1(resTmp)
 
 	// 4 - TODO check logic with the mask
+
+	// compressedSmallest := 0x80
+	// isCompressedSmallest := g1.api.IsZero(g1.api.Sub(compressedSmallest, ))
+
+	// compressedLargest := 0xa0
 
 	return res, nil
 }

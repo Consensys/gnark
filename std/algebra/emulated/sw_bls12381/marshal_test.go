@@ -117,20 +117,42 @@ func (c *unmarshallPoint) Define(api frontend.API) error {
 func TestUnmmarshalPoint(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	_, _, p, _ := bls12381.Generators()
-	pMarshalled := p.Bytes()
 
-	var witness, circuit unmarshallPoint
-	nbBytes := fp.Bytes
-	witness.CompressedPoint = make([]uints.U8, nbBytes)
-	circuit.CompressedPoint = make([]uints.U8, nbBytes)
-	for i := 0; i < nbBytes; i++ {
-		witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+	{
+		_, _, p, _ := bls12381.Generators()
+		pMarshalled := p.Bytes()
+		var witness, circuit unmarshallPoint
+		nbBytes := fp.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.X = emulated.ValueOf[BaseField](p.X)
+		witness.Y = emulated.ValueOf[BaseField](p.Y)
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
 	}
-	witness.X = emulated.ValueOf[BaseField](p.X)
-	witness.Y = emulated.ValueOf[BaseField](p.Y)
 
-	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	// infinity
+	{
+		var witness, circuit unmarshallPoint
+		nbBytes := fp.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		var p bls12381.G1Affine
+		p.X.SetZero()
+		p.Y.SetZero()
+		pMarshalled := p.Bytes()
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.X = emulated.ValueOf[BaseField](0)
+		witness.Y = emulated.ValueOf[BaseField](0)
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
 
 }
