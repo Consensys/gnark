@@ -2,35 +2,32 @@ package gkr
 
 import (
 	"fmt"
-	gates2 "github.com/consensys/gnark/std/gkr/gates"
 	"hash"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
-
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/constraint"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
 	bls24317 "github.com/consensys/gnark/constraint/bls24-317"
+	bn254 "github.com/consensys/gnark/constraint/bn254"
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
-	"github.com/consensys/gnark/test"
-
-	bn254 "github.com/consensys/gnark/constraint/bn254"
-	"github.com/stretchr/testify/require"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	gkr "github.com/consensys/gnark/internal/gkr/bn254"
+	"github.com/consensys/gnark/std/gkr/gates"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -433,7 +430,7 @@ func init() {
 
 func registerMiMCGate() {
 	// register mimc gate
-	panicIfError(gates2.RegisterGate("mimc", func(api gates2.GateAPI, input ...frontend.Variable) frontend.Variable {
+	panicIfError(gates.RegisterGate("mimc", func(api gates.GateAPI, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
 		if len(input) != 2 {
@@ -443,7 +440,7 @@ func registerMiMCGate() {
 
 		sumCubed := api.Mul(sum, sum, sum) // sum^3
 		return api.Mul(sumCubed, sumCubed, sum)
-	}, 2, gates2.WithDegree(7)))
+	}, 2, gates.WithDegree(7)))
 
 	// register fr version of mimc gate
 	panicIfError(gkr.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
