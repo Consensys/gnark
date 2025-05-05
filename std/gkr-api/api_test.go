@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/constraint"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
@@ -22,12 +21,13 @@ import (
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	gkr "github.com/consensys/gnark/internal/gkr/bn254"
-	gkr2 "github.com/consensys/gnark/std/gkr"
-	"github.com/consensys/gnark/std/gkr/gates"
+	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,15 +42,15 @@ type doubleNoDependencyCircuit struct {
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := New()
-	var x gkr2.Variable
+	gkrApi := New()
+	var x gkr.Variable
 	var err error
-	if x, err = gkr.Import(c.X); err != nil {
+	if x, err = gkrApi.Import(c.X); err != nil {
 		return err
 	}
-	z := gkr.Add(x, x)
+	z := gkrApi.Add(x, x)
 	var solution Solution
-	if solution, err = gkr.Solve(api); err != nil {
+	if solution, err = gkrApi.Solve(api); err != nil {
 		return err
 	}
 	Z := solution.Export(z)
@@ -90,15 +90,15 @@ type sqNoDependencyCircuit struct {
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := New()
-	var x gkr2.Variable
+	gkrApi := New()
+	var x gkr.Variable
 	var err error
-	if x, err = gkr.Import(c.X); err != nil {
+	if x, err = gkrApi.Import(c.X); err != nil {
 		return err
 	}
-	z := gkr.Mul(x, x)
+	z := gkrApi.Mul(x, x)
 	var solution Solution
-	if solution, err = gkr.Solve(api); err != nil {
+	if solution, err = gkrApi.Solve(api); err != nil {
 		return err
 	}
 	Z := solution.Export(z)
@@ -137,18 +137,18 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := New()
-	var x, y gkr2.Variable
+	gkrApi := New()
+	var x, y gkr.Variable
 	var err error
-	if x, err = gkr.Import(c.X); err != nil {
+	if x, err = gkrApi.Import(c.X); err != nil {
 		return err
 	}
-	if y, err = gkr.Import(c.Y); err != nil {
+	if y, err = gkrApi.Import(c.Y); err != nil {
 		return err
 	}
-	z := gkr.Mul(x, y)
+	z := gkrApi.Mul(x, y)
 	var solution Solution
-	if solution, err = gkr.Solve(api); err != nil {
+	if solution, err = gkrApi.Solve(api); err != nil {
 		return err
 	}
 	X := solution.Export(x)
@@ -202,26 +202,26 @@ type mulWithDependencyCircuit struct {
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
-	gkr := New()
-	var x, y gkr2.Variable
+	gkrApi := New()
+	var x, y gkr.Variable
 	var err error
 
 	X := make([]frontend.Variable, len(c.Y))
 	X[len(c.Y)-1] = c.XLast
-	if x, err = gkr.Import(X); err != nil {
+	if x, err = gkrApi.Import(X); err != nil {
 		return err
 	}
-	if y, err = gkr.Import(c.Y); err != nil {
+	if y, err = gkrApi.Import(c.Y); err != nil {
 		return err
 	}
-	z := gkr.Mul(x, y)
+	z := gkrApi.Mul(x, y)
 
 	for i := len(X) - 1; i > 0; i-- {
-		gkr.Series(x, z, i-1, i)
+		gkrApi.Series(x, z, i-1, i)
 	}
 
 	var solution Solution
-	if solution, err = gkr.Solve(api); err != nil {
+	if solution, err = gkrApi.Solve(api); err != nil {
 		return err
 	}
 	X = solution.Export(x)
@@ -250,9 +250,9 @@ func TestSolveMulWithDependency(t *testing.T) {
 
 func TestApiMul(t *testing.T) {
 	var (
-		x   gkr2.Variable
-		y   gkr2.Variable
-		z   gkr2.Variable
+		x   gkr.Variable
+		y   gkr.Variable
+		z   gkr.Variable
 		err error
 	)
 	api := New()
@@ -341,36 +341,36 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	X[len(X)-1] = 0
 	Y[len(X)-1] = 0
 
-	var x, y gkr2.Variable
+	var x, y gkr.Variable
 	var err error
 
-	gkr := New()
-	if x, err = gkr.Import(X); err != nil {
+	gkrApi := New()
+	if x, err = gkrApi.Import(X); err != nil {
 		return err
 	}
-	if y, err = gkr.Import(Y); err != nil {
+	if y, err = gkrApi.Import(Y); err != nil {
 		return err
 	}
 
 	// cheat{
-	gkr.toStore.Circuit = append(gkr.toStore.Circuit, constraint.GkrWire{
+	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, gkr_info.Wire{
 		Gate:   "mimc",
 		Inputs: []int{int(x), int(y)},
 	})
-	gkr.assignments = append(gkr.assignments, nil)
-	z := gkr2.Variable(2)
+	gkrApi.assignments = append(gkrApi.assignments, nil)
+	z := gkr.Variable(2)
 	// }
 
 	offset := 1 << (c.depth - 1)
 	for d := c.depth - 2; d >= 0; d-- {
 		for i := 0; i < 1<<d; i++ {
-			gkr.Series(x, z, offset+i, offset-1-2*i)
-			gkr.Series(y, z, offset+i, offset-2-2*i)
+			gkrApi.Series(x, z, offset+i, offset-1-2*i)
+			gkrApi.Series(y, z, offset+i, offset-2-2*i)
 		}
 		offset += 1 << d
 	}
 
-	solution, err := gkr.Solve(api)
+	solution, err := gkrApi.Solve(api)
 	if err != nil {
 		return err
 	}
@@ -431,7 +431,7 @@ func init() {
 
 func registerMiMCGate() {
 	// register mimc gate
-	panicIfError(gates.RegisterGate("mimc", func(api gates.GateAPI, input ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate("mimc", func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
 		if len(input) != 2 {
@@ -441,10 +441,10 @@ func registerMiMCGate() {
 
 		sumCubed := api.Mul(sum, sum, sum) // sum^3
 		return api.Mul(sumCubed, sumCubed, sum)
-	}, 2, gates.WithDegree(7)))
+	}, 2, gkr.WithDegree(7)))
 
 	// register fr version of mimc gate
-	panicIfError(gkr.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
+	panicIfError(gkrBn254.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
 		var sum fr.Element
 
 		sum.
@@ -457,7 +457,7 @@ func registerMiMCGate() {
 
 		mimcFrTotalCalls++
 		return res
-	}, 2, gkr.WithDegree(7)))
+	}, 2, gkrBn254.WithDegree(7)))
 }
 
 type constPseudoHash int
@@ -526,7 +526,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 	var (
-		y, z     gkr2.Variable
+		y, z     gkr.Variable
 		solution Solution
 	)
 	if y, err = _gkr.Import(c.Y); err != nil {
@@ -536,12 +536,12 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// cheat{
 	z = y
 	for i := 0; i < c.mimcDepth; i++ {
-		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, constraint.GkrWire{
+		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, gkr_info.Wire{
 			Gate:   "mimc",
 			Inputs: []int{int(x), int(z)},
 		})
 		_gkr.assignments = append(_gkr.assignments, nil)
-		z = gkr2.Variable(len(_gkr.toStore.Circuit) - 1)
+		z = gkr.Variable(len(_gkr.toStore.Circuit) - 1)
 	}
 	// }
 
@@ -651,25 +651,25 @@ type testSolveInTestEngineCircuit struct {
 }
 
 func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
-	gkr := New()
-	x, err := gkr.Import(c.X)
+	gkrBn254 := New()
+	x, err := gkrBn254.Import(c.X)
 	if err != nil {
 		return err
 	}
 	Y := make([]frontend.Variable, len(c.X))
 	Y[0] = 1
-	y, err := gkr.Import(Y)
+	y, err := gkrBn254.Import(Y)
 	if err != nil {
 		return err
 	}
 
-	z := gkr.Mul(x, y)
+	z := gkrBn254.Mul(x, y)
 
 	for i := range len(c.X) - 1 {
-		gkr.Series(y, z, i+1, i)
+		gkrBn254.Series(y, z, i+1, i)
 	}
 
-	assignments := gkr.SolveInTestEngine(api)
+	assignments := gkrBn254.SolveInTestEngine(api)
 
 	product := frontend.Variable(1)
 	for i := range c.X {
@@ -681,3 +681,50 @@ func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
 	return nil
 }
 */
+
+func panicIfError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
+	assert.Equal(t, len(expected), len(seen))
+	for i := range seen {
+		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
+	}
+}
+
+func sliceEqual[T comparable](expected, seen []T) bool {
+	if len(expected) != len(seen) {
+		return false
+	}
+	for i := range seen {
+		if expected[i] != seen[i] {
+			return false
+		}
+	}
+	return true
+}
+
+var mimcSnarkTotalCalls = 0
+
+type MiMCCipherGate struct {
+	Ark frontend.Variable
+}
+
+func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
+	mimcSnarkTotalCalls++
+
+	if len(input) != 2 {
+		panic("mimc has fan-in 2")
+	}
+	sum := api.Add(input[0], input[1], m.Ark)
+
+	sumCubed := api.Mul(sum, sum, sum) // sum^3
+	return api.Mul(sumCubed, sumCubed, sum)
+}
+
+func (m MiMCCipherGate) Degree() int {
+	return 7
+}

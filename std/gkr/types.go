@@ -2,7 +2,7 @@ package gkr
 
 import "github.com/consensys/gnark/frontend"
 
-type Variable int // Just an alias to hide implementation details. May be more trouble than worth
+type Variable int // Variable represents a value in a GKR circuit.
 
 // A Gate is a low-degree multivariate polynomial
 type Gate struct {

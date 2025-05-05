@@ -1,4 +1,4 @@
-package gkr_api
+package gkr
 
 import (
 	"encoding/json"
@@ -11,7 +11,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/gkr-api"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -196,8 +197,8 @@ func getTestCase(path string) (*TestCase, error) {
 
 			cse.Proof = unmarshalProof(info.Proof)
 
-			cse.Input = toVariableSliceSlice(info.Input)
-			cse.Output = toVariableSliceSlice(info.Output)
+			cse.Input = gkr_api.toVariableSliceSlice(info.Input)
+			cse.Output = gkr_api.toVariableSliceSlice(info.Output)
 			cse.Hash = info.Hash
 			cse.Name = path
 			testCases[path] = cse
@@ -249,7 +250,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		if circuit[i].Gate = gates.GetGate(gates.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
+		if circuit[i].Gate = gkr.GetGate(gkr.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -258,9 +259,9 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 }
 
 func init() {
-	panicIfError(gates.RegisterGate("select-input-3", func(api gates.GateAPI, in ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate("select-input-3", func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, 3, gates.WithDegree(1)))
+	}, 3, gkr.WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof
@@ -278,7 +279,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				finalEvalProof[k] = toVariable(finalEvalSlice.Index(k).Interface())
+				finalEvalProof[k] = gkr_api.toVariable(finalEvalSlice.Index(k).Interface())
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
@@ -287,7 +288,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 
 		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
 		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = toVariableSlice(printable[i].PartialSumPolys[k])
+			proof[i].PartialSumPolys[k] = gkr_api.toVariableSlice(printable[i].PartialSumPolys[k])
 		}
 	}
 	return
@@ -333,11 +334,11 @@ func TestTopSortSingleGate(t *testing.T) {
 	c[0].Inputs = []*Wire{&c[1], &c[2]}
 	sorted := topologicalSort(c)
 	expected := []*Wire{&c[1], &c[2], &c[0]}
-	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
-	assertSliceEqual(t, sorted, expected)
-	assert.Equal(t, c[0].nbUniqueOutputs, 0)
-	assert.Equal(t, c[1].nbUniqueOutputs, 1)
-	assert.Equal(t, c[2].nbUniqueOutputs, 1)
+	assert.True(t, gkr_api.sliceEqual(sorted, expected)) //TODO: Remove
+	gkr_api.assertSliceEqual(t, sorted, expected)
+	assert.Equal(t, c[0].NbUniqueOutputs, 0)
+	assert.Equal(t, c[1].NbUniqueOutputs, 1)
+	assert.Equal(t, c[2].NbUniqueOutputs, 1)
 }
 
 func TestTopSortDeep(t *testing.T) {
@@ -444,26 +445,4 @@ func TestConstHash(t *testing.T) {
 
 		test.WithValidAssignment(&constHashCircuit{X: 1}),
 	)
-}
-
-var mimcSnarkTotalCalls = 0
-
-type MiMCCipherGate struct {
-	Ark frontend.Variable
-}
-
-func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
-	mimcSnarkTotalCalls++
-
-	if len(input) != 2 {
-		panic("mimc has fan-in 2")
-	}
-	sum := api.Add(input[0], input[1], m.Ark)
-
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
-	return api.Mul(sumCubed, sumCubed, sum)
-}
-
-func (m MiMCCipherGate) Degree() int {
-	return 7
 }

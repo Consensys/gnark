@@ -1,18 +1,17 @@
 package gkr_api
 
 import (
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
-	"github.com/consensys/gnark/std/gkr/gates"
 )
 
 func frontendVarToInt(a gkr.Variable) int {
 	return int(a)
 }
 
-func (api *API) NamedGate(gate gates.GateName, in ...gkr.Variable) gkr.Variable {
-	api.toStore.Circuit = append(api.toStore.Circuit, constraint.GkrWire{
+func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
+	api.toStore.Circuit = append(api.toStore.Circuit, gkr_info.Wire{
 		Gate:   string(gate),
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
@@ -20,7 +19,7 @@ func (api *API) NamedGate(gate gates.GateName, in ...gkr.Variable) gkr.Variable 
 	return gkr.Variable(len(api.toStore.Circuit) - 1)
 }
 
-func (api *API) namedGate2PlusIn(gate gates.GateName, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
+func (api *API) namedGate2PlusIn(gate gkr.GateName, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
 	inCombined := make([]gkr.Variable, 2+len(in))
 	inCombined[0] = in1
 	inCombined[1] = in2
@@ -31,7 +30,7 @@ func (api *API) namedGate2PlusIn(gate gates.GateName, in1, in2 gkr.Variable, in 
 }
 
 func (api *API) Add(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gates.Add2, i1, i2)
+	return api.namedGate2PlusIn(gkr.Add2, i1, i2)
 }
 
 func (api *API) Neg(i1 gkr.Variable) gkr.Variable {
@@ -39,9 +38,9 @@ func (api *API) Neg(i1 gkr.Variable) gkr.Variable {
 }
 
 func (api *API) Sub(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gates.Sub2, i1, i2)
+	return api.namedGate2PlusIn(gkr.Sub2, i1, i2)
 }
 
 func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gates.Mul2, i1, i2)
+	return api.namedGate2PlusIn(gkr.Mul2, i1, i2)
 }

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
@@ -15,20 +16,20 @@ import (
 )
 
 type circuitDataForSnark struct {
-	circuit     Circuit
-	assignments WireAssignment
+	circuit     gadget.Circuit
+	assignments gadget.WireAssignment
 }
 
 type API struct {
-	toStore     constraint.GkrInfo
+	toStore     gkr_info.Info
 	assignments assignment
 }
 
 type Solution struct {
-	toStore      constraint.GkrInfo
+	toStore      gkr_info.Info
 	assignments  assignment
 	parentApi    frontend.API
-	permutations constraint.GkrPermutations
+	permutations gkr_info.Permutations
 }
 
 func (api *API) nbInstances() int {
@@ -38,8 +39,8 @@ func (api *API) nbInstances() int {
 // New creates a new GKR API
 func New() *API {
 	return &API{
-		toStore: constraint.GkrInfo{
-			Circuit: make(constraint.GkrCircuit, 0),
+		toStore: gkr_info.Info{
+			Circuit: make(gkr_info.Circuit, 0),
 			MaxNIns: 0,
 		},
 	}
@@ -59,7 +60,7 @@ func (api *API) Series(input, output gkr.Variable, inputInstance, outputInstance
 		panic("dependency attempting to override explicit value assignment")
 	}
 	api.toStore.Circuit[input].Dependencies =
-		append(api.toStore.Circuit[input].Dependencies, constraint.InputDependency{
+		append(api.toStore.Circuit[input].Dependencies, gkr_info.InputDependency{
 			OutputWire:     int(output),
 			OutputInstance: outputInstance,
 			InputInstance:  inputInstance,
@@ -79,9 +80,8 @@ func (api *API) Import(assignment []frontend.Variable) (gkr.Variable, error) {
 	if currentNbInstances := api.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
 		return -1, errors.New("number of assignments must be consistent across all variables")
 	}
-	newVar := api.toStore.NewInputVariable()
 	api.assignments = append(api.assignments, assignment)
-	return newVar, nil
+	return gkr.Variable(api.toStore.NewInputVariable()), nil
 }
 
 func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
@@ -95,7 +95,7 @@ func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 // Solve finalizes the GKR circuit and returns the output variables in the order created
 func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
-	var p constraint.GkrPermutations
+	var p gkr_info.Permutations
 	var err error
 	if p, err = api.toStore.Compile(api.assignments.NbInstances()); err != nil {
 		return Solution{}, err
@@ -168,7 +168,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	var (
 		err             error
 		proofSerialized []frontend.Variable
-		proof           Proof
+		proof           gadget.Proof
 	)
 
 	forSnark := newCircuitDataForSnark(s.toStore, s.assignments)
@@ -185,14 +185,14 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 
 	proveHintPlaceholder := ProveHintPlaceholder(hashName)
 	if proofSerialized, err = s.parentApi.Compiler().NewHint(
-		proveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
+		proveHintPlaceholder, gadget.ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
 	s.toStore.ProveHintID = solver.GetHintID(proveHintPlaceholder)
 
 	forSnarkSorted := utils.MapRange(0, len(s.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
-	if proof, err = DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
+	if proof, err = gadget.DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
 		return err
 	}
 
@@ -202,12 +202,12 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 	s.toStore.HashName = hashName
 
-	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted))
+	err = gadget.Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 	if err != nil {
 		return err
 	}
 
-	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
+	return s.parentApi.(gkr_info.ConstraintSystem).SetGkrInfo(s.toStore)
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {
@@ -223,16 +223,16 @@ func ite[T any](condition bool, ifNot, IfSo T) T {
 	return ifNot
 }
 
-func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circuitDataForSnark {
-	circuit := make(Circuit, len(info.Circuit))
-	snarkAssignment := make(WireAssignment, len(info.Circuit))
+func newCircuitDataForSnark(info gkr_info.Info, assignment assignment) circuitDataForSnark {
+	circuit := make(gadget.Circuit, len(info.Circuit))
+	snarkAssignment := make(gadget.WireAssignment, len(info.Circuit))
 	circuitAt := slicePtrAt(circuit)
 	for i := range circuit {
 		w := info.Circuit[i]
-		circuit[i] = Wire{
+		circuit[i] = gadget.Wire{
 			Gate:            gkr.GetGate(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
 			Inputs:          utils.Map(w.Inputs, circuitAt),
-			nbUniqueOutputs: w.NbUniqueOutputs,
+			NbUniqueOutputs: w.NbUniqueOutputs,
 		}
 		snarkAssignment[&circuit[i]] = assignment[i]
 	}
@@ -253,7 +253,7 @@ func (a assignment) NbInstances() int {
 	return -1
 }
 
-func (a assignment) Permute(p constraint.GkrPermutations) {
+func (a assignment) Permute(p gkr_info.Permutations) {
 	utils.Permute(a, p.WiresPermutation)
 	for i := range a {
 		if a[i] != nil {

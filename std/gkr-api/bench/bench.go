@@ -11,7 +11,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	gkrFr "github.com/consensys/gnark/internal/gkr/bn254"
-	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/gkr"
+	gkr_api "github.com/consensys/gnark/std/gkr-api"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
@@ -35,7 +36,7 @@ func permutation(in ...fr.Element) fr.Element {
 	return in[0]
 }
 
-func permutationSnark(api gates.GateAPI, in ...frontend.Variable) frontend.Variable {
+func permutationSnark(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 	in[0] = api.Add(in[0], in[1], ark)
 	in[1] = api.Mul(in[0], in[0], in[0])
 	in[1] = api.Mul(in[1], in[1])
@@ -55,7 +56,7 @@ func main() {
 	ark.SetUint64(0x1234567890abcdef)
 
 	panicIfError(gkrFr.RegisterGate(gateName, permutation, 2))
-	panicIfError(gates.RegisterGate(gateName, permutationSnark, 2))
+	panicIfError(gkr.RegisterGate(gateName, permutationSnark, 2))
 
 	cs2.RegisterHashBuilder("mimc", hash2.MIMC_BN254.New)
 	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
@@ -94,7 +95,7 @@ type testGkrPermutationCircuit struct {
 }
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
-	gkrApi := gkr_api.NewApi()
+	gkrApi := gkr_api.New()
 
 	x, err := gkrApi.Import(c.Ins[0][:])
 	panicIfError(err)

@@ -1,4 +1,4 @@
-package gkr_api
+package gkr
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 )
+
+// A SNARK gadget capable of verifying sumcheck proofs
 
 // sumcheckLazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
 type sumcheckLazyClaims interface {

@@ -7,7 +7,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
@@ -16,6 +15,7 @@ import (
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
 )
 
 var testEngineGkrSolvingData = make(map[string]any)
@@ -24,7 +24,7 @@ func modKey(mod *big.Int) string {
 	return mod.Text(32)
 }
 
-func SolveHintPlaceholder(gkrInfo constraint.GkrInfo) solver.Hint {
+func SolveHintPlaceholder(gkrInfo gkr_info.Info) solver.Hint {
 	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
 		// TODO @Tabaie autogenerate this or decide not to

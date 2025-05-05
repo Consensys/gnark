@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -124,7 +125,7 @@ type System struct {
 	lbWireLevel []Level `cbor:"-"` // at which level we solve a wire. init at -1.
 
 	CommitmentInfo Commitments
-	GkrInfo        GkrInfo
+	GkrInfo        gkr_info.Info
 
 	genericHint BlueprintID
 }
@@ -470,7 +471,7 @@ func putBuffer(buf *[]uint32) {
 	bufPool.Put(buf)
 }
 
-func (system *System) AddGkr(gkr GkrInfo) error {
+func (system *System) AddGkr(gkr gkr_info.Info) error {
 	if system.GkrInfo.Is() {
 		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
 	}

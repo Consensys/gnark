@@ -1,4 +1,4 @@
-package gkr_api
+package gkr
 
 import (
 	"errors"
@@ -13,12 +13,13 @@ import (
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
 
-// The goal is to prove/verify evaluations of many instances of the same circuit
+// A SNARK gadget capable of verifying a GKR proof
+// The goal is to prove/verify evaluations of many instances of the same circuit.
 
 type Wire struct {
 	Gate            *gkr.Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+	NbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
 
 type Circuit []Wire
@@ -28,14 +29,14 @@ func (w Wire) IsInput() bool {
 }
 
 func (w Wire) IsOutput() bool {
-	return w.nbUniqueOutputs == 0
+	return w.NbUniqueOutputs == 0
 }
 
 func (w Wire) NbClaims() int {
 	if w.IsOutput() {
 		return 1
 	}
-	return w.nbUniqueOutputs
+	return w.NbUniqueOutputs
 }
 
 func (w Wire) nbUniqueInputs() int {
@@ -218,12 +219,12 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	return o, err
 }
 
-// ProofSize computes how large the proof for a circuit would be. It needs nbUniqueOutputs to be set
+// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
 func ProofSize(c Circuit, logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
-		nbUniqueInputs += c[i].nbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
+		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
 		if !c[i].noProof() {
 			nbPartialEvalPolys += c[i].Gate.Degree() + 1
 		}
@@ -348,12 +349,12 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	return nil
 }
 
-// outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
+// outputsList also sets the NbUniqueOutputs fields. It also sets the wire metadata.
 func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
-		c[i].nbUniqueOutputs = 0
+		c[i].NbUniqueOutputs = 0
 		if c[i].IsInput() {
 			c[i].Gate = gkr.GetGate(gkr.Identity)
 		}
@@ -367,7 +368,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 			inI := indexes[in]
 			res[inI] = append(res[inI], i)
 			if _, ok := ins[inI]; !ok {
-				in.nbUniqueOutputs++
+				in.NbUniqueOutputs++
 				ins[inI] = struct{}{}
 			}
 		}
@@ -485,7 +486,7 @@ func computeLogNbInstances(wires []*Wire, serializedProofLen int) int {
 		if !w.noProof() {
 			partialEvalElemsPerVar += w.Gate.Degree() + 1
 		}
-		serializedProofLen -= w.nbUniqueOutputs
+		serializedProofLen -= w.NbUniqueOutputs
 	}
 	return serializedProofLen / partialEvalElemsPerVar
 }

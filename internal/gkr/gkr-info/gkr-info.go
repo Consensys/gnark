@@ -1,4 +1,5 @@
-package constraint
+// Package gkr_info representation of a GKR circuit (without anonymous function references) to be saved
+package gkr_info
 
 import (
 	"fmt"
@@ -14,17 +15,17 @@ type InputDependency struct {
 	InputInstance  int
 }
 
-type GkrWire struct {
+type Wire struct {
 	Gate            string // TODO: Change to description
 	Inputs          []int
 	Dependencies    []InputDependency // nil for input wires
 	NbUniqueOutputs int
 }
 
-type GkrCircuit []GkrWire
+type Circuit []Wire
 
-type GkrInfo struct {
-	Circuit     GkrCircuit
+type Info struct {
+	Circuit     Circuit
 	MaxNIns     int
 	NbInstances int
 	HashName    string
@@ -32,23 +33,23 @@ type GkrInfo struct {
 	ProveHintID solver.HintID
 }
 
-type GkrPermutations struct {
+type Permutations struct {
 	SortedInstances      []int
 	SortedWires          []int
 	InstancesPermutation []int
 	WiresPermutation     []int
 }
 
-func (w GkrWire) IsInput() bool {
+func (w Wire) IsInput() bool {
 	return len(w.Inputs) == 0
 }
 
-func (w GkrWire) IsOutput() bool {
+func (w Wire) IsOutput() bool {
 	return w.NbUniqueOutputs == 0
 }
 
 // AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
-func (d *GkrInfo) AssignmentOffsets() []int {
+func (d *Info) AssignmentOffsets() []int {
 	c := d.Circuit
 	res := make([]int, len(c)+1)
 	for i := range c {
@@ -61,16 +62,16 @@ func (d *GkrInfo) AssignmentOffsets() []int {
 	return res
 }
 
-func (d *GkrInfo) NewInputVariable() int {
+func (d *Info) NewInputVariable() int {
 	i := len(d.Circuit)
-	d.Circuit = append(d.Circuit, GkrWire{})
+	d.Circuit = append(d.Circuit, Wire{})
 	return i
 }
 
 // Compile sorts the circuit wires, their dependencies and the instances
-func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
+func (d *Info) Compile(nbInstances int) (Permutations, error) {
 
-	var p GkrPermutations
+	var p Permutations
 	d.NbInstances = nbInstances
 	// sort the instances to decide the order in which they are to be solved
 	instanceDeps := make([][]int, nbInstances)
@@ -86,7 +87,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
-	inputs := utils.Map(d.Circuit, func(w GkrWire) []int {
+	inputs := utils.Map(d.Circuit, func(w Wire) []int {
 		return w.Inputs
 	})
 
@@ -94,7 +95,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	p.SortedWires, uniqueOuts = utils.TopologicalSort(inputs)
 	p.WiresPermutation = utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
-	sorted := make([]GkrWire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
+	sorted := make([]Wire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
@@ -117,7 +118,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 			}
 		} // TODO: Check that dependencies and explicit assignments cover all instances
 
-		sorted[newI] = GkrWire{
+		sorted[newI] = Wire{
 			Gate:            oldW.Gate,
 			Inputs:          utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
@@ -129,12 +130,12 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	return p, nil
 }
 
-func (d *GkrInfo) Is() bool {
+func (d *Info) Is() bool {
 	return d.Circuit != nil
 }
 
 // Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (c GkrCircuit) Chunks(nbInstances int) []int {
+func (c Circuit) Chunks(nbInstances int) []int {
 	res := make([]int, 0, 1)
 	lastSeenDependencyI := make([]int, len(c))
 
@@ -153,4 +154,9 @@ func (c GkrCircuit) Chunks(nbInstances int) []int {
 		res = append(res, end)
 	}
 	return res
+}
+
+// A ConstraintSystem that supports GKR
+type ConstraintSystem interface {
+	SetGkrInfo(info Info) error
 }

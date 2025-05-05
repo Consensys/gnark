@@ -3,20 +3,20 @@ package gkr_api
 import (
 	"testing"
 
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCompile2Cycles(t *testing.T) {
-	var d = constraint.GkrInfo{
-		Circuit: constraint.GkrCircuit{
+	var d = gkr_info.Info{
+		Circuit: gkr_info.Circuit{
 			{
 				Inputs:       []int{1},
 				Dependencies: nil,
 			},
 			{
 				Inputs: []int{},
-				Dependencies: []constraint.InputDependency{
+				Dependencies: []gkr_info.InputDependency{
 					{
 						OutputWire:     0,
 						OutputInstance: 1,
@@ -27,11 +27,11 @@ func TestCompile2Cycles(t *testing.T) {
 		},
 	}
 
-	expectedCompiled := constraint.GkrInfo{
-		Circuit: constraint.GkrCircuit{
+	expectedCompiled := gkr_info.Info{
+		Circuit: gkr_info.Circuit{
 			{
 				Inputs: []int{},
-				Dependencies: []constraint.InputDependency{{
+				Dependencies: []gkr_info.InputDependency{{
 					OutputWire:     1,
 					OutputInstance: 0,
 					InputInstance:  1,
@@ -47,7 +47,7 @@ func TestCompile2Cycles(t *testing.T) {
 		NbInstances: 2,
 	}
 
-	expectedPermutations := constraint.GkrPermutations{
+	expectedPermutations := gkr_info.Permutations{
 		SortedInstances:      []int{1, 0},
 		SortedWires:          []int{1, 0},
 		InstancesPermutation: []int{1, 0},
@@ -61,15 +61,15 @@ func TestCompile2Cycles(t *testing.T) {
 }
 
 func TestCompile3Cycles(t *testing.T) {
-	var d = constraint.GkrInfo{
-		Circuit: constraint.GkrCircuit{
+	var d = gkr_info.Info{
+		Circuit: gkr_info.Circuit{
 			{
 				Inputs:       []int{2},
 				Dependencies: nil,
 			},
 			{
 				Inputs: []int{},
-				Dependencies: []constraint.InputDependency{
+				Dependencies: []gkr_info.InputDependency{
 					{
 						OutputWire:     0,
 						OutputInstance: 2,
@@ -89,11 +89,11 @@ func TestCompile3Cycles(t *testing.T) {
 		},
 	}
 
-	expectedCompiled := constraint.GkrInfo{
-		Circuit: constraint.GkrCircuit{
+	expectedCompiled := gkr_info.Info{
+		Circuit: gkr_info.Circuit{
 			{
 				Inputs: []int{},
-				Dependencies: []constraint.InputDependency{{
+				Dependencies: []gkr_info.InputDependency{{
 					OutputWire:     2,
 					OutputInstance: 0,
 					InputInstance:  1,
@@ -119,7 +119,7 @@ func TestCompile3Cycles(t *testing.T) {
 		NbInstances: 3, // not allowed if we were actually performing gkr
 	}
 
-	expectedPermutations := constraint.GkrPermutations{
+	expectedPermutations := gkr_info.Permutations{
 		SortedInstances:      []int{1, 2, 0},
 		SortedWires:          []int{1, 2, 0},
 		InstancesPermutation: []int{2, 0, 1},

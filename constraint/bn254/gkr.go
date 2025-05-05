@@ -7,18 +7,19 @@ package cs
 
 import (
 	"fmt"
+	"hash"
+	"math/big"
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
 	gkr "github.com/consensys/gnark/internal/gkr/bn254"
+	gkr2 "github.com/consensys/gnark/internal/gkr/gkr-info"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr/gates"
-	"hash"
-	"math/big"
-	"sync"
 )
 
 type GkrSolvingData struct {
@@ -30,7 +31,7 @@ type GkrSolvingData struct {
 
 const Unigate = false
 
-func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
+func convertCircuit(noPtr gkr2.Circuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
 		if Unigate {
@@ -49,7 +50,7 @@ func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	return resCircuit, nil
 }
 
-func (d *GkrSolvingData) init(info constraint.GkrInfo) (assignment gkrAssignment, err error) {
+func (d *GkrSolvingData) init(info gkr2.Info) (assignment gkrAssignment, err error) {
 	if d.circuit, err = convertCircuit(info.Circuit); err != nil {
 		return
 	}
@@ -75,7 +76,7 @@ func (d *GkrSolvingData) dumpAssignments() {
 
 type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
-func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
+func (a gkrAssignment) setOuts(circuit gkr2.Circuit, outs []*big.Int) {
 	outsI := 0
 	for i := range circuit {
 		if circuit[i].IsOutput() {
@@ -88,7 +89,7 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func GkrSolveHint(info constraint.GkrInfo, solvingData *GkrSolvingData) hint.Hint {
+func GkrSolveHint(info gkr2.Info, solvingData *GkrSolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		circuit := info.Circuit
