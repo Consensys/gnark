@@ -9,9 +9,9 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v2-{{ checksum "go.sum" }}
-      - run: if [[ -n $(gofmt -l .) ]]; then echo "Please run gofmt"; exit 1; fi
-      - run: go vet -v ./...
       - run: go get golang.org/x/tools/cmd/goimports
+      - run: if [[ -n $(goimports -l .) ]]; then echo "Please run goimports"; exit 1; fi
+      - run: go vet -v ./...
       - run: go generate ./...
       - run: git update-index --assume-unchanged go.mod
       - run: git update-index --assume-unchanged go.sum
