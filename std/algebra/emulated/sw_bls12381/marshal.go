@@ -41,6 +41,7 @@ func bitsFromU8(api frontend.API, b []uints.U8) []frontend.Variable {
 // The byte representation follows the format of gnark-crypto's marshal function, that
 // is [MSB || ... || LSB ]
 // Should we move it elsewhere ?
+// #constraints: 1772 when compiled on BN254, emulating BLS12-381 base field
 func Unmarshall[F emulated.FieldParams](api frontend.API, b []uints.U8) (*emulated.Element[F], error) {
 
 	emApi, err := emulated.NewField[F](api)
@@ -92,6 +93,7 @@ func unmarshallHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 
 // UnmarshalCompressed unmarshal a compressed point.
 // See https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/.
+// #constraints: 585600 when compiled on BN254, emulating BLS12-381 base field
 func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error) {
 
 	// 1 - compute the x coordinate (so it fits in Fp)
@@ -158,7 +160,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 
 	// 4 - check logic with the mask
 
-	// if p=O, we set P'=(0,0) and check equality, else we set P=P' and check equality
+	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
 	isInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix))
 	zero := emulated.ValueOf[BaseField](0)
 	infX := g1.curveF.Select(isInfinity, &zero, x)
