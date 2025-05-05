@@ -11,8 +11,9 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/solidity"
 	"time"
+
+	"github.com/consensys/gnark/backend/solidity"
 
 	"github.com/consensys/gnark-crypto/ecc"
 

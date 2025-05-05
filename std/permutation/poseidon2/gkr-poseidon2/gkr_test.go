@@ -2,13 +2,14 @@ package gkr_poseidon2
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestGkrCompression(t *testing.T) {

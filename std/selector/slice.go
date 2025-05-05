@@ -2,8 +2,9 @@ package selector
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/frontend"
 	"math/big"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 // Slice selects a slice of the input array at indices [start, end), and zeroes the array at other

@@ -3,9 +3,10 @@ package gkr
 import (
 	"errors"
 	"fmt"
-	stdHash "github.com/consensys/gnark/std/hash"
 	"math/big"
 	"sync"
+
+	stdHash "github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"

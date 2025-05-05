@@ -4,9 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/consensys/gnark/std/compress/internal"
 	"os"
 	"testing"
+
+	"github.com/consensys/gnark/std/compress/internal"
 
 	"github.com/consensys/gnark/frontend/cs/scs"
 

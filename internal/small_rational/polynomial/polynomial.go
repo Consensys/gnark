@@ -4,11 +4,12 @@
 package polynomial
 
 import (
-	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/small_rational"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/small_rational"
 )
 
 // Polynomial represented by coefficients in the field.

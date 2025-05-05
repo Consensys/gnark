@@ -7,6 +7,10 @@ package cs
 
 import (
 	"fmt"
+	"hash"
+	"math/big"
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -15,9 +19,6 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	gkr "github.com/consensys/gnark/internal/gkr/bw6-761"
 	algo_utils "github.com/consensys/gnark/internal/utils"
-	"hash"
-	"math/big"
-	"sync"
 )
 
 type GkrSolvingData struct {
