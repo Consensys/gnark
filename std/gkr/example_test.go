@@ -162,9 +162,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	assertNoError(gates.RegisterGate("square", func(api gates.GateAPI, input ...frontend.Variable) (res frontend.Variable) {
 		return api.Mul(input[0], input[0])
-	}, 1))
-
-	// define the GKR circuit
 
 	// create GKR circuit variables based on the given assignments
 	X, err := gkrApi.Import(c.X)
@@ -205,9 +202,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// Z = (p.Z + p.Y)² - YY - ZZ
 	assertNoError(gates.RegisterGate(c.gateNamePrefix+"z", func(api gates.GateAPI, input ...frontend.Variable) (Z frontend.Variable) {
 		Z = api.Add(input[0], input[1])    // 415: p.Z.Add(&p.Z, &p.Y).
-		Z = api.Mul(Z, Z)                  // 416: p.Z.Square(&p.Z).
-		Z = api.Sub(Z, input[2], input[3]) // 417: Sub(&p.Z, &YY).
-		//                                    418: Sub(&p.Z, &ZZ).
 		return
 	}, 4))
 	Z = gkrApi.NamedGate(c.gateNamePrefix+"z", Z, Y, YY, ZZ) // 415 - 418

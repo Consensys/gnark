@@ -7,13 +7,13 @@
 //
 // The API is similar to math/big (big.Int), but the operations are significantly faster (up to 20x).
 //
-// Additionally tinyfield.Vector offers an API to manipulate []Element.
+// Additionally tinyfield.Vector offers an API to manipulate []Element using AVX512/NEON instructions if available.
 //
 // The modulus is hardcoded in all the operations.
 //
 // Field elements are represented as an array, and assumed to be in Montgomery form in all methods:
 //
-//	type Element [1]uint64
+//	type Element [1]uint32
 //
 // # Usage
 //

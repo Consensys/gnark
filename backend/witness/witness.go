@@ -54,9 +54,11 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/field/babybear"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 )
 
 var ErrInvalidWitness = errors.New("invalid witness")
@@ -189,6 +191,10 @@ func (w *witness) WriteTo(wr io.Writer) (n int64, err error) {
 		m, err = t.WriteTo(wr)
 	case tinyfield.Vector:
 		m, err = t.WriteTo(wr)
+	case babybear.Vector:
+		m, err = t.WriteTo(wr)
+	case koalabear.Vector:
+		m, err = t.WriteTo(wr)
 	default:
 		panic("invalid input")
 	}
@@ -233,6 +239,12 @@ func (w *witness) ReadFrom(r io.Reader) (n int64, err error) {
 		m, err = t.ReadFrom(r)
 		w.vector = t
 	case tinyfield.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case babybear.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case koalabear.Vector:
 		m, err = t.ReadFrom(r)
 		w.vector = t
 	default:

@@ -1,9 +1,14 @@
 package sw_bls12381
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -17,6 +22,11 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		finalExpHint,
 		pairingCheckHint,
+		millerLoopAndCheckFinalExpHint,
+		decomposeScalarG1Subscalars,
+		decomposeScalarG1Signs,
+		g1SqrtRatioHint,
+		g2SqrtRatioHint,
 	}
 }
 
@@ -199,4 +209,179 @@ func finalExpWitness(millerLoop *bls12381.E12) (residueWitness, scalingFactor bl
 	residueWitness.Exp(*millerLoop, &exponent)
 
 	return residueWitness, scalingFactor
+}
+
+func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var P bls12381.G1Affine
+			var Q bls12381.G2Affine
+			var previous bls12381.E12
+
+			P.X.SetBigInt(inputs[0])
+			P.Y.SetBigInt(inputs[1])
+			Q.X.A0.SetBigInt(inputs[2])
+			Q.X.A1.SetBigInt(inputs[3])
+			Q.Y.A0.SetBigInt(inputs[4])
+			Q.Y.A1.SetBigInt(inputs[5])
+
+			previous.C0.B0.A0.SetBigInt(inputs[6])
+			previous.C0.B0.A1.SetBigInt(inputs[7])
+			previous.C0.B1.A0.SetBigInt(inputs[8])
+			previous.C0.B1.A1.SetBigInt(inputs[9])
+			previous.C0.B2.A0.SetBigInt(inputs[10])
+			previous.C0.B2.A1.SetBigInt(inputs[11])
+			previous.C1.B0.A0.SetBigInt(inputs[12])
+			previous.C1.B0.A1.SetBigInt(inputs[13])
+			previous.C1.B1.A0.SetBigInt(inputs[14])
+			previous.C1.B1.A1.SetBigInt(inputs[15])
+			previous.C1.B2.A0.SetBigInt(inputs[16])
+			previous.C1.B2.A1.SetBigInt(inputs[17])
+
+			if previous.IsZero() {
+				return errors.New("previous Miller loop result is zero")
+			}
+
+			lines := bls12381.PrecomputeLines(Q)
+			millerLoop, err := bls12381.MillerLoopFixedQ(
+				[]bls12381.G1Affine{P},
+				[][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines},
+			)
+			if err != nil {
+				return err
+			}
+			millerLoop.Conjugate(&millerLoop)
+
+			millerLoop.Mul(&millerLoop, &previous)
+
+			residueWitnessInv, scalingFactor := finalExpWitness(&millerLoop)
+			residueWitnessInv.Inverse(&residueWitnessInv)
+
+			residueWitnessInv.C0.B0.A0.BigInt(outputs[0])
+			residueWitnessInv.C0.B0.A1.BigInt(outputs[1])
+			residueWitnessInv.C0.B1.A0.BigInt(outputs[2])
+			residueWitnessInv.C0.B1.A1.BigInt(outputs[3])
+			residueWitnessInv.C0.B2.A0.BigInt(outputs[4])
+			residueWitnessInv.C0.B2.A1.BigInt(outputs[5])
+			residueWitnessInv.C1.B0.A0.BigInt(outputs[6])
+			residueWitnessInv.C1.B0.A1.BigInt(outputs[7])
+			residueWitnessInv.C1.B1.A0.BigInt(outputs[8])
+			residueWitnessInv.C1.B1.A1.BigInt(outputs[9])
+			residueWitnessInv.C1.B2.A0.BigInt(outputs[10])
+			residueWitnessInv.C1.B2.A1.BigInt(outputs[11])
+
+			// return the scaling factor
+			scalingFactor.C0.B0.A0.BigInt(outputs[12])
+			scalingFactor.C0.B0.A1.BigInt(outputs[13])
+			scalingFactor.C0.B1.A0.BigInt(outputs[14])
+			scalingFactor.C0.B1.A1.BigInt(outputs[15])
+			scalingFactor.C0.B2.A0.BigInt(outputs[16])
+			scalingFactor.C0.B2.A1.BigInt(outputs[17])
+
+			return nil
+		})
+}
+
+func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
+		sp := ecc.SplitScalar(inputs[0], glvBasis)
+		outputs[0].Set(&(sp[0]))
+		outputs[1].Set(&(sp[1]))
+		// we need the absolute values for the in-circuit computations,
+		// otherwise the negative values will be reduced modulo the SNARK scalar
+		// field and not the emulated field.
+		// 		output0 = |s0| mod r
+		// 		output1 = |s1| mod r
+		if outputs[0].Sign() == -1 {
+			outputs[0].Neg(outputs[0])
+		}
+		if outputs[1].Sign() == -1 {
+			outputs[1].Neg(outputs[1])
+		}
+
+		return nil
+	})
+}
+
+func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
+		sp := ecc.SplitScalar(inputs[0], glvBasis)
+		outputs[0].SetUint64(0)
+		if sp[0].Sign() == -1 {
+			outputs[0].SetUint64(1)
+		}
+		outputs[1].SetUint64(0)
+		if sp[1].Sign() == -1 {
+			outputs[1].SetUint64(1)
+		}
+
+		return nil
+	})
+}
+
+// g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
+// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
+// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
+// The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
+//
+// nativeInputs[0] = u, nativeInputs[1]=v
+// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var u, v, z fp.Element
+			u.SetBigInt(inputs[0])
+			v.SetBigInt(inputs[1])
+
+			isQNr := hash_to_curve.G1SqrtRatio(&z, &u, &v)
+			if isQNr != 0 {
+				isQNr = 1
+			}
+			z.BigInt(outputs[0])
+			outputs[1].SetInt64(int64(isQNr))
+			return nil
+		})
+}
+
+func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 4 {
+			return fmt.Errorf("expecting 4 inputs")
+		}
+		if len(outputs) != 3 {
+			return fmt.Errorf("expecting 3 outputs")
+		}
+
+		var z, u, v bls12381.E2
+		u.A0.SetBigInt(inputs[0])
+		u.A1.SetBigInt(inputs[1])
+		v.A0.SetBigInt(inputs[2])
+		v.A1.SetBigInt(inputs[3])
+
+		isQNr := hash_to_curve.G2SqrtRatio(&z, &u, &v)
+		if isQNr != 0 {
+			isQNr = 1
+		}
+
+		outputs[0].SetUint64(isQNr)
+		z.A0.BigInt(outputs[1])
+		z.A1.BigInt(outputs[2])
+		return nil
+	})
 }

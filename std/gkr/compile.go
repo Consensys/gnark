@@ -3,7 +3,6 @@ package gkr
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/std/gkr/gates"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -11,6 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkr/gates"
 	"github.com/consensys/gnark/std/hash"
 )
 
