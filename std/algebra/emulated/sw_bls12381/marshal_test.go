@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"

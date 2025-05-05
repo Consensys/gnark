@@ -33,7 +33,8 @@ var (
 //
 // [KZG_POINT_EVALUATION] https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
 //
-// TODO vk should be hardcoded
+// TODO should vk be hardcoded ?
+// #constraints: 3772424 when compiled on BN254, emulating BLS12-381 base field
 func KzgPointEvaluation(
 	api frontend.API,
 	versionnedHash []uints.U8,
