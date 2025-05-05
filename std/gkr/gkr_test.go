@@ -3,7 +3,6 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	gates2 "github.com/consensys/gnark/std/gkr/gates"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,11 +11,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/consensys/gnark/std/hash"
 )
 
 func TestGkrVectors(t *testing.T) {
@@ -250,7 +249,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		if circuit[i].Gate = gates2.GetGate(gates2.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
+		if circuit[i].Gate = gates.GetGate(gates.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -259,9 +258,9 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 }
 
 func init() {
-	panicIfError(gates2.RegisterGate("select-input-3", func(api gates2.GateAPI, in ...frontend.Variable) frontend.Variable {
+	panicIfError(gates.RegisterGate("select-input-3", func(api gates.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, 3, gates2.WithDegree(1)))
+	}, 3, gates.WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof
