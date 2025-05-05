@@ -118,6 +118,9 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	copy(unmaskedXCoord, unpackedFirstFourBytes)
 	copy(unmaskedXCoord[4:], compressedPoint[4:])
 	x, err := Unmarshall[BaseField](g1.api, unmaskedXCoord)
+	if err != nil {
+		return nil, err
+	}
 
 	// 1 - hint y coordinate of the result
 	if len(compressedPoint) != nbBytes {
@@ -136,6 +139,9 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 		yMarshalled[i] = uapi.ByteValueOf(yRawBytes[i])
 	}
 	y, err := Unmarshall[BaseField](g1.api, yMarshalled)
+	if err != nil {
+		return nil, err
+	}
 
 	res := &G1Affine{
 		X: *x,
