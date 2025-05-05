@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
-	"github.com/consensys/gnark/std/gkr-api"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -197,8 +196,8 @@ func getTestCase(path string) (*TestCase, error) {
 
 			cse.Proof = unmarshalProof(info.Proof)
 
-			cse.Input = gkr_api.toVariableSliceSlice(info.Input)
-			cse.Output = gkr_api.toVariableSliceSlice(info.Output)
+			cse.Input = toVariableSliceSlice(info.Input)
+			cse.Output = toVariableSliceSlice(info.Output)
 			cse.Hash = info.Hash
 			cse.Name = path
 			testCases[path] = cse
@@ -279,7 +278,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				finalEvalProof[k] = gkr_api.toVariable(finalEvalSlice.Index(k).Interface())
+				finalEvalProof[k] = toVariable(finalEvalSlice.Index(k).Interface())
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
@@ -288,7 +287,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 
 		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
 		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = gkr_api.toVariableSlice(printable[i].PartialSumPolys[k])
+			proof[i].PartialSumPolys[k] = toVariableSlice(printable[i].PartialSumPolys[k])
 		}
 	}
 	return
@@ -334,8 +333,8 @@ func TestTopSortSingleGate(t *testing.T) {
 	c[0].Inputs = []*Wire{&c[1], &c[2]}
 	sorted := topologicalSort(c)
 	expected := []*Wire{&c[1], &c[2], &c[0]}
-	assert.True(t, gkr_api.sliceEqual(sorted, expected)) //TODO: Remove
-	gkr_api.assertSliceEqual(t, sorted, expected)
+	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
+	assertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].NbUniqueOutputs, 0)
 	assert.Equal(t, c[1].NbUniqueOutputs, 1)
 	assert.Equal(t, c[2].NbUniqueOutputs, 1)

@@ -186,6 +186,25 @@ func toMap(keys1, keys2, values []frontend.Variable) map[string]interface{} {
 	return res
 }
 
+func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
+	assert.Equal(t, len(expected), len(seen))
+	for i := range seen {
+		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
+	}
+}
+
+func sliceEqual[T comparable](expected, seen []T) bool {
+	if len(expected) != len(seen) {
+		return false
+	}
+	for i := range seen {
+		if expected[i] != seen[i] {
+			return false
+		}
+	}
+	return true
+}
+
 type testSingleMapCircuit struct {
 	M      varsMap `gnark:"-"`
 	Values []frontend.Variable
