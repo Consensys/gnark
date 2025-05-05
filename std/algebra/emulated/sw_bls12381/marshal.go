@@ -156,7 +156,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	}
 	g1.AssertIsOnG1(resTmp)
 
-	// 4 - TODO check logic with the mask
+	// 4 - check logic with the mask
 
 	// if p=O, we set P'=(0,0) and check equality, else we set P=P' and check equality
 	isInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix))
