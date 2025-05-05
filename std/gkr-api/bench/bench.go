@@ -76,11 +76,7 @@ func main() {
 	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	panicIfError(err)
 
-	start := time.Now().UnixMicro()
-
 	panicIfError(cs.IsSolved(w))
-
-	fmt.Printf("took %d microseconds\n", time.Now().UnixMicro()-start)
 }
 
 func panicIfError(err error) {

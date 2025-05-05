@@ -8,65 +8,19 @@ package gkr
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark-crypto/utils"
 	"math/big"
 	"strconv"
 	"sync"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	gcUtils "github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
 )
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
-
-// GateFunction a polynomial defining a gate. It may modify its input. The changes will be ignored.
-type GateFunction func(...fr.Element) fr.Element
-
-// A Gate is a low-degree multivariate polynomial
-type Gate struct {
-	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
-	nbIn        int          // number of inputs
-	degree      int          // total degree of the polynomial
-	solvableVar int          // if there is a solvable variable, its index, -1 otherwise
-}
-
-// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
-func (g *Gate) Degree() int {
-	return g.degree
-}
-
-// SolvableVar returns I such that x_I can always be determined from {xᵢ} - x_I and f(x...). If there is no such variable, it returns -1.
-func (g *Gate) SolvableVar() int {
-	return g.solvableVar
-}
-
-// NbIn returns the number of inputs to the gate (its fan-in)
-func (g *Gate) NbIn() int {
-	return g.nbIn
-}
-
-type Wire struct {
-	Gate            *Gate
-	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
-}
-
-type Circuit []Wire
-
-func (w Wire) IsInput() bool {
-	return len(w.Inputs) == 0
-}
-
-func (w Wire) IsOutput() bool {
-	return w.nbUniqueOutputs == 0
-}
-
-func (w Wire) NbClaims() int {
-	if w.IsOutput() {
-		return 1
-	}
-	return w.nbUniqueOutputs
-}
 
 func (w Wire) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
@@ -91,7 +45,7 @@ type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for eac
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *Wire          // the wire for which we are making the claim, with value w
+	wire               *gadget.Wire   // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ), allegedly
 	manager            *claimsManager // WARNING: Circular references
@@ -143,7 +97,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		inputEvaluations := make([]fr.Element, len(e.wire.Inputs))
-		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
+		indexesInProof := make(map[*gadget.Wire]int, len(inputEvaluationsNoRedundancy))
 
 		proofI := 0
 		for inI, in := range e.wire.Inputs {
@@ -161,7 +115,8 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		if proofI != len(inputEvaluationsNoRedundancy) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
-		gateEvaluation = e.wire.Gate.Evaluate(inputEvaluations...)
+
+		gateEvaluation = e.wire.Gate.Evaluate(GateAPI{}, inputEvaluations...)
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -399,7 +354,7 @@ type claimsManager struct {
 	claimsMap  map[*Wire]*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
 	memPool    *polynomial.Pool
-	workers    *utils.WorkerPool
+	workers    *gcUtils.WorkerPool
 }
 
 func newClaimsManager(c Circuit, assignment WireAssignment, o settings) (claims claimsManager) {
@@ -463,7 +418,7 @@ type settings struct {
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
-	workers          *utils.WorkerPool
+	workers          *gcUtils.WorkerPool
 }
 
 type Option func(*settings)
@@ -480,7 +435,7 @@ func WithSortedCircuit(sorted []*Wire) Option {
 	}
 }
 
-func WithWorkers(workers *utils.WorkerPool) Option {
+func WithWorkers(workers *gcUtils.WorkerPool) Option {
 	return func(options *settings) {
 		options.workers = workers
 	}
@@ -519,7 +474,7 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	}
 
 	if o.workers == nil {
-		o.workers = utils.NewWorkerPool()
+		o.workers = gcUtils.NewWorkerPool()
 	}
 
 	if o.sorted == nil {
@@ -890,4 +845,77 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	for i := range src {
 		src[i].BigInt(dst[i])
 	}
+}
+
+// GateAPI implements gkr.GateAPI.
+type GateAPI struct{}
+
+func (GateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	var res fr.Element // TODO Heap allocated. Keep an eye on perf
+	res.Add(cast(i1), cast(i2))
+	for _, v := range in {
+		res.Add(&res, cast(v))
+	}
+	return &res
+}
+
+func (GateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	var prod fr.Element
+	prod.Add(cast(b), cast(c))
+	res := cast(a)
+	res.Add(res, &prod)
+	return &res
+}
+
+func (GateAPI) Neg(i1 frontend.Variable) frontend.Variable {
+	var res fr.Element
+	res.Neg(cast(i1))
+	return &res
+}
+
+func (GateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	var res fr.Element
+	res.Sub(cast(i1), cast(i2))
+	for _, v := range in {
+		res.Sub(&res, cast(v))
+	}
+	return &res
+}
+
+func (GateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	var res fr.Element
+	res.Mul(cast(i1), cast(i2))
+	for _, v := range in {
+		res.Mul(&res, cast(v))
+	}
+	return &res
+}
+
+func (GateAPI) Println(a ...frontend.Variable) {
+	toPrint := make([]any, len(a))
+	var x fr.Element
+
+	for i, v := range a {
+		if _, err := x.SetInterface(v); err != nil {
+			toPrint[i] = x.String()
+		} else {
+			if s, ok := v.(string); ok {
+				toPrint[i] = s
+				continue
+			}
+			panic(fmt.Errorf("not numeric or string: %w", err))
+		}
+	}
+	fmt.Println(toPrint...)
+}
+
+func cast(v frontend.Variable) *fr.Element {
+	if x, ok := v.(*fr.Element); ok { // fast path, no extra heap allocation
+		return x
+	}
+	var x fr.Element
+	if _, err := x.SetInterface(v); err != nil {
+		panic(err)
+	}
+	return &x
 }
