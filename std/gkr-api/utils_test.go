@@ -1,13 +1,14 @@
-package gkr
+package gkr_api
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/assert"
 )
 
 // This file contains test vector utilities and unit tests related to them.

@@ -1,8 +1,9 @@
-package gkr_test
+package gkr_api_test
 
 import (
 	"encoding/binary"
 	"errors"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
@@ -10,7 +11,6 @@ import (
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
-	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/gkr/gates"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -44,10 +44,10 @@ func Example() {
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s", func(input ...fr.Element) (S fr.Element) {
 		S.
 			Add(&input[0], &input[1]). // 409: S.Add(&p.X, &YY)
-			Square(&S).                // 410: S.Square(&S).
-			Sub(&S, &input[2]).        // 411: Sub(&S, &XX).
-			Sub(&S, &input[3]).        // 412: Sub(&S, &YYYY).
-			Double(&S)                 // 413: Double(&S)
+			Square(&S). // 410: S.Square(&S).
+			Sub(&S, &input[2]). // 411: Sub(&S, &XX).
+			Sub(&S, &input[3]). // 412: Sub(&S, &YYYY).
+			Double(&S) // 413: Double(&S)
 
 		return
 	}, 4))
@@ -84,7 +84,7 @@ func Example() {
 		input[2] = Y
 
 		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
-						Mul(&Y, &input[2]) // 424: Mul(&p.Y, &M).
+			Mul(&Y, &input[2])                                         // 424: Mul(&p.Y, &M).
 		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
 		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
 
@@ -158,7 +158,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkr.NewApi()
+	gkrApi := gkr_api.NewApi()
 
 	assertNoError(gates.RegisterGate("square", func(api gates.GateAPI, input ...frontend.Variable) (res frontend.Variable) {
 		return api.Mul(input[0], input[0])

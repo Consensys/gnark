@@ -3,11 +3,13 @@ package gkr_poseidon2
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/std/gkr/gates"
-	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	"hash"
 	"math/big"
 	"sync"
+
+	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 
 	"github.com/consensys/gnark/constraint/solver"
 
@@ -15,10 +17,8 @@ import (
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	"github.com/consensys/gnark/constraint"
 	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	gkrPoseidon2Bls12377 "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal/bls12-377"
@@ -150,7 +150,7 @@ func frToInt(x *frBls12377.Element) *big.Int {
 // defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377
 // insLeft and insRight are the inputs to the permutation
 // they must be padded to a power of 2
-func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.GkrVariable, error) {
+func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Variable, error) {
 	// variable indexes
 	const (
 		xI = iota
@@ -164,7 +164,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi := gkr.NewApi()
+	gkrApi := gkr_api.NewApi()
 
 	x, err := gkrApi.Import(insLeft)
 	if err != nil {
@@ -193,14 +193,14 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	// in every round comes from the previous (canonical) round.
 
 	// apply the s-Box to u
-	sBox := func(u constraint.GkrVariable) constraint.GkrVariable {
+	sBox := func(u gkr.Variable) gkr.Variable {
 		v := gkrApi.NamedGate("pow4", u)           // u⁴
 		return gkrApi.NamedGate("pow4Times", v, u) // u¹⁷
 	}
 
 	// register and apply external matrix multiplication and round key addition
 	// round dependent due to the round key
-	extKeySBox := func(round, varI int, a, b constraint.GkrVariable) constraint.GkrVariable {
+	extKeySBox := func(round, varI int, a, b gkr.Variable) gkr.Variable {
 		gate := gateNamer.Linear(varI, round)
 		if err = gates.RegisterGate(gate, extKeyGate(frToInt(&roundKeysFr[round][varI])), 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
 			return -1
@@ -212,7 +212,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr.API, constraint.
 	// then apply the s-Box
 	// for the second variable
 	// round independent due to the round key
-	intKeySBox2 := func(round int, a, b constraint.GkrVariable) constraint.GkrVariable {
+	intKeySBox2 := func(round int, a, b gkr.Variable) gkr.Variable {
 		gate := gateNamer.Linear(yI, round)
 		if err = gates.RegisterGate(gate, intKeyGate2(frToInt(&roundKeysFr[round][1])), 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
 			return -1

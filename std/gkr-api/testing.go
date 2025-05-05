@@ -1,4 +1,4 @@
-package gkr
+package gkr_api
 
 type solveInTestEngineSettings struct {
 	hashName string

@@ -1,13 +1,13 @@
-package gkr
+package gkr_api
 
 import (
 	"errors"
 	"fmt"
-	gates2 "github.com/consensys/gnark/std/gkr/gates"
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
@@ -16,7 +16,7 @@ import (
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
 type Wire struct {
-	Gate            *gates2.Gate
+	Gate            *gkr.Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
@@ -355,7 +355,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = gates2.GetGate(gates2.Identity)
+			c[i].Gate = gkr.GetGate(gkr.Identity)
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -526,4 +526,22 @@ func panicIfError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func init() {
+	panicIfError(gkr.RegisterGate(gkr.Mul2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Mul(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(2), gkr.WithNoSolvableVar()))
+	panicIfError(gkr.RegisterGate(gkr.Add2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Identity, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return x[0]
+	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Neg, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Neg(x[0])
+	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Sub2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Sub(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
 }

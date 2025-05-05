@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	hash2 "github.com/consensys/gnark-crypto/hash"
@@ -9,11 +11,9 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	gkrFr "github.com/consensys/gnark/internal/gkr/bn254"
-	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/gkr/gates"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"time"
 )
 
 const (
@@ -94,7 +94,7 @@ type testGkrPermutationCircuit struct {
 }
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
-	gkrApi := gkr.NewApi()
+	gkrApi := gkr_api.NewApi()
 
 	x, err := gkrApi.Import(c.Ins[0][:])
 	panicIfError(err)

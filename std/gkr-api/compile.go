@@ -1,4 +1,4 @@
-package gkr
+package gkr_api
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
 )
 
@@ -35,8 +35,8 @@ func (api *API) nbInstances() int {
 	return api.assignments.NbInstances()
 }
 
-// NewApi creates a new GKR API
-func NewApi() *API {
+// New creates a new GKR API
+func New() *API {
 	return &API{
 		toStore: constraint.GkrInfo{
 			Circuit: make(constraint.GkrCircuit, 0),
@@ -54,7 +54,7 @@ func log2(x uint) int {
 }
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
-func (api *API) Series(input, output constraint.GkrVariable, inputInstance, outputInstance int) *API {
+func (api *API) Series(input, output gkr.Variable, inputInstance, outputInstance int) *API {
 	if api.assignments[input][inputInstance] != nil {
 		panic("dependency attempting to override explicit value assignment")
 	}
@@ -69,7 +69,7 @@ func (api *API) Series(input, output constraint.GkrVariable, inputInstance, outp
 
 // Import creates a new input variable, whose values across all instances are given by assignment.
 // If the value in an instance depends on an output of another instance, leave the corresponding index in assignment nil and use Series to specify the dependency.
-func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, error) {
+func (api *API) Import(assignment []frontend.Variable) (gkr.Variable, error) {
 	nbInstances := len(assignment)
 	logNbInstances := log2(uint(nbInstances))
 	if logNbInstances == -1 {
@@ -159,7 +159,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 }
 
 // Export returns the values of an output variable across all instances
-func (s Solution) Export(v constraint.GkrVariable) []frontend.Variable {
+func (s Solution) Export(v gkr.Variable) []frontend.Variable {
 	return utils.Map(s.permutations.SortedInstances, utils.SliceAt(s.assignments[v]))
 }
 
@@ -230,7 +230,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = Wire{
-			Gate:            gates.GetGate(ite(w.IsInput(), gates.GateName(w.Gate), gates.Identity)),
+			Gate:            gkr.GetGate(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
 			Inputs:          utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}

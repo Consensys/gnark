@@ -1,4 +1,4 @@
-package gkr
+package gkr_api
 
 import (
 	"fmt"
@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	gkr "github.com/consensys/gnark/internal/gkr/bn254"
+	gkr2 "github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/gkr/gates"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -41,8 +42,8 @@ type doubleNoDependencyCircuit struct {
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
-	var x constraint.GkrVariable
+	gkr := New()
+	var x gkr2.Variable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -89,8 +90,8 @@ type sqNoDependencyCircuit struct {
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
-	var x constraint.GkrVariable
+	gkr := New()
+	var x gkr2.Variable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -136,8 +137,8 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
-	var x, y constraint.GkrVariable
+	gkr := New()
+	var x, y gkr2.Variable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -201,8 +202,8 @@ type mulWithDependencyCircuit struct {
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
-	var x, y constraint.GkrVariable
+	gkr := New()
+	var x, y gkr2.Variable
 	var err error
 
 	X := make([]frontend.Variable, len(c.Y))
@@ -249,12 +250,12 @@ func TestSolveMulWithDependency(t *testing.T) {
 
 func TestApiMul(t *testing.T) {
 	var (
-		x   constraint.GkrVariable
-		y   constraint.GkrVariable
-		z   constraint.GkrVariable
+		x   gkr2.Variable
+		y   gkr2.Variable
+		z   gkr2.Variable
 		err error
 	)
-	api := NewApi()
+	api := New()
 	x, err = api.Import([]frontend.Variable{nil, nil})
 	require.NoError(t, err)
 	y, err = api.Import([]frontend.Variable{nil, nil})
@@ -340,10 +341,10 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	X[len(X)-1] = 0
 	Y[len(X)-1] = 0
 
-	var x, y constraint.GkrVariable
+	var x, y gkr2.Variable
 	var err error
 
-	gkr := NewApi()
+	gkr := New()
 	if x, err = gkr.Import(X); err != nil {
 		return err
 	}
@@ -357,7 +358,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 		Inputs: []int{int(x), int(y)},
 	})
 	gkr.assignments = append(gkr.assignments, nil)
-	z := constraint.GkrVariable(2)
+	z := gkr2.Variable(2)
 	// }
 
 	offset := 1 << (c.depth - 1)
@@ -519,13 +520,13 @@ type mimcNoDepCircuit struct {
 }
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
-	_gkr := NewApi()
+	_gkr := New()
 	x, err := _gkr.Import(c.X)
 	if err != nil {
 		return err
 	}
 	var (
-		y, z     constraint.GkrVariable
+		y, z     gkr2.Variable
 		solution Solution
 	)
 	if y, err = _gkr.Import(c.Y); err != nil {
@@ -540,7 +541,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 			Inputs: []int{int(x), int(z)},
 		})
 		_gkr.assignments = append(_gkr.assignments, nil)
-		z = constraint.GkrVariable(len(_gkr.toStore.Circuit) - 1)
+		z = gkr2.Variable(len(_gkr.toStore.Circuit) - 1)
 	}
 	// }
 
@@ -650,7 +651,7 @@ type testSolveInTestEngineCircuit struct {
 }
 
 func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
+	gkr := New()
 	x, err := gkr.Import(c.X)
 	if err != nil {
 		return err

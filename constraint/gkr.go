@@ -8,8 +8,6 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-type GkrVariable int // Just an alias to hide implementation details. May be more trouble than worth
-
 type InputDependency struct {
 	OutputWire     int
 	OutputInstance int
@@ -63,10 +61,10 @@ func (d *GkrInfo) AssignmentOffsets() []int {
 	return res
 }
 
-func (d *GkrInfo) NewInputVariable() GkrVariable {
+func (d *GkrInfo) NewInputVariable() int {
 	i := len(d.Circuit)
 	d.Circuit = append(d.Circuit, GkrWire{})
-	return GkrVariable(i)
+	return i
 }
 
 // Compile sorts the circuit wires, their dependencies and the instances
