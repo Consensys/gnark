@@ -145,6 +145,10 @@ func (e *ext) Mul(a, b Element) Element {
 }
 
 func (e *ext) MulNoReduce(a, b Element) Element {
+	if len(a)+len(b) == 0 {
+		// both a and b are empty, return empty
+		return []frontend.Variable{}
+	}
 	ret := make([]frontend.Variable, len(a)+len(b)-1)
 	for i := range ret {
 		ret[i] = 0
