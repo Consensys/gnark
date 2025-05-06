@@ -1,5 +1,7 @@
 package fieldextension
 
+import "fmt"
+
 type config struct {
 	extension []int
 	degree    int
@@ -11,6 +13,9 @@ type Option func(*config) error
 // choose the degree which provides soundness over the native field.
 func WithDegree(degree int) Option {
 	return func(c *config) error {
+		if degree < 0 {
+			return fmt.Errorf("degree must be non-negative")
+		}
 		c.degree = degree
 		return nil
 	}
@@ -18,6 +23,12 @@ func WithDegree(degree int) Option {
 
 func WithExtension(extension []int) Option {
 	return func(c *config) error {
+		if len(extension) == 0 {
+			return fmt.Errorf("extension must be non-empty")
+		}
+		if extension[len(extension)-1] != 1 {
+			return fmt.Errorf("last coefficient of the extension must be 1")
+		}
 		c.extension = extension
 		return nil
 	}

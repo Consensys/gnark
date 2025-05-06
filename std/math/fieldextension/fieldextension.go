@@ -75,9 +75,6 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	}
 	// extension is provided
 	if cfg.extension != nil {
-		if cfg.extension[len(cfg.extension)-1] != 1 {
-			return nil, fmt.Errorf("last coefficient of the extension must be 1")
-		}
 		et := simple
 		if cfg.extension[0] == 1 {
 			et = minimal
