@@ -2,9 +2,10 @@ package test_utils
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"io"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Range (n, startingPoints...) = [startingPoints[0], startingPoints[0]+1, ..., startingPoints[0]+n-1, startingPoints[1], startingPoints[1]+1, ...,]

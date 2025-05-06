@@ -1,12 +1,13 @@
 package cmp
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
-	"math/big"
-	"testing"
 )
 
 type isLessRecursive4BitCircuit struct {

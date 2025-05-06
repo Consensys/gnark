@@ -258,23 +258,21 @@ func main() {
 		assertNoError(generateGkrBackend(cfg))
 
 		fmt.Println("generating test vectors for gkr and sumcheck")
-		cmd := exec.Command("go", "run", "../../gkr/test_vectors")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		assertNoError(cmd.Run())
+		runCmd("go", "run", "../../gkr/test_vectors")
 		wg.Done()
 	}()
 
 	wg.Wait()
 
-	// run go fmt on whole directory
-	cmd := exec.Command("gofmt", "-s", "-w", "../../../")
+	// run goimports on whole directory
+	runCmd("goimports", "-w", "../../../")
+}
+
+func runCmd(name string, arg ...string) {
+	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		panic(err)
-	}
-
+	assertNoError(cmd.Run())
 }
 
 type templateData struct {

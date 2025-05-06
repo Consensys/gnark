@@ -1,8 +1,9 @@
 package bls12_377
 
 import (
-	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	"sync"
+
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"

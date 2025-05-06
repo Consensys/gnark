@@ -7,11 +7,12 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
 	"hash"
 	"reflect"
 	"strings"
+
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
 )
 
 func toElement(i int64) *fr.Element {
