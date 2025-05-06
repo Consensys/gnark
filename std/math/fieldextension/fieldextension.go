@@ -127,7 +127,7 @@ func (e *ext) Reduce(a Element) Element {
 			q = e.MulByElement(q, e.api.Neg(e.extension[0]))
 		}
 		commonLen := min(len(q), len(e.extension)-1)
-		for i := 0; i < commonLen; i++ {
+		for i := range commonLen {
 			ret[i] = e.api.Add(ret[i], q[i])
 		}
 		for i := commonLen; i < len(q); i++ {
@@ -159,7 +159,7 @@ func (e *ext) MulNoReduce(a, b Element) Element {
 func (e *ext) Add(a, b Element) Element {
 	commonLen := min(len(a), len(b))
 	ret := make([]frontend.Variable, max(len(a), len(b)))
-	for i := 0; i < commonLen; i++ {
+	for i := range commonLen {
 		ret[i] = e.api.Add(a[i], b[i])
 	}
 	for i := commonLen; i < len(a); i++ {
@@ -174,7 +174,7 @@ func (e *ext) Add(a, b Element) Element {
 func (e *ext) Sub(a, b Element) Element {
 	commonLen := min(len(a), len(b))
 	ret := make([]frontend.Variable, max(len(a), len(b)))
-	for i := 0; i < commonLen; i++ {
+	for i := range commonLen {
 		ret[i] = e.api.Sub(a[i], b[i])
 	}
 	for i := commonLen; i < len(a); i++ {
@@ -204,7 +204,7 @@ func (e *ext) MulByElement(a Element, b frontend.Variable) Element {
 
 func (e *ext) AssertIsEqual(a, b Element) {
 	commonLen := min(len(a), len(b))
-	for i := 0; i < commonLen; i++ {
+	for i := range commonLen {
 		e.api.AssertIsEqual(a[i], b[i])
 	}
 	for i := commonLen; i < len(a); i++ {
