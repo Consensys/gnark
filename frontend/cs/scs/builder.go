@@ -825,7 +825,7 @@ func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, ad
 	// benefit of making it simpler to read the LRO values.
 	//
 	// wireIDsSetOrdered stores the same values as wireIDsSet but in order
-	// of insertion. This is necessary to ensure
+	// of insertion. This is necessary to ensure the compilation is deterministic
 	var (
 		wireIDsSet = make(map[int]struct{})
 		wireTerms  = make([]expr.Term[E], len(wires))
