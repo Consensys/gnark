@@ -8,13 +8,14 @@ package gkr
 import (
 	"errors"
 	"fmt"
+	"math/big"
+	"strconv"
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"math/big"
-	"strconv"
-	"sync"
 )
 
 // The goal is to prove/verify evaluations of many instances of the same circuit

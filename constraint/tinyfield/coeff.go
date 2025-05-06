@@ -8,9 +8,10 @@ package cs
 import (
 	"encoding/binary"
 	"errors"
+	"math/big"
+
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/utils"
-	"math/big"
 
 	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
 )

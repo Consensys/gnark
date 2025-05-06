@@ -10,12 +10,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
-	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
 	"text/template"
 	"time"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"

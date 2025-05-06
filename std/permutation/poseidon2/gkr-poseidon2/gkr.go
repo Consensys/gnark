@@ -7,6 +7,8 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
+
 	"github.com/consensys/gnark/constraint/solver"
 
 	"github.com/consensys/gnark-crypto/ecc"

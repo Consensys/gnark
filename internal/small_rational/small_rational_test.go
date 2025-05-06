@@ -1,9 +1,10 @@
 package small_rational
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBigDivides(t *testing.T) {
