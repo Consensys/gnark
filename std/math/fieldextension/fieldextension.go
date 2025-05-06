@@ -87,8 +87,13 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 		}
 		return &ext{api: api, extension: cfg.extension, extensionType: et}, nil
 	}
+
+	// extension is not provided, we try to find a stored one
+
+	// if the degree is not set, then we take the default extension for the given field
 	degree := "default"
 	if cfg.degree != -1 {
+		// otherwise, we take the given degree from the config and try to find the extension
 		degree = strconv.Itoa(cfg.degree)
 	}
 
