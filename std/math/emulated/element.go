@@ -114,8 +114,13 @@ func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) 
 	return &Element[T]{Limbs: limbs, overflow: overflow, internal: true}
 }
 
-// GnarkInitHook describes how to initialise the element.
-func (e *Element[T]) GnarkInitHook() {
+// Initialize automatically initializes non-native element during circuit parsing and compilation.
+// It allocates the limbs and sets the element to be automatically range-checked on first use.
+//
+// The method has a side effect that when a circuit is parsed multiple times, then the subsequent
+// calls to this method will not re-initialize the element. Thus any changes to the non-native element
+// persist.
+func (e *Element[T]) Initialize(field *big.Int) {
 	if e.Limbs == nil {
 		*e = ValueOf[T](0)
 		e.internal = false // we need to constrain in later.
