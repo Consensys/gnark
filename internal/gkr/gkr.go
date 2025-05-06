@@ -39,7 +39,7 @@ func (w Wire) NbClaims() int {
 	return w.NbUniqueOutputs
 }
 
-func (w Wire) nbUniqueInputs() int {
+func (w Wire) NbUniqueInputs() int {
 	set := make(map[*Wire]struct{}, len(w.Inputs))
 	for _, in := range w.Inputs {
 		set[in] = struct{}{}
@@ -47,8 +47,61 @@ func (w Wire) nbUniqueInputs() int {
 	return len(set)
 }
 
-func (w Wire) noProof() bool {
+func (w Wire) NoProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
+}
+
+func (c Circuit) maxGateDegree() int {
+	res := 1
+	for i := range c {
+		if !c[i].IsInput() {
+			res = max(res, c[i].Gate.Degree())
+		}
+	}
+	return res
+}
+
+// MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
+func (c Circuit) MemoryRequirements(nbInstances int) []int {
+	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
+
+	if res[0] > res[1] { // make sure it's sorted
+		res[0], res[1] = res[1], res[0]
+		if res[1] > res[2] {
+			res[1], res[2] = res[2], res[1]
+		}
+	}
+
+	return res
+}
+
+// OutputsList for each wire, returns the set of indexes of wires it is input to.
+// It also sets the nbUniqueOutputs fields, and sets the wire metadata.
+func (c Circuit) OutputsList(indexes map[*Wire]int) [][]int {
+	idGate := gkr.GetGate("identity")
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = make([]int, 0)
+		c[i].NbUniqueOutputs = 0
+		if c[i].IsInput() {
+			c[i].Gate = idGate
+		}
+	}
+	ins := make(map[int]struct{}, len(c))
+	for i := range c {
+		for k := range ins { // clear map
+			delete(ins, k)
+		}
+		for _, in := range c[i].Inputs {
+			inI := indexes[in]
+			res[inI] = append(res[inI], i)
+			if _, ok := ins[inI]; !ok {
+				in.NbUniqueOutputs++
+				ins[inI] = struct{}{}
+			}
+		}
+	}
+	return res
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
@@ -225,7 +278,7 @@ func ProofSize(c Circuit, logNbInstances int) int {
 	nbPartialEvalPolys := 0
 	for i := range c {
 		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		if !c[i].noProof() {
+		if !c[i].NoProof() {
 			nbPartialEvalPolys += c[i].Gate.Degree() + 1
 		}
 	}
@@ -238,7 +291,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	size := logNbInstances // first challenge
 
 	for _, w := range sorted {
-		if w.noProof() { // no proof, no challenge
+		if w.NoProof() { // no proof, no challenge
 			continue
 		}
 		if w.NbClaims() > 1 { //combine the claims
@@ -261,7 +314,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	}
 	j := logNbInstances
 	for i := len(sorted) - 1; i >= 0; i-- {
-		if sorted[i].noProof() {
+		if sorted[i].NoProof() {
 			continue
 		}
 		wirePrefix := prefix + "w" + nums[i] + "."
@@ -326,7 +379,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 
 		proofW := proof[i]
 		claim := claims.getLazyClaim(wire)
-		if wire.noProof() { // input wires with one claim only
+		if wire.NoProof() { // input wires with one claim only
 			// make sure the proof is empty
 			if len(proofW.FinalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
@@ -483,7 +536,7 @@ func (p Proof) Serialize() []frontend.Variable {
 func computeLogNbInstances(wires []*Wire, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
-		if !w.noProof() {
+		if !w.NoProof() {
 			partialEvalElemsPerVar += w.Gate.Degree() + 1
 		}
 		serializedProofLen -= w.NbUniqueOutputs
@@ -509,13 +562,13 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
-		if !wI.noProof() {
+		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
 				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
 			}
 		}
-		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
+		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())
 	}
 	if reader.hasNextN(1) {
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
