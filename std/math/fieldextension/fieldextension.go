@@ -122,7 +122,7 @@ func (e *ext) Reduce(a Element) Element {
 		if e.extensionType == simple {
 			// in case we have minimal extension, we don't need to multiply q by
 			// the extension
-			q = e.MulByElement(q, e.extension[0])
+			q = e.MulByElement(q, e.api.Neg(e.extension[0]))
 		}
 		commonLen := min(len(q), len(e.extension)-1)
 		for i := 0; i < commonLen; i++ {
