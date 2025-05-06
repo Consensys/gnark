@@ -1,5 +1,7 @@
 package fieldextension
 
+// defaultExtensions gives some default extensions for the small fields defined in gnark.
+// They are used when the extension is not explicitly given.
 var defaultExtensions = map[string][]int{
 	"2013265921-default": {-11, 0, 0, 0, 0, 0, 0, 0, 1}, // x^8 - 11 -- BabyBear field
 	"2013265921-8":       {-11, 0, 0, 0, 0, 0, 0, 0, 1}, // x^8 - 11 -- BabyBear field
