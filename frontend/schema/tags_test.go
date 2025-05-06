@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +23,7 @@ func TestStructTags(t *testing.T) {
 			return nil
 		}
 
-		_, err := Walk(input, tVariable, collectHandler)
+		_, err := Walk(ecc.BN254.ScalarField(), input, tVariable, collectHandler)
 		assert.NoError(err)
 
 		for k, v := range expected {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +51,7 @@ func ExampleWitness() {
 	// complex circuit structures well.
 
 	// first get the circuit expected schema
-	schema, _ := frontend.NewSchema(assignment)
+	schema, _ := frontend.NewSchema(ecc.BN254.ScalarField(), assignment)
 	ret, _ := reconstructed.ToJSON(schema)
 
 	var b bytes.Buffer
@@ -134,7 +136,7 @@ func roundTripMarshalJSON(assert *require.Assertions, assignment circuit, public
 	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), opts...)
 	assert.NoError(err)
 
-	s, err := frontend.NewSchema(&assignment)
+	s, err := frontend.NewSchema(ecc.BN254.ScalarField(), &assignment)
 	assert.NoError(err)
 
 	// serialize the vector to JSON
@@ -155,9 +157,11 @@ type initableVariable struct {
 	Val []frontend.Variable
 }
 
-func (iv *initableVariable) GnarkInitHook() {
-	if iv.Val == nil {
+func (iv *initableVariable) Initialize(field *big.Int) {
+	if field.Cmp(ecc.BN254.ScalarField()) == 0 {
 		iv.Val = []frontend.Variable{1, 2} // need to init value as are assigning to witness
+	} else {
+		iv.Val = []frontend.Variable{1, 2, 3}
 	}
 }
 
@@ -180,4 +184,11 @@ func TestVariableInitHook(t *testing.T) {
 	fw, ok := w.Vector().(fr.Vector)
 	assert.True(ok)
 	assert.Len(fw, 10, "invalid length")
+
+	// check that we call field-specific init
+	w2, err := frontend.NewWitness(assignment, tinyfield.Modulus())
+	assert.NoError(err)
+	fw2, ok := w2.Vector().(tinyfield.Vector)
+	assert.True(ok)
+	assert.Len(fw2, 15, "invalid length")
 }
