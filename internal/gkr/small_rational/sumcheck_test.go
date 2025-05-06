@@ -7,10 +7,11 @@ package gkr
 
 import (
 	"fmt"
+	"hash"
+
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/stretchr/testify/assert"
-	"hash"
 
 	"strings"
 	"testing"

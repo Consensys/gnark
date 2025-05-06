@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"

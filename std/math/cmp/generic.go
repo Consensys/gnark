@@ -2,9 +2,10 @@
 package cmp
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"math/big"
 )
 
 // IsEqual returns 1 if a = b, and returns 0 if a != b. a and b should be

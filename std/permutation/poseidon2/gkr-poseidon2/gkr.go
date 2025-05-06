@@ -3,10 +3,11 @@ package gkr_poseidon2
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 	"hash"
 	"math/big"
 	"sync"
+
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 
 	"github.com/consensys/gnark/constraint/solver"
 
