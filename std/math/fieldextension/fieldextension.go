@@ -8,6 +8,7 @@ package fieldextension
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
@@ -27,7 +28,7 @@ const (
 type ext struct {
 	api frontend.API
 
-	extension []int // we expect the extension defining modulus to have small small coefficients
+	extension []*big.Int // we expect the extension defining modulus to have small small coefficients
 	extensionType
 }
 
@@ -76,11 +77,11 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	// extension is provided
 	if cfg.extension != nil {
 		et := simple
-		if cfg.extension[0] == 1 {
+		if cfg.extension[0].Cmp(bi1) == 0 {
 			et = minimal
 		}
 		for i := 1; i < len(cfg.extension)-1; i++ {
-			if cfg.extension[i] != 0 {
+			if cfg.extension[i].Cmp(bi0) != 0 {
 				et = generic
 				break
 			}
