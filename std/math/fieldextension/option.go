@@ -1,9 +1,12 @@
 package fieldextension
 
-import "fmt"
+import (
+	"fmt"
+	"math/big"
+)
 
 type config struct {
-	extension []int
+	extension []*big.Int
 	degree    int
 }
 
@@ -34,12 +37,12 @@ func WithDegree(degree int) Option {
 //	[1, 3, 2, 1].
 //
 // This option overrides the [WithDegree] option.
-func WithExtension(extension []int) Option {
+func WithExtension(extension []*big.Int) Option {
 	return func(c *config) error {
 		if len(extension) == 0 {
 			return fmt.Errorf("extension must be non-empty")
 		}
-		if extension[len(extension)-1] != 1 {
+		if extension[len(extension)-1].Cmp(bi1) != 0 {
 			return fmt.Errorf("last coefficient of the extension must be 1")
 		}
 		c.extension = extension
