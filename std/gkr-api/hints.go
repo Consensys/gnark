@@ -15,7 +15,7 @@ import (
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 )
 
 var testEngineGkrSolvingData = make(map[string]any)

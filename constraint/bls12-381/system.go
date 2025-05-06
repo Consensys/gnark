@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"

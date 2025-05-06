@@ -15,7 +15,7 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"

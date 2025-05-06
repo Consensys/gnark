@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"

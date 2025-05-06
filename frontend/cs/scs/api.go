@@ -12,7 +12,7 @@ import (
 
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"

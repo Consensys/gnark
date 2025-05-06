@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"

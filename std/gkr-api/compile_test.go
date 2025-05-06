@@ -3,7 +3,7 @@ package gkr_api
 import (
 	"testing"
 
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
+	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/stretchr/testify/assert"
 )
 
