@@ -20,7 +20,7 @@ func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witn
 	}
 
 	// count the leaves
-	s, err := schema.Walk(assignment, tVariable, nil)
+	s, err := schema.Walk(field, assignment, tVariable, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -38,14 +38,14 @@ func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witn
 	chValues := make(chan any)
 	go func() {
 		defer close(chValues)
-		schema.Walk(assignment, tVariable, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+		schema.Walk(field, assignment, tVariable, func(leaf schema.LeafInfo, tValue reflect.Value) error {
 			if leaf.Visibility == schema.Public {
 				chValues <- tValue.Interface()
 			}
 			return nil
 		})
 		if !opt.publicOnly {
-			schema.Walk(assignment, tVariable, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+			schema.Walk(field, assignment, tVariable, func(leaf schema.LeafInfo, tValue reflect.Value) error {
 				if leaf.Visibility == schema.Secret {
 					chValues <- tValue.Interface()
 				}
@@ -63,8 +63,8 @@ func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witn
 // NewSchema returns the schema corresponding to the circuit structure.
 //
 // This is used to JSON (un)marshall witnesses.
-func NewSchema(circuit Circuit) (*schema.Schema, error) {
-	return schema.New(circuit, tVariable)
+func NewSchema(field *big.Int, circuit Circuit) (*schema.Schema, error) {
+	return schema.New(field, circuit, tVariable)
 }
 
 // default options

@@ -6,9 +6,12 @@ package schema
 import (
 	"bytes"
 	"encoding/json"
+	"math/big"
 	"reflect"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +93,7 @@ func TestSchemaCorrectness(t *testing.T) {
 
 	// build schema
 	witness := &Circuit{Z: make([]variable, 3)}
-	s, err := New(witness, tVariable)
+	s, err := New(ecc.BN254.ScalarField(), witness, tVariable)
 	assert.NoError(err)
 
 	// instantiate a concrete object
@@ -134,7 +137,7 @@ func TestSchemaInherit(t *testing.T) {
 	{
 		var c circuitInherit1
 
-		s, err := Walk(&c, tVariable, nil)
+		s, err := Walk(ecc.BN254.ScalarField(), &c, tVariable, nil)
 		assert.NoError(err)
 
 		assert.Equal(2, s.Public)
@@ -144,7 +147,7 @@ func TestSchemaInherit(t *testing.T) {
 	{
 		var c circuitInherit2
 
-		s, err := Walk(&c, tVariable, nil)
+		s, err := Walk(ecc.BN254.ScalarField(), &c, tVariable, nil)
 		assert.NoError(err)
 
 		assert.Equal(3, s.Public)
@@ -156,9 +159,11 @@ type initableVariable struct {
 	Val []variable
 }
 
-func (iv *initableVariable) GnarkInitHook() {
-	if iv.Val == nil {
+func (iv *initableVariable) Initialize(field *big.Int) {
+	if field.Cmp(ecc.BN254.ScalarField()) == 0 {
 		iv.Val = make([]variable, 2)
+	} else {
+		iv.Val = make([]variable, 3)
 	}
 }
 
@@ -172,9 +177,13 @@ func TestVariableInitHook(t *testing.T) {
 	assert := require.New(t)
 
 	witness := &initableCircuit{Y: make([]initableVariable, 2)}
-	s, err := New(witness, tVariable)
+	s, err := New(ecc.BN254.ScalarField(), witness, tVariable)
 	assert.NoError(err)
 	assert.Equal(s.NbSecret, 10) // X: 2*2, Y: 2*2, Z: 2
+
+	s2, err := New(tinyfield.Modulus(), witness, tVariable)
+	assert.NoError(err)
+	assert.Equal(s2.NbSecret, 15) // X: 2*3, Y: 2*3, Z: 3
 }
 
 func BenchmarkLargeSchema(b *testing.B) {
@@ -190,7 +199,7 @@ func BenchmarkLargeSchema(b *testing.B) {
 	b.Run("walk", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := Walk(&t1, tVariable, nil)
+			_, err := Walk(ecc.BN254.ScalarField(), &t1, tVariable, nil)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -200,7 +209,7 @@ func BenchmarkLargeSchema(b *testing.B) {
 	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := New(&t1, tVariable)
+			_, err := New(ecc.BN254.ScalarField(), &t1, tVariable)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -228,7 +237,7 @@ func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := Walk(&t1, tVariable, nil)
+			_, err := Walk(ecc.BN254.ScalarField(), &t1, tVariable, nil)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -238,7 +247,7 @@ func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
 	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := New(&t1, tVariable)
+			_, err := New(ecc.BN254.ScalarField(), &t1, tVariable)
 			if err != nil {
 				b.Fatal(err)
 			}
