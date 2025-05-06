@@ -15,17 +15,8 @@ type InputDependency struct {
 	InputInstance  int
 }
 
-type Wire struct {
-	Gate            string // TODO: Change to description
-	Inputs          []int
-	Dependencies    []InputDependency // nil for input wires
-	NbUniqueOutputs int
-}
-
-type Circuit []Wire
-
 type Info struct {
-	Circuit     Circuit
+	Circuit     Circuit[string]
 	MaxNIns     int
 	NbInstances int
 	HashName    string
@@ -38,14 +29,6 @@ type Permutations struct {
 	SortedWires          []int
 	InstancesPermutation []int
 	WiresPermutation     []int
-}
-
-func (w Wire) IsInput() bool {
-	return len(w.Inputs) == 0
-}
-
-func (w Wire) IsOutput() bool {
-	return w.NbUniqueOutputs == 0
 }
 
 // AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
@@ -64,7 +47,7 @@ func (d *Info) AssignmentOffsets() []int {
 
 func (d *Info) NewInputVariable() int {
 	i := len(d.Circuit)
-	d.Circuit = append(d.Circuit, Wire{})
+	d.Circuit = append(d.Circuit, Wire[string]{})
 	return i
 }
 
@@ -87,7 +70,7 @@ func (d *Info) Compile(nbInstances int) (Permutations, error) {
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
-	inputs := utils.Map(d.Circuit, func(w Wire) []int {
+	inputs := utils.Map(d.Circuit, func(w Wire[string]) []int {
 		return w.Inputs
 	})
 
@@ -95,7 +78,7 @@ func (d *Info) Compile(nbInstances int) (Permutations, error) {
 	p.SortedWires, uniqueOuts = utils.TopologicalSort(inputs)
 	p.WiresPermutation = utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
-	sorted := make([]Wire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
+	sorted := make([]Wire[string], len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
@@ -118,7 +101,7 @@ func (d *Info) Compile(nbInstances int) (Permutations, error) {
 			}
 		} // TODO: Check that dependencies and explicit assignments cover all instances
 
-		sorted[newI] = Wire{
+		sorted[newI] = Wire[string]{
 			Gate:            oldW.Gate,
 			Inputs:          utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
@@ -132,28 +115,6 @@ func (d *Info) Compile(nbInstances int) (Permutations, error) {
 
 func (d *Info) Is() bool {
 	return d.Circuit != nil
-}
-
-// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (c Circuit) Chunks(nbInstances int) []int {
-	res := make([]int, 0, 1)
-	lastSeenDependencyI := make([]int, len(c))
-
-	for start, end := 0, 0; start != nbInstances; start = end {
-		end = nbInstances
-		endWireI := -1
-		for wI, w := range c {
-			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
-				end = w.Dependencies[wDepI].InputInstance
-				endWireI = wI
-			}
-		}
-		if endWireI != -1 {
-			lastSeenDependencyI[endWireI]++
-		}
-		res = append(res, end)
-	}
-	return res
 }
 
 // A ConstraintSystem that supports GKR
