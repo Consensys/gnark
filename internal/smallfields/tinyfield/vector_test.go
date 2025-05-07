@@ -8,11 +8,12 @@ package tinyfield
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"os"
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"

@@ -3,9 +3,10 @@ package gkr
 import (
 	"errors"
 	"fmt"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/bn254"
+	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -15,7 +16,7 @@ type bn254WrapperApi struct {
 	err error
 }
 
-func ToBn254GateFunction(f func(GateAPI, ...frontend.Variable) frontend.Variable) gkr.GateFunction {
+func toBn254GateFunction(f func(GateAPI, ...frontend.Variable) frontend.Variable) gkr.GateFunction {
 	var wrapper bn254WrapperApi
 
 	return func(x ...fr.Element) fr.Element {

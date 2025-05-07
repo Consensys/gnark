@@ -4,10 +4,11 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/internal"
 	"math/big"
 	"testing"
+
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/internal"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"

@@ -8,12 +8,6 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark-crypto/utils"
-	"github.com/stretchr/testify/assert"
 	"hash"
 	"os"
 	"path/filepath"
@@ -21,6 +15,13 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/polynomial"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNoGateTwoInstances(t *testing.T) {
