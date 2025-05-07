@@ -93,7 +93,7 @@ func SolveHint(info gkr2.Info, solvingData *SolvingData) hint.Hint {
 					}, len(w.Dependencies), start)
 				}
 
-				var api GateAPI
+				var api gateAPI
 				gateInput := make([]frontend.Variable)
 
 				for instanceI := start; instanceI < end; instanceI++ {

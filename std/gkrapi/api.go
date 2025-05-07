@@ -1,4 +1,4 @@
-package gkr_api
+package gkrapi
 
 import (
 	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"

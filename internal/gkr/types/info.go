@@ -1,5 +1,5 @@
-// Package gkr_info representation of a GKR circuit (without anonymous function references) to be saved
-package gkr_info
+// Package types contains common types used in the GKR protocol, that don't need to be exposed to the end user.
+package types
 
 import (
 	"fmt"

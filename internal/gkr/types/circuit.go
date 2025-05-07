@@ -1,4 +1,4 @@
-package gkr_info
+package types
 
 type Wire[T any] struct {
 	Gate            T

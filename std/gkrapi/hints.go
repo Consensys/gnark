@@ -1,4 +1,4 @@
-package gkr_api
+package gkrapi
 
 import (
 	"errors"

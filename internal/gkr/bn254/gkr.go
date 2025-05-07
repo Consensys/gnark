@@ -103,7 +103,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
 
-		gateEvaluation.Set(GateAPI{}.evaluate(e.wire.Gate.Evaluate, inputEvaluations...))
+		gateEvaluation.Set(api.evaluate(e.wire.Gate.Evaluate, inputEvaluations...))
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -226,7 +226,6 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
 	// Perf-TODO: Collate once at claim "combination" time and not again. then, even folding can be done in one operation every time "next" is called
 
-	var api GateAPI
 	gJ := make([]fr.Element, degGJ)
 	var mu sync.Mutex
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
@@ -741,7 +740,6 @@ func (a WireAssignment) Complete(c gadget.Circuit) WireAssignment {
 		}
 	}
 
-	var api GateAPI
 	ins := make([]fr.Element, maxNbIns)
 	for i := range nbInstances {
 		for _, w := range sortedWires {
@@ -797,10 +795,12 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-// GateAPI implements gkr.GateAPI.
-type GateAPI struct{}
+// gateAPI implements gkr.GateAPI.
+type gateAPI struct{}
 
-func (GateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+var api gateAPI
+
+func (gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	var res fr.Element // TODO Heap allocated. Keep an eye on perf
 	res.Add(cast(i1), cast(i2))
 	for _, v := range in {
@@ -809,7 +809,7 @@ func (GateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.V
 	return &res
 }
 
-func (GateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+func (gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	var prod fr.Element
 	prod.Add(cast(b), cast(c))
 	res := cast(a)
@@ -817,13 +817,13 @@ func (GateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	return &res
 }
 
-func (GateAPI) Neg(i1 frontend.Variable) frontend.Variable {
+func (gateAPI) Neg(i1 frontend.Variable) frontend.Variable {
 	var res fr.Element
 	res.Neg(cast(i1))
 	return &res
 }
 
-func (GateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (gateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	var res fr.Element
 	res.Sub(cast(i1), cast(i2))
 	for _, v := range in {
@@ -832,7 +832,7 @@ func (GateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.V
 	return &res
 }
 
-func (GateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	var res fr.Element
 	res.Mul(cast(i1), cast(i2))
 	for _, v := range in {
@@ -841,7 +841,7 @@ func (GateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.V
 	return &res
 }
 
-func (GateAPI) Println(a ...frontend.Variable) {
+func (gateAPI) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
 	var x fr.Element
 
@@ -859,12 +859,21 @@ func (GateAPI) Println(a ...frontend.Variable) {
 	fmt.Println(toPrint...)
 }
 
-func (api GateAPI) evaluate(f gkr.GateFunction, in ...fr.Element) *fr.Element {
+func (api gateAPI) evaluate(f gkr.GateFunction, in ...fr.Element) *fr.Element {
 	inVar := make([]frontend.Variable, len(in))
 	for i := range in {
 		inVar[i] = &in[i]
 	}
 	return f(api, inVar...).(*fr.Element)
+}
+
+type gateFunctionFr func(...fr.Element) *fr.Element
+
+// convertFunc turns f into a function that accepts and returns fr.Element.
+func (api gateAPI) convertFunc(f gkr.GateFunction) gateFunctionFr {
+	return func(in ...fr.Element) *fr.Element {
+		return api.evaluate(f, in...)
+	}
 }
 
 func cast(v frontend.Variable) *fr.Element {

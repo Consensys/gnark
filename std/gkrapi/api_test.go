@@ -1,4 +1,4 @@
-package gkr_api
+package gkrapi
 
 import (
 	"fmt"
@@ -22,8 +22,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	"github.com/consensys/gnark/internal/gkr/gkr-info"
-	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -354,7 +352,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 
 	// cheat{
-	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, gkr_info.Wire{
+	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, types.Wire{
 		Gate:   "mimc",
 		Inputs: []int{int(x), int(y)},
 	})
@@ -537,7 +535,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// cheat{
 	z = y
 	for i := 0; i < c.mimcDepth; i++ {
-		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, gkr_info.Wire{
+		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, types.Wire{
 			Gate:   "mimc",
 			Inputs: []int{int(x), int(z)},
 		})
