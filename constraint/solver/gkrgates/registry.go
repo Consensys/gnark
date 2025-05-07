@@ -1,3 +1,4 @@
+// Package gkrgates contains the registry of GKR gates.
 package gkrgates
 
 import (

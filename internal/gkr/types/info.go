@@ -15,8 +15,8 @@ type InputDependency struct {
 	InputInstance  int
 }
 
-type Info struct {
-	Circuit     Circuit[string]
+type GkrInfo struct {
+	Circuit     CircuitInfo
 	MaxNIns     int
 	NbInstances int
 	HashName    string
@@ -32,7 +32,7 @@ type Permutations struct {
 }
 
 // AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
-func (d *Info) AssignmentOffsets() []int {
+func (d *GkrInfo) AssignmentOffsets() []int {
 	c := d.Circuit
 	res := make([]int, len(c)+1)
 	for i := range c {
@@ -45,14 +45,14 @@ func (d *Info) AssignmentOffsets() []int {
 	return res
 }
 
-func (d *Info) NewInputVariable() int {
+func (d *GkrInfo) NewInputVariable() int {
 	i := len(d.Circuit)
 	d.Circuit = append(d.Circuit, Wire[string]{})
 	return i
 }
 
 // Compile sorts the circuit wires, their dependencies and the instances
-func (d *Info) Compile(nbInstances int) (Permutations, error) {
+func (d *GkrInfo) Compile(nbInstances int) (Permutations, error) {
 
 	var p Permutations
 	d.NbInstances = nbInstances
@@ -113,11 +113,11 @@ func (d *Info) Compile(nbInstances int) (Permutations, error) {
 	return p, nil
 }
 
-func (d *Info) Is() bool {
+func (d *GkrInfo) Is() bool {
 	return d.Circuit != nil
 }
 
 // A ConstraintSystem that supports GKR
 type ConstraintSystem interface {
-	SetGkrInfo(info Info) error
+	SetGkrInfo(info GkrInfo) error
 }

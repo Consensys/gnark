@@ -6,7 +6,8 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
+	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/types"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/polynomial"
@@ -18,8 +19,8 @@ import (
 // The goal is to prove/verify evaluations of many instances of the same circuit.
 
 type (
-	Wire    gkr_info.Wire[*gkr.Gate]
-	Circuit gkr_info.Circuit[*gkr.Gate]
+	Wire    types.Wire[*gkrgate.Gate]
+	Circuit types.Circuit[*gkrgate.Gate]
 )
 
 func (c Circuit) maxGateDegree() int {
@@ -49,7 +50,14 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
 // It also sets the NbUniqueOutputs fields, and sets the wire metadata.
 func (c Circuit) OutputsList() [][]int {
-	idGate := gkr.GetGate("identity")
+	idGate := gkrgate.New(
+		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+			return x[0]
+		},
+		1,
+		1,
+		1,
+	)
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
@@ -74,11 +82,11 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func CircuitFromInfo(noPtr gkr_info.CircuitInfo) (Circuit, error) {
+func CircuitFromInfo(noPtr types.CircuitInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) (Circuit, error) {
 	resCircuit := make(Circuit, len(noPtr))
 	for i := range noPtr {
 		resCircuit[i].Inputs = noPtr[i].Inputs
-		resCircuit[i].Gate = gkr.GetGate(gkr.GateName(noPtr[i].Gate))
+		resCircuit[i].Gate = gateGetter(gkr.GateName(noPtr[i].Gate))
 	}
 
 	return resCircuit, nil
@@ -99,7 +107,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gkr_info.Wire[*gkr.Gate] {
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *types.Wire[*gkrgate.Gate] {
 	return &e.manager.circuit[e.wireI]
 }
 
@@ -542,19 +550,19 @@ func panicIfError(err error) {
 }
 
 func init() {
-	panicIfError(gkr.RegisterGate(gkr.Mul2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate(gkr.Mul2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Mul(x[0], x[1])
 	}, 2, gkr.WithUnverifiedDegree(2), gkr.WithNoSolvableVar()))
-	panicIfError(gkr.RegisterGate(gkr.Add2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate(gkr.Add2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Add(x[0], x[1])
 	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Identity, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate(gkr.Identity, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return x[0]
 	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Neg, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate(gkr.Neg, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Neg(x[0])
 	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Sub2, func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate(gkr.Sub2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(x[0], x[1])
 	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
 }
