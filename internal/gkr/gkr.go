@@ -6,110 +6,149 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/types"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
 
-// The goal is to prove/verify evaluations of many instances of the same circuit
+// A SNARK gadget capable of verifying a GKR proof
+// The goal is to prove/verify evaluations of many instances of the same circuit.
+type (
+	Wire        types.Wire[*gkrgate.Gate]
+	Circuit     types.Circuit[*gkrgate.Gate]
+	SolvingInfo types.Info[Circuit]
+)
 
-// GateAPI is a limited version of frontend.API,
-// allowing ring arithmetic operations
-type GateAPI interface {
-	// ---------------------------------------------------------------------------------------------
-	// Arithmetic
+// ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
+// At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
+// the former a subsequence of the latter.
+// injection are the indices of the unique evaluations in the original evaluation list.
+// injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
+// There are no guarantees on the non-unique choice of the semi-inverse map.
+func (c Circuit) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
+	w := &c[wireIndex]
+	indexInProof := makeNeg1Slice(len(c)) // O(n); use a map instead if it caused performance issues
+	injection = make([]int, 0, len(w.Inputs))
+	injectionLeftInverse = make([]int, len(w.Inputs))
 
-	// Add returns res = i1+i2+...in
-	Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
-
-	// MulAcc sets and return a = a + (b*c).
-	//
-	// ! The method may mutate a without allocating a new result. If the input
-	// is used elsewhere, then first initialize new variable, for example by
-	// doing:
-	//
-	//     acopy := api.Mul(a, 1)
-	//     acopy = api.MulAcc(acopy, b, c)
-	//
-	// ! But it may not modify a, always use MulAcc(...) result for correctness.
-	MulAcc(a, b, c frontend.Variable) frontend.Variable
-
-	// Neg returns -i
-	Neg(i1 frontend.Variable) frontend.Variable
-
-	// Sub returns res = i1 - i2 - ...in
-	Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
-
-	// Mul returns res = i1 * i2 * ... in
-	Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
-
-	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
-	// whose value will be resolved at runtime when computed by the solver
-	Println(a ...frontend.Variable)
-}
-type GateFunction func(GateAPI, ...frontend.Variable) frontend.Variable
-
-// A Gate is a low-degree multivariate polynomial
-type Gate struct {
-	Evaluate    GateFunction // Evaluate the polynomial function defining the gate
-	nbIn        int          // number of inputs
-	degree      int          // total degree of the polynomial
-	solvableVar int          // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-}
-
-// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
-func (g *Gate) Degree() int {
-	return g.degree
-}
-
-// SolvableVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
-func (g *Gate) SolvableVar() int {
-	return g.solvableVar
-}
-
-// NbIn returns the number of inputs to the gate (its fan-in)
-func (g *Gate) NbIn() int {
-	return g.nbIn
-}
-
-type Wire struct {
-	Gate            *Gate
-	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
-}
-
-type Circuit []Wire
-
-func (w Wire) IsInput() bool {
-	return len(w.Inputs) == 0
-}
-
-func (w Wire) IsOutput() bool {
-	return w.nbUniqueOutputs == 0
-}
-
-func (w Wire) NbClaims() int {
-	if w.IsOutput() {
-		return 1
+	proofI := 0
+	for inI, in := range w.Inputs {
+		if indexInProof[in] == -1 { // not found
+			injection[proofI] = inI
+			indexInProof[in] = proofI
+			proofI++
+		}
+		injectionLeftInverse[inI] = indexInProof[in]
 	}
-	return w.nbUniqueOutputs
+
+	return
 }
 
-func (w Wire) nbUniqueInputs() int {
-	set := make(map[*Wire]struct{}, len(w.Inputs))
-	for _, in := range w.Inputs {
-		set[in] = struct{}{}
+func (c Circuit) maxGateDegree() int {
+	res := 1
+	for i := range c {
+		if !c[i].IsInput() {
+			res = max(res, c[i].Gate.Degree())
+		}
 	}
-	return len(set)
+	return res
 }
 
-func (w Wire) noProof() bool {
-	return w.IsInput() && w.NbClaims() == 1
+// MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
+func (c Circuit) MemoryRequirements(nbInstances int) []int {
+	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
+
+	if res[0] > res[1] { // make sure it's sorted
+		res[0], res[1] = res[1], res[0]
+		if res[1] > res[2] {
+			res[1], res[2] = res[2], res[1]
+		}
+	}
+
+	return res
+}
+
+// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
+func (c Circuit) Chunks(nbInstances int) []int {
+	res := make([]int, 0, 1)
+	lastSeenDependencyI := make([]int, len(c))
+
+	for start, end := 0, 0; start != nbInstances; start = end {
+		end = nbInstances
+		endWireI := -1
+		for wI, w := range c {
+			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
+				end = w.Dependencies[wDepI].InputInstance
+				endWireI = wI
+			}
+		}
+		if endWireI != -1 {
+			lastSeenDependencyI[endWireI]++
+		}
+		res = append(res, end)
+	}
+	return res
+}
+
+// OutputsList for each wire, returns the set of indexes of wires it is input to.
+// It also sets the NbUniqueOutputs fields, and sets the wire metadata.
+func (c Circuit) OutputsList() [][]int {
+	idGate := gkrgate.New(
+		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+			return x[0]
+		},
+		1,
+		1,
+		1,
+	)
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = make([]int, 0)
+		c[i].NbUniqueOutputs = 0
+		if c[i].IsInput() {
+			c[i].Gate = idGate
+		}
+	}
+	ins := make(map[int]struct{}, len(c))
+	for i := range c {
+		for k := range ins { // clear map
+			delete(ins, k)
+		}
+		for _, in := range c[i].Inputs {
+			res[in] = append(res[in], i)
+			if _, ok := ins[in]; !ok {
+				c[in].NbUniqueOutputs++
+				ins[in] = struct{}{}
+			}
+		}
+	}
+	return res
+}
+
+func StoringToSolvingInfo(info types.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
+
+	resCircuit := make(Circuit, len(info.Circuit))
+	for i := range info.Circuit {
+		resCircuit[i].Inputs = info.Circuit[i].Inputs
+		resCircuit[i].Gate = gateGetter(gkr.GateName(info.Circuit[i].Gate))
+	}
+
+	return SolvingInfo{
+		Circuit:     resCircuit,
+		MaxNIns:     info.MaxNIns,
+		NbInstances: info.NbInstances,
+		HashName:    info.HashName,
+		SolveHintID: info.SolveHintID,
+		ProveHintID: info.ProveHintID,
+	}
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment map[*Wire]polynomial.MultiLin
+type WireAssignment []polynomial.MultiLin
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
@@ -117,10 +156,14 @@ type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for eac
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *Wire
+	wireI              int
 	evaluationPoints   [][]frontend.Variable
 	claimedEvaluations []frontend.Variable
 	manager            *claimsManager // WARNING: Circular references
+}
+
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
+	return (*Wire)(&e.manager.circuit[e.wireI])
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -135,7 +178,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, inputEvaluationsNoRedundancy []frontend.Variable) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
@@ -145,36 +188,45 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 		evaluation = api.Add(evaluation, eq)
 	}
 
+	wire := e.getWire()
+
 	// the g(...) term
 	var gateEvaluation frontend.Variable
-	if e.wire.IsInput() {
-		gateEvaluation = e.manager.assignment[e.wire].Evaluate(api, r)
+	if wire.IsInput() {
+		gateEvaluation = e.manager.assignment[e.wireI].Evaluate(api, r)
 	} else {
-		inputEvaluations := make([]frontend.Variable, len(e.wire.Inputs))
-		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
 
-		proofI := 0
-		for inI, in := range e.wire.Inputs {
-			indexInProof, found := indexesInProof[in]
-			if !found {
-				indexInProof = proofI
-				indexesInProof[in] = indexInProof
+		injection, injectionLeftInv :=
+			e.manager.circuit.ClaimPropagationInfo(e.wireI)
 
-				// defer verification, store new claim
-				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
-				proofI++
-			}
-			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
+		if len(injection) != len(uniqueInputEvaluations) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
 		}
-		if proofI != len(inputEvaluationsNoRedundancy) {
-			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
+
+		for uniqueI, i := range injection { // map from unique to all
+			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
 		}
-		gateEvaluation = e.wire.Gate.Evaluate(api, inputEvaluations...)
+
+		inputEvaluations := make([]frontend.Variable, len(wire.Inputs))
+		for i, uniqueI := range injectionLeftInv { // map from all to unique
+			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
+		}
+
+		gateEvaluation = e.getWire().Gate.Evaluate(api, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
 	api.AssertIsEqual(evaluation, purportedValue)
 	return nil
+}
+
+// makeNeg1Slice returns a slice of size n with all elements set to -1.
+func makeNeg1Slice(n int) []int {
+	res := make([]int, n)
+	for i := range res {
+		res[i] = -1
+	}
+	return res
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
@@ -191,23 +243,23 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(api frontend.API, a fron
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.wire.Gate.Degree()
+	return 1 + e.getWire().Gate.Degree()
 }
 
 type claimsManager struct {
-	claimsMap  map[*Wire]*eqTimesGateEvalSumcheckLazyClaims
+	claims     []*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
+	circuit    Circuit
 }
 
 func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
-	claims.claimsMap = make(map[*Wire]*eqTimesGateEvalSumcheckLazyClaims, len(c))
+	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(c))
 
 	for i := range c {
 		wire := &c[i]
-
-		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaims{
-			wire:               wire,
+		claims.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
+			wireI:              i,
 			evaluationPoints:   make([][]frontend.Variable, 0, wire.NbClaims()),
 			claimedEvaluations: make(polynomial.Polynomial, wire.NbClaims()),
 			manager:            &claims,
@@ -216,19 +268,20 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 	return
 }
 
-func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
-	claim := m.claimsMap[wire]
+func (m *claimsManager) add(wire int, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
+	claim := m.claims[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManager) getLazyClaim(wire *Wire) *eqTimesGateEvalSumcheckLazyClaims {
-	return m.claimsMap[wire]
+func (m *claimsManager) getLazyClaim(wire int) *eqTimesGateEvalSumcheckLazyClaims {
+	return m.claims[wire]
 }
 
-func (m *claimsManager) deleteClaim(wire *Wire) {
-	delete(m.claimsMap, wire)
+func (m *claimsManager) deleteClaim(wire int) {
+	m.claims[wire].manager = nil
+	m.claims[wire] = nil
 }
 
 type settings struct {
@@ -276,13 +329,13 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	return o, err
 }
 
-// ProofSize computes how large the proof for a circuit would be. It needs nbUniqueOutputs to be set
+// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
 func ProofSize(c Circuit, logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
-		nbUniqueInputs += c[i].nbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		if !c[i].noProof() {
+		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
+		if !c[i].NoProof() {
 			nbPartialEvalPolys += c[i].Gate.Degree() + 1
 		}
 	}
@@ -295,7 +348,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	size := logNbInstances // first challenge
 
 	for _, w := range sorted {
-		if w.noProof() { // no proof, no challenge
+		if w.NoProof() { // no proof, no challenge
 			continue
 		}
 		if w.NbClaims() > 1 { //combine the claims
@@ -318,7 +371,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	}
 	j := logNbInstances
 	for i := len(sorted) - 1; i >= 0; i-- {
-		if sorted[i].noProof() {
+		if sorted[i].NoProof() {
 			continue
 		}
 		wirePrefix := prefix + "w" + nums[i] + "."
@@ -378,12 +431,12 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
-			claims.add(wire, firstChallenge, assignment[wire].Evaluate(api, firstChallenge))
+			claims.add(i, firstChallenge, assignment[i].Evaluate(api, firstChallenge))
 		}
 
 		proofW := proof[i]
-		claim := claims.getLazyClaim(wire)
-		if wire.noProof() { // input wires with one claim only
+		claim := claims.getLazyClaim(i)
+		if wire.NoProof() { // input wires with one claim only
 			// make sure the proof is empty
 			if len(proofW.FinalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
 				return errors.New("no proof allowed for input wire with a single claim")
@@ -391,7 +444,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 
 			if wire.NbClaims() == 1 { // input wire
 				// simply evaluate and see if it matches
-				evaluation := assignment[wire].Evaluate(api, claim.evaluationPoints[0])
+				evaluation := assignment[i].Evaluate(api, claim.evaluationPoints[0])
 				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 			}
 		} else if err = verifySumcheck(
@@ -401,42 +454,14 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		} else {
 			return err
 		}
-		claims.deleteClaim(wire)
+		claims.deleteClaim(i)
 	}
 	return nil
-}
-
-// outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
-func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
-	res := make([][]int, len(c))
-	for i := range c {
-		res[i] = make([]int, 0)
-		c[i].nbUniqueOutputs = 0
-		if c[i].IsInput() {
-			c[i].Gate = GetGate(Identity)
-		}
-	}
-	ins := make(map[int]struct{}, len(c))
-	for i := range c {
-		for k := range ins { // clear map
-			delete(ins, k)
-		}
-		for _, in := range c[i].Inputs {
-			inI := indexes[in]
-			res[inI] = append(res[inI], i)
-			if _, ok := ins[inI]; !ok {
-				in.nbUniqueOutputs++
-				ins[inI] = struct{}{}
-			}
-		}
-	}
-	return res
 }
 
 type topSortData struct {
 	outputs    [][]int
 	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	index      map[*Wire]int
 	leastReady int
 }
 
@@ -456,14 +481,6 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
-func indexMap(c Circuit) map[*Wire]int {
-	res := make(map[*Wire]int, len(c))
-	for i := range c {
-		res[&c[i]] = i
-	}
-	return res
-}
-
 func statusList(c Circuit) []int {
 	res := make([]int, len(c))
 	for i := range c {
@@ -481,8 +498,7 @@ func statusList(c Circuit) []int {
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
 func topologicalSort(c Circuit) []*Wire {
 	var data topSortData
-	data.index = indexMap(c)
-	data.outputs = outputsList(c, data.index)
+	data.outputs = c.OutputsList()
 	data.status = statusList(c)
 	sorted := make([]*Wire, len(c))
 
@@ -490,7 +506,7 @@ func topologicalSort(c Circuit) []*Wire {
 	}
 
 	for i := range c {
-		sorted[i] = &c[data.leastReady]
+		sorted[i] = (*Wire)(&c[data.leastReady])
 		data.markDone(data.leastReady)
 	}
 
@@ -540,10 +556,10 @@ func (p Proof) Serialize() []frontend.Variable {
 func computeLogNbInstances(wires []*Wire, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
-		if !w.noProof() {
+		if !w.NoProof() {
 			partialEvalElemsPerVar += w.Gate.Degree() + 1
 		}
-		serializedProofLen -= w.nbUniqueOutputs
+		serializedProofLen -= w.NbUniqueOutputs
 	}
 	return serializedProofLen / partialEvalElemsPerVar
 }
@@ -566,13 +582,13 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
-		if !wI.noProof() {
+		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
 				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
 			}
 		}
-		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
+		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())
 	}
 	if reader.hasNextN(1) {
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
@@ -584,4 +600,22 @@ func panicIfError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func init() {
+	panicIfError(gkr.RegisterGate(gkr.Mul2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Mul(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(2), gkr.WithNoSolvableVar()))
+	panicIfError(gkr.RegisterGate(gkr.Add2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Identity, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return x[0]
+	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Neg, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Neg(x[0])
+	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
+	panicIfError(gkr.RegisterGate(gkr.Sub2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Sub(x[0], x[1])
+	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
 }

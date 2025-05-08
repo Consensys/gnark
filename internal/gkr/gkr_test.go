@@ -11,11 +11,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/consensys/gnark/std/hash"
 )
 
 func TestGkrVectors(t *testing.T) {
@@ -249,7 +249,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 			circuit[i].Inputs[iAsInput] = input
 		}
 
-		if circuit[i].Gate = GetGate(GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
+		if circuit[i].Gate = gkr.GetGate(gkr.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -258,9 +258,9 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 }
 
 func init() {
-	panicIfError(RegisterGate("select-input-3", func(api GateAPI, in ...frontend.Variable) frontend.Variable {
+	panicIfError(gkr.RegisterGate("select-input-3", func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, 3, WithDegree(1)))
+	}, 3, gkr.WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof
@@ -335,9 +335,9 @@ func TestTopSortSingleGate(t *testing.T) {
 	expected := []*Wire{&c[1], &c[2], &c[0]}
 	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
 	assertSliceEqual(t, sorted, expected)
-	assert.Equal(t, c[0].nbUniqueOutputs, 0)
-	assert.Equal(t, c[1].nbUniqueOutputs, 1)
-	assert.Equal(t, c[2].nbUniqueOutputs, 1)
+	assert.Equal(t, c[0].NbUniqueOutputs, 0)
+	assert.Equal(t, c[1].NbUniqueOutputs, 1)
+	assert.Equal(t, c[2].NbUniqueOutputs, 1)
 }
 
 func TestTopSortDeep(t *testing.T) {
@@ -444,26 +444,4 @@ func TestConstHash(t *testing.T) {
 
 		test.WithValidAssignment(&constHashCircuit{X: 1}),
 	)
-}
-
-var mimcSnarkTotalCalls = 0
-
-type MiMCCipherGate struct {
-	Ark frontend.Variable
-}
-
-func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
-	mimcSnarkTotalCalls++
-
-	if len(input) != 2 {
-		panic("mimc has fan-in 2")
-	}
-	sum := api.Add(input[0], input[1], m.Ark)
-
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
-	return api.Mul(sumCubed, sumCubed, sum)
-}
-
-func (m MiMCCipherGate) Degree() int {
-	return 7
 }

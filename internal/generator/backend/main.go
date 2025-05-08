@@ -8,10 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/field/generator/config"
-
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/field/generator"
+	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
 const copyrightHolder = "Consensys Software Inc."

@@ -19,6 +19,9 @@ import (
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	gkrgadget "github.com/consensys/gnark/internal/gkr"
+	gkr "github.com/consensys/gnark/internal/gkr/bn254"
 	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -48,10 +51,11 @@ type solver struct {
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// add GKR options to overwrite the placeholder
 	if cs.GkrInfo.Is() {
-		var gkrData GkrSolvingData
+		var gkrData gkr.SolvingData
+		solvingInfo := gkrgadget.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
 		opts = append(opts,
-			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
+			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(solvingInfo, &gkrData)),
+			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, &gkrData)))
 	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)

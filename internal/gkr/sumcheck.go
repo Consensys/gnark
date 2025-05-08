@@ -9,6 +9,8 @@ import (
 	"github.com/consensys/gnark/std/polynomial"
 )
 
+// A SNARK gadget capable of verifying sumcheck proofs
+
 // sumcheckLazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
 type sumcheckLazyClaims interface {
 	claimsNum() int                                                      // claimsNum = m

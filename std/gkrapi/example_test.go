@@ -1,4 +1,4 @@
-package gkr_test
+package gkrapi_test
 
 import (
 	"encoding/binary"
@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	gkrBw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/std/gkr"
+	gkr_api "github.com/consensys/gnark/std/gkr-api"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -44,10 +45,10 @@ func Example() {
 	assertNoError(gkrBw6761.RegisterGate(gateNamePrefix+"s", func(input ...fr.Element) (S fr.Element) {
 		S.
 			Add(&input[0], &input[1]). // 409: S.Add(&p.X, &YY)
-			Square(&S).                // 410: S.Square(&S).
-			Sub(&S, &input[2]).        // 411: Sub(&S, &XX).
-			Sub(&S, &input[3]).        // 412: Sub(&S, &YYYY).
-			Double(&S)                 // 413: Double(&S)
+			Square(&S). // 410: S.Square(&S).
+			Sub(&S, &input[2]). // 411: Sub(&S, &XX).
+			Sub(&S, &input[3]). // 412: Sub(&S, &YYYY).
+			Double(&S) // 413: Double(&S)
 
 		return
 	}, 4))
@@ -84,7 +85,7 @@ func Example() {
 		input[2] = Y
 
 		Y.Sub(&input[0], &input[1]). // 423: p.Y.Sub(&S, &p.X).
-						Mul(&Y, &input[2]) // 424: Mul(&p.Y, &M).
+			Mul(&Y, &input[2])                                         // 424: Mul(&p.Y, &M).
 		input[3].Double(&input[3]).Double(&input[3]).Double(&input[3]) // 425: YYYY.Double(&YYYY).Double(&YYYY).Double(&YYYY)
 		Y.Sub(&Y, &input[3])                                           // 426: p.Y.Sub(&p.Y, &YYYY)
 
@@ -158,13 +159,11 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkr.NewApi()
+	gkrApi := gkr_api.New()
 
 	assertNoError(gkr.RegisterGate("square", func(api gkr.GateAPI, input ...frontend.Variable) (res frontend.Variable) {
 		return api.Mul(input[0], input[0])
-	}, 1))
-
-	// define the GKR circuit
+	}, 2))
 
 	// create GKR circuit variables based on the given assignments
 	X, err := gkrApi.Import(c.X)
@@ -204,10 +203,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// input = [p.Z, p.Y, YY, ZZ]
 	// Z = (p.Z + p.Y)² - YY - ZZ
 	assertNoError(gkr.RegisterGate(c.gateNamePrefix+"z", func(api gkr.GateAPI, input ...frontend.Variable) (Z frontend.Variable) {
-		Z = api.Add(input[0], input[1])    // 415: p.Z.Add(&p.Z, &p.Y).
-		Z = api.Mul(Z, Z)                  // 416: p.Z.Square(&p.Z).
-		Z = api.Sub(Z, input[2], input[3]) // 417: Sub(&p.Z, &YY).
-		//                                    418: Sub(&p.Z, &ZZ).
+		Z = api.Add(input[0], input[1]) // 415: p.Z.Add(&p.Z, &p.Y).
 		return
 	}, 4))
 	Z = gkrApi.NamedGate(c.gateNamePrefix+"z", Z, Y, YY, ZZ) // 415 - 418
