@@ -104,7 +104,7 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 // the modulus.
 func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// fast path - when the element is on zero limbs, then it is always zero
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return 1
 	}
 
