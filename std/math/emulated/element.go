@@ -157,6 +157,11 @@ func (e *Element[T]) copy() *Element[T] {
 	r.overflow = e.overflow
 	r.internal = e.internal
 	r.modReduced = e.modReduced
+	r.isEvaluated = e.isEvaluated
+	r.evaluation = e.evaluation
+	if e.witnessValue != nil {
+		r.witnessValue = new(big.Int).Set(e.witnessValue)
+	}
 	return &r
 }
 
