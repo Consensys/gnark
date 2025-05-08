@@ -41,6 +41,16 @@ type Element[T FieldParams] struct {
 
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`
+
+	// witnessValue stores the value of the witness. We set Limbs from it when
+	// calling the [Element.Initialize] method.
+	//
+	// NB! Even though we have documented not to use [ValueOf] method inside
+	// a circuit to define constants, then many users still do it. In that case,
+	// the [Element.Initialize] method is not called during witness parsing time and
+	// we need to do it before using the limbs. This is automatically done
+	// in [Field.enforceWidthConditional] method.
+	witnessValue *big.Int
 }
 
 // ValueOf returns an Element[T] from a constant value. This method is used for
@@ -48,26 +58,23 @@ type Element[T FieldParams] struct {
 // [Field.NewElement] method.
 //
 // The input is converted into limbs according to the parameters of the field
-// and returned as a new [Element[T]]. Note that it returns the value, not a
+// and returned as a new [Element]. Note that it returns the value, not a
 // reference, which is more convenient for witness assignment.
+//
+// The method is asynchronous and the limb decomposition is done during witness
+// parsing.
 func ValueOf[T FieldParams](constant interface{}) Element[T] {
-	// in this method we set the isWitness flag to true, because we do not know
-	// the width of the input value. Even though it is valid to call this method
-	// in circuit without reference to `Field`, then the canonical way would be
-	// to call [Field.NewElement] method (which would set isWitness to false).
-	if constant == nil {
-		r := newConstElement[T](0, true)
-		return *r
+	bValue := utils.FromInterface(constant)
+	return Element[T]{
+		witnessValue: &bValue,
 	}
-	r := newConstElement[T](constant, true)
-	return *r
 }
 
 // newConstElement is shorthand for initialising new element using NewElement and
 // taking pointer to it. We only want to have a public method for initialising
 // an element which return a value because the user uses this only for witness
 // creation and it mess up schema parsing.
-func newConstElement[T FieldParams](v interface{}, isWitness bool) *Element[T] {
+func newConstElement[T FieldParams](field *big.Int, v interface{}, isWitness bool) *Element[T] {
 	var fp T
 	// convert to big.Int
 	bValue := utils.FromInterface(v)
@@ -121,8 +128,18 @@ func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) 
 // calls to this method will not re-initialize the element. Thus any changes to the non-native element
 // persist.
 func (e *Element[T]) Initialize(field *big.Int) {
+	if e == nil {
+		return // we cannot initialize nil element
+	}
+	if e.Limbs == nil && field == nil {
+		panic("field is nil")
+	}
 	if e.Limbs == nil {
-		*e = ValueOf[T](0)
+		if e.witnessValue == nil {
+			*e = *newConstElement[T](field, 0, true)
+		} else {
+			*e = *newConstElement[T](field, e.witnessValue, true)
+		}
 		e.internal = false // we need to constrain in later.
 	}
 	// set modReduced to false - in case the circuit is compiled we may change
@@ -141,4 +158,29 @@ func (e *Element[T]) copy() *Element[T] {
 	r.internal = e.internal
 	r.modReduced = e.modReduced
 	return &r
+}
+
+// isStrictZero checks if the element is strictly zero by convention. Can be
+// used for determining if to take fast paths.
+func (e *Element[T]) isStrictZero() bool {
+	if e == nil {
+		// conventionally we could say it is zero, but this can lead to some strange
+		// edge cases where use uninitialized elements. So we just panic.
+		panic("nil element. Uninitialized element?")
+	}
+	switch {
+	case e.Limbs == nil && e.witnessValue == nil:
+		// here also we could conventionally say it is zero, but this case usually
+		// means we use uninitialized element.
+		panic("nil limbs and witness value. Uninitialized element?")
+	case e.Limbs == nil && e.witnessValue != nil:
+		return e.witnessValue.Sign() == 0
+	case e.Limbs != nil && len(e.Limbs) == 0:
+		// by convention we say that empty limbs are zero
+		return true
+	default:
+		// we could potentially check that the limbs are all zero (or multiple of the modulus),
+		// but for consistency we just return false and take potential performance hit.
+		return false
+	}
 }
