@@ -17,11 +17,36 @@ import (
 
 // A SNARK gadget capable of verifying a GKR proof
 // The goal is to prove/verify evaluations of many instances of the same circuit.
-
 type (
-	Wire    types.Wire[*gkrgate.Gate]
-	Circuit types.Circuit[*gkrgate.Gate]
+	Wire        types.Wire[*gkrgate.Gate]
+	Circuit     types.Circuit[*gkrgate.Gate]
+	SolvingInfo types.Info[Circuit]
 )
+
+// ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
+// At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
+// the former a subsequence of the latter.
+// injection are the indices of the unique evaluations in the original evaluation list.
+// injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
+// There are no guarantees on the non-unique choice of the semi-inverse map.
+func (c Circuit) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
+	w := &c[wireIndex]
+	indexInProof := makeNeg1Slice(len(c)) // O(n); use a map instead if it caused performance issues
+	injection = make([]int, 0, len(w.Inputs))
+	injectionLeftInverse = make([]int, len(w.Inputs))
+
+	proofI := 0
+	for inI, in := range w.Inputs {
+		if indexInProof[in] == -1 { // not found
+			injection[proofI] = inI
+			indexInProof[in] = proofI
+			proofI++
+		}
+		injectionLeftInverse[inI] = indexInProof[in]
+	}
+
+	return
+}
 
 func (c Circuit) maxGateDegree() int {
 	res := 1
@@ -44,6 +69,28 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 		}
 	}
 
+	return res
+}
+
+// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
+func (c Circuit) Chunks(nbInstances int) []int {
+	res := make([]int, 0, 1)
+	lastSeenDependencyI := make([]int, len(c))
+
+	for start, end := 0, 0; start != nbInstances; start = end {
+		end = nbInstances
+		endWireI := -1
+		for wI, w := range c {
+			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
+				end = w.Dependencies[wDepI].InputInstance
+				endWireI = wI
+			}
+		}
+		if endWireI != -1 {
+			lastSeenDependencyI[endWireI]++
+		}
+		res = append(res, end)
+	}
 	return res
 }
 
@@ -82,14 +129,22 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func CircuitFromInfo(noPtr types.CircuitInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) (Circuit, error) {
-	resCircuit := make(Circuit, len(noPtr))
-	for i := range noPtr {
-		resCircuit[i].Inputs = noPtr[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(noPtr[i].Gate))
+func StoringToSolvingInfo(info types.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
+
+	resCircuit := make(Circuit, len(info.Circuit))
+	for i := range info.Circuit {
+		resCircuit[i].Inputs = info.Circuit[i].Inputs
+		resCircuit[i].Gate = gateGetter(gkr.GateName(info.Circuit[i].Gate))
 	}
 
-	return resCircuit, nil
+	return SolvingInfo{
+		Circuit:     resCircuit,
+		MaxNIns:     info.MaxNIns,
+		NbInstances: info.NbInstances,
+		HashName:    info.HashName,
+		SolveHintID: info.SolveHintID,
+		ProveHintID: info.ProveHintID,
+	}
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
@@ -107,8 +162,8 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *types.Wire[*gkrgate.Gate] {
-	return &e.manager.circuit[e.wireI]
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
+	return (*Wire)(&e.manager.circuit[e.wireI])
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -123,7 +178,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *types.Wire[*gkrgate.Gate]
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, inputEvaluationsNoRedundancy []frontend.Variable) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
@@ -140,25 +195,23 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 	if wire.IsInput() {
 		gateEvaluation = e.manager.assignment[e.wireI].Evaluate(api, r)
 	} else {
+
+		injection, injectionLeftInv :=
+			e.manager.circuit.ClaimPropagationInfo(e.wireI)
+
+		if len(injection) != len(uniqueInputEvaluations) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
+		}
+
+		for uniqueI, i := range injection { // map from unique to all
+			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
+		}
+
 		inputEvaluations := make([]frontend.Variable, len(wire.Inputs))
-		indexesInProof := makeNeg1Slice(len(inputEvaluationsNoRedundancy))
-
-		proofI := 0
-		for inI, in := range wire.Inputs {
-			indexInProof := indexesInProof[in]
-			if indexInProof == -1 { // not found
-				indexInProof = proofI
-				indexesInProof[in] = indexInProof
-
-				// defer verification, store new claim
-				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
-				proofI++
-			}
-			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
+		for i, uniqueI := range injectionLeftInv { // map from all to unique
+			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
 		}
-		if proofI != len(inputEvaluationsNoRedundancy) {
-			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
-		}
+
 		gateEvaluation = e.getWire().Gate.Evaluate(api, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
@@ -453,7 +506,7 @@ func topologicalSort(c Circuit) []*Wire {
 	}
 
 	for i := range c {
-		sorted[i] = &c[data.leastReady]
+		sorted[i] = (*Wire)(&c[data.leastReady])
 		data.markDone(data.leastReady)
 	}
 

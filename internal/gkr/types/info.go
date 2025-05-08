@@ -9,30 +9,34 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-type InputDependency struct {
-	OutputWire     int
-	OutputInstance int
-	InputInstance  int
-}
+type (
+	InputDependency struct {
+		OutputWire     int
+		OutputInstance int
+		InputInstance  int
+	}
 
-type GkrInfo struct {
-	Circuit     CircuitInfo
-	MaxNIns     int
-	NbInstances int
-	HashName    string
-	SolveHintID solver.HintID
-	ProveHintID solver.HintID
-}
+	Info[Circuit any] struct {
+		Circuit     Circuit
+		MaxNIns     int
+		NbInstances int
+		HashName    string
+		SolveHintID solver.HintID
+		ProveHintID solver.HintID
+	}
 
-type Permutations struct {
-	SortedInstances      []int
-	SortedWires          []int
-	InstancesPermutation []int
-	WiresPermutation     []int
-}
+	StoringInfo Info[CircuitInfo]
+
+	Permutations struct {
+		SortedInstances      []int
+		SortedWires          []int
+		InstancesPermutation []int
+		WiresPermutation     []int
+	}
+)
 
 // AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
-func (d *GkrInfo) AssignmentOffsets() []int {
+func (d *StoringInfo) AssignmentOffsets() []int {
 	c := d.Circuit
 	res := make([]int, len(c)+1)
 	for i := range c {
@@ -45,14 +49,14 @@ func (d *GkrInfo) AssignmentOffsets() []int {
 	return res
 }
 
-func (d *GkrInfo) NewInputVariable() int {
+func (d *StoringInfo) NewInputVariable() int {
 	i := len(d.Circuit)
 	d.Circuit = append(d.Circuit, Wire[string]{})
 	return i
 }
 
-// Compile sorts the circuit wires, their dependencies and the instances
-func (d *GkrInfo) Compile(nbInstances int) (Permutations, error) {
+// Compile sorts the Circuit wires, their dependencies and the instances
+func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 
 	var p Permutations
 	d.NbInstances = nbInstances
@@ -78,7 +82,7 @@ func (d *GkrInfo) Compile(nbInstances int) (Permutations, error) {
 	p.SortedWires, uniqueOuts = utils.TopologicalSort(inputs)
 	p.WiresPermutation = utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
-	sorted := make([]Wire[string], len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
+	sorted := make([]Wire[string], len(d.Circuit)) // TODO: Directly manipulate d.circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
@@ -113,11 +117,11 @@ func (d *GkrInfo) Compile(nbInstances int) (Permutations, error) {
 	return p, nil
 }
 
-func (d *GkrInfo) Is() bool {
+func (d *StoringInfo) Is() bool {
 	return d.Circuit != nil
 }
 
 // A ConstraintSystem that supports GKR
 type ConstraintSystem interface {
-	SetGkrInfo(info GkrInfo) error
+	SetGkrInfo(info StoringInfo) error
 }

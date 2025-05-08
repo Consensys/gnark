@@ -21,12 +21,12 @@ type circuitDataForSnark struct {
 }
 
 type API struct {
-	toStore     types.GkrInfo
+	toStore     types.StoringInfo
 	assignments assignment
 }
 
 type Solution struct {
-	toStore      types.GkrInfo
+	toStore      types.StoringInfo
 	assignments  assignment
 	parentApi    frontend.API
 	permutations types.Permutations
@@ -39,7 +39,7 @@ func (api *API) nbInstances() int {
 // New creates a new GKR API
 func New() *API {
 	return &API{
-		toStore: types.GkrInfo{
+		toStore: types.StoringInfo{
 			Circuit: make(types.CircuitInfo, 0),
 			MaxNIns: 0,
 		},
@@ -223,7 +223,7 @@ func ite[T any](condition bool, ifNot, IfSo T) T {
 	return ifNot
 }
 
-func newCircuitDataForSnark(info types.GkrInfo, assignment assignment) circuitDataForSnark {
+func newCircuitDataForSnark(info types.StoringInfo, assignment assignment) circuitDataForSnark {
 	circuit := make(gadget.Circuit, len(info.Circuit))
 	snarkAssignment := make(gadget.WireAssignment, len(info.Circuit))
 	circuitAt := slicePtrAt(circuit)

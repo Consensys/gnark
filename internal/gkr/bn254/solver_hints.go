@@ -9,7 +9,6 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	gkr2 "github.com/consensys/gnark/internal/gkr/gkr-info"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 
 	"hash"
@@ -26,10 +25,7 @@ type SolvingData struct {
 	workers     *utils.WorkerPool
 }
 
-func (d *SolvingData) init(info gkr2.Info) (assignment gkrAssignment, err error) {
-	if d.circuit, err = gadget.CircuitFromInfo(info.Circuit); err != nil {
-		return
-	}
+func (d *SolvingData) init(info gadget.SolvingInfo) (assignment gkrAssignment, err error) {
 	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
 
@@ -52,7 +48,7 @@ func (d *SolvingData) dumpAssignments() {
 
 type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
-func (a gkrAssignment) setOuts(circuit gkr2.Circuit, outs []*big.Int) {
+func (a gkrAssignment) setOuts(circuit gadget.Circuit, outs []*big.Int) {
 	outsI := 0
 	for i := range circuit {
 		if circuit[i].IsOutput() {
@@ -65,15 +61,9 @@ func (a gkrAssignment) setOuts(circuit gkr2.Circuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func SolveHint(info gkr2.Info, solvingData *SolvingData) hint.Hint {
+func SolveHint(info gadget.SolvingInfo, nbInstances int, solvingData *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
-		circuit := info.Circuit // TODO use gadget.Circuit
-		gadgetCircuit, err := gadget.CircuitFromInfo(circuit)
-		if err != nil {
-			return err
-		}
-		nbInstances := info.NbInstances
 		offsets := info.AssignmentOffsets()
 		assignment, err := solvingData.init(info)
 		if err != nil {

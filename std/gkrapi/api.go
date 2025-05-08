@@ -11,7 +11,7 @@ func frontendVarToInt(a gkr.Variable) int {
 }
 
 func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
-	api.toStore.Circuit = append(api.toStore.Circuit, gkr_info.Wire{
+	api.toStore.Circuit = append(api.toStore.Circuit, gkr_info.wire{
 		Gate:   string(gate),
 		Inputs: utils.Map(in, frontendVarToInt),
 	})

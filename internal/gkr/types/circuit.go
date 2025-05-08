@@ -38,25 +38,3 @@ type (
 	Circuit[T any] []Wire[T]
 	CircuitInfo    Circuit[string]
 )
-
-// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (c CircuitInfo) Chunks(nbInstances int) []int {
-	res := make([]int, 0, 1)
-	lastSeenDependencyI := make([]int, len(c))
-
-	for start, end := 0, 0; start != nbInstances; start = end {
-		end = nbInstances
-		endWireI := -1
-		for wI, w := range c {
-			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
-				end = w.Dependencies[wDepI].InputInstance
-				endWireI = wI
-			}
-		}
-		if endWireI != -1 {
-			lastSeenDependencyI[endWireI]++
-		}
-		res = append(res, end)
-	}
-	return res
-}

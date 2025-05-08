@@ -24,7 +24,7 @@ import (
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment map[*gadget.Wire]polynomial.MultiLin
+type WireAssignment []polynomial.MultiLin
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
@@ -32,7 +32,7 @@ type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for eac
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *gadget.Wire   // the wire for which we are making the claim, with value w
+	wire               int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ), allegedly
 	manager            *claimsManager // WARNING: Circular references
@@ -53,7 +53,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a fr.Element) fr.Element
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.wire.Gate.Degree()
+	return 1 + e.manager.circuit[e.wire].Gate.Degree()
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -78,16 +78,18 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		evaluation.Add(&evaluation, &eq)
 	}
 
+	wire := e.manager.circuit[e.wire]
+
 	// the w(...) term
 	var gateEvaluation fr.Element
 	if e.wire.IsInput() { // just compute w(r)
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
-		inputEvaluations := make([]fr.Element, len(e.wire.Inputs))
+		inputEvaluations := make([]fr.Element, len(wire.Inputs))
 		indexesInProof := make(map[*gadget.Wire]int, len(inputEvaluationsNoRedundancy))
 
 		proofI := 0
-		for inI, in := range e.wire.Inputs {
+		for inI, in := range wire.Inputs {
 			indexInProof, found := indexesInProof[in]
 			if !found {
 				indexInProof = proofI
@@ -103,7 +105,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
 
-		gateEvaluation.Set(api.evaluate(e.wire.Gate.Evaluate, inputEvaluations...))
+		gateEvaluation.Set(api.evaluate(wire.Gate.Evaluate, inputEvaluations...))
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -118,7 +120,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the proving of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckClaims struct {
-	wire               *gadget.Wire   // the wire for which we are making the claim, with value w
+	wire               int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ)
 	manager            *claimsManager
@@ -342,44 +344,46 @@ func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Elem
 }
 
 type claimsManager struct {
-	claimsMap  map[*gadget.Wire]*eqTimesGateEvalSumcheckLazyClaims
+	claims     []*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *gcUtils.WorkerPool
+	circuit    gadget.Circuit
 }
 
-func newClaimsManager(c gadget.Circuit, assignment WireAssignment, o settings) (claims claimsManager) {
-	claims.assignment = assignment
-	claims.claimsMap = make(map[*gadget.Wire]*eqTimesGateEvalSumcheckLazyClaims, len(c))
-	claims.memPool = o.pool
-	claims.workers = o.workers
+func newClaimsManager(c gadget.Circuit, assignment WireAssignment, o settings) (manager claimsManager) {
+	manager.assignment = assignment
+	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(c))
+	manager.memPool = o.pool
+	manager.workers = o.workers
+	manager.circuit = c
 
 	for i := range c {
 		wire := &c[i]
 
-		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaims{
-			wire:               wire,
+		manager.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
+			wire:               i,
 			evaluationPoints:   make([][]fr.Element, 0, wire.NbClaims()),
-			claimedEvaluations: claims.memPool.Make(wire.NbClaims()),
-			manager:            &claims,
+			claimedEvaluations: manager.memPool.Make(wire.NbClaims()),
+			manager:            &manager,
 		}
 	}
 	return
 }
 
-func (m *claimsManager) add(wire *gadget.Wire, evaluationPoint []fr.Element, evaluation fr.Element) {
-	claim := m.claimsMap[wire]
+func (m *claimsManager) add(wire int, evaluationPoint []fr.Element, evaluation fr.Element) {
+	claim := m.claims[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManager) getLazyClaim(wire *gadget.Wire) *eqTimesGateEvalSumcheckLazyClaims {
-	return m.claimsMap[wire]
+func (m *claimsManager) getLazyClaim(wire int) *eqTimesGateEvalSumcheckLazyClaims {
+	return m.claims[wire]
 }
 
-func (m *claimsManager) getClaim(wire *gadget.Wire) *eqTimesGateEvalSumcheckClaims {
-	lazy := m.claimsMap[wire]
+func (m *claimsManager) getClaim(wire int) *eqTimesGateEvalSumcheckClaims {
+	lazy := m.claims[wire]
 	res := &eqTimesGateEvalSumcheckClaims{
 		wire:               wire,
 		evaluationPoints:   lazy.evaluationPoints,
@@ -400,7 +404,7 @@ func (m *claimsManager) getClaim(wire *gadget.Wire) *eqTimesGateEvalSumcheckClai
 }
 
 func (m *claimsManager) deleteClaim(wire *gadget.Wire) {
-	delete(m.claimsMap, wire)
+	delete(m.claims, wire)
 }
 
 type settings struct {
