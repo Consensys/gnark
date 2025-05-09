@@ -26,10 +26,10 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	emuGm := make([]AffinePoint[Base], len(params.Gm))
 	for i, v := range params.Gm {
-		emuGm[i] = AffinePoint[Base]{emulated.ValueOf[Base](v[0]), emulated.ValueOf[Base](v[1])}
+		emuGm[i] = AffinePoint[Base]{*ba.NewElement(v[0]), *ba.NewElement(v[1])}
 	}
-	Gx := emulated.ValueOf[Base](params.Gx)
-	Gy := emulated.ValueOf[Base](params.Gy)
+	Gx := ba.NewElement(params.Gx)
+	Gy := ba.NewElement(params.Gy)
 	var eigenvalue *emulated.Element[Scalars]
 	var thirdRootOne *emulated.Element[Base]
 	if params.Eigenvalue != nil && params.ThirdRootOne != nil {
@@ -42,12 +42,12 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		baseApi:   ba,
 		scalarApi: sa,
 		g: AffinePoint[Base]{
-			X: Gx,
-			Y: Gy,
+			X: *Gx,
+			Y: *Gy,
 		},
 		gm:           emuGm,
-		a:            emulated.ValueOf[Base](params.A),
-		b:            emulated.ValueOf[Base](params.B),
+		a:            *ba.NewElement(params.A),
+		b:            *ba.NewElement(params.B),
 		addA:         params.A.Cmp(big.NewInt(0)) != 0,
 		eigenvalue:   eigenvalue,
 		thirdRootOne: thirdRootOne,

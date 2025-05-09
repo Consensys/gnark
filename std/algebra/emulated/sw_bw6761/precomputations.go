@@ -32,7 +32,7 @@ func precomputeLines(Q bw6761.G2Affine) lineEvaluations {
 func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	var cLines lineEvaluations
 	imQ := &g2AffP{
-		X: *p.curveF.Mul(&Q.X, &thirdRootOne),
+		X: *p.curveF.Mul(&Q.X, p.thirdRootOne),
 		Y: *p.curveF.Neg(&Q.Y),
 	}
 	accQ := &g2AffP{

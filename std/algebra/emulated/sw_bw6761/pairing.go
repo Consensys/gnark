@@ -15,10 +15,11 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
-	curveF *emulated.Field[BaseField]
-	curve  *sw_emulated.Curve[BaseField, ScalarField]
-	g1     *G1
-	g2     *G2
+	curveF       *emulated.Field[BaseField]
+	curve        *sw_emulated.Curve[BaseField, ScalarField]
+	g1           *G1
+	g2           *G2
+	thirdRootOne *emulated.Element[BaseField]
 }
 
 type GTEl = fields_bw6761.E6
@@ -52,13 +53,16 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new G2 struct: %w", err)
 	}
+	// thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
+	thirdRootOne := ba.NewElement("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
 	return &Pairing{
-		api:    api,
-		Ext6:   fields_bw6761.NewExt6(api),
-		curveF: ba,
-		curve:  curve,
-		g1:     g1,
-		g2:     g2,
+		api:          api,
+		Ext6:         fields_bw6761.NewExt6(api),
+		curveF:       ba,
+		curve:        curve,
+		g1:           g1,
+		g2:           g2,
+		thirdRootOne: thirdRootOne,
 	}, nil
 }
 
@@ -321,8 +325,8 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 
 	// if Q=(0,0) we assign b=0 otherwise 4, and continue
 	selector := pr.api.And(pr.curveF.IsZero(&Q.P.X), pr.curveF.IsZero(&Q.P.Y))
-	bTwist := emulated.ValueOf[BaseField](4)
-	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bTwist)
+	bTwist := pr.curveF.NewElement(4)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), bTwist)
 
 	left := pr.curveF.Mul(&Q.P.Y, &Q.P.Y)
 	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
@@ -394,9 +398,6 @@ var loopCounter2 = [190]int8{
 	1, 0, 0, 0, -1, 0, 0, -1, 0, 1, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 1, 0,
 	1, 0, 0, 0, 1, 0, -1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
 }
-
-// thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
-var thirdRootOne = emulated.ValueOf[BaseField]("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
 
 // MillerLoop computes the optimal Tate multi-Miller loop
 // (or twisted ate or Eta revisited)
