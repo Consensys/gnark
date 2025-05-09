@@ -28,8 +28,8 @@ type Field[T FieldParams] struct {
 	// extensionApi is the extension API when we need to perform multiplication checks over the extension field
 	extensionApi fieldextension.Field
 
-	// f carries the ring parameters
-	fParams T
+	// fParams carries the ring parameters
+	fParams staticFieldParams[T]
 
 	// maxOf is the maximum overflow before the element must be reduced.
 	maxOf     uint
@@ -58,9 +58,6 @@ type ctxKey[T FieldParams] struct{}
 // NewField returns an object to be used in-circuit to perform emulated
 // arithmetic over the field defined by type parameter [FieldParams]. The
 // operations on this type are defined on [Element].
-//
-// This is an experimental feature and performing emulated arithmetic in-circuit
-// is extremely costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	if storer, ok := native.(kvstore.Store); ok {
 		ff := storer.GetKeyValue(ctxKey[T]{})
@@ -73,6 +70,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[[16]byte]struct{}),
 		checker:          rangecheck.New(native),
+		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
 	if smallfields.IsSmallField(native.Compiler().Field()) {
 		f.log.Debug().Msg("using small native field, multiplication checks will be performed in extension field")

@@ -76,6 +76,7 @@ func ValueOf[T FieldParams](constant interface{}) Element[T] {
 // creation and it mess up schema parsing.
 func newConstElement[T FieldParams](field *big.Int, v interface{}, isWitness bool) *Element[T] {
 	var fp T
+	effNbLimbs, effNbBits := GetEffectiveFieldParams[T](field)
 	// convert to big.Int
 	bValue := utils.FromInterface(v)
 
@@ -90,16 +91,16 @@ func newConstElement[T FieldParams](field *big.Int, v interface{}, isWitness boo
 	// constant), thus we can allocate the exact number of limbs.
 	var nbLimbs int
 	if isWitness {
-		nbLimbs = int(fp.NbLimbs())
+		nbLimbs = int(effNbLimbs)
 	} else {
-		nbLimbs = (bValue.BitLen() + int(fp.BitsPerLimb()) - 1) / int(fp.BitsPerLimb())
+		nbLimbs = (bValue.BitLen() + int(effNbBits) - 1) / int(effNbBits)
 	}
 	// TODO @gbotrel use big.Int pool here
 	blimbs := make([]*big.Int, nbLimbs)
 	for i := range blimbs {
 		blimbs[i] = new(big.Int)
 	}
-	if err := limbs.Decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
+	if err := limbs.Decompose(&bValue, effNbBits, blimbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
