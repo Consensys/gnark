@@ -890,6 +890,7 @@ func testAssertIsInRange[T FieldParams](t *testing.T) {
 		witness := AssertInRangeCircuit[T]{X: ValueOf[T](X)}
 		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 		witness2 := AssertInRangeCircuit[T]{X: ValueOf[T](0)}
+		witness2.X.Limbs = make([]frontend.Variable, fp.NbLimbs())
 		t := 0
 		for i := 0; i < int(fp.NbLimbs())-1; i++ {
 			L := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb())

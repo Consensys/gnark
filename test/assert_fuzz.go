@@ -69,7 +69,7 @@ func init() {
 type filler func(frontend.Circuit, ecc.ID)
 
 func zeroFiller(w frontend.Circuit, curve ecc.ID) {
-	fill(w, func() interface{} {
+	fill(w, curve, func() interface{} {
 		return 0
 	})
 }
@@ -77,7 +77,7 @@ func zeroFiller(w frontend.Circuit, curve ecc.ID) {
 func binaryFiller(w frontend.Circuit, curve ecc.ID) {
 	mrand := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 
-	fill(w, func() interface{} {
+	fill(w, curve, func() interface{} {
 		return int(mrand.Uint32() % 2) //#nosec G404 weak rng is fine here
 	})
 }
@@ -88,7 +88,7 @@ func seedFiller(w frontend.Circuit, curve ecc.ID) {
 
 	m := curve.ScalarField()
 
-	fill(w, func() interface{} {
+	fill(w, curve, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus))) //#nosec G404 weak rng is fine here
 		r := new(big.Int).Set(seedCorpus[i])
 		return r.Mod(r, m)
@@ -100,7 +100,7 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 	r := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 	m := curve.ScalarField()
 
-	fill(w, func() interface{} {
+	fill(w, curve, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus)*2)) //#nosec G404 weak rng is fine here
 		if i >= len(seedCorpus) {
 			b1, _ := rand.Int(r, m) //#nosec G404 weak rng is fine here
@@ -111,7 +111,7 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 	})
 }
 
-func fill(w frontend.Circuit, nextValue func() interface{}) {
+func fill(w frontend.Circuit, curve ecc.ID, nextValue func() interface{}) {
 	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
 		v := nextValue()
 		tInput.Set(reflect.ValueOf((v)))
@@ -119,7 +119,7 @@ func fill(w frontend.Circuit, nextValue func() interface{}) {
 	}
 	// this can't error.
 	// TODO @gbotrel it might error with .Walk?
-	_, _ = schema.Walk(w, tVariable, setHandler)
+	_, _ = schema.Walk(curve.ScalarField(), w, tVariable, setHandler)
 }
 
 var tVariable reflect.Type
@@ -180,7 +180,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 		if err != nil {
 			panic(err)
 		}
-		s, err := frontend.NewSchema(circuit)
+		s, err := frontend.NewSchema(curve.ScalarField(), circuit)
 		if err != nil {
 			panic(err)
 		}
@@ -210,7 +210,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	// parse assignment
 	w := assert.parseAssignment(circuit, validAssignment, curve, opt.checkSerialization)
 
-	checkError := func(err error) { assert.noError(err, &w) }
+	checkError := func(err error) { assert.noError(curve.ScalarField(), err, &w) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -229,8 +229,8 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	// parse assignment
 	w := assert.parseAssignment(circuit, invalidAssignment, curve, opt.checkSerialization)
 
-	checkError := func(err error) { assert.noError(err, &w) }
-	mustError := func(err error) { assert.error(err, &w) }
+	checkError := func(err error) { assert.noError(curve.ScalarField(), err, &w) }
+	mustError := func(err error) { assert.error(curve.ScalarField(), err, &w) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)

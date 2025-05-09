@@ -44,11 +44,10 @@ func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
 	// `ToBits` after that manually (e.g. in point and scalar marshaling) and
 	// replace them with this method.
 
-	var fp T
-	nbBits := fp.Modulus().BitLen()
+	nbBits := f.fParams.Modulus().BitLen()
 	// when the modulus is a power of 2, then we can remove the most significant
 	// bit as it is always zero.
-	if fp.Modulus().TrailingZeroBits() == uint(nbBits-1) {
+	if f.fParams.Modulus().TrailingZeroBits() == uint(nbBits-1) {
 		nbBits--
 	}
 	ca := f.ReduceStrict(a)

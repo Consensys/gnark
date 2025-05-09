@@ -104,7 +104,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	c := shallowClone(circuit)
 
 	// set the witness values
-	copyWitness(c, witness)
+	e.copyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -630,7 +630,7 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 	return circuitCopy
 }
 
-func copyWitness(to, from frontend.Circuit) {
+func (e *engine) copyWitness(to, from frontend.Circuit) {
 	var wValues []reflect.Value
 
 	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
@@ -641,7 +641,7 @@ func copyWitness(to, from frontend.Circuit) {
 		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(e.Field(), from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
@@ -652,7 +652,7 @@ func copyWitness(to, from frontend.Circuit) {
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Walk(to, tVariable, setHandler)
+	_, _ = schema.Walk(e.Field(), to, tVariable, setHandler)
 
 }
 
@@ -680,6 +680,25 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 		// a commit == 0 is unlikely; happens quite often in tests
 		// with tinyfield
 		res.SetUint64(1)
+	}
+	return res, nil
+}
+
+func (e *engine) WideCommit(width int, v ...frontend.Variable) ([]frontend.Variable, error) {
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	res := make([]frontend.Variable, width)
+	for i := 0; i < width; i++ {
+		hasher.Read(buf)
+		resi := new(big.Int).SetBytes(buf)
+		resi.Mod(resi, e.modulus())
+		res[i] = new(big.Int).Set(resi)
 	}
 	return res, nil
 }
