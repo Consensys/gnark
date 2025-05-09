@@ -21,15 +21,54 @@ const (
 	generic                      // everything else
 )
 
-type Extension struct {
+// ext implements the [Field] interface. We have separated the implementation
+// and interface to possibly have generic implementation in the future (PLONK
+// custom gates).
+type ext struct {
 	api frontend.API
 
 	extension []int // we expect the extension defining modulus to have small small coefficients
 	extensionType
 }
 
+// Field is the extension field interface over native field. It provides
+// the basic operations over the extension field.
+type Field interface {
+	// Reduce reduces the extension field element modulo the defining polynomial.
+	Reduce(a Element) Element
+	// Mul multiplies two extension field elements and reduces the result.
+	Mul(a, b Element) Element
+	// MulNoReduce multiplies two extension field elements without reducing the result.
+	// The degree of the result is the sum of the degrees of the two operands.
+	MulNoReduce(a, b Element) Element
+	// Add adds two extension field elements. The result is not reduced. The
+	// degree of the result is the max of the degrees of the two operands.
+	Add(a, b Element) Element
+	// Sub subtracts two extension field elements. The result is not reduced. The
+	// degree of the result is the max of the degrees of the two operands.
+	Sub(a, b Element) Element
+	// MulByElement multiplies an extension field element by a native field
+	// element. The result is not reduced. The degree of the result is the
+	// degree of the extension field element.
+	MulByElement(a Element, b frontend.Variable) Element
+	// AssertIsEqual asserts that two extension field elements are strictly equal.
+	// For equality in the extension field, reduce the elements first.
+	AssertIsEqual(a, b Element)
+	// Zero returns the zero element of the extension field. By convention it is
+	// an empty polynomial.
+	Zero() Element
+	// One returns the one element of the extension field. By convention it is a
+	// polynomial of degree 0.
+	One() Element
+	// AsExtensionVariable returns the native field element as an extension
+	// field element of degree 0.
+	AsExtensionVariable(a frontend.Variable) Element
+	// Degree returns the degree of the extension field.
+	Degree() int
+}
+
 // NewExtension returns a new extension field object.
-func NewExtension(api frontend.API, opts ...Option) (*Extension, error) {
+func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	cfg, err := newConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("apply options: %w", err)
@@ -49,7 +88,7 @@ func NewExtension(api frontend.API, opts ...Option) (*Extension, error) {
 				break
 			}
 		}
-		return &Extension{api: api, extension: cfg.extension, extensionType: et}, nil
+		return &ext{api: api, extension: cfg.extension, extensionType: et}, nil
 	}
 	degree := "default"
 	if cfg.degree != -1 {
@@ -60,12 +99,13 @@ func NewExtension(api frontend.API, opts ...Option) (*Extension, error) {
 	if !ok {
 		return nil, fmt.Errorf("no default extension for native modulus and not explicit extension provided")
 	}
-	return &Extension{api: api, extension: extension, extensionType: simple}, nil
+	return &ext{api: api, extension: extension, extensionType: simple}, nil
 }
 
-type ExtensionVariable []frontend.Variable
+// Element is the extension field element.
+type Element []frontend.Variable
 
-func (e *Extension) Reduce(a ExtensionVariable) []frontend.Variable {
+func (e *ext) Reduce(a Element) Element {
 	if e.extensionType == generic {
 		// TODO: implement later
 		panic("not implemented")
@@ -96,12 +136,12 @@ func (e *Extension) Reduce(a ExtensionVariable) []frontend.Variable {
 	return ret
 }
 
-func (e *Extension) Mul(a, b ExtensionVariable) ExtensionVariable {
+func (e *ext) Mul(a, b Element) Element {
 	ret := e.MulNoReduce(a, b)
 	return e.Reduce(ret)
 }
 
-func (e *Extension) MulNoReduce(a, b ExtensionVariable) ExtensionVariable {
+func (e *ext) MulNoReduce(a, b Element) Element {
 	ret := make([]frontend.Variable, len(a)+len(b)-1)
 	for i := range ret {
 		ret[i] = 0
@@ -114,7 +154,7 @@ func (e *Extension) MulNoReduce(a, b ExtensionVariable) ExtensionVariable {
 	return ret
 }
 
-func (e *Extension) Add(a, b ExtensionVariable) ExtensionVariable {
+func (e *ext) Add(a, b Element) Element {
 	commonLen := min(len(a), len(b))
 	ret := make([]frontend.Variable, max(len(a), len(b)))
 	for i := 0; i < commonLen; i++ {
@@ -129,7 +169,7 @@ func (e *Extension) Add(a, b ExtensionVariable) ExtensionVariable {
 	return ret
 }
 
-func (e *Extension) Sub(a, b ExtensionVariable) ExtensionVariable {
+func (e *ext) Sub(a, b Element) Element {
 	commonLen := min(len(a), len(b))
 	ret := make([]frontend.Variable, max(len(a), len(b)))
 	for i := 0; i < commonLen; i++ {
@@ -144,15 +184,15 @@ func (e *Extension) Sub(a, b ExtensionVariable) ExtensionVariable {
 	return ret
 }
 
-func (e *Extension) Div(a, b ExtensionVariable) ExtensionVariable {
+func (e *ext) Div(a, b Element) Element {
 	panic("not implemented")
 }
 
-func (e *Extension) Inverse(a ExtensionVariable) ExtensionVariable {
+func (e *ext) Inverse(a Element) Element {
 	panic("not implemented")
 }
 
-func (e *Extension) MulByElement(a ExtensionVariable, b frontend.Variable) ExtensionVariable {
+func (e *ext) MulByElement(a Element, b frontend.Variable) Element {
 	ret := make([]frontend.Variable, len(a))
 	for i := range a {
 		ret[i] = e.api.Mul(a[i], b)
@@ -160,7 +200,7 @@ func (e *Extension) MulByElement(a ExtensionVariable, b frontend.Variable) Exten
 	return ret
 }
 
-func (e *Extension) AssertIsEqual(a, b ExtensionVariable) {
+func (e *ext) AssertIsEqual(a, b Element) {
 	commonLen := min(len(a), len(b))
 	for i := 0; i < commonLen; i++ {
 		e.api.AssertIsEqual(a[i], b[i])
@@ -173,32 +213,18 @@ func (e *Extension) AssertIsEqual(a, b ExtensionVariable) {
 	}
 }
 
-func (e *Extension) Zero() ExtensionVariable {
-	ret := make(ExtensionVariable, len(e.extension))
-	for i := range ret {
-		ret[i] = frontend.Variable(0)
-	}
-	return ret
+func (e *ext) Zero() Element {
+	return []frontend.Variable{}
 }
 
-func (e *Extension) One() ExtensionVariable {
-	ret := make(ExtensionVariable, len(e.extension))
-	ret[0] = frontend.Variable(1)
-	for i := 1; i < len(ret); i++ {
-		ret[i] = frontend.Variable(0)
-	}
-	return ret
+func (e *ext) One() Element {
+	return []frontend.Variable{1}
 }
 
-func (e *Extension) AsExtensionVariable(a frontend.Variable) ExtensionVariable {
-	ret := make(ExtensionVariable, len(e.extension))
-	ret[0] = a
-	for i := 1; i < len(ret); i++ {
-		ret[i] = frontend.Variable(0)
-	}
-	return ret
+func (e *ext) AsExtensionVariable(a frontend.Variable) Element {
+	return []frontend.Variable{a}
 }
 
-func (e *Extension) Degree() int {
+func (e *ext) Degree() int {
 	return len(e.extension) - 1
 }
