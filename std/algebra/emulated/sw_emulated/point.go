@@ -1282,6 +1282,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// Then we compute the hinted scalar mul R = [s]Q
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	Q.X.Initialize(c.api.Compiler().Field())
+	Q.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
 	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
 	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
@@ -1618,6 +1629,17 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	P.X.Initialize(c.api.Compiler().Field())
+	P.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
 	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
 	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
