@@ -1283,8 +1283,14 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(Q.X.Limbs))
 	inps = append(inps, Q.X.Limbs...)
+	inps = append(inps, len(Q.Y.Limbs))
 	inps = append(inps, Q.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	R, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
@@ -1613,8 +1619,14 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(P.X.Limbs))
 	inps = append(inps, P.X.Limbs...)
+	inps = append(inps, len(P.Y.Limbs))
 	inps = append(inps, P.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	point, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
