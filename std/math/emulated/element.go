@@ -167,7 +167,7 @@ func (e *Element[T]) copy() *Element[T] {
 }
 
 // isStrictZero checks if the element is strictly zero by convention. Can be
-// used for determing if to take fast paths.
+// used for determining if to take fast paths.
 func (e *Element[T]) isStrictZero() bool {
 	if e == nil {
 		// conventionally we could say it is zero, but this can lead to some strange
