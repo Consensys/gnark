@@ -7,7 +7,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
-	"github.com/consensys/gnark/internal/gkr/types"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/polynomial"
@@ -17,138 +16,6 @@ import (
 
 // A SNARK gadget capable of verifying a GKR proof
 // The goal is to prove/verify evaluations of many instances of the same circuit.
-type (
-	Wire        types.Wire[*gkrgate.Gate]
-	Circuit     types.Circuit[*gkrgate.Gate]
-	SolvingInfo types.Info[Circuit]
-)
-
-// ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
-// At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
-// the former a subsequence of the latter.
-// injection are the indices of the unique evaluations in the original evaluation list.
-// injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
-// There are no guarantees on the non-unique choice of the semi-inverse map.
-func (c Circuit) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
-	w := &c[wireIndex]
-	indexInProof := makeNeg1Slice(len(c)) // O(n); use a map instead if it caused performance issues
-	injection = make([]int, 0, len(w.Inputs))
-	injectionLeftInverse = make([]int, len(w.Inputs))
-
-	proofI := 0
-	for inI, in := range w.Inputs {
-		if indexInProof[in] == -1 { // not found
-			injection[proofI] = inI
-			indexInProof[in] = proofI
-			proofI++
-		}
-		injectionLeftInverse[inI] = indexInProof[in]
-	}
-
-	return
-}
-
-func (c Circuit) maxGateDegree() int {
-	res := 1
-	for i := range c {
-		if !c[i].IsInput() {
-			res = max(res, c[i].Gate.Degree())
-		}
-	}
-	return res
-}
-
-// MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
-func (c Circuit) MemoryRequirements(nbInstances int) []int {
-	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
-
-	if res[0] > res[1] { // make sure it's sorted
-		res[0], res[1] = res[1], res[0]
-		if res[1] > res[2] {
-			res[1], res[2] = res[2], res[1]
-		}
-	}
-
-	return res
-}
-
-// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (c Circuit) Chunks(nbInstances int) []int {
-	res := make([]int, 0, 1)
-	lastSeenDependencyI := make([]int, len(c))
-
-	for start, end := 0, 0; start != nbInstances; start = end {
-		end = nbInstances
-		endWireI := -1
-		for wI, w := range c {
-			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
-				end = w.Dependencies[wDepI].InputInstance
-				endWireI = wI
-			}
-		}
-		if endWireI != -1 {
-			lastSeenDependencyI[endWireI]++
-		}
-		res = append(res, end)
-	}
-	return res
-}
-
-// OutputsList for each wire, returns the set of indexes of wires it is input to.
-// It also sets the NbUniqueOutputs fields, and sets the wire metadata.
-func (c Circuit) OutputsList() [][]int {
-	idGate := gkrgate.New(
-		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-			return x[0]
-		},
-		1,
-		1,
-		1,
-	)
-	res := make([][]int, len(c))
-	for i := range c {
-		res[i] = make([]int, 0)
-		c[i].NbUniqueOutputs = 0
-		if c[i].IsInput() {
-			c[i].Gate = idGate
-		}
-	}
-	ins := make(map[int]struct{}, len(c))
-	for i := range c {
-		for k := range ins { // clear map
-			delete(ins, k)
-		}
-		for _, in := range c[i].Inputs {
-			res[in] = append(res[in], i)
-			if _, ok := ins[in]; !ok {
-				c[in].NbUniqueOutputs++
-				ins[in] = struct{}{}
-			}
-		}
-	}
-	return res
-}
-
-func StoringToSolvingInfo(info types.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
-
-	resCircuit := make(Circuit, len(info.Circuit))
-	for i := range info.Circuit {
-		resCircuit[i].Inputs = info.Circuit[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(info.Circuit[i].Gate))
-	}
-
-	return SolvingInfo{
-		Circuit:     resCircuit,
-		MaxNIns:     info.MaxNIns,
-		NbInstances: info.NbInstances,
-		HashName:    info.HashName,
-		SolveHintID: info.SolveHintID,
-		ProveHintID: info.ProveHintID,
-	}
-}
-
-// WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment []polynomial.MultiLin
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
@@ -306,8 +173,8 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 		option(&o)
 	}
 
-	o.nbVars = assignment.NumVars()
-	nbInstances := assignment.NumInstances()
+	o.nbVars = assignment.NbVars()
+	nbInstances := assignment.NbInstances()
 	if 1<<o.nbVars != nbInstances {
 		return o, errors.New("number of instances must be power of 2")
 	}
@@ -506,29 +373,11 @@ func topologicalSort(c Circuit) []*Wire {
 	}
 
 	for i := range c {
-		sorted[i] = (*Wire)(&c[data.leastReady])
+		sorted[i] = (&c[data.leastReady])
 		data.markDone(data.leastReady)
 	}
 
 	return sorted
-}
-
-func (a WireAssignment) NumInstances() int {
-	for _, aW := range a {
-		if aW != nil {
-			return len(aW)
-		}
-	}
-	panic("empty assignment")
-}
-
-func (a WireAssignment) NumVars() int {
-	for _, aW := range a {
-		if aW != nil {
-			return aW.NumVars()
-		}
-	}
-	panic("empty assignment")
 }
 
 func (p Proof) Serialize() []frontend.Variable {

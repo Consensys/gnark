@@ -1,5 +1,5 @@
-// Package types contains common types used in the GKR protocol, that don't need to be exposed to the end user.
-package types
+// Package gkrinfo contains serializable information capable of being saved in a SNARK circuit CS object.
+package gkrinfo
 
 import (
 	"fmt"
@@ -16,16 +16,23 @@ type (
 		InputInstance  int
 	}
 
-	Info[Circuit any] struct {
-		Circuit     Circuit
-		MaxNIns     int
-		NbInstances int
-		HashName    string
-		SolveHintID solver.HintID
-		ProveHintID solver.HintID
+	Wire struct {
+		Gate            string
+		Inputs          []int
+		NbUniqueOutputs int
 	}
 
-	StoringInfo Info[CircuitInfo]
+	Circuit []Wire
+
+	StoringInfo struct {
+		Circuit      Circuit
+		Dependencies [][]InputDependency // nil for input wires
+		MaxNIns      int
+		NbInstances  int
+		HashName     string
+		SolveHintID  solver.HintID
+		ProveHintID  solver.HintID
+	}
 
 	Permutations struct {
 		SortedInstances      []int
@@ -35,23 +42,18 @@ type (
 	}
 )
 
-// AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
-func (d *StoringInfo) AssignmentOffsets() []int {
-	c := d.Circuit
-	res := make([]int, len(c)+1)
-	for i := range c {
-		nbExplicitAssignments := 0
-		if c[i].IsInput() {
-			nbExplicitAssignments = d.NbInstances - len(c[i].Dependencies)
-		}
-		res[i+1] = res[i] + nbExplicitAssignments
-	}
-	return res
+func (w Wire) IsInput() bool {
+	return len(w.Inputs) == 0
+}
+
+func (w Wire) IsOutput() bool {
+	return w.NbUniqueOutputs == 0
 }
 
 func (d *StoringInfo) NewInputVariable() int {
 	i := len(d.Circuit)
-	d.Circuit = append(d.Circuit, Wire[string]{})
+	d.Circuit = append(d.Circuit, Wire{})
+	d.Dependencies = append(d.Dependencies, nil)
 	return i
 }
 
@@ -63,7 +65,7 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 	// sort the instances to decide the order in which they are to be solved
 	instanceDeps := make([][]int, nbInstances)
 	for i := range d.Circuit {
-		for _, dep := range d.Circuit[i].Dependencies {
+		for _, dep := range d.Dependencies[i] {
 			instanceDeps[dep.InputInstance] = append(instanceDeps[dep.InputInstance], dep.OutputInstance)
 		}
 	}
@@ -74,7 +76,7 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
-	inputs := utils.Map(d.Circuit, func(w Wire[string]) []int {
+	inputs := utils.Map(d.Circuit, func(w Wire) []int {
 		return w.Inputs
 	})
 
@@ -82,7 +84,8 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 	p.SortedWires, uniqueOuts = utils.TopologicalSort(inputs)
 	p.WiresPermutation = utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
-	sorted := make([]Wire[string], len(d.Circuit)) // TODO: Directly manipulate d.circuit instead
+	sorted := make([]Wire, len(d.Circuit)) // TODO: Directly manipulate d.circuit instead
+	sortedDeps := make([][]InputDependency, len(d.Circuit))
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
@@ -90,29 +93,28 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
 		}
 
-		for j := range oldW.Dependencies {
-			dep := &oldW.Dependencies[j]
+		for _, dep := range d.Dependencies[oldI] {
 			dep.OutputWire = p.WiresPermutation[dep.OutputWire]
 			dep.InputInstance = p.InstancesPermutation[dep.InputInstance]
 			dep.OutputInstance = p.InstancesPermutation[dep.OutputInstance]
 		}
-		sort.Slice(oldW.Dependencies, func(i, j int) bool {
-			return oldW.Dependencies[i].InputInstance < oldW.Dependencies[j].InputInstance
+		sort.Slice(d.Dependencies[oldI], func(i, j int) bool {
+			return d.Dependencies[oldI][i].InputInstance < d.Dependencies[oldI][j].InputInstance
 		})
-		for i := 1; i < len(oldW.Dependencies); i++ {
-			if oldW.Dependencies[i].InputInstance == oldW.Dependencies[i-1].InputInstance {
+		for i := 1; i < len(d.Dependencies[oldI]); i++ {
+			if d.Dependencies[oldI][i].InputInstance == d.Dependencies[oldI][i-1].InputInstance {
 				return p, fmt.Errorf("an input wire can only have one dependency per instance")
 			}
 		} // TODO: Check that dependencies and explicit assignments cover all instances
 
-		sorted[newI] = Wire[string]{
+		sortedDeps[newI] = d.Dependencies[oldI]
+		sorted[newI] = Wire{
 			Gate:            oldW.Gate,
 			Inputs:          utils.Map(oldW.Inputs, wirePermutationAt),
-			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
 	}
-	d.Circuit = sorted
+	d.Circuit, d.Dependencies = sorted, sortedDeps
 
 	return p, nil
 }

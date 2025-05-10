@@ -6,9 +6,10 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/types"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
@@ -21,15 +22,15 @@ type circuitDataForSnark struct {
 }
 
 type API struct {
-	toStore     types.StoringInfo
-	assignments assignment
+	toStore     gkrinfo.StoringInfo
+	assignments gadget.WireAssignment
 }
 
 type Solution struct {
-	toStore      types.StoringInfo
-	assignments  assignment
+	toStore      gkrinfo.StoringInfo
+	assignments  gadget.WireAssignment
 	parentApi    frontend.API
-	permutations types.Permutations
+	permutations gkrinfo.Permutations
 }
 
 func (api *API) nbInstances() int {
@@ -38,12 +39,7 @@ func (api *API) nbInstances() int {
 
 // New creates a new GKR API
 func New() *API {
-	return &API{
-		toStore: types.StoringInfo{
-			Circuit: make(types.CircuitInfo, 0),
-			MaxNIns: 0,
-		},
-	}
+	return &API{}
 }
 
 // log2 returns -1 if x is not a power of 2
@@ -59,8 +55,8 @@ func (api *API) Series(input, output gkr.Variable, inputInstance, outputInstance
 	if api.assignments[input][inputInstance] != nil {
 		panic("dependency attempting to override explicit value assignment")
 	}
-	api.toStore.Circuit[input].Dependencies =
-		append(api.toStore.Circuit[input].Dependencies, types.InputDependency{
+	api.toStore.Dependencies[input] =
+		append(api.toStore.Dependencies[input], gkrinfo.InputDependency{
 			OutputWire:     int(output),
 			OutputInstance: outputInstance,
 			InputInstance:  inputInstance,
@@ -95,7 +91,7 @@ func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 // Solve finalizes the GKR circuit and returns the output variables in the order created
 func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
-	var p types.Permutations
+	var p gkrinfo.Permutations
 	var err error
 	if p, err = api.toStore.Compile(api.assignments.NbInstances()); err != nil {
 		return Solution{}, err
@@ -116,7 +112,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 		}
 
 		if in {
-			solveHintNIn += nbInstances - len(v.Dependencies)
+			solveHintNIn += nbInstances - len(api.toStore.Dependencies[i])
 		} else if out {
 			solveHintNOut += nbInstances
 		}
@@ -145,7 +141,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}
 
 	for i := range circuit {
-		for _, dep := range circuit[i].Dependencies {
+		for _, dep := range api.toStore.Dependencies[i] {
 			api.assignments[i][dep.InputInstance] = api.assignments[dep.OutputWire][dep.OutputInstance]
 		}
 	}
@@ -207,7 +203,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		return err
 	}
 
-	return s.parentApi.(types.ConstraintSystem).SetGkrInfo(s.toStore)
+	return s.parentApi.(gkrinfo.ConstraintSystem).SetGkrInfo(s.toStore)
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {
@@ -223,41 +219,21 @@ func ite[T any](condition bool, ifNot, IfSo T) T {
 	return ifNot
 }
 
-func newCircuitDataForSnark(info types.StoringInfo, assignment assignment) circuitDataForSnark {
+func newCircuitDataForSnark(info gkrinfo.StoringInfo, assignment gadget.WireAssignment) circuitDataForSnark {
 	circuit := make(gadget.Circuit, len(info.Circuit))
 	snarkAssignment := make(gadget.WireAssignment, len(info.Circuit))
-	circuitAt := slicePtrAt(circuit)
+
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = gadget.Wire{
-			Gate:            gkr.GetGate(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
-			Inputs:          utils.Map(w.Inputs, circuitAt),
+			Gate:            gkrgates.Get(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
+			Inputs:          w.Inputs,
 			NbUniqueOutputs: w.NbUniqueOutputs,
 		}
-		snarkAssignment[&circuit[i]] = assignment[i]
+		snarkAssignment[i] = assignment[i]
 	}
 	return circuitDataForSnark{
 		circuit:     circuit,
 		assignments: snarkAssignment,
-	}
-}
-
-type assignment [][]frontend.Variable
-
-func (a assignment) NbInstances() int {
-	for i := range a {
-		if lenI := len(a[i]); lenI != 0 {
-			return lenI
-		}
-	}
-	return -1
-}
-
-func (a assignment) Permute(p types.Permutations) {
-	utils.Permute(a, p.WiresPermutation)
-	for i := range a {
-		if a[i] != nil {
-			utils.Permute(a[i], p.InstancesPermutation)
-		}
 	}
 }

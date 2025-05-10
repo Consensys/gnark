@@ -1,7 +1,7 @@
 package gkrapi
 
 import (
-	gkr_info "github.com/consensys/gnark/internal/gkr/types"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
 )
@@ -11,7 +11,7 @@ func frontendVarToInt(a gkr.Variable) int {
 }
 
 func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
-	api.toStore.Circuit = append(api.toStore.Circuit, gkr_info.wire{
+	api.toStore.Circuit = append(api.toStore.Circuit, gkrinfo.Wire{
 		Gate:   string(gate),
 		Inputs: utils.Map(in, frontendVarToInt),
 	})

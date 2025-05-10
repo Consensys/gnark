@@ -25,17 +25,14 @@ type SolvingData struct {
 	workers     *utils.WorkerPool
 }
 
-func (d *SolvingData) init(info gadget.SolvingInfo) (assignment gkrAssignment, err error) {
+func (d *SolvingData) init(info gadget.SolvingInfo) {
 	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
 
-	assignment = make(gkrAssignment, len(d.circuit))
 	d.assignments = make(WireAssignment, len(d.circuit))
-	for i := range assignment {
-		assignment[i] = d.memoryPool.Make(info.NbInstances)
-		d.assignments[&d.circuit[i]] = assignment[i]
+	for i := range d.assignments {
+		d.assignments[i] = d.memoryPool.Make(info.NbInstances)
 	}
-	return
 }
 
 func (d *SolvingData) dumpAssignments() {
@@ -61,21 +58,19 @@ func (a gkrAssignment) setOuts(circuit gadget.Circuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func SolveHint(info gadget.SolvingInfo, nbInstances int, solvingData *SolvingData) hint.Hint {
+func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		offsets := info.AssignmentOffsets()
-		assignment, err := solvingData.init(info)
-		if err != nil {
-			return err
-		}
-		chunks := circuit.Chunks(nbInstances)
+		data.init(info)
+
+		chunks := info.Chunks()
 
 		solveTask := func(chunkOffset int) utils.Task {
 			return func(startInChunk, endInChunk int) {
 				start := startInChunk + chunkOffset
 				end := endInChunk + chunkOffset
-				inputs := solvingData.memoryPool.Make(info.MaxNIns)
+				inputs := data.memoryPool.Make(info.MaxNIns)
 				dependencyHeads := make([]int, len(circuit))
 				for wI, w := range circuit {
 					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
@@ -102,18 +97,18 @@ func SolveHint(info gadget.SolvingInfo, nbInstances int, solvingData *SolvingDat
 							for i, inputI := range inputIndexes {
 								inputs[i].Set(&assignment[inputI][instanceI])
 							}
-							gate := solvingData.circuit[wireI].Gate
+							gate := data.circuit[wireI].Gate
 							assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 						}
 					}
 				}
-				solvingData.memoryPool.Dump(inputs)
+				data.memoryPool.Dump(inputs)
 			}
 		}
 
 		start := 0
 		for _, end := range chunks {
-			solvingData.workers.Submit(end-start, solveTask(start), 1024).Wait()
+			data.workers.Submit(end-start, solveTask(start), 1024).Wait()
 			start = end
 		}
 
