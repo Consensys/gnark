@@ -30,7 +30,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
-	return (*Wire)(&e.manager.circuit[e.wireI])
+	return e.manager.wires[e.wireI]
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -64,7 +64,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 	} else {
 
 		injection, injectionLeftInv :=
-			e.manager.circuit.ClaimPropagationInfo(e.wireI)
+			e.manager.wires.ClaimPropagationInfo(e.wireI)
 
 		if len(injection) != len(uniqueInputEvaluations) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
@@ -79,7 +79,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
 		}
 
-		gateEvaluation = e.getWire().Gate.Evaluate(api, inputEvaluations...)
+		gateEvaluation = wire.Gate.Evaluate(api, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -116,15 +116,16 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 type claimsManager struct {
 	claims     []*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
-	circuit    Circuit
+	wires      Wires
 }
 
-func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManager) {
+func newClaimsManager(wires Wires, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
-	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(c))
+	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
+	claims.wires = wires
 
-	for i := range c {
-		wire := &c[i]
+	for i := range wires {
+		wire := wires[i]
 		claims.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
 			wireI:              i,
 			evaluationPoints:   make([][]frontend.Variable, 0, wire.NbClaims()),
@@ -284,7 +285,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		return err
 	}
 
-	claims := newClaimsManager(c, assignment)
+	claims := newClaimsManager(o.sorted, assignment)
 
 	var firstChallenge []frontend.Variable
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -373,7 +374,7 @@ func topologicalSort(c Circuit) []*Wire {
 	}
 
 	for i := range c {
-		sorted[i] = (&c[data.leastReady])
+		sorted[i] = &c[data.leastReady]
 		data.markDone(data.leastReady)
 	}
 

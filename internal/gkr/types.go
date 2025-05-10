@@ -42,7 +42,10 @@ func (w Wire) NbUniqueInputs() int {
 	return len(set)
 }
 
-type Circuit []Wire
+type (
+	Circuit []Wire
+	Wires   []*Wire
+)
 
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
@@ -50,9 +53,9 @@ type Circuit []Wire
 // injection are the indices of the unique evaluations in the original evaluation list.
 // injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
 // There are no guarantees on the non-unique choice of the semi-inverse map.
-func (c Circuit) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
-	w := &c[wireIndex]
-	indexInProof := makeNeg1Slice(len(c)) // O(n); use a map instead if it caused performance issues
+func (wires Wires) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
+	w := wires[wireIndex]
+	indexInProof := makeNeg1Slice(len(wires)) // O(n); use a map instead if it caused performance issues
 	injection = make([]int, 0, len(w.Inputs))
 	injectionLeftInverse = make([]int, len(w.Inputs))
 

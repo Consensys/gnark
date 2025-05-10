@@ -32,10 +32,14 @@ type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for eac
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               int            // the wire for which we are making the claim, with value w
+	wireI              int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ), allegedly
 	manager            *claimsManager // WARNING: Circular references
+}
+
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gadget.Wire {
+	return e.manager.wires[e.wireI]
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
@@ -53,7 +57,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a fr.Element) fr.Element
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.manager.circuit[e.wire].Gate.Degree()
+	return 1 + e.manager.wires[e.wireI].Gate.Degree()
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -68,7 +72,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, inputEvaluationsNoRedundancy []fr.Element) error {
+func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, combinationCoeff, purportedValue fr.Element, uniqueInputEvaluations []fr.Element) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(e.evaluationPoints[numClaims-1], r)
@@ -78,34 +82,30 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		evaluation.Add(&evaluation, &eq)
 	}
 
-	wire := e.manager.circuit[e.wire]
+	wire := e.manager.wires[e.wireI]
 
 	// the w(...) term
 	var gateEvaluation fr.Element
-	if e.wire.IsInput() { // just compute w(r)
-		gateEvaluation = e.manager.assignment[e.wire].Evaluate(r, e.manager.memPool)
+	if wire.IsInput() { // just compute w(r)
+		gateEvaluation = e.manager.assignment[e.wireI].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
-		inputEvaluations := make([]fr.Element, len(wire.Inputs))
-		indexesInProof := make(map[*gadget.Wire]int, len(inputEvaluationsNoRedundancy))
+		injection, injectionLeftInv :=
+			e.manager.wires.ClaimPropagationInfo(e.wireI)
 
-		proofI := 0
-		for inI, in := range wire.Inputs {
-			indexInProof, found := indexesInProof[in]
-			if !found {
-				indexInProof = proofI
-				indexesInProof[in] = indexInProof
-
-				// defer verification, store new claim
-				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
-				proofI++
-			}
-			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
-		}
-		if proofI != len(inputEvaluationsNoRedundancy) {
-			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
+		if len(injection) != len(uniqueInputEvaluations) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
 		}
 
-		gateEvaluation.Set(api.evaluate(wire.Gate.Evaluate, inputEvaluations...))
+		for uniqueI, i := range injection { // map from unique to all
+			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
+		}
+
+		inputEvaluations := make([]frontend.Variable, len(wire.Inputs))
+		for i, uniqueI := range injectionLeftInv { // map from all to unique
+			inputEvaluations[i] = &uniqueInputEvaluations[uniqueI]
+		}
+
+		gateEvaluation.Set(wire.Gate.Evaluate(api, inputEvaluations...).(*fr.Element))
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -120,7 +120,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 // eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
 // Its purpose is to batch the proving of multiple evaluations of the same wire.
 type eqTimesGateEvalSumcheckClaims struct {
-	wire               int            // the wire for which we are making the claim, with value w
+	wireI              int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ)
 	manager            *claimsManager
@@ -128,6 +128,10 @@ type eqTimesGateEvalSumcheckClaims struct {
 	input []polynomial.MultiLin // input[i](h₁, ..., hₘ₋ⱼ) = wᵢ(r₁, r₂, ..., rⱼ₋₁, h₁, ..., hₘ₋ⱼ)
 
 	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
+}
+
+func (c *eqTimesGateEvalSumcheckClaims) getWire() *gadget.Wire {
+	return c.manager.wires[c.wireI]
 }
 
 // combine the multiple claims into one claim using a random combination (combinationCoeff or c).
@@ -213,7 +217,8 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.E
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
-	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
+	wire := c.getWire()
+	degGJ := 1 + wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
 	nbGateIn := len(c.input)
 
 	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
@@ -261,7 +266,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 				for i := range gateInput {
 					gateInput[i] = &mlEvals[eIndex+1+i]
 				}
-				summand := c.wire.Gate.Evaluate(api, gateInput...).(*fr.Element)
+				summand := wire.Gate.Evaluate(api, gateInput...).(*fr.Element)
 				summand.Mul(summand, &mlEvals[eIndex])
 				res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
@@ -322,20 +327,18 @@ func (c *eqTimesGateEvalSumcheckClaims) claimsNum() int {
 // proveFinalEval provides the values wᵢ(r₁, ..., rₙ)
 func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
 
+	wire := c.getWire()
 	//defer the proof, return list of claims
-	evaluations := make([]fr.Element, 0, len(c.wire.Inputs))
 	noMoreClaimsAllowed := make(map[*gadget.Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
-	noMoreClaimsAllowed[c.wire] = struct{}{}
+	noMoreClaimsAllowed[wire] = struct{}{}
 
-	for inI, in := range c.wire.Inputs {
-		wI := c.input[inI]
-		if _, found := noMoreClaimsAllowed[in]; !found {
-			noMoreClaimsAllowed[in] = struct{}{}
-			wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
-			c.manager.add(in, r, wI[0])
-			evaluations = append(evaluations, wI[0])
-		}
-		c.manager.memPool.Dump(wI)
+	injection, _ := c.manager.wires.ClaimPropagationInfo(c.wireI) // TODO @Tabaie: Instead of doing this last, we could just have fewer input in the first place; not that likely to happen with single gates, but more so with layers.
+	evaluations := make([]fr.Element, len(injection))
+	for i, gateInputI := range injection {
+		wI := c.input[gateInputI]
+		wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
+		c.manager.add(gateInputI, r, wI[0])
+		evaluations[i] = wI[0]
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
@@ -348,21 +351,20 @@ type claimsManager struct {
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *gcUtils.WorkerPool
-	circuit    gadget.Circuit
+	wires      gadget.Wires
 }
 
-func newClaimsManager(c gadget.Circuit, assignment WireAssignment, o settings) (manager claimsManager) {
+func newClaimsManager(wires []*gadget.Wire, assignment WireAssignment, o settings) (manager claimsManager) {
 	manager.assignment = assignment
-	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(c))
+	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	manager.memPool = o.pool
 	manager.workers = o.workers
-	manager.circuit = c
+	manager.wires = wires
 
-	for i := range c {
-		wire := &c[i]
+	for i, wire := range wires {
 
 		manager.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
-			wire:               i,
+			wireI:              i,
 			evaluationPoints:   make([][]fr.Element, 0, wire.NbClaims()),
 			claimedEvaluations: manager.memPool.Make(wire.NbClaims()),
 			manager:            &manager,
@@ -382,17 +384,18 @@ func (m *claimsManager) getLazyClaim(wire int) *eqTimesGateEvalSumcheckLazyClaim
 	return m.claims[wire]
 }
 
-func (m *claimsManager) getClaim(wire int) *eqTimesGateEvalSumcheckClaims {
-	lazy := m.claims[wire]
+func (m *claimsManager) getClaim(wireI int) *eqTimesGateEvalSumcheckClaims {
+	lazy := m.claims[wireI]
+	wire := m.wires[wireI]
 	res := &eqTimesGateEvalSumcheckClaims{
-		wire:               wire,
+		wireI:              wireI,
 		evaluationPoints:   lazy.evaluationPoints,
 		claimedEvaluations: lazy.claimedEvaluations,
 		manager:            m,
 	}
 
 	if wire.IsInput() {
-		res.input = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wire])}
+		res.input = []polynomial.MultiLin{m.memPool.Clone(m.assignment[wireI])}
 	} else {
 		res.input = make([]polynomial.MultiLin, len(wire.Inputs))
 
@@ -403,8 +406,9 @@ func (m *claimsManager) getClaim(wire int) *eqTimesGateEvalSumcheckClaims {
 	return res
 }
 
-func (m *claimsManager) deleteClaim(wire *gadget.Wire) {
-	delete(m.claims, wire)
+func (m *claimsManager) deleteClaim(wire int) {
+	m.claims[wire].manager = nil
+	m.claims[wire] = nil
 }
 
 type settings struct {
@@ -567,7 +571,7 @@ func Prove(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(c, assignment, o)
+	claims := newClaimsManager(o.sorted, assignment, o)
 
 	proof := make(Proof, len(c))
 	// firstChallenge called rho in the paper
@@ -584,10 +588,10 @@ func Prove(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
-			claims.add(wire, firstChallenge, assignment[wire].Evaluate(firstChallenge, claims.memPool))
+			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
 		}
 
-		claim := claims.getClaim(wire)
+		claim := claims.getClaim(i)
 		if wire.NoProof() { // input wires with one claim only
 			proof[i] = sumcheckProof{
 				partialSumPolys: []polynomial.Polynomial{},
@@ -606,7 +610,7 @@ func Prove(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 			}
 		}
 		// the verifier checks a single claim about input wires itself
-		claims.deleteClaim(wire)
+		claims.deleteClaim(i)
 	}
 
 	return proof, nil
@@ -621,7 +625,7 @@ func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcript
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(c, assignment, o)
+	claims := newClaimsManager(o.sorted, assignment, o)
 
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -635,11 +639,11 @@ func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcript
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
-			claims.add(wire, firstChallenge, assignment[wire].Evaluate(firstChallenge, claims.memPool))
+			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
 		}
 
 		proofW := proof[i]
-		claim := claims.getLazyClaim(wire)
+		claim := claims.getLazyClaim(i)
 		if wire.NoProof() { // input wires with one claim only
 			// make sure the proof is empty
 			if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
@@ -648,7 +652,7 @@ func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcript
 
 			if wire.NbClaims() == 1 { // input wire
 				// simply evaluate and see if it matches
-				evaluation := assignment[wire].Evaluate(claim.evaluationPoints[0], claims.memPool)
+				evaluation := assignment[i].Evaluate(claim.evaluationPoints[0], claims.memPool)
 				if !claim.claimedEvaluations[0].Equal(&evaluation) {
 					return errors.New("incorrect input wire claim")
 				}
@@ -663,7 +667,7 @@ func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcript
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
 		}
-		claims.deleteClaim(wire)
+		claims.deleteClaim(i)
 	}
 	return nil
 }
@@ -671,7 +675,6 @@ func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcript
 type topSortData struct {
 	outputs    [][]int
 	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	index      map[*gadget.Wire]int
 	leastReady int
 }
 
@@ -691,14 +694,6 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
-func indexMap(c gadget.Circuit) map[*gadget.Wire]int {
-	res := make(map[*gadget.Wire]int, len(c))
-	for i := range c {
-		res[&c[i]] = i
-	}
-	return res
-}
-
 func statusList(c gadget.Circuit) []int {
 	res := make([]int, len(c))
 	for i := range c {
@@ -714,8 +709,7 @@ func statusList(c gadget.Circuit) []int {
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
 func topologicalSort(c gadget.Circuit) []*gadget.Wire {
 	var data topSortData
-	data.index = indexMap(c)
-	data.outputs = c.OutputsList(data.index)
+	data.outputs = c.OutputsList()
 	data.status = statusList(c)
 	sorted := make([]*gadget.Wire, len(c))
 
@@ -731,27 +725,26 @@ func topologicalSort(c gadget.Circuit) []*gadget.Wire {
 }
 
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(c gadget.Circuit) WireAssignment {
+func (a WireAssignment) Complete(wires []*gadget.Wire) WireAssignment {
 
-	sortedWires := topologicalSort(c)
 	nbInstances := a.NumInstances()
 	maxNbIns := 0
 
-	for _, w := range sortedWires {
+	for i, w := range wires {
 		maxNbIns = max(maxNbIns, len(w.Inputs))
-		if a[w] == nil {
-			a[w] = make([]fr.Element, nbInstances)
+		if a[i] == nil {
+			a[i] = make([]fr.Element, nbInstances)
 		}
 	}
 
 	ins := make([]fr.Element, maxNbIns)
 	for i := range nbInstances {
-		for _, w := range sortedWires {
+		for wI, w := range wires {
 			if !w.IsInput() {
 				for inI, in := range w.Inputs {
 					ins[inI] = a[in][i]
 				}
-				a[w][i].Set(api.evaluate(w.Gate.Evaluate, ins[:len(w.Inputs)]...))
+				a[wI][i].Set(api.evaluate(w.Gate.Evaluate, ins[:len(w.Inputs)]...))
 			}
 		}
 	}

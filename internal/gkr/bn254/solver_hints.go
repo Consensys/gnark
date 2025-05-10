@@ -63,6 +63,7 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		offsets := info.AssignmentOffsets()
 		data.init(info)
+		circuit := info.Circuit
 
 		chunks := info.Chunks()
 
@@ -72,20 +73,22 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 				end := endInChunk + chunkOffset
 				inputs := data.memoryPool.Make(info.MaxNIns)
 				dependencyHeads := make([]int, len(circuit))
-				for wI, w := range circuit {
+				for wI := range circuit {
+					deps := info.Dependencies[wI]
 					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
-						return w.Dependencies[i].InputInstance
-					}, len(w.Dependencies), start)
+						return deps[i].InputInstance
+					}, len(deps), start)
 				}
 
-				var api gateAPI
-				gateInput := make([]frontend.Variable)
+				gateInput := make([]frontend.Variable, 0) // TODO
 
 				for instanceI := start; instanceI < end; instanceI++ {
-					for wireI, wire := range circuit {
+					for wireI := range circuit {
+						wire := &circuit[wireI]
+						deps := info.Dependencies[wireI]
 						if wire.IsInput() {
-							if dependencyHeads[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[dependencyHeads[wireI]].InputInstance {
-								dep := wire.Dependencies[dependencyHeads[wireI]]
+							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
+								dep := deps[dependencyHeads[wireI]]
 								assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
 								dependencyHeads[wireI]++
 							} else {
