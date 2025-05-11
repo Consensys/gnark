@@ -223,3 +223,16 @@ func findSolvableVar(f gkr.GateFunction, isAdditiveF isAdditive, nbIn int) int {
 func isVarSolvable(f gkr.GateFunction, isAdditiveF isAdditive, claimedSolvableVar, nbIn int) bool {
 	return isAdditiveF(f, claimedSolvableVar, nbIn)
 }
+
+func init() {
+	// register some basic gates
+	gatesLock.Lock()
+
+	gates[gkr.Identity] = gkrgate.Identity()
+	gates[gkr.Add2] = gkrgate.Add2()
+	gates[gkr.Sub2] = gkrgate.Sub2()
+	gates[gkr.Neg] = gkrgate.Neg()
+	gates[gkr.Mul2] = gkrgate.Mul2()
+
+	gatesLock.Unlock()
+}

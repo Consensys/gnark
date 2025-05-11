@@ -176,16 +176,18 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
-
-	resCircuit := make(Circuit, len(info.Circuit))
-	for i := range info.Circuit {
-		resCircuit[i].Inputs = info.Circuit[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(info.Circuit[i].Gate))
+func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *gkrgate.Gate) Circuit {
+	resCircuit := make(Circuit, len(info))
+	for i := range info {
+		resCircuit[i].Inputs = info[i].Inputs
+		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
 	}
+	return resCircuit
+}
 
+func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
 	return SolvingInfo{
-		Circuit:     resCircuit,
+		Circuit:     CircuitInfoToCircuit(info.Circuit, gateGetter),
 		MaxNIns:     info.MaxNIns,
 		NbInstances: info.NbInstances,
 		HashName:    info.HashName,

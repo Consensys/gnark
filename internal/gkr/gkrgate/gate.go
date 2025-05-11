@@ -49,3 +49,40 @@ func (e errorString) Error() string {
 }
 
 const ErrZeroFunction = errorString("detected a zero function")
+
+// some sample gates
+
+// Identity gate: x -> x
+func Identity() *Gate {
+	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return in[0]
+	}, 1, 1, 0)
+}
+
+// Add2 gate: (x, y) -> x + y
+func Add2() *Gate {
+	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Add(in[0], in[1])
+	}, 2, 1, 0)
+}
+
+// Sub2 gate: (x, y) -> x - y
+func Sub2() *Gate {
+	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Sub(in[0], in[1])
+	}, 2, 1, 0)
+}
+
+// Neg gate: x -> -x
+func Neg() *Gate {
+	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Neg(in[0])
+	}, 1, 1, 0)
+}
+
+// Mul2 gate: (x, y) -> x * y
+func Mul2() *Gate {
+	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Mul(in[0], in[1])
+	}, 2, 2, -1)
+}

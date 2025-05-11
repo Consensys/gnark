@@ -10,6 +10,9 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
+	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
@@ -136,12 +139,12 @@ func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputVal
 	sorted := topologicalSort(c)
 	res := make(WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
-	for _, w := range sorted {
+	for wI, w := range sorted {
 		if w.IsInput() {
-			res[w] = inputValues[inI]
+			res[wI] = inputValues[inI]
 			inI++
 		} else if w.IsOutput() {
-			res[w] = outputValues[outI]
+			res[wI] = outputValues[outI]
 			outI++
 		}
 	}
@@ -209,13 +212,6 @@ func getTestCase(path string) (*TestCase, error) {
 	return cse, nil
 }
 
-type WireInfo struct {
-	Gate   string `json:"gate"`
-	Inputs []int  `json:"inputs"`
-}
-
-type CircuitInfo []WireInfo
-
 var circuitCache = make(map[string]Circuit)
 
 func getCircuit(path string) (circuit Circuit, err error) {
@@ -229,38 +225,12 @@ func getCircuit(path string) (circuit Circuit, err error) {
 	}
 	var bytes []byte
 	if bytes, err = os.ReadFile(path); err == nil {
-		var circuitInfo CircuitInfo
+		var circuitInfo gkrinfo.Circuit
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit, err = circuitInfo.toCircuit()
-			if err == nil {
-				circuitCache[path] = circuit
-			}
+			circuitCache[path] = gadget.CircuitInfoToCircuit(circuitInfo, getGate)
 		}
 	}
 	return
-}
-
-func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
-	circuit = make(Circuit, len(c))
-	for i, wireInfo := range c {
-		circuit[i].Inputs = make([]*Wire, len(wireInfo.Inputs))
-		for iAsInput, iAsWire := range wireInfo.Inputs {
-			input := &circuit[iAsWire]
-			circuit[i].Inputs[iAsInput] = input
-		}
-
-		if circuit[i].Gate = gkr.GetGate(gkr.GateName(wireInfo.Gate)); circuit[i].Gate == nil && wireInfo.Gate != "" {
-			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
-		}
-	}
-
-	return
-}
-
-func init() {
-	panicIfError(gkr.RegisterGate("select-input-3", func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return in[2]
-	}, 3, gkr.WithDegree(1)))
 }
 
 type PrintableProof []PrintableSumcheckProof
@@ -315,24 +285,24 @@ func TestLogNbInstances(t *testing.T) {
 func TestLoadCircuit(t *testing.T) {
 	c, err := getCircuit("test_vectors/resources/two_identity_gates_composed_single_input.json")
 	assert.NoError(t, err)
-	assert.Equal(t, []*Wire{}, c[0].Inputs)
-	assert.Equal(t, []*Wire{&c[0]}, c[1].Inputs)
-	assert.Equal(t, []*Wire{&c[1]}, c[2].Inputs)
+	assert.Equal(t, []int{}, c[0].Inputs)
+	assert.Equal(t, []int{0}, c[1].Inputs)
+	assert.Equal(t, []int{1}, c[2].Inputs)
 
 }
 
 func TestTopSortTrivial(t *testing.T) {
 	c := make(Circuit, 2)
-	c[0].Inputs = []*Wire{&c[1]}
+	c[0].Inputs = []int{1}
 	sorted := topologicalSort(c)
-	assert.Equal(t, []*Wire{&c[1], &c[0]}, sorted)
+	assert.Equal(t, []int{1, 0}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
 	c := make(Circuit, 3)
-	c[0].Inputs = []*Wire{&c[1], &c[2]}
+	c[0].Inputs = []int{1, 2}
 	sorted := topologicalSort(c)
-	expected := []*Wire{&c[1], &c[2], &c[0]}
+	expected := []int{1, 2, 0}
 	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
 	assertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].NbUniqueOutputs, 0)
@@ -342,29 +312,29 @@ func TestTopSortSingleGate(t *testing.T) {
 
 func TestTopSortDeep(t *testing.T) {
 	c := make(Circuit, 4)
-	c[0].Inputs = []*Wire{&c[2]}
-	c[1].Inputs = []*Wire{&c[3]}
-	c[2].Inputs = []*Wire{}
-	c[3].Inputs = []*Wire{&c[0]}
+	c[0].Inputs = []int{2}
+	c[1].Inputs = []int{3}
+	c[2].Inputs = []int{}
+	c[3].Inputs = []int{0}
 	sorted := topologicalSort(c)
-	assert.Equal(t, []*Wire{&c[2], &c[0], &c[3], &c[1]}, sorted)
+	assert.Equal(t, []int{2, 0, 3, 1}, sorted)
 }
 
 func TestTopSortWide(t *testing.T) {
 	c := make(Circuit, 10)
-	c[0].Inputs = []*Wire{&c[3], &c[8]}
-	c[1].Inputs = []*Wire{&c[6]}
-	c[2].Inputs = []*Wire{&c[4]}
-	c[3].Inputs = []*Wire{}
-	c[4].Inputs = []*Wire{}
-	c[5].Inputs = []*Wire{&c[9]}
-	c[6].Inputs = []*Wire{&c[9]}
-	c[7].Inputs = []*Wire{&c[9], &c[5], &c[2]}
-	c[8].Inputs = []*Wire{&c[4], &c[3]}
-	c[9].Inputs = []*Wire{}
+	c[0].Inputs = []int{3, 8}
+	c[1].Inputs = []int{6}
+	c[2].Inputs = []int{4}
+	c[3].Inputs = []int{}
+	c[4].Inputs = []int{}
+	c[5].Inputs = []int{9}
+	c[6].Inputs = []int{9}
+	c[7].Inputs = []int{9, 5, 2}
+	c[8].Inputs = []int{4, 3}
+	c[9].Inputs = []int{}
 
 	sorted := topologicalSort(c)
-	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+	sortedExpected := []int{3, 4, 2, 8, 0, 9, 5, 6, 1, 7}
 
 	assert.Equal(t, sortedExpected, sorted)
 }
@@ -444,4 +414,24 @@ func TestConstHash(t *testing.T) {
 
 		test.WithValidAssignment(&constHashCircuit{X: 1}),
 	)
+}
+
+var gateRegistry = make(map[gkr.GateName]*gkrgate.Gate)
+
+func getGate(name gkr.GateName) *gkrgate.Gate {
+	g, ok := gateRegistry[name]
+	if !ok {
+		if name == "" {
+			return nil
+		}
+		panic(fmt.Sprintf("gate %s not found", name))
+	}
+	return g
+}
+
+func init() {
+	gateRegistry["select-input-3"] = gkrgate.New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return in[2]
+	}, 3, 1, 0)
+	
 }
