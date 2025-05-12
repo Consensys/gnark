@@ -61,12 +61,10 @@ func (wires Wires) ClaimPropagationInfo(wireIndex int) (injection, injectionLeft
 	injection = make([]int, 0, len(w.Inputs))
 	injectionLeftInverse = make([]int, len(w.Inputs))
 
-	proofI := 0
 	for inI, in := range w.Inputs {
 		if indexInProof[in] == -1 { // not found
-			injection[proofI] = inI
-			indexInProof[in] = proofI
-			proofI++
+			indexInProof[in] = len(injection)
+			injection = append(injection, inI)
 		}
 		injectionLeftInverse[inI] = indexInProof[in]
 	}
@@ -101,7 +99,6 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 type SolvingInfo struct {
 	Circuit      Circuit
 	Dependencies [][]gkrinfo.InputDependency
-	MaxNIns      int
 	NbInstances  int
 	HashName     string
 }
@@ -188,6 +185,14 @@ func (c Circuit) Inputs() []int {
 	return res
 }
 
+func (c Circuit) MaxGateNbIn() int {
+	res := 0
+	for i := range c {
+		res = max(res, len(c[i].Inputs))
+	}
+	return res
+}
+
 func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *gkrgate.Gate) (Circuit, error) {
 	resCircuit := make(Circuit, len(info))
 	for i := range info {
@@ -207,7 +212,6 @@ func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.Gat
 	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
 		Circuit:     circuit,
-		MaxNIns:     info.MaxNIns,
 		NbInstances: info.NbInstances,
 		HashName:    info.HashName,
 	}, err

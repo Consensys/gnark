@@ -14,30 +14,21 @@ import (
 	"hash"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 type SolvingData struct {
-	assignments WireAssignment
-	circuit     gadget.Circuit
-	memoryPool  polynomial.Pool
-	workers     *utils.WorkerPool
+	assignment WireAssignment
+	circuit    gadget.Circuit
+	workers    *utils.WorkerPool
 }
 
 func (d *SolvingData) init(info gadget.SolvingInfo) {
-	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
 
-	d.assignments = make(WireAssignment, len(d.circuit))
-	for i := range d.assignments {
-		d.assignments[i] = d.memoryPool.Make(info.NbInstances)
-	}
-}
-
-func (d *SolvingData) dumpAssignments() {
-	for _, p := range d.assignments {
-		d.memoryPool.Dump(p)
+	d.assignment = make(WireAssignment, len(d.circuit))
+	for i := range d.assignment {
+		d.assignment[i] = make([]fr.Element, info.NbInstances)
 	}
 }
 
@@ -45,7 +36,7 @@ func (d *SolvingData) dumpAssignments() {
 
 type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
-func (a gkrAssignment) setOuts(circuit gadget.Circuit, outs []*big.Int) {
+func setOuts(a WireAssignment, circuit gadget.Circuit, outs []*big.Int) {
 	outsI := 0
 	for i := range circuit {
 		if circuit[i].IsOutput() {
@@ -64,6 +55,7 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 		offsets := info.AssignmentOffsets()
 		data.init(info)
 		circuit := info.Circuit
+		maxNIn := circuit.MaxGateNbIn()
 
 		chunks := info.Chunks()
 
@@ -71,7 +63,7 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 			return func(startInChunk, endInChunk int) {
 				start := startInChunk + chunkOffset
 				end := endInChunk + chunkOffset
-				inputs := data.memoryPool.Make(info.MaxNIns)
+				inputs := make([]frontend.Variable, maxNIn)
 				dependencyHeads := make([]int, len(circuit))
 				for wI := range circuit {
 					deps := info.Dependencies[wI]
@@ -80,8 +72,6 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 					}, len(deps), start)
 				}
 
-				gateInput := make([]frontend.Variable, 0) // TODO
-
 				for instanceI := start; instanceI < end; instanceI++ {
 					for wireI := range circuit {
 						wire := &circuit[wireI]
@@ -89,23 +79,22 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 						if wire.IsInput() {
 							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
 								dep := deps[dependencyHeads[wireI]]
-								assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
+								data.assignment[wireI][instanceI].Set(&data.assignment[dep.OutputWire][dep.OutputInstance])
 								dependencyHeads[wireI]++
 							} else {
-								assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
+								data.assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
 							}
 						} else {
 							// assemble the inputs
 							inputIndexes := info.Circuit[wireI].Inputs
 							for i, inputI := range inputIndexes {
-								inputs[i].Set(&assignment[inputI][instanceI])
+								inputs[i] = &data.assignment[inputI][instanceI]
 							}
 							gate := data.circuit[wireI].Gate
-							assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
+							data.assignment[wireI][instanceI].Set(gate.Evaluate(api, inputs[:len(inputIndexes)]...).(*fr.Element))
 						}
 					}
 				}
-				data.memoryPool.Dump(inputs)
 			}
 		}
 
@@ -115,7 +104,7 @@ func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
 			start = end
 		}
 
-		assignment.setOuts(info.Circuit, outs)
+		setOuts(data.assignment, info.Circuit, outs)
 
 		return nil
 	}
@@ -135,12 +124,10 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 			return err
 		}
 
-		proof, err := Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh(), insBytes...), WithPool(&data.memoryPool), WithWorkers(data.workers))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh(), insBytes...), WithWorkers(data.workers))
 		if err != nil {
 			return err
 		}
-
-		data.dumpAssignments()
 
 		return proof.SerializeToBigInts(outs)
 

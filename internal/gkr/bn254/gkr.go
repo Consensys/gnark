@@ -225,7 +225,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	// they are linear in Xⱼ.
 	// So for f ∈ { E(r₁, ..., Xⱼ, h...) } ∪ {wᵢ(r₁, ..., Xⱼ, h...) }, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables.
 	// ml are such multilinear polynomials the evaluations of which over different values of Xⱼ are computed in this stepwise manner.
-	ml := make([]polynomial.MultiLin, nbGateIn+1)
+	ml := make([]polynomial.MultiLin, nbGateIn+1) // shortcut to the evaluations of the multilinear polynomials over the hypercube
 	ml[0] = c.eq
 	copy(ml[1:], c.input)
 
@@ -239,14 +239,14 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 		var step fr.Element
 
 		res := make([]fr.Element, degGJ)
+
 		// evaluations of ml, laid out as:
 		// ml[0](1, h...), ml[1](1, h...), ..., ml[len(ml)-1](1, h...),
 		// ml[0](2, h...), ml[1](2, h...), ..., ml[len(ml)-1](2, h...),
 		// ...
 		// ml[0](degGJ, h...), ml[2](degGJ, h...), ..., ml[len(ml)-1](degGJ, h...)
-		// Thus the contribution of the
 		mlEvals := make([]fr.Element, degGJ*len(ml))
-		gateInput := make([]frontend.Variable, len(ml))
+		gateInput := make([]frontend.Variable, nbGateIn)
 
 		for h := start; h < end; h++ { // h counts across instances
 
@@ -260,7 +260,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 				}
 			}
 
-			eIndex := 0
+			eIndex := 0 // index for where the current eq term is
 			nextEIndex := len(ml)
 			for d := range degGJ {
 				for i := range gateInput {
@@ -702,7 +702,7 @@ func (a WireAssignment) Complete(wires []*gadget.Wire) WireAssignment {
 
 	for i, w := range wires {
 		maxNbIns = max(maxNbIns, len(w.Inputs))
-		if a[i] == nil {
+		if len(a[i]) != nbInstances {
 			a[i] = make([]fr.Element, nbInstances)
 		}
 	}

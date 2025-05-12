@@ -141,6 +141,7 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gadget.Circuit) {
+	wireRefs := utils.References(circuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
@@ -156,6 +157,8 @@ func test(t *testing.T, circuit gadget.Circuit) {
 			fullAssignment[ins[i]] = insAssignment[i][:numEvals]
 		}
 
+		fullAssignment.Complete(wireRefs)
+
 		t.Log("Selected inputs for test")
 
 		proof, err := Prove(circuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
@@ -166,10 +169,28 @@ func test(t *testing.T, circuit gadget.Circuit) {
 		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 		assert.NoError(t, err, "proof rejected")
 
+		if proof.isEmpty() { // special case for TestNoGate:
+			continue // there's no way to make a trivial proof fail
+		}
+
 		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
 
+}
+
+func (p Proof) isEmpty() bool {
+	for i := range p {
+		if len(p[i].finalEvalProof) != 0 {
+			return false
+		}
+		for j := range p[i].partialSumPolys {
+			if len(p[i].partialSumPolys[j]) != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 var (

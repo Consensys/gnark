@@ -6,9 +6,7 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
@@ -444,28 +442,4 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
-}
-
-func panicIfError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func init() {
-	panicIfError(gkr.RegisterGate(gkr.Mul2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Mul(x[0], x[1])
-	}, 2, gkr.WithUnverifiedDegree(2), gkr.WithNoSolvableVar()))
-	panicIfError(gkr.RegisterGate(gkr.Add2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Add(x[0], x[1])
-	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Identity, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return x[0]
-	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Neg, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Neg(x[0])
-	}, 1, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
-	panicIfError(gkr.RegisterGate(gkr.Sub2, func(api gkrgate.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Sub(x[0], x[1])
-	}, 2, gkr.WithUnverifiedDegree(1), gkr.WithUnverifiedSolvableVar(0)))
 }

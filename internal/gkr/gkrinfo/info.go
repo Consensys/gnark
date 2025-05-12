@@ -27,7 +27,6 @@ type (
 	StoringInfo struct {
 		Circuit      Circuit
 		Dependencies [][]InputDependency // nil for input wires
-		MaxNIns      int
 		NbInstances  int
 		HashName     string
 		SolveHintID  solver.HintID
@@ -88,10 +87,6 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 	sortedDeps := make([][]InputDependency, len(d.Circuit))
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
-
-		if !oldW.IsInput() {
-			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
-		}
 
 		for _, dep := range d.Dependencies[oldI] {
 			dep.OutputWire = p.WiresPermutation[dep.OutputWire]
