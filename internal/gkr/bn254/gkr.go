@@ -15,7 +15,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkr"
@@ -346,7 +346,7 @@ type claimsManager struct {
 	claims     []*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
 	memPool    *polynomial.Pool
-	workers    *gcUtils.WorkerPool
+	workers    *utils.WorkerPool
 	wires      gkrtypes.Wires
 }
 
@@ -413,7 +413,7 @@ type settings struct {
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
-	workers          *gcUtils.WorkerPool
+	workers          *utils.WorkerPool
 }
 
 type Option func(*settings)
@@ -430,7 +430,7 @@ func WithSortedCircuit(sorted []*gkrtypes.Wire) Option {
 	}
 }
 
-func WithWorkers(workers *gcUtils.WorkerPool) Option {
+func WithWorkers(workers *utils.WorkerPool) Option {
 	return func(options *settings) {
 		options.workers = workers
 	}
@@ -455,7 +455,7 @@ func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 	}
 
 	if o.workers == nil {
-		o.workers = gcUtils.NewWorkerPool()
+		o.workers = utils.NewWorkerPool()
 	}
 
 	if o.sorted == nil {

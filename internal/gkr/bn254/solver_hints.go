@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 
 	"hash"
@@ -19,11 +19,11 @@ import (
 
 type SolvingData struct {
 	assignment WireAssignment
-	circuit    gadget.Circuit
+	circuit    gkrtypes.Circuit
 	workers    *utils.WorkerPool
 }
 
-func (d *SolvingData) init(info gadget.SolvingInfo) {
+func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
 	d.workers = utils.NewWorkerPool()
 
 	d.assignment = make(WireAssignment, len(d.circuit))
@@ -36,7 +36,7 @@ func (d *SolvingData) init(info gadget.SolvingInfo) {
 
 type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
-func setOuts(a WireAssignment, circuit gadget.Circuit, outs []*big.Int) {
+func setOuts(a WireAssignment, circuit gkrtypes.Circuit, outs []*big.Int) {
 	outsI := 0
 	for i := range circuit {
 		if circuit[i].IsOutput() {
@@ -49,7 +49,7 @@ func setOuts(a WireAssignment, circuit gadget.Circuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func SolveHint(info gadget.SolvingInfo, data *SolvingData) hint.Hint {
+func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		offsets := info.AssignmentOffsets()
