@@ -326,18 +326,14 @@ func (c *eqTimesGateEvalSumcheckClaims) claimsNum() int {
 
 // proveFinalEval provides the values wᵢ(r₁, ..., rₙ)
 func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
-
-	wire := c.getWire()
 	//defer the proof, return list of claims
-	noMoreClaimsAllowed := make(map[*gadget.Wire]struct{}, len(c.input)) // we don't double report wires, in case a gate takes the same wire as multiple input variables.
-	noMoreClaimsAllowed[wire] = struct{}{}
 
 	injection, _ := c.manager.wires.ClaimPropagationInfo(c.wireI) // TODO @Tabaie: Instead of doing this last, we could just have fewer input in the first place; not that likely to happen with single gates, but more so with layers.
 	evaluations := make([]fr.Element, len(injection))
 	for i, gateInputI := range injection {
 		wI := c.input[gateInputI]
 		wI.Fold(r[len(r)-1]) // We already have wᵢ(r₁, ..., rₙ₋₁, hₙ) in a table. Only one more fold required.
-		c.manager.add(gateInputI, r, wI[0])
+		c.manager.add(c.getWire().Inputs[gateInputI], r, wI[0])
 		evaluations[i] = wI[0]
 	}
 
