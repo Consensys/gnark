@@ -114,7 +114,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := gkrtypes.TopologicalSort(testCase.Circuit)
+	sorted := testCase.Circuit.TopologicalSort()
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -134,7 +134,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
-	sorted := gkrtypes.TopologicalSort(c)
+	sorted := c.TopologicalSort()
 	res := make(gkrtypes.WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
@@ -191,7 +191,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			cse.Circuit = cache.Get(filepath.Join(dir, info.Circuit))
+			cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -243,7 +243,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := gkrtypes.TopologicalSort(testCase.Circuit)
+			wires := testCase.Circuit.TopologicalSort()
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
@@ -255,54 +255,6 @@ func TestLogNbInstances(t *testing.T) {
 	for _, caseName := range cases {
 		t.Run("log_nb_instances:"+caseName, testLogNbInstances("test_vectors/"+caseName+".json"))
 	}
-}
-
-func TestTopSortTrivial(t *testing.T) {
-	c := make(gkrtypes.Circuit, 2)
-	c[0].Inputs = []int{1}
-	sorted := gkrtypes.TopologicalSort(c)
-	assert.Equal(t, []int{1, 0}, sorted)
-}
-
-func TestTopSortSingleGate(t *testing.T) {
-	c := make(gkrtypes.Circuit, 3)
-	c[0].Inputs = []int{1, 2}
-	sorted := gkrtypes.TopologicalSort(c)
-	expected := []int{1, 2, 0}
-	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
-	assertSliceEqual(t, sorted, expected)
-	assert.Equal(t, c[0].NbUniqueOutputs, 0)
-	assert.Equal(t, c[1].NbUniqueOutputs, 1)
-	assert.Equal(t, c[2].NbUniqueOutputs, 1)
-}
-
-func TestTopSortDeep(t *testing.T) {
-	c := make(gkrtypes.Circuit, 4)
-	c[0].Inputs = []int{2}
-	c[1].Inputs = []int{3}
-	c[2].Inputs = []int{}
-	c[3].Inputs = []int{0}
-	sorted := gkrtypes.TopologicalSort(c)
-	assert.Equal(t, []int{2, 0, 3, 1}, sorted)
-}
-
-func TestTopSortWide(t *testing.T) {
-	c := make(gkrtypes.Circuit, 10)
-	c[0].Inputs = []int{3, 8}
-	c[1].Inputs = []int{6}
-	c[2].Inputs = []int{4}
-	c[3].Inputs = []int{}
-	c[4].Inputs = []int{}
-	c[5].Inputs = []int{9}
-	c[6].Inputs = []int{9}
-	c[7].Inputs = []int{9, 5, 2}
-	c[8].Inputs = []int{4, 3}
-	c[9].Inputs = []int{}
-
-	sorted := gkrtypes.TopologicalSort(c)
-	sortedExpected := []int{3, 4, 2, 8, 0, 9, 5, 6, 1, 7}
-
-	assert.Equal(t, sortedExpected, sorted)
 }
 
 type HashDescription map[string]interface{}

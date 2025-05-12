@@ -17,7 +17,6 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	gkr "github.com/consensys/gnark/internal/gkr/bls12-377"
-	gkr2 "github.com/consensys/gnark/internal/gkr/gkr-info"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 )
 

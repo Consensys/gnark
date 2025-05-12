@@ -459,7 +459,7 @@ func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 	}
 
 	if o.sorted == nil {
-		o.sorted = gkrtypes.TopologicalSort(c)
+		o.sorted = c.TopologicalSort()
 	}
 
 	if transcriptSettings.Transcript == nil {

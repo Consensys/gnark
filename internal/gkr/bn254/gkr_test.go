@@ -432,7 +432,7 @@ func newTestCase(path string) (*TestCase, error) {
 			fullAssignment := make(WireAssignment, len(circuit))
 			inOutAssignment := make(WireAssignment, len(circuit))
 
-			sorted := gkrtypes.TopologicalSort(circuit)
+			sorted := circuit.TopologicalSort()
 
 			inI, outI := 0, 0
 			for i, w := range sorted {

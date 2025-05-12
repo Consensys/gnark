@@ -326,7 +326,7 @@ func statusList(c Circuit) []int {
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
 // Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func TopologicalSort(c Circuit) []*Wire {
+func (c Circuit) TopologicalSort() []*Wire {
 	var data topSortData
 	data.outputs = c.OutputsList()
 	data.status = statusList(c)
