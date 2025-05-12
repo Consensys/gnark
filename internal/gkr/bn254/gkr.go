@@ -17,7 +17,6 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkr"
 )
@@ -460,7 +459,7 @@ func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 	}
 
 	if o.sorted == nil {
-		o.sorted = gadget.TopologicalSort(c)
+		o.sorted = gkrtypes.TopologicalSort(c)
 	}
 
 	if transcriptSettings.Transcript == nil {

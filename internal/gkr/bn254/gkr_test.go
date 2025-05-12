@@ -22,7 +22,6 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -433,7 +432,7 @@ func newTestCase(path string) (*TestCase, error) {
 			fullAssignment := make(WireAssignment, len(circuit))
 			inOutAssignment := make(WireAssignment, len(circuit))
 
-			sorted := gadget.TopologicalSort(circuit)
+			sorted := gkrtypes.TopologicalSort(circuit)
 
 			inI, outI := 0, 0
 			for i, w := range sorted {

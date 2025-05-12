@@ -114,7 +114,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := TopologicalSort(testCase.Circuit)
+	sorted := gkrtypes.TopologicalSort(testCase.Circuit)
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -134,7 +134,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
-	sorted := TopologicalSort(c)
+	sorted := gkrtypes.TopologicalSort(c)
 	res := make(gkrtypes.WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
@@ -243,7 +243,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := TopologicalSort(testCase.Circuit)
+			wires := gkrtypes.TopologicalSort(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
@@ -260,14 +260,14 @@ func TestLogNbInstances(t *testing.T) {
 func TestTopSortTrivial(t *testing.T) {
 	c := make(gkrtypes.Circuit, 2)
 	c[0].Inputs = []int{1}
-	sorted := TopologicalSort(c)
+	sorted := gkrtypes.TopologicalSort(c)
 	assert.Equal(t, []int{1, 0}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
 	c := make(gkrtypes.Circuit, 3)
 	c[0].Inputs = []int{1, 2}
-	sorted := TopologicalSort(c)
+	sorted := gkrtypes.TopologicalSort(c)
 	expected := []int{1, 2, 0}
 	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
 	assertSliceEqual(t, sorted, expected)
@@ -282,7 +282,7 @@ func TestTopSortDeep(t *testing.T) {
 	c[1].Inputs = []int{3}
 	c[2].Inputs = []int{}
 	c[3].Inputs = []int{0}
-	sorted := TopologicalSort(c)
+	sorted := gkrtypes.TopologicalSort(c)
 	assert.Equal(t, []int{2, 0, 3, 1}, sorted)
 }
 
@@ -299,7 +299,7 @@ func TestTopSortWide(t *testing.T) {
 	c[8].Inputs = []int{4, 3}
 	c[9].Inputs = []int{}
 
-	sorted := TopologicalSort(c)
+	sorted := gkrtypes.TopologicalSort(c)
 	sortedExpected := []int{3, 4, 2, 8, 0, 9, 5, 6, 1, 7}
 
 	assert.Equal(t, sortedExpected, sorted)

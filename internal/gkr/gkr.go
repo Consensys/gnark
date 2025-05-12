@@ -171,7 +171,7 @@ func setup(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignm
 	}
 
 	if o.sorted == nil {
-		o.sorted = TopologicalSort(c)
+		o.sorted = gkrtypes.TopologicalSort(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -317,59 +317,7 @@ func Verify(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssign
 	return nil
 }
 
-type topSortData struct {
-	outputs    [][]int
-	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	leastReady int
-}
-
-func (d *topSortData) markDone(i int) {
-
-	d.status[i] = -1
-
-	for _, outI := range d.outputs[i] {
-		d.status[outI]--
-		if d.status[outI] == 0 && outI < d.leastReady {
-			d.leastReady = outI
-		}
-	}
-
-	for d.leastReady < len(d.status) && d.status[d.leastReady] != 0 {
-		d.leastReady++
-	}
-}
-
-func statusList(c gkrtypes.Circuit) []int {
-	res := make([]int, len(c))
-	for i := range c {
-		res[i] = len(c[i].Inputs)
-	}
-	return res
-}
-
 // TODO: Have this use algo_utils.TopologicalSort underneath
-
-// TopologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
-// occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
-// It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
-// Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
-// Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func TopologicalSort(c gkrtypes.Circuit) []*gkrtypes.Wire {
-	var data topSortData
-	data.outputs = c.OutputsList()
-	data.status = statusList(c)
-	sorted := make([]*gkrtypes.Wire, len(c))
-
-	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
-	}
-
-	for i := range c {
-		sorted[i] = &c[data.leastReady]
-		data.markDone(data.leastReady)
-	}
-
-	return sorted
-}
 
 func (p Proof) Serialize() []frontend.Variable {
 	size := 0
