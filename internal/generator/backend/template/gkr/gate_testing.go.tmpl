@@ -4,9 +4,9 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/std/gkr"
 	"{{.FieldPackagePath}}"
-    {{- if .CanUseFFT }}
-    "{{.FieldPackagePath}}/fft"{{- else}}
-    "errors"{{- end }}
+	{{- if .CanUseFFT }}
+	"{{.FieldPackagePath}}/fft"{{- else}}
+	"errors"{{- end }}
 	"{{.FieldPackagePath}}/polynomial"
 	"slices"
 	"sync"
@@ -68,13 +68,14 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 	// turn f univariate by defining p(x) as f(x, rx, ..., sx)
 	// where r, s, ... are random constants
 	fIn := make([]{{ .ElementType }}, nbIn)
-	consts := make(fr.Vector, nbIn-1)
+	consts := make({{.FieldPackageName}}.Vector, nbIn-1)
 	consts.MustSetRandom()
 
 	p := make(polynomial.Polynomial, degreeBound)
+	{{- if .CanUseFFT }}
 	domain := fft.NewDomain(degreeBound)
 	// evaluate p on the unit circle (first filling p with evaluations rather than coefficients)
-	x := fr.One()
+	x := {{.FieldPackageName}}.One()
 	for i := range p {
 		fIn[0] = x
 		for j := range consts {
@@ -88,6 +89,23 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 	// obtain p's coefficients
 	domain.FFTInverse(p, fft.DIF)
 	fft.BitReverse(p)
+	{{- else }}
+	x := make({{.FieldPackageName}}.Vector, degreeBound)
+	x.MustSetRandom()
+	for i := range x {
+		fIn[0] = x[i]
+		for j := range consts {
+			fIn[j+1].Mul(&x[i], &consts[j])
+		}
+		p[i] = f(fIn...)
+	}
+
+	// obtain p's coefficients
+	p, err := interpolate(x, p)
+	if err != nil {
+		panic(err)
+	}
+	{{- end }}
 
 	// check if p is equal to f. This not being the case means that f is of a degree higher than degreeBound
 	fIn[0].MustSetRandom()
