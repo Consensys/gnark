@@ -251,35 +251,6 @@ func mimcCircuit(numRounds int) gadget.Circuit {
 	return c
 }
 
-func testMimc(t *testing.T, numRounds int, inputAssignments WireAssignment) {
-	//TODO: Implement mimc correctly. Currently, the computation is mimc(a,b) = cipher( cipher( ... cipher(a, b), b) ..., b)
-	// @AlexandreBelling: Please explain the extra layers in https://github.com/Consensys/gkr-mimc/blob/81eada039ab4ed403b7726b535adb63026e8011f/examples/mimc.go#L10
-
-	c := mimcCircuit(numRounds)
-
-	t.Log("Evaluating all circuit wires")
-	assignment := inputAssignments.Complete(utils.References(c))
-	t.Log("Circuit evaluation complete")
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err)
-
-	t.Log("Proof finished")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	t.Log("Successful verification finished")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-	t.Log("Unsuccessful verification finished")
-}
-
-func setRandomSlice(slice []fr.Element) {
-	for i := range slice {
-		slice[i].MustSetRandom()
-	}
-}
-
 func generateTestProver(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
@@ -352,8 +323,8 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
-	setRandomSlice(in0)
-	setRandomSlice(in1)
+	fr.Vector(in0).MustSetRandom()
+	fr.Vector(in1).MustSetRandom()
 
 	fmt.Println("evaluating circuit")
 	start := time.Now().UnixMicro()
@@ -449,7 +420,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			circuit := cache.Get(filepath.Join(dir, info.Circuit))
+			circuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
 			var _hash hash.Hash
 			if _hash, err = hashFromDescription(info.Hash); err != nil {
 				return nil, err
