@@ -98,7 +98,7 @@ func TestSingleMimcCipherGate(t *testing.T) {
 		{}, {},
 		{
 			Inputs: []int{0, 1},
-			Gate:   gatesCache["mimc"],
+			Gate:   cache.GetGate("mimc"),
 		},
 	})
 }
@@ -541,7 +541,7 @@ func TestIsAdditive(t *testing.T) {
 	// h: x -> 2x
 	// but it edits it input
 	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Mul(x[0], x[0])
+		return api.Add(x[0], x[0])
 	}
 
 	assert.False(t, IsGateFunctionAdditive(f, 1, 2))

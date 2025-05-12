@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
@@ -20,12 +21,15 @@ type Cache struct {
 }
 
 func NewCircuitCache() *Cache {
-	gates := make(map[gkr.GateName]*gkrgate.Gate, 6)
+	gates := make(map[gkr.GateName]*gkrgate.Gate, 7)
 	gates[gkr.Identity] = gkrgate.Identity()
 	gates[gkr.Add2] = gkrgate.Add2()
 	gates[gkr.Sub2] = gkrgate.Sub2()
 	gates[gkr.Neg] = gkrgate.Neg()
 	gates[gkr.Mul2] = gkrgate.Mul2()
+	gates["select-input-3"] = gkrgate.New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return in[2]
+	}, 3, 1, 0)
 
 	return &Cache{
 		circuits: make(map[string]gadget.Circuit),
