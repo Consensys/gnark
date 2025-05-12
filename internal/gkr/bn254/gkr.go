@@ -463,7 +463,7 @@ func setup(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 	}
 
 	if o.sorted == nil {
-		o.sorted = topologicalSort(c)
+		o.sorted = gadget.TopologicalSort(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -692,36 +692,6 @@ func (d *topSortData) markDone(i int) {
 	for d.leastReady < len(d.status) && d.status[d.leastReady] != 0 {
 		d.leastReady++
 	}
-}
-
-func statusList(c gadget.Circuit) []int {
-	res := make([]int, len(c))
-	for i := range c {
-		res[i] = len(c[i].Inputs)
-	}
-	return res
-}
-
-// topologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
-// occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
-// It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
-// Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
-// Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func topologicalSort(c gadget.Circuit) []*gadget.Wire {
-	var data topSortData
-	data.outputs = c.OutputsList()
-	data.status = statusList(c)
-	sorted := make([]*gadget.Wire, len(c))
-
-	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
-	}
-
-	for i := range c {
-		sorted[i] = &c[data.leastReady]
-		data.markDone(data.leastReady)
-	}
-
-	return sorted
 }
 
 // Complete the circuit evaluation from input values

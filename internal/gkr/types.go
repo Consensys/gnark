@@ -1,6 +1,8 @@
 package gkr
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
@@ -176,22 +178,39 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *gkrgate.Gate) Circuit {
-	resCircuit := make(Circuit, len(info))
-	for i := range info {
-		resCircuit[i].Inputs = info[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
+func (c Circuit) Inputs() []int {
+	res := make([]int, 0, len(c))
+	for i := range c {
+		if c[i].IsInput() {
+			res = append(res, i)
+		}
 	}
-	return resCircuit
+	return res
 }
 
-func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) SolvingInfo {
+func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *gkrgate.Gate) (Circuit, error) {
+	resCircuit := make(Circuit, len(info))
+	for i := range info {
+		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
+			continue
+		}
+		resCircuit[i].Inputs = info[i].Inputs
+		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
+		if resCircuit[i].Gate == nil {
+			return nil, fmt.Errorf("gate \"%s\" not gound", info[i].Gate)
+		}
+	}
+	return resCircuit, nil
+}
+
+func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) (SolvingInfo, error) {
+	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
-		Circuit:     CircuitInfoToCircuit(info.Circuit, gateGetter),
+		Circuit:     circuit,
 		MaxNIns:     info.MaxNIns,
 		NbInstances: info.NbInstances,
 		HashName:    info.HashName,
-	}
+	}, err
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit

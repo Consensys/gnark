@@ -10,9 +10,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
@@ -116,7 +114,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := topologicalSort(testCase.Circuit)
+	sorted := TopologicalSort(testCase.Circuit)
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -136,7 +134,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	res := make(WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
@@ -212,27 +210,6 @@ func getTestCase(path string) (*TestCase, error) {
 	return cse, nil
 }
 
-var circuitCache = make(map[string]Circuit)
-
-func getCircuit(path string) (circuit Circuit, err error) {
-	path, err = filepath.Abs(path)
-	if err != nil {
-		return
-	}
-	var ok bool
-	if circuit, ok = circuitCache[path]; ok {
-		return
-	}
-	var bytes []byte
-	if bytes, err = os.ReadFile(path); err == nil {
-		var circuitInfo gkrinfo.Circuit
-		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuitCache[path] = gadget.CircuitInfoToCircuit(circuitInfo, getGate)
-		}
-	}
-	return
-}
-
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
@@ -268,7 +245,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := topologicalSort(testCase.Circuit)
+			wires := TopologicalSort(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
@@ -294,14 +271,14 @@ func TestLoadCircuit(t *testing.T) {
 func TestTopSortTrivial(t *testing.T) {
 	c := make(Circuit, 2)
 	c[0].Inputs = []int{1}
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	assert.Equal(t, []int{1, 0}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
 	c := make(Circuit, 3)
 	c[0].Inputs = []int{1, 2}
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	expected := []int{1, 2, 0}
 	assert.True(t, sliceEqual(sorted, expected)) //TODO: Remove
 	assertSliceEqual(t, sorted, expected)
@@ -316,7 +293,7 @@ func TestTopSortDeep(t *testing.T) {
 	c[1].Inputs = []int{3}
 	c[2].Inputs = []int{}
 	c[3].Inputs = []int{0}
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	assert.Equal(t, []int{2, 0, 3, 1}, sorted)
 }
 
@@ -333,7 +310,7 @@ func TestTopSortWide(t *testing.T) {
 	c[8].Inputs = []int{4, 3}
 	c[9].Inputs = []int{}
 
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	sortedExpected := []int{3, 4, 2, 8, 0, 9, 5, 6, 1, 7}
 
 	assert.Equal(t, sortedExpected, sorted)
@@ -433,5 +410,5 @@ func init() {
 	gateRegistry["select-input-3"] = gkrgate.New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
 	}, 3, 1, 0)
-	
+
 }

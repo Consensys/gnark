@@ -21,9 +21,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkr"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,71 +36,49 @@ func TestNoGateTwoInstances(t *testing.T) {
 }
 
 func TestNoGate(t *testing.T) {
-	testManyInstances(t, 1, testNoGate)
-}
-
-func TestSingleAddGateTwoInstances(t *testing.T) {
-	testSingleAddGate(t, []fr.Element{four, three}, []fr.Element{two, three})
+	test(t, noGateCircuit)
 }
 
 func TestSingleAddGate(t *testing.T) {
-	testManyInstances(t, 2, testSingleAddGate)
-}
-
-func TestSingleMulGateTwoInstances(t *testing.T) {
-	testSingleMulGate(t, []fr.Element{four, three}, []fr.Element{two, three})
+	test(t, singleAddGateCircuit)
 }
 
 func TestSingleMulGate(t *testing.T) {
-	testManyInstances(t, 2, testSingleMulGate)
-}
-
-func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) {
-
-	testSingleInputTwoIdentityGates(t, []fr.Element{two, three})
+	test(t, singleMulGateCircuit)
 }
 
 func TestSingleInputTwoIdentityGates(t *testing.T) {
-
-	testManyInstances(t, 2, testSingleInputTwoIdentityGates)
-}
-
-func TestSingleInputTwoIdentityGatesComposedTwoInstances(t *testing.T) {
-	testSingleInputTwoIdentityGatesComposed(t, []fr.Element{two, one})
+	test(t, singleInputTwoIdentityGatesCircuit)
 }
 
 func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
-	testManyInstances(t, 1, testSingleInputTwoIdentityGatesComposed)
-}
-
-func TestSingleMimcCipherGateTwoInstances(t *testing.T) {
-	testSingleMimcCipherGate(t, []fr.Element{one, one}, []fr.Element{one, two})
+	test(t, singleInputTwoIdentityGatesComposed)
 }
 
 func TestSingleMimcCipherGate(t *testing.T) {
-	testManyInstances(t, 2, testSingleMimcCipherGate)
+	test(t, gadget.Circuit{
+		{}, {},
+		{
+			Inputs: []int{0, 1},
+			Gate:   gatesCache["mimc"],
+		},
+	})
 }
 
 func TestATimesBSquaredTwoInstances(t *testing.T) {
-	testATimesBSquared(t, 2, []fr.Element{one, one}, []fr.Element{one, two})
+	testATimesBSquared(t, 2, WireAssignment{{one, one}, {one, two}})
 }
 
 func TestShallowMimcTwoInstances(t *testing.T) {
-	testMimc(t, 2, []fr.Element{one, one}, []fr.Element{one, two})
+	testMimc(t, 2, WireAssignment{{one, one}, {one, two}})
 }
 
 func TestMimcTwoInstances(t *testing.T) {
-	testMimc(t, 93, []fr.Element{one, one}, []fr.Element{one, two})
+	testMimc(t, 93, WireAssignment{{one, one}, {one, two}})
 }
 
 func TestMimc(t *testing.T) {
-	testManyInstances(t, 2, generateTestMimc(93))
-}
-
-func generateTestMimc(numRounds int) func(*testing.T, ...[]fr.Element) {
-	return func(t *testing.T, inputAssignments ...[]fr.Element) {
-		testMimc(t, numRounds, inputAssignments...)
-	}
+	test(t, mimcCircuit(93))
 }
 
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
@@ -159,27 +140,68 @@ func getLogMaxInstances(t *testing.T) int {
 	return testManyInstancesLogMaxInstances
 }
 
-func testManyInstances(t *testing.T, numInput int, test func(*testing.T, ...[]fr.Element)) {
-	fullAssignments := make([][]fr.Element, numInput)
+func test(t *testing.T, circuit gadget.Circuit) {
+	ins := circuit.Inputs()
+	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
 
-	t.Log("Entered test orchestrator, assigning and randomizing inputs")
-
-	for i := range fullAssignments {
-		fullAssignments[i] = make([]fr.Element, maxSize)
-		setRandomSlice(fullAssignments[i])
+	for i := range ins {
+		insAssignment[i] = make([]fr.Element, maxSize)
+		fr.Vector(insAssignment[i]).MustSetRandom()
 	}
 
-	inputAssignments := make([][]fr.Element, numInput)
-	for numEvals := maxSize; numEvals <= maxSize; numEvals *= 2 {
-		for i, fullAssignment := range fullAssignments {
-			inputAssignments[i] = fullAssignment[:numEvals]
+	fullAssignment := make(WireAssignment, len(circuit))
+	for _, numEvals := range []int{2, maxSize} {
+		for i := range ins {
+			fullAssignment[ins[i]] = insAssignment[i][:numEvals]
 		}
 
 		t.Log("Selected inputs for test")
-		test(t, inputAssignments...)
+
+		proof, err := Prove(circuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		assert.NoError(t, err)
+
+		// Even though a hash is called here, the proof is empty
+
+		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		assert.NoError(t, err, "proof rejected")
+
+		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
+		assert.NotNil(t, err, "bad proof accepted")
 	}
+
 }
+
+var (
+	noGateCircuit        = gadget.Circuit{{}}
+	singleAddGateCircuit = gadget.Circuit{{}, {}, {
+		Gate:   gkrgate.Add2(),
+		Inputs: []int{0, 1},
+	}}
+	singleMulGateCircuit = gadget.Circuit{{}, {}, {
+		Gate:   gkrgate.Mul2(),
+		Inputs: []int{0, 1},
+	}}
+	singleInputTwoIdentityGatesCircuit = gadget.Circuit{{},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+	}
+	singleInputTwoIdentityGatesComposed = gadget.Circuit{{},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{1},
+		}}
+)
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	c := gadget.Circuit{
@@ -197,137 +219,26 @@ func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	assert.NoError(t, err, "proof rejected")
 }
 
-func testSingleAddGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := make(gadget.Circuit, 3)
-	c[2] = gadget.Wire{
-		Gate:   gkrgate.Add2(),
-		Inputs: []int{0, 1},
-	}
-
-	assignment := WireAssignment{inputAssignments[0], inputAssignments[1]}.Complete(utils.References(c))
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NoError(t, err)
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-}
-
-func testSingleMulGate(t *testing.T, inputAssignments ...[]fr.Element) {
-
-	c := make(gadget.Circuit, 3)
-	c[2] = gadget.Wire{
-		Gate:   gkrgate.Mul2(),
-		Inputs: []int{0, 1},
-	}
-
-	assignment := WireAssignment{inputAssignments[0], inputAssignments[1]}.Complete(utils.References(c))
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NoError(t, err)
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-}
-
-func testSingleInputTwoIdentityGates(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := make(gadget.Circuit, 3)
-
-	c[1] = gadget.Wire{
-		Gate:   gkrgate.Identity(),
-		Inputs: []int{0},
-	}
-
-	c[2] = gadget.Wire{
-		Gate:   gkrgate.Identity(),
-		Inputs: []int{0},
-	}
-
-	assignment := WireAssignment{inputAssignments[0]}.Complete(utils.References(c))
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err)
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-}
-
-func testSingleMimcCipherGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := make(gadget.Circuit, 3)
-
-	c[2] = gadget.Wire{
-		Gate:   gkrgate.MiMCGate(),
-		Inputs: []int{0,1},
-	}
-
-	t.Log("Evaluating all circuit wires")
-	assignment := WireAssignment{ inputAssignments[0], inputAssignments[1]}.Complete(utils.References(c))
-	t.Log("Circuit evaluation complete")
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err)
-	t.Log("Proof complete")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	t.Log("Successful verification complete")
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-	t.Log("Unsuccessful verification complete")
-}
-
-func testSingleInputTwoIdentityGatesComposed(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := make(gadget.Circuit, 3)
-
-	c[1] = gadget.Wire{
-		Gate:   gkrgate.Identity(),
-		Inputs: []int{0},
-	}
-	c[2] = gadget.Wire{
-		Gate:   gkrgate.Identity(),
-		Inputs: []int{1},
-	}
-
-	assignment := WireAssignment{&c[0]: inputAssignments[0]}.Complete(utils.References(c))
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err)
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
-}
-
-func mimcCircuit(numRounds int) Circuit {
+func mimcCircuit(numRounds int) gadget.Circuit {
 	c := make(gadget.Circuit, numRounds+2)
 
 	for i := 2; i < len(c); i++ {
 		c[i] = gadget.Wire{
-			Gate:   gkrgate."mimc"),
-			Inputs: []int{i-1, 0]},
+			Gate:   gatesCache["mimc"],
+			Inputs: []int{i - 1, 0},
 		}
 	}
 	return c
 }
 
-func testMimc(t *testing.T, numRounds int, inputAssignments ...[]fr.Element) {
+func testMimc(t *testing.T, numRounds int, inputAssignments WireAssignment) {
 	//TODO: Implement mimc correctly. Currently, the computation is mimc(a,b) = cipher( cipher( ... cipher(a, b), b) ..., b)
 	// @AlexandreBelling: Please explain the extra layers in https://github.com/Consensys/gkr-mimc/blob/81eada039ab4ed403b7726b535adb63026e8011f/examples/mimc.go#L10
 
 	c := mimcCircuit(numRounds)
 
 	t.Log("Evaluating all circuit wires")
-	assignment := WireAssignment{&c[0]: inputAssignments[0, 1]: inputAssignments[1]}.Complete(utils.References(c))
+	assignment := inputAssignments.Complete(utils.References(c))
 	t.Log("Circuit evaluation complete")
 
 	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
@@ -343,19 +254,19 @@ func testMimc(t *testing.T, numRounds int, inputAssignments ...[]fr.Element) {
 	t.Log("Unsuccessful verification finished")
 }
 
-func testATimesBSquared(t *testing.T, numRounds int, inputAssignments ...[]fr.Element) {
+func testATimesBSquared(t *testing.T, numRounds int, inputAssignments WireAssignment) {
 	// This imitates the MiMC circuit
 
 	c := make(gadget.Circuit, numRounds+2)
 
 	for i := 2; i < len(c); i++ {
 		c[i] = gadget.Wire{
-			Gate:   gkrgate.Mul2),
-			Inputs: []int{i-1, 0]},
+			Gate:   gkrgate.Mul2(),
+			Inputs: []int{i - 1, 0},
 		}
 	}
 
-	assignment := WireAssignment{&c[0]: inputAssignments[0], 1]: inputAssignments[1]}.Complete(utils.References(c))
+	assignment := inputAssignments.Complete(utils.References(c))
 
 	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
 	assert.NoError(t, err)
@@ -450,7 +361,7 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 
 	fmt.Println("evaluating circuit")
 	start := time.Now().UnixMicro()
-	assignment := WireAssignment{ in0, in1}.Complete(utils.References(c))
+	assignment := WireAssignment{in0, in1}.Complete(utils.References(c))
 	solved := time.Now().UnixMicro() - start
 	fmt.Println("solved in", solved, "μs")
 
@@ -469,111 +380,6 @@ func BenchmarkGkrMimc19(b *testing.B) {
 
 func BenchmarkGkrMimc17(b *testing.B) {
 	benchmarkGkrMiMC(b, 1<<17, 91)
-}
-
-func TestTopSortTrivial(t *testing.T) {
-	c := make(gadget.Circuit, 2)
-	c[0].Inputs = []int{1]}
-	sorted := topologicalSort(c)
-	assert.Equal(t, []int{1], &c[0]}, sorted)
-}
-
-func TestTopSortDeep(t *testing.T) {
-	c := make(gadget.Circuit, 4)
-	c[0].Inputs = []int{2]}
-	c[1].Inputs = []int{3]}
-	c[2].Inputs = []*Wire{}
-	c[3].Inputs = []int{0]}
-	sorted := topologicalSort(c)
-	assert.Equal(t, []int{2], &c[0], &c[3], &c[1]}, sorted)
-}
-
-func TestTopSortWide(t *testing.T) {
-	c := make(gadget.Circuit, 10)
-	c[0].Inputs = []int{3], &c[8]}
-	c[1].Inputs = []int{6]}
-	c[2].Inputs = []int{4]}
-	c[3].Inputs = []int{}
-	c[4].Inputs = []*Wire{}
-	c[5].Inputs = []int{9]}
-	c[6].Inputs = []int{9]}
-	c[7].Inputs = []int{9], &c[5], &c[2]}
-	c[8].Inputs = []int{4], &c[3]}
-	c[9].Inputs = []*Wire{}
-
-	sorted := topologicalSort(c)
-	sortedExpected := []int{3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
-
-	assert.Equal(t, sortedExpected, sorted)
-}
-
-
-var circuitCache = make(map[string]gadget.Circuit)
-
-func getCircuit(path string) (Circuit, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	if circuit, ok := circuitCache[path]; ok {
-		return circuit, nil
-	}
-	var bytes []byte
-	if bytes, err = os.ReadFile(path); err == nil {
-		var circuitInfo CircuitInfo
-		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit := circuitInfo.toCircuit()
-			circuitCache[path] = circuit
-			return circuit, nil
-		} else {
-			return nil, err
-		}
-	} else {
-		return nil, err
-	}
-}
-
-func (c CircuitInfo) toCircuit() (circuit Circuit) {
-	circuit = make(gadget.Circuit, len(c))
-	for i := range c {
-		circuit[i].Gate = gkrgate.c[i].Gate)
-		circuit[i].Inputs = make([]*Wire, len(c[i].Inputs))
-		for k, inputCoord := range c[i].Inputs {
-			input := &circuit[inputCoord]
-			circuit[i].Inputs[k] = input
-		}
-	}
-	return
-}
-
-func mimcRound(input ...fr.Element) (res fr.Element) {
-	var sum fr.Element
-
-	sum.
-		Add(&input[0], &input[1]) //.Add(&sum, &m.ark)  TODO: add ark
-	res.Square(&sum)              // sum^2
-	res.Mul(&res, &sum)           // sum^3
-	res.Square(&res)              //sum^6
-	res.Mul(&res, &sum)           //sum^7
-
-	return
-}
-
-const (
-	MiMC         GateName = "mimc"
-	SelectInput3 GateName = "select-input-3"
-)
-
-func init() {
-	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
-		panic(err)
-	}
-
-	if err := RegisterGate(SelectInput3, func(input ...fr.Element) fr.Element {
-		return input[2]
-	}, 3, WithUnverifiedDegree(1)); err != nil {
-		panic(err)
-	}
 }
 
 type PrintableProof []PrintableSumcheckProof
@@ -613,7 +419,7 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         Circuit
+	Circuit         gadget.Circuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
@@ -647,10 +453,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			var circuit Circuit
-			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-				return nil, err
-			}
+			circuit := circuitCache.Get(filepath.Join(dir, info.Circuit))
 			var _hash hash.Hash
 			if _hash, err = hashFromDescription(info.Hash); err != nil {
 				return nil, err
@@ -660,13 +463,13 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			fullAssignment := make(WireAssignment)
-			inOutAssignment := make(WireAssignment)
+			fullAssignment := make(WireAssignment, len(circuit))
+			inOutAssignment := make(WireAssignment, len(circuit))
 
-			sorted := topologicalSort(circuit)
+			sorted := gadget.TopologicalSort(circuit)
 
 			inI, outI := 0, 0
-			for _, w := range sorted {
+			for i, w := range sorted {
 				var assignmentRaw []interface{}
 				if w.IsInput() {
 					if inI == len(info.Input) {
@@ -687,17 +490,17 @@ func newTestCase(path string) (*TestCase, error) {
 						return nil, err
 					}
 
-					fullAssignment[w] = wireAssignment
-					inOutAssignment[w] = wireAssignment
+					fullAssignment[i] = wireAssignment
+					inOutAssignment[i] = wireAssignment
 				}
 			}
 
-			fullAssignment.Complete(circuit)
+			fullAssignment.Complete(utils.References(circuit))
 
-			for _, w := range sorted {
+			for i, w := range sorted {
 				if w.IsOutput() {
 
-					if err = sliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
+					if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
 						return nil, fmt.Errorf("assignment mismatch: %v", err)
 					}
 
@@ -721,99 +524,54 @@ func newTestCase(path string) (*TestCase, error) {
 	return tCase, nil
 }
 
-func TestRegisterGateDegreeDetection(t *testing.T) {
-	testGate := func(name GateName, f func(...fr.Element) fr.Element, nbIn, degree int) {
-		t.Run(string(name), func(t *testing.T) {
-			name = name + "-register-gate-test"
-
-			assert.NoError(t, RegisterGate(name, f, nbIn, WithDegree(degree)), "given degree must be accepted")
-
-			assert.Error(t, RegisterGate(name, f, nbIn, WithDegree(degree-1)), "lower degree must be rejected")
-
-			assert.Error(t, RegisterGate(name, f, nbIn, WithDegree(degree+1)), "higher degree must be rejected")
-
-			assert.NoError(t, RegisterGate(name, f, nbIn), "no degree must be accepted")
-
-			assert.Equal(t, degree, gkrgate.name).Degree(), "degree must be detected correctly")
-		})
-	}
-
-	testGate("select", func(x ...fr.Element) fr.Element {
-		return x[0]
-	}, 3, 1)
-
-	testGate("add2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.Add(&x[0], &x[1])
-		res.Add(&res, &x[2])
-		return res
-	}, 3, 1)
-
-	testGate("mul2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.Mul(&x[0], &x[1])
-		return res
-	}, 2, 2)
-
-	testGate("mimc", mimcRound, 2, 7)
-
-	testGate("sub2PlusOne", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.
-			SetOne().
-			Add(&res, &x[0]).
-			Sub(&res, &x[1])
-		return res
-	}, 2, 1)
-
-	// zero polynomial must not be accepted
-	t.Run("zero", func(t *testing.T) {
-		const gateName GateName = "zero-register-gate-test"
-		expectedError := fmt.Errorf("for gate %s: %v", gateName, errZeroFunction)
-		zeroGate := func(x ...fr.Element) fr.Element {
-			var res fr.Element
-			return res
-		}
-		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1))
-
-		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1, WithDegree(2)))
-	})
-}
-
 func TestIsAdditive(t *testing.T) {
 
 	// f: x,y -> x² + xy
-	f := func(x ...fr.Element) fr.Element {
+	f := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
 			panic("bivariate input needed")
 		}
-		var res fr.Element
-		res.Add(&x[0], &x[1])
-		res.Mul(&res, &x[0])
-		return res
+		res := api.Add(x[0], x[1])
+		return api.Mul(res, x[0])
 	}
 
 	// g: x,y -> x² + 3y
-	g := func(x ...fr.Element) fr.Element {
-		var res, y3 fr.Element
-		res.Square(&x[0])
-		y3.Mul(&x[1], &three)
-		res.Add(&res, &y3)
-		return res
+	g := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		res := api.Mul(x[0], x[0])
+		y3 := api.Mul(x[1], 3)
+		return api.Add(res, y3)
 	}
 
 	// h: x -> 2x
 	// but it edits it input
-	h := func(x ...fr.Element) fr.Element {
-		x[0].Double(&x[0])
-		return x[0]
+	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Mul(x[0], x[0])
 	}
 
-	assert.False(t, GateFunction(f).isAdditive(1, 2))
-	assert.False(t, GateFunction(f).isAdditive(0, 2))
+	assert.False(t, IsGateFunctionAdditive(f, 1, 2))
+	assert.False(t, IsGateFunctionAdditive(f, 0, 2))
 
-	assert.False(t, GateFunction(g).isAdditive(0, 2))
-	assert.True(t, GateFunction(g).isAdditive(1, 2))
+	assert.False(t, IsGateFunctionAdditive(g, 0, 2))
+	assert.True(t, IsGateFunctionAdditive(g, 1, 2))
 
-	assert.True(t, GateFunction(h).isAdditive(0, 1))
+	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
+}
+
+var (
+	gatesCache   = make(map[gkr.GateName]*gkrgate.Gate)
+	circuitCache = gkrtesting.NewCircuitCache(func(name gkr.GateName) *gkrgate.Gate {
+		return gatesCache[name]
+	})
+)
+
+func init() {
+	gatesCache["mimc"] = gkrgate.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
+		res := api.Mul(sum, sum)           // sum^2
+		res = api.Mul(res, sum)            // sum^3
+		res = api.Mul(res, res)            // sum^6
+		res = api.Mul(res, sum)            // sum^7
+
+		return res
+	}, 2, 7, -1)
 }
