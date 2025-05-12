@@ -8,12 +8,11 @@ package gkr
 import (
 	"errors"
 	"fmt"
-	"slices"
-	"sync"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"slices"
+	"sync"
 )
 
 type GateName string

@@ -10,9 +10,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math/big"
-	"slices"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/mpcsetup"
@@ -21,6 +18,8 @@ import (
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls12-381"
 	"github.com/consensys/gnark/internal/utils"
+	"math/big"
+	"slices"
 )
 
 // Phase2Evaluations components of the circuit keys

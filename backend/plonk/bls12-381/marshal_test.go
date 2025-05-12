@@ -8,12 +8,11 @@ package plonk
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
 	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/consensys/gnark/io"
 
 	"github.com/stretchr/testify/assert"
 )

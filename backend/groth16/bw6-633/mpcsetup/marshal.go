@@ -7,12 +7,11 @@ package mpcsetup
 
 import (
 	"encoding/binary"
-	"io"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/mpcsetup"
 	"github.com/consensys/gnark/internal/utils"
 	gIo "github.com/consensys/gnark/io"
+	"io"
 )
 
 // WriteTo implements io.WriterTo

@@ -282,6 +282,19 @@ func (a WireAssignment) NbVars() int {
 	panic("empty assignment")
 }
 
+// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set.
+func (c Circuit) ProofSize(logNbInstances int) int {
+	nbUniqueInputs := 0
+	nbPartialEvalPolys := 0
+	for i := range c {
+		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
+		if !c[i].NoProof() {
+			nbPartialEvalPolys += c[i].Gate.Degree() + 1
+		}
+	}
+	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
+}
+
 // makeNeg1Slice returns a slice of size n with all elements set to -1.
 func makeNeg1Slice(n int) []int {
 	res := make([]int, n)

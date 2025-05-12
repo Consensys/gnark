@@ -7,10 +7,6 @@ package groth16
 
 import (
 	"fmt"
-	"math/big"
-	"runtime"
-	"time"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
@@ -24,6 +20,9 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"math/big"
+	"runtime"
+	"time"
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )

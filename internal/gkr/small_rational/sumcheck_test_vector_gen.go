@@ -8,15 +8,14 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
 	"math/bits"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/small_rational"
-	"github.com/consensys/gnark/internal/small_rational/polynomial"
 )
 
 func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {

@@ -17,6 +17,7 @@ import (
 	bn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	bw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"github.com/consensys/gnark/std/gkr"
 )

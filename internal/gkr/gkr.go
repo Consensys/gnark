@@ -171,7 +171,7 @@ func setup(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignm
 	}
 
 	if o.sorted == nil {
-		o.sorted = gkrtypes.TopologicalSort(c)
+		o.sorted = c.TopologicalSort()
 	}
 
 	if transcriptSettings.Transcript == nil {

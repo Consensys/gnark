@@ -8,15 +8,14 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"hash"
-	"os"
-	"path/filepath"
-	"reflect"
-
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"hash"
+	"os"
+	"path/filepath"
+	"reflect"
 )
 
 func GenerateVectors() error {
@@ -114,81 +113,6 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 		}
 	}
 	return res, nil
-}
-
-type WireInfo struct {
-	Gate   GateName `json:"gate"`
-	Inputs []int    `json:"inputs"`
-}
-
-type CircuitInfo []WireInfo
-
-var circuitCache = make(map[string]Circuit)
-
-func getCircuit(path string) (Circuit, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	if circuit, ok := circuitCache[path]; ok {
-		return circuit, nil
-	}
-	var bytes []byte
-	if bytes, err = os.ReadFile(path); err == nil {
-		var circuitInfo CircuitInfo
-		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit := circuitInfo.toCircuit()
-			circuitCache[path] = circuit
-			return circuit, nil
-		} else {
-			return nil, err
-		}
-	} else {
-		return nil, err
-	}
-}
-
-func (c CircuitInfo) toCircuit() (circuit Circuit) {
-	circuit = make(Circuit, len(c))
-	for i := range c {
-		circuit[i].Gate = GetGate(c[i].Gate)
-		circuit[i].Inputs = make([]*Wire, len(c[i].Inputs))
-		for k, inputCoord := range c[i].Inputs {
-			input := &circuit[inputCoord]
-			circuit[i].Inputs[k] = input
-		}
-	}
-	return
-}
-
-func mimcRound(input ...small_rational.SmallRational) (res small_rational.SmallRational) {
-	var sum small_rational.SmallRational
-
-	sum.
-		Add(&input[0], &input[1]) //.Add(&sum, &m.ark)  TODO: add ark
-	res.Square(&sum)    // sum^2
-	res.Mul(&res, &sum) // sum^3
-	res.Square(&res)    //sum^6
-	res.Mul(&res, &sum) //sum^7
-
-	return
-}
-
-const (
-	MiMC         GateName = "mimc"
-	SelectInput3 GateName = "select-input-3"
-)
-
-func init() {
-	if err := RegisterGate(MiMC, mimcRound, 2, WithUnverifiedDegree(7)); err != nil {
-		panic(err)
-	}
-
-	if err := RegisterGate(SelectInput3, func(input ...small_rational.SmallRational) small_rational.SmallRational {
-		return input[2]
-	}, 3, WithUnverifiedDegree(1)); err != nil {
-		panic(err)
-	}
 }
 
 type PrintableProof []PrintableSumcheckProof

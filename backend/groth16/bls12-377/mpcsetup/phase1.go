@@ -10,12 +10,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math/big"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/mpcsetup"
+	"math/big"
 )
 
 // SrsCommons are the circuit-independent components of the Groth16 SRS,

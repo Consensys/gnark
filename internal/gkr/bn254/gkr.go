@@ -477,19 +477,6 @@ func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 	return o, err
 }
 
-// ProofSize computes how large the proof for a circuit would be. It needs nbUniqueOutputs to be set
-func ProofSize(c gkrtypes.Circuit, logNbInstances int) int {
-	nbUniqueInputs := 0
-	nbPartialEvalPolys := 0
-	for i := range c {
-		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		if !c[i].NoProof() {
-			nbPartialEvalPolys += c[i].Gate.Degree() + 1
-		}
-	}
-	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
-}
-
 func ChallengeNames(sorted []*gkrtypes.Wire, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
@@ -668,30 +655,8 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 	return nil
 }
 
-type topSortData struct {
-	outputs    [][]int
-	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	leastReady int
-}
-
-func (d *topSortData) markDone(i int) {
-
-	d.status[i] = -1
-
-	for _, outI := range d.outputs[i] {
-		d.status[outI]--
-		if d.status[outI] == 0 && outI < d.leastReady {
-			d.leastReady = outI
-		}
-	}
-
-	for d.leastReady < len(d.status) && d.status[d.leastReady] != 0 {
-		d.leastReady++
-	}
-}
-
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(wires []*gkrtypes.Wire) WireAssignment {
+func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 
 	nbInstances := a.NumInstances()
 	maxNbIns := 0

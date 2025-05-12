@@ -7,11 +7,10 @@ package gkr
 
 import (
 	"errors"
-	"strconv"
-
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"strconv"
 )
 
 // This does not make use of parallelism and represents polynomials as lists of coefficients

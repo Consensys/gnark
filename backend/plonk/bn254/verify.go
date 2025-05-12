@@ -8,12 +8,11 @@ package plonk
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/solidity"
 	"io"
 	"math/big"
 	"text/template"
 	"time"
-
-	"github.com/consensys/gnark/backend/solidity"
 
 	"github.com/consensys/gnark-crypto/ecc"
 

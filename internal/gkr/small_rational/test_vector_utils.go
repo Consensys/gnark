@@ -7,11 +7,10 @@ package gkr
 
 import (
 	"fmt"
-	"hash"
-	"reflect"
-
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"hash"
+	"reflect"
 )
 
 func toElement(i int64) *small_rational.SmallRational {

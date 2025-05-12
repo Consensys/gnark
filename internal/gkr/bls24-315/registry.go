@@ -7,13 +7,12 @@ package gkr
 
 import (
 	"fmt"
-	"slices"
-	"sync"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
+	"slices"
+	"sync"
 )
 
 type GateName string
