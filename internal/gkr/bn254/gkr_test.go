@@ -36,23 +36,46 @@ func TestNoGateTwoInstances(t *testing.T) {
 }
 
 func TestNoGate(t *testing.T) {
-	test(t, noGateCircuit)
+	test(t, gadget.Circuit{{}})
 }
 
 func TestSingleAddGate(t *testing.T) {
-	test(t, singleAddGateCircuit)
+	test(t, gadget.Circuit{{}, {}, {
+		Gate:   gkrgate.Add2(),
+		Inputs: []int{0, 1},
+	}})
 }
 
 func TestSingleMulGate(t *testing.T) {
-	test(t, singleMulGateCircuit)
+	test(t, gadget.Circuit{{}, {}, {
+		Gate:   gkrgate.Mul2(),
+		Inputs: []int{0, 1},
+	}})
 }
 
 func TestSingleInputTwoIdentityGates(t *testing.T) {
-	test(t, singleInputTwoIdentityGatesCircuit)
+	test(t, gadget.Circuit{{},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+	})
 }
 
 func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
-	test(t, singleInputTwoIdentityGatesComposed)
+	test(t, gadget.Circuit{{},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{0},
+		},
+		{
+			Gate:   gkrgate.Identity(),
+			Inputs: []int{1},
+		}})
 }
 
 func TestSingleMimcCipherGate(t *testing.T) {
@@ -192,37 +215,6 @@ func (p Proof) isEmpty() bool {
 	}
 	return true
 }
-
-var (
-	noGateCircuit        = gadget.Circuit{{}}
-	singleAddGateCircuit = gadget.Circuit{{}, {}, {
-		Gate:   gkrgate.Add2(),
-		Inputs: []int{0, 1},
-	}}
-	singleMulGateCircuit = gadget.Circuit{{}, {}, {
-		Gate:   gkrgate.Mul2(),
-		Inputs: []int{0, 1},
-	}}
-	singleInputTwoIdentityGatesCircuit = gadget.Circuit{{},
-		{
-			Gate:   gkrgate.Identity(),
-			Inputs: []int{0},
-		},
-		{
-			Gate:   gkrgate.Identity(),
-			Inputs: []int{0},
-		},
-	}
-	singleInputTwoIdentityGatesComposed = gadget.Circuit{{},
-		{
-			Gate:   gkrgate.Identity(),
-			Inputs: []int{0},
-		},
-		{
-			Gate:   gkrgate.Identity(),
-			Inputs: []int{1},
-		}}
-)
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	c := gadget.Circuit{
