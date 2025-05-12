@@ -6,7 +6,6 @@
 package gkr
 
 import (
-	"encoding/json"
 	"fmt"
 	"hash"
 	"os"
@@ -348,14 +347,7 @@ func BenchmarkGkrMimc17(b *testing.B) {
 	benchmarkGkrMiMC(b, 1<<17, 91)
 }
 
-type PrintableProof []PrintableSumcheckProof
-
-type PrintableSumcheckProof struct {
-	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
-}
-
-func unmarshalProof(printable PrintableProof) (Proof, error) {
+func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 	proof := make(Proof, len(printable))
 	for i := range printable {
 		finalEvalProof := []fr.Element(nil)
@@ -392,14 +384,6 @@ type TestCase struct {
 	InOutAssignment WireAssignment
 }
 
-type TestCaseInfo struct {
-	Hash    hashDescription `json:"hash"`
-	Circuit string          `json:"circuit"`
-	Input   [][]interface{} `json:"input"`
-	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
-}
-
 var testCases = make(map[string]*TestCase)
 
 func newTestCase(path string) (*TestCase, error) {
@@ -410,82 +394,76 @@ func newTestCase(path string) (*TestCase, error) {
 	dir := filepath.Dir(path)
 
 	tCase, ok := testCases[path]
-	if !ok {
-		var bytes []byte
-		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
-			err = json.Unmarshal(bytes, &info)
-			if err != nil {
+	if ok {
+		return tCase, nil
+	}
+
+	info, err := cache.ReadTestCaseInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	circuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
+	var _hash hash.Hash
+	if _hash, err = hashFromDescription(info.Hash); err != nil {
+		return nil, err
+	}
+	var proof Proof
+	if proof, err = unmarshalProof(info.Proof); err != nil {
+		return nil, err
+	}
+
+	fullAssignment := make(WireAssignment, len(circuit))
+	inOutAssignment := make(WireAssignment, len(circuit))
+
+	sorted := circuit.TopologicalSort()
+
+	inI, outI := 0, 0
+	for i, w := range sorted {
+		var assignmentRaw []interface{}
+		if w.IsInput() {
+			if inI == len(info.Input) {
+				return nil, fmt.Errorf("fewer input in vector than in circuit")
+			}
+			assignmentRaw = info.Input[inI]
+			inI++
+		} else if w.IsOutput() {
+			if outI == len(info.Output) {
+				return nil, fmt.Errorf("fewer output in vector than in circuit")
+			}
+			assignmentRaw = info.Output[outI]
+			outI++
+		}
+		if assignmentRaw != nil {
+			var wireAssignment []fr.Element
+			if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
 				return nil, err
 			}
 
-			circuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
-			var _hash hash.Hash
-			if _hash, err = hashFromDescription(info.Hash); err != nil {
-				return nil, err
-			}
-			var proof Proof
-			if proof, err = unmarshalProof(info.Proof); err != nil {
-				return nil, err
-			}
-
-			fullAssignment := make(WireAssignment, len(circuit))
-			inOutAssignment := make(WireAssignment, len(circuit))
-
-			sorted := circuit.TopologicalSort()
-
-			inI, outI := 0, 0
-			for i, w := range sorted {
-				var assignmentRaw []interface{}
-				if w.IsInput() {
-					if inI == len(info.Input) {
-						return nil, fmt.Errorf("fewer input in vector than in circuit")
-					}
-					assignmentRaw = info.Input[inI]
-					inI++
-				} else if w.IsOutput() {
-					if outI == len(info.Output) {
-						return nil, fmt.Errorf("fewer output in vector than in circuit")
-					}
-					assignmentRaw = info.Output[outI]
-					outI++
-				}
-				if assignmentRaw != nil {
-					var wireAssignment []fr.Element
-					if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
-						return nil, err
-					}
-
-					fullAssignment[i] = wireAssignment
-					inOutAssignment[i] = wireAssignment
-				}
-			}
-
-			fullAssignment.Complete(utils.References(circuit))
-
-			for i, w := range sorted {
-				if w.IsOutput() {
-
-					if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
-						return nil, fmt.Errorf("assignment mismatch: %v", err)
-					}
-
-				}
-			}
-
-			tCase = &TestCase{
-				FullAssignment:  fullAssignment,
-				InOutAssignment: inOutAssignment,
-				Proof:           proof,
-				Hash:            _hash,
-				Circuit:         circuit,
-			}
-
-			testCases[path] = tCase
-		} else {
-			return nil, err
+			fullAssignment[i] = wireAssignment
+			inOutAssignment[i] = wireAssignment
 		}
 	}
+
+	fullAssignment.Complete(utils.References(circuit))
+
+	for i, w := range sorted {
+		if w.IsOutput() {
+			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
+				return nil, fmt.Errorf("assignment mismatch: %v", err)
+			}
+		}
+	}
+
+	tCase = &TestCase{
+		FullAssignment:  fullAssignment,
+		InOutAssignment: inOutAssignment,
+		Proof:           proof,
+		Hash:            _hash,
+		Circuit:         circuit,
+	}
+
+	testCases[path] = tCase
 
 	return tCase, nil
 }

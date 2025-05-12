@@ -2,6 +2,7 @@ package gkrtesting
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -74,4 +75,32 @@ func (c *Cache) GetGate(name gkr.GateName) *gkrtypes.Gate {
 		return gate
 	}
 	panic("gate not found")
+}
+
+type PrintableProof []PrintableSumcheckProof
+
+type PrintableSumcheckProof struct {
+	FinalEvalProof  interface{}     `json:"finalEvalProof"`
+	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
+}
+
+type HashDescription map[string]interface{}
+type TestCaseInfo struct {
+	Hash    HashDescription `json:"hash"`
+	Circuit string          `json:"circuit"`
+	Input   [][]interface{} `json:"input"`
+	Output  [][]interface{} `json:"output"`
+	Proof   PrintableProof  `json:"proof"`
+}
+
+func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
+	err = json.NewDecoder(f).Decode(&info)
+	return
 }
