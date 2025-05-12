@@ -36,12 +36,14 @@ func (c *CircuitCache) Get(path string) (circuit gadget.Circuit) {
 	if bytes, err = os.ReadFile(path); err == nil {
 		var circuitInfo gkrinfo.Circuit
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			c.m[path], err = gadget.CircuitInfoToCircuit(circuitInfo, c.getGate)
+			circuit, err = gadget.CircuitInfoToCircuit(circuitInfo, c.getGate)
+			if err == nil {
+				c.m[path] = circuit
+			} else {
+				panic(err)
+			}
 		}
 	}
 
-	if err != nil {
-		panic(err)
-	}
 	return
 }

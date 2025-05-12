@@ -570,4 +570,6 @@ func init() {
 
 		return res
 	}, 2, 7, -1)
+	gatesCache[gkr.Identity] = gkrgate.Identity()
+	gatesCache[gkr.Mul2] = gkrgate.Mul2()
 }
