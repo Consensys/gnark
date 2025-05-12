@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
@@ -132,9 +133,9 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
-func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
+func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
 	sorted := TopologicalSort(c)
-	res := make(WireAssignment, len(inputValues)+len(outputValues))
+	res := make(gkrtypes.WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
 		if w.IsInput() {
@@ -155,7 +156,7 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit Circuit
+	Circuit gkrtypes.Circuit
 	Hash    HashDescription
 	Proof   Proof
 	Input   [][]frontend.Variable
@@ -257,14 +258,14 @@ func TestLogNbInstances(t *testing.T) {
 }
 
 func TestTopSortTrivial(t *testing.T) {
-	c := make(Circuit, 2)
+	c := make(gkrtypes.Circuit, 2)
 	c[0].Inputs = []int{1}
 	sorted := TopologicalSort(c)
 	assert.Equal(t, []int{1, 0}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
-	c := make(Circuit, 3)
+	c := make(gkrtypes.Circuit, 3)
 	c[0].Inputs = []int{1, 2}
 	sorted := TopologicalSort(c)
 	expected := []int{1, 2, 0}
@@ -276,7 +277,7 @@ func TestTopSortSingleGate(t *testing.T) {
 }
 
 func TestTopSortDeep(t *testing.T) {
-	c := make(Circuit, 4)
+	c := make(gkrtypes.Circuit, 4)
 	c[0].Inputs = []int{2}
 	c[1].Inputs = []int{3}
 	c[2].Inputs = []int{}
@@ -286,7 +287,7 @@ func TestTopSortDeep(t *testing.T) {
 }
 
 func TestTopSortWide(t *testing.T) {
-	c := make(Circuit, 10)
+	c := make(gkrtypes.Circuit, 10)
 	c[0].Inputs = []int{3, 8}
 	c[1].Inputs = []int{6}
 	c[2].Inputs = []int{4}

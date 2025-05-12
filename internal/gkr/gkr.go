@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 )
@@ -27,7 +28,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gkrtypes.Wire {
 	return e.manager.wires[e.wireI]
 }
 
@@ -85,15 +86,6 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 	return nil
 }
 
-// makeNeg1Slice returns a slice of size n with all elements set to -1.
-func makeNeg1Slice(n int) []int {
-	res := make([]int, n)
-	for i := range res {
-		res[i] = -1
-	}
-	return res
-}
-
 func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
@@ -113,11 +105,11 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 
 type claimsManager struct {
 	claims     []*eqTimesGateEvalSumcheckLazyClaims
-	assignment WireAssignment
-	wires      Wires
+	assignment gkrtypes.WireAssignment
+	wires      gkrtypes.Wires
 }
 
-func newClaimsManager(wires Wires, assignment WireAssignment) (claims claimsManager) {
+func newClaimsManager(wires gkrtypes.Wires, assignment gkrtypes.WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
 	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	claims.wires = wires
@@ -151,7 +143,7 @@ func (m *claimsManager) deleteClaim(wire int) {
 }
 
 type settings struct {
-	sorted           []*Wire
+	sorted           []*gkrtypes.Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -159,13 +151,13 @@ type settings struct {
 
 type Option func(*settings)
 
-func WithSortedCircuit(sorted []*Wire) Option {
+func WithSortedCircuit(sorted []*gkrtypes.Wire) Option {
 	return func(options *settings) {
 		options.sorted = sorted
 	}
 }
 
-func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -196,7 +188,7 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
-func ProofSize(c Circuit, logNbInstances int) int {
+func ProofSize(c gkrtypes.Circuit, logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
@@ -208,7 +200,7 @@ func ProofSize(c Circuit, logNbInstances int) int {
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
-func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string {
+func ChallengeNames(sorted []*gkrtypes.Wire, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -277,7 +269,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenge
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -347,7 +339,7 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
-func statusList(c Circuit) []int {
+func statusList(c gkrtypes.Circuit) []int {
 	res := make([]int, len(c))
 	for i := range c {
 		res[i] = len(c[i].Inputs)
@@ -362,11 +354,11 @@ func statusList(c Circuit) []int {
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
 // Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func TopologicalSort(c Circuit) []*Wire {
+func TopologicalSort(c gkrtypes.Circuit) []*gkrtypes.Wire {
 	var data topSortData
 	data.outputs = c.OutputsList()
 	data.status = statusList(c)
-	sorted := make([]*Wire, len(c))
+	sorted := make([]*gkrtypes.Wire, len(c))
 
 	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
 	}
@@ -401,7 +393,7 @@ func (p Proof) Serialize() []frontend.Variable {
 	return res
 }
 
-func computeLogNbInstances(wires []*Wire, serializedProofLen int) int {
+func computeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.NoProof() {
@@ -424,7 +416,7 @@ func (r *variablesReader) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proof, error) {
+func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variable) (Proof, error) {
 	proof := make(Proof, len(sorted))
 	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
 

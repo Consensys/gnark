@@ -1,5 +1,5 @@
 // Package gkrgate contains the definition of a GKR gate
-package gkrgate
+package gkrtypes
 
 import (
 	"github.com/consensys/gnark/frontend"

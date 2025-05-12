@@ -18,6 +18,7 @@ import (
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkr"
 )
 
@@ -38,7 +39,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gadget.Wire {
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gkrtypes.Wire {
 	return e.manager.wires[e.wireI]
 }
 
@@ -130,7 +131,7 @@ type eqTimesGateEvalSumcheckClaims struct {
 	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) getWire() *gadget.Wire {
+func (c *eqTimesGateEvalSumcheckClaims) getWire() *gkrtypes.Wire {
 	return c.manager.wires[c.wireI]
 }
 
@@ -347,10 +348,10 @@ type claimsManager struct {
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *gcUtils.WorkerPool
-	wires      gadget.Wires
+	wires      gkrtypes.Wires
 }
 
-func newClaimsManager(wires []*gadget.Wire, assignment WireAssignment, o settings) (manager claimsManager) {
+func newClaimsManager(wires []*gkrtypes.Wire, assignment WireAssignment, o settings) (manager claimsManager) {
 	manager.assignment = assignment
 	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	manager.memPool = o.pool
@@ -409,7 +410,7 @@ func (m *claimsManager) deleteClaim(wire int) {
 
 type settings struct {
 	pool             *polynomial.Pool
-	sorted           []*gadget.Wire
+	sorted           []*gkrtypes.Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -424,7 +425,7 @@ func WithPool(pool *polynomial.Pool) Option {
 	}
 }
 
-func WithSortedCircuit(sorted []*gadget.Wire) Option {
+func WithSortedCircuit(sorted []*gkrtypes.Wire) Option {
 	return func(options *settings) {
 		options.sorted = sorted
 	}
@@ -436,7 +437,7 @@ func WithWorkers(workers *gcUtils.WorkerPool) Option {
 	}
 }
 
-func setup(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -478,7 +479,7 @@ func setup(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs nbUniqueOutputs to be set
-func ProofSize(c gadget.Circuit, logNbInstances int) int {
+func ProofSize(c gkrtypes.Circuit, logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
@@ -490,7 +491,7 @@ func ProofSize(c gadget.Circuit, logNbInstances int) int {
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
-func ChallengeNames(sorted []*gadget.Wire, logNbInstances int, prefix string) []string {
+func ChallengeNames(sorted []*gkrtypes.Wire, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -560,7 +561,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Elem
 }
 
 // Prove consistency of the claimed assignment
-func Prove(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
+func Prove(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return nil, err
@@ -614,7 +615,7 @@ func Prove(c gadget.Circuit, assignment WireAssignment, transcriptSettings fiats
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(c gadget.Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -691,7 +692,7 @@ func (d *topSortData) markDone(i int) {
 }
 
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(wires []*gadget.Wire) WireAssignment {
+func (a WireAssignment) Complete(wires []*gkrtypes.Wire) WireAssignment {
 
 	nbInstances := a.NumInstances()
 	maxNbIns := 0

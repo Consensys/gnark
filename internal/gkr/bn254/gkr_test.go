@@ -23,8 +23,8 @@ import (
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/stretchr/testify/assert"
@@ -36,44 +36,44 @@ func TestNoGateTwoInstances(t *testing.T) {
 }
 
 func TestNoGate(t *testing.T) {
-	test(t, gadget.Circuit{{}})
+	test(t, gkrtypes.Circuit{{}})
 }
 
 func TestSingleAddGate(t *testing.T) {
-	test(t, gadget.Circuit{{}, {}, {
-		Gate:   gkrgate.Add2(),
+	test(t, gkrtypes.Circuit{{}, {}, {
+		Gate:   gkrtypes.Add2(),
 		Inputs: []int{0, 1},
 	}})
 }
 
 func TestSingleMulGate(t *testing.T) {
-	test(t, gadget.Circuit{{}, {}, {
-		Gate:   gkrgate.Mul2(),
+	test(t, gkrtypes.Circuit{{}, {}, {
+		Gate:   gkrtypes.Mul2(),
 		Inputs: []int{0, 1},
 	}})
 }
 
 func TestSingleInputTwoIdentityGates(t *testing.T) {
-	test(t, gadget.Circuit{{},
+	test(t, gkrtypes.Circuit{{},
 		{
-			Gate:   gkrgate.Identity(),
+			Gate:   gkrtypes.Identity(),
 			Inputs: []int{0},
 		},
 		{
-			Gate:   gkrgate.Identity(),
+			Gate:   gkrtypes.Identity(),
 			Inputs: []int{0},
 		},
 	})
 }
 
 func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
-	test(t, gadget.Circuit{{},
+	test(t, gkrtypes.Circuit{{},
 		{
-			Gate:   gkrgate.Identity(),
+			Gate:   gkrtypes.Identity(),
 			Inputs: []int{0},
 		},
 		{
-			Gate:   gkrgate.Identity(),
+			Gate:   gkrtypes.Identity(),
 			Inputs: []int{1},
 		}})
 }
@@ -81,11 +81,11 @@ func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
 func TestAPowNTimesBCircuit(t *testing.T) {
 	const N = 10
 
-	c := make(gadget.Circuit, N+2)
+	c := make(gkrtypes.Circuit, N+2)
 
 	for i := 2; i < len(c); i++ {
-		c[i] = gadget.Wire{
-			Gate:   gkrgate.Mul2(),
+		c[i] = gkrtypes.Wire{
+			Gate:   gkrtypes.Mul2(),
 			Inputs: []int{i - 1, 0},
 		}
 	}
@@ -94,7 +94,7 @@ func TestAPowNTimesBCircuit(t *testing.T) {
 }
 
 func TestSingleMimcCipherGate(t *testing.T) {
-	test(t, gadget.Circuit{
+	test(t, gkrtypes.Circuit{
 		{}, {},
 		{
 			Inputs: []int{0, 1},
@@ -112,8 +112,8 @@ func TestMimc(t *testing.T) {
 }
 
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-	circuit := gadget.Circuit{gadget.Wire{
-		Gate:            gkrgate.Identity(),
+	circuit := gkrtypes.Circuit{gkrtypes.Wire{
+		Gate:            gkrtypes.Identity(),
 		NbUniqueOutputs: 2,
 	}}
 
@@ -170,7 +170,7 @@ func getLogMaxInstances(t *testing.T) int {
 	return testManyInstancesLogMaxInstances
 }
 
-func test(t *testing.T, circuit gadget.Circuit) {
+func test(t *testing.T, circuit gkrtypes.Circuit) {
 	wireRefs := utils.References(circuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -224,7 +224,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := gadget.Circuit{
+	c := gkrtypes.Circuit{
 		{},
 	}
 
@@ -239,11 +239,11 @@ func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	assert.NoError(t, err, "proof rejected")
 }
 
-func mimcCircuit(numRounds int) gadget.Circuit {
-	c := make(gadget.Circuit, numRounds+2)
+func mimcCircuit(numRounds int) gkrtypes.Circuit {
+	c := make(gkrtypes.Circuit, numRounds+2)
 
 	for i := 2; i < len(c); i++ {
-		c[i] = gadget.Wire{
+		c[i] = gkrtypes.Wire{
 			Gate:   cache.GetGate("mimc"),
 			Inputs: []int{i - 1, 0},
 		}
@@ -386,7 +386,7 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gadget.Circuit
+	Circuit         gkrtypes.Circuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
@@ -528,7 +528,7 @@ var cache *gkrtesting.Cache
 
 func init() {
 	cache = gkrtesting.NewCache()
-	cache.RegisterGate("mimc", gkrgate.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
 		res := api.Mul(sum, sum)           // sum^2
 		res = api.Mul(res, sum)            // sum^3

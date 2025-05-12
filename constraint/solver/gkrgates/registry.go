@@ -18,12 +18,11 @@ import (
 	bw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/std/gkr"
 )
 
 var (
-	gates     = make(map[gkr.GateName]*gkrgate.Gate)
+	gates     = make(map[gkr.GateName]*gkrtypes.Gate)
 	gatesLock sync.Mutex
 )
 
@@ -178,11 +177,11 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
-	gates[s.name] = gkrgate.New(f, nbIn, s.degree, s.solvableVar)
+	gates[s.name] = gkrtypes.New(f, nbIn, s.degree, s.solvableVar)
 	return nil
 }
 
-func Get(name gkr.GateName) *gkrgate.Gate {
+func Get(name gkr.GateName) *gkrtypes.Gate {
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
 	return gates[name]
@@ -228,11 +227,11 @@ func init() {
 	// register some basic gates
 	gatesLock.Lock()
 
-	gates[gkr.Identity] = gkrgate.Identity()
-	gates[gkr.Add2] = gkrgate.Add2()
-	gates[gkr.Sub2] = gkrgate.Sub2()
-	gates[gkr.Neg] = gkrgate.Neg()
-	gates[gkr.Mul2] = gkrgate.Mul2()
+	gates[gkr.Identity] = gkrtypes.Identity()
+	gates[gkr.Add2] = gkrtypes.Add2()
+	gates[gkr.Sub2] = gkrtypes.Sub2()
+	gates[gkr.Neg] = gkrtypes.Neg()
+	gates[gkr.Mul2] = gkrtypes.Mul2()
 
 	gatesLock.Unlock()
 }

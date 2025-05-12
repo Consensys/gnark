@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
+	gadget "github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 
 	"hash"

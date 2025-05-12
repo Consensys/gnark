@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
@@ -17,18 +18,18 @@ import (
 )
 
 type circuitDataForSnark struct {
-	circuit     gadget.Circuit
-	assignments gadget.WireAssignment
+	circuit     gkrtypes.Circuit
+	assignments gkrtypes.WireAssignment
 }
 
 type API struct {
 	toStore     gkrinfo.StoringInfo
-	assignments gadget.WireAssignment
+	assignments gkrtypes.WireAssignment
 }
 
 type Solution struct {
 	toStore      gkrinfo.StoringInfo
-	assignments  gadget.WireAssignment
+	assignments  gkrtypes.WireAssignment
 	parentApi    frontend.API
 	permutations gkrinfo.Permutations
 }
@@ -219,13 +220,13 @@ func ite[T any](condition bool, ifNot, IfSo T) T {
 	return ifNot
 }
 
-func newCircuitDataForSnark(info gkrinfo.StoringInfo, assignment gadget.WireAssignment) circuitDataForSnark {
-	circuit := make(gadget.Circuit, len(info.Circuit))
-	snarkAssignment := make(gadget.WireAssignment, len(info.Circuit))
+func newCircuitDataForSnark(info gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) circuitDataForSnark {
+	circuit := make(gkrtypes.Circuit, len(info.Circuit))
+	snarkAssignment := make(gkrtypes.WireAssignment, len(info.Circuit))
 
 	for i := range circuit {
 		w := info.Circuit[i]
-		circuit[i] = gadget.Wire{
+		circuit[i] = gkrtypes.Wire{
 			Gate:            gkrgates.Get(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
 			Inputs:          w.Inputs,
 			NbUniqueOutputs: w.NbUniqueOutputs,

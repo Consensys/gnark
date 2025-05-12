@@ -1,10 +1,9 @@
-package gkr
+package gkrtypes
 
 import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
@@ -12,7 +11,7 @@ import (
 )
 
 type Wire struct {
-	Gate            *gkrgate.Gate
+	Gate            *Gate
 	Inputs          []int
 	NbUniqueOutputs int
 }
@@ -143,7 +142,7 @@ func (info *SolvingInfo) AssignmentOffsets() []int {
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
 // It also sets the NbUniqueOutputs fields, and sets the wire metadata.
 func (c Circuit) OutputsList() [][]int {
-	idGate := gkrgate.New(
+	idGate := New(
 		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 			return x[0]
 		},
@@ -193,7 +192,7 @@ func (c Circuit) MaxGateNbIn() int {
 	return res
 }
 
-func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *gkrgate.Gate) (Circuit, error) {
+func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *Gate) (Circuit, error) {
 	resCircuit := make(Circuit, len(info))
 	for i := range info {
 		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
@@ -208,7 +207,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 	return resCircuit, nil
 }
 
-func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *gkrgate.Gate) (SolvingInfo, error) {
+func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
 	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
 		Circuit:     circuit,
@@ -245,4 +244,13 @@ func (a WireAssignment) NbVars() int {
 		}
 	}
 	panic("empty assignment")
+}
+
+// makeNeg1Slice returns a slice of size n with all elements set to -1.
+func makeNeg1Slice(n int) []int {
+	res := make([]int, n)
+	for i := range res {
+		res[i] = -1
+	}
+	return res
 }
