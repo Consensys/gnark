@@ -8,6 +8,13 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
@@ -16,12 +23,6 @@ import (
 	gkr "github.com/consensys/gnark/internal/gkr/bw6-633"
 	gkrgadget "github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
-	"math"
-	"math/big"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 )

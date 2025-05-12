@@ -8,14 +8,15 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/bavard"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/internal/small_rational"
-	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
 	"os"
 	"path/filepath"
 	"reflect"
+
+	"github.com/consensys/bavard"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
 )
 
 func GenerateVectors() error {

@@ -7,9 +7,10 @@ package cs
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	"hash"
 	"sync"
+
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 )
 
 var (

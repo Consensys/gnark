@@ -8,8 +8,9 @@ package plonk
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 	"io"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 )
 
 // WriteRawTo writes binary encoding of Proof to w without point compression

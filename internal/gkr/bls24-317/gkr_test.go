@@ -8,17 +8,6 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkr"
-	"github.com/stretchr/testify/assert"
 	"hash"
 	"os"
 	"path/filepath"
@@ -26,6 +15,15 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/polynomial"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	gcUtils "github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNoGateTwoInstances(t *testing.T) {

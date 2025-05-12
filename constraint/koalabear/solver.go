@@ -8,20 +8,18 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/constraint"
-	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	gkrgadget "github.com/consensys/gnark/internal/gkr/gkrtypes"
-	gkr "github.com/consensys/gnark/internal/gkr/koalabear"
-	"github.com/rs/zerolog"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
+	"github.com/consensys/gnark/constraint"
+	csolver "github.com/consensys/gnark/constraint/solver"
+	"github.com/rs/zerolog"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
 )
