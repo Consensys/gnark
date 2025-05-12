@@ -5,6 +5,7 @@ import (
 	"hash"
 	"reflect"
 	{{if eq .ElementType "fr.Element"}}"strings"{{- end}}
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 )
 
 func toElement(i int64) *{{.ElementType}} {
@@ -13,9 +14,7 @@ func toElement(i int64) *{{.ElementType}} {
 	return &res
 }
 
-type hashDescription map[string]interface{}
-
-func hashFromDescription(d hashDescription) (hash.Hash, error) {
+func hashFromDescription(d gkrtesting.HashDescription) (hash.Hash, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":

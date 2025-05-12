@@ -13,6 +13,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/polynomial"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 )
 
 func toElement(i int64) *fr.Element {
@@ -21,9 +22,7 @@ func toElement(i int64) *fr.Element {
 	return &res
 }
 
-type hashDescription map[string]interface{}
-
-func hashFromDescription(d hashDescription) (hash.Hash, error) {
+func hashFromDescription(d gkrtesting.HashDescription) (hash.Hash, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
