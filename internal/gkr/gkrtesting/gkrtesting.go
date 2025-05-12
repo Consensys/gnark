@@ -11,34 +11,45 @@ import (
 	"github.com/consensys/gnark/std/gkr"
 )
 
-type CircuitCache struct {
-	m       map[string]gadget.Circuit
-	getGate func(gkr.GateName) *gkrgate.Gate
+// Cache for circuits and gates.
+// The main functionality is to cache whole circuits, but this package needs to use its own gate registry, in order to avoid import cycles.
+// Cache is used in tests for the per-curve GKR packages, but they in turn provide gate degree discovery functions to the gkrgates package.
+type Cache struct {
+	circuits map[string]gadget.Circuit
+	gates    map[gkr.GateName]*gkrgate.Gate
 }
 
-func NewCircuitCache(getGate func(gkr.GateName) *gkrgate.Gate) *CircuitCache {
-	return &CircuitCache{
-		m:       make(map[string]gadget.Circuit),
-		getGate: getGate,
+func NewCircuitCache() *Cache {
+	gates := make(map[gkr.GateName]*gkrgate.Gate, 6)
+	gates[gkr.Identity] = gkrgate.Identity()
+	gates[gkr.Add2] = gkrgate.Add2()
+	gates[gkr.Sub2] = gkrgate.Sub2()
+	gates[gkr.Neg] = gkrgate.Neg()
+	gates[gkr.Mul2] = gkrgate.Mul2()
+
+	return &Cache{
+		circuits: make(map[string]gadget.Circuit),
+		gates:    gates,
 	}
 }
 
-func (c *CircuitCache) Get(path string) (circuit gadget.Circuit) {
+func (c *Cache) Get(path string) (circuit gadget.Circuit) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		panic(err)
 	}
 	var ok bool
-	if circuit, ok = c.m[path]; ok {
+	if circuit, ok = c.circuits[path]; ok {
 		return
 	}
+
 	var bytes []byte
 	if bytes, err = os.ReadFile(path); err == nil {
 		var circuitInfo gkrinfo.Circuit
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit, err = gadget.CircuitInfoToCircuit(circuitInfo, c.getGate)
+			circuit, err = gadget.CircuitInfoToCircuit(circuitInfo, c.GetGate)
 			if err == nil {
-				c.m[path] = circuit
+				c.circuits[path] = circuit
 			} else {
 				panic(err)
 			}
@@ -46,4 +57,18 @@ func (c *CircuitCache) Get(path string) (circuit gadget.Circuit) {
 	}
 
 	return
+}
+
+func (c *Cache) RegisterGate(name gkr.GateName, gate *gkrgate.Gate) {
+	if _, ok := c.gates[name]; ok {
+		panic("gate already registered")
+	}
+	c.gates[name] = gate
+}
+
+func (c *Cache) GetGate(name gkr.GateName) *gkrgate.Gate {
+	if gate, ok := c.gates[name]; ok {
+		return gate
+	}
+	panic("gate not found")
 }

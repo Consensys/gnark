@@ -244,7 +244,7 @@ func mimcCircuit(numRounds int) gadget.Circuit {
 
 	for i := 2; i < len(c); i++ {
 		c[i] = gadget.Wire{
-			Gate:   gatesCache["mimc"],
+			Gate:   cache.GetGate("mimc"),
 			Inputs: []int{i - 1, 0},
 		}
 	}
@@ -449,7 +449,7 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			circuit := circuitCache.Get(filepath.Join(dir, info.Circuit))
+			circuit := cache.Get(filepath.Join(dir, info.Circuit))
 			var _hash hash.Hash
 			if _hash, err = hashFromDescription(info.Hash); err != nil {
 				return nil, err
@@ -553,15 +553,11 @@ func TestIsAdditive(t *testing.T) {
 	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
 }
 
-var (
-	gatesCache   = make(map[gkr.GateName]*gkrgate.Gate)
-	circuitCache = gkrtesting.NewCircuitCache(func(name gkr.GateName) *gkrgate.Gate {
-		return gatesCache[name]
-	})
-)
+var cache *gkrtesting.Cache
 
 func init() {
-	gatesCache["mimc"] = gkrgate.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+	cache = gkrtesting.NewCircuitCache()
+	cache.RegisterGate("mimc", gkrgate.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
 		res := api.Mul(sum, sum)           // sum^2
 		res = api.Mul(res, sum)            // sum^3
@@ -569,7 +565,5 @@ func init() {
 		res = api.Mul(res, sum)            // sum^7
 
 		return res
-	}, 2, 7, -1)
-	gatesCache[gkr.Identity] = gkrgate.Identity()
-	gatesCache[gkr.Mul2] = gkrgate.Mul2()
+	}, 2, 7, -1))
 }
