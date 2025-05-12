@@ -10,9 +10,8 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -191,9 +190,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			if cse.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-				return nil, err
-			}
+			cse.Circuit = cache.Get(filepath.Join(dir, info.Circuit))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -257,15 +254,6 @@ func TestLogNbInstances(t *testing.T) {
 	for _, caseName := range cases {
 		t.Run("log_nb_instances:"+caseName, testLogNbInstances("test_vectors/"+caseName+".json"))
 	}
-}
-
-func TestLoadCircuit(t *testing.T) {
-	c, err := getCircuit("test_vectors/resources/two_identity_gates_composed_single_input.json")
-	assert.NoError(t, err)
-	assert.Equal(t, []int{}, c[0].Inputs)
-	assert.Equal(t, []int{0}, c[1].Inputs)
-	assert.Equal(t, []int{1}, c[2].Inputs)
-
 }
 
 func TestTopSortTrivial(t *testing.T) {
@@ -393,22 +381,8 @@ func TestConstHash(t *testing.T) {
 	)
 }
 
-var gateRegistry = make(map[gkr.GateName]*gkrgate.Gate)
-
-func getGate(name gkr.GateName) *gkrgate.Gate {
-	g, ok := gateRegistry[name]
-	if !ok {
-		if name == "" {
-			return nil
-		}
-		panic(fmt.Sprintf("gate %s not found", name))
-	}
-	return g
-}
+var cache *gkrtesting.Cache
 
 func init() {
-	gateRegistry["select-input-3"] = gkrgate.New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return in[2]
-	}, 3, 1, 0)
-
+	cache = gkrtesting.NewCache()
 }

@@ -20,7 +20,7 @@ type Cache struct {
 	gates    map[gkr.GateName]*gkrgate.Gate
 }
 
-func NewCircuitCache() *Cache {
+func NewCache() *Cache {
 	gates := make(map[gkr.GateName]*gkrgate.Gate, 7)
 	gates[gkr.Identity] = gkrgate.Identity()
 	gates[gkr.Add2] = gkrgate.Add2()
@@ -37,7 +37,7 @@ func NewCircuitCache() *Cache {
 	}
 }
 
-func (c *Cache) Get(path string) (circuit gadget.Circuit) {
+func (c *Cache) GetCircuit(path string) (circuit gadget.Circuit) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		panic(err)
@@ -48,17 +48,17 @@ func (c *Cache) Get(path string) (circuit gadget.Circuit) {
 	}
 
 	var bytes []byte
-	if bytes, err = os.ReadFile(path); err == nil {
-		var circuitInfo gkrinfo.Circuit
-		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit, err = gadget.CircuitInfoToCircuit(circuitInfo, c.GetGate)
-			if err == nil {
-				c.circuits[path] = circuit
-			} else {
-				panic(err)
-			}
-		}
+	if bytes, err = os.ReadFile(path); err != nil {
+		panic(err)
 	}
+	var circuitInfo gkrinfo.Circuit
+	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
+		panic(err)
+	}
+	if circuit, err = gadget.CircuitInfoToCircuit(circuitInfo, c.GetGate); err != nil {
+		panic(err)
+	}
+	c.circuits[path] = circuit
 
 	return
 }

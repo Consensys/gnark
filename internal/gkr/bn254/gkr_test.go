@@ -556,7 +556,7 @@ func TestIsAdditive(t *testing.T) {
 var cache *gkrtesting.Cache
 
 func init() {
-	cache = gkrtesting.NewCircuitCache()
+	cache = gkrtesting.NewCache()
 	cache.RegisterGate("mimc", gkrgate.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
 		res := api.Mul(sum, sum)           // sum^2
