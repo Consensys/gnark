@@ -78,6 +78,21 @@ func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
 		}})
 }
 
+func TestAPowNTimesBCircuit(t *testing.T) {
+	const N = 10
+
+	c := make(gadget.Circuit, N+2)
+
+	for i := 2; i < len(c); i++ {
+		c[i] = gadget.Wire{
+			Gate:   gkrgate.Mul2(),
+			Inputs: []int{i - 1, 0},
+		}
+	}
+
+	test(t, c)
+}
+
 func TestSingleMimcCipherGate(t *testing.T) {
 	test(t, gadget.Circuit{
 		{}, {},
@@ -88,16 +103,8 @@ func TestSingleMimcCipherGate(t *testing.T) {
 	})
 }
 
-func TestATimesBSquaredTwoInstances(t *testing.T) {
-	testATimesBSquared(t, 2, WireAssignment{{one, one}, {one, two}})
-}
-
 func TestShallowMimcTwoInstances(t *testing.T) {
-	testMimc(t, 2, WireAssignment{{one, one}, {one, two}})
-}
-
-func TestMimcTwoInstances(t *testing.T) {
-	testMimc(t, 93, WireAssignment{{one, one}, {one, two}})
+	test(t, mimcCircuit(2))
 }
 
 func TestMimc(t *testing.T) {
@@ -265,30 +272,6 @@ func testMimc(t *testing.T, numRounds int, inputAssignments WireAssignment) {
 	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NotNil(t, err, "bad proof accepted")
 	t.Log("Unsuccessful verification finished")
-}
-
-func testATimesBSquared(t *testing.T, numRounds int, inputAssignments WireAssignment) {
-	// This imitates the MiMC circuit
-
-	c := make(gadget.Circuit, numRounds+2)
-
-	for i := 2; i < len(c); i++ {
-		c[i] = gadget.Wire{
-			Gate:   gkrgate.Mul2(),
-			Inputs: []int{i - 1, 0},
-		}
-	}
-
-	assignment := inputAssignments.Complete(utils.References(c))
-
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err)
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
-	assert.NoError(t, err, "proof rejected")
-
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
-	assert.NotNil(t, err, "bad proof accepted")
 }
 
 func setRandomSlice(slice []fr.Element) {
