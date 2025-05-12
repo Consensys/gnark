@@ -15,8 +15,11 @@ import (
 
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 func GenerateVectors() error {
@@ -116,14 +119,7 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 	return res, nil
 }
 
-type PrintableProof []PrintableSumcheckProof
-
-type PrintableSumcheckProof struct {
-	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
-}
-
-func unmarshalProof(printable PrintableProof) (Proof, error) {
+func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 	proof := make(Proof, len(printable))
 	for i := range printable {
 		finalEvalProof := []small_rational.SmallRational(nil)
@@ -153,20 +149,12 @@ func unmarshalProof(printable PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         Circuit
+	Circuit         gkrtypes.Circuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
 	Info            TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
-}
-
-type TestCaseInfo struct {
-	Hash    hashDescription `json:"hash"`
-	Circuit string          `json:"circuit"`
-	Input   [][]interface{} `json:"input"`
-	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
 }
 
 var testCases = make(map[string]*TestCase)
@@ -179,86 +167,76 @@ func newTestCase(path string) (*TestCase, error) {
 	dir := filepath.Dir(path)
 
 	tCase, ok := testCases[path]
-	if !ok {
-		var bytes []byte
-		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
-			err = json.Unmarshal(bytes, &info)
-			if err != nil {
+	if ok {
+		return tCase, nil
+	}
+
+	info, err := cache.ReadTestCaseInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	circuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
+	var _hash hash.Hash
+	if _hash, err = hashFromDescription(info.Hash); err != nil {
+		return nil, err
+	}
+	var proof Proof
+	if proof, err = unmarshalProof(info.Proof); err != nil {
+		return nil, err
+	}
+
+	fullAssignment := make(WireAssignment, len(circuit))
+	inOutAssignment := make(WireAssignment, len(circuit))
+
+	sorted := circuit.TopologicalSort()
+
+	inI, outI := 0, 0
+	for i, w := range sorted {
+		var assignmentRaw []interface{}
+		if w.IsInput() {
+			if inI == len(info.Input) {
+				return nil, fmt.Errorf("fewer input in vector than in circuit")
+			}
+			assignmentRaw = info.Input[inI]
+			inI++
+		} else if w.IsOutput() {
+			if outI == len(info.Output) {
+				return nil, fmt.Errorf("fewer output in vector than in circuit")
+			}
+			assignmentRaw = info.Output[outI]
+			outI++
+		}
+		if assignmentRaw != nil {
+			var wireAssignment []small_rational.SmallRational
+			if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
 				return nil, err
 			}
 
-			var circuit Circuit
-			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-				return nil, err
-			}
-			var _hash hash.Hash
-			if _hash, err = hashFromDescription(info.Hash); err != nil {
-				return nil, err
-			}
-			var proof Proof
-			if proof, err = unmarshalProof(info.Proof); err != nil {
-				return nil, err
-			}
-
-			fullAssignment := make(WireAssignment)
-			inOutAssignment := make(WireAssignment)
-
-			sorted := topologicalSort(circuit)
-
-			inI, outI := 0, 0
-			for _, w := range sorted {
-				var assignmentRaw []interface{}
-				if w.IsInput() {
-					if inI == len(info.Input) {
-						return nil, fmt.Errorf("fewer input in vector than in circuit")
-					}
-					assignmentRaw = info.Input[inI]
-					inI++
-				} else if w.IsOutput() {
-					if outI == len(info.Output) {
-						return nil, fmt.Errorf("fewer output in vector than in circuit")
-					}
-					assignmentRaw = info.Output[outI]
-					outI++
-				}
-				if assignmentRaw != nil {
-					var wireAssignment []small_rational.SmallRational
-					if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
-						return nil, err
-					}
-
-					fullAssignment[w] = wireAssignment
-					inOutAssignment[w] = wireAssignment
-				}
-			}
-
-			fullAssignment.Complete(circuit)
-
-			for _, w := range sorted {
-				if w.IsOutput() {
-
-					if err = sliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
-						return nil, fmt.Errorf("assignment mismatch: %v", err)
-					}
-
-				}
-			}
-
-			tCase = &TestCase{
-				FullAssignment:  fullAssignment,
-				InOutAssignment: inOutAssignment,
-				Proof:           proof,
-				Hash:            _hash,
-				Circuit:         circuit,
-				Info:            info,
-			}
-
-			testCases[path] = tCase
-		} else {
-			return nil, err
+			fullAssignment[i] = wireAssignment
+			inOutAssignment[i] = wireAssignment
 		}
 	}
+
+	fullAssignment.Complete(utils.References(circuit))
+
+	for i, w := range sorted {
+		if w.IsOutput() {
+			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
+				return nil, fmt.Errorf("assignment mismatch: %v", err)
+			}
+		}
+	}
+
+	tCase = &TestCase{
+		FullAssignment:  fullAssignment,
+		InOutAssignment: inOutAssignment,
+		Proof:           proof,
+		Hash:            _hash,
+		Circuit:         circuit,
+	}
+
+	testCases[path] = tCase
 
 	return tCase, nil
 }

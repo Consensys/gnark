@@ -249,6 +249,54 @@ func mimcCircuit(numRounds int) gkrtypes.Circuit {
 	return c
 }
 
+func TestIsAdditive(t *testing.T) {
+
+	// f: x,y -> x² + xy
+	f := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		if len(x) != 2 {
+			panic("bivariate input needed")
+		}
+		res := api.Add(x[0], x[1])
+		return api.Mul(res, x[0])
+	}
+
+	// g: x,y -> x² + 3y
+	g := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		res := api.Mul(x[0], x[0])
+		y3 := api.Mul(x[1], 3)
+		return api.Add(res, y3)
+	}
+
+	// h: x -> 2x
+	// but it edits it input
+	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[0])
+	}
+
+	assert.False(t, IsGateFunctionAdditive(f, 1, 2))
+	assert.False(t, IsGateFunctionAdditive(f, 0, 2))
+
+	assert.False(t, IsGateFunctionAdditive(g, 0, 2))
+	assert.True(t, IsGateFunctionAdditive(g, 1, 2))
+
+	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
+}
+
+var cache *gkrtesting.Cache
+
+func init() {
+	cache = gkrtesting.NewCache()
+	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
+		res := api.Mul(sum, sum)           // sum^2
+		res = api.Mul(res, sum)            // sum^3
+		res = api.Mul(res, res)            // sum^6
+		res = api.Mul(res, sum)            // sum^7
+
+		return res
+	}, 2, 7, -1))
+}
+
 func generateTestProver(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
@@ -466,52 +514,4 @@ func newTestCase(path string) (*TestCase, error) {
 	testCases[path] = tCase
 
 	return tCase, nil
-}
-
-func TestIsAdditive(t *testing.T) {
-
-	// f: x,y -> x² + xy
-	f := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		if len(x) != 2 {
-			panic("bivariate input needed")
-		}
-		res := api.Add(x[0], x[1])
-		return api.Mul(res, x[0])
-	}
-
-	// g: x,y -> x² + 3y
-	g := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		res := api.Mul(x[0], x[0])
-		y3 := api.Mul(x[1], 3)
-		return api.Add(res, y3)
-	}
-
-	// h: x -> 2x
-	// but it edits it input
-	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Add(x[0], x[0])
-	}
-
-	assert.False(t, IsGateFunctionAdditive(f, 1, 2))
-	assert.False(t, IsGateFunctionAdditive(f, 0, 2))
-
-	assert.False(t, IsGateFunctionAdditive(g, 0, 2))
-	assert.True(t, IsGateFunctionAdditive(g, 1, 2))
-
-	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
-}
-
-var cache *gkrtesting.Cache
-
-func init() {
-	cache = gkrtesting.NewCache()
-	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
-		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
-		res := api.Mul(sum, sum)           // sum^2
-		res = api.Mul(res, sum)            // sum^3
-		res = api.Mul(res, res)            // sum^6
-		res = api.Mul(res, sum)            // sum^7
-
-		return res
-	}, 2, 7, -1))
 }
