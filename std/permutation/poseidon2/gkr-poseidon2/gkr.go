@@ -151,7 +151,6 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 	)
 
 	// poseidon2 parameters
-	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
 	gateNamer := newRoundGateNamer(poseidon2Bls12377.GetDefaultParameters())
 	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
@@ -169,14 +168,6 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 		return nil, -1, err
 	}
 
-	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
-	if err = gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4), gkrgates.WithNoSolvableVar()); err != nil {
-		return nil, -1, err
-	}
-	if err = gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithNoSolvableVar()); err != nil {
-		return nil, -1, err
-	}
-
 	// *** helper functions to register and apply gates ***
 
 	// Poseidon2 is a sequence of additions, exponentiations (s-Box), and linear operations
@@ -186,31 +177,24 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 	// in every round comes from the previous (canonical) round.
 
 	// apply the s-Box to u
+	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
 	sBox := func(u gkr.Variable) gkr.Variable {
-		v := gkrApi.NamedGate("pow4", u)           // u⁴
-		return gkrApi.NamedGate("pow4Times", v, u) // u¹⁷
+		v := gkrApi.Gate(pow4Gate, u)           // u⁴
+		return gkrApi.Gate(pow4TimesGate, v, u) // u¹⁷
 	}
 
-	// register and apply external matrix multiplication and round key addition
+	// apply external matrix multiplication and round key addition
 	// round dependent due to the round key
 	extKeySBox := func(round, varI int, a, b gkr.Variable) gkr.Variable {
-		gate := gateNamer.linear(varI, round)
-		if err = gkrgates.Register(extKeyGate(&roundKeysFr[round][varI]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
-			return -1
-		}
-		return sBox(gkrApi.NamedGate(gate, a, b))
+		return sBox(gkrApi.NamedGate(gateNamer.linear(varI, round), a, b))
 	}
 
-	// register and apply external matrix multiplication and round key addition
+	// spply external matrix multiplication and round key addition
 	// then apply the s-Box
 	// for the second variable
 	// round independent due to the round key
 	intKeySBox2 := func(round int, a, b gkr.Variable) gkr.Variable {
-		gate := gateNamer.linear(yI, round)
-		if err = gkrgates.Register(intKeyGate2(&roundKeysFr[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
-			return -1
-		}
-		return sBox(gkrApi.NamedGate(gate, a, b))
+		return sBox(gkrApi.NamedGate(gateNamer.linear(yI, round), a, b))
 	}
 
 	// apply a full round
@@ -230,22 +214,12 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 		// still using the external matrix, since the linear operation still belongs to a full (canonical) round
 		x1 := extKeySBox(halfRf, xI, x, y)
 
-		gate := gateNamer.linear(yI, halfRf)
-		if err = gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
-			return nil, -1, err
-		}
-		x, y = x1, gkrApi.NamedGate(gate, x, y)
+		x, y = x1, gkrApi.NamedGate(gateNamer.linear(yI, halfRf), x, y)
 	}
 
-	zero := new(big.Int)
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
-
-		gate := gateNamer.linear(yI, i)
-		if err = gkrgates.Register(intKeyGate2(zero), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
-			return nil, -1, err
-		}
-		x, y = x1, gkrApi.NamedGate(gate, x, y)
+		x, y = x1, gkrApi.NamedGate(gateNamer.linear(yI, i), x, y)
 	}
 
 	{
@@ -261,11 +235,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 	}
 
 	// apply the external matrix one last time to obtain the final value of y
-	gate := gateNamer.linear(yI, rP+rF)
-	if err = gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
-		return nil, -1, err
-	}
-	y = gkrApi.NamedGate(gate, y, x, y0)
+	y = gkrApi.NamedGate(gateNamer.linear(yI, rP+rF), y, x, y0)
 
 	return gkrApi, y, nil
 }
