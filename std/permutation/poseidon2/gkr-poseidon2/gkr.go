@@ -7,8 +7,9 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/std/gkr"
-	"github.com/consensys/gnark/std/gkr/gates"
+	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/internal"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -26,8 +27,8 @@ import (
 
 // extKeyGate applies the external matrix mul, then adds the round key
 // because of its symmetry, we don't need to define distinct x1 and x2 versions of it
-func extKeyGate(roundKey *big.Int) gates.GateFunction {
-	return func(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func extKeyGate(roundKey *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
 			panic("expected 2 inputs")
 		}
@@ -36,7 +37,7 @@ func extKeyGate(roundKey *big.Int) gates.GateFunction {
 }
 
 // pow4Gate computes a -> a⁴
-func pow4Gate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func pow4Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 1 {
 		panic("expected 1 input")
 	}
@@ -47,7 +48,7 @@ func pow4Gate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
 }
 
 // pow4TimesGate computes a, b -> a⁴ * b
-func pow4TimesGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func pow4TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 1 input")
 	}
@@ -58,7 +59,7 @@ func pow4TimesGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable 
 }
 
 // pow2Gate computes a -> a²
-func pow2Gate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func pow2Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 1 {
 		panic("expected 1 input")
 	}
@@ -66,7 +67,7 @@ func pow2Gate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
 }
 
 // pow2TimesGate computes a, b -> a² * b
-func pow2TimesGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func pow2TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -78,7 +79,7 @@ func pow2TimesGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable 
 // TODO @Tabaie try eliminating the x2 partial round gates and have the x1 gates depend on i - rf/2 or so previous x1's
 
 // extGate2 applies the external matrix mul, outputting the second element of the result
-func extGate2(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func extGate2(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -86,8 +87,8 @@ func extGate2(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
 }
 
 // intKeyGate2 applies the internal matrix mul, then adds the round key
-func intKeyGate2(roundKey *big.Int) gates.GateFunction {
-	return func(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func intKeyGate2(roundKey *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
 			panic("expected 2 inputs")
 		}
@@ -96,7 +97,7 @@ func intKeyGate2(roundKey *big.Int) gates.GateFunction {
 }
 
 // extGate applies the first row of the external matrix
-func extGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func extGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
 		panic("expected 2 inputs")
 	}
@@ -104,7 +105,7 @@ func extGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
 }
 
 // extAddGate applies the first row of the external matrix to the first two elements and adds the third
-func extAddGate(api gates.GateAPI, x ...frontend.Variable) frontend.Variable {
+func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 3 {
 		panic("expected 3 inputs")
 	}
@@ -150,7 +151,7 @@ func frToInt(x *frBls12377.Element) *big.Int {
 // defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377
 // insLeft and insRight are the inputs to the permutation
 // they must be padded to a power of 2
-func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Variable, error) {
+func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Variable, error) {
 	// variable indexes
 	const (
 		xI = iota
@@ -159,12 +160,12 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 
 	// poseidon2 parameters
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
-	gateNamer := internal.RoundGateNamer[gates.GateName](poseidon2Bls12377.GetDefaultParameters())
+	gateNamer := internal.RoundGateNamer[gkr.GateName](poseidon2Bls12377.GetDefaultParameters())
 	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi := gkr_api.NewApi()
+	gkrApi := gkrapi.New()
 
 	x, err := gkrApi.Import(insLeft)
 	if err != nil {
@@ -177,10 +178,10 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 	}
 
 	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
-	if err = gates.RegisterGate("pow4", pow4Gate, 1, gates.WithUnverifiedDegree(4), gates.WithNoSolvableVar()); err != nil {
+	if err = gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4), gkrgates.WithNoSolvableVar()); err != nil {
 		return nil, -1, err
 	}
-	if err = gates.RegisterGate("pow4Times", pow4TimesGate, 2, gates.WithUnverifiedDegree(5), gates.WithNoSolvableVar()); err != nil {
+	if err = gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithNoSolvableVar()); err != nil {
 		return nil, -1, err
 	}
 
@@ -202,7 +203,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 	// round dependent due to the round key
 	extKeySBox := func(round, varI int, a, b gkr.Variable) gkr.Variable {
 		gate := gateNamer.Linear(varI, round)
-		if err = gates.RegisterGate(gate, extKeyGate(frToInt(&roundKeysFr[round][varI])), 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
+		if err = gkrgates.Register(extKeyGate(frToInt(&roundKeysFr[round][varI])), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
 			return -1
 		}
 		return sBox(gkrApi.NamedGate(gate, a, b))
@@ -214,7 +215,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 	// round independent due to the round key
 	intKeySBox2 := func(round int, a, b gkr.Variable) gkr.Variable {
 		gate := gateNamer.Linear(yI, round)
-		if err = gates.RegisterGate(gate, intKeyGate2(frToInt(&roundKeysFr[round][1])), 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
+		if err = gkrgates.Register(intKeyGate2(frToInt(&roundKeysFr[round][1])), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
 			return -1
 		}
 		return sBox(gkrApi.NamedGate(gate, a, b))
@@ -238,7 +239,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 		x1 := extKeySBox(halfRf, xI, x, y)
 
 		gate := gateNamer.Linear(yI, halfRf)
-		if err = gates.RegisterGate(gate, extGate2, 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
+		if err = gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
 			return nil, -1, err
 		}
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
@@ -249,7 +250,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
 
 		gate := gateNamer.Linear(yI, i)
-		if err = gates.RegisterGate(gate, intKeyGate2(zero), 2, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
+		if err = gkrgates.Register(intKeyGate2(zero), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
 			return nil, -1, err
 		}
 		x, y = x1, gkrApi.NamedGate(gate, x, y)
@@ -269,7 +270,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkr_api.API, gkr.Var
 
 	// apply the external matrix one last time to obtain the final value of y
 	gate := gateNamer.Linear(yI, rP+rF)
-	if err = gates.RegisterGate(gate, extAddGate, 3, gates.WithUnverifiedDegree(1), gates.WithUnverifiedSolvableVar(0)); err != nil {
+	if err = gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gate)); err != nil {
 		return nil, -1, err
 	}
 	y = gkrApi.NamedGate(gate, y, x, y0)

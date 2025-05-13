@@ -2,6 +2,8 @@ package internal
 
 import (
 	"fmt"
+
+	"github.com/consensys/gnark/std/gkr"
 )
 
 const (
@@ -11,19 +13,19 @@ const (
 	Pow4TimesGateName = "pow4Times"
 )
 
-type roundGateNamer[T ~string] string
+type roundGateNamer string
 
 // RoundGateNamer returns an object that returns standardized names for gates in the GKR circuit
-func RoundGateNamer[T ~string](p fmt.Stringer) roundGateNamer[T] {
-	return roundGateNamer[T](p.String())
+func RoundGateNamer(p fmt.Stringer) roundGateNamer {
+	return roundGateNamer(p.String())
 }
 
 // Linear is the name of a gate where a polynomial of total degree 1 is applied to the input
-func (n roundGateNamer[T]) Linear(varIndex, round int) T {
-	return T(fmt.Sprintf("x%d-l-op-round=%d;%s", varIndex, round, n))
+func (n roundGateNamer) Linear(varIndex, round int) gkr.GateName {
+	return gkr.GateName(fmt.Sprintf("x%d-l-op-round=%d;%s", varIndex, round, n))
 }
 
 // Integrated is the name of a gate where a polynomial of total degree 1 is applied to the input, followed by an S-box
-func (n roundGateNamer[T]) Integrated(varIndex, round int) T {
-	return T(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
+func (n roundGateNamer) Integrated(varIndex, round int) gkr.GateName {
+	return gkr.GateName(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
 }
