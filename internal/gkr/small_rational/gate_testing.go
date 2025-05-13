@@ -10,13 +10,12 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	"github.com/consensys/gnark/internal/utils"
 
+	"errors"
 	"slices"
 
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/gkr"
 )
 
@@ -27,7 +26,7 @@ func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
 	// fix all variables except the i-th one at random points
 	// pick random value x1 for the i-th variable
 	// check if f(-, 0, -) + f(-, 2*x1, -) = 2*f(-, x1, -)
-	x := make(fr.Vector, nbIn)
+	x := make(small_rational.Vector, nbIn)
 	x.MustSetRandom()
 	x0 := x[i]
 	x[i].SetZero()
@@ -87,7 +86,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 		for j := range consts {
 			fIn[j+1].Mul(&x[i], &consts[j])
 		}
-		p[i] = f(fIn...)
+		p[i].Set(f(fIn...))
 	}
 
 	// obtain p's coefficients
@@ -141,4 +140,59 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 		return fmt.Errorf("detected degree %d, claimed %d", len(p)-1, claimedDegree)
 	}
 	return nil
+}
+
+// interpolate fits a polynomial of degree len(X) - 1 = len(Y) - 1 to the points (X[i], Y[i])
+// Note that the runtime is O(len(X)³)
+func interpolate(X, Y []small_rational.SmallRational) (polynomial.Polynomial, error) {
+	if len(X) != len(Y) {
+		return nil, errors.New("X and Y must have the same length")
+	}
+
+	// solve the system of equations by Gaussian elimination
+	augmentedRows := make([][]small_rational.SmallRational, len(X)) // the last column is the Y values
+	for i := range augmentedRows {
+		augmentedRows[i] = make([]small_rational.SmallRational, len(X)+1)
+		augmentedRows[i][0].SetOne()
+		augmentedRows[i][1].Set(&X[i])
+		for j := 2; j < len(augmentedRows[i])-1; j++ {
+			augmentedRows[i][j].Mul(&augmentedRows[i][j-1], &X[i])
+		}
+		augmentedRows[i][len(augmentedRows[i])-1].Set(&Y[i])
+	}
+
+	// make the upper triangle
+	for i := range len(augmentedRows) - 1 {
+		// use row i to eliminate the ith element in all rows below
+		var negInv small_rational.SmallRational
+		if augmentedRows[i][i].IsZero() {
+			return nil, errors.New("singular matrix")
+		}
+		negInv.Inverse(&augmentedRows[i][i])
+		negInv.Neg(&negInv)
+		for j := i + 1; j < len(augmentedRows); j++ {
+			var c small_rational.SmallRational
+			c.Mul(&augmentedRows[j][i], &negInv)
+			// augmentedRows[j][i].SetZero() omitted
+			for k := i + 1; k < len(augmentedRows[i]); k++ {
+				var t small_rational.SmallRational
+				t.Mul(&augmentedRows[i][k], &c)
+				augmentedRows[j][k].Add(&augmentedRows[j][k], &t)
+			}
+		}
+	}
+
+	// back substitution
+	res := make(polynomial.Polynomial, len(X))
+	for i := len(augmentedRows) - 1; i >= 0; i-- {
+		res[i] = augmentedRows[i][len(augmentedRows[i])-1]
+		for j := i + 1; j < len(augmentedRows[i])-1; j++ {
+			var t small_rational.SmallRational
+			t.Mul(&res[j], &augmentedRows[i][j])
+			res[i].Sub(&res[i], &t)
+		}
+		res[i].Div(&res[i], &augmentedRows[i][i])
+	}
+
+	return res, nil
 }
