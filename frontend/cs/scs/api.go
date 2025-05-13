@@ -12,7 +12,6 @@ import (
 
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs"
-	gkr_info "github.com/consensys/gnark/internal/gkr/gkr-info"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
@@ -20,6 +19,7 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/frontendtype"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -683,6 +683,6 @@ func (*builder[E]) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
 }
 
-func (builder *builder[E]) SetGkrInfo(info gkr_info.Info) error {
+func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
 	return builder.cs.AddGkr(info)
 }
