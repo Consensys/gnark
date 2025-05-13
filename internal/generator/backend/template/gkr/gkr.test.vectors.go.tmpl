@@ -133,7 +133,7 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
-		Info:            info,
+		{{ if .GenerateTestVectors }} Info:            info, {{ end }}
 	}
 
 	testCases[path] = tCase

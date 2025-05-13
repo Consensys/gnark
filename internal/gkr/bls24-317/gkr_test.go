@@ -510,7 +510,6 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
-		Info:            info,
 	}
 
 	testCases[path] = tCase
