@@ -21,7 +21,7 @@ import (
 	csolver "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	gkr "github.com/consensys/gnark/internal/gkr/bn254"
-	gkrgadget "github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -52,7 +52,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 	// add GKR options to overwrite the placeholder
 	if cs.GkrInfo.Is() {
 		var gkrData gkr.SolvingData
-		solvingInfo, err := gkrgadget.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
 		if err != nil {
 			return nil, err
 		}
