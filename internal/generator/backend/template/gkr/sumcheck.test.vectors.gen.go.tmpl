@@ -25,7 +25,7 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		err error
 	)
 
-	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
+	if hsh, err = HashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
 

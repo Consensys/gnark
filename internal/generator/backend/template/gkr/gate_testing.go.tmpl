@@ -1,7 +1,8 @@
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/internal/gkr/gkrgate"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+
 	"github.com/consensys/gnark/std/gkr"
 	"{{.FieldPackagePath}}"
 	{{- if .CanUseFFT }}
@@ -19,7 +20,7 @@ func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
 	// fix all variables except the i-th one at random points
 	// pick random value x1 for the i-th variable
 	// check if f(-, 0, -) + f(-, 2*x1, -) = 2*f(-, x1, -)
-	x := make(fr.Vector, nbIn)
+	x := make({{.FieldPackageName}}.Vector, nbIn)
 	x.MustSetRandom()
 	x0 := x[i]
 	x[i].SetZero()
@@ -134,7 +135,7 @@ func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
 	for degreeBound := uint64(4); degreeBound <= bound; degreeBound *= 8 {
 		if p := fFr.fitPoly(nbIn, degreeBound); p != nil {
 			if len(p) == 0 {
-				return -1, gkrgate.ErrZeroFunction
+				return -1, gkrtypes.ErrZeroFunction
 			}
 			return len(p) - 1, nil
 		}
@@ -147,7 +148,7 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 	if p := fFr.fitPoly(nbIn, ecc.NextPowerOfTwo(uint64(claimedDegree)+1)); p == nil {
 		return fmt.Errorf("detected a higher degree than %d", claimedDegree)
 	} else if len(p) == 0 {
-		return gkrgate.ErrZeroFunction
+		return gkrtypes.ErrZeroFunction
 	} else if len(p)-1 != claimedDegree {
 		return fmt.Errorf("detected degree %d, claimed %d", len(p)-1, claimedDegree)
 	}

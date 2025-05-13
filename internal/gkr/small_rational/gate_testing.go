@@ -10,12 +10,13 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/utils"
 
 	"slices"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/gkr"
 )
 
@@ -74,27 +75,26 @@ func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
 func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynomial {
 	// turn f univariate by defining p(x) as f(x, rx, ..., sx)
 	// where r, s, ... are random constants
-	fIn := make([]fr.Element, nbIn)
-	consts := make(fr.Vector, nbIn-1)
+	fIn := make([]small_rational.SmallRational, nbIn)
+	consts := make(small_rational.Vector, nbIn-1)
 	consts.MustSetRandom()
 
 	p := make(polynomial.Polynomial, degreeBound)
-	domain := fft.NewDomain(degreeBound)
-	// evaluate p on the unit circle (first filling p with evaluations rather than coefficients)
-	x := fr.One()
-	for i := range p {
-		fIn[0] = x
+	x := make(small_rational.Vector, degreeBound)
+	x.MustSetRandom()
+	for i := range x {
+		fIn[0] = x[i]
 		for j := range consts {
-			fIn[j+1].Mul(&x, &consts[j])
+			fIn[j+1].Mul(&x[i], &consts[j])
 		}
-		p[i].Set(f(fIn...))
-
-		x.Mul(&x, &domain.Generator)
+		p[i] = f(fIn...)
 	}
 
 	// obtain p's coefficients
-	domain.FFTInverse(p, fft.DIF)
-	fft.BitReverse(p)
+	p, err := interpolate(x, p)
+	if err != nil {
+		panic(err)
+	}
 
 	// check if p is equal to f. This not being the case means that f is of a degree higher than degreeBound
 	fIn[0].MustSetRandom()

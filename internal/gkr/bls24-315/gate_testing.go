@@ -13,9 +13,9 @@ import (
 
 	"slices"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
 	"github.com/consensys/gnark/std/gkr"
 )
 
