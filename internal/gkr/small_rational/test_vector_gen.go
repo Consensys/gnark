@@ -166,7 +166,7 @@ var (
 
 func init() {
 	cache = gkrtesting.NewCache()
-	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+	cache.RegisterGate("mimc", gkrtypes.NewGate(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
 		res := api.Mul(sum, sum)           // sum^2
 		res = api.Mul(res, sum)            // sum^3

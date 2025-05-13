@@ -1,62 +1,61 @@
 package gkrgates
 
-/*
-func TestRegisterGateDegreeDetection(t *testing.T) {
-	testGate := func(name GateName, f func(...fr.Element) fr.Element, nbIn, degree int) {
+import (
+	"fmt"
+	"testing"
+
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/std/gkr"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestRegisterDegreeDetection(t *testing.T) {
+	testGate := func(name gkr.GateName, f gkr.GateFunction, nbIn, degree int) {
 		t.Run(string(name), func(t *testing.T) {
 			name = name + "-register-gate-test"
 
-			assert.NoError(t, RegisterGate(name, f, nbIn, WithDegree(degree)), "given degree must be accepted")
+			assert.NoError(t, Register(f, nbIn, WithDegree(degree), WithName(name)), "given degree must be accepted")
 
-			assert.Error(t, RegisterGate(name, f, nbIn, WithDegree(degree-1)), "lower degree must be rejected")
+			assert.Error(t, Register(f, nbIn, WithDegree(degree-1), WithName(name)), "lower degree must be rejected")
 
-			assert.Error(t, RegisterGate(name, f, nbIn, WithDegree(degree+1)), "higher degree must be rejected")
+			assert.Error(t, Register(f, nbIn, WithDegree(degree+1), WithName(name)), "higher degree must be rejected")
 
-			assert.NoError(t, RegisterGate(name, f, nbIn), "no degree must be accepted")
+			assert.NoError(t, Register(f, nbIn), "no degree must be accepted")
 
-			assert.Equal(t, degree, gkrgate.name).Degree(), "degree must be detected correctly")
+			assert.Equal(t, degree, Get(name).Degree(), "degree must be detected correctly")
 		})
 	}
 
-	testGate("select", func(x ...fr.Element) fr.Element {
+	testGate("select", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return x[0]
 	}, 3, 1)
 
-	testGate("add2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.Add(&x[0], &x[1])
-		res.Add(&res, &x[2])
-		return res
+	testGate("add3", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Add(x[0], x[1], x[2])
 	}, 3, 1)
 
-	testGate("mul2", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.Mul(&x[0], &x[1])
-		return res
-	}, 2, 2)
+	testGate("mul2", gkrtypes.Mul2().Evaluate, 2, 2)
 
-	testGate("mimc", mimcRound, 2, 7)
+	testGate("mimc", gkrtesting.NewCache().GetGate("mimc").Evaluate, 2, 7)
 
-	testGate("sub2PlusOne", func(x ...fr.Element) fr.Element {
-		var res fr.Element
-		res.
-			SetOne().
-			Add(&res, &x[0]).
-			Sub(&res, &x[1])
-		return res
+	testGate("sub2PlusOne", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+		return api.Sub(
+			api.Add(1, x[0]),
+			x[1],
+		)
 	}, 2, 1)
 
 	// zero polynomial must not be accepted
 	t.Run("zero", func(t *testing.T) {
-		const gateName GateName = "zero-register-gate-test"
-		expectedError := fmt.Errorf("for gate %s: %v", gateName, errZeroFunction)
-		zeroGate := func(x ...fr.Element) fr.Element {
-			var res fr.Element
-			return res
+		const gateName gkr.GateName = "zero-register-gate-test"
+		expectedError := fmt.Errorf("for gate %s: %v", gateName, gkrtypes.ErrZeroFunction)
+		zeroGate := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+			return api.Sub(x[0], x[0])
 		}
-		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1))
+		assert.Equal(t, expectedError, Register(zeroGate, 1, WithName(gateName)))
 
-		assert.Equal(t, expectedError, RegisterGate(gateName, zeroGate, 1, WithDegree(2)))
+		assert.Equal(t, expectedError, Register(zeroGate, 1, WithName(gateName), WithDegree(2)))
 	})
 }
-*/

@@ -178,7 +178,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
-	gates[s.name] = gkrtypes.New(f, nbIn, s.degree, s.solvableVar)
+	gates[s.name] = gkrtypes.NewGate(f, nbIn, s.degree, s.solvableVar)
 	return nil
 }
 

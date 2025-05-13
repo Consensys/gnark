@@ -27,7 +27,16 @@ func NewCache() *Cache {
 	gates[gkr.Sub2] = gkrtypes.Sub2()
 	gates[gkr.Neg] = gkrtypes.Neg()
 	gates[gkr.Mul2] = gkrtypes.Mul2()
-	gates["select-input-3"] = gkrtypes.New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	gates["mimc"] = gkrtypes.NewGate(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
+		res := api.Mul(sum, sum)           // sum^2
+		res = api.Mul(res, sum)            // sum^3
+		res = api.Mul(res, res)            // sum^6
+		res = api.Mul(res, sum)            // sum^7
+
+		return res
+	}, 2, 7, -1)
+	gates["select-input-3"] = gkrtypes.NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
 	}, 3, 1, 0)
 

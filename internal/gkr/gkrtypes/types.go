@@ -18,7 +18,7 @@ type Gate struct {
 	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 }
 
-func New(f gkr.GateFunction, nbIn int, degree int, solvableVar int) *Gate {
+func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int) *Gate {
 	return &Gate{
 		evaluate:    f,
 		nbIn:        nbIn,
@@ -178,7 +178,7 @@ func (info *SolvingInfo) AssignmentOffsets() []int {
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
 // It also sets the NbUniqueOutputs fields, and sets the wire metadata.
 func (c Circuit) OutputsList() [][]int {
-	idGate := New(
+	idGate := NewGate(
 		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 			return x[0]
 		},
@@ -368,35 +368,35 @@ const ErrZeroFunction = errorString("detected a zero function")
 
 // Identity gate: x -> x
 func Identity() *Gate {
-	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[0]
 	}, 1, 1, 0)
 }
 
 // Add2 gate: (x, y) -> x + y
 func Add2() *Gate {
-	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Add(in[0], in[1])
 	}, 2, 1, 0)
 }
 
 // Sub2 gate: (x, y) -> x - y
 func Sub2() *Gate {
-	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Sub(in[0], in[1])
 	}, 2, 1, 0)
 }
 
 // Neg gate: x -> -x
 func Neg() *Gate {
-	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Neg(in[0])
 	}, 1, 1, 0)
 }
 
 // Mul2 gate: (x, y) -> x * y
 func Mul2() *Gate {
-	return New(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Mul(in[0], in[1])
 	}, 2, 2, -1)
 }
