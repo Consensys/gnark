@@ -264,6 +264,9 @@ func main() {
 
 	wg.Wait()
 
+	// run gofmt on whole directory
+	runCmd("gofmt", "-w", "../../../")
+
 	// run goimports on whole directory
 	runCmd("goimports", "-w", "../../../")
 }

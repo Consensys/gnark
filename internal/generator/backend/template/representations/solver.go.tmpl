@@ -44,7 +44,10 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
     // add GKR options to overwrite the placeholder
 	if cs.GkrInfo.Is() {
 		var gkrData gkr.SolvingData
-		solvingInfo := gkrgadget.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		solvingInfo, err := gkrgadget.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		if err != nil {
+			return nil, err
+		}
 		opts = append(opts,
 			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(solvingInfo, &gkrData)),
 			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, &gkrData)))
