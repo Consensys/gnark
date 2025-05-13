@@ -96,12 +96,12 @@ func WithCurves(curves ...ecc.ID) RegisterOption {
 	}
 }
 
-// Register creates a gate object and stores it in the gates registry
-// name is a human-readable name for the gate
-// f is the polynomial function defining the gate
-// nbIn is the number of inputs to the gate
+// Register creates a gate object and stores it in the gates registry.
+// - name is a human-readable name for the gate.
+// - f is the polynomial function defining the gate.
+// - nbIn is the number of inputs to the gate.
 func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
-	s := registerSettings{degree: -1, solvableVar: -1, name: getFunctionName(f), curves: []ecc.ID{ecc.BN254}}
+	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f), curves: []ecc.ID{ecc.BN254}}
 	for _, option := range options {
 		option(&s)
 	}
@@ -188,8 +188,10 @@ func Get(name gkr.GateName) *gkrtypes.Gate {
 	return gates[name]
 }
 
-// getFunctionName copied from solver.GetHintName
-func getFunctionName(fn gkr.GateFunction) gkr.GateName {
+// GetDefaultGateName provides a standardized name for a gate function, depending on its package and name.
+// NB: For anonymous functions, the name is the same no matter the implicit arguments provided.
+func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName {
+	// copied from solver.GetHintName
 	fnptr := reflect.ValueOf(fn).Pointer()
 	name := runtime.FuncForPC(fnptr).Name()
 	return gkr.GateName(newToOldStyle(name))

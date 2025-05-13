@@ -1,6 +1,7 @@
 package gkrapi
 
 import (
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
@@ -17,6 +18,13 @@ func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
 	})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(len(api.toStore.Circuit) - 1)
+}
+
+func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
+	if err := gkrgates.Register(gate, len(in)); err != nil {
+		panic(err)
+	}
+	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)
 }
 
 func (api *API) namedGate2PlusIn(gate gkr.GateName, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {

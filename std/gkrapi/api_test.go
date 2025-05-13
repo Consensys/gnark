@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend/groth16"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
@@ -19,9 +18,10 @@ import (
 	bn254 "github.com/consensys/gnark/constraint/bn254"
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	gkrBn254 "github.com/consensys/gnark/internal/gkr/bn254"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -352,7 +352,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 
 	// cheat{
-	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, types.Wire{
+	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, gkrinfo.Wire{
 		Gate:   "mimc",
 		Inputs: []int{int(x), int(y)},
 	})
@@ -430,7 +430,7 @@ func init() {
 
 func registerMiMCGate() {
 	// register mimc gate
-	panicIfError(gkr.RegisterGate("mimc", func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+	panicIfError(gkrgates.Register(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 		mimcSnarkTotalCalls++
 
 		if len(input) != 2 {
@@ -440,23 +440,7 @@ func registerMiMCGate() {
 
 		sumCubed := api.Mul(sum, sum, sum) // sum^3
 		return api.Mul(sumCubed, sumCubed, sum)
-	}, 2, gkr.WithDegree(7)))
-
-	// register fr version of mimc gate
-	panicIfError(gkrBn254.RegisterGate("mimc", func(input ...fr.Element) (res fr.Element) {
-		var sum fr.Element
-
-		sum.
-			Add(&input[0], &input[1]) //.Add(&sum, &m.ark)
-
-		res.Square(&sum)    // sum^2
-		res.Mul(&res, &sum) // sum^3
-		res.Square(&res)    //sum^6
-		res.Mul(&res, &sum) //sum^7
-
-		mimcFrTotalCalls++
-		return res
-	}, 2, gkrBn254.WithDegree(7)))
+	}, 2, gkrgates.WithDegree(7), gkrgates.WithName("mimc")))
 }
 
 type constPseudoHash int
@@ -535,7 +519,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// cheat{
 	z = y
 	for i := 0; i < c.mimcDepth; i++ {
-		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, types.Wire{
+		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, gkrinfo.Wire{
 			Gate:   "mimc",
 			Inputs: []int{int(x), int(z)},
 		})

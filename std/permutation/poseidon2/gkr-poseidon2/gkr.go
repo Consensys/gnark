@@ -160,7 +160,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 
 	// poseidon2 parameters
 	roundKeysFr := poseidon2Bls12377.GetDefaultParameters().RoundKeys
-	gateNamer := internal.RoundGateNamer[gkr.GateName](poseidon2Bls12377.GetDefaultParameters())
+	gateNamer := internal.RoundGateNamer(poseidon2Bls12377.GetDefaultParameters())
 	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2

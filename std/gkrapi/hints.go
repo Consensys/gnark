@@ -45,17 +45,17 @@ func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 		if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
 			var data bls12377.SolvingData
 			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls12377.SolveHint(gkrInfo, &data)(mod, ins, outs)
+			return bls12377.SolveHint(solvingInfo, &data)(mod, ins, outs)
 		}
 		if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
 			var data bls12381.SolvingData
 			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls12381.SolveHint(gkrInfo, &data)(mod, ins, outs)
+			return bls12381.SolveHint(solvingInfo, &data)(mod, ins, outs)
 		}
 		if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
 			var data bls24315.SolvingData
 			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls24315.SolveHint(gkrInfo, &data)(mod, ins, outs)
+			return bls24315.SolveHint(solvingInfo, &data)(mod, ins, outs)
 		}
 		if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
 			var data bls24317.SolvingData
@@ -70,12 +70,12 @@ func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 		if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
 			var data bw6633.SolvingData
 			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bw6633.SolveHint(gkrInfo, &data)(mod, ins, outs)
+			return bw6633.SolveHint(solvingInfo, &data)(mod, ins, outs)
 		}
 		if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 			var data bw6761.SolvingData
 			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bw6761.SolveHint(gkrInfo, &data)(mod, ins, outs)
+			return bw6761.SolveHint(solvingInfo, &data)(mod, ins, outs)
 		}
 
 		return errors.New("unsupported modulus")
