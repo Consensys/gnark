@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 )
 
 // ConstraintSystem is an interfaces that all constraint systems implement. This
@@ -65,7 +66,7 @@ type ConstraintSystemGeneric[E Element] interface {
 
 	AddCommitment(c Commitment) error
 	GetCommitments() Commitments
-	//AddGkr(gkr gkr.GkrInfo) error
+	AddGkr(gkr gkrinfo.StoringInfo) error
 
 	AddLog(l LogEntry)
 
