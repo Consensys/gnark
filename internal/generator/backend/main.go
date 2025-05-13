@@ -319,6 +319,10 @@ func generateGkrBackend(cfg gkrConfig) error {
 			{File: filepath.Join(packageDir, "test_vector_gen.go"), Templates: []string{"gkr.test.vectors.gen.go.tmpl", "gkr.test.vectors.go.tmpl"}},
 			{File: filepath.Join(packageDir, "sumcheck_test_vector_gen.go"), Templates: []string{"sumcheck.test.vectors.gen.go.tmpl", "sumcheck.test.defs.go.tmpl"}},
 		}...)
+	} else {
+		entries = append(entries, bavard.Entry{
+			File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"},
+		})
 	}
 
 	if err := bgen.Generate(cfg, "gkr", "./template/gkr/", entries...); err != nil {

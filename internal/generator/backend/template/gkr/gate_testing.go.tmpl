@@ -6,11 +6,11 @@ import (
 	"github.com/consensys/gnark/std/gkr"
 	"{{.FieldPackagePath}}"
 	{{- if .CanUseFFT }}
-	"{{.FieldPackagePath}}/fft"{{- else}}
+	"{{.FieldPackagePath}}/fft"
+	"sync"{{- else}}
 	"errors"{{- end }}
 	"{{.FieldPackagePath}}/polynomial"
 	"slices"
-	"sync"
 )
 
 // IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in f

@@ -18,7 +18,7 @@ import (
 
 	"hash"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
