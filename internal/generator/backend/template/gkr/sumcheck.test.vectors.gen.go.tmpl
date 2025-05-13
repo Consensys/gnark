@@ -25,7 +25,7 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		err error
 	)
 
-	if hsh, err = HashFromDescription(testCaseInfo.Hash); err != nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ type sumcheckTestCasesInfo map[string]*sumcheckTestCaseInfo
 
 type sumcheckTestCaseInfo struct {
 	Type        string                 `json:"type"`
-	Hash        hashDescription        `json:"hash"`
+	Hash        gkrtesting.HashDescription        `json:"hash"`
 	Values      []interface{}          `json:"values"`
 	Description string                 `json:"description"`
 	Proof       SumcheckPrintableProof `json:"proof"`

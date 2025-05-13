@@ -282,21 +282,6 @@ func TestIsAdditive(t *testing.T) {
 	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
 }
 
-var cache *gkrtesting.Cache
-
-func init() {
-	cache = gkrtesting.NewCache()
-	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
-		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
-		res := api.Mul(sum, sum)           // sum^2
-		res = api.Mul(res, sum)            // sum^3
-		res = api.Mul(res, res)            // sum^6
-		res = api.Mul(res, sum)            // sum^7
-
-		return res
-	}, 2, 7, -1))
-}
-
 func generateTestProver(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
@@ -432,7 +417,23 @@ type TestCase struct {
 	InOutAssignment WireAssignment
 }
 
-var testCases = make(map[string]*TestCase)
+var (
+	testCases = make(map[string]*TestCase)
+	cache     *gkrtesting.Cache
+)
+
+func init() {
+	cache = gkrtesting.NewCache()
+	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
+		res := api.Mul(sum, sum)           // sum^2
+		res = api.Mul(res, sum)            // sum^3
+		res = api.Mul(res, res)            // sum^6
+		res = api.Mul(res, sum)            // sum^7
+
+		return res
+	}, 2, 7, -1))
+}
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)

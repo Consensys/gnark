@@ -15,11 +15,13 @@ import (
 
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkr"
 )
 
 func GenerateVectors() error {
@@ -101,8 +103,8 @@ func run(absPath string) error {
 	return nil
 }
 
-func toPrintableProof(proof Proof) (PrintableProof, error) {
-	res := make(PrintableProof, len(proof))
+func toPrintableProof(proof Proof) (gkrtesting.PrintableProof, error) {
+	res := make(gkrtesting.PrintableProof, len(proof))
 
 	for i := range proof {
 
@@ -111,7 +113,7 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 			partialSumPolys[k] = elementSliceToInterfaceSlice(partialK)
 		}
 
-		res[i] = PrintableSumcheckProof{
+		res[i] = gkrtesting.PrintableSumcheckProof{
 			FinalEvalProof:  elementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
@@ -154,10 +156,26 @@ type TestCase struct {
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
-	Info            TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
+	Info            gkrtesting.TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
 }
 
-var testCases = make(map[string]*TestCase)
+var (
+	testCases = make(map[string]*TestCase)
+	cache     *gkrtesting.Cache
+)
+
+func init() {
+	cache = gkrtesting.NewCache()
+	cache.RegisterGate("mimc", gkrtypes.New(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
+		res := api.Mul(sum, sum)           // sum^2
+		res = api.Mul(res, sum)            // sum^3
+		res = api.Mul(res, res)            // sum^6
+		res = api.Mul(res, sum)            // sum^7
+
+		return res
+	}, 2, 7, -1))
+}
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)

@@ -90,8 +90,8 @@ func run(absPath string) error {
 	return nil
 }
 
-func toPrintableProof(proof Proof) (PrintableProof, error) {
-	res := make(PrintableProof, len(proof))
+func toPrintableProof(proof Proof) (gkrtesting.PrintableProof, error) {
+	res := make(gkrtesting.PrintableProof, len(proof))
 
 	for i := range proof {
 
@@ -100,7 +100,7 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 			partialSumPolys[k] = elementSliceToInterfaceSlice(partialK)
 		}
 
-		res[i] = PrintableSumcheckProof{
+		res[i] = gkrtesting.PrintableSumcheckProof{
 			FinalEvalProof:  elementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
