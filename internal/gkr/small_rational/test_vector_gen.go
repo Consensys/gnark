@@ -15,13 +15,11 @@ import (
 
 	"github.com/consensys/bavard"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkr"
 )
 
 func GenerateVectors() error {
@@ -161,21 +159,8 @@ type TestCase struct {
 
 var (
 	testCases = make(map[string]*TestCase)
-	cache     *gkrtesting.Cache
+	cache     = gkrtesting.NewCache()
 )
-
-func init() {
-	cache = gkrtesting.NewCache()
-	cache.RegisterGate("mimc", gkrtypes.NewGate(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
-		sum := api.Add(input[0], input[1]) //.Add(&sum, &m.ark)  TODO: add ark
-		res := api.Mul(sum, sum)           // sum^2
-		res = api.Mul(res, sum)            // sum^3
-		res = api.Mul(res, res)            // sum^6
-		res = api.Mul(res, sum)            // sum^7
-
-		return res
-	}, 2, 7, -1))
-}
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)
