@@ -119,6 +119,43 @@ func toPrintableProof(proof Proof) (gkrtesting.PrintableProof, error) {
 	return res, nil
 }
 
+func elementToInterface(x *small_rational.SmallRational) interface{} {
+	if i := x.BigInt(nil); i != nil {
+		return i
+	}
+	return x.Text(10)
+}
+
+func elementSliceToInterfaceSlice(x interface{}) []interface{} {
+	if x == nil {
+		return nil
+	}
+
+	X := reflect.ValueOf(x)
+
+	res := make([]interface{}, X.Len())
+	for i := range res {
+		xI := X.Index(i).Interface().(small_rational.SmallRational)
+		res[i] = elementToInterface(&xI)
+	}
+	return res
+}
+
+func elementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
+	if x == nil {
+		return nil
+	}
+
+	X := reflect.ValueOf(x)
+
+	res := make([][]interface{}, X.Len())
+	for i := range res {
+		res[i] = elementSliceToInterfaceSlice(X.Index(i).Interface())
+	}
+
+	return res
+}
+
 func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 	proof := make(Proof, len(printable))
 	for i := range printable {
