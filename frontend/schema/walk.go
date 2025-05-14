@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,11 +14,12 @@ import (
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
 //
 // It returns the number of secret and public leafs encountered during the walk.
-func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
+func Walk(field *big.Int, circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
 	w := walker{
 		target:      tLeaf,
 		targetSlice: reflect.SliceOf(tLeaf),
 		handler:     handler,
+		field:       field,
 	}
 	err = reflectwalk.Walk(circuit, &w)
 	if err == reflectwalk.ErrSkipEntry {
@@ -44,6 +46,7 @@ type walker struct {
 	targetSlice        reflect.Type
 	path               pathStack
 	nbPublic, nbSecret int
+	field              *big.Int
 }
 
 // Interface handles interface values as they are encountered during the walk.
@@ -103,8 +106,8 @@ func (w *walker) arraySliceElem(index int, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHook); hasInitHook {
-			ih.GnarkInitHook()
+		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+			ih.Initialize(w.field)
 		}
 	}
 	return nil
@@ -175,8 +178,8 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHook); hasInitHook {
-			ih.GnarkInitHook()
+		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+			ih.Initialize(w.field)
 		}
 	}
 

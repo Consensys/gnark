@@ -103,15 +103,14 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 	// 1. padding % modulus = 0
 	// 2. padding[i] >= (1 << (bits+overflow))
 	// 3. padding[i] + a[i] < native_field for all valid a[i] (defined by overflow)
-	var fp T
-	inputs := []frontend.Variable{fp.NbLimbs(), fp.BitsPerLimb(), overflow, nbLimbs}
+	inputs := []frontend.Variable{f.fParams.NbLimbs(), f.fParams.BitsPerLimb(), overflow, nbLimbs}
 	inputs = append(inputs, modulus.Limbs...)
 	// compute the actual padding value
 	res, err := f.api.NewHint(subPaddingHint, int(nbLimbs), inputs...)
 	if err != nil {
 		panic(fmt.Sprintf("sub padding hint: %v", err))
 	}
-	maxLimb := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb()+overflow)
+	maxLimb := new(big.Int).Lsh(big.NewInt(1), f.fParams.BitsPerLimb()+overflow)
 	maxLimb.Sub(maxLimb, big.NewInt(1))
 	for i := range res {
 		// we can check conditions 2 and 3 together by subtracting the maximum
@@ -120,7 +119,7 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 		// at least native_width-overflow) and should be nbBits+overflow+1 bits
 		// wide (as expected padding is one bit wider than the maximum allowed
 		// subtraction limb).
-		f.checker.Check(f.api.Sub(res[i], maxLimb), int(fp.BitsPerLimb()+overflow+1))
+		f.checker.Check(f.api.Sub(res[i], maxLimb), int(f.fParams.BitsPerLimb()+overflow+1))
 	}
 
 	// ensure that condition 1 holds
