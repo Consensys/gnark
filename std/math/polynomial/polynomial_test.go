@@ -224,7 +224,7 @@ func (c *TestPartialMultilinearEvalCircuit[FR]) Define(api frontend.API) error {
 	}
 	ones := make([]emulated.Element[FR], 1<<len(c.At))
 	for i := range ones {
-		ones[i] = emulated.ValueOf[FR](1)
+		ones[i] = *f.NewElement(1)
 	}
 	evaled, err := p.EvalMultilinear(At, ones)
 	if err != nil {

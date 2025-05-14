@@ -41,15 +41,14 @@ func nbMultiplicationResLimbs(lenLeft, lenRight int) int {
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
 func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
-	var fp T
 	hintInputs := []frontend.Variable{
-		fp.BitsPerLimb(),
-		fp.NbLimbs(),
+		f.fParams.BitsPerLimb(),
+		f.fParams.NbLimbs(),
 	}
 	p := f.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
-	return f.api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(InverseHint, int(f.fParams.NbLimbs()), hintInputs...)
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
@@ -84,10 +83,9 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
 func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
-	var fp T
 	hintInputs := []frontend.Variable{
-		fp.BitsPerLimb(),
-		fp.NbLimbs(),
+		f.fParams.BitsPerLimb(),
+		f.fParams.NbLimbs(),
 		len(denomLimbs),
 		len(nomLimbs),
 	}
@@ -95,7 +93,7 @@ func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable)
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
-	return f.api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(DivHint, int(f.fParams.NbLimbs()), hintInputs...)
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in

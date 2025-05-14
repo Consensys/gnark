@@ -194,7 +194,7 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 // defers the actual multiplication check.
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	f.enforceWidthConditional(a)
@@ -220,7 +220,7 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 // checkZero creates multiplication check a * 1 = 0 + k*p.
 func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	// fast path - the result is on zero limbs. This means that it is constant zero
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return
 	}
 	// the method works similarly to mulMod, but we know that we are multiplying
@@ -483,7 +483,7 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 // efficient.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
@@ -495,7 +495,7 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 // Equivalent to [Field[T].Mul], kept for backwards compatibility.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
@@ -507,7 +507,7 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 // general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
 // the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return f.Zero()
 	}
 	switch c.Sign() {
@@ -524,7 +524,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newConstElement[T](ba, false)
+				return newConstElement[T](f.api.Compiler().Field(), ba, false)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
@@ -562,7 +562,7 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 // number of limbs of the inputs.
 func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
@@ -585,7 +585,7 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 // number of limbs and zero overflow.
 func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 	// fast path - if the base is zero, then the result is also zero
-	if len(base.Limbs) == 0 {
+	if base.isStrictZero() {
 		return f.Zero()
 	}
 	expBts := f.ToBits(exp)
@@ -865,7 +865,6 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 // As it only depends on the bit-length of the inputs, then we can precompute it
 // regardless of the actual values.
 func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize uint) {
-	var fp T
 	quoSizes := make([]uint, len(mv.Terms))
 	for i, term := range mv.Terms {
 		// for every term, the result length is the sum of the lengths of the
@@ -873,7 +872,7 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 		var lengths []uint
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
-				lengths = append(lengths, uint(len(at[j].Limbs))*fp.BitsPerLimb()+at[j].overflow)
+				lengths = append(lengths, uint(len(at[j].Limbs))*f.fParams.BitsPerLimb()+at[j].overflow)
 			}
 		}
 		lengths = append(lengths, uint(bits.Len(uint(mv.Coefficients[i]))))

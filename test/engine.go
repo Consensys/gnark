@@ -104,7 +104,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	c := shallowClone(circuit)
 
 	// set the witness values
-	copyWitness(c, witness)
+	e.copyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -630,7 +630,7 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 	return circuitCopy
 }
 
-func copyWitness(to, from frontend.Circuit) {
+func (e *engine) copyWitness(to, from frontend.Circuit) {
 	var wValues []reflect.Value
 
 	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
@@ -641,7 +641,7 @@ func copyWitness(to, from frontend.Circuit) {
 		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(e.Field(), from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
@@ -652,7 +652,7 @@ func copyWitness(to, from frontend.Circuit) {
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Walk(to, tVariable, setHandler)
+	_, _ = schema.Walk(e.Field(), to, tVariable, setHandler)
 
 }
 
