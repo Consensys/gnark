@@ -130,24 +130,3 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 	}
 }
-
-var (
-	hashBuilderRegistry = make(map[string]func() hash.Hash)
-	hashBuilderLock      sync.RWMutex
-)
-
-func RegisterHashBuilder(name string, builder func() hash.Hash) {
-	hashBuilderLock.Lock()
-	defer hashBuilderLock.Unlock()
-	hashBuilderRegistry[name] = builder
-}
-
-func GetHashBuilder(name string) (func() hash.Hash, error) {
-	hashBuilderLock.RLock()
-	defer hashBuilderLock.RUnlock()
-	builder, ok := hashBuilderRegistry[name]
-	if !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not found", name)
-	}
-	return builder, nil
-}

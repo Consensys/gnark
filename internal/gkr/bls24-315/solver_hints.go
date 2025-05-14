@@ -6,17 +6,13 @@
 package gkr
 
 import (
-	"fmt"
 	"math/big"
-	"sync"
 
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
-
-	"hash"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -136,25 +132,4 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 		return proof.SerializeToBigInts(outs)
 
 	}
-}
-
-var (
-	hashBuilderRegistry = make(map[string]func() hash.Hash)
-	hashBuilderLock     sync.RWMutex
-)
-
-func RegisterHashBuilder(name string, builder func() hash.Hash) {
-	hashBuilderLock.Lock()
-	defer hashBuilderLock.Unlock()
-	hashBuilderRegistry[name] = builder
-}
-
-func GetHashBuilder(name string) (func() hash.Hash, error) {
-	hashBuilderLock.RLock()
-	defer hashBuilderLock.RUnlock()
-	builder, ok := hashBuilderRegistry[name]
-	if !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not found", name)
-	}
-	return builder, nil
 }

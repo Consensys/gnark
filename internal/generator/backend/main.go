@@ -272,7 +272,6 @@ func main() {
 }
 
 func runCmd(name string, arg ...string) {
-	// write out the command
 	fmt.Println(name, strings.Join(arg, " "))
 	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
