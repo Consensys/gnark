@@ -8,11 +8,13 @@ package gkr
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkr"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -119,12 +121,12 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 			return b[:]
 		})
 
-		hsh, err := GetHashBuilder(hashName)
+		hsh, err := gkr.NewHash(hashName, ecc.BN254)
 		if err != nil {
 			return err
 		}
 
-		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh(), insBytes...), WithWorkers(data.workers))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...), WithWorkers(data.workers))
 		if err != nil {
 			return err
 		}
