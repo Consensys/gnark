@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -121,7 +121,7 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 			return b[:]
 		})
 
-		hsh, err := gkr.NewHash(hashName, ecc.BN254)
+		hsh, err := hash.GetHash(hashName, ecc.BN254)
 		if err != nil {
 			return err
 		}

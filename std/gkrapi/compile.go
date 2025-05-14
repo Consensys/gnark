@@ -197,7 +197,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	var hsh hash.FieldHasher
-	if hsh, err = hash.GetFieldHasher(hashName, s.parentApi); err != nil {
+	if hsh, err = gkr.NewFieldHasher(hashName, s.parentApi); err != nil {
 		return err
 	}
 	s.toStore.HashName = hashName
