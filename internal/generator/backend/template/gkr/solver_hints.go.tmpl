@@ -23,6 +23,8 @@ type SolvingData struct {
 
 func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
 	d.workers = utils.NewWorkerPool()
+	d.circuit = info.Circuit
+	d.circuit.SetNbUniqueOutputs()
 
 	d.assignment = make(WireAssignment, len(d.circuit))
 	for i := range d.assignment {
@@ -31,8 +33,6 @@ func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
 }
 
 // this module assumes that wire and instance indexes respect dependencies
-
-type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
 func setOuts(a WireAssignment, circuit gkrtypes.Circuit, outs []*big.Int) {
 	outsI := 0
@@ -52,8 +52,7 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		offsets := info.AssignmentOffsets()
 		data.init(info)
-		circuit := info.Circuit
-		maxNIn := circuit.MaxGateNbIn()
+		maxNIn := data.circuit.MaxGateNbIn()
 
 		chunks := info.Chunks()
 
@@ -62,8 +61,8 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 				start := startInChunk + chunkOffset
 				end := endInChunk + chunkOffset
 				inputs := make([]frontend.Variable, maxNIn)
-				dependencyHeads := make([]int, len(circuit))
-				for wI := range circuit {
+				dependencyHeads := make([]int, len(data.circuit)) // for each wire, which of its dependencies we would look at next
+				for wI := range data.circuit {                    // skip instances that are not relevant (related to instances before the current task)
 					deps := info.Dependencies[wI]
 					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
 						return deps[i].InputInstance
@@ -71,8 +70,8 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 				}
 
 				for instanceI := start; instanceI < end; instanceI++ {
-					for wireI := range circuit {
-						wire := &circuit[wireI]
+					for wireI := range data.circuit {
+						wire := &data.circuit[wireI]
 						deps := info.Dependencies[wireI]
 						if wire.IsInput() {
 							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
@@ -134,21 +133,21 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 var (
 	hashBuilderRegistry = make(map[string]func() hash.Hash)
-	hasBuilderLock      sync.RWMutex
+	hashBuilderLock      sync.RWMutex
 )
 
 func RegisterHashBuilder(name string, builder func() hash.Hash) {
-	hasBuilderLock.Lock()
-	defer hasBuilderLock.Unlock()
+	hashBuilderLock.Lock()
+	defer hashBuilderLock.Unlock()
 	hashBuilderRegistry[name] = builder
 }
 
 func GetHashBuilder(name string) (func() hash.Hash, error) {
-	hasBuilderLock.RLock()
-	defer hasBuilderLock.RUnlock()
+	hashBuilderLock.RLock()
+	defer hashBuilderLock.RUnlock()
 	builder, ok := hashBuilderRegistry[name]
 	if !ok {
-		return nil, fmt.Errorf("hash function not found")
+		return nil, fmt.Errorf("hash function \"%s\" not found", name)
 	}
 	return builder, nil
 }
