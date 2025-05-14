@@ -728,6 +728,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // positions 1 and n-1 outside of the loop to optimize the number of
 // constraints using [ELM03] (Section 3.1)
 //
+// Contrary to the GLV method, this method doesn't require the endomorphism and
+// thus is also suitable for points not in the prime order subgroup.
+//
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
