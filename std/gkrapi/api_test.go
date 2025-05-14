@@ -611,7 +611,6 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 	return
 }
 
-/*
 func TestSolveInTestEngine(t *testing.T) {
 	assignment := testSolveInTestEngineCircuit{
 		X: []frontend.Variable{2, 3, 4, 5, 6, 7, 8, 9},
@@ -663,7 +662,6 @@ func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
 
 	return nil
 }
-*/
 
 func panicIfError(err error) {
 	if err != nil {
@@ -676,18 +674,6 @@ func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
 	for i := range seen {
 		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
 	}
-}
-
-func sliceEqual[T comparable](expected, seen []T) bool {
-	if len(expected) != len(seen) {
-		return false
-	}
-	for i := range seen {
-		if expected[i] != seen[i] {
-			return false
-		}
-	}
-	return true
 }
 
 var mimcSnarkTotalCalls = 0

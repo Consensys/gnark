@@ -35,6 +35,9 @@ type Solution struct {
 }
 
 func (api *API) nbInstances() int {
+	if len(api.assignments) == 0 {
+		return -1
+	}
 	return api.assignments.NbInstances()
 }
 

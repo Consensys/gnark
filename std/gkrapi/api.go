@@ -17,6 +17,7 @@ func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
+	api.toStore.Dependencies = append(api.toStore.Dependencies, nil) // formality. Dependencies are only defined for input vars.
 	return gkr.Variable(len(api.toStore.Circuit) - 1)
 }
 

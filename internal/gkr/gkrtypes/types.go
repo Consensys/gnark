@@ -161,7 +161,8 @@ func (info *SolvingInfo) Chunks() []int {
 	return res
 }
 
-// AssignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
+// AssignmentOffsets describes the input layout of the Solve hint, by returning
+// for each wire, the index of the first hint input element corresponding to it.
 func (info *SolvingInfo) AssignmentOffsets() []int {
 	c := info.Circuit
 	res := make([]int, len(c)+1)
@@ -239,9 +240,10 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
 	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
-		Circuit:     circuit,
-		NbInstances: info.NbInstances,
-		HashName:    info.HashName,
+		Circuit:      circuit,
+		NbInstances:  info.NbInstances,
+		HashName:     info.HashName,
+		Dependencies: info.Dependencies,
 	}, err
 }
 
