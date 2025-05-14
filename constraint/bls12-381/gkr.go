@@ -57,7 +57,3 @@ func (c ConstPseudoHash) Size() int {
 func (c ConstPseudoHash) BlockSize() int {
 	return fr.Bytes
 }
-
-func init() {
-
-}
