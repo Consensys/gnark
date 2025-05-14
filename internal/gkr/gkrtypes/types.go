@@ -178,14 +178,7 @@ func (info *SolvingInfo) AssignmentOffsets() []int {
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
 // It also sets the NbUniqueOutputs fields, and sets the wire metadata.
 func (c Circuit) OutputsList() [][]int {
-	idGate := NewGate(
-		func(_ gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-			return x[0]
-		},
-		1,
-		1,
-		1,
-	)
+	idGate := Identity()
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
