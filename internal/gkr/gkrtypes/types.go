@@ -204,6 +204,32 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
+func (c Circuit) SetNbUniqueOutputs() {
+
+	for i := range c {
+		c[i].NbUniqueOutputs = 0
+	}
+
+	curWireIn := make([]bool, len(c))
+	uniqueIns := make([]int, 0, len(c))
+	for i := range c {
+		// clear the caches
+		for j := range uniqueIns {
+			curWireIn[uniqueIns[j]] = false
+		}
+		uniqueIns = uniqueIns[:0]
+
+		// count!
+		for _, in := range c[i].Inputs {
+			if !curWireIn[in] {
+				c[in].NbUniqueOutputs++
+				curWireIn[in] = true
+				uniqueIns = append(uniqueIns, in)
+			}
+		}
+	}
+}
+
 func (c Circuit) Inputs() []int {
 	res := make([]int, 0, len(c))
 	for i := range c {
