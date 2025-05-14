@@ -107,43 +107,9 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 	}
 
 	for _, curve := range s.curves {
-		var (
-			isAdditiveF   isAdditive
-			findDegreeF   findDegree
-			verifyDegreeF verifyDegree
-		)
-
-		switch curve {
-		case ecc.BLS12_377:
-			isAdditiveF = bls12377.IsGateFunctionAdditive
-			findDegreeF = bls12377.FindGateFunctionDegree
-			verifyDegreeF = bls12377.VerifyGateFunctionDegree
-		case ecc.BLS12_381:
-			isAdditiveF = bls12381.IsGateFunctionAdditive
-			findDegreeF = bls12381.FindGateFunctionDegree
-			verifyDegreeF = bls12381.VerifyGateFunctionDegree
-		case ecc.BLS24_315:
-			isAdditiveF = bls24315.IsGateFunctionAdditive
-			findDegreeF = bls24315.FindGateFunctionDegree
-			verifyDegreeF = bls24315.VerifyGateFunctionDegree
-		case ecc.BLS24_317:
-			isAdditiveF = bls24317.IsGateFunctionAdditive
-			findDegreeF = bls24317.FindGateFunctionDegree
-			verifyDegreeF = bls24317.VerifyGateFunctionDegree
-		case ecc.BN254:
-			isAdditiveF = bn254.IsGateFunctionAdditive
-			findDegreeF = bn254.FindGateFunctionDegree
-			verifyDegreeF = bn254.VerifyGateFunctionDegree
-		case ecc.BW6_633:
-			isAdditiveF = bw6633.IsGateFunctionAdditive
-			findDegreeF = bw6633.FindGateFunctionDegree
-			verifyDegreeF = bw6633.VerifyGateFunctionDegree
-		case ecc.BW6_761:
-			isAdditiveF = bw6761.IsGateFunctionAdditive
-			findDegreeF = bw6761.FindGateFunctionDegree
-			verifyDegreeF = bw6761.VerifyGateFunctionDegree
-		default:
-			return fmt.Errorf("unsupported curve %s", curve)
+		gateVer, err := NewGateVerifier(curve)
+		if err != nil {
+			return err
 		}
 
 		if s.degree == -1 { // find a degree
@@ -152,12 +118,12 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 			}
 			const maxAutoDegreeBound = 32
 			var err error
-			if s.degree, err = findDegreeF(f, maxAutoDegreeBound, nbIn); err != nil {
+			if s.degree, err = gateVer.findDegree(f, maxAutoDegreeBound, nbIn); err != nil {
 				return fmt.Errorf("for gate %s: %v", s.name, err)
 			}
 		} else {
 			if !s.noDegreeVerification { // check that the given degree is correct
-				if err := verifyDegreeF(f, s.degree, nbIn); err != nil {
+				if err = gateVer.verifyDegree(f, s.degree, nbIn); err != nil {
 					return fmt.Errorf("for gate %s: %v", s.name, err)
 				}
 			}
@@ -165,11 +131,11 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 
 		if s.solvableVar == -1 {
 			if !s.noSolvableVarVerification { // find a solvable variable
-				s.solvableVar = findSolvableVar(f, isAdditiveF, nbIn)
+				s.solvableVar = gateVer.findSolvableVar(f, nbIn)
 			}
 		} else {
 			// solvable variable given
-			if !s.noSolvableVarVerification && !isVarSolvable(f, isAdditiveF, s.solvableVar, nbIn) {
+			if !s.noSolvableVarVerification && !gateVer.isVarSolvable(f, s.solvableVar, nbIn) {
 				return fmt.Errorf("cannot verify the solvability of variable %d in gate %s", s.solvableVar, s.name)
 			}
 		}
@@ -188,6 +154,52 @@ func Get(name gkr.GateName) *gkrtypes.Gate {
 	return gates[name]
 }
 
+type gateVerifier struct {
+	isAdditive   func(f gkr.GateFunction, i int, nbIn int) bool
+	findDegree   func(f gkr.GateFunction, max, nbIn int) (int, error)
+	verifyDegree func(f gkr.GateFunction, claimedDegree, nbIn int) error
+}
+
+func NewGateVerifier(curve ecc.ID) (*gateVerifier, error) {
+	var (
+		o   gateVerifier
+		err error
+	)
+	switch curve {
+	case ecc.BLS12_377:
+		o.isAdditive = bls12377.IsGateFunctionAdditive
+		o.findDegree = bls12377.FindGateFunctionDegree
+		o.verifyDegree = bls12377.VerifyGateFunctionDegree
+	case ecc.BLS12_381:
+		o.isAdditive = bls12381.IsGateFunctionAdditive
+		o.findDegree = bls12381.FindGateFunctionDegree
+		o.verifyDegree = bls12381.VerifyGateFunctionDegree
+	case ecc.BLS24_315:
+		o.isAdditive = bls24315.IsGateFunctionAdditive
+		o.findDegree = bls24315.FindGateFunctionDegree
+		o.verifyDegree = bls24315.VerifyGateFunctionDegree
+	case ecc.BLS24_317:
+		o.isAdditive = bls24317.IsGateFunctionAdditive
+		o.findDegree = bls24317.FindGateFunctionDegree
+		o.verifyDegree = bls24317.VerifyGateFunctionDegree
+	case ecc.BN254:
+		o.isAdditive = bn254.IsGateFunctionAdditive
+		o.findDegree = bn254.FindGateFunctionDegree
+		o.verifyDegree = bn254.VerifyGateFunctionDegree
+	case ecc.BW6_633:
+		o.isAdditive = bw6633.IsGateFunctionAdditive
+		o.findDegree = bw6633.FindGateFunctionDegree
+		o.verifyDegree = bw6633.VerifyGateFunctionDegree
+	case ecc.BW6_761:
+		o.isAdditive = bw6761.IsGateFunctionAdditive
+		o.findDegree = bw6761.FindGateFunctionDegree
+		o.verifyDegree = bw6761.VerifyGateFunctionDegree
+	default:
+		err = fmt.Errorf("unsupported curve %s", curve)
+	}
+	return &o, err
+}
+
 // GetDefaultGateName provides a standardized name for a gate function, depending on its package and name.
 // NB: For anonymous functions, the name is the same no matter the implicit arguments provided.
 func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName {
@@ -203,16 +215,12 @@ func newToOldStyle(name string) string {
 
 var newStyleAnonRe = regexp.MustCompile(`^(?P<pkgname>.*\.)init(?P<funcname>\.func\d+)$`)
 
-type isAdditive func(f gkr.GateFunction, i int, nbIn int) bool
-type findDegree func(f gkr.GateFunction, max, nbIn int) (int, error)
-type verifyDegree func(f gkr.GateFunction, claimedDegree, nbIn int) error
-
 // FindSolvableVar returns the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // It returns -1 if it fails to find one.
 // nbIn is the number of inputs to the gate
-func findSolvableVar(f gkr.GateFunction, isAdditiveF isAdditive, nbIn int) int {
+func (v *gateVerifier) findSolvableVar(f gkr.GateFunction, nbIn int) int {
 	for i := range nbIn {
-		if isAdditiveF(f, i, nbIn) {
+		if v.isAdditive(f, i, nbIn) {
 			return i
 		}
 	}
@@ -222,8 +230,29 @@ func findSolvableVar(f gkr.GateFunction, isAdditiveF isAdditive, nbIn int) int {
 // IsVarSolvable returns whether claimedSolvableVar is a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // It returns false if it fails to verify this claim.
 // nbIn is the number of inputs to the gate.
-func isVarSolvable(f gkr.GateFunction, isAdditiveF isAdditive, claimedSolvableVar, nbIn int) bool {
-	return isAdditiveF(f, claimedSolvableVar, nbIn)
+func (v *gateVerifier) isVarSolvable(f gkr.GateFunction, claimedSolvableVar, nbIn int) bool {
+	return v.isAdditive(f, claimedSolvableVar, nbIn)
+}
+
+func (v *gateVerifier) VerifyDegree(g *gkrtypes.Gate) error {
+	if err := v.verifyDegree(g.Evaluate, g.Degree(), g.NbIn()); err != nil {
+		deg, errFind := v.findDegree(g.Evaluate, g.Degree(), g.NbIn())
+		if errFind != nil {
+			return fmt.Errorf("could not find gate degree: %w\n\tdegree verification error: %w", errFind, errFind)
+		}
+		return fmt.Errorf("detected degree %d\n\tdegree verification error: %w", deg, errFind)
+	}
+	return nil
+}
+
+func (v *gateVerifier) VerifySolvability(g *gkrtypes.Gate) error {
+	if g.SolvableVar() == -1 {
+		return nil
+	}
+	if !v.isVarSolvable(g.Evaluate, g.SolvableVar(), g.NbIn()) {
+		return fmt.Errorf("cannot verify the solvability of variable %d", g.SolvableVar())
+	}
+	return nil
 }
 
 func init() {
