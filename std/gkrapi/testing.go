@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 )
@@ -28,7 +29,7 @@ func WithHashName(name string) SolveInTestEngineOption {
 // This method only works under the test engine and should only be called to debug a GKR circuit, as the GKR prover's errors can be obscure.
 
 func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTestEngineOption) [][]frontend.Variable {
-	gateVer, err := gkrgates.NewGateVerifier(parentApi.Compiler().Field())
+	gateVer, err := gkrgates.NewGateVerifier(utils.FieldToCurve(parentApi.Compiler().Field()))
 	if err != nil {
 		panic(err)
 	}
