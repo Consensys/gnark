@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -739,7 +740,7 @@ func init() {
 		})
 		for _, curve := range backend.SupportedCurves() {
 			h := newConstBytesPseudoHash(v, curve.ScalarField())
-			stdHash.RegisterHashBuilder(name, curve, func() hash.Hash {
+			gcHash.RegisterCustomHash(name+"_"+strings.ToUpper(curve.String()), func() hash.Hash {
 				return h
 			})
 		}

@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"hash"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 )
 
@@ -204,5 +205,19 @@ func WithVerifierKZGFoldingHashFunction(hFunc hash.Hash) VerifierOption {
 	return func(pc *VerifierConfig) error {
 		pc.KZGFoldingHash = hFunc
 		return nil
+	}
+}
+
+// SupportedCurves returns a list of curves that gnark backends
+// (GROTH16 and PLONK) have been implemented for.
+func SupportedCurves() []ecc.ID {
+	return []ecc.ID{
+		ecc.BN254,
+		ecc.BLS12_381,
+		ecc.BLS12_377,
+		ecc.BW6_761,
+		ecc.BW6_633,
+		ecc.BLS24_315,
+		ecc.BLS24_317,
 	}
 }
