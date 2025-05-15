@@ -85,10 +85,13 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 	wirePermutationAt := utils.SliceAt(p.WiresPermutation)
 	sorted := make([]Wire, len(d.Circuit)) // TODO: Directly manipulate d.circuit instead
 	sortedDeps := make([][]InputDependency, len(d.Circuit))
+
+	// go through the wires in the sorted order and fix the input and dependency indices according to the permutations
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
 
-		for _, dep := range d.Dependencies[oldI] {
+		for depI := range d.Dependencies[oldI] {
+			dep := &d.Dependencies[oldI][depI]
 			dep.OutputWire = p.WiresPermutation[dep.OutputWire]
 			dep.InputInstance = p.InstancesPermutation[dep.InputInstance]
 			dep.OutputInstance = p.InstancesPermutation[dep.OutputInstance]
