@@ -85,6 +85,8 @@ func (api *API) Import(assignment []frontend.Variable) (gkr.Variable, error) {
 	return gkr.Variable(api.toStore.NewInputVariable()), nil
 }
 
+// appendNonNil filters out nil values from src and appends the non-nil values to dst.
+// i.e. dst = [0,1], src = [nil, 2, nil, 3] => dst = [0,1,2,3].
 func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 	for i := range src {
 		if src[i] != nil {
@@ -178,7 +180,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	hintIns := make([]frontend.Variable, len(initialChallenges)+1) // hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve"
 	for i, w := range s.toStore.Circuit {
 		if w.IsOutput() {
-			hintIns[0] = s.assignments[i][0]
+			hintIns[0] = s.assignments[i][len(s.assignments[i])-1]
 			break
 		}
 	}

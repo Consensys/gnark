@@ -736,7 +736,7 @@ func init() {
 	for _, v := range []int64{-1, -20} {
 		name := strconv.Itoa(int(v))
 		stdHash.Register(name, func(api frontend.API) (stdHash.FieldHasher, error) {
-			return constPseudoHash(-1), nil
+			return constPseudoHash(v), nil
 		})
 		for _, curve := range backend.SupportedCurves() {
 			h := newConstBytesPseudoHash(v, curve.ScalarField())
