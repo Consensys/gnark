@@ -513,24 +513,14 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 	var (
-		y, z     gkr.Variable
+		y        gkr.Variable
 		solution Solution
 	)
 	if y, err = _gkr.Import(c.Y); err != nil {
 		return err
 	}
 
-	// cheat{
-	z = y
-	for i := 0; i < c.mimcDepth; i++ {
-		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, gkrinfo.Wire{
-			Gate:   "mimc",
-			Inputs: []int{int(x), int(z)},
-		})
-		_gkr.assignments = append(_gkr.assignments, nil)
-		z = gkr.Variable(len(_gkr.toStore.Circuit) - 1)
-	}
-	// }
+	z := _gkr.NamedGate("mimc", x, y)
 
 	if solution, err = _gkr.Solve(api); err != nil {
 		return err
@@ -580,19 +570,22 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 	benchProof(b, circuit, assignment)
 }
 
-func TestMiMCFullDepthNoDepSolve(t *testing.T) {
+func TestMiMCNoDepSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	for i := 0; i < 100; i++ {
-		circuit, assignment := mimcNoDepCircuits(5, 1<<2, "-20")
-		assert.Run(func(assert *test.Assert) {
-			assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
-		}, fmt.Sprintf("i=%d", i))
+
+	for _, depth := range []int{1, 2, 100} {
+		for _, nbInstances := range []int{1 << 1, 1 << 2, 1 << 5} {
+			circuit, assignment := mimcNoDepCircuits(depth, nbInstances, "-20")
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
+			}, fmt.Sprintf("depth=%d, nbInstances=%d", depth, nbInstances))
+		}
 	}
 }
 
-func TestMiMCFullDepthNoDepSolveWithMiMCHash(t *testing.T) {
+func TestMiMCShallowNoDepSolveWithMiMCHash(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, assignment := mimcNoDepCircuits(5, 1<<2, "mimc")
+	circuit, assignment := mimcNoDepCircuits(5, 1<<3, "mimc")
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
