@@ -165,6 +165,7 @@ func main() {
 						FieldPackageName: "fr",
 						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
 					},
+					FieldID:        d.CurveID,
 					GkrPackageName: curvePackageName,
 					CanUseFFT:      true,
 				}
@@ -336,6 +337,7 @@ func generateGkrBackend(cfg gkrConfig) error {
 type gkrConfig struct {
 	config.FieldDependency
 	GkrPackageName      string // the GKR package, relative to the repo root
+	FieldID             string // e.g. BLS12_377, BABYBEAR, etc.
 	CanUseFFT           bool
 	GenerateTestVectors bool
 	NoGkrTests          bool
