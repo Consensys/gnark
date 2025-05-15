@@ -257,7 +257,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 		resCircuit[i].Inputs = info[i].Inputs
 		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
 		if resCircuit[i].Gate == nil {
-			return nil, fmt.Errorf("gate \"%s\" not gound", info[i].Gate)
+			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
 		}
 	}
 	return resCircuit, nil
