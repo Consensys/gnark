@@ -22,7 +22,7 @@ func Example() {
 	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
 	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
-	const fsHashName = "mimc"
+	const fsHashName = "MIMC"
 
 	// register the gates: Doing so is not needed here because
 	// the proof is being computed in the same session as the

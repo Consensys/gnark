@@ -357,7 +357,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
 	// cheat{
 	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, gkrinfo.Wire{
-		Gate:   "mimc",
+		Gate:   "MIMC",
 		Inputs: []int{int(x), int(y)},
 	})
 	gkrApi.assignments = append(gkrApi.assignments, nil)
@@ -388,8 +388,8 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func registerMiMC() {
-	bn254.RegisterHashBuilder("mimc", gcHash.MIMC_BN254.New)
-	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
+	bn254.RegisterHashBuilder("MIMC", gcHash.MIMC_BN254.New)
+	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
 	})
@@ -444,7 +444,7 @@ func registerMiMCGate() {
 
 		sumCubed := api.Mul(sum, sum, sum) // sum^3
 		return api.Mul(sumCubed, sumCubed, sum)
-	}, 2, gkrgates.WithDegree(7), gkrgates.WithName("mimc")))
+	}, 2, gkrgates.WithDegree(7), gkrgates.WithName("MIMC")))
 }
 
 type constPseudoHash int
@@ -520,7 +520,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	z := _gkr.NamedGate("mimc", x, y)
+	z := _gkr.NamedGate("MIMC", x, y)
 
 	if solution, err = _gkr.Solve(api); err != nil {
 		return err
@@ -585,7 +585,7 @@ func TestMiMCNoDepSolve(t *testing.T) {
 
 func TestMiMCShallowNoDepSolveWithMiMCHash(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, assignment := mimcNoDepCircuits(5, 1<<3, "mimc")
+	circuit, assignment := mimcNoDepCircuits(5, 1<<3, "MIMC")
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
 }
 
