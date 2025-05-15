@@ -6,13 +6,9 @@ package hash
 
 import (
 	"fmt"
-	"hash"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -49,7 +45,6 @@ type StateStorer interface {
 var (
 	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
 	lock            sync.RWMutex
-	curveHashes     = make(map[string]map[ecc.ID]func() hash.Hash)
 )
 
 func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
@@ -66,32 +61,6 @@ func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
 		return nil, fmt.Errorf("hash function \"%s\" not registered", name)
 	}
 	return builder(api)
-}
-
-func RegisterHashBuilder(name string, curve ecc.ID, builder func() hash.Hash) {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if _, ok := curveHashes[name]; !ok {
-		curveHashes[name] = make(map[ecc.ID]func() hash.Hash)
-	}
-	if _, ok := curveHashes[name][curve]; ok {
-		panic(fmt.Errorf("hash function \"%s\" already registered for curve \"%s\"", name, curve))
-	}
-	curveHashes[name][curve] = builder
-}
-
-func GetHash(name string, curve ecc.ID) (hash.Hash, error) {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if _, ok := curveHashes[name]; !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not found", name)
-	}
-	if _, ok := curveHashes[name][curve]; !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not found for curve \"%s\"", name, curve)
-	}
-	return curveHashes[name][curve](), nil
 }
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and
@@ -186,20 +155,4 @@ func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 
 func (h *merkleDamgardHasher) Sum() frontend.Variable {
 	return h.state
-}
-
-func init() {
-	// register commonly used hash functions
-	Register("mimc", func(api frontend.API) (FieldHasher, error) {
-		h, err := mimc.NewMiMC(api)
-		return &h, err
-	})
-
-	RegisterHashBuilder("mimc", ecc.BLS12_377, gcHash.MIMC_BLS12_377.New)
-	RegisterHashBuilder("mimc", ecc.BLS12_381, gcHash.MIMC_BLS12_381.New)
-	RegisterHashBuilder("mimc", ecc.BLS24_315, gcHash.MIMC_BLS24_315.New)
-	RegisterHashBuilder("mimc", ecc.BLS24_317, gcHash.MIMC_BLS24_317.New)
-	RegisterHashBuilder("mimc", ecc.BN254, gcHash.MIMC_BN254.New)
-	RegisterHashBuilder("mimc", ecc.BW6_633, gcHash.MIMC_BW6_633.New)
-	RegisterHashBuilder("mimc", ecc.BW6_761, gcHash.MIMC_BW6_761.New)
 }

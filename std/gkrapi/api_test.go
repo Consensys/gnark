@@ -3,13 +3,16 @@ package gkrapi
 import (
 	"fmt"
 	"hash"
+	"math/big"
 	"math/rand"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	gcHash "github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
@@ -696,4 +699,49 @@ func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) f
 
 func (m MiMCCipherGate) Degree() int {
 	return 7
+}
+
+type constBytesPseudoHash []byte
+
+func (c constBytesPseudoHash) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (c constBytesPseudoHash) Sum([]byte) []byte {
+	return slices.Clone(c)
+}
+
+func (c constBytesPseudoHash) Reset() {
+}
+
+func (c constBytesPseudoHash) Size() int {
+	return len(c)
+}
+
+func (c constBytesPseudoHash) BlockSize() int {
+	return len(c)
+}
+
+func newConstBytesPseudoHash(c int64, mod *big.Int) constBytesPseudoHash {
+	i := big.NewInt(c)
+	i.Mod(i, mod)
+	b := make([]byte, len(mod.Bytes()))
+	i.FillBytes(b)
+	return b
+}
+
+func init() {
+	// register custom (constant) "hash" functions
+	for _, v := range []int64{-1, -20} {
+		name := strconv.Itoa(int(v))
+		stdHash.Register(name, func(api frontend.API) (stdHash.FieldHasher, error) {
+			return constPseudoHash(-1), nil
+		})
+		for _, curve := range backend.SupportedCurves() {
+			h := newConstBytesPseudoHash(v, curve.ScalarField())
+			stdHash.RegisterHashBuilder(name, curve, func() hash.Hash {
+				return h
+			})
+		}
+	}
 }

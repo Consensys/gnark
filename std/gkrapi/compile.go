@@ -15,6 +15,7 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 type circuitDataForSnark struct {
@@ -197,7 +198,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	var hsh hash.FieldHasher
-	if hsh, err = gkr.NewFieldHasher(hashName, s.parentApi); err != nil {
+	if hsh, err = hash.GetFieldHasher(hashName, s.parentApi); err != nil {
 		return err
 	}
 	s.toStore.HashName = hashName
@@ -240,4 +241,12 @@ func newCircuitDataForSnark(info gkrinfo.StoringInfo, assignment gkrtypes.WireAs
 		circuit:     circuit,
 		assignments: snarkAssignment,
 	}
+}
+
+func init() {
+	// TODO Move this to the hash package if the import cycle issue is fixed.
+	hash.Register("mimc", func(api frontend.API) (hash.FieldHasher, error) {
+		h, err := mimc.NewMiMC(api)
+		return &h, err
+	})
 }
