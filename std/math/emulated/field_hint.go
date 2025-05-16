@@ -144,6 +144,11 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 //
 // See the example for full written example.
 func (f *Field[T]) NewHint(hf solver.Hint, nbOutputs int, inputs ...*Element[T]) ([]*Element[T], error) {
+	// we need to initialize the inputs before to ensure the constant values are decomposed
+	// into limbs. If inputs are already initialize, then it is no-op.
+	for i := range inputs {
+		inputs[i].Initialize(f.api.Compiler().Field())
+	}
 	nativeInputs := f.wrapHint(inputs...)
 	nbNativeOutputs := int(f.fParams.NbLimbs()) * nbOutputs
 	nativeOutputs, err := f.api.Compiler().NewHint(hf, nbNativeOutputs, nativeInputs...)
@@ -176,6 +181,11 @@ func (f *Field[T]) NewHint(hf solver.Hint, nbOutputs int, inputs ...*Element[T])
 //	        // in the function we have access to both native and nonantive modulus
 //	    })}
 func (f *Field[T]) NewHintWithNativeOutput(hf solver.Hint, nbOutputs int, inputs ...*Element[T]) ([]frontend.Variable, error) {
+	// we need to initialize the inputs before to ensure the constant values are decomposed
+	// into limbs. If inputs are already initialize, then it is no-op.
+	for i := range inputs {
+		inputs[i].Initialize(f.api.Compiler().Field())
+	}
 	nativeInputs := f.wrapHint(inputs...)
 	nbNativeOutputs := nbOutputs
 	nativeOutputs, err := f.api.Compiler().NewHint(hf, nbNativeOutputs, nativeInputs...)

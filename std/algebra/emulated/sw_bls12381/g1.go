@@ -38,11 +38,11 @@ func NewG1(api frontend.API) (*G1, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
-	w := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	w := ba.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	return &G1{
 		api:    api,
 		curveF: ba,
-		w:      &w,
+		w:      w,
 	}, nil
 }
 
@@ -174,8 +174,8 @@ func (g1 *G1) computeCurveEquation(P *G1Affine) (left, right *baseEl) {
 
 	// if P=(0,0) we assign b=0 otherwise 4, and continue
 	selector := g1.api.And(g1.curveF.IsZero(&P.X), g1.curveF.IsZero(&P.Y))
-	four := emulated.ValueOf[BaseField]("4")
-	b := g1.curveF.Select(selector, g1.curveF.Zero(), &four)
+	four := g1.curveF.NewElement("4")
+	b := g1.curveF.Select(selector, g1.curveF.Zero(), four)
 
 	left = g1.curveF.Mul(&P.Y, &P.Y)
 	right = g1.curveF.Eval([][]*emulated.Element[BaseField]{{&P.X, &P.X, &P.X}, {b}}, []int{1, 1})
