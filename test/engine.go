@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -672,6 +673,9 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	if smallfields.IsSmallField(e.modulus()) {
+		panic("commitment not supported for small fields")
+	}
 	nb := (e.FieldBitLen() + 7) / 8
 	buf := make([]byte, nb)
 	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))

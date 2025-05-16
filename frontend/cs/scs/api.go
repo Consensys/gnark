@@ -19,6 +19,7 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/frontendtype"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -577,6 +578,9 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 }
 
 func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	if smallfields.IsSmallField(builder.Field()) {
+		return nil, fmt.Errorf("commitment not supported for small field %s", builder.Field())
+	}
 
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 	v = filterConstants[E](v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?

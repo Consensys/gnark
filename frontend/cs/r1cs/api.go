@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/internal/hints"
+	"github.com/consensys/gnark/internal/smallfields"
 
 	"github.com/consensys/gnark/internal/utils"
 
@@ -678,7 +679,9 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 }
 
 func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-
+	if smallfields.IsSmallField(builder.Field()) {
+		return nil, fmt.Errorf("commitment not supported for small field %s", builder.Field())
+	}
 	// add a random mask to v
 	{
 		vCp := make([]frontend.Variable, len(v)+1)
