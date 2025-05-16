@@ -151,7 +151,10 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 func Get(name gkr.GateName) *gkrtypes.Gate {
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
-	return gates[name]
+	if gate, ok := gates[name]; ok {
+		return gate
+	}
+	panic(fmt.Sprintf("gate \"%s\" not found", name))
 }
 
 type gateVerifier struct {

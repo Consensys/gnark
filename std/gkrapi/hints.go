@@ -3,17 +3,11 @@ package gkrapi
 import (
 	"errors"
 	"fmt"
-	"hash"
 	"math/big"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
-	csBls12381 "github.com/consensys/gnark/constraint/bls12-381"
-	csBls24315 "github.com/consensys/gnark/constraint/bls24-315"
-	csBls24317 "github.com/consensys/gnark/constraint/bls24-317"
-	csBn254 "github.com/consensys/gnark/constraint/bn254"
-	csBw6633 "github.com/consensys/gnark/constraint/bw6-633"
-	csBw6761 "github.com/consensys/gnark/constraint/bw6-761"
+	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -25,6 +19,7 @@ import (
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 var testEngineGkrSolvingData = make(map[string]any)
@@ -124,36 +119,10 @@ func CheckHashHint(hashName string) solver.Hint {
 			return errors.New("invalid number of inputs/outputs")
 		}
 
-		var (
-			builder func() hash.Hash
-			err     error
-		)
-		if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-			builder, err = csBls12377.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-			builder, err = csBls12381.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-			builder, err = csBls24315.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-			builder, err = csBls24317.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
-			builder, err = csBn254.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-			builder, err = csBw6633.GetHashBuilder(hashName)
-		} else if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-			builder, err = csBw6761.GetHashBuilder(hashName)
-		} else {
-			return errors.New("unsupported modulus")
-		}
-
-		if err != nil {
-			return err
-		}
-
 		toHash := ins[0].Bytes()
 		expectedHash := ins[1]
 
-		hsh := builder()
+		hsh := gcHash.NewHash(fmt.Sprintf("%s_%s", hashName, strings.ToUpper(utils.FieldToCurve(mod).String())))
 		hsh.Write(toHash)
 		hashed := hsh.Sum(nil)
 

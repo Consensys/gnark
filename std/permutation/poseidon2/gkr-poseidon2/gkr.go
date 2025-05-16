@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/gkrapi"
 
@@ -92,6 +93,14 @@ func intKeyGate2(roundKey frontend.Variable) gkr.GateFunction {
 		}
 		return api.Add(api.Mul(x[1], 3), x[0], roundKey)
 	}
+}
+
+// intGate2 applies the internal matrix mul. The round key is zero
+func intGate2(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("expected 2 inputs")
+	}
+	return api.Add(api.Mul(x[1], 3), x[0])
 }
 
 // extGate applies the first row of the external matrix
@@ -219,7 +228,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
-		x, y = x1, gkrApi.NamedGate(gateNamer.linear(yI, i), x, y)
+		x, y = x1, gkrApi.Gate(extGate2, x, y)
 	}
 
 	{
@@ -246,10 +255,13 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	}
 
 	// register MiMC to be used as a random oracle in the GKR proof
-	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
+	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
 	})
+
+	// register gates
+	registerGkrSolverOptions(api)
 
 	// pad instances into a power of 2
 	// TODO @Tabaie the GKR API to do this automatically?
@@ -287,7 +299,13 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	return solution.Verify("mimc", challenge)
+	return solution.Verify("MIMC", challenge)
+}
+
+// registerGkrSolverOptions is a wrapper for RegisterGkrSolverOptions
+// that performs the registration for the curve associated with api.
+func registerGkrSolverOptions(api frontend.API) {
+	RegisterGkrSolverOptions(utils.FieldToCurve(api.Compiler().Field()))
 }
 
 func permuteHint(m *big.Int, ins, outs []*big.Int) error {
@@ -322,7 +340,7 @@ func RegisterGkrSolverOptions(curves ...ecc.ID) {
 	for _, curve := range curves {
 		switch curve {
 		case ecc.BLS12_377:
-			csBls12377.RegisterHashBuilder("mimc", func() hash.Hash {
+			csBls12377.RegisterHashBuilder("MIMC", func() hash.Hash {
 				return mimcBls12377.NewMiMC()
 			})
 			if err := registerGkrGatesBls12377(); err != nil {
@@ -354,6 +372,10 @@ func registerGkrGatesBls12377() error {
 		return err
 	}
 	if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithNoSolvableVar()); err != nil {
+		return err
+	}
+
+	if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0)); err != nil {
 		return err
 	}
 
@@ -391,6 +413,7 @@ func registerGkrGatesBls12377() error {
 		if err := extKeySBox(i, x); err != nil { // for x1, intKeySBox is identical to extKeySBox
 			return err
 		}
+		// the gate for y is the unkeyed intGate2
 	}
 
 	{
@@ -410,7 +433,6 @@ func registerGkrGatesBls12377() error {
 	}
 
 	return gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, p.NbPartialRounds+p.NbFullRounds)))
-
 }
 
 type roundGateNamer string
