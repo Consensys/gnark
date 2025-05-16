@@ -5,6 +5,9 @@ import (
     fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
     "github.com/consensys/gnark/internal/small_rational"
     "github.com/consensys/gnark/internal/small_rational/polynomial"
+    "github.com/consensys/gnark/internal/gkr/gkrtesting"
+    "github.com/consensys/gnark/internal/gkr/gkrtypes"
+    "github.com/consensys/gnark/internal/utils"
     "hash"
     "os"
     "path/filepath"
@@ -90,8 +93,8 @@ func run(absPath string) error {
 	return nil
 }
 
-func toPrintableProof(proof Proof) (PrintableProof, error) {
-	res := make(PrintableProof, len(proof))
+func toPrintableProof(proof Proof) (gkrtesting.PrintableProof, error) {
+	res := make(gkrtesting.PrintableProof, len(proof))
 
 	for i := range proof {
 
@@ -100,12 +103,49 @@ func toPrintableProof(proof Proof) (PrintableProof, error) {
 			partialSumPolys[k] = elementSliceToInterfaceSlice(partialK)
 		}
 
-		res[i] = PrintableSumcheckProof{
+		res[i] = gkrtesting.PrintableSumcheckProof{
 			FinalEvalProof:  elementSliceToInterfaceSlice(proof[i].finalEvalProof),
 			PartialSumPolys: partialSumPolys,
 		}
 	}
 	return res, nil
+}
+
+func elementToInterface(x *{{.ElementType}}) interface{} {
+	if i := x.BigInt(nil); i != nil {
+		return i
+	}
+	return x.Text(10)
+}
+
+func elementSliceToInterfaceSlice(x interface{}) []interface{} {
+	if x == nil {
+		return nil
+	}
+
+	X := reflect.ValueOf(x)
+
+	res := make([]interface{}, X.Len())
+	for i := range res {
+		xI := X.Index(i).Interface().({{.ElementType}})
+		res[i] = elementToInterface(&xI)
+	}
+	return res
+}
+
+func elementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
+	if x == nil {
+		return nil
+	}
+
+	X := reflect.ValueOf(x)
+
+	res := make([][]interface{}, X.Len())
+	for i := range res {
+		res[i] = elementSliceToInterfaceSlice(X.Index(i).Interface())
+	}
+
+	return res
 }
 
 {{template "gkrTestVectors" .}}
