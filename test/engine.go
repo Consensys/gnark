@@ -24,7 +24,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
@@ -40,7 +39,6 @@ import (
 type engine struct {
 	curveID ecc.ID
 	q       *big.Int
-	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
@@ -59,19 +57,6 @@ type TestEngineOption func(e *engine) error
 func SetAllVariablesAsConstants() TestEngineOption {
 	return func(e *engine) error {
 		e.constVars = true
-		return nil
-	}
-}
-
-// WithBackendProverOptions is a test engine option which allows to define
-// prover options. If not set, then default prover configuration is used.
-func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
-	return func(e *engine) error {
-		cfg, err := backend.NewProverConfig(opts...)
-		if err != nil {
-			return fmt.Errorf("new prover config: %w", err)
-		}
-		e.opt = cfg
 		return nil
 	}
 }
