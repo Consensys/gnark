@@ -24,8 +24,8 @@ type Field[T FieldParams] struct {
 	// api is the native API
 	api frontend.API
 
-	// f carries the ring parameters
-	fParams T
+	// fParams carries the ring parameters
+	fParams staticFieldParams[T]
 
 	// maxOf is the maximum overflow before the element must be reduced.
 	maxOf     uint
@@ -56,9 +56,6 @@ type ctxKey[T FieldParams] struct{}
 // NewField returns an object to be used in-circuit to perform emulated
 // arithmetic over the field defined by type parameter [FieldParams]. The
 // operations on this type are defined on [Element].
-//
-// This is an experimental feature and performing emulated arithmetic in-circuit
-// is extremely costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	if storer, ok := native.(kvstore.Store); ok {
 		ff := storer.GetKeyValue(ctxKey[T]{})
@@ -71,6 +68,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[[16]byte]struct{}),
 		checker:          rangecheck.New(native),
+		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
 
 	// ensure prime is correctly set
@@ -131,7 +129,7 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	// the input was not a variable, so it must be a constant. Create a new
 	// element from it while setting isWitness flag to false. This ensures that
 	// we use the minimal number of limbs necessary.
-	c := newConstElement[T](v, false)
+	c := newConstElement[T](f.api.Compiler().Field(), v, false)
 	return c
 }
 
@@ -154,7 +152,7 @@ func (f *Field[T]) One() *Element[T] {
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
-		f.nConst = newConstElement[T](f.fParams.Modulus(), false)
+		f.nConst = newConstElement[T](f.api.Compiler().Field(), f.fParams.Modulus(), false)
 	})
 	return f.nConst
 }
@@ -162,7 +160,7 @@ func (f *Field[T]) Modulus() *Element[T] {
 // modulusPrev returns modulus-1 as a constant.
 func (f *Field[T]) modulusPrev() *Element[T] {
 	f.nprevConstOnce.Do(func() {
-		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)), false)
+		f.nprevConst = newConstElement[T](f.api.Compiler().Field(), new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)), false)
 	})
 	return f.nprevConst
 }
@@ -183,6 +181,11 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		// for some reason called on nil
 		return false
 	}
+	// ensure that when the element is defined in-circuit with [ValueOf] method
+	// (as a constant), then we decompose it into limbs. When [ValueOf] is called
+	// for a witness assignment, then [Element.Initialize] is already called at
+	// witness parsing time. In that case, the below operation is no-op.
+	a.Initialize(f.api.Compiler().Field())
 	if a.internal {
 		// internal elements are already constrained in the method which returned it
 		return false
@@ -235,6 +238,15 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 }
 
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
+	// this case happens when we have called [ValueOf] inside a circuit as
+	// [Element.Initialize] has not been called (Limbs are nil). In this case,
+	// we can directly use the witness value as the constant value.
+	if v.Limbs == nil && v.witnessValue != nil {
+		return new(big.Int).Set(v.witnessValue), true
+	}
+
+	// otherwise - it may happen that the user has manually constructed [Element] from constant limbs.
+	// In this case, we can recompose the constant value from the limbs.
 	var ok bool
 
 	constLimbs := make([]*big.Int, len(v.Limbs))
