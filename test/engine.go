@@ -64,7 +64,7 @@ func SetAllVariablesAsConstants() TestEngineOption {
 
 // WithNoSmallFieldCompatibility prevents trying to make the test engine
 // compatible with the different backends in case the circuit is compiled over
-// a small field. Particularly, in the compability mode, the test engine
+// a small field. Particularly, in the compatibility mode, the test engine
 // would implement [frontend.WideCommitter] and [frontend.Rangechecker] interfaces.
 // When this option is set, the test engine will not implement these interfaces.
 //
