@@ -196,6 +196,9 @@ func (e *ext) Div(a, b Element) Element {
 }
 
 func (e *ext) Inverse(a Element) Element {
+	// in case it will be implemented, then also allow rangechecker to be used with WideCommitment
+	// For that, remove the explicit panic in `std/rangecheck/rangecheck.go` and start using
+	// WithWideCommitment in `std/internal/logderivarg/logderivarg.go`.
 	panic("not implemented")
 }
 
