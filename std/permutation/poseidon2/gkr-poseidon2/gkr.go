@@ -3,7 +3,6 @@ package gkr_poseidon2
 import (
 	"errors"
 	"fmt"
-	"hash"
 	"math/big"
 	"sync"
 
@@ -16,9 +15,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	mimcBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	csBls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -208,7 +205,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 
 	// apply a full round
 	fullRound := func(i int) {
-		x1 := extKeySBox(i, xI, x, y)      // TODO inline this
+		x1 := extKeySBox(i, xI, x, y)
 		x, y = x1, extKeySBox(i, yI, y, x) // the external matrix is symmetric so we can use the same gate with inputs swapped
 	}
 
@@ -340,9 +337,6 @@ func RegisterGkrSolverOptions(curves ...ecc.ID) {
 	for _, curve := range curves {
 		switch curve {
 		case ecc.BLS12_377:
-			csBls12377.RegisterHashBuilder("MIMC", func() hash.Hash {
-				return mimcBls12377.NewMiMC()
-			})
 			if err := registerGkrGatesBls12377(); err != nil {
 				panic(err)
 			}
