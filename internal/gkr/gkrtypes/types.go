@@ -136,6 +136,7 @@ type SolvingInfo struct {
 	Dependencies [][]gkrinfo.InputDependency
 	NbInstances  int
 	HashName     string
+	Prints       []gkrinfo.PrintInfo
 }
 
 // Chunks returns intervals of instances that are independent of each other and can be solved in parallel
@@ -270,6 +271,7 @@ func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.Gat
 		NbInstances:  info.NbInstances,
 		HashName:     info.HashName,
 		Dependencies: info.Dependencies,
+		Prints:       info.Prints,
 	}, err
 }
 

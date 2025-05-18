@@ -23,11 +23,6 @@ type circuitDataForSnark struct {
 	assignments gkrtypes.WireAssignment
 }
 
-type API struct {
-	toStore     gkrinfo.StoringInfo
-	assignments gkrtypes.WireAssignment
-}
-
 type Solution struct {
 	toStore      gkrinfo.StoringInfo
 	assignments  gkrtypes.WireAssignment

@@ -3,9 +3,15 @@ package gkrapi
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkr"
 )
+
+type API struct {
+	toStore     gkrinfo.StoringInfo
+	assignments gkrtypes.WireAssignment
+}
 
 func frontendVarToInt(a gkr.Variable) int {
 	return int(a)
@@ -52,4 +58,26 @@ func (api *API) Sub(i1, i2 gkr.Variable) gkr.Variable {
 
 func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
 	return api.namedGate2PlusIn(gkr.Mul2, i1, i2)
+}
+
+// Println writes to the standard output.
+// instance determines which values are chosen for gkr.Variable input.
+func (api *API) Println(instance int, a ...any) {
+	isVar := make([]bool, len(a))
+	vals := make([]any, len(a))
+	for i := range a {
+		v, ok := a[i].(gkr.Variable)
+		isVar[i] = ok
+		if ok {
+			vals[i] = uint32(v)
+		} else {
+			vals[i] = a[i]
+		}
+	}
+
+	api.toStore.Prints = append(api.toStore.Prints, gkrinfo.PrintInfo{
+		Values:   vals,
+		Instance: uint32(instance),
+		IsGkrVar: isVar,
+	})
 }

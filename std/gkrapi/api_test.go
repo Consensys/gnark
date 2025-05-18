@@ -1,6 +1,7 @@
 package gkrapi
 
 import (
+	"bytes"
 	"fmt"
 	"hash"
 	"math/big"
@@ -15,13 +16,7 @@ import (
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
-	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
-	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
-	bls24317 "github.com/consensys/gnark/constraint/bls24-317"
 	bn254 "github.com/consensys/gnark/constraint/bn254"
-	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
-	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -149,19 +144,17 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	if y, err = gkrApi.Import(c.Y); err != nil {
 		return err
 	}
+	gkrApi.Println(0, "values of x and y in instance number", 0, x, y)
+
 	z := gkrApi.Mul(x, y)
+	gkrApi.Println(1, "value of z in instance number", 1, z)
 	var solution Solution
 	if solution, err = gkrApi.Solve(api); err != nil {
 		return err
 	}
-	X := solution.Export(x)
-	Y := solution.Export(y)
 	Z := solution.Export(z)
-	api.Println("after solving, z=", Z, ", x=", X, ", y=", Y)
 
 	for i := range c.X {
-		api.Println("z@", i, " = ", Z[i])
-		api.Println("x.y = ", api.Mul(c.X[i], c.Y[i]))
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
 	}
 
@@ -217,6 +210,7 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	if y, err = gkrApi.Import(c.Y); err != nil {
 		return err
 	}
+
 	z := gkrApi.Mul(x, y)
 
 	for i := len(X) - 1; i > 0; i-- {
@@ -230,8 +224,6 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	X = solution.Export(x)
 	Y := solution.Export(y)
 	Z := solution.Export(z)
-
-	api.Println("after solving, z=", Z, ", x=", X, ", y=", Y)
 
 	lastI := len(X) - 1
 	api.AssertIsEqual(Z[lastI], api.Mul(c.XLast, Y[lastI]))
@@ -395,40 +387,8 @@ func registerMiMC() {
 	})
 }
 
-func registerConstant(c int) {
-	name := strconv.Itoa(c)
-	bls12377.RegisterHashBuilder(name, func() hash.Hash {
-		return bls12377.ConstPseudoHash(c)
-	})
-
-	bls12381.RegisterHashBuilder(name, func() hash.Hash {
-		return bls12381.ConstPseudoHash(c)
-	})
-	bls24315.RegisterHashBuilder(name, func() hash.Hash {
-		return bls24315.ConstPseudoHash(c)
-	})
-	bls24317.RegisterHashBuilder(name, func() hash.Hash {
-		return bls24317.ConstPseudoHash(c)
-	})
-	bn254.RegisterHashBuilder(name, func() hash.Hash {
-		return bn254.ConstPseudoHash(c)
-	})
-	bw6633.RegisterHashBuilder(name, func() hash.Hash {
-		return bw6633.ConstPseudoHash(c)
-	})
-	bw6761.RegisterHashBuilder(name, func() hash.Hash {
-		return bw6761.ConstPseudoHash(c)
-	})
-
-	stdHash.Register(name, func(frontend.API) (stdHash.FieldHasher, error) {
-		return constPseudoHash(c), nil
-	})
-}
-
 func init() {
 	registerMiMC()
-	registerConstant(-1)
-	registerConstant(-20)
 	registerMiMCGate()
 }
 
@@ -738,4 +698,48 @@ func init() {
 			})
 		}
 	}
+}
+
+func ExamplePrintln() {
+
+	circuit := &mulNoDependencyCircuit{
+		X:        make([]frontend.Variable, 2),
+		Y:        make([]frontend.Variable, 2),
+		hashName: "MIMC",
+	}
+
+	assignment := &mulNoDependencyCircuit{
+		X: []frontend.Variable{10, 11},
+		Y: []frontend.Variable{12, 13},
+	}
+
+	field := ecc.BN254.ScalarField()
+
+	// with test engine
+	err := test.IsSolved(circuit, assignment, field)
+	panicIfError(err)
+
+	// with groth16 / serialized CS
+	firstCs, err := frontend.Compile(field, r1cs.NewBuilder, circuit)
+	panicIfError(err)
+
+	var bb bytes.Buffer
+	_, err = firstCs.WriteTo(&bb)
+	panicIfError(err)
+	cs := groth16.NewCS(ecc.BN254)
+	_, err = cs.ReadFrom(&bb)
+	panicIfError(err)
+
+	pk, _, err := groth16.Setup(cs)
+	panicIfError(err)
+	w, err := frontend.NewWitness(assignment, field)
+	panicIfError(err)
+	_, err = groth16.Prove(cs, pk, w)
+	panicIfError(err)
+
+	// Output:
+	// values of x and y in instance number 0 10 12
+	// value of z in instance number 1 143
+	// values of x and y in instance number 0 10 12
+	// value of z in instance number 1 143
 }

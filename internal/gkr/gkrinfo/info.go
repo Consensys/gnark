@@ -24,6 +24,11 @@ type (
 
 	Circuit []Wire
 
+	PrintInfo struct {
+		Values   []any
+		Instance uint32
+		IsGkrVar []bool
+	}
 	StoringInfo struct {
 		Circuit      Circuit
 		Dependencies [][]InputDependency // nil for input wires
@@ -31,6 +36,7 @@ type (
 		HashName     string
 		SolveHintID  solver.HintID
 		ProveHintID  solver.HintID
+		Prints       []PrintInfo
 	}
 
 	Permutations struct {
@@ -112,6 +118,16 @@ func (d *StoringInfo) Compile(nbInstances int) (Permutations, error) {
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
 	}
+
+	// re-arrange the prints
+	for i := range d.Prints {
+		for j, isVar := range d.Prints[i].IsGkrVar {
+			if isVar {
+				d.Prints[i].Values[j] = uint32(p.WiresPermutation[d.Prints[i].Values[j].(uint32)])
+			}
+		}
+	}
+
 	d.Circuit, d.Dependencies = sorted, sortedDeps
 
 	return p, nil
