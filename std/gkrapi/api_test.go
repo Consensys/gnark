@@ -16,7 +16,6 @@ import (
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	bn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -380,7 +379,6 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func registerMiMC() {
-	bn254.RegisterHashBuilder("MIMC", gcHash.MIMC_BN254.New)
 	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err

@@ -6,8 +6,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	gcHash "github.com/consensys/gnark-crypto/hash"
-	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkr"
@@ -74,9 +72,6 @@ func Example() {
 		ZOut:       make([]frontend.Variable, nbInstances),
 		fsHashName: fsHashName,
 	}
-
-	// register the hash function used for verifying the GKR proof (prover side)
-	bw6761.RegisterHashBuilder(fsHashName, gcHash.MIMC_BW6_761.New)
 
 	assertNoError(test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
 
