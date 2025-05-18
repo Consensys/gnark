@@ -6,6 +6,7 @@
 package gkr
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/hash"
@@ -103,6 +104,18 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 		for _, end := range chunks {
 			data.workers.Submit(end-start, solveTask(start), 1024).Wait()
 			start = end
+		}
+
+		for _, p := range info.Prints {
+			serializable := make([]any, len(p.Values))
+			for i, v := range p.Values {
+				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
+					serializable[i] = data.assignment[algo_utils.ForceUint32(v)][p.Instance].String()
+				} else {
+					serializable[i] = v
+				}
+			}
+			fmt.Println(serializable...)
 		}
 
 		setOuts(data.assignment, info.Circuit, outs)

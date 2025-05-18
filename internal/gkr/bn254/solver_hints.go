@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 type SolvingData struct {
@@ -109,7 +110,7 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 			serializable := make([]any, len(p.Values))
 			for i, v := range p.Values {
 				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
-					serializable[i] = data.assignment[forceInt32(v)][p.Instance].String()
+					serializable[i] = data.assignment[algo_utils.ForceUint32(v)][p.Instance].String()
 				} else {
 					serializable[i] = v
 				}
@@ -120,20 +121,6 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 		setOuts(data.assignment, info.Circuit, outs)
 
 		return nil
-	}
-}
-
-func forceInt32(v any) uint32 {
-	switch x := v.(type) {
-	case uint32:
-		return x
-	case uint64:
-		if x > 0xFFFFFFFF {
-			panic("value too large to fit in uint32")
-		}
-		return uint32(x)
-	default:
-		panic("value is not uint32 or uint64")
 	}
 }
 
