@@ -195,7 +195,7 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 		return sBox(gkrApi.NamedGate(gateNamer.linear(varI, round), a, b))
 	}
 
-	// spply external matrix multiplication and round key addition
+	// apply external matrix multiplication and round key addition
 	// then apply the s-Box
 	// for the second variable
 	// round independent due to the round key
@@ -220,12 +220,12 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 		// still using the external matrix, since the linear operation still belongs to a full (canonical) round
 		x1 := extKeySBox(halfRf, xI, x, y)
 
-		x, y = x1, gkrApi.NamedGate(gateNamer.linear(yI, halfRf), x, y)
+		x, y = x1, gkrApi.Gate(extGate2, x, y)
 	}
 
 	for i := halfRf + 1; i < halfRf+rP; i++ {
 		x1 := extKeySBox(i, xI, x, y) // the first row of the internal matrix is the same as that of the external matrix
-		x, y = x1, gkrApi.Gate(extGate2, x, y)
+		x, y = x1, gkrApi.Gate(intGate2, x, y)
 	}
 
 	{
@@ -388,40 +388,36 @@ func registerGkrGatesBls12377() error {
 		return extKeySBox(i, y)
 	}
 
-	for i := range halfRf {
-		if err := fullRound(i); err != nil {
+	for round := range halfRf {
+		if err := fullRound(round); err != nil {
 			return err
 		}
 	}
 
-	{ // i = halfRf: first partial round
+	{ // round = halfRf: first partial one
 		if err := extKeySBox(halfRf, x); err != nil {
 			return err
 		}
-		if err := gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, halfRf))); err != nil {
-			return err
-		}
 	}
 
-	for i := halfRf + 1; i < halfRf+p.NbPartialRounds; i++ {
-		if err := extKeySBox(i, x); err != nil { // for x1, intKeySBox is identical to extKeySBox
-			return err
-		}
-		// the gate for y is the unkeyed intGate2
-	}
-
-	{
-		i := halfRf + p.NbPartialRounds
-		if err := extKeySBox(i, x); err != nil {
-			return err
-		}
-		if err := intKeySBox2(i); err != nil {
+	for round := halfRf + 1; round < halfRf+p.NbPartialRounds; round++ {
+		if err := extKeySBox(round, x); err != nil { // for x1, intKeySBox is identical to extKeySBox
 			return err
 		}
 	}
 
-	for i := halfRf + p.NbPartialRounds + 1; i < p.NbPartialRounds+p.NbFullRounds; i++ {
-		if err := fullRound(i); err != nil {
+	{
+		round := halfRf + p.NbPartialRounds
+		if err := extKeySBox(round, x); err != nil {
+			return err
+		}
+		if err := intKeySBox2(round); err != nil {
+			return err
+		}
+	}
+
+	for round := halfRf + p.NbPartialRounds + 1; round < p.NbPartialRounds+p.NbFullRounds; round++ {
+		if err := fullRound(round); err != nil {
 			return err
 		}
 	}
