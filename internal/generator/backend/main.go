@@ -152,11 +152,6 @@ func main() {
 
 			// gkr backend
 			if !d.NoGKR {
-				// solver and proof delegator TODO merge with "backend" below
-				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
-				err := bgen.Generate(d, "cs", "./template/representations/", entries...)
-				assertNoError(err)
-
 				curvePackageName := strings.ToLower(d.Curve)
 
 				cfg := gkrConfig{
