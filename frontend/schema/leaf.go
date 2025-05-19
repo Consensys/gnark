@@ -23,7 +23,7 @@ type LeafCount struct {
 // LeafHandler is the handler function that will be called when Walk reaches leafs of the struct
 type LeafHandler func(field LeafInfo, tValue reflect.Value) error
 
-// InitHooker is an object which knows how to initialize itself when parsed at
+// Initializable is an object which knows how to initialize itself when parsed at
 // compile time.
 //
 // This allows to define new primitive circuit variable types which may require
@@ -32,7 +32,7 @@ type LeafHandler func(field LeafInfo, tValue reflect.Value) error
 //
 // The Initialize method can be called multiple times during different parsing
 // and compilation steps, so the implementation should be idempotent.
-type InitHooker interface {
+type Initializable interface {
 	// Initialize initializes the object. It receives as an argument the native field
 	// that will be used to compile the circuit.
 	//

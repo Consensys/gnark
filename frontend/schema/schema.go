@@ -277,7 +277,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
-				if ih, hasInitHook := value.(InitHooker); hasInitHook {
+				if ih, hasInitHook := value.(Initializable); hasInitHook {
 					ih.Initialize(field)
 				}
 				var err error
@@ -354,7 +354,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
 				ival := val.Addr().Interface()
-				if ih, hasInitHook := ival.(InitHooker); hasInitHook {
+				if ih, hasInitHook := ival.(Initializable); hasInitHook {
 					ih.Initialize(field)
 				}
 				subFields, err = parse(subFields, ival, target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret, field)

@@ -106,7 +106,7 @@ func (w *walker) arraySliceElem(index int, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+		if ih, hasInitHook := value.(Initializable); hasInitHook {
 			ih.Initialize(w.field)
 		}
 	}
@@ -178,7 +178,7 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+		if ih, hasInitHook := value.(Initializable); hasInitHook {
 			ih.Initialize(w.field)
 		}
 	}
