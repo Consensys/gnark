@@ -36,12 +36,12 @@ func bitsFromU8(api frontend.API, b []uints.U8) []frontend.Variable {
 	return res
 }
 
-// Unmarshall build the finite field element from its bytes representation.
+// Unmarshal build the finite field element from its bytes representation.
 // The byte representation follows the format of gnark-crypto's marshal function, that
 // is [MSB || ... || LSB ]
 // Should we move it elsewhere ?
 // #constraints: 1772 when compiled on BN254, emulating BLS12-381 base field
-func Unmarshall[F emulated.FieldParams](api frontend.API, b []uints.U8) (*emulated.Element[F], error) {
+func Unmarshal[F emulated.FieldParams](api frontend.API, b []uints.U8) (*emulated.Element[F], error) {
 
 	emApi, err := emulated.NewField[F](api)
 	if err != nil {
@@ -81,7 +81,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	unmaskedXCoord := make([]uints.U8, nbBytes)
 	copy(unmaskedXCoord, unpackedFirstFourBytes)
 	copy(unmaskedXCoord[4:], compressedPoint[4:])
-	x, err := Unmarshall[BaseField](g1.api, unmaskedXCoord)
+	x, err := Unmarshal[BaseField](g1.api, unmaskedXCoord)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	for i := 0; i < nbBytes; i++ {
 		yMarshalled[i] = uapi.ByteValueOf(yRawBytes[i])
 	}
-	y, err := Unmarshall[BaseField](g1.api, yMarshalled)
+	y, err := Unmarshal[BaseField](g1.api, yMarshalled)
 	if err != nil {
 		return nil, err
 	}

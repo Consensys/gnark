@@ -31,14 +31,14 @@ func (c *deserialiseCircuit) Define(api frontend.API) error {
 	}
 
 	{
-		r, err := Unmarshall[BaseField](api, c.InBaseField)
+		r, err := Unmarshal[BaseField](api, c.InBaseField)
 		if err != nil {
 			return err
 		}
 		g.curveF.AssertIsEqual(&c.RBaseField, r)
 	}
 	{
-		r, err := Unmarshall[ScalarField](api, c.InScalarField)
+		r, err := Unmarshal[ScalarField](api, c.InScalarField)
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func (c *deserialiseCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestUnmarshall(t *testing.T) {
+func TestUnmarshal(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
@@ -91,13 +91,13 @@ func TestUnmarshall(t *testing.T) {
 
 }
 
-type unmarshallPoint struct {
+type unmarshalPoint struct {
 	CompressedPoint []uints.U8
 	X               emulated.Element[BaseField]
 	Y               emulated.Element[BaseField]
 }
 
-func (c *unmarshallPoint) Define(api frontend.API) error {
+func (c *unmarshalPoint) Define(api frontend.API) error {
 
 	g, err := NewG1(api)
 	if err != nil {
@@ -115,14 +115,14 @@ func (c *unmarshallPoint) Define(api frontend.API) error {
 	return nil
 }
 
-func TestUnmmarshalPoint(t *testing.T) {
+func TestUnmarshalPoint(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
 	{
 		_, _, p, _ := bls12381.Generators()
 		pMarshalled := p.Bytes()
-		var witness, circuit unmarshallPoint
+		var witness, circuit unmarshalPoint
 		nbBytes := fp.Bytes
 		witness.CompressedPoint = make([]uints.U8, nbBytes)
 		circuit.CompressedPoint = make([]uints.U8, nbBytes)
@@ -138,7 +138,7 @@ func TestUnmmarshalPoint(t *testing.T) {
 
 	// infinity
 	{
-		var witness, circuit unmarshallPoint
+		var witness, circuit unmarshalPoint
 		nbBytes := fp.Bytes
 		witness.CompressedPoint = make([]uints.U8, nbBytes)
 		circuit.CompressedPoint = make([]uints.U8, nbBytes)
