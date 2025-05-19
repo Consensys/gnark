@@ -542,7 +542,7 @@ func (builder *builder[E]) Println(a ...frontend.Variable) {
 
 func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
-	leafCount, err := schema.Walk(a, tVariable, nil)
+	leafCount, err := schema.Walk(builder.Field(), a, tVariable, nil)
 	count := leafCount.Public + leafCount.Secret
 
 	// no variables in nested struct, we use fmt std print function
@@ -568,7 +568,7 @@ func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Build
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_, _ = schema.Walk(a, tVariable, printer)
+	_, _ = schema.Walk(builder.Field(), a, tVariable, printer)
 	sbb.WriteByte('}')
 }
 

@@ -128,10 +128,10 @@ func (p *permutter) permuteAndTest(index int) error {
 
 				// solve the cs using test engine
 				// first copy the witness in the circuit
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[0] = isSolvedEngine(p.circuit, tinyfield.Modulus())
 
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[1] = isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
 
 			}
@@ -217,9 +217,9 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 
 // fill the "to" frontend.Circuit with values from the provided vector
 // values are assumed to be ordered [public | secret]
-func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
+func copyWitnessFromVector(field *big.Int, to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++
@@ -227,7 +227,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 		return nil
 	})
 
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++

@@ -124,7 +124,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newConstElement[T](ba, false)
+		return newConstElement[T](f.api.Compiler().Field(), ba, false)
 	}
 
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -192,15 +192,14 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newConstElement[T](ba, false)
+		return newConstElement[T](f.api.Compiler().Field(), ba, false)
 	}
 
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
-	var fp T
-	nbLimbs := max(len(a.Limbs), len(b.Limbs), int(fp.NbLimbs()))
+	nbLimbs := max(len(a.Limbs), len(b.Limbs), int(f.fParams.NbLimbs()))
 	limbs := make([]frontend.Variable, nbLimbs)
-	padLimbs := subPadding(fp.Modulus(), fp.BitsPerLimb(), b.overflow, uint(nbLimbs))
+	padLimbs := subPadding(f.fParams.Modulus(), f.fParams.BitsPerLimb(), b.overflow, uint(nbLimbs))
 	for i := range limbs {
 		limbs[i] = padLimbs[i]
 		if i < len(a.Limbs) {
