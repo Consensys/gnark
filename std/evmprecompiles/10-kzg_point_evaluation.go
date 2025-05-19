@@ -1,6 +1,8 @@
 package evmprecompiles
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -47,12 +49,12 @@ func KzgPointEvaluation(
 	// Verify KZG proof
 	g1, err := sw_bls12381.NewG1(api)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("new g1: %w", err)
 	}
 
 	com, err := g1.UnmarshalCompressed(comSerialised)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("unmarshal compressed commitment: %w", err)
 	}
 	commitmentKzgFormat := kzg.Commitment[sw_bls12381.G1Affine]{
 		G1El: *com,
@@ -62,7 +64,7 @@ func KzgPointEvaluation(
 	sizeCompressedPoint := fp.Bytes
 	h, err := sha2.New(api, hash.WithMinimalLength(sizeCompressedPoint))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new sha2: %w", err)
 	}
 	h.Write(comSerialised)
 	hashedKzg := h.FixedLengthSum(sizeCompressedPoint)
@@ -73,7 +75,7 @@ func KzgPointEvaluation(
 
 	quotient, err := g1.UnmarshalCompressed(proofSerialised)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("unmarshal compressed proof: %w", err)
 	}
 	proofKzgFormat := kzg.OpeningProof[emulated.BLS12381Fr, sw_bls12381.G1Affine]{
 		Quotient:     *quotient,
@@ -81,9 +83,12 @@ func KzgPointEvaluation(
 	}
 
 	v, err := kzg.NewVerifier[emulated.BLS12381Fr, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](api)
+	if err != nil {
+		return nil, fmt.Errorf("new kzg verifier: %w", err)
+	}
 	err = v.CheckOpeningProof(commitmentKzgFormat, proofKzgFormat, z, vk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("check opening proof: %w", err)
 	}
 
 	// Return FIELD_ELEMENTS_PER_BLOB and BLS_MODULUS as padded 32 byte big endian values
