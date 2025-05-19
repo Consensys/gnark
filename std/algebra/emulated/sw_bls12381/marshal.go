@@ -2,7 +2,6 @@ package sw_bls12381
 
 import (
 	"errors"
-	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -56,41 +55,6 @@ func Unmarshall[F emulated.FieldParams](api frontend.API, b []uints.U8) (*emulat
 	return res, nil
 }
 
-// unmarshallHint
-// inputs bytes of a compressed bls12381 point
-// outputs bytes of the y coordinate of the decompressed point
-func unmarshallHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-
-	nbBytes := fp.Bytes
-	xCoord := make([]byte, nbBytes)
-	if len(inputs) != nbBytes {
-		return ErrInvalidSizeEncodedX
-	}
-	for i := 0; i < nbBytes; i++ {
-		tmp := inputs[i].Bytes()
-		if len(tmp) == 0 {
-			xCoord[i] = 0
-		} else {
-			xCoord[i] = tmp[len(tmp)-1] // tmp is in big endian
-		}
-	}
-
-	var point bls12381.G1Affine
-	_, err := point.SetBytes(xCoord)
-	if err != nil {
-		return err
-	}
-
-	// /!\ this step is needed because currently we can't mix
-	// native and emulated elements in a hint
-	yMarshalled := point.Y.Marshal()
-	for i := 0; i < len(yMarshalled); i++ {
-		outputs[i].SetBytes([]byte{yMarshalled[i]})
-	}
-
-	return nil
-}
-
 // UnmarshalCompressed unmarshal a compressed point.
 // See https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/.
 // #constraints: 585600 when compiled on BN254, emulating BLS12-381 base field
@@ -130,7 +94,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	for i := 0; i < nbBytes; i++ {
 		rawBytesCompressedPoints[i] = compressedPoint[i].Val
 	}
-	yRawBytes, err := g1.api.NewHint(unmarshallHint, nbBytes, rawBytesCompressedPoints...)
+	yRawBytes, err := g1.api.NewHint(unmarshalHint, nbBytes, rawBytesCompressedPoints...)
 	if err != nil {
 		return nil, err
 	}
