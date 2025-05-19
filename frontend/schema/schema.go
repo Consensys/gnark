@@ -19,7 +19,7 @@ type Schema struct {
 	Fields   []Field
 	NbPublic int
 	NbSecret int
-	field    *big.Int
+	Field    *big.Int
 }
 
 // New builds a schema.Schema walking through the provided interface (a circuit structure).
@@ -35,7 +35,7 @@ func New(field *big.Int, circuit interface{}, tLeaf reflect.Type) (*Schema, erro
 		return nil, err
 	}
 
-	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret, field: field}, nil
+	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret, Field: field}, nil
 }
 
 // Instantiate builds a concrete type using reflect matching the provided schema
@@ -82,7 +82,7 @@ func (s Schema) WriteSequence(w io.Writer) error {
 		}
 		return nil
 	}
-	if _, err := Walk(s.field, instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(s.Field, instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 

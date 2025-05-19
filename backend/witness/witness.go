@@ -286,7 +286,7 @@ func (w *witness) ToJSON(s *schema.Schema) ([]byte, error) {
 	instance := s.Instantiate(typ)
 
 	chValues := w.iterate()
-	if _, err := schema.Walk(nil, instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
+	if _, err := schema.Walk(s.Field, instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
 		if field.Visibility == schema.Public {
 			v := <-chValues
 			tValue.Set(reflect.ValueOf(v))
@@ -298,7 +298,7 @@ func (w *witness) ToJSON(s *schema.Schema) ([]byte, error) {
 
 	if w.nbSecret != 0 {
 		// secret part.
-		if _, err := schema.Walk(nil, instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
+		if _, err := schema.Walk(s.Field, instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
 			if field.Visibility == schema.Secret {
 				v := <-chValues
 				tValue.Set(reflect.ValueOf(v))
@@ -340,7 +340,7 @@ func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 
 	// collect all public values; if any are missing, no point going further.
 	publicValues := make([]any, 0, s.NbPublic)
-	if _, err := schema.Walk(nil, instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+	if _, err := schema.Walk(s.Field, instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
 		if leaf.Visibility == schema.Public {
 			if tValue.IsNil() {
 				return missingAssignment(leaf.FullName())
@@ -356,7 +356,7 @@ func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 	// collect all secret values; if any are missing, we just deal with the public part.
 	secretValues := make([]any, 0, s.NbSecret)
 	publicOnly := false
-	if _, err := schema.Walk(nil, instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+	if _, err := schema.Walk(s.Field, instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
 		if leaf.Visibility == schema.Secret {
 			if tValue.IsNil() {
 				return missingAssignment(leaf.FullName())
