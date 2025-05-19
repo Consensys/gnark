@@ -14,6 +14,9 @@ import (
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
 //
 // It returns the number of secret and public leafs encountered during the walk.
+//
+// The argument field is used to initialize the witness elements (if they
+// implement the Initializable interface).
 func Walk(field *big.Int, circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
 	w := walker{
 		target:      tLeaf,
