@@ -92,6 +92,7 @@ func TestKzgPointOpeningPrecompile(t *testing.T) {
 		witness.ProofSerialised[i] = uints.NewU8(proofSerialised[i])
 	}
 	witness.Vk, err = kzg.ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
+	assert.NoError(err)
 
 	circuit.VersionnedHash = make([]uints.U8, 32)
 	circuit.ComSerialised = make([]uints.U8, fp.Bytes)
