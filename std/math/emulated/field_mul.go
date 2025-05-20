@@ -317,11 +317,7 @@ func (f *Field[T]) evalWithChallengeExtension(a *Element[T], at []frontend.Varia
 	// type assert it.
 	atext := make([]fieldextension.Element, len(at))
 	for i := 0; i < len(at); i++ {
-		atexti, ok := at[i].(fieldextension.Element)
-		if !ok {
-			panic("not an extension variable")
-		}
-		atext[i] = atexti
+		atext[i] = at[i].(fieldextension.Element)
 	}
 	sum := f.extensionApi.Zero()
 	if len(a.Limbs) > 0 {
@@ -408,8 +404,7 @@ func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 			at := make([]fieldextension.Element, coefsLen)
 			at[0] = commitment
 			for i := 1; i < len(at); i++ {
-				atexti := at[i-1]
-				at[i] = f.extensionApi.Mul((fieldextension.Element)(atexti), commitment)
+				at[i] = f.extensionApi.Mul(at[i-1], commitment)
 			}
 			atv := make([]frontend.Variable, len(at))
 			for i := range at {
