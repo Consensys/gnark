@@ -29,9 +29,9 @@ jobs:
         if [[ -n $(git status --porcelain) ]]; then echo "git repo is dirty after running go generate -- please don't modify generated files"; echo $(git diff);echo $(git status --porcelain); exit 1; fi
 
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v8
       with:
-          version: v1.60
+          version: v2.1.6
           args: -v --timeout=5m
   
   test:
