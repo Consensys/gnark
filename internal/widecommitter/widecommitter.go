@@ -57,7 +57,7 @@ func (w *wrappedBuilder) Compiler() frontend.Compiler {
 }
 
 func (w *wrappedBuilder) Check(in frontend.Variable, width int) {
-	_, err := w.NewHint(mockedRangecheckHint, 0, width, in)
+	_, err := w.NewHint(mockedRangecheckHint, 1, width, in)
 	if err != nil {
 		panic(fmt.Sprintf("failed to check range: %v", err))
 	}
