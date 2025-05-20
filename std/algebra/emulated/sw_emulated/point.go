@@ -26,10 +26,10 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	emuGm := make([]AffinePoint[Base], len(params.Gm))
 	for i, v := range params.Gm {
-		emuGm[i] = AffinePoint[Base]{emulated.ValueOf[Base](v[0]), emulated.ValueOf[Base](v[1])}
+		emuGm[i] = AffinePoint[Base]{*ba.NewElement(v[0]), *ba.NewElement(v[1])}
 	}
-	Gx := emulated.ValueOf[Base](params.Gx)
-	Gy := emulated.ValueOf[Base](params.Gy)
+	Gx := ba.NewElement(params.Gx)
+	Gy := ba.NewElement(params.Gy)
 	var eigenvalue *emulated.Element[Scalars]
 	var thirdRootOne *emulated.Element[Base]
 	if params.Eigenvalue != nil && params.ThirdRootOne != nil {
@@ -42,12 +42,12 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		baseApi:   ba,
 		scalarApi: sa,
 		g: AffinePoint[Base]{
-			X: Gx,
-			Y: Gy,
+			X: *Gx,
+			Y: *Gy,
 		},
 		gm:           emuGm,
-		a:            emulated.ValueOf[Base](params.A),
-		b:            emulated.ValueOf[Base](params.B),
+		a:            *ba.NewElement(params.A),
+		b:            *ba.NewElement(params.B),
 		addA:         params.A.Cmp(big.NewInt(0)) != 0,
 		eigenvalue:   eigenvalue,
 		thirdRootOne: thirdRootOne,
@@ -1287,9 +1287,26 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// Then we compute the hinted scalar mul R = [s]Q
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	Q.X.Initialize(c.api.Compiler().Field())
+	Q.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(Q.X.Limbs))
 	inps = append(inps, Q.X.Limbs...)
+	inps = append(inps, len(Q.Y.Limbs))
 	inps = append(inps, Q.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	R, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
@@ -1619,9 +1636,26 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	P.X.Initialize(c.api.Compiler().Field())
+	P.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(P.X.Limbs))
 	inps = append(inps, P.X.Limbs...)
+	inps = append(inps, len(P.Y.Limbs))
 	inps = append(inps, P.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	point, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
