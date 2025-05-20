@@ -434,13 +434,3 @@ func (circuit *varScalarMul) Define(api frontend.API) error {
 
 	return nil
 }
-
-// bench
-func BenchmarkSM(b *testing.B) {
-	var c varScalarMul
-	c.curveID = twistededwards.BLS12_381_BANDERSNATCH
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Bandersnatch 4D-GLV: ", p.NbConstraints())
-}

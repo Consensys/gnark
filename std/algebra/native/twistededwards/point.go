@@ -309,13 +309,16 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 // scalarMulGLVAndFakeGLV...
 func (p *Point) scalarMulGLVAndFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
 	// the hints allow to decompose the scalar s into u1, u2, v1 and v2 such that
-	// u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order,
+	// u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order.
 	s, err := api.NewHint(halfGCDZZ2, 4, scalar, endo.Lambda)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	u1, u2, v1, v2 := s[0], s[1], s[2], s[3]
+
+	// check the decomposition using non-native arithmetic
+	checkHalfGCDZZ2(api, scalar, endo.Lambda)
 
 	// ZZ2 integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
@@ -326,36 +329,8 @@ func (p *Point) scalarMulGLVAndFakeGLV(api frontend.API, p1 *Point, scalar front
 	}
 	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
 
-	// We need to check that:
-	// 		scalar*(v1 + λ*v2) + u1 + λ*u2 = 0
-	sv1 := api.Mul(scalar, v1)
-	sλv2 := api.Mul(scalar, api.Mul(endo.Lambda, v2))
-	λu2 := api.Mul(endo.Lambda, u2)
-
-	lhs1 := api.Select(isNegv1, 0, sv1)
-	lhs2 := api.Select(isNegv2, 0, sλv2)
-	lhs3 := api.Select(isNegu1, 0, u1)
-	lhs4 := api.Select(isNegu2, 0, λu2)
-	lhs := api.Add(
-		api.Add(lhs1, lhs2),
-		api.Add(lhs3, lhs4),
-	)
-
-	rhs1 := api.Select(isNegv1, sv1, 0)
-	rhs2 := api.Select(isNegv2, sλv2, 0)
-	rhs3 := api.Select(isNegu1, u1, 0)
-	rhs4 := api.Select(isNegu2, λu2, 0)
-	rhs := api.Add(
-		api.Add(rhs1, rhs2),
-		api.Add(rhs3, rhs4),
-	)
-
-	// api.AssertIsEqual(lhs, rhs)
-	api.AssertIsEqual(lhs, lhs)
-	api.AssertIsEqual(rhs, rhs)
-
-	n := (curve.Order.BitLen()+1)/4 + 9
-	fmt.Println(n)
+	// |u1, u2, v1, v2|∞ ≤ 256 · √√2 · √√r
+	n := curve.Order.BitLen()/4 + 9
 	b1 := api.ToBinary(u1, n)
 	b2 := api.ToBinary(u2, n)
 	b3 := api.ToBinary(v1, n)
