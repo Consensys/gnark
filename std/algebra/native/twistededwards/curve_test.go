@@ -8,6 +8,11 @@ import (
 	"math/big"
 	"testing"
 
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
+
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
@@ -428,4 +433,14 @@ func (circuit *varScalarMul) Define(api frontend.API) error {
 	api.AssertIsEqual(res.Y, circuit.R.Y)
 
 	return nil
+}
+
+// bench
+func BenchmarkSM(b *testing.B) {
+	var c varScalarMul
+	c.curveID = twistededwards.BLS12_381_BANDERSNATCH
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Bandersnatch 4D-GLV: ", p.NbConstraints())
 }

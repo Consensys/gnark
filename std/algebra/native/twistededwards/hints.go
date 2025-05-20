@@ -14,6 +14,7 @@ import (
 	babyjubjub "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+	"github.com/consensys/gnark-crypto/field/zz2"
 	"github.com/consensys/gnark/constraint/solver"
 )
 
@@ -22,6 +23,8 @@ func GetHints() []solver.Hint {
 		halfGCD,
 		scalarMulHint,
 		decomposeScalar,
+		halfGCDZZ2,
+		halfGCDZZ2Signs,
 	}
 }
 
@@ -90,6 +93,113 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 		outputs[2].SetUint64(1)
 	}
 
+	return nil
+}
+
+func halfGCDZZ2(mod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 2 {
+		return errors.New("expecting two input")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	// the efficient endomorphism exists on Bandersnatch only
+	if mod.Cmp(ecc.BLS12_381.ScalarField()) != 0 {
+		return errors.New("no efficient endomorphism is available on this curve")
+	}
+	var glv glvParams
+	var init sync.Once
+	init.Do(func() {
+		glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+		glv.order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
+	})
+
+	glvBasis := new(ecc.Lattice)
+	ecc.PrecomputeLattice(&glv.order, inputs[1], glvBasis)
+	r := zz2.ComplexNumber{
+		A0: &glvBasis.V1[0],
+		A1: &glvBasis.V1[1],
+	}
+	sp := ecc.SplitScalar(inputs[0], glvBasis)
+	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
+	// so here we return -s instead of s.
+	s := zz2.ComplexNumber{
+		A0: &sp[0],
+		A1: &sp[1],
+	}
+	s.Neg(&s)
+	res := zz2.HalfGCD(&r, &s)
+	outputs[0].Set(res[0].A0)
+	outputs[1].Set(res[0].A1)
+	outputs[2].Set(res[1].A0)
+	outputs[3].Set(res[1].A1)
+
+	if outputs[0].Sign() == -1 {
+		outputs[0].Neg(outputs[0])
+	}
+	if outputs[1].Sign() == -1 {
+		outputs[1].Neg(outputs[1])
+	}
+	if outputs[2].Sign() == -1 {
+		outputs[2].Neg(outputs[2])
+	}
+	if outputs[3].Sign() == -1 {
+		outputs[3].Neg(outputs[3])
+	}
+	return nil
+}
+
+func halfGCDZZ2Signs(mod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 2 {
+		return errors.New("expecting two input")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	// the efficient endomorphism exists on Bandersnatch only
+	if mod.Cmp(ecc.BLS12_381.ScalarField()) != 0 {
+		return errors.New("no efficient endomorphism is available on this curve")
+	}
+	var glv glvParams
+	var init sync.Once
+	init.Do(func() {
+		glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+		glv.order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
+	})
+
+	glvBasis := new(ecc.Lattice)
+	ecc.PrecomputeLattice(&glv.order, inputs[1], glvBasis)
+	r := zz2.ComplexNumber{
+		A0: &glvBasis.V1[0],
+		A1: &glvBasis.V1[1],
+	}
+	sp := ecc.SplitScalar(inputs[0], glvBasis)
+	s := zz2.ComplexNumber{
+		A0: &sp[0],
+		A1: &sp[1],
+	}
+	s.Neg(&s)
+	res := zz2.HalfGCD(&r, &s)
+
+	outputs[0].SetUint64(0)
+	outputs[1].SetUint64(0)
+	outputs[2].SetUint64(0)
+	outputs[3].SetUint64(0)
+
+	if res[0].A0.Sign() == -1 {
+		outputs[0].SetUint64(1)
+	}
+	if res[0].A1.Sign() == -1 {
+		outputs[1].SetUint64(1)
+	}
+	if res[1].A0.Sign() == -1 {
+		outputs[2].SetUint64(1)
+	}
+	if res[1].A1.Sign() == -1 {
+		outputs[3].SetUint64(1)
+	}
 	return nil
 }
 
