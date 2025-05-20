@@ -19,7 +19,7 @@ type Schema struct {
 	Fields   []Field
 	NbPublic int
 	NbSecret int
-	field    *big.Int
+	Field    *big.Int
 }
 
 // New builds a schema.Schema walking through the provided interface (a circuit structure).
@@ -35,7 +35,7 @@ func New(field *big.Int, circuit interface{}, tLeaf reflect.Type) (*Schema, erro
 		return nil, err
 	}
 
-	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret, field: field}, nil
+	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret, Field: field}, nil
 }
 
 // Instantiate builds a concrete type using reflect matching the provided schema
@@ -82,7 +82,7 @@ func (s Schema) WriteSequence(w io.Writer) error {
 		}
 		return nil
 	}
-	if _, err := Walk(s.field, instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(s.Field, instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 
@@ -277,7 +277,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
-				if ih, hasInitHook := value.(InitHooker); hasInitHook {
+				if ih, hasInitHook := value.(Initializable); hasInitHook {
 					ih.Initialize(field)
 				}
 				var err error
@@ -354,7 +354,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
 				ival := val.Addr().Interface()
-				if ih, hasInitHook := ival.(InitHooker); hasInitHook {
+				if ih, hasInitHook := ival.(Initializable); hasInitHook {
 					ih.Initialize(field)
 				}
 				subFields, err = parse(subFields, ival, target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret, field)

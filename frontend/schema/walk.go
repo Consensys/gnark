@@ -14,6 +14,9 @@ import (
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
 //
 // It returns the number of secret and public leafs encountered during the walk.
+//
+// The argument field is used to initialize the witness elements (if they
+// implement the Initializable interface).
 func Walk(field *big.Int, circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
 	w := walker{
 		target:      tLeaf,
@@ -106,7 +109,7 @@ func (w *walker) arraySliceElem(index int, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+		if ih, hasInitHook := value.(Initializable); hasInitHook {
 			ih.Initialize(w.field)
 		}
 	}
@@ -178,7 +181,7 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 		// field emulation to "deinitialize" the elements. Maybe we can have a
 		// destructor/deinit hook also?
 		value := v.Addr().Interface()
-		if ih, hasInitHook := value.(InitHooker); hasInitHook {
+		if ih, hasInitHook := value.(Initializable); hasInitHook {
 			ih.Initialize(w.field)
 		}
 	}

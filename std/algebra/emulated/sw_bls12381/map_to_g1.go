@@ -11,8 +11,7 @@ import (
 func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
-		emulatedCoefficient := *g1.curveF.NewElement(coefficients[i])
-		emuCoefficients[i] = &emulatedCoefficient
+		emuCoefficients[i] = g1.curveF.NewElement(coefficients[i])
 	}
 	var res *baseEl
 	if monic {

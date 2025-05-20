@@ -4,6 +4,10 @@
 // of small fields, we need to perform some operations over an extension field
 // to achieve the required soundness level. This package provides some
 // primitives to perform such operations.
+//
+// NB! This is an experimental package. The API is not stable and may change in
+// backwards incompatible way. We also may change the extension construction for
+// better performance.
 package fieldextension
 
 import (
@@ -69,6 +73,9 @@ type Field interface {
 }
 
 // NewExtension returns a new extension field object.
+//
+// NB! This is experimental API. It is not fully implemented and the interface
+// and implementation may change.
 func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	cfg, err := newConfig(opts...)
 	if err != nil {

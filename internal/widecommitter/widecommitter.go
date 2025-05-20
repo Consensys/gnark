@@ -57,6 +57,10 @@ func (w *wrappedBuilder) Compiler() frontend.Compiler {
 }
 
 func (w *wrappedBuilder) Check(in frontend.Variable, width int) {
+	_, err := w.NewHint(mockedRangecheckHint, 0, width, in)
+	if err != nil {
+		panic(fmt.Sprintf("failed to check range: %v", err))
+	}
 }
 
 func mockedWideCommitHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
@@ -75,6 +79,21 @@ func mockedWideCommitHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	return nil
 }
 
+func mockedRangecheckHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	// this mocked range check hint errors in case the input is not in the range.
+	// it doesn't enforce in the proof system, but it is useful for testing and checking
+	// consistency with the test engine
+	if len(inputs) != 2 {
+		return fmt.Errorf("expected 2 inputs, got %d", len(inputs))
+	}
+	width := inputs[0].Int64()
+	val := inputs[1]
+	if val.BitLen() > int(width) {
+		return fmt.Errorf("value %s is not less than %d bits", val, width)
+	}
+	return nil
+}
+
 func init() {
-	solver.RegisterHint(mockedWideCommitHint)
+	solver.RegisterHint(mockedWideCommitHint, mockedRangecheckHint)
 }
