@@ -8,11 +8,6 @@ import (
 	"math/big"
 	"testing"
 
-	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
-
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
@@ -428,9 +423,56 @@ func (circuit *varScalarMul) Define(api frontend.API) error {
 	}
 
 	// scalar mul
-	res := curve.ScalarMul(circuit.P, circuit.S)
-	api.AssertIsEqual(res.X, circuit.R.X)
-	api.AssertIsEqual(res.Y, circuit.R.Y)
+	var res0, res1, res2 Point
+	res0.scalarMulGeneric(api, &circuit.P, circuit.S, curve.Params())
+	res1.scalarMulFakeGLV(api, &circuit.P, circuit.S, curve.Params())
+	res2.scalarMulGLVAndFakeGLV(api, &circuit.P, circuit.S, curve.Params(), curve.Endo())
+	api.AssertIsEqual(res0.X, circuit.R.X)
+	api.AssertIsEqual(res0.Y, circuit.R.Y)
+	api.AssertIsEqual(res1.X, circuit.R.X)
+	api.AssertIsEqual(res1.Y, circuit.R.Y)
+	api.AssertIsEqual(res2.X, circuit.R.X)
+	api.AssertIsEqual(res2.Y, circuit.R.Y)
 
 	return nil
+}
+
+func TestScalarMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	var circuit, validWitness, invalidWitness varScalarMul
+	curve := twistededwards.BLS12_381_BANDERSNATCH
+	circuit.curveID = curve
+	// get matching snark curve
+	snarkField, err := GetSnarkField(curve)
+	assert.NoError(err)
+	snarkCurve := utils.FieldToCurve(snarkField)
+
+	// get curve params
+	params, err := GetCurveParams(curve)
+	assert.NoError(err)
+
+	// create witness
+	var p, r tbls12381_bandersnatch.PointAffine
+	s := params.randomScalar()
+	p.X.SetBigInt(params.Base[0])
+	p.Y.SetBigInt(params.Base[1])
+	r.ScalarMultiplication(&p, s)
+
+	validWitness.P.X = p.X
+	validWitness.P.Y = p.Y
+	validWitness.R.X = r.X
+	validWitness.R.Y = r.Y
+	validWitness.S = s
+	invalidWitness.P.X = r.X
+	invalidWitness.P.Y = r.Y
+	invalidWitness.R.X = p.X
+	invalidWitness.R.Y = p.Y
+	invalidWitness.S = s
+
+	// check circuits.
+	assert.CheckCircuit(&circuit,
+		test.WithValidAssignment(&validWitness),
+		test.WithInvalidAssignment(&invalidWitness),
+		test.WithCurves(snarkCurve))
+
 }
