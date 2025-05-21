@@ -46,11 +46,7 @@ func (c *curve) AssertIsOnCurve(p1 Point) {
 }
 func (c *curve) ScalarMul(p1 Point, scalar frontend.Variable) Point {
 	var p Point
-	if c.id == twistededwards.BLS12_381_BANDERSNATCH {
-		p.scalarMulGLVAndFakeGLV(c.api, &p1, scalar, c.params, c.endo)
-	} else {
-		p.scalarMulFakeGLV(c.api, &p1, scalar, c.params)
-	}
+	p.scalarMulFakeGLV(c.api, &p1, scalar, c.params)
 	return p
 }
 func (c *curve) DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point {

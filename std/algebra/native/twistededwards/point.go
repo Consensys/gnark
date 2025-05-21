@@ -5,7 +5,9 @@ package twistededwards
 
 import (
 	"fmt"
+
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -306,7 +308,192 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	return p
 }
 
-// scalarMulGLVAndFakeGLV...
+// scalarMulGLVAndFakeGLVLog computes the scalar multiplication of a point on a twisted
+// Edwards curve following https://hackmd.io/@yelhousni/Hy-aWld50
+//
+// [s]p1 == q is equivalent to [u1]p1 + [u2]φ(p1) + [v1]q + [v2]φ(q) = (0,1)
+// with u1, u2, v1, v2 < c*sqrt(sqrt(Order)) and u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order.
+//
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scalar: scalar as a SNARK constraint
+// Standard left to right double and add
+// It uses logderiv lookup argument for the 16-to-1 lookup table.
+func (p *Point) scalarMulGLVAndFakeGLVLog(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
+	// the hints allow to decompose the scalar s into u1, u2, v1 and v2 such that
+	// u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order.
+	s, err := api.NewHint(halfGCDZZ2, 4, scalar, endo.Lambda)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	u1, u2, v1, v2 := s[0], s[1], s[2], s[3]
+
+	// check the decomposition using non-native arithmetic
+	checkHalfGCDZZ2(api, scalar, endo.Lambda)
+
+	// ZZ2 integers real and imaginary parts can be negative. So we
+	// return the absolute value in the hint and negate the corresponding
+	// points here when needed.
+	signs, err := api.NewHint(halfGCDZZ2Signs, 4, scalar, endo.Lambda)
+	if err != nil {
+		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
+	}
+	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
+
+	// |u1, u2, v1, v2|∞ ≤ 256 · √√2 · √√r
+	n := curve.Order.BitLen()/4 + 9
+	b1 := api.ToBinary(u1, n)
+	b2 := api.ToBinary(u2, n)
+	b3 := api.ToBinary(v1, n)
+	b4 := api.ToBinary(v2, n)
+
+	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalar, curve.Order)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// [s]P = Q is equivalent to:
+	// [u1]P + [u2]φ(P) + [v1]Q + [v2]φ(Q) = (0,1)
+	//
+	// Pre-compute:
+	// 		T0 = (0,1)
+	// 		T1 = P1
+	// 		T2 = Q
+	// 		T3 = φ(P1)
+	// 		T4 = φ(Q)
+	// 		T5 = P1 + Q
+	// 		T6 = P1 + φ(P1)
+	// 		T7 = P1 + φ(Q)
+	// 		T8 = Q + φ(P1)
+	// 		T9 = Q + φ(Q)
+	// 		T10 = φ(P1) + φ(Q)
+	// 		T11 = P1 + Q + φ(P1)
+	// 		T12 = P1 + Q + φ(Q)
+	// 		T13 = P1 + φ(P1) + φ(Q)
+	// 		T14 = Q + φ(P1) + φ(Q)
+	// 		T15 = P1 + Q + φ(P1) + φ(Q)
+
+	var t [16]Point
+	var temp Point
+	t[0].setZero(api)
+	t[1].Select(api, isNegu1, temp.neg(api, p1), p1)
+	t[2] = Point{X: q[0], Y: q[1]}
+	t[2].Select(api, isNegv1, temp.neg(api, &t[2]), &t[2])
+	t[3].phi(api, p1, curve, endo)
+	t[3].Select(api, isNegu2, temp.neg(api, &t[3]), &t[3])
+	t[4].phi(api, &Point{X: q[0], Y: q[1]}, curve, endo)
+	t[4].Select(api, isNegv2, temp.neg(api, &t[4]), &t[4])
+	t[5].add(api, &t[1], &t[2], curve)
+	t[6].add(api, &t[1], &t[3], curve)
+	t[7].add(api, &t[1], &t[4], curve)
+	t[8].add(api, &t[2], &t[3], curve)
+	t[9].add(api, &t[2], &t[4], curve)
+	t[10].add(api, &t[3], &t[4], curve)
+	t[11].add(api, &t[5], &t[3], curve)
+	t[12].add(api, &t[5], &t[4], curve)
+	t[13].add(api, &t[6], &t[4], curve)
+	t[14].add(api, &t[8], &t[4], curve)
+	t[15].add(api, &t[7], &t[8], curve)
+
+	flag := api.Add(
+		b1[n-1],
+		api.Mul(b2[n-1], 2),
+		api.Mul(b3[n-1], 4),
+		api.Mul(b4[n-1], 8),
+	)
+
+	res := Point{
+		X: selector.Mux(api, flag,
+			t[0].X, t[1].X, t[3].X, t[6].X, t[2].X, t[5].X, t[8].X, t[11].X,
+			t[4].X, t[7].X, t[10].X, t[13].X, t[9].X, t[12].X, t[14].X, t[15].X,
+		),
+		Y: selector.Mux(api, flag,
+			t[0].Y, t[1].Y, t[3].Y, t[6].Y, t[2].Y, t[5].Y, t[8].Y, t[11].Y,
+			t[4].Y, t[7].Y, t[10].Y, t[13].Y, t[9].Y, t[12].Y, t[14].Y, t[15].Y,
+		),
+	}
+	tblX := logderivlookup.New(api)
+	tblX.Insert(t[0].X)
+	tblX.Insert(t[1].X)
+	tblX.Insert(t[3].X)
+	tblX.Insert(t[6].X)
+	tblX.Insert(t[2].X)
+	tblX.Insert(t[5].X)
+	tblX.Insert(t[8].X)
+	tblX.Insert(t[11].X)
+	tblX.Insert(t[4].X)
+	tblX.Insert(t[7].X)
+	tblX.Insert(t[10].X)
+	tblX.Insert(t[13].X)
+	tblX.Insert(t[9].X)
+	tblX.Insert(t[12].X)
+	tblX.Insert(t[14].X)
+	tblX.Insert(t[15].X)
+
+	tblY := logderivlookup.New(api)
+	tblY.Insert(t[0].Y)
+	tblY.Insert(t[1].Y)
+	tblY.Insert(t[3].Y)
+	tblY.Insert(t[6].Y)
+	tblY.Insert(t[2].Y)
+	tblY.Insert(t[5].Y)
+	tblY.Insert(t[8].Y)
+	tblY.Insert(t[11].Y)
+	tblY.Insert(t[4].Y)
+	tblY.Insert(t[7].Y)
+	tblY.Insert(t[10].Y)
+	tblY.Insert(t[13].Y)
+	tblY.Insert(t[9].Y)
+	tblY.Insert(t[12].Y)
+	tblY.Insert(t[14].Y)
+	tblY.Insert(t[15].Y)
+
+	for i := n - 2; i >= 0; i-- {
+		flag = api.Add(
+			b1[i],
+			api.Mul(b2[i], 2),
+			api.Mul(b3[i], 4),
+			api.Mul(b4[i], 8),
+		)
+
+		res.double(api, &res, curve)
+		temp = Point{
+			X: tblX.Lookup(flag)[0],
+			Y: tblY.Lookup(flag)[0],
+			// X: selector.Mux(api, flag,
+			// 	t[0].X, t[1].X, t[3].X, t[6].X, t[2].X, t[5].X, t[8].X, t[11].X,
+			// 	t[4].X, t[7].X, t[10].X, t[13].X, t[9].X, t[12].X, t[14].X, t[15].X,
+			// ),
+			// Y: selector.Mux(api, flag,
+			// 	t[0].Y, t[1].Y, t[3].Y, t[6].Y, t[2].Y, t[5].Y, t[8].Y, t[11].Y,
+			// 	t[4].Y, t[7].Y, t[10].Y, t[13].Y, t[9].Y, t[12].Y, t[14].Y, t[15].Y,
+			// ),
+		}
+		res.add(api, &res, &temp, curve)
+	}
+
+	api.AssertIsEqual(res.X, 0)
+	api.AssertIsEqual(res.Y, 1)
+
+	p.X = q[0]
+	p.Y = q[1]
+
+	return p
+}
+
+// scalarMulGLVAndFakeGLV computes the scalar multiplication of a point on a twisted
+// Edwards curve following https://hackmd.io/@yelhousni/Hy-aWld50
+//
+// [s]p1 == q is equivalent to [u1]p1 + [u2]φ(p1) + [v1]q + [v2]φ(q) = (0,1)
+// with u1, u2, v1, v2 < c*sqrt(sqrt(Order)) and u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order.
+//
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scalar: scalar as a SNARK constraint
+// Standard left to right double and add
+// It uses a multiplexer for the 16-to-1 lookup table.
 func (p *Point) scalarMulGLVAndFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
 	// the hints allow to decompose the scalar s into u1, u2, v1 and v2 such that
 	// u1+λ*u2 + scalar * (v1+λ*v2) == 0 mod Order.
