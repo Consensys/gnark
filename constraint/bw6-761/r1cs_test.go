@@ -34,8 +34,9 @@ func TestSerialization(t *testing.T) {
 			if testing.Short() && name != "reference_small" {
 				return
 			}
+			builder := r1cs.NewBuilder[constraint.U64]
 
-			r1cs1, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -44,7 +45,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// compile a second time to ensure determinism
-			r1cs2, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}

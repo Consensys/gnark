@@ -45,6 +45,12 @@ func TestSolverConsistency(t *testing.T) {
 
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
+			if name == "commit" {
+				// we skip the commit circuit for consistency check because small field circuits
+				// should use [frontend.WideCommitter] interface, but in this test we want to
+				// use the given builder not, the one wrapped using [widecommitter.From].
+				return
+			}
 			tc := circuits.Circuits[name]
 			t.Parallel()
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
@@ -128,10 +134,10 @@ func (p *permutter) permuteAndTest(index int) error {
 
 				// solve the cs using test engine
 				// first copy the witness in the circuit
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[0] = isSolvedEngine(p.circuit, tinyfield.Modulus())
 
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[1] = isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
 
 			}
@@ -217,9 +223,9 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 
 // fill the "to" frontend.Circuit with values from the provided vector
 // values are assumed to be ordered [public | secret]
-func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
+func copyWitnessFromVector(field *big.Int, to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++
@@ -227,7 +233,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 		return nil
 	})
 
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++

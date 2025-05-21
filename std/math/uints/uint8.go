@@ -24,6 +24,7 @@ package uints
 
 import (
 	"fmt"
+	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
@@ -70,8 +71,8 @@ type U8 struct {
 	internal bool
 }
 
-// GnarkInitHook describes how to initialise the element.
-func (e *U8) GnarkInitHook() {
+// Initialize describes how to initialise the element.
+func (e *U8) Initialize(field *big.Int) {
 	if e.Val == nil {
 		e.Val = 0
 		e.internal = false // we need to constrain in later.
