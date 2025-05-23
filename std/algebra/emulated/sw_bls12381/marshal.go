@@ -6,6 +6,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -14,46 +15,6 @@ var (
 	ErrInvalidSizeEncodedX = errors.New("invalid number of bytes on the encoded point")
 	halfP                  = "2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279893"
 )
-
-// b is Marshalled following gnark-crypto marshall function, that is
-// [MSB ... LSB]
-// bitsFromU8 returns the bits of the element it represents, in little endian:
-//
-//		  b = [   0x..  , ..  ,    0x..    ]
-//	   b' = [   0x..  , ..  ,    0x..    ] <- bitReverse(b)
-//					 [ lsb..Msb||    ||  lsb..MSB ]
-func bitsFromU8(api frontend.API, b []uints.U8) []frontend.Variable {
-
-	nbBits := 8 * len(b)
-	res := make([]frontend.Variable, nbBits)
-
-	lb := len(b)
-	for i := 0; i < len(b); i++ {
-		buf := api.ToBinary(b[i].Val, 8)
-		copy(res[8*(lb-1-i):8*(lb-i)], buf) // <- bit reverse op is done here
-	}
-
-	return res
-}
-
-// Unmarshal build the finite field element from its bytes representation.
-// The byte representation follows the format of gnark-crypto's marshal function, that
-// is [MSB || ... || LSB ]
-// Should we move it elsewhere ?
-// #constraints: 1772 when compiled on BN254, emulating BLS12-381 base field
-func Unmarshal[F emulated.FieldParams](api frontend.API, b []uints.U8) (*emulated.Element[F], error) {
-
-	emApi, err := emulated.NewField[F](api)
-	if err != nil {
-		return nil, err
-	}
-
-	bs := bitsFromU8(api, b)
-
-	res := emApi.FromBits(bs...)
-
-	return res, nil
-}
 
 // UnmarshalCompressed unmarshal a compressed point.
 // See https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/.
@@ -81,7 +42,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	unmaskedXCoord := make([]uints.U8, nbBytes)
 	copy(unmaskedXCoord, unpackedFirstFourBytes)
 	copy(unmaskedXCoord[4:], compressedPoint[4:])
-	x, err := Unmarshal[BaseField](g1.api, unmaskedXCoord)
+	x, err := conversion.BytesToEmulated[BaseField](g1.api, unmaskedXCoord)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +63,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	for i := 0; i < nbBytes; i++ {
 		yMarshalled[i] = uapi.ByteValueOf(yRawBytes[i])
 	}
-	y, err := Unmarshal[BaseField](g1.api, yMarshalled)
+	y, err := conversion.BytesToEmulated[BaseField](g1.api, yMarshalled)
 	if err != nil {
 		return nil, err
 	}
