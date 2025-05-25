@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	gcHash "github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
@@ -689,7 +689,7 @@ func init() {
 		stdHash.Register(name, func(api frontend.API) (stdHash.FieldHasher, error) {
 			return constPseudoHash(v), nil
 		})
-		for _, curve := range backend.SupportedCurves() {
+		for _, curve := range gnark.Curves() {
 			h := newConstBytesPseudoHash(v, curve.ScalarField())
 			gcHash.RegisterCustomHash(name+"_"+strings.ToUpper(curve.String()), func() hash.Hash {
 				return h

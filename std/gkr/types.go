@@ -2,7 +2,8 @@ package gkr
 
 import "github.com/consensys/gnark/frontend"
 
-type Variable int // Variable represents a value in a GKR circuit.
+// Variable represents a value in a GKR circuit.
+type Variable int
 
 // GateAPI is a limited version of frontend.API,
 // allowing ring arithmetic operations
