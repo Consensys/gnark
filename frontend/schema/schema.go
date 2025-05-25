@@ -6,6 +6,7 @@ package schema
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -18,22 +19,23 @@ type Schema struct {
 	Fields   []Field
 	NbPublic int
 	NbSecret int
+	Field    *big.Int
 }
 
 // New builds a schema.Schema walking through the provided interface (a circuit structure).
 //
 // schema.Walk performs better and should be used when possible.
-func New(circuit interface{}, tLeaf reflect.Type) (*Schema, error) {
+func New(field *big.Int, circuit interface{}, tLeaf reflect.Type) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable
 
 	var nbPublic, nbSecret int
-	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, &nbPublic, &nbSecret)
+	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, &nbPublic, &nbSecret, field)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret}, nil
+	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret, Field: field}, nil
 }
 
 // Instantiate builds a concrete type using reflect matching the provided schema
@@ -80,7 +82,7 @@ func (s Schema) WriteSequence(w io.Writer) error {
 		}
 		return nil
 	}
-	if _, err := Walk(instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(s.Field, instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 
@@ -176,7 +178,7 @@ func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflec
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, nbPublic, nbSecret *int) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, nbPublic, nbSecret *int, field *big.Int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -275,11 +277,11 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
-				if ih, hasInitHook := value.(InitHook); hasInitHook {
-					ih.GnarkInitHook()
+				if ih, hasInitHook := value.(Initializable); hasInitHook {
+					ih.Initialize(field)
 				}
 				var err error
-				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, nbPublic, nbSecret)
+				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, nbPublic, nbSecret, field)
 				if err != nil {
 					return r, err
 				}
@@ -329,7 +331,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				val := tValue.Index(j)
 				if val.CanAddr() && val.Addr().CanInterface() {
 					fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret); err != nil {
+					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret, field); err != nil {
 						return nil, err
 					}
 				}
@@ -352,10 +354,10 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
 				ival := val.Addr().Interface()
-				if ih, hasInitHook := ival.(InitHook); hasInitHook {
-					ih.GnarkInitHook()
+				if ih, hasInitHook := ival.(Initializable); hasInitHook {
+					ih.Initialize(field)
 				}
-				subFields, err = parse(subFields, ival, target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret)
+				subFields, err = parse(subFields, ival, target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret, field)
 				if err != nil {
 					return nil, err
 				}

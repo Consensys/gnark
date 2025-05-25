@@ -4,6 +4,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
 )
 
 type commitCircuit struct {
@@ -13,11 +14,21 @@ type commitCircuit struct {
 
 func (circuit *commitCircuit) Define(api frontend.API) error {
 	api.AssertIsDifferent(circuit.Public, 0)
-	commitment, err := api.(frontend.Committer).Commit(circuit.X, circuit.Public, 5)
-	if err != nil {
-		return err
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		commitment, err := api.(frontend.Committer).Commit(circuit.X, circuit.Public, 5)
+		if err != nil {
+			return err
+		}
+		api.AssertIsDifferent(commitment, 0)
+	} else {
+		commitment, err := api.(frontend.WideCommitter).WideCommit(2, circuit.X, circuit.Public, 5)
+		if err != nil {
+			return err
+		}
+		for i := range commitment {
+			api.AssertIsDifferent(commitment[i], 0)
+		}
 	}
-	api.AssertIsDifferent(commitment, 0)
 	a := api.Mul(circuit.X, circuit.X)
 	for i := 0; i < 10; i++ {
 		a = api.Mul(a, circuit.X)

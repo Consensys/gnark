@@ -30,7 +30,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/commitments/pedersen"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/recursion"
 )
 
@@ -526,7 +525,7 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 			return ret, fmt.Errorf("expected fr_bn254.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.Public = append(s.Public, emulated.ValueOf[emparams.BN254Fr](vect[i]))
+			s.Public = append(s.Public, sw_bn254.NewScalar(vect[i]))
 		}
 	case *Witness[sw_bls12377.ScalarField]:
 		vect, ok := vec.(fr_bls12377.Vector)
@@ -542,7 +541,7 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 			return ret, fmt.Errorf("expected fr_bls12381.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.Public = append(s.Public, emulated.ValueOf[emparams.BLS12381Fr](vect[i]))
+			s.Public = append(s.Public, sw_bls12381.NewScalar(vect[i]))
 		}
 	case *Witness[sw_bls24315.ScalarField]:
 		vect, ok := vec.(fr_bls24315.Vector)
