@@ -60,7 +60,7 @@ const (
 
 	// Neg gate: x -> -x
 	Neg GateName = "neg"
-	
+
 	// Mul2 gate: (x, y) -> x * y
 	Mul2 GateName = "mul2"
 )
