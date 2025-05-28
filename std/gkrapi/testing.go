@@ -27,7 +27,6 @@ func WithHashName(name string) SolveInTestEngineOption {
 // SolveInTestEngine solves the defined circuit directly inside the SNARK circuit. This means that the method does not compute the GKR proof of the circuit and does not embed the GKR proof verifier inside a SNARK.
 // The output is the values of all variables, across all instances; i.e. indexed variable-first, instance-second.
 // This method only works under the test engine and should only be called to debug a GKR circuit, as the GKR prover's errors can be obscure.
-
 func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTestEngineOption) [][]frontend.Variable {
 	gateVer, err := gkrgates.NewGateVerifier(utils.FieldToCurve(parentApi.Compiler().Field()))
 	if err != nil {

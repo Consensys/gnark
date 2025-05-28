@@ -36,11 +36,11 @@ type registerSettings struct {
 	curves                    []ecc.ID
 }
 
-type RegisterOption func(*registerSettings)
+type registerOption func(*registerSettings)
 
 // WithSolvableVar gives the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will return an error if it cannot verify that this claim is correct.
-func WithSolvableVar(solvableVar int) RegisterOption {
+func WithSolvableVar(solvableVar int) registerOption {
 	return func(settings *registerSettings) {
 		settings.solvableVar = solvableVar
 	}
@@ -48,7 +48,7 @@ func WithSolvableVar(solvableVar int) RegisterOption {
 
 // WithUnverifiedSolvableVar sets the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will not verify that the given index is correct.
-func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
+func WithUnverifiedSolvableVar(solvableVar int) registerOption {
 	return func(settings *registerSettings) {
 		settings.noSolvableVarVerification = true
 		settings.solvableVar = solvableVar
@@ -57,7 +57,7 @@ func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
 
 // WithNoSolvableVar sets the gate as having no variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will not check the correctness of this claim.
-func WithNoSolvableVar() RegisterOption {
+func WithNoSolvableVar() registerOption {
 	return func(settings *registerSettings) {
 		settings.solvableVar = -1
 		settings.noSolvableVarVerification = true
@@ -65,7 +65,7 @@ func WithNoSolvableVar() RegisterOption {
 }
 
 // WithUnverifiedDegree sets the degree of the gate. RegisterGate will not verify that the given degree is correct.
-func WithUnverifiedDegree(degree int) RegisterOption {
+func WithUnverifiedDegree(degree int) registerOption {
 	return func(settings *registerSettings) {
 		settings.noDegreeVerification = true
 		settings.degree = degree
@@ -73,14 +73,14 @@ func WithUnverifiedDegree(degree int) RegisterOption {
 }
 
 // WithDegree sets the degree of the gate. RegisterGate will return an error if the degree is not correct.
-func WithDegree(degree int) RegisterOption {
+func WithDegree(degree int) registerOption {
 	return func(settings *registerSettings) {
 		settings.degree = degree
 	}
 }
 
 // WithName can be used to set a human-readable name for the gate.
-func WithName(name gkr.GateName) RegisterOption {
+func WithName(name gkr.GateName) registerOption {
 	return func(settings *registerSettings) {
 		settings.name = name
 	}
@@ -90,7 +90,7 @@ func WithName(name gkr.GateName) RegisterOption {
 // The default is to validate on BN254.
 // This works for most gates, unless the leading coefficient is divided by
 // the curve's order, in which case the degree will be computed incorrectly.
-func WithCurves(curves ...ecc.ID) RegisterOption {
+func WithCurves(curves ...ecc.ID) registerOption {
 	return func(settings *registerSettings) {
 		settings.curves = curves
 	}
@@ -100,7 +100,7 @@ func WithCurves(curves ...ecc.ID) RegisterOption {
 // - name is a human-readable name for the gate.
 // - f is the polynomial function defining the gate.
 // - nbIn is the number of inputs to the gate.
-func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
+func Register(f gkr.GateFunction, nbIn int, options ...registerOption) error {
 	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f), curves: []ecc.ID{ecc.BN254}}
 	for _, option := range options {
 		option(&s)
