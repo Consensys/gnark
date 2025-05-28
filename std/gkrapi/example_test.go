@@ -107,7 +107,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	XX := gkrApi.Gate(squareGate, X)    // 405: XX.Square(&p.X)  TODO See if anything changes (perf-wise) if we use gkrApi.Mul(X, X) instead
+	XX := gkrApi.Gate(squareGate, X)    // 405: XX.Square(&p.X)
 	YY := gkrApi.Gate(squareGate, Y)    // 406: YY.Square(&p.Y)
 	YYYY := gkrApi.Gate(squareGate, YY) // 407: YYYY.Square(&YY)
 	ZZ := gkrApi.Gate(squareGate, Z)    // 408: ZZ.Square(&p.Z)
@@ -122,7 +122,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	Y = gkrApi.Gate(yGate, S, X, XX, YYYY) // 423 - 426
 
 	// have to duplicate X for it to be considered an output variable
-	// TODO remove once https://github.com/Consensys/gnark/issues/1452 is addressed
 	X = gkrApi.NamedGate(gkr.Identity, X)
 
 	// register the hash function used for verification (fiat shamir)
