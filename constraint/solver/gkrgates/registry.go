@@ -4,7 +4,6 @@ package gkrgates
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"runtime"
 	"sync"
 
@@ -206,17 +205,9 @@ func NewGateVerifier(curve ecc.ID) (*gateVerifier, error) {
 // GetDefaultGateName provides a standardized name for a gate function, depending on its package and name.
 // NB: For anonymous functions, the name is the same no matter the implicit arguments provided.
 func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName {
-	// copied from solver.GetHintName
 	fnptr := reflect.ValueOf(fn).Pointer()
-	name := runtime.FuncForPC(fnptr).Name()
-	return gkr.GateName(newToOldStyle(name))
+	return gkr.GateName(runtime.FuncForPC(fnptr).Name())
 }
-
-func newToOldStyle(name string) string {
-	return string(newStyleAnonRe.ReplaceAll([]byte(name), []byte("${pkgname}glob.${funcname}")))
-}
-
-var newStyleAnonRe = regexp.MustCompile(`^(?P<pkgname>.*\.)init(?P<funcname>\.func\d+)$`)
 
 // FindSolvableVar returns the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // It returns -1 if it fails to find one.
