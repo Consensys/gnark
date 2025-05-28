@@ -1,6 +1,7 @@
 package gkrtypes
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
@@ -379,13 +380,9 @@ func (c Circuit) TopologicalSort() []*Wire {
 	return sorted
 }
 
-type errorString string
-
-func (e errorString) Error() string {
-	return string(e)
+func ErrZeroFunction() error {
+	return errors.New("detected a zero function")
 }
-
-const ErrZeroFunction = errorString("detected a zero function")
 
 // some sample gates
 

@@ -123,7 +123,7 @@ func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
 	for degreeBound := uint64(4); degreeBound <= bound; degreeBound *= 8 {
 		if p := fFr.fitPoly(nbIn, degreeBound); p != nil {
 			if len(p) == 0 {
-				return -1, gkrtypes.ErrZeroFunction
+				return -1, gkrtypes.ErrZeroFunction()
 			}
 			return len(p) - 1, nil
 		}
@@ -136,7 +136,7 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 	if p := fFr.fitPoly(nbIn, ecc.NextPowerOfTwo(uint64(claimedDegree)+1)); p == nil {
 		return fmt.Errorf("detected a higher degree than %d", claimedDegree)
 	} else if len(p) == 0 {
-		return gkrtypes.ErrZeroFunction
+		return gkrtypes.ErrZeroFunction()
 	} else if len(p)-1 != claimedDegree {
 		return fmt.Errorf("detected degree %d, claimed %d", len(p)-1, claimedDegree)
 	}
