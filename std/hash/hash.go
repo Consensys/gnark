@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -155,4 +156,11 @@ func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 
 func (h *merkleDamgardHasher) Sum() frontend.Variable {
 	return h.state
+}
+
+func init() {
+	Register("MIMC", func(api frontend.API) (FieldHasher, error) {
+		h, err := mimc.NewMiMC(api)
+		return &h, err
+	})
 }
