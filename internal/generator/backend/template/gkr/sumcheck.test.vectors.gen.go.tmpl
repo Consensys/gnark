@@ -4,6 +4,7 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"hash"
 	"math/bits"
 	"os"
@@ -116,7 +117,7 @@ type sumcheckTestCasesInfo map[string]*sumcheckTestCaseInfo
 
 type sumcheckTestCaseInfo struct {
 	Type        string                 `json:"type"`
-	Hash        hashDescription        `json:"hash"`
+	Hash        gkrtesting.HashDescription        `json:"hash"`
 	Values      []interface{}          `json:"values"`
 	Description string                 `json:"description"`
 	Proof       SumcheckPrintableProof `json:"proof"`

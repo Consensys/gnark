@@ -15,6 +15,7 @@ import (
 	"runtime/pprof"
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 )
@@ -123,12 +124,12 @@ func GenerateSumcheckVectors() error {
 type sumcheckTestCasesInfo map[string]*sumcheckTestCaseInfo
 
 type sumcheckTestCaseInfo struct {
-	Type        string                 `json:"type"`
-	Hash        hashDescription        `json:"hash"`
-	Values      []interface{}          `json:"values"`
-	Description string                 `json:"description"`
-	Proof       SumcheckPrintableProof `json:"proof"`
-	ClaimedSum  interface{}            `json:"claimedSum"`
+	Type        string                     `json:"type"`
+	Hash        gkrtesting.HashDescription `json:"hash"`
+	Values      []interface{}              `json:"values"`
+	Description string                     `json:"description"`
+	Proof       SumcheckPrintableProof     `json:"proof"`
+	ClaimedSum  interface{}                `json:"claimedSum"`
 }
 
 type SumcheckPrintableProof struct {

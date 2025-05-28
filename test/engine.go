@@ -15,6 +15,7 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -774,7 +775,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
+func (e *engine) SetGkrInfo(gkrinfo.StoringInfo) error {
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/hints"
 	"github.com/consensys/gnark/internal/smallfields"
 
@@ -827,6 +828,6 @@ func (builder *builder[E]) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
 	return res
 }
 
-func (builder *builder[E]) SetGkrInfo(info constraint.GkrInfo) error {
+func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
 	return builder.cs.AddGkr(info)
 }
