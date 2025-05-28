@@ -380,9 +380,7 @@ func (c Circuit) TopologicalSort() []*Wire {
 	return sorted
 }
 
-func ErrZeroFunction() error {
-	return errors.New("detected a zero function")
-}
+var ErrZeroFunction = errors.New("detected a zero function")
 
 // some sample gates
 

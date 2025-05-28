@@ -50,7 +50,7 @@ func TestRegisterDegreeDetection(t *testing.T) {
 	// zero polynomial must not be accepted
 	t.Run("zero", func(t *testing.T) {
 		const gateName gkr.GateName = "zero-register-gate-test"
-		expectedError := fmt.Errorf("for gate %s: %v", gateName, gkrtypes.ErrZeroFunction())
+		expectedError := fmt.Errorf("for gate %s: %v", gateName, gkrtypes.ErrZeroFunction)
 		zeroGate := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 			return api.Sub(x[0], x[0])
 		}
