@@ -18,7 +18,7 @@ import (
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
-	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 var (

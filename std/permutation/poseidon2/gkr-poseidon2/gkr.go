@@ -8,8 +8,8 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/gkrapi"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
 
 	"github.com/consensys/gnark/constraint/solver"
 

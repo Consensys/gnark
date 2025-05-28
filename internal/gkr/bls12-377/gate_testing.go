@@ -16,7 +16,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
-	"github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 // IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in f
