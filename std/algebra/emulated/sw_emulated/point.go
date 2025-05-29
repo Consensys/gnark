@@ -493,7 +493,9 @@ func (c *Curve[B, S]) Mux(sel frontend.Variable, inputs ...*AffinePoint[B]) *Aff
 //
 // ScalarMul calls scalarMulFakeGLV or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
 //
-// The result is undefined when the input point is not on the prime order subgroup.
+// N.B. For scalarMulGLVAndFakeGLV, the result is undefined when the input point is
+// not on the prime order subgroup. For scalarMulFakeGLV the result is well
+// defined for any point on the curve
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(p, s, opts...)
@@ -1239,7 +1241,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 }
 
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
-// It implements the "fake GLV" explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+// It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
@@ -1249,6 +1251,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // P256, P384 and STARK curve.
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -1534,7 +1537,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 }
 
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
-// It implements the "GLV + fake GLV" explained in [ethresear.ch/fake-GLV].
+// It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
@@ -1545,8 +1548,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 // TODO @yelhousni: generalize for any supported curve as it currently supports only:
 // BN254, BLS12-381, BW6-761 and Secp256k1.
 //
-// [ethresear.ch/fake-GLV]: https://ethresear.ch/t/fake-glv-you-dont-need-an-efficient-endomorphism-to-implement-glv-like-scalar-multiplication-in-snark-circuits/20394
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
