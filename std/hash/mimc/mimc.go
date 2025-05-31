@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/hash"
 )
 
 // MiMC contains the params of the MiMC hash func and the curves on which it is implemented.
@@ -89,4 +90,11 @@ func (h *MiMC) Sum() frontend.Variable {
 
 	return h.h
 
+}
+
+func init() {
+	hash.Register("MIMC", func(api frontend.API) (hash.FieldHasher, error) {
+		h, err := NewMiMC(api)
+		return &h, err
+	})
 }
