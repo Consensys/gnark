@@ -30,13 +30,12 @@ type (
 		IsGkrVar []bool
 	}
 	StoringInfo struct {
-		Circuit      Circuit
-		Dependencies [][]InputDependency // nil for input wires
-		NbInstances  int
-		HashName     string
-		SolveHintID  solver.HintID
-		ProveHintID  solver.HintID
-		Prints       []PrintInfo
+		Circuit     Circuit
+		NbInstances int
+		HashName    string
+		SolveHintID solver.HintID
+		ProveHintID solver.HintID
+		Prints      []PrintInfo
 	}
 
 	Permutations struct {
@@ -58,7 +57,6 @@ func (w Wire) IsOutput() bool {
 func (d *StoringInfo) NewInputVariable() int {
 	i := len(d.Circuit)
 	d.Circuit = append(d.Circuit, Wire{})
-	d.Dependencies = append(d.Dependencies, nil)
 	return i
 }
 
