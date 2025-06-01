@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/consensys/gnark"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
@@ -17,15 +19,27 @@ type Gate struct {
 	nbIn        int              // number of inputs
 	degree      int              // total degree of the polynomial
 	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+	curves      []ecc.ID         // curves that the gate is allowed to be used over
 }
 
-func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int) *Gate {
+func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
+
 	return &Gate{
 		evaluate:    f,
 		nbIn:        nbIn,
 		degree:      degree,
 		solvableVar: solvableVar,
+		curves:      curves,
 	}
+}
+
+func (g *Gate) SupportsCurve(curve ecc.ID) bool {
+	for _, c := range g.curves {
+		if c == curve {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
@@ -388,33 +402,33 @@ var ErrZeroFunction = errors.New("detected a zero function")
 func Identity() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[0]
-	}, 1, 1, 0)
+	}, 1, 1, 0, gnark.Curves())
 }
 
 // Add2 gate: (x, y) -> x + y
 func Add2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Add(in[0], in[1])
-	}, 2, 1, 0)
+	}, 2, 1, 0, gnark.Curves())
 }
 
 // Sub2 gate: (x, y) -> x - y
 func Sub2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Sub(in[0], in[1])
-	}, 2, 1, 0)
+	}, 2, 1, 0, gnark.Curves())
 }
 
 // Neg gate: x -> -x
 func Neg() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Neg(in[0])
-	}, 1, 1, 0)
+	}, 1, 1, 0, gnark.Curves())
 }
 
 // Mul2 gate: (x, y) -> x * y
 func Mul2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Mul(in[0], in[1])
-	}, 2, 2, -1)
+	}, 2, 2, -1, gnark.Curves())
 }

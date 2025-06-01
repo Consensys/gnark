@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -100,12 +101,43 @@ func WithCurves(curves ...ecc.ID) registerOption {
 // - f is the polynomial function defining the gate.
 // - nbIn is the number of inputs to the gate.
 func Register(f gkr.GateFunction, nbIn int, options ...registerOption) error {
-	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f), curves: []ecc.ID{ecc.BN254}}
+	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f)}
 	for _, option := range options {
 		option(&s)
 	}
 
-	for _, curve := range s.curves {
+	curvesForTesting := s.curves
+	allowedCurves := s.curves
+	if len(curvesForTesting) == 0 {
+		// no restriction on curves, but only test on BN254
+		curvesForTesting = []ecc.ID{ecc.BN254}
+		allowedCurves = gnark.Curves()
+	}
+
+	if g, ok := gates[s.name]; ok {
+		// gate already registered
+		if reflect.ValueOf(f).Pointer() != reflect.ValueOf(gates[s.name].Evaluate).Pointer() {
+			return fmt.Errorf("gate \"%s\" already registered with a different function", s.name)
+		}
+		// it still might be an anonymous function with different parameters.
+		// need to test further
+		if g.NbIn() != nbIn {
+			return fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn(), nbIn)
+		}
+
+		for _, curve := range curvesForTesting {
+			gateVer, err := NewGateVerifier(curve)
+			if err != nil {
+				return err
+			}
+			if !gateVer.equal(f, g.Evaluate, nbIn) {
+				return fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, s.degree, curve)
+			}
+		}
+
+	}
+
+	for _, curve := range curvesForTesting {
 		gateVer, err := NewGateVerifier(curve)
 		if err != nil {
 			return err
@@ -118,12 +150,12 @@ func Register(f gkr.GateFunction, nbIn int, options ...registerOption) error {
 			const maxAutoDegreeBound = 32
 			var err error
 			if s.degree, err = gateVer.findDegree(f, maxAutoDegreeBound, nbIn); err != nil {
-				return fmt.Errorf("for gate %s: %v", s.name, err)
+				return fmt.Errorf("for gate \"%s\": %v", s.name, err)
 			}
 		} else {
 			if !s.noDegreeVerification { // check that the given degree is correct
 				if err = gateVer.verifyDegree(f, s.degree, nbIn); err != nil {
-					return fmt.Errorf("for gate %s: %v", s.name, err)
+					return fmt.Errorf("for gate \"%s\": %v", s.name, err)
 				}
 			}
 		}
@@ -135,7 +167,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...registerOption) error {
 		} else {
 			// solvable variable given
 			if !s.noSolvableVarVerification && !gateVer.isVarSolvable(f, s.solvableVar, nbIn) {
-				return fmt.Errorf("cannot verify the solvability of variable %d in gate %s", s.solvableVar, s.name)
+				return fmt.Errorf("cannot verify the solvability of variable %d in gate \"%s\"", s.solvableVar, s.name)
 			}
 		}
 
@@ -143,7 +175,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...registerOption) error {
 
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
-	gates[s.name] = gkrtypes.NewGate(f, nbIn, s.degree, s.solvableVar)
+	gates[s.name] = gkrtypes.NewGate(f, nbIn, s.degree, s.solvableVar, gkrtypes.WithCurves(allowedCurves...))
 	return nil
 }
 
@@ -160,6 +192,7 @@ type gateVerifier struct {
 	isAdditive   func(f gkr.GateFunction, i int, nbIn int) bool
 	findDegree   func(f gkr.GateFunction, max, nbIn int) (int, error)
 	verifyDegree func(f gkr.GateFunction, claimedDegree, nbIn int) error
+	equal        func(f1, f2 gkr.GateFunction, nbIn int) bool
 }
 
 func NewGateVerifier(curve ecc.ID) (*gateVerifier, error) {
@@ -172,30 +205,37 @@ func NewGateVerifier(curve ecc.ID) (*gateVerifier, error) {
 		o.isAdditive = bls12377.IsGateFunctionAdditive
 		o.findDegree = bls12377.FindGateFunctionDegree
 		o.verifyDegree = bls12377.VerifyGateFunctionDegree
+		o.equal = bls12377.EqualGateFunction
 	case ecc.BLS12_381:
 		o.isAdditive = bls12381.IsGateFunctionAdditive
 		o.findDegree = bls12381.FindGateFunctionDegree
 		o.verifyDegree = bls12381.VerifyGateFunctionDegree
+		o.equal = bls12381.EqualGateFunction
 	case ecc.BLS24_315:
 		o.isAdditive = bls24315.IsGateFunctionAdditive
 		o.findDegree = bls24315.FindGateFunctionDegree
 		o.verifyDegree = bls24315.VerifyGateFunctionDegree
+		o.equal = bls24315.EqualGateFunction
 	case ecc.BLS24_317:
 		o.isAdditive = bls24317.IsGateFunctionAdditive
 		o.findDegree = bls24317.FindGateFunctionDegree
 		o.verifyDegree = bls24317.VerifyGateFunctionDegree
+		o.equal = bls24317.EqualGateFunction
 	case ecc.BN254:
 		o.isAdditive = bn254.IsGateFunctionAdditive
 		o.findDegree = bn254.FindGateFunctionDegree
 		o.verifyDegree = bn254.VerifyGateFunctionDegree
+		o.equal = bn254.EqualGateFunction
 	case ecc.BW6_633:
 		o.isAdditive = bw6633.IsGateFunctionAdditive
 		o.findDegree = bw6633.FindGateFunctionDegree
 		o.verifyDegree = bw6633.VerifyGateFunctionDegree
+		o.equal = bw6633.EqualGateFunction
 	case ecc.BW6_761:
 		o.isAdditive = bw6761.IsGateFunctionAdditive
 		o.findDegree = bw6761.FindGateFunctionDegree
 		o.verifyDegree = bw6761.VerifyGateFunctionDegree
+		o.equal = bw6761.EqualGateFunction
 	default:
 		err = fmt.Errorf("unsupported curve %s", curve)
 	}

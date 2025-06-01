@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/bits"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
@@ -167,7 +168,10 @@ func (c *Circuit) verify(api frontend.API) error {
 		initialChallenges = initialChallenges[:1] // use the commitment as the only initial challenge
 	}
 
-	forSnark := newCircuitDataForSnark(c.toStore, c.assignments)
+	forSnark, err := newCircuitDataForSnark(utils.FieldToCurve(api.Compiler().Field()), c.toStore, c.assignments)
+	if err != nil {
+		return fmt.Errorf("failed to create circuit data for snark: %w", err)
+	}
 	logNbInstances := log2(uint(c.assignments.NbInstances()))
 
 	hintIns := make([]frontend.Variable, len(initialChallenges)+1) // hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve"
@@ -208,30 +212,22 @@ func slicePtrAt[T any](slice []T) func(int) *T {
 	}
 }
 
-func ite[T any](condition bool, ifNot, IfSo T) T {
-	if condition {
-		return IfSo
+func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
+	circuit, err := gkrtypes.CircuitInfoToCircuit(info.Circuit, gkrgates.Get)
+	if err != nil {
+		return circuitDataForSnark{}, fmt.Errorf("failed to convert GKR info to circuit: %w", err)
 	}
-	return ifNot
-}
-
-func newCircuitDataForSnark(info gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) circuitDataForSnark {
-	circuit := make(gkrtypes.Circuit, len(info.Circuit))
-	snarkAssignment := make(gkrtypes.WireAssignment, len(info.Circuit))
 
 	for i := range circuit {
-		w := info.Circuit[i]
-		circuit[i] = gkrtypes.Wire{
-			Gate:            gkrgates.Get(ite(w.IsInput(), gkr.GateName(w.Gate), gkr.Identity)),
-			Inputs:          w.Inputs,
-			NbUniqueOutputs: w.NbUniqueOutputs,
+		if !circuit[i].Gate.SupportsCurve(curve) {
+			return circuitDataForSnark{}, fmt.Errorf("gate \"%s\" not usable over curve \"%s\"", info.Circuit[i].Gate, curve)
 		}
-		snarkAssignment[i] = assignment[i]
 	}
+
 	return circuitDataForSnark{
 		circuit:     circuit,
-		assignments: snarkAssignment,
-	}
+		assignments: assignment,
+	}, nil
 }
 
 func init() {

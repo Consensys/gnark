@@ -155,6 +155,17 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 	return nil
 }
 
+// EqualGateFunction checks if two gate functions are equal, by testing the same at a random point.
+func EqualGateFunction(f gkr.GateFunction, g gkr.GateFunction, nbIn int) bool {
+	x := make({{.FieldPackageName}}.Vector, nbIn)
+	x.MustSetRandom()
+	fFr := api.convertFunc(f)
+	gFr := api.convertFunc(g)
+	fAt := fFr(x...)
+	gAt := gFr(x...)
+	return fAt.Equal(gAt)
+}
+
 {{- if not .CanUseFFT }}
 // interpolate fits a polynomial of degree len(X) - 1 = len(Y) - 1 to the points (X[i], Y[i])
 // Note that the runtime is O(len(X)³)
