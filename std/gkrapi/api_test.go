@@ -16,10 +16,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -40,23 +38,21 @@ type doubleNoDependencyCircuit struct {
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 	gkrApi := New()
-	var x gkr.Variable
-	var err error
-	if x, err = gkrApi.Import(c.X); err != nil {
-		return err
-	}
+	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
-	var solution Solution
-	if solution, err = gkrApi.Solve(api); err != nil {
-		return err
-	}
-	Z := solution.Export(z)
 
-	for i := range Z {
-		api.AssertIsEqual(Z[i], api.Mul(2, c.X[i]))
-	}
+	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
-	return solution.Verify(c.hashName)
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+	for i := range c.X {
+		instanceIn[x] = c.X[i]
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+		api.AssertIsEqual(instanceOut[z], api.Mul(2, c.X[i]))
+	}
+	return nil
 }
 
 func TestDoubleNoDependencyCircuit(t *testing.T) {
@@ -88,23 +84,21 @@ type sqNoDependencyCircuit struct {
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 	gkrApi := New()
-	var x gkr.Variable
-	var err error
-	if x, err = gkrApi.Import(c.X); err != nil {
-		return err
-	}
+	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
-	var solution Solution
-	if solution, err = gkrApi.Solve(api); err != nil {
-		return err
-	}
-	Z := solution.Export(z)
 
-	for i := range Z {
-		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.X[i]))
-	}
+	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
-	return solution.Verify(c.hashName)
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+	for i := range c.X {
+		instanceIn[x] = c.X[i]
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+		api.AssertIsEqual(instanceOut[z], api.Mul(c.X[i], c.X[i]))
+	}
+	return nil
 }
 
 func TestSqNoDependencyCircuit(t *testing.T) {
@@ -135,29 +129,23 @@ type mulNoDependencyCircuit struct {
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	gkrApi := New()
-	var x, y gkr.Variable
-	var err error
-	if x, err = gkrApi.Import(c.X); err != nil {
-		return err
-	}
-	if y, err = gkrApi.Import(c.Y); err != nil {
-		return err
-	}
-	gkrApi.Println(0, "values of x and y in instance number", 0, x, y)
+	x := gkrApi.NewInput()
+	y := gkrApi.NewInput()
+	z := gkrApi.Add(x, y)
 
-	z := gkrApi.Mul(x, y)
-	gkrApi.Println(1, "value of z in instance number", 1, z)
-	var solution Solution
-	if solution, err = gkrApi.Solve(api); err != nil {
-		return err
-	}
-	Z := solution.Export(z)
+	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
-		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
+		instanceIn[x] = c.X[i]
+		instanceIn[y] = c.Y[i]
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+		api.AssertIsEqual(instanceOut[z], api.Mul(c.Y[i], c.X[i]))
 	}
-
-	return solution.Verify(c.hashName)
+	return nil
 }
 
 func TestMulNoDependency(t *testing.T) {
@@ -191,91 +179,68 @@ func TestMulNoDependency(t *testing.T) {
 }
 
 type mulWithDependencyCircuit struct {
-	XLast    frontend.Variable
+	XFirst   frontend.Variable
 	Y        []frontend.Variable
 	hashName string
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	gkrApi := New()
-	var x, y gkr.Variable
-	var err error
 
-	X := make([]frontend.Variable, len(c.Y))
-	X[len(c.Y)-1] = c.XLast
-	if x, err = gkrApi.Import(X); err != nil {
-		return err
-	}
-	if y, err = gkrApi.Import(c.Y); err != nil {
-		return err
-	}
-
+	x := gkrApi.NewInput() // x is the state variable
+	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	for i := len(X) - 1; i > 0; i-- {
-		gkrApi.Series(x, z, i-1, i)
-	}
+	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
-	var solution Solution
-	if solution, err = gkrApi.Solve(api); err != nil {
-		return err
-	}
-	X = solution.Export(x)
-	Y := solution.Export(y)
-	Z := solution.Export(z)
+	state := c.XFirst
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
 
-	lastI := len(X) - 1
-	api.AssertIsEqual(Z[lastI], api.Mul(c.XLast, Y[lastI]))
-	for i := 0; i < lastI; i++ {
-		api.AssertIsEqual(Z[i], api.Mul(Z[i+1], Y[i]))
+	for i := range c.Y {
+		instanceIn[x] = state
+		instanceIn[y] = c.Y[i]
+
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+
+		state = instanceOut[z] // update state for the next iteration
+		api.AssertIsEqual(state, api.Mul(state, c.Y[i]))
 	}
-	return solution.Verify(c.hashName)
+	return nil
 }
 
 func TestSolveMulWithDependency(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignment := mulWithDependencyCircuit{
-		XLast: 1,
-		Y:     []frontend.Variable{3, 2},
+		XFirst: 1,
+		Y:      []frontend.Variable{3, 2},
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
 }
 
 func TestApiMul(t *testing.T) {
-	var (
-		x   gkr.Variable
-		y   gkr.Variable
-		z   gkr.Variable
-		err error
-	)
 	api := New()
-	x, err = api.Import([]frontend.Variable{nil, nil})
-	require.NoError(t, err)
-	y, err = api.Import([]frontend.Variable{nil, nil})
-	require.NoError(t, err)
-	z = api.Mul(x, y)
+	x := api.NewInput()
+	y := api.NewInput()
+	z := api.Mul(x, y)
 	assertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
-	depth := 14
-	bottom := make([]frontend.Variable, 1<<depth)
-
-	for i := 0; i < 1<<depth; i++ {
-		bottom[i] = i
+	circuit := benchMiMCMerkleTreeCircuit{
+		depth: 14,
 	}
+	circuit.X = make([]frontend.Variable, 1<<circuit.depth)
 
 	assignment := benchMiMCMerkleTreeCircuit{
-		depth:   depth,
-		XBottom: bottom[:len(bottom)/2],
-		YBottom: bottom[len(bottom)/2:],
+		X: make([]frontend.Variable, len(circuit.X)),
 	}
 
-	circuit := benchMiMCMerkleTreeCircuit{
-		depth:   depth,
-		XBottom: make([]frontend.Variable, len(assignment.XBottom)),
-		YBottom: make([]frontend.Variable, len(assignment.YBottom)),
+	for i := range assignment.X {
+		assignment.X[i] = i
 	}
 
 	benchProof(b, &circuit, &assignment)
@@ -297,7 +262,6 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 	fmt.Println("compiled in", time.Now().UnixMicro()-start, "μs")
 	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	require.NoError(b, err)
-	//publicWitness := fullWitness.Public()
 	fmt.Println("setting up...")
 	pk, _, err := groth16.Setup(cs)
 	require.NoError(b, err)
@@ -318,91 +282,84 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 }
 
 type benchMiMCMerkleTreeCircuit struct {
-	depth   int
-	XBottom []frontend.Variable
-	YBottom []frontend.Variable
+	depth int
+	X     []frontend.Variable
 }
 
 // hard-coded bn254
 func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
-	X := make([]frontend.Variable, 2*len(c.XBottom))
-	Y := make([]frontend.Variable, 2*len(c.YBottom))
-
-	copy(X, c.XBottom)
-	copy(Y, c.YBottom)
-
-	X[len(X)-1] = 0
-	Y[len(X)-1] = 0
-
-	var x, y gkr.Variable
-	var err error
-
+	// define the circuit
 	gkrApi := New()
-	if x, err = gkrApi.Import(X); err != nil {
-		return err
-	}
-	if y, err = gkrApi.Import(Y); err != nil {
-		return err
+	x := gkrApi.NewInput()
+	y := gkrApi.NewInput()
+	z := gkrApi.Gate(mimcGate, x, y)
+
+	gkrCircuit := gkrApi.Compile(api, "-20")
+
+	// prepare input
+	curLayer := make([]frontend.Variable, 1<<c.depth)
+	if len(curLayer) < len(c.X) {
+		return fmt.Errorf("%d values not fitting in tree of depth %d", len(c.X), c.depth)
 	}
 
-	// cheat{
-	gkrApi.toStore.Circuit = append(gkrApi.toStore.Circuit, gkrinfo.Wire{
-		Gate:   "MIMC",
-		Inputs: []int{int(x), int(y)},
-	})
-	gkrApi.assignments = append(gkrApi.assignments, nil)
-	z := gkr.Variable(2)
-	// }
+	copy(curLayer, c.X)
+	for i := len(c.X); i < len(curLayer); i++ {
+		curLayer[i] = 0 // fill the rest with zeros
+	}
 
-	offset := 1 << (c.depth - 1)
-	for d := c.depth - 2; d >= 0; d-- {
-		for i := 0; i < 1<<d; i++ {
-			gkrApi.Series(x, z, offset+i, offset-1-2*i)
-			gkrApi.Series(y, z, offset+i, offset-2-2*i)
+	// create instances
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+
+	// first, dummy hash the leaves
+	for i := range curLayer {
+		instanceIn[x] = curLayer[i]
+		instanceIn[y] = i
+
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
 		}
-		offset += 1 << d
+		curLayer[i] = instanceOut
 	}
 
-	solution, err := gkrApi.Solve(api)
-	if err != nil {
-		return err
-	}
-	Z := solution.Export(z)
+	// fill the tree layer by layer
+	for len(curLayer) > 1 {
+		nextLayer := curLayer[:len(curLayer)/2]
 
-	challenge, err := api.(frontend.Committer).Commit(Z...)
-	if err != nil {
-		return err
-	}
+		for i := range nextLayer {
+			instanceIn[x] = curLayer[2*i]
+			instanceIn[y] = curLayer[2*i+1]
 
-	return solution.Verify("-20", challenge)
+			instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+			if err != nil {
+				return fmt.Errorf("failed to add instance: %w", err)
+			}
+			nextLayer[i] = instanceOut[z] // store the result of the hash
+		}
+
+		curLayer = nextLayer
+	}
+	return nil
 }
 
-func registerMiMC() {
+func init() {
 	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
 	})
 }
 
-func init() {
-	registerMiMC()
-	registerMiMCGate()
-}
+func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
+	mimcSnarkTotalCalls++
 
-func registerMiMCGate() {
-	// register mimc gate
-	panicIfError(gkrgates.Register(func(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
-		mimcSnarkTotalCalls++
+	if len(input) != 2 {
+		panic("mimc has fan-in 2")
+	}
+	sum := api.Add(input[0], input[1] /*, m.Ark*/)
 
-		if len(input) != 2 {
-			panic("mimc has fan-in 2")
-		}
-		sum := api.Add(input[0], input[1] /*, m.Ark*/)
-
-		sumCubed := api.Mul(sum, sum, sum) // sum^3
-		return api.Mul(sumCubed, sumCubed, sum)
-	}, 2, gkrgates.WithDegree(7), gkrgates.WithName("MIMC")))
+	sumCubed := api.Mul(sum, sum, sum) // sum^3
+	return api.Mul(sumCubed, sumCubed, sum)
 }
 
 type constPseudoHash int
@@ -465,26 +422,25 @@ type mimcNoDepCircuit struct {
 }
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
-	_gkr := New()
-	x, err := _gkr.Import(c.X)
-	if err != nil {
-		return err
-	}
-	var (
-		y        gkr.Variable
-		solution Solution
-	)
-	if y, err = _gkr.Import(c.Y); err != nil {
-		return err
-	}
+	// define the circuit
+	gkrApi := New()
+	x := gkrApi.NewInput()
+	y := gkrApi.NewInput()
+	gkrApi.Gate(mimcGate, x, y)
 
-	z := _gkr.NamedGate("MIMC", x, y)
+	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
-	if solution, err = _gkr.Solve(api); err != nil {
-		return err
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+	for i := range c.X {
+		instanceIn[x] = c.X[i]
+		instanceIn[y] = c.Y[i]
+
+		_, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
 	}
-	Z := solution.Export(z)
-	return solution.Verify(c.hashName, Z...)
+	return nil
 }
 
 func mimcNoDepCircuits(mimcDepth, nbInstances int, hashName string) (circuit, assignment frontend.Circuit) {
@@ -564,58 +520,6 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 		mimcDepth: mimcDepth,
 	}
 	return
-}
-
-func TestSolveInTestEngine(t *testing.T) {
-	assignment := testSolveInTestEngineCircuit{
-		X: []frontend.Variable{2, 3, 4, 5, 6, 7, 8, 9},
-	}
-	circuit := testSolveInTestEngineCircuit{
-		X: make([]frontend.Variable, len(assignment.X)),
-	}
-
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BN254.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS24_315.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS12_381.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS24_317.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BW6_633.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
-	require.NoError(t, test.IsSolved(&circuit, &assignment, ecc.BLS12_377.ScalarField()))
-}
-
-type testSolveInTestEngineCircuit struct {
-	X []frontend.Variable
-}
-
-func (c *testSolveInTestEngineCircuit) Define(api frontend.API) error {
-	gkrBn254 := New()
-	x, err := gkrBn254.Import(c.X)
-	if err != nil {
-		return err
-	}
-	Y := make([]frontend.Variable, len(c.X))
-	Y[0] = 1
-	y, err := gkrBn254.Import(Y)
-	if err != nil {
-		return err
-	}
-
-	z := gkrBn254.Mul(x, y)
-
-	for i := range len(c.X) - 1 {
-		gkrBn254.Series(y, z, i+1, i)
-	}
-
-	assignments := gkrBn254.SolveInTestEngine(api)
-
-	product := frontend.Variable(1)
-	for i := range c.X {
-		api.AssertIsEqual(assignments[y][i], product)
-		product = api.Mul(product, c.X[i])
-		api.AssertIsEqual(assignments[z][i], product)
-	}
-
-	return nil
 }
 
 func panicIfError(err error) {

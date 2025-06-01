@@ -23,12 +23,11 @@ func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
-	api.toStore.Dependencies = append(api.toStore.Dependencies, nil) // formality. Dependencies are only defined for input vars.
 	return gkr.Variable(len(api.toStore.Circuit) - 1)
 }
 
 func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
-	if err := gkrgates.Register(gate, len(in)); err != nil {
+	if _, err := gkrgates.Register(gate, len(in)); err != nil {
 		panic(err)
 	}
 	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)
