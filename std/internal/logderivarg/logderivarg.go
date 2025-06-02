@@ -45,7 +45,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/internal/mimc"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
