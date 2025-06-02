@@ -3,7 +3,6 @@ package gkrapi
 import (
 	"fmt"
 	"math/bits"
-	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
@@ -91,9 +90,6 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	}
 	res.toStore.SolveHintID = solver.GetHintID(gadget.SolveHintPlaceholder(res.toStore))
 	res.toStore.ProveHintID = solver.GetHintID(gadget.ProveHintPlaceholder(fiatshamirHashName))
-
-	// sort the prints before solving begins
-	slices.SortFunc(res.toStore.Prints, gkrinfo.PrintInfo.Cmp)
 
 	parentApi.Compiler().Defer(res.verify)
 
