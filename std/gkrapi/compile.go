@@ -74,22 +74,34 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 		api:         parentApi,
 	}
 
-	api.toStore.HashName = fiatshamirHashName
+	res.toStore.HashName = fiatshamirHashName
 
 	for _, opt := range options {
 		opt(&res)
 	}
 
+	notOut := make([]bool, len(res.toStore.Circuit))
 	for i := range res.toStore.Circuit {
-		if res.toStore.Circuit[i].IsOutput() {
-			res.outs = append(res.ins, gkr.Variable(i))
-		}
 		if res.toStore.Circuit[i].IsInput() {
 			res.ins = append(res.ins, gkr.Variable(i))
 		}
+		for _, inWI := range res.toStore.Circuit[i].Inputs {
+			notOut[inWI] = true
+		}
 	}
-	res.toStore.SolveHintID = solver.GetHintID(gadget.SolveHintPlaceholder(res.toStore))
+
+	for i := range res.toStore.Circuit {
+		if !notOut[i] {
+			res.outs = append(res.outs, gkr.Variable(i))
+		}
+	}
+
+	_, res.toStore.SolveHintID = gadget.SolveHintPlaceholder(res.toStore)
 	res.toStore.ProveHintID = solver.GetHintID(gadget.ProveHintPlaceholder(fiatshamirHashName))
+
+	if err := parentApi.(gkrinfo.ConstraintSystem).SetGkrInfo(res.toStore); err != nil {
+		panic(err)
+	}
 
 	parentApi.Compiler().Defer(res.verify)
 
@@ -119,7 +131,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 
 	c.toStore.NbInstances++
-	solveHintPlaceholder := gadget.SolveHintPlaceholder(c.toStore)
+	solveHintPlaceholder, _ := gadget.SolveHintPlaceholder(c.toStore)
 	outsSerialized, err := c.api.Compiler().NewHint(solveHintPlaceholder, len(c.outs), hintIn...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create solve hint: %w", err)
@@ -203,7 +215,7 @@ func (c *Circuit) verify(api frontend.API) error {
 		return err
 	}
 
-	return api.(gkrinfo.ConstraintSystem).SetGkrInfo(c.toStore)
+	return nil
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {

@@ -26,8 +26,8 @@ func modKey(mod *big.Int) string {
 
 // SolveHintPlaceholder solves one instance of a GKR circuit.
 // The first input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
-func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
-	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
+func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) (solver.Hint, solver.HintID) {
+	hint := func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
 		solvingInfo, err := gkrtypes.StoringToSolvingInfo(gkrInfo, gkrgates.Get)
 		if err != nil {
@@ -39,31 +39,31 @@ func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 		// TODO @Tabaie autogenerate this or decide not to
 		if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
 			data := bls12377.NewSolvingData(solvingInfo)
-			hint = bls12377.SolveHint(solvingInfo, data)
+			hint = bls12377.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
 			data := bls12381.NewSolvingData(solvingInfo)
-			hint = bls12381.SolveHint(solvingInfo, data)
+			hint = bls12381.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
 			data := bls24315.NewSolvingData(solvingInfo)
-			hint = bls24315.SolveHint(solvingInfo, data)
+			hint = bls24315.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
 			data := bls24317.NewSolvingData(solvingInfo)
-			hint = bls24317.SolveHint(solvingInfo, data)
+			hint = bls24317.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
 			data := bn254.NewSolvingData(solvingInfo)
-			hint = bn254.SolveHint(solvingInfo, data)
+			hint = bn254.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
 			data := bw6633.NewSolvingData(solvingInfo)
-			hint = bw6633.SolveHint(solvingInfo, data)
+			hint = bw6633.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 			data := bw6761.NewSolvingData(solvingInfo)
-			hint = bw6761.SolveHint(solvingInfo, data)
+			hint = bw6761.SolveHint(data)
 			testEngineGkrSolvingData[modKey(mod)] = data
 		} else {
 			return errors.New("unsupported modulus")
@@ -71,6 +71,7 @@ func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 
 		return hint(mod, ins, outs)
 	}
+	return hint, solver.GetHintID(hint)
 }
 
 func ProveHintPlaceholder(hashName string) solver.Hint {
