@@ -3,6 +3,7 @@ package gkrapi
 import (
 	"fmt"
 	"math/bits"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
@@ -88,8 +89,11 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 			res.ins = append(res.ins, gkr.Variable(i))
 		}
 	}
-	res.toStore.SolveHintID = solver.GetHintID(SolveHintPlaceholder(res.toStore))
-	res.toStore.ProveHintID = solver.GetHintID(ProveHintPlaceholder(fiatshamirHashName))
+	res.toStore.SolveHintID = solver.GetHintID(gadget.SolveHintPlaceholder(res.toStore))
+	res.toStore.ProveHintID = solver.GetHintID(gadget.ProveHintPlaceholder(fiatshamirHashName))
+
+	// sort the prints before solving begins
+	slices.SortFunc(res.toStore.Prints, gkrinfo.PrintInfo.Cmp)
 
 	parentApi.Compiler().Defer(res.verify)
 
@@ -119,7 +123,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 
 	c.toStore.NbInstances++
-	solveHintPlaceholder := SolveHintPlaceholder(c.toStore)
+	solveHintPlaceholder := gadget.SolveHintPlaceholder(c.toStore)
 	outsSerialized, err := c.api.Compiler().NewHint(solveHintPlaceholder, len(c.outs), hintIn...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create solve hint: %w", err)
@@ -180,7 +184,7 @@ func (c *Circuit) verify(api frontend.API) error {
 
 	copy(hintIns[1:], initialChallenges)
 
-	proveHintPlaceholder := ProveHintPlaceholder(c.toStore.HashName)
+	proveHintPlaceholder := gadget.ProveHintPlaceholder(c.toStore.HashName)
 	if proofSerialized, err = api.Compiler().NewHint(
 		proveHintPlaceholder, gadget.ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err

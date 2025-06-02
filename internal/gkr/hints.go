@@ -1,13 +1,10 @@
-package gkrapi
+package gkr
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	gcHash "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -19,7 +16,6 @@ import (
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	"github.com/consensys/gnark/internal/utils"
 )
 
 var testEngineGkrSolvingData = make(map[string]any)
@@ -28,6 +24,8 @@ func modKey(mod *big.Int) string {
 	return mod.Text(32)
 }
 
+// SolveHintPlaceholder solves one instance of a GKR circuit.
+// The first input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
 func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
@@ -36,44 +34,42 @@ func SolveHintPlaceholder(gkrInfo gkrinfo.StoringInfo) solver.Hint {
 			return err
 		}
 
+		var hint solver.Hint
+
 		// TODO @Tabaie autogenerate this or decide not to
 		if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-			var data bls12377.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls12377.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-			var data bls12381.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls12381.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-			var data bls24315.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls24315.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-			var data bls24317.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bls24317.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
-			var data bn254.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bn254.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-			var data bw6633.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bw6633.SolveHint(solvingInfo, &data)(mod, ins, outs)
-		}
-		if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-			var data bw6761.SolvingData
-			testEngineGkrSolvingData[modKey(mod)] = &data
-			return bw6761.SolveHint(solvingInfo, &data)(mod, ins, outs)
+			data := bls12377.NewSolvingData(solvingInfo)
+			hint = bls12377.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
+			data := bls12381.NewSolvingData(solvingInfo)
+			hint = bls12381.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
+			data := bls24315.NewSolvingData(solvingInfo)
+			hint = bls24315.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
+			data := bls24317.NewSolvingData(solvingInfo)
+			hint = bls24317.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
+			data := bn254.NewSolvingData(solvingInfo)
+			hint = bn254.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
+			data := bw6633.NewSolvingData(solvingInfo)
+			hint = bw6633.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
+			data := bw6761.NewSolvingData(solvingInfo)
+			hint = bw6761.SolveHint(solvingInfo, data)
+			testEngineGkrSolvingData[modKey(mod)] = data
+		} else {
+			return errors.New("unsupported modulus")
 		}
 
-		return errors.New("unsupported modulus")
+		return hint(mod, ins, outs)
 	}
 }
 
@@ -110,28 +106,5 @@ func ProveHintPlaceholder(hashName string) solver.Hint {
 		}
 
 		return errors.New("unsupported modulus")
-	}
-}
-
-func CheckHashHint(hashName string) solver.Hint {
-	return func(mod *big.Int, ins, outs []*big.Int) error {
-		if len(ins) != 2 || len(outs) != 1 {
-			return errors.New("invalid number of inputs/outputs")
-		}
-
-		toHash := ins[0].Bytes()
-		expectedHash := ins[1]
-
-		hsh := gcHash.NewHash(fmt.Sprintf("%s_%s", hashName, strings.ToUpper(utils.FieldToCurve(mod).String())))
-		hsh.Write(toHash)
-		hashed := hsh.Sum(nil)
-
-		if hashed := new(big.Int).SetBytes(hashed); hashed.Cmp(expectedHash) != 0 {
-			return fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash.String(), hashed.String())
-		}
-
-		outs[0].SetBytes(hashed)
-
-		return nil
 	}
 }

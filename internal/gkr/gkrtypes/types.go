@@ -147,49 +147,10 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 }
 
 type SolvingInfo struct {
-	Circuit      Circuit
-	Dependencies [][]gkrinfo.InputDependency
-	NbInstances  int
-	HashName     string
-	Prints       []gkrinfo.PrintInfo
-}
-
-// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (info *SolvingInfo) Chunks() []int {
-	res := make([]int, 0, 1)
-	lastSeenDependencyI := make([]int, len(info.Circuit))
-
-	for start, end := 0, 0; start != info.NbInstances; start = end {
-		end = info.NbInstances
-		endWireI := -1
-		for wI := range info.Circuit {
-			deps := info.Dependencies[wI]
-			if wDepI := lastSeenDependencyI[wI]; wDepI < len(deps) && deps[wDepI].InputInstance < end {
-				end = deps[wDepI].InputInstance
-				endWireI = wI
-			}
-		}
-		if endWireI != -1 {
-			lastSeenDependencyI[endWireI]++
-		}
-		res = append(res, end)
-	}
-	return res
-}
-
-// AssignmentOffsets describes the input layout of the Solve hint, by returning
-// for each wire, the index of the first hint input element corresponding to it.
-func (info *SolvingInfo) AssignmentOffsets() []int {
-	c := info.Circuit
-	res := make([]int, len(c)+1)
-	for i := range c {
-		nbExplicitAssignments := 0
-		if c[i].IsInput() {
-			nbExplicitAssignments = info.NbInstances - len(info.Dependencies[i])
-		}
-		res[i+1] = res[i] + nbExplicitAssignments
-	}
-	return res
+	Circuit     Circuit
+	NbInstances int
+	HashName    string
+	Prints      []gkrinfo.PrintInfo
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
@@ -282,11 +243,10 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
 	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
-		Circuit:      circuit,
-		NbInstances:  info.NbInstances,
-		HashName:     info.HashName,
-		Dependencies: info.Dependencies,
-		Prints:       info.Prints,
+		Circuit:     circuit,
+		NbInstances: info.NbInstances,
+		HashName:    info.HashName,
+		Prints:      info.Prints,
 	}, err
 }
 

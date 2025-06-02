@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 type (
@@ -138,4 +139,33 @@ func (d *StoringInfo) Is() bool {
 // A ConstraintSystem that supports GKR
 type ConstraintSystem interface {
 	SetGkrInfo(info StoringInfo) error
+}
+
+func NewPrint(instance int, a ...any) PrintInfo {
+	isVar := make([]bool, len(a))
+	vals := make([]any, len(a))
+	for i := range a {
+		v, ok := a[i].(gkr.Variable)
+		isVar[i] = ok
+		if ok {
+			vals[i] = uint32(v)
+		} else {
+			vals[i] = a[i]
+		}
+	}
+
+	return PrintInfo{
+		Values:   vals,
+		Instance: uint32(instance),
+		IsGkrVar: isVar,
+	}
+}
+
+// NewPrintInfoMap partitions printInfo into map elements, indexed by instance
+func NewPrintInfoMap(printInfo []PrintInfo) map[uint32][]PrintInfo {
+	res := make(map[uint32][]PrintInfo)
+	for i := range printInfo {
+		res[printInfo[i].Instance] = append(res[printInfo[i].Instance], printInfo[i])
+	}
+	return res
 }

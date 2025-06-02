@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 
@@ -21,92 +22,65 @@ import (
 )
 
 type SolvingData struct {
-	assignment WireAssignment
-	circuit    gkrtypes.Circuit
-	workers    *utils.WorkerPool
+	assignment       WireAssignment
+	circuit          gkrtypes.Circuit
+	workers          *utils.WorkerPool
+	maxNbIn          int // maximum number of inputs for a gate in the circuit
+	printsByInstance map[uint32][]gkrinfo.PrintInfo
 }
 
-func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
-	d.workers = utils.NewWorkerPool()
-	d.circuit = info.Circuit
-	d.circuit.SetNbUniqueOutputs()
+func NewSolvingData(info gkrtypes.SolvingInfo) *SolvingData {
+	d := SolvingData{
+		workers:          utils.NewWorkerPool(),
+		circuit:          info.Circuit,
+		assignment:       make(WireAssignment, len(info.Circuit)),
+		printsByInstance: gkrinfo.NewPrintInfoMap(info.Prints),
+	}
 
-	d.assignment = make(WireAssignment, len(d.circuit))
+	d.circuit.SetNbUniqueOutputs()
+	d.maxNbIn = d.circuit.MaxGateNbIn()
 	for i := range d.assignment {
 		d.assignment[i] = make([]fr.Element, info.NbInstances)
 	}
+
+	return &d
 }
 
 // this module assumes that wire and instance indexes respect dependencies
 
-func setOuts(a WireAssignment, circuit gkrtypes.Circuit, outs []*big.Int) {
-	outsI := 0
-	for i := range circuit {
-		if circuit[i].IsOutput() {
-			for j := range a[i] {
-				a[i][j].BigInt(outs[outsI])
+func SolveHint(data *SolvingData) hint.Hint {
+	return func(_ *big.Int, ins, outs []*big.Int) error {
+		instanceI := ins[0].Uint64()
+		if !ins[0].IsUint64() { // TODO use idiomatic printf tag
+			return fmt.Errorf("first input to solving hint must be the instance index; provided value %s doesn't fit in 64 bits", ins[0])
+		}
+
+		gateIns := make([]frontend.Variable, data.maxNbIn)
+		outsI := 0
+		insI := 1 // skip the first input, which is the instance index
+		for wI := range data.circuit {
+			w := &data.circuit[wI]
+			if w.IsInput() { // read from provided input
+				data.assignment[wI][instanceI].SetBigInt(ins[insI])
+				insI++
+			} else {
+
+				// assemble input for gate
+				for i, inWI := range w.Inputs {
+					gateIns[i] = &data.assignment[inWI][instanceI]
+				}
+
+				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]).(*fr.Element))
+			}
+			if w.IsOutput() {
+				data.assignment[wI][instanceI].BigInt(outs[outsI])
 				outsI++
 			}
 		}
-	}
-	// Check if outsI == len(outs)?
-}
 
-func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
-	return func(_ *big.Int, ins, outs []*big.Int) error {
-		// assumes assignmentVector is arranged wire first, instance second in order of solution
-		offsets := info.AssignmentOffsets()
-		data.init(info)
-		maxNIn := data.circuit.MaxGateNbIn()
-
-		chunks := info.Chunks()
-
-		solveTask := func(chunkOffset int) utils.Task {
-			return func(startInChunk, endInChunk int) {
-				start := startInChunk + chunkOffset
-				end := endInChunk + chunkOffset
-				inputs := make([]frontend.Variable, maxNIn)
-				dependencyHeads := make([]int, len(data.circuit)) // for each wire, which of its dependencies we would look at next
-				for wI := range data.circuit {                    // skip instances that are not relevant (related to instances before the current task)
-					deps := info.Dependencies[wI]
-					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
-						return deps[i].InputInstance
-					}, len(deps), start)
-				}
-
-				for instanceI := start; instanceI < end; instanceI++ {
-					for wireI := range data.circuit {
-						wire := &data.circuit[wireI]
-						deps := info.Dependencies[wireI]
-						if wire.IsInput() {
-							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
-								dep := deps[dependencyHeads[wireI]]
-								data.assignment[wireI][instanceI].Set(&data.assignment[dep.OutputWire][dep.OutputInstance])
-								dependencyHeads[wireI]++
-							} else {
-								data.assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
-							}
-						} else {
-							// assemble the inputs
-							inputIndexes := info.Circuit[wireI].Inputs
-							for i, inputI := range inputIndexes {
-								inputs[i] = &data.assignment[inputI][instanceI]
-							}
-							gate := data.circuit[wireI].Gate
-							data.assignment[wireI][instanceI].Set(gate.Evaluate(api, inputs[:len(inputIndexes)]...).(*fr.Element))
-						}
-					}
-				}
-			}
-		}
-
-		start := 0
-		for _, end := range chunks {
-			data.workers.Submit(end-start, solveTask(start), 1024).Wait()
-			start = end
-		}
-
-		for _, p := range info.Prints {
+		prints := data.printsByInstance[uint32(instanceI)]
+		delete(data.printsByInstance, uint32(instanceI))
+		for _, p := range prints {
 			serializable := make([]any, len(p.Values))
 			for i, v := range p.Values {
 				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
@@ -117,9 +91,6 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 			}
 			fmt.Println(serializable...)
 		}
-
-		setOuts(data.assignment, info.Circuit, outs)
-
 		return nil
 	}
 }

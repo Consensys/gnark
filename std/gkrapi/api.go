@@ -62,21 +62,5 @@ func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
 // Println writes to the standard output.
 // instance determines which values are chosen for gkr.Variable input.
 func (api *API) Println(instance int, a ...any) {
-	isVar := make([]bool, len(a))
-	vals := make([]any, len(a))
-	for i := range a {
-		v, ok := a[i].(gkr.Variable)
-		isVar[i] = ok
-		if ok {
-			vals[i] = uint32(v)
-		} else {
-			vals[i] = a[i]
-		}
-	}
-
-	api.toStore.Prints = append(api.toStore.Prints, gkrinfo.PrintInfo{
-		Values:   vals,
-		Instance: uint32(instance),
-		IsGkrVar: isVar,
-	})
+	api.toStore.Prints = append(api.toStore.Prints, gkrinfo.NewPrint(instance, a...))
 }
