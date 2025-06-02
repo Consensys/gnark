@@ -40,7 +40,6 @@ func NewSolvingData(info gkrtypes.SolvingInfo) *SolvingData {
 	d.circuit.SetNbUniqueOutputs()
 	d.maxNbIn = d.circuit.MaxGateNbIn()
 
-	d.assignment = make(WireAssignment, len(d.circuit))
 	for i := range d.assignment {
 		d.assignment[i] = make([]fr.Element, info.NbInstances)
 	}
