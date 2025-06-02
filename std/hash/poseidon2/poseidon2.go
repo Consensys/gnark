@@ -19,7 +19,5 @@ func NewMerkleDamgardHasher(api frontend.API) (hash.FieldHasher, error) {
 }
 
 func init() {
-	hash.Register("poseidon2", func(api frontend.API) (hash.FieldHasher, error) {
-		return NewMerkleDamgardHasher(api)
-	})
+	hash.Register("poseidon2", NewMerkleDamgardHasher)
 }
