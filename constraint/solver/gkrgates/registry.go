@@ -121,11 +121,6 @@ func Register(f gkr.GateFunction, nbIn int, options ...registerOption) (register
 
 	if g, ok := gates[s.name]; ok {
 		// gate already registered
-		if reflect.ValueOf(f).Pointer() != reflect.ValueOf(gates[s.name].Evaluate).Pointer() {
-			return false, fmt.Errorf("gate \"%s\" already registered with a different function", s.name)
-		}
-		// it still might be an anonymous function with different parameters.
-		// need to test further
 		if g.NbIn() != nbIn {
 			return false, fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn(), nbIn)
 		}
