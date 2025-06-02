@@ -99,10 +99,6 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	_, res.toStore.SolveHintID = gadget.SolveHintPlaceholder(res.toStore)
 	res.toStore.ProveHintID = solver.GetHintID(gadget.ProveHintPlaceholder(fiatshamirHashName))
 
-	if err := parentApi.(gkrinfo.ConstraintSystem).SetGkrInfo(res.toStore); err != nil {
-		panic(err)
-	}
-
 	parentApi.Compiler().Defer(res.verify)
 
 	return &res
@@ -149,6 +145,10 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 func (c *Circuit) verify(api frontend.API) error {
 	if api != c.api {
 		panic("api mismatch")
+	}
+
+	if err := api.(gkrinfo.ConstraintSystem).SetGkrInfo(c.toStore); err != nil {
+		return err
 	}
 
 	if len(c.outs) == 0 || len(c.assignments[0]) == 0 {

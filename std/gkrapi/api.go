@@ -65,6 +65,12 @@ func (api *API) Println(instance int, a ...any) {
 	api.toStore.Prints = append(api.toStore.Prints, newPrint(instance, a...))
 }
 
+// Println writes to the standard output.
+// instance determines which values are chosen for gkr.Variable input.
+func (c *Circuit) Println(instance int, a ...any) {
+	c.toStore.Prints = append(c.toStore.Prints, newPrint(instance, a...))
+}
+
 func newPrint(instance int, a ...any) gkrinfo.PrintInfo {
 	isVar := make([]bool, len(a))
 	vals := make([]any, len(a))
