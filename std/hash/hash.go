@@ -47,12 +47,26 @@ var (
 	lock            sync.RWMutex
 )
 
+// Register registers a new hash funcction by a name. To ensure that the hash
+// function is registered, import the corresponding hash gadget package so that
+// it would call this method.
+//
+// Alternatively, you can import the [github.com/consensys/gnark/std/hash/all]
+// package which automatically registers all hash functions.
 func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
 	lock.Lock()
 	defer lock.Unlock()
 	builderRegistry[name] = builder
 }
 
+// GetFieldHasher retrieves a hash function by its name. The name should match
+// the name used in [Register] method. To ensure that the hash function is
+// correctly registered (and thus available for getting with this method),
+// import the corresponding hash gadget package so that it would call the
+// [Register] method.
+//
+// Alternatively, you can import the [github.com/consensys/gnark/std/hash/all]
+// package which automatically registers all hash functions.
 func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
 	lock.RLock()
 	defer lock.RUnlock()
