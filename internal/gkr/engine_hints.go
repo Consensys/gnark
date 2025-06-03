@@ -46,8 +46,6 @@ func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
 // The first input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
 func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
-	// TODO handle prints
-
 	instanceI := len(h.assignment[0])
 	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 > 0xffffffff {
 		return errors.New("first input must be a uint32 instance index")
@@ -73,6 +71,7 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 		}
 		if w.IsOutput() {
 			*outs[outI] = utils.FromInterface(val)
+			outI++
 		}
 		h.assignment[wI] = append(h.assignment[wI], val)
 	}
@@ -80,7 +79,6 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 }
 
 func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
-	// todo handle prints
 
 	info, err := gkrtypes.StoringToSolvingInfo(*h.info, gkrgates.Get)
 	if err != nil {
