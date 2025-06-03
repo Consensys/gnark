@@ -10,7 +10,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
@@ -24,14 +23,29 @@ import (
 type SolvingData struct {
 	assignment       WireAssignment
 	circuit          gkrtypes.Circuit
-	workers          *utils.WorkerPool
 	maxNbIn          int // maximum number of inputs for a gate in the circuit
 	printsByInstance map[uint32][]gkrinfo.PrintInfo
 }
 
-func NewSolvingData(info gkrtypes.SolvingInfo) *SolvingData {
+type newSolvingDataSettings struct {
+	assignment gkrtypes.WireAssignment
+}
+
+type newSolvingDataOption func(*newSolvingDataSettings)
+
+func WithAssignment(assignment gkrtypes.WireAssignment) newSolvingDataOption {
+	return func(s *newSolvingDataSettings) {
+		s.assignment = assignment
+	}
+}
+
+func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) *SolvingData {
+	var s newSolvingDataSettings
+	for _, opt := range options {
+		opt(&s)
+	}
+
 	d := SolvingData{
-		workers:          utils.NewWorkerPool(),
 		circuit:          info.Circuit,
 		assignment:       make(WireAssignment, len(info.Circuit)),
 		printsByInstance: gkrinfo.NewPrintInfoMap(info.Prints),
@@ -42,6 +56,22 @@ func NewSolvingData(info gkrtypes.SolvingInfo) *SolvingData {
 
 	for i := range d.assignment {
 		d.assignment[i] = make([]fr.Element, info.NbInstances)
+	}
+
+	if s.assignment != nil {
+		if len(s.assignment) != len(d.assignment) {
+			panic(fmt.Errorf("provided assignment has %d wires, expected %d", len(s.assignment), len(d.assignment)))
+		}
+		for i := range d.assignment {
+			if len(s.assignment[i]) != info.NbInstances {
+				panic(fmt.Errorf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignment[i]), info.NbInstances))
+			}
+			for j := range d.assignment[i] {
+				if _, err := d.assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
+					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
+				}
+			}
+		}
 	}
 
 	return &d
@@ -107,7 +137,7 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 		hsh := hash.NewHash(hashName + "_BN254")
 
-		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...), WithWorkers(data.workers))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
 		if err != nil {
 			return err
 		}

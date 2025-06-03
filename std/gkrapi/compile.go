@@ -76,7 +76,12 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	}
 
 	res.toStore.HashName = fiatshamirHashName
-	res.hints = gadget.NewTestEngineHints(&res.toStore)
+
+	var err error
+	res.hints, err = gadget.NewTestEngineHints(&res.toStore)
+	if err != nil {
+		panic(fmt.Errorf("failed to create GKR hints: %w", err))
+	}
 
 	for _, opt := range options {
 		opt(&res)

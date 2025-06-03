@@ -20,13 +20,9 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-func modKey(mod *big.Int) string {
-	return mod.Text(32)
-}
-
 type TestEngineHints struct {
 	assignment gkrtypes.WireAssignment
-	info       *gkrinfo.StoringInfo
+	info       *gkrinfo.StoringInfo // we retain a reference to the solving info to allow the caller to modify it between calls to Solve and Prove
 	circuit    gkrtypes.Circuit
 	gateIns    []frontend.Variable
 }
@@ -82,36 +78,41 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 }
 
 func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
-
 	// todo handle prints
-	k := modKey(mod)
-	data, ok := testEngineGkrSolvingData[k]
-	if !ok {
-		return errors.New("solving data not found")
+
+	info, err := gkrtypes.StoringToSolvingInfo(*h.info, gkrgates.Get)
+	if err != nil {
+		return fmt.Errorf("failed to convert storing info to solving info: %w", err)
 	}
-	delete(testEngineGkrSolvingData, k)
 
 	// TODO @Tabaie autogenerate this or decide not to
 	if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-		return bls12377.ProveHint(hashName, data.(*bls12377.SolvingData))(mod, ins, outs)
+		data := bls12377.NewSolvingData(info, bls12377.WithAssignment(h.assignment))
+		return bls12377.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-		return bls12381.ProveHint(hashName, data.(*bls12381.SolvingData))(mod, ins, outs)
+		data := bls12381.NewSolvingData(info, bls12381.WithAssignment(h.assignment))
+		return bls12381.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-		return bls24315.ProveHint(hashName, data.(*bls24315.SolvingData))(mod, ins, outs)
+		data := bls24315.NewSolvingData(info, bls24315.WithAssignment(h.assignment))
+		return bls24315.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-		return bls24317.ProveHint(hashName, data.(*bls24317.SolvingData))(mod, ins, outs)
+		data := bls24317.NewSolvingData(info, bls24317.WithAssignment(h.assignment))
+		return bls24317.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
-		return bn254.ProveHint(hashName, data.(*bn254.SolvingData))(mod, ins, outs)
+		data := bn254.NewSolvingData(info, bn254.WithAssignment(h.assignment))
+		return bn254.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-		return bw6633.ProveHint(hashName, data.(*bw6633.SolvingData))(mod, ins, outs)
+		data := bw6633.NewSolvingData(info, bw6633.WithAssignment(h.assignment))
+		return bw6633.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-		return bw6761.ProveHint(hashName, data.(*bw6761.SolvingData))(mod, ins, outs)
+		data := bw6761.NewSolvingData(info, bw6761.WithAssignment(h.assignment))
+		return bw6761.ProveHint(info.HashName, data)(mod, ins, outs)
 	}
 
 	return errors.New("unsupported modulus")
