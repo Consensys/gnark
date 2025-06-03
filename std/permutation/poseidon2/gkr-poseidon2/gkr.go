@@ -6,17 +6,18 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-
-	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/std/hash"
+	_ "github.com/consensys/gnark/std/hash/mimc" // to ensure mimc is registered
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	"github.com/consensys/gnark/frontend"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -288,7 +289,7 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	return solution.Verify("MIMC", challenge)
+	return solution.Verify(hash.MIMC.String(), challenge)
 }
 
 // registerGkrSolverOptions is a wrapper for RegisterGkrSolverOptions
