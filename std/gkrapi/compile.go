@@ -32,7 +32,8 @@ type Circuit struct {
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
-	api                  frontend.API // the parent API used for hints
+	api                  frontend.API            // the parent API used for hints
+	hints                *gadget.TestEngineHints // hints for the GKR circuit, used for testing purposes
 }
 
 // New creates a new GKR API
@@ -75,6 +76,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	}
 
 	res.toStore.HashName = fiatshamirHashName
+	res.hints = gadget.NewTestEngineHints(&res.toStore)
 
 	for _, opt := range options {
 		opt(&res)
@@ -96,8 +98,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 		}
 	}
 
-	_, res.toStore.SolveHintID = gadget.SolveHintPlaceholder(res.toStore)
-	res.toStore.ProveHintID = solver.GetHintID(gadget.ProveHintPlaceholder(fiatshamirHashName))
+	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
 
 	parentApi.Compiler().Defer(res.verify)
 
@@ -126,9 +127,12 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		}
 	}
 
+	if c.toStore.NbInstances == 0 {
+		c.toStore.SolveHintID = solver.GetHintID(c.hints.Solve)
+	}
+
 	c.toStore.NbInstances++
-	solveHintPlaceholder, _ := gadget.SolveHintPlaceholder(c.toStore)
-	outsSerialized, err := c.api.Compiler().NewHint(solveHintPlaceholder, len(c.outs), hintIn...)
+	outsSerialized, err := c.api.Compiler().NewHint(c.hints.Solve, len(c.outs), hintIn...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create solve hint: %w", err)
 	}
@@ -192,12 +196,11 @@ func (c *Circuit) verify(api frontend.API) error {
 
 	copy(hintIns[1:], initialChallenges)
 
-	proveHintPlaceholder := gadget.ProveHintPlaceholder(c.toStore.HashName)
 	if proofSerialized, err = api.Compiler().NewHint(
-		proveHintPlaceholder, gadget.ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
+		c.hints.Prove, gadget.ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
-	c.toStore.ProveHintID = solver.GetHintID(proveHintPlaceholder)
+	c.toStore.ProveHintID = solver.GetHintID(c.hints.Prove)
 
 	forSnarkSorted := utils.MapRange(0, len(c.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
