@@ -2,6 +2,7 @@ package emulated
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -101,14 +102,46 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	if len(base.Limbs) == 0 {
 		return f.Zero()
 	}
-	expBts := f.ToBits(exp)
-	n := len(expBts)
-	res := f.Select(expBts[0], base, f.One())
-	base = f.ModMul(base, base, modulus)
-	for i := 1; i < n-1; i++ {
-		res = f.Select(expBts[i], f.ModMul(base, res, modulus), res)
-		base = f.ModMul(base, base, modulus)
+
+	// first, we hint the sub-exponents e1, e2 s.t.:
+	// 		exp1 + exp2 * exp = 0 mod modulus, and
+	// 		exp1, exp2 <= sqrt(modulus).
+	expHint, err := f.NewHint(HalfGCDHint, 2, exp, modulus)
+	if err != nil {
+		panic(fmt.Sprintf("half-GCD hint: %v", err))
 	}
-	res = f.Select(expBts[n-1], f.ModMul(base, res, modulus), res)
-	return res
+	exp1, exp2 := expHint[0], expHint[1]
+	// TODO: check decomposition
+	// TODO: check sign
+
+	// next, we hint the result of the exponentiation:
+	// 		result = base^{exp} mod modulus
+	resHint, err := f.NewHint(ExpHint, 1, base, exp, modulus)
+	if err != nil {
+		panic(fmt.Sprintf("exponentiation hint: %v", err))
+	}
+	result := resHint[0]
+
+	// now, the following two equalities are equivalent:
+	// 		base^{exp} = res [modulus] <==> base^{exp1} * res^{exp2} = 1 [modulus]
+	product := f.ModMul(base, result, modulus)
+
+	exp1Bts := f.ToBits(exp1)
+	exp2Bts := f.ToBits(exp2)
+	var st T
+	n := st.Modulus().BitLen()>>1 + 1
+
+	accumulator := f.Lookup2(exp1Bts[n-1], exp2Bts[n-1], f.One(), base, result, product)
+	for i := n - 2; i >= 0; i-- {
+		accumulator = f.ModMul(accumulator, accumulator, modulus)
+		accumulator = f.ModMul(
+			accumulator,
+			f.Lookup2(exp1Bts[i], exp2Bts[i], f.One(), base, result, product),
+			modulus,
+		)
+	}
+
+	f.AssertIsEqual(accumulator, f.One())
+
+	return result
 }

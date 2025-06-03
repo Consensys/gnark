@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
@@ -26,6 +27,9 @@ func GetHints() []solver.Hint {
 		mulHint,
 		subPaddingHint,
 		polyMvHint,
+		HalfGCDHint,
+		HalfGCDSignsHint,
+		ExpHint,
 	}
 }
 
@@ -152,6 +156,65 @@ func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return errors.New("no square root")
 		}
 		outputs[0].Set(res)
+		return nil
+	})
+}
+
+// HalfGCDHint...
+func HalfGCDHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
+		outputs[0].Set(&glvBasis.V1[0])
+		outputs[1].Set(&glvBasis.V1[1])
+
+		// we need the absolute values for the in-circuit computations,
+		// otherwise the negative values will be reduced modulo the SNARK scalar
+		// field and not the emulated field.
+		// 		output0 = |s0| mod r
+		// 		output1 = |s1| mod r
+		if outputs[1].Sign() == -1 {
+			outputs[1].Neg(outputs[1])
+		}
+
+		return nil
+	})
+}
+
+func HalfGCDSignsHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 1 {
+			return fmt.Errorf("expecting one output")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
+		outputs[0].SetUint64(0)
+		if glvBasis.V1[1].Sign() == -1 {
+			outputs[0].SetUint64(1)
+		}
+
+		return nil
+	})
+}
+
+func ExpHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHint(inputs, outputs, func(nonNativeField *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 3 {
+			return errors.New("expecting three inputs")
+		}
+		if len(outputs) != 1 {
+			return errors.New("expecting one output")
+		}
+		outputs[0] = new(big.Int).Exp(inputs[0], inputs[1], inputs[2])
 		return nil
 	})
 }
