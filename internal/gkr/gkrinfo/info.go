@@ -13,9 +13,8 @@ type (
 	}
 
 	Wire struct {
-		Gate            string
-		Inputs          []int
-		NbUniqueOutputs int
+		Gate   string
+		Inputs []int
 	}
 
 	Circuit []Wire
@@ -44,10 +43,6 @@ type (
 
 func (w Wire) IsInput() bool {
 	return len(w.Inputs) == 0
-}
-
-func (w Wire) IsOutput() bool {
-	return w.NbUniqueOutputs == 0
 }
 
 func (d *StoringInfo) NewInputVariable() int {

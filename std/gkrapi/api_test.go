@@ -131,7 +131,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	gkrApi := New()
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
-	z := gkrApi.Add(x, y)
+	z := gkrApi.Mul(x, y)
 
 	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
@@ -205,8 +205,8 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 			return fmt.Errorf("failed to add instance: %w", err)
 		}
 
+		api.AssertIsEqual(instanceOut[z], api.Mul(state, c.Y[i]))
 		state = instanceOut[z] // update state for the next iteration
-		api.AssertIsEqual(state, api.Mul(state, c.Y[i]))
 	}
 	return nil
 }

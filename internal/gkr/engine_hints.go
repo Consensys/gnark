@@ -34,9 +34,10 @@ func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
 	}
 
 	return &TestEngineHints{
-			info:    info,
-			circuit: circuit,
-			gateIns: make([]frontend.Variable, circuit.MaxGateNbIn()),
+			info:       info,
+			circuit:    circuit,
+			gateIns:    make([]frontend.Variable, circuit.MaxGateNbIn()),
+			assignment: make(gkrtypes.WireAssignment, len(circuit)),
 		},
 		err
 }
@@ -47,9 +48,10 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 
 	// TODO handle prints
 
-	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 >= uint64(len(h.info.Circuit)) || in0 > 0xffffffff {
+	instanceI := len(h.assignment[0])
+	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 > 0xffffffff {
 		return errors.New("first input must be a uint32 instance index")
-	} else if in0 != uint64(h.info.NbInstances) || h.info.NbInstances != len(h.assignment[0]) {
+	} else if in0 != uint64(instanceI) || h.info.NbInstances-1 != instanceI {
 		return errors.New("first input must equal the number of instances, and calls to Solve must be done in order of instance index")
 	}
 
@@ -65,7 +67,7 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 			inI++
 		} else {
 			for gateInI, inWI := range w.Inputs {
-				h.gateIns[gateInI] = h.assignment[inWI][gateInI]
+				h.gateIns[gateInI] = h.assignment[inWI][instanceI]
 			}
 			val = w.Gate.Evaluate(api, h.gateIns[:len(w.Inputs)]...)
 		}

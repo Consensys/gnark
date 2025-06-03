@@ -739,7 +739,7 @@ func (gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.V
 
 func (gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	var prod small_rational.SmallRational
-	prod.Add(cast(b), cast(c))
+	prod.Mul(cast(b), cast(c))
 	res := cast(a)
 	res.Add(res, &prod)
 	return &res

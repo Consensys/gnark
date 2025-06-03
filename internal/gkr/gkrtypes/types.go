@@ -181,7 +181,7 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func (c Circuit) SetNbUniqueOutputs() {
+func (c Circuit) setNbUniqueOutputs() {
 
 	for i := range c {
 		c[i].NbUniqueOutputs = 0
@@ -237,6 +237,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
 		}
 	}
+	resCircuit.setNbUniqueOutputs()
 	return resCircuit, nil
 }
 

@@ -51,9 +51,9 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 		printsByInstance: gkrinfo.NewPrintInfoMap(info.Prints),
 	}
 
-	d.circuit.SetNbUniqueOutputs()
 	d.maxNbIn = d.circuit.MaxGateNbIn()
 
+	d.assignment = make(WireAssignment, len(d.circuit))
 	for i := range d.assignment {
 		d.assignment[i] = make([]fr.Element, info.NbInstances)
 	}
@@ -82,7 +82,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 func SolveHint(data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		instanceI := ins[0].Uint64()
-		if !ins[0].IsUint64() { // TODO use idiomatic printf tag
+		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to solving hint must be the instance index; provided value %s doesn't fit in 64 bits", ins[0])
 		}
 
