@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	algo_utils "github.com/consensys/gnark/internal/utils"
 
@@ -21,10 +20,9 @@ import (
 )
 
 type SolvingData struct {
-	assignment       WireAssignment
-	circuit          gkrtypes.Circuit
-	maxNbIn          int // maximum number of inputs for a gate in the circuit
-	printsByInstance map[uint32][]gkrinfo.PrintInfo
+	assignment WireAssignment
+	circuit    gkrtypes.Circuit
+	maxNbIn    int // maximum number of inputs for a gate in the circuit
 }
 
 type newSolvingDataSettings struct {
@@ -46,9 +44,8 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 	}
 
 	d := SolvingData{
-		circuit:          info.Circuit,
-		assignment:       make(WireAssignment, len(info.Circuit)),
-		printsByInstance: gkrinfo.NewPrintInfoMap(info.Prints),
+		circuit:    info.Circuit,
+		assignment: make(WireAssignment, len(info.Circuit)),
 	}
 
 	d.maxNbIn = d.circuit.MaxGateNbIn()
@@ -109,19 +106,6 @@ func SolveHint(data *SolvingData) hint.Hint {
 			}
 		}
 
-		prints := data.printsByInstance[uint32(instanceI)]
-		delete(data.printsByInstance, uint32(instanceI))
-		for _, p := range prints {
-			serializable := make([]any, len(p.Values))
-			for i, v := range p.Values {
-				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
-					serializable[i] = data.assignment[algo_utils.ForceUint32(v)][p.Instance].String()
-				} else {
-					serializable[i] = v
-				}
-			}
-			fmt.Println(serializable...)
-		}
 		return nil
 	}
 }
