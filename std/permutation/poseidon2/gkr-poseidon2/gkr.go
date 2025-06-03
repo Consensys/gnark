@@ -17,8 +17,6 @@ import (
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
-	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -250,12 +248,6 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	if p.api != api {
 		panic("unexpected API")
 	}
-
-	// register MiMC to be used as a random oracle in the GKR proof
-	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})
 
 	// register gates
 	registerGkrSolverOptions(api)

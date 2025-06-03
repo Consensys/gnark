@@ -125,7 +125,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	X = gkrApi.NamedGate(gkr.Identity, X)
 
 	// register the hash function used for verification (fiat shamir)
-	stdHash.Register(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
+	stdHash.RegisterCustomHash(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
 	})
