@@ -44,8 +44,6 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 		opt(&s)
 	}
 
-	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(info.NbInstances)))
-
 	d := SolvingData{
 		circuit:    info.Circuit,
 		assignment: make(WireAssignment, len(info.Circuit)),
@@ -53,6 +51,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 
 	d.maxNbIn = d.circuit.MaxGateNbIn()
 
+	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(info.NbInstances)))
 	for i := range d.assignment {
 		d.assignment[i] = make([]fr.Element, nbPaddedInstances)
 	}
@@ -65,7 +64,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 			if len(s.assignment[i]) != info.NbInstances {
 				panic(fmt.Errorf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignment[i]), info.NbInstances))
 			}
-			for j := range d.assignment[i] {
+			for j := range s.assignment[i] {
 				if _, err := d.assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
 					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
 				}
