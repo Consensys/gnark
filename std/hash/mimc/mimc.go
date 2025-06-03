@@ -43,5 +43,5 @@ func New(api frontend.API) (hash.FieldHasher, error) {
 }
 
 func init() {
-	hash.Register("MIMC", New)
+	hash.Register(hash.MIMC, New)
 }
