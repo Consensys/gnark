@@ -118,7 +118,18 @@ func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 	}
 
 	return errors.New("unsupported modulus")
+}
 
+// GetAssignment returns the assignment for a particular wire and instance.
+func (h *TestEngineHints) GetAssignment(_ *big.Int, ins []*big.Int, outs []*big.Int) error {
+	if len(ins) != 3 || !ins[0].IsUint64() || !ins[1].IsUint64() {
+		return errors.New("expected 3 inputs: wire index, instance index, and dummy output from the same instance")
+	}
+	if len(outs) != 1 {
+		return errors.New("expected 1 output: the value of the wire at the given instance")
+	}
+	*outs[0] = utils.FromInterface(h.assignment[ins[0].Uint64()][ins[1].Uint64()])
+	return nil
 }
 
 type gateAPI struct{ *big.Int }

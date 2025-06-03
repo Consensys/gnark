@@ -104,6 +104,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	}
 
 	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
+	res.toStore.GetAssignmentHintID = solver.GetHintID(res.hints.GetAssignment)
 
 	parentApi.Compiler().Defer(res.verify)
 
@@ -256,4 +257,15 @@ func init() {
 		h, err := mimc.NewMiMC(api)
 		return &h, err
 	})
+}
+
+// GetValue is a debugging utility returning the value of variable v at instance i.
+// While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
+func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
+	// last input to ensure the solver's work is done before GetAssignment is called
+	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, int(v), i, c.assignments[c.outs[0]][i])
+	if err != nil {
+		panic(err)
+	}
+	return res[0]
 }

@@ -150,7 +150,6 @@ type SolvingInfo struct {
 	Circuit     Circuit
 	NbInstances int
 	HashName    string
-	Prints      []gkrinfo.PrintInfo
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
@@ -247,7 +246,6 @@ func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.Gat
 		Circuit:     circuit,
 		NbInstances: info.NbInstances,
 		HashName:    info.HashName,
-		Prints:      info.Prints,
 	}, err
 }
 

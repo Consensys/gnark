@@ -57,6 +57,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 		}
 		gkrData := gkr.NewSolvingData(solvingInfo)
 		opts = append(opts,
+			csolver.OverrideHint(cs.GkrInfo.GetAssignmentHintID, gkr.GetAssignmentHint(gkrData)),
 			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(gkrData)),
 			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, gkrData)))
 	}

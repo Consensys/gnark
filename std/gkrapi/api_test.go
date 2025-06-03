@@ -1,7 +1,6 @@
 package gkrapi
 
 import (
-	"bytes"
 	"fmt"
 	"hash"
 	"math/big"
@@ -26,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// compressThreshold --> if linear expressions are larger than this, the frontend will introduce
+// compressThreshold → if linear expressions are larger than this, the frontend will introduce
 // intermediate constraints. The lower this number is, the faster compile time should be (to a point)
 // but resulting circuit will have more constraints (slower proving time).
 const compressThreshold = 1000
@@ -358,7 +357,7 @@ func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 	}
 	sum := api.Add(input[0], input[1] /*, m.Ark*/)
 
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
+	sumCubed := api.Mul(sum, sum, sum) // sum³
 	return api.Mul(sumCubed, sumCubed, sum)
 }
 
@@ -522,12 +521,6 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 	return
 }
 
-func panicIfError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
 	assert.Equal(t, len(expected), len(seen))
 	for i := range seen {
@@ -549,7 +542,7 @@ func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) f
 	}
 	sum := api.Add(input[0], input[1], m.Ark)
 
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
+	sumCubed := api.Mul(sum, sum, sum) // sum³
 	return api.Mul(sumCubed, sumCubed, sum)
 }
 
@@ -602,46 +595,51 @@ func init() {
 	}
 }
 
-func ExamplePrintln() {
+// pow3Circuit computes x⁴ and also checks the correctness of intermediate value x².
+// This is to demonstrate the use of [Circuit.GetValue] and should not be done
+// in production code, as it negates the performance benefits of using GKR in the first place.
+type pow4Circuit struct {
+	X []frontend.Variable
+}
 
-	circuit := &mulNoDependencyCircuit{
-		X:        make([]frontend.Variable, 2),
-		Y:        make([]frontend.Variable, 2),
-		hashName: "MIMC",
+func (c *pow4Circuit) Define(api frontend.API) error {
+	gkrApi := New()
+	x := gkrApi.NewInput()
+	x2 := gkrApi.Mul(x, x)   // x²
+	x4 := gkrApi.Mul(x2, x2) // x⁴
+
+	gkrCircuit := gkrApi.Compile(api, "MIMC")
+
+	for i := range c.X {
+		instanceIn := make(map[gkr.Variable]frontend.Variable)
+		instanceIn[x] = c.X[i]
+
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+
+		api.AssertIsEqual(gkrCircuit.GetValue(x, i), c.X[i]) // x
+
+		v := api.Mul(c.X[i], c.X[i])                     // x²
+		api.AssertIsEqual(gkrCircuit.GetValue(x2, i), v) // x²
+
+		v = api.Mul(v, v)                                // x⁴
+		api.AssertIsEqual(gkrCircuit.GetValue(x4, i), v) // x⁴
+		api.AssertIsEqual(instanceOut[x4], v)            // x⁴
 	}
 
-	assignment := &mulNoDependencyCircuit{
-		X: []frontend.Variable{10, 11},
-		Y: []frontend.Variable{12, 13},
+	return nil
+}
+
+func TestPow4Circuit_GetValue(t *testing.T) {
+	assignment := pow4Circuit{
+		X: []frontend.Variable{1, 2, 3, 4, 5},
 	}
 
-	field := ecc.BN254.ScalarField()
+	circuit := pow4Circuit{
+		X: make([]frontend.Variable, len(assignment.X)),
+	}
 
-	// with test engine
-	err := test.IsSolved(circuit, assignment, field)
-	panicIfError(err)
-
-	// with groth16 / serialized CS
-	firstCs, err := frontend.Compile(field, r1cs.NewBuilder, circuit)
-	panicIfError(err)
-
-	var bb bytes.Buffer
-	_, err = firstCs.WriteTo(&bb)
-	panicIfError(err)
-	cs := groth16.NewCS(ecc.BN254)
-	_, err = cs.ReadFrom(&bb)
-	panicIfError(err)
-
-	pk, _, err := groth16.Setup(cs)
-	panicIfError(err)
-	w, err := frontend.NewWitness(assignment, field)
-	panicIfError(err)
-	_, err = groth16.Prove(cs, pk, w)
-	panicIfError(err)
-
-	// Output:
-	// values of x and y in instance number 0 10 12
-	// value of z in instance number 1 143
-	// values of x and y in instance number 0 10 12
-	// value of z in instance number 1 143
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }

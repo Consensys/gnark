@@ -76,6 +76,23 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 
 // this module assumes that wire and instance indexes respect dependencies
 
+func GetAssignmentHint(data *SolvingData) hint.Hint {
+	return func(_ *big.Int, ins, outs []*big.Int) error {
+		if len(ins) != 3 {
+			return fmt.Errorf("GetAssignmentHint expects 3 inputs: instance index, wire index, and dummy dependency enforcer")
+		}
+		wireI := ins[0].Uint64()
+		instanceI := ins[1].Uint64()
+		if !ins[0].IsUint64() || !ins[1].IsUint64() {
+			return fmt.Errorf("inputs to GetAssignmentHint must be the wire index and instance index; provided values %s and %s don't fit in 64 bits", ins[0], ins[1])
+		}
+
+		data.assignment[wireI][instanceI].BigInt(outs[0])
+
+		return nil
+	}
+}
+
 func SolveHint(data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		instanceI := ins[0].Uint64()

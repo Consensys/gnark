@@ -19,18 +19,13 @@ type (
 
 	Circuit []Wire
 
-	PrintInfo struct {
-		Values   []any
-		Instance uint32
-		IsGkrVar []bool
-	}
 	StoringInfo struct {
-		Circuit     Circuit
-		NbInstances int
-		HashName    string
-		SolveHintID solver.HintID
-		ProveHintID solver.HintID
-		Prints      []PrintInfo
+		Circuit             Circuit
+		NbInstances         int
+		HashName            string
+		GetAssignmentHintID solver.HintID
+		SolveHintID         solver.HintID
+		ProveHintID         solver.HintID
 	}
 
 	Permutations struct {
