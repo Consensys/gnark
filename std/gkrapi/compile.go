@@ -41,14 +41,6 @@ func New() *API {
 	return &API{}
 }
 
-// log2 returns -1 if x is not a power of 2
-func log2(x uint) int {
-	if bits.OnesCount(x) != 1 {
-		return -1
-	}
-	return bits.TrailingZeros(x)
-}
-
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	return gkr.Variable(api.toStore.NewInputVariable())
@@ -80,7 +72,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	var err error
 	res.hints, err = gadget.NewTestEngineHints(&res.toStore)
 	if err != nil {
-		panic(fmt.Errorf("failed to create GKR hints: %w", err))
+		panic(fmt.Errorf("failed to call GKR hints: %w", err))
 	}
 
 	for _, opt := range options {
@@ -103,8 +95,9 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 		}
 	}
 
-	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
 	res.toStore.GetAssignmentHintID = solver.GetHintID(res.hints.GetAssignment)
+	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
+	res.toStore.SolveHintID = solver.GetHintID(res.hints.Solve)
 
 	parentApi.Compiler().Defer(res.verify)
 
@@ -125,23 +118,20 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 	hintIn := make([]frontend.Variable, 1+len(c.ins)) // first input denotes the instance number
 	hintIn[0] = c.toStore.NbInstances
-	for hintInI, in := range c.ins {
-		if inV, ok := input[in]; !ok {
-			return nil, fmt.Errorf("missing entry for input variable %d", in)
+	for hintInI, wI := range c.ins {
+		if inV, ok := input[wI]; !ok {
+			return nil, fmt.Errorf("missing entry for input variable %d", wI)
 		} else {
 			hintIn[hintInI+1] = inV
+			c.assignments[wI] = append(c.assignments[wI], inV)
 		}
 	}
 
-	if c.toStore.NbInstances == 0 {
-		c.toStore.SolveHintID = solver.GetHintID(c.hints.Solve)
-	}
-
-	c.toStore.NbInstances++
 	outsSerialized, err := c.api.Compiler().NewHint(c.hints.Solve, len(c.outs), hintIn...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create solve hint: %w", err)
+		return nil, fmt.Errorf("failed to call solve hint: %w", err)
 	}
+	c.toStore.NbInstances++
 	res := make(map[gkr.Variable]frontend.Variable, len(c.outs))
 	for i, v := range c.outs {
 		res[v] = outsSerialized[i]
@@ -157,11 +147,22 @@ func (c *Circuit) verify(api frontend.API) error {
 		panic("api mismatch")
 	}
 
+	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(c.toStore.NbInstances)))
+	// pad instances to the next power of 2 by repeating the last instance
+	if c.toStore.NbInstances < nbPaddedInstances && c.toStore.NbInstances > 0 {
+		for _, wI := range c.ins {
+			c.assignments[wI] = utils.ExtendRepeatLast(c.assignments[wI], nbPaddedInstances)
+		}
+		for _, wI := range c.outs {
+			c.assignments[wI] = utils.ExtendRepeatLast(c.assignments[wI], nbPaddedInstances)
+		}
+	}
+
 	if err := api.(gkrinfo.ConstraintSystem).SetGkrInfo(c.toStore); err != nil {
 		return err
 	}
 
-	if len(c.outs) == 0 || len(c.assignments[0]) == 0 {
+	if len(c.outs) == 0 || len(c.assignments[0]) == 0 { // wire 0 is always an input wire
 		return nil
 	}
 
@@ -194,7 +195,6 @@ func (c *Circuit) verify(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("failed to create circuit data for snark: %w", err)
 	}
-	logNbInstances := log2(uint(c.assignments.NbInstances()))
 
 	hintIns := make([]frontend.Variable, len(initialChallenges)+1) // hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve"
 	firstOutputAssignment := c.assignments[c.outs[0]]
@@ -203,7 +203,7 @@ func (c *Circuit) verify(api frontend.API) error {
 	copy(hintIns[1:], initialChallenges)
 
 	if proofSerialized, err = api.Compiler().NewHint(
-		c.hints.Prove, gadget.ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
+		c.hints.Prove, gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(nbPaddedInstances))), hintIns...); err != nil {
 		return err
 	}
 	c.toStore.ProveHintID = solver.GetHintID(c.hints.Prove)
@@ -253,7 +253,7 @@ func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment g
 
 func init() {
 	// TODO Move this to the hash package if the import cycle issue is fixed.
-	hash.Register("mimc", func(api frontend.API) (hash.FieldHasher, error) {
+	hash.Register("MIMC", func(api frontend.API) (hash.FieldHasher, error) {
 		h, err := mimc.NewMiMC(api)
 		return &h, err
 	})

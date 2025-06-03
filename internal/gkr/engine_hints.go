@@ -49,7 +49,7 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 	instanceI := len(h.assignment[0])
 	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 > 0xffffffff {
 		return errors.New("first input must be a uint32 instance index")
-	} else if in0 != uint64(instanceI) || h.info.NbInstances-1 != instanceI {
+	} else if in0 != uint64(instanceI) || h.info.NbInstances != instanceI {
 		return errors.New("first input must equal the number of instances, and calls to Solve must be done in order of instance index")
 	}
 

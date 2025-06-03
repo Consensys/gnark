@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -43,6 +44,8 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 		opt(&s)
 	}
 
+	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(info.NbInstances)))
+
 	d := SolvingData{
 		circuit:    info.Circuit,
 		assignment: make(WireAssignment, len(info.Circuit)),
@@ -50,9 +53,8 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 
 	d.maxNbIn = d.circuit.MaxGateNbIn()
 
-	d.assignment = make(WireAssignment, len(d.circuit))
 	for i := range d.assignment {
-		d.assignment[i] = make([]fr.Element, info.NbInstances)
+		d.assignment[i] = make([]fr.Element, nbPaddedInstances)
 	}
 
 	if s.assignment != nil {
@@ -67,6 +69,9 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 				if _, err := d.assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
 					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
 				}
+			}
+			for j := len(s.assignment[i]); j < nbPaddedInstances; j++ {
+				d.assignment[i][j] = d.assignment[i][j-1] // pad with the last value
 			}
 		}
 	}

@@ -228,6 +228,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 	resCircuit := make(Circuit, len(info))
 	for i := range info {
 		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
+			resCircuit[i].Gate = Identity() // input wire
 			continue
 		}
 		resCircuit[i].Inputs = info[i].Inputs
