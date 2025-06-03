@@ -38,7 +38,7 @@ func pow4Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 // pow4TimesGate computes a, b -> a⁴ * b
 func pow4TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
-		panic("expected 1 input")
+		panic("expected 2 input")
 	}
 	y := api.Mul(x[0], x[0])
 	y = api.Mul(y, y)

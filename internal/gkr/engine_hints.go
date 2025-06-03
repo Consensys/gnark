@@ -147,6 +147,7 @@ func (g gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 func (g gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	x, y := utils.FromInterface(b), utils.FromInterface(c)
 	x.Mul(&x, &y)
+	x.Mod(&x, g.Int) // reduce
 	y = utils.FromInterface(a)
 	x.Add(&x, &y)
 	return &x
@@ -177,6 +178,7 @@ func (g gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 		y = utils.FromInterface(v)
 		x.Mul(&x, &y)
 	}
+	x.Mod(&x, g.Int) // reduce
 	return &x
 }
 
