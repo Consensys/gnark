@@ -37,7 +37,7 @@ func TestGkrCompression(t *testing.T) {
 		Outs: outs,
 	}
 
-	RegisterGkrSolverOptions(ecc.BLS12_377)
+	RegisterGkrGates(ecc.BLS12_377)
 
 	test.NewAssert(t).CheckCircuit(&testGkrPermutationCircuit{Ins: make([][2]frontend.Variable, len(ins)), Outs: make([]frontend.Variable, len(outs))}, test.WithValidAssignment(&circuit), test.WithCurves(ecc.BLS12_377))
 }
@@ -49,7 +49,7 @@ type testGkrPermutationCircuit struct {
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 
-	pos2 := NewGkrCompressions(api)
+	pos2 := NewGkrCompressor(api)
 	api.AssertIsEqual(len(c.Ins), len(c.Outs))
 	for i := range c.Ins {
 		api.AssertIsEqual(c.Outs[i], pos2.Compress(c.Ins[i][0], c.Ins[i][1]))
