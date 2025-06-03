@@ -59,12 +59,3 @@ func (d *StoringInfo) Is() bool {
 type ConstraintSystem interface {
 	SetGkrInfo(info StoringInfo) error
 }
-
-// NewPrintInfoMap partitions printInfo into map elements, indexed by instance
-func NewPrintInfoMap(printInfo []PrintInfo) map[uint32][]PrintInfo {
-	res := make(map[uint32][]PrintInfo)
-	for i := range printInfo {
-		res[printInfo[i].Instance] = append(res[printInfo[i].Instance], printInfo[i])
-	}
-	return res
-}
