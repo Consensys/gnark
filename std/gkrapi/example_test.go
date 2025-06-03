@@ -10,8 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
+	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
 	"github.com/consensys/gnark/test"
 )
 
@@ -123,12 +122,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 
 	// have to duplicate X for it to be considered an output variable
 	X = gkrApi.NamedGate(gkr.Identity, X)
-
-	// register the hash function used for verification (fiat shamir)
-	stdHash.RegisterCustomHash(c.fsHashName, func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})
 
 	// solve and prove the circuit
 	solution, err := gkrApi.Solve(api)
