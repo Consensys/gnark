@@ -21,9 +21,10 @@ import (
 )
 
 type SolvingData struct {
-	assignment WireAssignment
-	circuit    gkrtypes.Circuit
-	maxNbIn    int // maximum number of inputs for a gate in the circuit
+	assignment  WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
+	circuit     gkrtypes.Circuit
+	maxNbIn     int // maximum number of inputs for a gate in the circuit
+	nbInstances int
 }
 
 type newSolvingDataSettings struct {
@@ -45,8 +46,9 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 	}
 
 	d := SolvingData{
-		circuit:    info.Circuit,
-		assignment: make(WireAssignment, len(info.Circuit)),
+		circuit:     info.Circuit,
+		assignment:  make(WireAssignment, len(info.Circuit)),
+		nbInstances: info.NbInstances,
 	}
 
 	d.maxNbIn = d.circuit.MaxGateNbIn()
@@ -69,6 +71,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
 				}
 			}
+			// inline equivalent of RepeatUntilEnd
 			for j := len(s.assignment[i]); j < nbPaddedInstances; j++ {
 				d.assignment[i][j] = d.assignment[i][j-1] // pad with the last value
 			}
@@ -134,7 +137,13 @@ func SolveHint(data *SolvingData) hint.Hint {
 func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
+
+		data.assignment.RepeatUntilEnd(data.nbInstances)
+
+		// The first input is dummy, just to ensure the solver's work is done before the prover is called.
+		// The rest constitute the initial fiat shamir challenge
+		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte {
+
 			b := make([]byte, fr.Bytes)
 			i.FillBytes(b)
 			return b[:]
@@ -149,5 +158,15 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 		return proof.SerializeToBigInts(outs)
 
+	}
+}
+
+// RepeatUntilEnd for each wire, sets all the values starting from n to its predecessor.
+// e.g. {{1, 2, 3}, {4, 5, 6}}.RepeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}
+func (a WireAssignment) RepeatUntilEnd(n int) {
+	for i := range a {
+		for j := n; j < len(a[i]); j++ {
+			a[i][j] = a[i][j-1]
+		}
 	}
 }
