@@ -1589,6 +1589,6 @@ func testLookup2AndMuxOnAllLimbs[T FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 	var fp T
 	a, _ := rand.Int(rand.Reader, fp.Modulus())
-	circuit := &TestLookup2AndMuxOnAllLimbsCircuit[T]{A: ValueOf[T](a)}
-	assert.CheckCircuit(circuit, test.WithValidAssignment(circuit))
+	assignment := &TestLookup2AndMuxOnAllLimbsCircuit[T]{A: ValueOf[T](a)}
+	assert.CheckCircuit(&TestLookup2AndMuxOnAllLimbsCircuit[T]{}, test.WithValidAssignment(assignment))
 }
