@@ -131,7 +131,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...registerOption) (register
 				return false, err
 			}
 			if !gateVer.equal(f, g.Evaluate, nbIn) {
-				return false, fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, s.degree, curve)
+				return false, fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree(), curve)
 			}
 		}
 
