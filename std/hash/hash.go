@@ -5,9 +5,6 @@
 package hash
 
 import (
-	"fmt"
-	"sync"
-
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -40,27 +37,6 @@ type StateStorer interface {
 	// returns an error if the number of supplied Variable does not match the
 	// number of Variable expected.
 	SetState(state []frontend.Variable) error
-}
-
-var (
-	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
-	lock            sync.RWMutex
-)
-
-func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
-	lock.Lock()
-	defer lock.Unlock()
-	builderRegistry[name] = builder
-}
-
-func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
-	lock.RLock()
-	defer lock.RUnlock()
-	builder, ok := builderRegistry[name]
-	if !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not registered", name)
-	}
-	return builder(api)
 }
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and

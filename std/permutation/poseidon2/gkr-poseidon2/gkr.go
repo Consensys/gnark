@@ -6,19 +6,18 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-
-	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/std/hash"
+	_ "github.com/consensys/gnark/std/hash/mimc" // to ensure mimc is registered
 
 	"github.com/consensys/gnark-crypto/ecc"
 	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
-	"github.com/consensys/gnark/frontend"
-	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -251,12 +250,6 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 		panic("unexpected API")
 	}
 
-	// register MiMC to be used as a random oracle in the GKR proof
-	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})
-
 	// register gates
 	registerGkrSolverOptions(api)
 
@@ -296,7 +289,7 @@ func (p *GkrCompressions) finalize(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	return solution.Verify("MIMC", challenge)
+	return solution.Verify(hash.MIMC.String(), challenge)
 }
 
 // registerGkrSolverOptions is a wrapper for RegisterGkrSolverOptions
