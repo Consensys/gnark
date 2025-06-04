@@ -169,3 +169,37 @@ func TestVariableExp(t *testing.T) {
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
 }
+
+type variableInverse[T FieldParams] struct {
+	Modulus  Element[T]
+	A        Element[T]
+	Expected Element[T]
+}
+
+func (c *variableInverse[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	res := f.ModInverse(&c.A, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	return nil
+}
+
+func TestVariableInverse(t *testing.T) {
+	assert := test.NewAssert(t)
+	modulus, _ := new(big.Int).SetString("4294967311", 10)
+	a, _ := rand.Int(rand.Reader, modulus)
+	expected := new(big.Int).ModInverse(a, modulus)
+	if expected == nil {
+		t.Skip("no modular inverse")
+	}
+	circuit := &variableInverse[emparams.Mod1e512]{}
+	assignment := &variableInverse[emparams.Mod1e512]{
+		Modulus:  ValueOf[emparams.Mod1e512](modulus),
+		A:        ValueOf[emparams.Mod1e512](a),
+		Expected: ValueOf[emparams.Mod1e512](expected),
+	}
+	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+}
