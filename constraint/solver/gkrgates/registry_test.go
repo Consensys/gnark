@@ -67,7 +67,7 @@ func TestRegister(t *testing.T) {
 
 	t.Run("zero", func(t *testing.T) {
 		const gateName gkr.GateName = "zero-register-gate-test"
-		expectedError := fmt.Errorf("for gate \"%s\": %v", gateName, gkrtypes.ErrZeroFunction)
+		expectedError := fmt.Errorf("for gate \"%s\": %v", gateName, gkrtypes.ErrZeroFunction).Error()
 		zeroGate := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 			return api.Sub(x[0], x[0])
 		}
@@ -75,13 +75,13 @@ func TestRegister(t *testing.T) {
 		// Attempt to register the zero gate without specifying a degree
 		registered, err := Register(zeroGate, 1, WithName(gateName))
 		assert.Error(t, err, "error must be returned for zero polynomial")
-		assert.Equal(t, expectedError, err, "error message must match expected error")
+		assert.EqualError(t, err, expectedError, "error message must match expected error")
 		assert.False(t, registered, "registration must fail for zero polynomial")
 
 		// Attempt to register the zero gate with a specified degree
 		registered, err = Register(zeroGate, 1, WithName(gateName), WithDegree(2))
 		assert.Error(t, err, "error must be returned for zero polynomial with degree")
-		assert.Equal(t, expectedError, err, "error message must match expected error")
+		assert.EqualError(t, err, expectedError, "error message must match expected error")
 		assert.False(t, registered, "registration must fail for zero polynomial with degree")
 	})
 }
