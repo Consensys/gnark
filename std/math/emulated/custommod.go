@@ -15,7 +15,7 @@ import (
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// fast path when either of the inputs is zero then result is always zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	res := f.mulMod(a, b, 0, modulus)
@@ -97,8 +97,8 @@ func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 //
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
-	// fasth path when the base is zero then result is always zero
-	if len(base.Limbs) == 0 {
+	if base.isStrictZero() {
+		// fast path when the base is zero then result is always zero
 		return f.Zero()
 	}
 	expBts := f.ToBits(exp)
