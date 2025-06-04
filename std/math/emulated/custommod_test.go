@@ -192,7 +192,7 @@ func TestVariableInverse(t *testing.T) {
 	a, _ := rand.Int(rand.Reader, modulus)
 	expected := new(big.Int).ModInverse(a, modulus)
 	if expected == nil {
-		t.Skip("no modular inverse")
+		t.Fatal("modular inverse should exists. Check modulus")
 	}
 	circuit := &variableInverse[emparams.Mod1e512]{}
 	assignment := &variableInverse[emparams.Mod1e512]{
@@ -202,4 +202,15 @@ func TestVariableInverse(t *testing.T) {
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
+
+	modulus2 := new(big.Int).Add(modulus, big.NewInt(1))
+	base2 := big.NewInt(16)
+	expected2 := big.NewInt(0) // no modular inverse
+	assignment2 := &variableInverse[emparams.Mod1e512]{
+		Modulus:  ValueOf[emparams.Mod1e512](modulus2),
+		A:        ValueOf[emparams.Mod1e512](base2),
+		Expected: ValueOf[emparams.Mod1e512](expected2),
+	}
+	err = test.IsSolved(circuit, assignment2, ecc.BLS12_377.ScalarField())
+	assert.Error(err)
 }
