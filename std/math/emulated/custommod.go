@@ -124,7 +124,7 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModInverse(a, modulus *Element[T]) *Element[T] {
 	// fast path when a is zero then result is always zero
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return f.Zero()
 	}
 	k, err := f.computeInverseHint(a.Limbs, modulus)
