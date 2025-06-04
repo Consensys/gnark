@@ -275,7 +275,7 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	bNormLimbs := normalize(b.Limbs)
 	cNormLimbs := normalize(c.Limbs)
 	dNormLimbs := normalize(d.Limbs)
-	for i := range a.Limbs {
+	for i := range nbLimbs {
 		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
 	}
 	return e
