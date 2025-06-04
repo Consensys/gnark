@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -642,4 +643,20 @@ func TestPow4Circuit_GetValue(t *testing.T) {
 	}
 
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
+}
+
+func TestWitnessExtend(t *testing.T) {
+	circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, 3), hashName: "-1"}
+	assignment := doubleNoDependencyCircuit{X: []frontend.Variable{0, 0, 1}}
+
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	require.NoError(t, err)
+
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	require.NoError(t, err)
+
+	_, err = cs.Solve(witness)
+	require.NoError(t, err)
+
+	//test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
