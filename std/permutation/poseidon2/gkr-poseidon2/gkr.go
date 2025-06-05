@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -159,9 +159,9 @@ func defineCircuitBls12377() (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, er
 	}
 
 	// poseidon2 parameters
-	gateNamer := newRoundGateNamer(poseidon2Bls12377.GetDefaultParameters())
-	rF := poseidon2Bls12377.GetDefaultParameters().NbFullRounds
-	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
+	gateNamer := newRoundGateNamer(bls12377.GetDefaultParameters())
+	rF := bls12377.GetDefaultParameters().NbFullRounds
+	rP := bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
 	gkrApi = gkrapi.New()
@@ -243,9 +243,9 @@ func defineCircuitBls12377() (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, er
 	return
 }
 
-var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
-	params := poseidon2Bls12377.GetDefaultParameters()
-	return poseidon2Bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
+var bls12377Permutation = sync.OnceValue(func() *bls12377.Permutation {
+	params := bls12377.GetDefaultParameters()
+	return bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
 })
 
 // RegisterGkrGates registers the GKR gates corresponding to the given curves for the solver
@@ -271,7 +271,7 @@ func registerGatesBls12377() error {
 		y
 	)
 
-	p := poseidon2Bls12377.GetDefaultParameters()
+	p := bls12377.GetDefaultParameters()
 	halfRf := p.NbFullRounds / 2
 	gateNames := newRoundGateNamer(p)
 
