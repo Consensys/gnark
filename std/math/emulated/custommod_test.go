@@ -169,3 +169,48 @@ func TestVariableExp(t *testing.T) {
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
 }
+
+type variableInverse[T FieldParams] struct {
+	Modulus  Element[T]
+	A        Element[T]
+	Expected Element[T]
+}
+
+func (c *variableInverse[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	res := f.ModInverse(&c.A, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	return nil
+}
+
+func TestVariableInverse(t *testing.T) {
+	assert := test.NewAssert(t)
+	modulus, _ := new(big.Int).SetString("4294967311", 10)
+	a, _ := rand.Int(rand.Reader, modulus)
+	expected := new(big.Int).ModInverse(a, modulus)
+	if expected == nil {
+		t.Fatal("modular inverse should exists. Check modulus")
+	}
+	circuit := &variableInverse[emparams.Mod1e512]{}
+	assignment := &variableInverse[emparams.Mod1e512]{
+		Modulus:  ValueOf[emparams.Mod1e512](modulus),
+		A:        ValueOf[emparams.Mod1e512](a),
+		Expected: ValueOf[emparams.Mod1e512](expected),
+	}
+	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+
+	modulus2 := new(big.Int).Add(modulus, big.NewInt(1))
+	base2 := big.NewInt(16)
+	expected2 := big.NewInt(0) // no modular inverse
+	assignment2 := &variableInverse[emparams.Mod1e512]{
+		Modulus:  ValueOf[emparams.Mod1e512](modulus2),
+		A:        ValueOf[emparams.Mod1e512](base2),
+		Expected: ValueOf[emparams.Mod1e512](expected2),
+	}
+	err = test.IsSolved(circuit, assignment2, ecc.BLS12_377.ScalarField())
+	assert.Error(err)
+}
