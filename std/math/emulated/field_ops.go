@@ -275,7 +275,7 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	bNormLimbs := normalize(b.Limbs)
 	cNormLimbs := normalize(c.Limbs)
 	dNormLimbs := normalize(d.Limbs)
-	for i := range a.Limbs {
+	for i := range nbLimbs {
 		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
 	}
 	return e
@@ -324,7 +324,7 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 		}
 	}
 	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
-	for i := range inputs[0].Limbs {
+	for i := range nbLimbs {
 		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
 	}
 	return e

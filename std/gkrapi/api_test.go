@@ -20,7 +20,6 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -343,13 +342,6 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func init() {
-	stdHash.Register("MIMC", func(api frontend.API) (stdHash.FieldHasher, error) {
-		m, err := mimc.NewMiMC(api)
-		return &m, err
-	})
-}
-
 func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
 	mimcSnarkTotalCalls++
 
@@ -584,7 +576,7 @@ func init() {
 	// register custom (constant) "hash" functions
 	for _, v := range []int64{-1, -20} {
 		name := strconv.Itoa(int(v))
-		stdHash.Register(name, func(api frontend.API) (stdHash.FieldHasher, error) {
+		stdHash.RegisterCustomHash(name, func(api frontend.API) (stdHash.FieldHasher, error) {
 			return constPseudoHash(v), nil
 		})
 		for _, curve := range gnark.Curves() {

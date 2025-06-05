@@ -15,7 +15,6 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 type circuitDataForSnark struct {
@@ -249,14 +248,6 @@ func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment g
 		circuit:     circuit,
 		assignments: assignment,
 	}, nil
-}
-
-func init() {
-	// TODO Move this to the hash package if the import cycle issue is fixed.
-	hash.Register("MIMC", func(api frontend.API) (hash.FieldHasher, error) {
-		h, err := mimc.NewMiMC(api)
-		return &h, err
-	})
 }
 
 // GetValue is a debugging utility returning the value of variable v at instance i.
