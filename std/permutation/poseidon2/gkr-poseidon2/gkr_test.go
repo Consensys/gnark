@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	_ "github.com/consensys/gnark/std/hash/all"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
