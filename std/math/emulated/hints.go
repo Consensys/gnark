@@ -170,7 +170,7 @@ func HalfGCDHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return fmt.Errorf("expecting three outputs")
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
+		ecc.PrecomputeLattice(new(big.Int).Sub(inputs[1], new(big.Int).SetUint64(1)), inputs[0], glvBasis)
 		outputs[0].Set(&glvBasis.V1[0])
 		outputs[1].Set(&glvBasis.V1[1])
 		outputs[2].Mul(inputs[0], outputs[1]).
@@ -201,7 +201,7 @@ func HalfGCDSignsHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error
 			return fmt.Errorf("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
+		ecc.PrecomputeLattice(new(big.Int).Sub(inputs[1], new(big.Int).SetUint64(1)), inputs[0], glvBasis)
 		var k big.Int
 		k.Mul(inputs[0], &glvBasis.V1[1]).
 			Add(&k, &glvBasis.V1[0]).

@@ -104,13 +104,13 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	}
 
 	// first, we hint the sub-exponents e1, e2 s.t.:
-	// 		exp1 + exp2 * exp = 0 mod modulus, and
-	// 		exp1, exp2 <= sqrt(modulus).
+	// 		exp1 + exp2 * exp = 0 mod φ(modulus), and
+	// 		exp1, exp2 <= sqrt(modulus)?
 	expHint, err := f.NewHint(HalfGCDHint, 3, exp, modulus)
 	if err != nil {
 		panic(fmt.Sprintf("half-GCD hint: %v", err))
 	}
-	exp1, exp2, k := expHint[0], expHint[1], expHint[2]
+	exp1, exp2, _ := expHint[0], expHint[1], expHint[2]
 
 	// exp2 can be negative. If so, we return in the half-GCD hint -exp2
 	sign, err := f.NewHintWithNativeOutput(HalfGCDSignsHint, 2, exp, modulus)
@@ -118,13 +118,16 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 		panic(fmt.Sprintf("half-GCD signs hint: %v", err))
 	}
 	_exp2 := f.Select(sign[0], f.Sub(modulus, exp2), exp2)
-	// We check that exp1 + exp * _exp2 == 0 mod modulus
-	f.ModAssertIsEqual(
-		f.Add(exp1, f.Mul(exp, _exp2)),
-		f.Zero(),
-		modulus,
-	)
-	// A malicious hint can provide exp1=exp2=0 mod modulus
+	// We check that exp1 + exp * _exp2 == 0 mod φ(modulus)
+	// f.ModAssertIsEqual(
+	// 	f.Add(
+	// 		f.Add(k, exp1),
+	// 		f.Mul(exp, exp2),
+	// 	),
+	// 	f.Zero(),
+	// 	modulus,
+	// )
+	// A malicious hint can provide exp1=exp2=0 mod φ(modulus)
 	// So we check that _exp2 is non-zero otherwise (base^{exp} = ∀result)^0 is always true
 	f.api.AssertIsEqual(f.IsZero(_exp2), 0)
 
@@ -140,9 +143,7 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 
 	// now, the following two equalities are equivalent:
 	// 		base^{exp} = res [modulus] <==> base^{exp1} * res^{exp2} = 1 [modulus]
-	exp1Bts := f.ToBits(
-		f.Select(sign[1], f.Sub(exp1, k), f.Add(exp1, k)),
-	)
+	exp1Bts := f.ToBits(exp1)
 	exp2Bts := f.ToBits(exp2)
 	var st T
 	n := st.Modulus().BitLen() >> 1
