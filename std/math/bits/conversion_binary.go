@@ -26,6 +26,32 @@ func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 			panic(err)
 		}
 	}
+	// check if the inputs are all constant. In this case, recompose without adding any constraints.
+	allConst := true
+	constDigits := make([]*big.Int, len(digits))
+	for i := range digits {
+		if constV, ok := api.Compiler().ConstantValue(digits[i]); !ok {
+			// there is at least one digit which is not a constant. Break out to the general case.
+			allConst = false
+			break
+		} else {
+			constDigits[len(digits)-i-1] = constV
+		}
+	}
+	if allConst {
+		res := new(big.Int)
+		for _, d := range constDigits {
+			// check that the inputs are binary digits. 1 has 1 bit and 0 has 0 bits.
+			if d.BitLen() > 1 {
+				panic(fmt.Sprintf("constant input to FromBinary has more than 1 bit. Has %d bits", d.BitLen()))
+			}
+			res.Lsh(res, 1)
+			res.Add(res, d)
+		}
+		res.Mod(res, api.Compiler().Field()) // ensure the result is mod reduced
+		return res
+	}
+	// if we are here, then we have at least one unconstrained input or the inputs are not constant.
 
 	// Σbi = Σ (2**i * b[i])
 	Σbi := frontend.Variable(0)
