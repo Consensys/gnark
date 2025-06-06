@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
@@ -26,6 +27,9 @@ func GetHints() []solver.Hint {
 		mulHint,
 		subPaddingHint,
 		polyMvHint,
+		HalfGCDHint,
+		HalfGCDSignsHint,
+		ExpHint,
 	}
 }
 
@@ -152,6 +156,81 @@ func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return errors.New("no square root")
 		}
 		outputs[0].Set(res)
+		return nil
+	})
+}
+
+// HalfGCDHint...
+func HalfGCDHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 3 {
+			return fmt.Errorf("expecting three outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(new(big.Int).Sub(inputs[1], new(big.Int).SetUint64(1)), inputs[0], glvBasis)
+		outputs[0].Set(&glvBasis.V1[0])
+		outputs[1].Set(&glvBasis.V1[1])
+		outputs[2].Mul(inputs[0], outputs[1]).
+			Add(outputs[2], outputs[0]).
+			Div(outputs[2], inputs[1]).
+			Neg(outputs[2])
+
+		// we need the absolute values for the in-circuit computations,
+		// otherwise the negative values will be reduced modulo the SNARK scalar
+		// field and not the emulated field.
+		if outputs[1].Sign() == -1 {
+			outputs[1].Neg(outputs[1])
+		}
+		if outputs[2].Sign() == -1 {
+			outputs[2].Neg(outputs[2])
+		}
+
+		return nil
+	})
+}
+
+func HalfGCDSignsHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(new(big.Int).Sub(inputs[1], new(big.Int).SetUint64(1)), inputs[0], glvBasis)
+		var k big.Int
+		k.Mul(inputs[0], &glvBasis.V1[1]).
+			Add(&k, &glvBasis.V1[0]).
+			Div(&k, inputs[1]).
+			Neg(&k)
+
+		outputs[0].SetUint64(0)
+		outputs[1].SetUint64(0)
+		if glvBasis.V1[1].Sign() == -1 {
+			outputs[0].SetUint64(1)
+		}
+		if k.Sign() == -1 {
+			outputs[1].SetUint64(1)
+		}
+
+		return nil
+	})
+}
+
+func ExpHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHint(inputs, outputs, func(nonNativeField *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 3 {
+			return errors.New("expecting three inputs")
+		}
+		if len(outputs) != 2 {
+			return errors.New("expecting two outputs")
+		}
+		outputs[0] = new(big.Int).Exp(inputs[0], inputs[1], inputs[2])
+		outputs[1] = new(big.Int).ModInverse(outputs[0], inputs[2])
 		return nil
 	})
 }

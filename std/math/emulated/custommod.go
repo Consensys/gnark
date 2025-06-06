@@ -2,6 +2,7 @@ package emulated
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -101,14 +102,60 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	if len(base.Limbs) == 0 {
 		return f.Zero()
 	}
-	expBts := f.ToBits(exp)
-	n := len(expBts)
-	res := f.Select(expBts[0], base, f.One())
-	base = f.ModMul(base, base, modulus)
-	for i := 1; i < n-1; i++ {
-		res = f.Select(expBts[i], f.ModMul(base, res, modulus), res)
-		base = f.ModMul(base, base, modulus)
+
+	// first, we hint the sub-exponents e1, e2 s.t.:
+	// 		exp1 + exp2 * exp = 0 mod φ(modulus), and
+	// 		exp1, exp2 <= sqrt(modulus)?
+	expHint, err := f.NewHint(HalfGCDHint, 3, exp, modulus)
+	if err != nil {
+		panic(fmt.Sprintf("half-GCD hint: %v", err))
 	}
-	res = f.Select(expBts[n-1], f.ModMul(base, res, modulus), res)
-	return res
+	exp1, exp2, _ := expHint[0], expHint[1], expHint[2]
+
+	// exp2 can be negative. If so, we return in the half-GCD hint -exp2
+	sign, err := f.NewHintWithNativeOutput(HalfGCDSignsHint, 2, exp, modulus)
+	if err != nil {
+		panic(fmt.Sprintf("half-GCD signs hint: %v", err))
+	}
+	_exp2 := f.Select(sign[0], f.Sub(modulus, exp2), exp2)
+	// We check that exp1 + exp * _exp2 == 0 mod φ(modulus)
+	// f.ModAssertIsEqual(
+	// 	f.Add(
+	// 		f.Add(k, exp1),
+	// 		f.Mul(exp, exp2),
+	// 	),
+	// 	f.Zero(),
+	// 	modulus,
+	// )
+	// A malicious hint can provide exp1=exp2=0 mod φ(modulus)
+	// So we check that _exp2 is non-zero otherwise (base^{exp} = ∀result)^0 is always true
+	f.api.AssertIsEqual(f.IsZero(_exp2), 0)
+
+	// next, we hint the result of the exponentiation:
+	// 		result = base^{exp} mod modulus
+	resHint, err := f.NewHint(ExpHint, 2, base, exp, modulus)
+	if err != nil {
+		panic(fmt.Sprintf("exponentiation hint: %v", err))
+	}
+	f.AssertIsEqual(f.ModMul(resHint[0], resHint[1], modulus), f.One())
+	result := f.Select(sign[0], resHint[1], resHint[0])
+	product := f.ModMul(base, result, modulus)
+
+	// now, the following two equalities are equivalent:
+	// 		base^{exp} = res [modulus] <==> base^{exp1} * res^{exp2} = 1 [modulus]
+	exp1Bts := f.ToBits(exp1)
+	exp2Bts := f.ToBits(exp2)
+	var st T
+	n := st.Modulus().BitLen() >> 1
+
+	accumulator := f.Lookup2(exp1Bts[n-1], exp2Bts[n-1], f.One(), base, result, product)
+	for i := n - 2; i >= 0; i-- {
+		accumulator = f.ModMul(accumulator, accumulator, modulus)
+		temp := f.Lookup2(exp1Bts[i], exp2Bts[i], f.One(), base, result, product)
+		accumulator = f.ModMul(accumulator, temp, modulus)
+	}
+
+	f.ModAssertIsEqual(accumulator, f.One(), modulus)
+
+	return resHint[0]
 }
