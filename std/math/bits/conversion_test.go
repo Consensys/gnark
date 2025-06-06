@@ -1,6 +1,9 @@
 package bits_test
 
 import (
+	"crypto/rand"
+	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
@@ -63,4 +66,42 @@ func (c *toTernaryCircuit) Define(api frontend.API) error {
 func TestToTernary(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&toTernaryCircuit{}, test.WithValidAssignment(&toTernaryCircuit{A: 5, T0: 2, T1: 1, T2: 0}))
+}
+
+type toBinaryCircuitConstantInput struct {
+	A         frontend.Variable
+	constantA *big.Int
+	nbBits    int
+}
+
+func (c *toBinaryCircuitConstantInput) Define(api frontend.API) error {
+	opts := []bits.BaseConversionOption{}
+	if c.nbBits > 0 {
+		opts = append(opts, bits.WithNbDigits(c.nbBits))
+	}
+	decomposedA := bits.ToBinary(api, c.A, opts...)
+	constantA := new(big.Int).Set(c.constantA)
+	if _, ok := api.Compiler().ConstantValue(constantA); !ok {
+		// we work inside a test engine. It doesn't differentiate between a constant and a variable. We manually reduce for now.
+		constantA.Mod(constantA, api.Compiler().Field())
+	}
+	decomposedAConstant := bits.ToBinary(api, constantA, opts...)
+	if len(decomposedA) != len(decomposedAConstant) {
+		return errors.New("decomposedA and decomposedAConstant must have the same length")
+	}
+	for i := 0; i < len(decomposedA); i++ {
+		api.AssertIsEqual(decomposedA[i], decomposedAConstant[i])
+	}
+
+	return nil
+}
+
+func TestToBinaryConstantInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	for _, v := range []int{0, 1, 2, 10, 100, 300} {
+		val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
+		assert.NoError(err)
+		assert.CheckCircuit(&toBinaryCircuitConstantInput{constantA: val, nbBits: v}, test.WithValidAssignment(&toBinaryCircuitConstantInput{A: val}))
+	}
 }
