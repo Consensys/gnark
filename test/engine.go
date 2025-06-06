@@ -568,11 +568,6 @@ func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...fronten
 	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
 }
 
-// IsConstant returns true if v is a constant known at compile time
-func (e *engine) IsConstant(v frontend.Variable) bool {
-	return e.constVars
-}
-
 // ConstantValue returns the big.Int value of v
 func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
@@ -656,7 +651,16 @@ func (e *engine) copyWitness(to, from frontend.Circuit) {
 
 	i := 0
 	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
-		tInput.Set(wValues[i])
+		wValueIntf := wValues[i].Interface()
+		val := utils.FromInterface(wValueIntf)
+		if val.Cmp(e.modulus()) >= 0 {
+			val.Mod(&val, e.modulus())
+		}
+		if val.Sign() < 0 {
+			val.Add(&val, e.modulus())
+		}
+		wValueReduced := reflect.ValueOf(val)
+		tInput.Set(wValueReduced)
 		i++
 		return nil
 	}

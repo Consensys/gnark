@@ -147,27 +147,26 @@ func (builder *builder[E]) AssertIsLessOrEqual(v frontend.Variable, bound fronte
 	cv, vConst := builder.constantValue(v)
 	cb, bConst := builder.constantValue(bound)
 
-	// both inputs are constants
-	if vConst && bConst {
+	switch {
+	case vConst && bConst: // both inputs are constants
 		bv, bb := builder.cs.ToBigInt(cv), builder.cs.ToBigInt(cb)
 		if bv.Cmp(bb) == 1 {
 			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", bv.String(), bb.String()))
 		}
-	}
-
-	// bound is constant
-	if bConst {
+		return
+	case bConst: // bound is constant
 		nbBits := builder.cs.FieldBitLen()
 		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
+	default:
+		if b, ok := bound.(expr.Term[E]); ok {
+			builder.mustBeLessOrEqVar(v, b)
+		} else {
+			panic(fmt.Sprintf("expected bound type expr.Term, got %T", bound))
+		}
 	}
 
-	if b, ok := bound.(expr.Term[E]); ok {
-		builder.mustBeLessOrEqVar(v, b)
-	} else {
-		panic(fmt.Sprintf("expected bound type expr.Term, got %T", bound))
-	}
 }
 
 func (builder *builder[E]) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term[E]) {
