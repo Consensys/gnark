@@ -651,7 +651,13 @@ func (e *engine) copyWitness(to, from frontend.Circuit) {
 
 	i := 0
 	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
-		tInput.Set(wValues[i])
+		wValueIntf := wValues[i].Interface()
+		val := utils.FromInterface(wValueIntf)
+		if val.Cmp(e.modulus()) >= 0 {
+			val.Mod(&val, e.modulus())
+		}
+		wValueReduced := reflect.ValueOf(val)
+		tInput.Set(wValueReduced)
 		i++
 		return nil
 	}
