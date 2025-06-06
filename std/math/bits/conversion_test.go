@@ -7,7 +7,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
 )
@@ -168,4 +170,42 @@ func TestFromBinaryConstantInput(t *testing.T) {
 			}
 		}, fmt.Sprintf("v=%d", v))
 	}
+}
+
+type testFromBinaryInvalidInput struct {
+	ConstantInputs []*big.Int
+	VariableInputs []frontend.Variable
+	Variable       frontend.Variable
+}
+
+func (c *testFromBinaryInvalidInput) Define(api frontend.API) error {
+	if len(c.ConstantInputs) != 0 {
+		inps := make([]frontend.Variable, len(c.ConstantInputs))
+		for i, inp := range c.ConstantInputs {
+			inps[i] = inp
+		}
+		// test when constant inputs are not binary
+		res := bits.FromBinary(api, inps)
+		api.AssertIsDifferent(res, 0)
+		// ensure we have at least two constraints to overcome PLONK prover bug with 1 constraint only
+		api.AssertIsEqual(c.Variable, c.Variable)
+		api.AssertIsEqual(c.Variable, c.Variable)
+	} else {
+		res := bits.FromBinary(api, c.VariableInputs)
+		api.AssertIsDifferent(res, 0)
+	}
+	return nil
+}
+
+func TestFromBinaryInvalidInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &testFromBinaryInvalidInput{
+		ConstantInputs: []*big.Int{big.NewInt(2), big.NewInt(1)},
+	})
+	assert.Error(err)
+	assert.CheckCircuit(&testFromBinaryInvalidInput{VariableInputs: make([]frontend.Variable, 2)}, test.WithInvalidAssignment(&testFromBinaryInvalidInput{
+		VariableInputs: []frontend.Variable{2, 1},
+		Variable:       big.NewInt(3),
+	}))
 }
