@@ -656,6 +656,9 @@ func (e *engine) copyWitness(to, from frontend.Circuit) {
 		if val.Cmp(e.modulus()) >= 0 {
 			val.Mod(&val, e.modulus())
 		}
+		if val.Sign() < 0 {
+			val.Add(&val, e.modulus())
+		}
 		wValueReduced := reflect.ValueOf(val)
 		tInput.Set(wValueReduced)
 		i++
