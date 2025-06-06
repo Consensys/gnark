@@ -138,7 +138,6 @@ func TestFromBinaryConstantInput(t *testing.T) {
 
 	for _, v := range []int{1, 2, 10, 100, 300} {
 		val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
-		fmt.Println(val)
 		assert.NoError(err)
 
 		bts := make([]*big.Int, v)
