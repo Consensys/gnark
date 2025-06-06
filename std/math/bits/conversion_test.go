@@ -3,6 +3,7 @@ package bits_test
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -100,8 +101,71 @@ func TestToBinaryConstantInput(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	for _, v := range []int{0, 1, 2, 10, 100, 300} {
+		assert.Run(func(assert *test.Assert) {
+			val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
+			assert.NoError(err)
+			assert.CheckCircuit(&toBinaryCircuitConstantInput{constantA: val, nbBits: v}, test.WithValidAssignment(&toBinaryCircuitConstantInput{A: val}))
+		}, fmt.Sprintf("v=%d", v))
+	}
+}
+
+type testFromBinaryCircuitConstantInput struct {
+	Inputs           []*big.Int
+	ThirdVariableBit frontend.Variable
+	allConstant      bool
+	Expected         frontend.Variable
+}
+
+func (c *testFromBinaryCircuitConstantInput) Define(api frontend.API) error {
+	inps := make([]frontend.Variable, len(c.Inputs))
+	for i, inp := range c.Inputs {
+		inps[i] = inp
+		// we also want to test the case where inside the constant inputs we have a variable
+		if i == 2 && !c.allConstant {
+			inps[i] = c.ThirdVariableBit
+		}
+	}
+	res := bits.FromBinary(api, inps)
+	api.AssertIsEqual(res, c.Expected)
+	api.AssertIsEqual(c.Expected, c.Expected) // dummy constraint to overcome prover bug with 1 constraint
+	return nil
+}
+
+func TestFromBinaryConstantInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	for _, v := range []int{1, 2, 10, 100, 300} {
 		val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
+		fmt.Println(val)
 		assert.NoError(err)
-		assert.CheckCircuit(&toBinaryCircuitConstantInput{constantA: val, nbBits: v}, test.WithValidAssignment(&toBinaryCircuitConstantInput{A: val}))
+
+		bts := make([]*big.Int, v)
+		for i := 0; i < v; i++ {
+			bts[i] = new(big.Int).SetUint64(uint64(val.Bit(i)))
+		}
+		assert.Run(func(assert *test.Assert) {
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(&testFromBinaryCircuitConstantInput{
+					Inputs:      bts,
+					allConstant: true,
+				},
+					test.WithValidAssignment(&testFromBinaryCircuitConstantInput{
+						ThirdVariableBit: 0,
+						Expected:         val,
+					}))
+			}, "allconstant=true")
+			if v > 2 {
+				assert.Run(func(assert *test.Assert) {
+					assert.CheckCircuit(&testFromBinaryCircuitConstantInput{
+						Inputs:      bts,
+						allConstant: false,
+					},
+						test.WithValidAssignment(&testFromBinaryCircuitConstantInput{
+							Expected:         val,
+							ThirdVariableBit: val.Bit(2),
+						}))
+				}, "allconstant=false")
+			}
+		}, fmt.Sprintf("v=%d", v))
 	}
 }
