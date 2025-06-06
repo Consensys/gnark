@@ -568,11 +568,6 @@ func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...fronten
 	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
 }
 
-// IsConstant returns true if v is a constant known at compile time
-func (e *engine) IsConstant(v frontend.Variable) bool {
-	return e.constVars
-}
-
 // ConstantValue returns the big.Int value of v
 func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
