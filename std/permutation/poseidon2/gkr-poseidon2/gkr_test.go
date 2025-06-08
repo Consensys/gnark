@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	poseidonbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	_ "github.com/consensys/gnark/std/hash/all"
@@ -19,6 +20,8 @@ func gkrPermutationsCircuits(t require.TestingT, n int) (circuit, assignment tes
 	var k int64
 	ins := make([][2]frontend.Variable, n)
 	outs := make([]frontend.Variable, n)
+	params := poseidonbls12377.GetDefaultParameters()
+	permutation := poseidonbls12377.NewPermutation(params.Width, params.NbFullRounds, params.NbPartialRounds)
 	for i := range n {
 		var x [2]fr.Element
 		ins[i] = [2]frontend.Variable{k, k + 1}
@@ -27,7 +30,7 @@ func gkrPermutationsCircuits(t require.TestingT, n int) (circuit, assignment tes
 		x[1].SetInt64(k + 1)
 		y0 := x[1]
 
-		require.NoError(t, bls12377Permutation().Permutation(x[:]))
+		require.NoError(t, permutation.Permutation(x[:]))
 		x[1].Add(&x[1], &y0)
 		outs[i] = x[1]
 
