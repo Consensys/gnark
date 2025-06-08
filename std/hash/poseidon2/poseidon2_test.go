@@ -1,11 +1,13 @@
-package poseidon2
+package poseidon2_test
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	poseidonbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/poseidon2"
+	gkr_poseidon2 "github.com/consensys/gnark/std/hash/poseidon2/gkr-poseidon2"
 	"github.com/consensys/gnark/test"
 )
 
@@ -15,12 +17,18 @@ type Poseidon2Circuit struct {
 }
 
 func (c *Poseidon2Circuit) Define(api frontend.API) error {
-	hsh, err := NewMerkleDamgardHasher(api)
+	hsh, err := poseidon2.NewPoseidon2(api)
+	if err != nil {
+		return err
+	}
+	gkr, err := gkr_poseidon2.NewGkrPoseidon2(api)
 	if err != nil {
 		return err
 	}
 	hsh.Write(c.Input...)
 	api.AssertIsEqual(hsh.Sum(), c.Expected)
+	gkr.Write(c.Input...)
+	api.AssertIsEqual(gkr.Sum(), c.Expected)
 	return nil
 }
 
@@ -29,7 +37,7 @@ func TestPoseidon2Hash(t *testing.T) {
 
 	const nbInputs = 5
 	// prepare expected output
-	h := poseidon2.NewMerkleDamgardHasher()
+	h := poseidonbls12377.NewMerkleDamgardHasher()
 	circInput := make([]frontend.Variable, nbInputs)
 	for i := range nbInputs {
 		_, err := h.Write([]byte{byte(i)})
