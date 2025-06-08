@@ -31,7 +31,7 @@ func gkrPermutationsCircuits(n int) (circuit, assignment testGkrPermutationCircu
 func TestGkrCompression(t *testing.T) {
 	circuit, assignment := gkrPermutationsCircuits(2)
 
-	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_377))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
 
 type testGkrPermutationCircuit struct {

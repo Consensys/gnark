@@ -47,6 +47,14 @@ func pow4TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Mul(y, x[1])
 }
 
+// pow3Gate computes a -> a³
+func pow3Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 1 {
+		panic("expected 1 input")
+	}
+	return api.Mul(x[0], x[0], x[0])
+}
+
 // pow2Gate computes a -> a²
 func pow2Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 1 {
@@ -120,9 +128,6 @@ type GkrPermutations struct {
 // The correctness of the compression functions is proven using GKR.
 // Note that the solver will need the function RegisterGates to be called with the desired curves
 func NewGkrPermutations(api frontend.API) (*GkrPermutations, error) {
-	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
-		return nil, errors.New("currently only BL12-377 is supported")
-	}
 	gkrCircuit, in1, in2, out, err := defineCircuit(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to define GKR circuit: %w", err)
@@ -182,10 +187,19 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	// in every round comes from the previous (canonical) round.
 
 	// apply the s-Box to u
-	// the s-Box gates: u¹⁷ = (u⁴)⁴ * u
 
 	var sBox func(gkr.Variable) gkr.Variable
 	switch p.DegreeSBox {
+	case 5:
+		sBox = func(u gkr.Variable) gkr.Variable {
+			v := gkrApi.Gate(pow2Gate, u)           // u²
+			return gkrApi.Gate(pow2TimesGate, v, u) // u⁵
+		}
+	case 7:
+		sBox = func(u gkr.Variable) gkr.Variable {
+			v := gkrApi.Gate(pow3Gate, u)           // u³
+			return gkrApi.Gate(pow2TimesGate, v, u) // u⁷
+		}
 	case 17:
 		sBox = func(u gkr.Variable) gkr.Variable {
 			v := gkrApi.Gate(pow4Gate, u)           // u⁴
@@ -282,12 +296,12 @@ func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
 	halfRf := p.NbFullRounds / 2
 
 	extKeySBox := func(round int, varIndex int) error {
-		_, err := gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(ecc.BLS12_377))
+		_, err := gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(curve))
 		return err
 	}
 
 	intKeySBox2 := func(round int) error {
-		_, err := gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(ecc.BLS12_377))
+		_, err := gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
 		return err
 	}
 
