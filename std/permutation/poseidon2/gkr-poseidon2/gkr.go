@@ -119,13 +119,13 @@ type GkrPermutations struct {
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proven using GKR.
 // Note that the solver will need the function RegisterGates to be called with the desired curves
-func NewGkrPermutations(api frontend.API) *GkrPermutations {
+func NewGkrPermutations(api frontend.API) (*GkrPermutations, error) {
 	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
-		panic("currently only BL12-377 is supported")
+		return nil, errors.New("currently only BL12-377 is supported")
 	}
 	gkrCircuit, in1, in2, out, err := defineCircuit(api)
 	if err != nil {
-		panic(fmt.Errorf("failed to define GKR circuit: %w", err))
+		return nil, fmt.Errorf("failed to define GKR circuit: %w", err)
 	}
 	return &GkrPermutations{
 		api:        api,
@@ -133,7 +133,7 @@ func NewGkrPermutations(api frontend.API) *GkrPermutations {
 		in1:        in1,
 		in2:        in2,
 		out:        out,
-	}
+	}, nil
 }
 
 func (p *GkrPermutations) Compress(a, b frontend.Variable) frontend.Variable {
