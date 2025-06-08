@@ -17,11 +17,11 @@ type Poseidon2Circuit struct {
 }
 
 func (c *Poseidon2Circuit) Define(api frontend.API) error {
-	hsh, err := poseidon2.NewPoseidon2(api)
+	hsh, err := poseidon2.New(api)
 	if err != nil {
 		return err
 	}
-	gkr, err := gkr_poseidon2.NewGkrPoseidon2(api)
+	gkr, err := gkr_poseidon2.New(api)
 	if err != nil {
 		return err
 	}
