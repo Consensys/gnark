@@ -108,17 +108,17 @@ func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Add(api.Mul(x[0], 2), x[1], x[2])
 }
 
-type GkrPermutations struct {
+type GkrCompressor struct {
 	api           frontend.API
 	gkrCircuit    *gkrapi.Circuit
 	in1, in2, out gkr.Variable
 }
 
-// NewGkrPermutations returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
+// NewGkrCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proven using GKR.
 // Note that the solver will need the function RegisterGkrGates to be called with the desired curves
-func NewGkrPermutations(api frontend.API) *GkrPermutations {
+func NewGkrCompressor(api frontend.API) *GkrCompressor {
 	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
 		panic("currently only BL12-377 is supported")
 	}
@@ -126,7 +126,7 @@ func NewGkrPermutations(api frontend.API) *GkrPermutations {
 	if err != nil {
 		panic(fmt.Errorf("failed to define GKR circuit: %v", err))
 	}
-	return &GkrPermutations{
+	return &GkrCompressor{
 		api:        api,
 		gkrCircuit: gkrApi.Compile(api, "MIMC"),
 		in1:        in1,
@@ -135,7 +135,7 @@ func NewGkrPermutations(api frontend.API) *GkrPermutations {
 	}
 }
 
-func (p *GkrPermutations) Compress(a, b frontend.Variable) frontend.Variable {
+func (p *GkrCompressor) Compress(a, b frontend.Variable) frontend.Variable {
 	outs, err := p.gkrCircuit.AddInstance(map[gkr.Variable]frontend.Variable{p.in1: a, p.in2: b})
 	if err != nil {
 		panic(err)
