@@ -76,12 +76,12 @@ func TestGkrPermutationCompiles(t *testing.T) {
 }
 
 func BenchmarkGkrPermutations(b *testing.B) {
-	circuit, assignmment := gkrPermutationsCircuits(b, 50000)
+	circuit, assignment := gkrPermutationsCircuits(b, 50000)
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	require.NoError(b, err)
 
-	witness, err := frontend.NewWitness(&assignmment, ecc.BLS12_377.ScalarField())
+	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	require.NoError(b, err)
 
 	// cpu profile
