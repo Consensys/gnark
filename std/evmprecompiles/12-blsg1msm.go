@@ -1,6 +1,8 @@
 package evmprecompiles
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -8,29 +10,26 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-// ECMSMG1BLS implements [BLS12_G1MSM] precompile contract at address 0x0c.
+// ECG1ScalarMulSumBLS computes the scalar multiplication of a point P by a scalar s, adds it to a previous point prev, and checks that the result is equal to expected.
+// It is used to implement the [BLS12_G1MSM] precompile contract at address 0x0c.
 //
 // [BLS12_G1MSM]: https://eips.ethereum.org/EIPS/eip-2537
-func ECMSMG1BLS(api frontend.API, P []*sw_emulated.AffinePoint[emulated.BLS12381Fp], s []*emulated.Element[emulated.BLS12381Fr]) *sw_emulated.AffinePoint[emulated.BLS12381Fp] {
+func ECG1ScalarMulSumBLS(api frontend.API, prev, P *sw_bls12381.G1Affine, s *emulated.Element[sw_bls12381.ScalarField], expected *sw_bls12381.G1Affine) error {
 	curve, err := sw_emulated.New[emulated.BLS12381Fp, emulated.BLS12381Fr](api, sw_emulated.GetBLS12381Params())
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new curve: %w", err)
 	}
 	g1, err := sw_bls12381.NewG1(api)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("new G1: %w", err)
 	}
-
-	// Check that Pᵢ are on G1
-	for _, p := range P {
-		g1.AssertIsOnG1(p)
-	}
-
-	// Compute the MSM
-	res, err := curve.MultiScalarMul(P, s, algopts.WithCompleteArithmetic())
-	if err != nil {
-		panic(err)
-	}
-
-	return res
+	// Check the point is in G1
+	g1.AssertIsOnG1(P)
+	// Compute the scalar multiplication
+	res := curve.ScalarMul(P, s, algopts.WithCompleteArithmetic())
+	// Compute the aggregate
+	sum := curve.AddUnified(prev, res)
+	// Assert that the sum is as expected
+	g1.AssertIsEqual(sum, expected)
+	return nil
 }
