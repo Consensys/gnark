@@ -10,8 +10,10 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-// ECG1ScalarMulSumBLS computes the scalar multiplication of a point P by a scalar s, adds it to a previous point prev, and checks that the result is equal to expected.
-// It is used to implement the [BLS12_G1MSM] precompile contract at address 0x0c.
+// ECG1ScalarMulSumBLS computes the scalar multiplication of a point P by a
+// scalar s, adds it to a previous point prev, and checks that the result is
+// equal to expected. It is used to implement the [BLS12_G1MSM] precompile
+// contract at address 0x0c.
 //
 // [BLS12_G1MSM]: https://eips.ethereum.org/EIPS/eip-2537
 func ECG1ScalarMulSumBLS(api frontend.API, prev, P *sw_bls12381.G1Affine, s *emulated.Element[sw_bls12381.ScalarField], expected *sw_bls12381.G1Affine) error {
