@@ -41,7 +41,7 @@ type testGkrPermutationCircuit struct {
 
 func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 
-	gkr, err := NewGkrCompressor(api)
+	gkr, err := NewCompressor(api)
 	if err != nil {
 		return err
 	}

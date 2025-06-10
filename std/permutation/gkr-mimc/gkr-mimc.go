@@ -14,6 +14,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -21,14 +22,14 @@ import (
 	_ "github.com/consensys/gnark/std/hash/all"
 )
 
-// mimcCompressor implements a compression function by applying
+// compressor implements a compression function by applying
 // the Miyaguchi–Preneel transformation to the MiMC encryption function.
-type mimcCompressor struct {
+type compressor struct {
 	gkrCircuit    *gkrapi.Circuit
 	in0, in1, out gkr.Variable
 }
 
-func (c *mimcCompressor) Compress(x frontend.Variable, y frontend.Variable) frontend.Variable {
+func (c *compressor) Compress(x frontend.Variable, y frontend.Variable) frontend.Variable {
 	res, err := c.gkrCircuit.AddInstance(map[gkr.Variable]frontend.Variable{c.in0: x, c.in1: y})
 	if err != nil {
 		panic(err)
@@ -37,6 +38,20 @@ func (c *mimcCompressor) Compress(x frontend.Variable, y frontend.Variable) fron
 }
 
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
+
+	store, ok := api.(kvstore.Store)
+	if !ok {
+		return nil, fmt.Errorf("api of type %T does not implement kvstore.Store", api)
+	}
+
+	cached := store.GetKeyValue(gkrMiMCKey{})
+	if cached != nil {
+		if compressor, ok := cached.(*compressor); ok {
+			return compressor, nil
+		}
+		return nil, fmt.Errorf("cached value is of type %T, not a compressor", cached)
+	}
+
 	gkrApi := gkrapi.New()
 
 	in0 := gkrApi.NewInput()
@@ -60,12 +75,16 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 
 	y = gkrApi.NamedGate(gateNamer.round(len(params)-1), in0, y, in1)
 
-	return &mimcCompressor{
-		gkrCircuit: gkrApi.Compile(api, "POSEIDON2"),
-		in0:        in0,
-		in1:        in1,
-		out:        y,
-	}, nil
+	res :=
+		&compressor{
+			gkrCircuit: gkrApi.Compile(api, "POSEIDON2"),
+			in0:        in0,
+			in1:        in1,
+			out:        y,
+		}
+
+	store.SetKeyValue(gkrMiMCKey{}, res)
+	return res, nil
 }
 
 func RegisterGates(curves ...ecc.ID) error {
@@ -212,3 +231,5 @@ func addPow17Add(key *big.Int) gkr.GateFunction {
 		return api.Add(api.Mul(t, s), in[0], in[0], in[2]) // s¹⁶ × s + 2*in[0] + in[2]
 	}
 }
+
+type gkrMiMCKey struct{}

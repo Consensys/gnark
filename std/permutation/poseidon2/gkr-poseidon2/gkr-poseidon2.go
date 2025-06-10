@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/permutation/poseidon2"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -117,31 +119,46 @@ func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Add(api.Mul(x[0], 2), x[1], x[2])
 }
 
-type GkrCompressor struct {
+type compressor struct {
 	api           frontend.API
 	gkrCircuit    *gkrapi.Circuit
 	in1, in2, out gkr.Variable
 }
 
-// NewGkrCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
+// NewCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proven using GKR.
 // Note that the solver will need the function RegisterGates to be called with the desired curves
-func NewGkrCompressor(api frontend.API) (*GkrCompressor, error) {
+func NewCompressor(api frontend.API) (hash.Compressor, error) {
+	store, ok := api.(kvstore.Store)
+	if !ok {
+		return nil, fmt.Errorf("api of type %T does not implement kvstore.Store", api)
+	}
+
+	cached := store.GetKeyValue(gkrPoseidon2Key{})
+	if cached != nil {
+		if compressor, ok := cached.(*compressor); ok {
+			return compressor, nil
+		}
+		return nil, fmt.Errorf("cached value is of type %T, not a mimcCompressor", cached)
+	}
+
 	gkrCircuit, in1, in2, out, err := defineCircuit(api)
 	if err != nil {
 		return nil, fmt.Errorf("failed to define GKR circuit: %w", err)
 	}
-	return &GkrCompressor{
+	res := &compressor{
 		api:        api,
 		gkrCircuit: gkrCircuit,
 		in1:        in1,
 		in2:        in2,
 		out:        out,
-	}, nil
+	}
+	store.SetKeyValue(gkrPoseidon2Key{}, res)
+	return res, nil
 }
 
-func (p *GkrCompressor) Compress(a, b frontend.Variable) frontend.Variable {
+func (p *compressor) Compress(a, b frontend.Variable) frontend.Variable {
 	outs, err := p.gkrCircuit.AddInstance(map[gkr.Variable]frontend.Variable{p.in1: a, p.in2: b})
 	if err != nil {
 		panic(err)
@@ -365,3 +382,5 @@ func (n roundGateNamer) linear(varIndex, round int) gkr.GateName {
 func (n roundGateNamer) integrated(varIndex, round int) gkr.GateName {
 	return gkr.GateName(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
 }
+
+type gkrPoseidon2Key struct{}

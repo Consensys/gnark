@@ -10,7 +10,7 @@ import (
 )
 
 func New(api frontend.API) (hash.FieldHasher, error) {
-	f, err := gkr_poseidon2.NewGkrCompressor(api)
+	f, err := gkr_poseidon2.NewCompressor(api)
 	if err != nil {
 		return nil, fmt.Errorf("could not create poseidon2 hasher: %w", err)
 	}
