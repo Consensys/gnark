@@ -17,6 +17,8 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/hash"
+	_ "github.com/consensys/gnark/std/hash/all"
 )
 
 // mimcCompressor implements a compression function by applying
@@ -26,7 +28,15 @@ type mimcCompressor struct {
 	in0, in1, out gkr.Variable
 }
 
-func newGkrCompressor(api frontend.API) (*mimcCompressor, error) {
+func (c *mimcCompressor) Compress(x frontend.Variable, y frontend.Variable) frontend.Variable {
+	res, err := c.gkrCircuit.AddInstance(map[gkr.Variable]frontend.Variable{c.in0: x, c.in1: y})
+	if err != nil {
+		panic(err)
+	}
+	return res[c.out]
+}
+
+func NewCompressor(api frontend.API) (hash.Compressor, error) {
 	gkrApi := gkrapi.New()
 
 	in0 := gkrApi.NewInput()
@@ -51,7 +61,7 @@ func newGkrCompressor(api frontend.API) (*mimcCompressor, error) {
 	y = gkrApi.NamedGate(gateNamer.round(len(params)-1), in0, y, in1)
 
 	return &mimcCompressor{
-		gkrCircuit: gkrApi.Compile(api, "poseidon2"),
+		gkrCircuit: gkrApi.Compile(api, "POSEIDON2"),
 		in0:        in0,
 		in1:        in1,
 		out:        y,
@@ -70,6 +80,12 @@ func RegisterGates(curves ...ecc.ID) error {
 		case 5:
 			lastLayerSBox = addPow5Add
 			nonLastLayerSBox = addPow5
+		case 7:
+			lastLayerSBox = addPow7Add
+			nonLastLayerSBox = addPow7
+		case 17:
+			lastLayerSBox = addPow17Add
+			nonLastLayerSBox = addPow17
 		default:
 			return fmt.Errorf("s-Box of degree %d not supported", deg)
 		}
@@ -139,5 +155,58 @@ func addPow5Add(key *big.Int) gkr.GateFunction {
 		s := api.Add(in[0], in[1], key)
 		t := api.Mul(s, s)
 		return api.Add(api.Mul(t, t, s), in[0], in[2])
+	}
+}
+
+func addPow7(key *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		if len(in) != 2 {
+			panic("expected two input")
+		}
+		s := api.Add(in[0], in[1], key)
+		t := api.Mul(s, s)
+		return api.Mul(t, t, t, s) // s⁶ × s
+	}
+}
+
+// addPow7Add: (in[0]+in[1]+key)⁷ + in[0] + in[2]
+func addPow7Add(key *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		if len(in) != 3 {
+			panic("expected three input")
+		}
+		s := api.Add(in[0], in[1], key)
+		t := api.Mul(s, s)
+		return api.Add(api.Mul(t, t, t, s), in[0], in[2]) // s⁶ × s + in[0] + in[2]
+	}
+}
+
+// addPow17: (in[0]+in[1]+key)¹⁷
+func addPow17(key *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		if len(in) != 2 {
+			panic("expected two input")
+		}
+		s := api.Add(in[0], in[1], key)
+		t := api.Mul(s, s)   // s²
+		t = api.Mul(t, t)    // s⁴
+		t = api.Mul(t, t)    // s⁸
+		t = api.Mul(t, t)    // s¹⁶
+		return api.Mul(t, s) // s¹⁶ × s
+	}
+}
+
+// addPow17Add: (in[0]+in[1]+key)¹⁷ + in[0] + in[2]
+func addPow17Add(key *big.Int) gkr.GateFunction {
+	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		if len(in) != 3 {
+			panic("expected three input")
+		}
+		s := api.Add(in[0], in[1], key)
+		t := api.Mul(s, s)                          // s²
+		t = api.Mul(t, t)                           // s⁴
+		t = api.Mul(t, t)                           // s⁸
+		t = api.Mul(t, t)                           // s¹⁶
+		return api.Add(api.Mul(t, s), in[0], in[2]) // s¹⁶ × s + in[0] + in[2]
 	}
 }
