@@ -1,13 +1,16 @@
 package gkr_mimc
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGkrMiMC(t *testing.T) {
@@ -25,7 +28,7 @@ func TestGkrMiMC(t *testing.T) {
 			In: slices.Clone(vals[:length*2]),
 		}
 
-		test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
+		test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment))
 	}
 }
 
@@ -58,9 +61,19 @@ func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
 			plainMiMC.Reset()
 			plainMiMC.Write(in...)
 			expected := plainMiMC.Sum()
-			api.AssertIsEqual(res, expected)
+			api.AssertIsEqual(expected, res)
 		}
 	}
 
 	return nil
+}
+
+func TestGkrMiMCCompiles(t *testing.T) {
+	const n = 52000
+	circuit := testGkrMiMCCircuit{
+		In: make([]frontend.Variable, n),
+	}
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit, frontend.WithCapacity(27_000_000))
+	require.NoError(t, err)
+	fmt.Println(cs.GetNbConstraints(), "constraints")
 }

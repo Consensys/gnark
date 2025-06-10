@@ -146,7 +146,7 @@ func addPow5(key *big.Int) gkr.GateFunction {
 	}
 }
 
-// addPow5Add: (in[0]+in[1]+key)⁵ + in[0] + in[2]
+// addPow5Add: (in[0]+in[1]+key)⁵ + 2*in[0] + in[2]
 func addPow5Add(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 3 {
@@ -154,7 +154,9 @@ func addPow5Add(key *big.Int) gkr.GateFunction {
 		}
 		s := api.Add(in[0], in[1], key)
 		t := api.Mul(s, s)
-		return api.Add(api.Mul(t, t, s), in[0], in[2])
+		t = api.Mul(t, t, s)
+
+		return api.Add(t, in[0], in[0], in[2])
 	}
 }
 
@@ -169,7 +171,7 @@ func addPow7(key *big.Int) gkr.GateFunction {
 	}
 }
 
-// addPow7Add: (in[0]+in[1]+key)⁷ + in[0] + in[2]
+// addPow7Add: (in[0]+in[1]+key)⁷ + 2*in[0] + in[2]
 func addPow7Add(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 3 {
@@ -177,7 +179,7 @@ func addPow7Add(key *big.Int) gkr.GateFunction {
 		}
 		s := api.Add(in[0], in[1], key)
 		t := api.Mul(s, s)
-		return api.Add(api.Mul(t, t, t, s), in[0], in[2]) // s⁶ × s + in[0] + in[2]
+		return api.Add(api.Mul(t, t, t, s), in[0], in[0], in[2]) // s⁶ × s + 2*in[0] + in[2]
 	}
 }
 
@@ -203,10 +205,10 @@ func addPow17Add(key *big.Int) gkr.GateFunction {
 			panic("expected three input")
 		}
 		s := api.Add(in[0], in[1], key)
-		t := api.Mul(s, s)                          // s²
-		t = api.Mul(t, t)                           // s⁴
-		t = api.Mul(t, t)                           // s⁸
-		t = api.Mul(t, t)                           // s¹⁶
-		return api.Add(api.Mul(t, s), in[0], in[2]) // s¹⁶ × s + in[0] + in[2]
+		t := api.Mul(s, s)                                 // s²
+		t = api.Mul(t, t)                                  // s⁴
+		t = api.Mul(t, t)                                  // s⁸
+		t = api.Mul(t, t)                                  // s¹⁶
+		return api.Add(api.Mul(t, s), in[0], in[0], in[2]) // s¹⁶ × s + 2*in[0] + in[2]
 	}
 }
