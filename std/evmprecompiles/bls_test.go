@@ -41,18 +41,9 @@ func testRoutineECAddG1BLS() (circ, wit frontend.Circuit) {
 	expected.Add(&P, &Q)
 	circuit := ecaddG1BLSCircuit{}
 	witness := ecaddG1BLSCircuit{
-		X0: sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](P.X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](P.Y),
-		},
-		X1: sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](Q.X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](Q.Y),
-		},
-		Expected: sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](expected.X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](expected.Y),
-		},
+		X0:       sw_bls12381.NewG1Affine(P),
+		X1:       sw_bls12381.NewG1Affine(Q),
+		Expected: sw_bls12381.NewG1Affine(expected),
 	}
 	return &circuit, &witness
 }
@@ -78,7 +69,7 @@ type ecmsmg1BLSCircuit struct {
 }
 
 func (c *ecmsmg1BLSCircuit) Define(api frontend.API) error {
-	for i := range 2 {
+	for i := range c.Points {
 		if err := ECG1ScalarMulSumBLS(api, &c.Accumulator[i], &c.Points[i], &c.Scalars[i], &c.Accumulator[i+1]); err != nil {
 			return fmt.Errorf("circuit %d: %w", i, err)
 		}
@@ -96,31 +87,23 @@ func TestECMSMG1BLSCircuit(t *testing.T) {
 	}
 	var cP [10]sw_emulated.AffinePoint[emulated.BLS12381Fp]
 	for i := range cP {
-		cP[i] = sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](P[i].X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](P[i].Y),
-		}
+		cP[i] = sw_bls12381.NewG1Affine(P[i])
 	}
 	var cS [10]emulated.Element[emulated.BLS12381Fr]
 	for i := range cS {
 		cS[i] = emulated.ValueOf[emulated.BLS12381Fr](S[i])
 	}
 	var cA [11]sw_emulated.AffinePoint[emulated.BLS12381Fp]
-	cA[0] = sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-		X: emulated.ValueOf[emulated.BLS12381Fp](0),
-		Y: emulated.ValueOf[emulated.BLS12381Fp](0),
-	}
+	var zero bls12381.G1Affine
+	zero.SetInfinity()
+	cA[0] = sw_bls12381.NewG1Affine(zero)
 
 	var res bls12381.G1Affine
 	for i := range P {
 		var tmp bls12381.G1Affine
 		tmp.ScalarMultiplication(&P[i], S[i].BigInt(new(big.Int)))
 		res.Add(&res, &tmp)
-		cA[i+1] = sw_emulated.AffinePoint[emulated.BLS12381Fp]{
-			X: emulated.ValueOf[emulated.BLS12381Fp](res.X),
-			Y: emulated.ValueOf[emulated.BLS12381Fp](res.Y),
-		}
-		res.Set(&tmp)
+		cA[i+1] = sw_bls12381.NewG1Affine(res)
 	}
 
 	err := test.IsSolved(&ecmsmg1BLSCircuit{}, &ecmsmg1BLSCircuit{
@@ -177,27 +160,17 @@ func TestECAddG2BLSCircuitFull(t *testing.T) {
 
 // 14: G2 MSM
 type ecmsmg2BLSCircuit struct {
-	Points  [10]sw_bls12381.G2Affine
-	Scalars [10]sw_bls12381.Scalar
-	Res     sw_bls12381.G2Affine
-	n       int
+	Accumulators [11]sw_bls12381.G2Affine
+	Points       [10]sw_bls12381.G2Affine
+	Scalars      [10]sw_bls12381.Scalar
 }
 
 func (c *ecmsmg2BLSCircuit) Define(api frontend.API) error {
-	g2, err := sw_bls12381.NewG2(api)
-	if err != nil {
-		panic(err)
+	for i := range c.Points {
+		if err := ECG2ScalarMulSumBLS(api, &c.Accumulators[i], &c.Points[i], &c.Scalars[i], &c.Accumulators[i+1]); err != nil {
+			return fmt.Errorf("circuit %d: %w", i, err)
+		}
 	}
-	ps := make([]*sw_bls12381.G2Affine, c.n)
-	for i := range c.n {
-		ps[i] = &c.Points[i]
-	}
-	ss := make([]*sw_bls12381.Scalar, c.n)
-	for i := range c.n {
-		ss[i] = &c.Scalars[i]
-	}
-	res := ECMSMG2BLS(api, ps, ss)
-	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -209,7 +182,6 @@ func TestECMSMG2BLSCircuit(t *testing.T) {
 		S[i].SetRandom()
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
 	}
-
 	var cP [10]sw_bls12381.G2Affine
 	for i := range cP {
 		cP[i] = sw_bls12381.NewG2Affine(P[i])
@@ -218,19 +190,24 @@ func TestECMSMG2BLSCircuit(t *testing.T) {
 	for i := range cS {
 		cS[i] = emulated.ValueOf[emulated.BLS12381Fr](S[i])
 	}
+	var cA [11]sw_bls12381.G2Affine
+	var zero bls12381.G2Affine
+	zero.SetInfinity()
+	cA[0] = sw_bls12381.NewG2Affine(zero)
 
-	for i := 1; i < 11; i++ {
-		var res bls12381.G2Affine
-		_, err := res.MultiExp(P[:i], S[:i], ecc.MultiExpConfig{})
-		assert.NoError(err)
-		err = test.IsSolved(&ecmsmg2BLSCircuit{n: i}, &ecmsmg2BLSCircuit{
-			n:       i,
-			Points:  cP,
-			Scalars: cS,
-			Res:     sw_bls12381.NewG2Affine(res),
-		}, ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
+	var res bls12381.G2Affine
+	for i := range P {
+		var tmp bls12381.G2Affine
+		tmp.ScalarMultiplication(&P[i], S[i].BigInt(new(big.Int)))
+		res.Add(&res, &tmp)
+		cA[i+1] = sw_bls12381.NewG2Affine(res)
 	}
+	err := test.IsSolved(&ecmsmg2BLSCircuit{}, &ecmsmg2BLSCircuit{
+		Accumulators: cA,
+		Points:       cP,
+		Scalars:      cS,
+	}, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
 }
 
 // 15: multi-pairing check
