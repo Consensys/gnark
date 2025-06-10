@@ -15,6 +15,7 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/multicommit"
 )
 
 type circuitDataForSnark struct {
@@ -98,7 +99,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
 	res.toStore.SolveHintID = solver.GetHintID(res.hints.Solve)
 
-	parentApi.Compiler().Defer(res.verify)
+	parentApi.Compiler().Defer(res.finalize)
 
 	return &res
 }
@@ -140,12 +141,13 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	return res, nil
 }
 
-// verify encodes the verification circuitry for the GKR circuit
-func (c *Circuit) verify(api frontend.API) error {
+// finalize encodes the verification circuitry for the GKR circuit
+func (c *Circuit) finalize(api frontend.API) error {
 	if api != c.api {
 		panic("api mismatch")
 	}
 
+	// pad instances to the next power of 2
 	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(c.toStore.NbInstances)))
 	// pad instances to the next power of 2 by repeating the last instance
 	if c.toStore.NbInstances < nbPaddedInstances && c.toStore.NbInstances > 0 {
@@ -165,31 +167,27 @@ func (c *Circuit) verify(api frontend.API) error {
 		return nil
 	}
 
-	var (
-		err               error
-		proofSerialized   []frontend.Variable
-		proof             gadget.Proof
-		initialChallenges []frontend.Variable
-	)
-
 	if c.getInitialChallenges != nil {
-		initialChallenges = c.getInitialChallenges()
-	} else {
-		// default initial challenge is a commitment to all input and output values
-		initialChallenges = make([]frontend.Variable, 0, (len(c.ins)+len(c.outs))*len(c.assignments[c.ins[0]]))
-		for _, in := range c.ins {
-			initialChallenges = append(initialChallenges, c.assignments[in]...)
-		}
-		for _, out := range c.outs {
-			initialChallenges = append(initialChallenges, c.assignments[out]...)
-		}
-
-		if initialChallenges[0], err = api.(frontend.Committer).Commit(initialChallenges...); err != nil {
-			return fmt.Errorf("failed to commit to in/out values: %w", err)
-		}
-		initialChallenges = initialChallenges[:1] // use the commitment as the only initial challenge
+		return c.verify(api, c.getInitialChallenges())
 	}
 
+	// default initial challenge is a commitment to all input and output values
+	insOuts := make([]frontend.Variable, 0, (len(c.ins)+len(c.outs))*len(c.assignments[c.ins[0]]))
+	for _, in := range c.ins {
+		insOuts = append(insOuts, c.assignments[in]...)
+	}
+	for _, out := range c.outs {
+		insOuts = append(insOuts, c.assignments[out]...)
+	}
+
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		return c.verify(api, []frontend.Variable{commitment})
+	}, insOuts...)
+
+	return nil
+}
+
+func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable) error {
 	forSnark, err := newCircuitDataForSnark(utils.FieldToCurve(api.Compiler().Field()), c.toStore, c.assignments)
 	if err != nil {
 		return fmt.Errorf("failed to create circuit data for snark: %w", err)
@@ -201,8 +199,13 @@ func (c *Circuit) verify(api frontend.API) error {
 
 	copy(hintIns[1:], initialChallenges)
 
+	var (
+		proofSerialized []frontend.Variable
+		proof           gadget.Proof
+	)
+
 	if proofSerialized, err = api.Compiler().NewHint(
-		c.hints.Prove, gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(nbPaddedInstances))), hintIns...); err != nil {
+		c.hints.Prove, gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(len(c.assignments[0])))), hintIns...); err != nil {
 		return err
 	}
 	c.toStore.ProveHintID = solver.GetHintID(c.hints.Prove)
@@ -218,12 +221,7 @@ func (c *Circuit) verify(api frontend.API) error {
 		return err
 	}
 
-	err = gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {
