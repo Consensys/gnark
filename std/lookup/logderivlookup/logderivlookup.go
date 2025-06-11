@@ -1,4 +1,4 @@
-// Package logderiv implements append-only lookups using log-derivative
+// Package logderivlookup implements append-only lookups using log-derivative
 // argument.
 //
 // The lookup is based on log-derivative argument as described in [logderivarg].
