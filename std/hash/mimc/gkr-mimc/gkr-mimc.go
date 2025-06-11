@@ -8,7 +8,7 @@ import (
 	gkr_mimc "github.com/consensys/gnark/std/permutation/gkr-mimc"
 )
 
-func New(api frontend.API) (hash.FieldHasher, error) {
+func New(api frontend.API) (hash.StateStorer, error) {
 	f, err := gkr_mimc.NewCompressor(api)
 	if err != nil {
 		return nil, fmt.Errorf("could not create mimc hasher: %w", err)

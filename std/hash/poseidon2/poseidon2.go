@@ -10,7 +10,7 @@ import (
 
 // New returns a Poseidon2 hasher using the Merkle-Damgard
 // construction with the default parameters.
-func New(api frontend.API) (hash.FieldHasher, error) {
+func New(api frontend.API) (hash.StateStorer, error) {
 	f, err := poseidon2.NewPoseidon2(api)
 	if err != nil {
 		return nil, fmt.Errorf("could not create poseidon2 hasher: %w", err)
@@ -19,5 +19,7 @@ func New(api frontend.API) (hash.FieldHasher, error) {
 }
 
 func init() {
-	hash.Register(hash.POSEIDON2, New)
+	hash.Register(hash.POSEIDON2, func(api frontend.API) (hash.FieldHasher, error) {
+		return New(api)
+	})
 }
