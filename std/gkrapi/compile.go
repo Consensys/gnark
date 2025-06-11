@@ -147,6 +147,11 @@ func (c *Circuit) finalize(api frontend.API) error {
 		panic("api mismatch")
 	}
 
+	// if the circuit is empty or with no instances, there is nothing to do.
+	if len(c.outs) == 0 || len(c.assignments[0]) == 0 { // wire 0 is always an input wire
+		return nil
+	}
+
 	// pad instances to the next power of 2
 	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(c.toStore.NbInstances)))
 	// pad instances to the next power of 2 by repeating the last instance
@@ -163,7 +168,25 @@ func (c *Circuit) finalize(api frontend.API) error {
 		return err
 	}
 
-	if len(c.outs) == 0 || len(c.assignments[0]) == 0 { // wire 0 is always an input wire
+	// if the circuit consists of only one instance, directly solve the circuit
+	if len(c.assignments[c.ins[0]]) == 1 {
+		circuit, err := gkrtypes.CircuitInfoToCircuit(c.toStore.Circuit, gkrgates.Get)
+		if err != nil {
+			return fmt.Errorf("failed to convert GKR info to circuit: %w", err)
+		}
+		gateIn := make([]frontend.Variable, circuit.MaxGateNbIn())
+		for wI, w := range circuit {
+			if w.IsInput() {
+				continue
+			}
+			for inI, inWI := range w.Inputs {
+				gateIn[inI] = c.assignments[inWI][0] // take the first (only) instance
+			}
+			res := w.Gate.Evaluate(api, gateIn[:len(w.Inputs)]...)
+			if w.IsOutput() {
+				api.AssertIsEqual(res, c.assignments[gkr.Variable(wI)][0])
+			}
+		}
 		return nil
 	}
 
