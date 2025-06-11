@@ -649,6 +649,38 @@ func TestWitnessExtend(t *testing.T) {
 
 	_, err = cs.Solve(witness)
 	require.NoError(t, err)
+}
 
-	//test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
+func TestSingleInstance(t *testing.T) {
+	circuit := doubleNoDependencyCircuit{
+		X:        make([]frontend.Variable, 1),
+		hashName: "MIMC",
+	}
+	assignment := doubleNoDependencyCircuit{
+		X: []frontend.Variable{10},
+	}
+
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
+}
+
+func TestNoInstance(t *testing.T) {
+	var circuit testNoInstanceCircuit
+	assignment := testNoInstanceCircuit{0}
+
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
+}
+
+type testNoInstanceCircuit struct {
+	Dummy frontend.Variable // Plonk prover would fail on an empty witness
+}
+
+func (c *testNoInstanceCircuit) Define(api frontend.API) error {
+	gkrApi := New()
+	x := gkrApi.NewInput()
+	y := gkrApi.NewInput()
+	gkrApi.Mul(x, y)
+
+	gkrApi.Compile(api, "MIMC")
+
+	return nil
 }
