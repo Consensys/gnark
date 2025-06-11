@@ -187,7 +187,7 @@ func (g gateAPI) Println(a ...frontend.Variable) {
 	for i := range a {
 		if s, ok := a[i].(fmt.Stringer); ok {
 			strings[i] = s.String()
-		} else {
+		} else if strings[i], ok = a[i].(string); !ok {
 			bigInt := utils.FromInterface(a[i])
 			strings[i] = bigInt.String()
 		}

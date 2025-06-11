@@ -23,38 +23,157 @@ var (
 
 type Permutation struct {
 	api    frontend.API
-	params parameters
+	params Parameters
 }
 
-// parameters describing the poseidon2 implementation
-type parameters struct {
+// Parameters describing the poseidon2 implementation
+type Parameters struct {
 	// len(preimage)+len(digest)=len(preimage)+ceil(log(2*<security_level>/r))
-	width int
+	Width int
 
 	// sbox degree
-	degreeSBox int
+	DegreeSBox int
 
 	// number of full rounds (even number)
-	nbFullRounds int
+	NbFullRounds int
 
 	// number of partial rounds
-	nbPartialRounds int
+	NbPartialRounds int
 
 	// round keys: ordered by round then variable
-	roundKeys [][]big.Int
+	RoundKeys [][]big.Int
+}
+
+func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
+	switch curve { // TODO: assumes pairing based builder, reconsider when supporting other backends
+	case ecc.BN254:
+		p := poseidonbn254.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbn254.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BLS12_381:
+		p := poseidonbls12381.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbls12381.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BLS12_377:
+		p := poseidonbls12377.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbls12377.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BW6_761:
+		p := poseidonbw6761.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbw6761.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BW6_633:
+		p := poseidonbw6633.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbw6633.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BLS24_315:
+		p := poseidonbls24315.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbls24315.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	case ecc.BLS24_317:
+		p := poseidonbls24317.GetDefaultParameters()
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidonbls24317.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
+	default:
+		return Parameters{}, fmt.Errorf("curve %s not supported", curve)
+	}
 }
 
 // NewPoseidon2 returns a new Poseidon2 hasher with default parameters as
 // defined in the gnark-crypto library.
 func NewPoseidon2(api frontend.API) (*Permutation, error) {
-	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
-	case ecc.BLS12_377:
-		params := poseidonbls12377.GetDefaultParameters()
-		return NewPoseidon2FromParameters(api, 2, params.NbFullRounds, params.NbPartialRounds)
-	// TODO: we don't have default parameters for other curves yet. Update this when we do.
-	default:
-		return nil, fmt.Errorf("field %s not supported", api.Compiler().Field().String())
+	params, err := GetDefaultParameters(utils.FieldToCurve(api.Compiler().Field()))
+	if err != nil {
+		return nil, err
 	}
+	return &Permutation{
+		api:    api,
+		params: params,
+	}, nil
 }
 
 // NewPoseidon2FromParameters returns a new Poseidon2 hasher with the given parameters.
@@ -62,76 +181,76 @@ func NewPoseidon2(api frontend.API) (*Permutation, error) {
 // is deterministic and depends on the curve ID. See the corresponding NewParameters
 // function in the gnark-crypto library poseidon2 packages for more details.
 func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartialRounds int) (*Permutation, error) {
-	params := parameters{width: width, nbFullRounds: nbFullRounds, nbPartialRounds: nbPartialRounds}
+	params := Parameters{Width: width, NbFullRounds: nbFullRounds, NbPartialRounds: nbPartialRounds}
 	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
 	case ecc.BN254:
-		params.degreeSBox = poseidonbn254.DegreeSBox()
+		params.DegreeSBox = poseidonbn254.DegreeSBox()
 		concreteParams := poseidonbn254.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BLS12_381:
-		params.degreeSBox = poseidonbls12381.DegreeSBox()
+		params.DegreeSBox = poseidonbls12381.DegreeSBox()
 		concreteParams := poseidonbls12381.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BLS12_377:
-		params.degreeSBox = poseidonbls12377.DegreeSBox()
+		params.DegreeSBox = poseidonbls12377.DegreeSBox()
 		concreteParams := poseidonbls12377.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BW6_761:
-		params.degreeSBox = poseidonbw6761.DegreeSBox()
+		params.DegreeSBox = poseidonbw6761.DegreeSBox()
 		concreteParams := poseidonbw6761.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BW6_633:
-		params.degreeSBox = poseidonbw6633.DegreeSBox()
+		params.DegreeSBox = poseidonbw6633.DegreeSBox()
 		concreteParams := poseidonbw6633.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BLS24_315:
-		params.degreeSBox = poseidonbls24315.DegreeSBox()
+		params.DegreeSBox = poseidonbls24315.DegreeSBox()
 		concreteParams := poseidonbls24315.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	case ecc.BLS24_317:
-		params.degreeSBox = poseidonbls24317.DegreeSBox()
+		params.DegreeSBox = poseidonbls24317.DegreeSBox()
 		concreteParams := poseidonbls24317.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.roundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.roundKeys {
-			params.roundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.roundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.roundKeys[i][j])
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
 			}
 		}
 	default:
@@ -143,25 +262,25 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 // sBox applies the sBox on buffer[index]
 func (h *Permutation) sBox(index int, input []frontend.Variable) {
 	tmp := input[index]
-	if h.params.degreeSBox == 3 {
+	if h.params.DegreeSBox == 3 {
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(tmp, input[index])
-	} else if h.params.degreeSBox == 5 {
+	} else if h.params.DegreeSBox == 5 {
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.degreeSBox == 7 {
+	} else if h.params.DegreeSBox == 7 {
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.degreeSBox == 17 {
+	} else if h.params.DegreeSBox == 17 {
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.degreeSBox == -1 {
+	} else if h.params.DegreeSBox == -1 {
 		input[index] = h.api.Inverse(input[index])
 	}
 }
@@ -204,30 +323,30 @@ func (h *Permutation) matMulM4InPlace(s []frontend.Variable) {
 // see https://eprint.iacr.org/2023/323.pdf
 func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 
-	if h.params.width == 2 {
+	if h.params.Width == 2 {
 		tmp := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(tmp, input[0])
 		input[1] = h.api.Add(tmp, input[1])
-	} else if h.params.width == 3 {
+	} else if h.params.Width == 3 {
 		tmp := h.api.Add(input[0], input[1])
 		tmp = h.api.Add(tmp, input[2])
 		input[0] = h.api.Add(input[0], tmp)
 		input[1] = h.api.Add(input[1], tmp)
 		input[2] = h.api.Add(input[2], tmp)
-	} else if h.params.width == 4 {
+	} else if h.params.Width == 4 {
 		h.matMulM4InPlace(input)
 	} else {
 		// at this stage t is supposed to be a multiple of 4
 		// the MDS matrix is circ(2M4,M4,..,M4)
 		h.matMulM4InPlace(input)
 		tmp := make([]frontend.Variable, 4)
-		for i := 0; i < h.params.width/4; i++ {
+		for i := 0; i < h.params.Width/4; i++ {
 			tmp[0] = h.api.Add(tmp[0], input[4*i])
 			tmp[1] = h.api.Add(tmp[1], input[4*i+1])
 			tmp[2] = h.api.Add(tmp[2], input[4*i+2])
 			tmp[3] = h.api.Add(tmp[3], input[4*i+3])
 		}
-		for i := 0; i < h.params.width/4; i++ {
+		for i := 0; i < h.params.Width/4; i++ {
 			input[4*i] = h.api.Add(input[4*i], tmp[0])
 			input[4*i+1] = h.api.Add(input[4*i], tmp[1])
 			input[4*i+2] = h.api.Add(input[4*i], tmp[2])
@@ -239,12 +358,12 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 // when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
-	if h.params.width == 2 {
+	if h.params.Width == 2 {
 		sum := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(input[0], sum)
 		input[1] = h.api.Mul(2, input[1])
 		input[1] = h.api.Add(input[1], sum)
-	} else if h.params.width == 3 {
+	} else if h.params.Width == 3 {
 		sum := h.api.Add(input[0], input[1])
 		sum = h.api.Add(sum, input[2])
 		input[0] = h.api.Add(input[0], sum)
@@ -259,10 +378,10 @@ func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 
 		// var sum frontend.Variable
 		// sum = input[0]
-		// for i := 1; i < h.params.width; i++ {
+		// for i := 1; i < h.params.Width; i++ {
 		// 	sum = api.Add(sum, input[i])
 		// }
-		// for i := 0; i < h.params.width; i++ {
+		// for i := 0; i < h.params.Width; i++ {
 		// 	input[i] = api.Mul(input[i], h.params.diagInternalMatrices[i])
 		// 	input[i] = api.Add(input[i], sum)
 		// }
@@ -272,40 +391,40 @@ func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 
 // addRoundKeyInPlace adds the round-th key to the buffer
 func (h *Permutation) addRoundKeyInPlace(round int, input []frontend.Variable) {
-	for i := 0; i < len(h.params.roundKeys[round]); i++ {
-		input[i] = h.api.Add(input[i], h.params.roundKeys[round][i])
+	for i := 0; i < len(h.params.RoundKeys[round]); i++ {
+		input[i] = h.api.Add(input[i], h.params.RoundKeys[round][i])
 	}
 }
 
 // Permutation applies the permutation on input, and stores the result in input.
 func (h *Permutation) Permutation(input []frontend.Variable) error {
-	if len(input) != h.params.width {
+	if len(input) != h.params.Width {
 		return ErrInvalidSizebuffer
 	}
 
 	// external matrix multiplication, cf https://eprint.iacr.org/2023/323.pdf page 14 (part 6)
 	h.matMulExternalInPlace(input)
 
-	rf := h.params.nbFullRounds / 2
+	rf := h.params.NbFullRounds / 2
 	for i := 0; i < rf; i++ {
 		// one round = matMulExternal(sBox_Full(addRoundKey))
 		h.addRoundKeyInPlace(i, input)
-		for j := 0; j < h.params.width; j++ {
+		for j := 0; j < h.params.Width; j++ {
 			h.sBox(j, input)
 		}
 		h.matMulExternalInPlace(input)
 	}
 
-	for i := rf; i < rf+h.params.nbPartialRounds; i++ {
+	for i := rf; i < rf+h.params.NbPartialRounds; i++ {
 		// one round = matMulInternal(sBox_sparse(addRoundKey))
 		h.addRoundKeyInPlace(i, input)
 		h.sBox(0, input)
 		h.matMulInternalInPlace(input)
 	}
-	for i := rf + h.params.nbPartialRounds; i < h.params.nbFullRounds+h.params.nbPartialRounds; i++ {
+	for i := rf + h.params.NbPartialRounds; i < h.params.NbFullRounds+h.params.NbPartialRounds; i++ {
 		// one round = matMulExternal(sBox_Full(addRoundKey))
 		h.addRoundKeyInPlace(i, input)
-		for j := 0; j < h.params.width; j++ {
+		for j := 0; j < h.params.Width; j++ {
 			h.sBox(j, input)
 		}
 		h.matMulExternalInPlace(input)
@@ -321,7 +440,7 @@ func (h *Permutation) Permutation(input []frontend.Variable) error {
 // Implements the [hash.Compressor] interface for building a Merkle-Damgard
 // hash construction.
 func (h *Permutation) Compress(left, right frontend.Variable) frontend.Variable {
-	if h.params.width != 2 {
+	if h.params.Width != 2 {
 		panic("poseidon2: Compress can only be used when t=2")
 	}
 	vars := [2]frontend.Variable{left, right}
