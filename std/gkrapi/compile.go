@@ -184,7 +184,9 @@ func (c *Circuit) finalize(api frontend.API) error {
 			}
 			res := w.Gate.Evaluate(api, gateIn[:len(w.Inputs)]...)
 			if w.IsOutput() {
-				api.AssertIsEqual(res, c.assignments[gkr.Variable(wI)][0])
+				api.AssertIsEqual(res, c.assignments[wI][0])
+			} else {
+				c.assignments[wI] = append(c.assignments[wI], res)
 			}
 		}
 		return nil
