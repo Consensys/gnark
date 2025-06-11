@@ -34,7 +34,7 @@ func NewMiMC(api frontend.API) (MiMC, error) {
 // NB! See the package documentation for length extension attack consideration.
 //
 // [gnark-crypto]: https://pkg.go.dev/github.com/consensys/gnark-crypto/hash
-func New(api frontend.API) (hash.FieldHasher, error) {
+func New(api frontend.API) (hash.StateStorer, error) {
 	h, err := NewMiMC(api)
 	if err != nil {
 		return nil, err
@@ -43,5 +43,7 @@ func New(api frontend.API) (hash.FieldHasher, error) {
 }
 
 func init() {
-	hash.Register(hash.MIMC, New)
+	hash.Register(hash.MIMC, func(api frontend.API) (hash.FieldHasher, error) {
+		return New(api)
+	})
 }
