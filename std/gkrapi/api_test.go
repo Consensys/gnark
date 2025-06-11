@@ -275,8 +275,6 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 		_, err = groth16.Prove(cs, pk, fullWitness)
 		require.NoError(b, err)
 		fmt.Println("groth16 proved", id, "in", time.Now().UnixMicro()-start, "μs")
-
-		fmt.Println("mimc total calls: fr=", mimcFrTotalCalls, ", snark=", mimcSnarkTotalCalls)
 	}
 }
 
@@ -364,8 +362,6 @@ func (c constPseudoHash) Write(...frontend.Variable) {}
 
 func (c constPseudoHash) Reset() {}
 
-var mimcFrTotalCalls = 0
-
 type mimcNoGkrCircuit struct {
 	X         []frontend.Variable
 	Y         []frontend.Variable
@@ -418,7 +414,15 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	gkrApi := New()
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
-	gkrApi.Gate(mimcGate, x, y)
+
+	if c.mimcDepth < 1 {
+		return fmt.Errorf("mimcDepth must be at least 1, got %d", c.mimcDepth)
+	}
+
+	z := y
+	for range c.mimcDepth {
+		z = gkrApi.Gate(mimcGate, x, z)
+	}
 
 	gkrCircuit := gkrApi.Compile(api, c.hashName)
 
@@ -652,12 +656,15 @@ func TestWitnessExtend(t *testing.T) {
 }
 
 func TestSingleInstance(t *testing.T) {
-	circuit := doubleNoDependencyCircuit{
-		X:        make([]frontend.Variable, 1),
-		hashName: "MIMC",
+	circuit := mimcNoDepCircuit{
+		X:         make([]frontend.Variable, 1),
+		Y:         make([]frontend.Variable, 1),
+		mimcDepth: 2,
+		hashName:  "MIMC",
 	}
-	assignment := doubleNoDependencyCircuit{
+	assignment := mimcNoDepCircuit{
 		X: []frontend.Variable{10},
+		Y: []frontend.Variable{2},
 	}
 
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
@@ -677,7 +684,7 @@ type testNoInstanceCircuit struct {
 func (c *testNoInstanceCircuit) Define(api frontend.API) error {
 	gkrApi := New()
 	x := gkrApi.NewInput()
-	y := gkrApi.NewInput()
+	y := gkrApi.Mul(x, x)
 	gkrApi.Mul(x, y)
 
 	gkrApi.Compile(api, "MIMC")
