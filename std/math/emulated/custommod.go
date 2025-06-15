@@ -15,7 +15,7 @@ import (
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// fast path when either of the inputs is zero then result is always zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	res := f.mulMod(a, b, 0, modulus)
@@ -97,8 +97,8 @@ func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 //
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
-	// fasth path when the base is zero then result is always zero
-	if len(base.Limbs) == 0 {
+	if base.isStrictZero() {
+		// fast path when the base is zero then result is always zero
 		return f.Zero()
 	}
 	expBts := f.ToBits(exp)
@@ -111,4 +111,28 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	}
 	res = f.Select(expBts[n-1], f.ModMul(base, res, modulus), res)
 	return res
+}
+
+// ModInverse computes the modular inverse of a mod modulus. Instead of taking
+// modulus as a constant parametrized by T, it is passed as an argument. This
+// allows to use a variable modulus in the circuit. Type parameter T should be
+// sufficiently big to fit a and modulus. Recommended to use [emparams.Mod1e512]
+// or [emparams.Mod1e4096].
+//
+// The method panics at solving time if the modular inverse does not exist.
+//
+// NB! circuit complexity depends on T rather on the actual length of the modulus.
+func (f *Field[T]) ModInverse(a, modulus *Element[T]) *Element[T] {
+	// fast path when a is zero then result is always zero
+	if a.isStrictZero() {
+		return f.Zero()
+	}
+	k, err := f.computeInverseHint(a.Limbs, modulus)
+	if err != nil {
+		panic("failed to compute inverse hint: " + err.Error())
+	}
+	inv := f.packLimbs(k, true)
+	mul := f.ModMul(a, inv, modulus)
+	f.ModAssertIsEqual(mul, f.One(), modulus)
+	return inv
 }
