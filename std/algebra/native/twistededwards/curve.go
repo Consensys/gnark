@@ -41,6 +41,11 @@ func (c *curve) Neg(p1 Point) Point {
 	p.neg(c.api, &p1)
 	return p
 }
+
+func (c *curve) IsOnCurve(p1 Point) frontend.Variable {
+	return p1.isOnCurve(c.api, c.params)
+}
+
 func (c *curve) AssertIsOnCurve(p1 Point) {
 	p1.assertIsOnCurve(c.api, c.params)
 }
