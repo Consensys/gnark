@@ -1,15 +1,63 @@
+<a name="unreleased"></a>
+## [Unreleased]
+
+
+<a name="v0.13.0"></a>
+## [v0.13.0] - 2025-06-12
+### Build
+- upgrade gnark-crypto to v0.18.0 and minor upgrades in go.mod
+- **deps:** bump golang.org/x/crypto from 0.33.0 to 0.35.0 ([#1478](https://github.com/Consensys/gnark/issues/1478))
+
+### Chore
+- remove useless github workflow
+- add not-accepted github workflow
+
+### Docs
+- up comments ([#1503](https://github.com/Consensys/gnark/issues/1503))
+- notify undefined result ([#1488](https://github.com/Consensys/gnark/issues/1488))
+
+### Feat
+- constant value binary decomposition ([#1510](https://github.com/Consensys/gnark/issues/1510))
+- implement field emulation over small fields ([#1495](https://github.com/Consensys/gnark/issues/1495))
+- add WideCommitter for obtaining commitment in the field extension ([#1494](https://github.com/Consensys/gnark/issues/1494))
+- add field extension support over native fields ([#1493](https://github.com/Consensys/gnark/issues/1493))
+- make automatic element initialization aware of the current field ([#1492](https://github.com/Consensys/gnark/issues/1492))
+- emulated AssertIsDifferent ([#1479](https://github.com/Consensys/gnark/issues/1479))
+- map to g2 on BLS12-381 ([#1477](https://github.com/Consensys/gnark/issues/1477))
+- add Pectra BLS12-381 elliptic curve precompiles ([#1447](https://github.com/Consensys/gnark/issues/1447))
+- make constraint.Element generic interface ([#1463](https://github.com/Consensys/gnark/issues/1463))
+- use OSS ICICLE for GPU acceleration (version v3.2.2) ([#1451](https://github.com/Consensys/gnark/issues/1451))
+- merkle damgard and poseidon2 ([#1407](https://github.com/Consensys/gnark/issues/1407))
+- **wires:** implements GetWiresConstraintExact as a draft proposal ([#1462](https://github.com/Consensys/gnark/issues/1462))
+
+### Feat
+- implement FixedLengthSum function for sha3 ([#1379](https://github.com/Consensys/gnark/issues/1379))
+
+### Fix
+- don't use assignment to compile ([#1508](https://github.com/Consensys/gnark/issues/1508))
+- range over all limbs in normalized form for lookup ([#1505](https://github.com/Consensys/gnark/issues/1505))
+- fake glv neg scalars ([#1487](https://github.com/Consensys/gnark/issues/1487))
+- Ratio Verification on Groth16 MPC - Phase 1 ([#1465](https://github.com/Consensys/gnark/issues/1465))
+- non-native zero IsZero edge case ([#1413](https://github.com/Consensys/gnark/issues/1413))
+
+### Fix
+- make GetWiresConstraint(Exact) deterministic ([#1485](https://github.com/Consensys/gnark/issues/1485))
+
+### Perf
+- optimize selector.Mux with recursive BinaryMux for various sizes ([#1420](https://github.com/Consensys/gnark/issues/1420))
+- Poseidon2 GKR circuit ([#1410](https://github.com/Consensys/gnark/issues/1410))
+
+### Style
+- `goimports` ([#1491](https://github.com/Consensys/gnark/issues/1491))
+
+
 <a name="v0.12.0"></a>
-## [v0.12.0] - 2025-01-23
+## [v0.12.0] - 2025-01-24
 ### Build
 - modify workflows for new CI slack bot ([#1277](https://github.com/Consensys/gnark/issues/1277))
 - **deps:** bump golang.org/x/crypto from 0.26.0 to 0.31.0 ([#1346](https://github.com/Consensys/gnark/issues/1346))
 
 ### Chore
-- use max builtin
-- go mod update
-- generate changelog
-- update citation
-- update hardcoded version
 - fix some struct names in comment ([#1370](https://github.com/Consensys/gnark/issues/1370))
 - fix typos ([#1371](https://github.com/Consensys/gnark/issues/1371))
 - fix error message  ([#1337](https://github.com/Consensys/gnark/issues/1337))
@@ -64,6 +112,9 @@
 - avoid div in millerLoopAndFinalExpResult ([#1363](https://github.com/Consensys/gnark/issues/1363))
 
 ### Perf
+- Pairing on BN254 using direct Fp12 extension and non-native `Eval()` ([#1339](https://github.com/Consensys/gnark/issues/1339))
+
+### Perf
 - `PairingCheck` for BN254, BLS12-381, BLS12-377 and BW6-761 ([#1365](https://github.com/Consensys/gnark/issues/1365))
 - G1/2 membership using Eval ([#1356](https://github.com/Consensys/gnark/issues/1356))
 - using non-native Eval for curve arithmetic ([#1331](https://github.com/Consensys/gnark/issues/1331))
@@ -73,11 +124,11 @@
 - **bn254:** include G2 membership check in ML ([#1387](https://github.com/Consensys/gnark/issues/1387))
 - **emulated:** small perf on doubleAndAdd ([#1386](https://github.com/Consensys/gnark/issues/1386))
 
-### Perf
-- Pairing on BN254 using direct Fp12 extension and non-native `Eval()` ([#1339](https://github.com/Consensys/gnark/issues/1339))
-
 ### Refactor
 - move poseidon2 to permutation package ([#1353](https://github.com/Consensys/gnark/issues/1353))
+
+### Release
+- v0.12.0 ([#1399](https://github.com/Consensys/gnark/issues/1399))
 
 ### Test
 - add scalar mul to stats ([#1275](https://github.com/Consensys/gnark/issues/1275))
@@ -3289,6 +3340,8 @@
 - Merge pull request [#5](https://github.com/Consensys/gnark/issues/5) from ConsenSys/go1.14_deps
 
 
+[Unreleased]: https://github.com/Consensys/gnark/compare/v0.13.0...HEAD
+[v0.13.0]: https://github.com/Consensys/gnark/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/Consensys/gnark/compare/v0.11.0...v0.12.0
 [v0.11.0]: https://github.com/Consensys/gnark/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/Consensys/gnark/compare/v0.9.1...v0.10.0
