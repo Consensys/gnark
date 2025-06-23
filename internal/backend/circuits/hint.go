@@ -152,7 +152,7 @@ var dvHint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	if len(inputs) != len(res) {
 		return fmt.Errorf("dvHint: expected same length for inputs and results, got %d inputs and %d results", len(inputs), len(res))
 	}
-	
+
 	// Ensure we have at least one input to process
 	if len(inputs) == 0 {
 		return fmt.Errorf("dvHint: no inputs provided")
