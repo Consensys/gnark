@@ -61,7 +61,7 @@ func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
 	}
-	k, err := f.computeInverseHint(a.Limbs)
+	k, err := f.computeInverseHint(a.Limbs, f.Modulus())
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}
