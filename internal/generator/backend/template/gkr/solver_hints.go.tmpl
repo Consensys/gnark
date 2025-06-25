@@ -2,8 +2,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -14,104 +14,109 @@ import (
 )
 
 type SolvingData struct {
-	assignment WireAssignment
-	circuit    gkrtypes.Circuit
-	workers    *utils.WorkerPool
+	assignment  WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
+	circuit     gkrtypes.Circuit
+	maxNbIn     int // maximum number of inputs for a gate in the circuit
+	nbInstances int
 }
 
-func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
-	d.workers = utils.NewWorkerPool()
-	d.circuit = info.Circuit
-	d.circuit.SetNbUniqueOutputs()
+type newSolvingDataSettings struct {
+	assignment gkrtypes.WireAssignment
+}
 
-	d.assignment = make(WireAssignment, len(d.circuit))
-	for i := range d.assignment {
-		d.assignment[i] = make([]fr.Element, info.NbInstances)
+type newSolvingDataOption func(*newSolvingDataSettings)
+
+func WithAssignment(assignment gkrtypes.WireAssignment) newSolvingDataOption {
+	return func(s *newSolvingDataSettings) {
+		s.assignment = assignment
 	}
+}
+
+func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) *SolvingData {
+	var s newSolvingDataSettings
+	for _, opt := range options {
+		opt(&s)
+	}
+
+	d := SolvingData{
+		circuit:     info.Circuit,
+		assignment:  make(WireAssignment, len(info.Circuit)),
+		nbInstances: info.NbInstances,
+	}
+
+	d.maxNbIn = d.circuit.MaxGateNbIn()
+
+	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(info.NbInstances)))
+	for i := range d.assignment {
+		d.assignment[i] = make([]fr.Element, nbPaddedInstances)
+	}
+
+	if s.assignment != nil {
+		if len(s.assignment) != len(d.assignment) {
+			panic(fmt.Errorf("provided assignment has %d wires, expected %d", len(s.assignment), len(d.assignment)))
+		}
+		for i := range d.assignment {
+			if len(s.assignment[i]) != info.NbInstances {
+				panic(fmt.Errorf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignment[i]), info.NbInstances))
+			}
+			for j := range s.assignment[i] {
+				if _, err := d.assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
+					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
+				}
+			}
+			// inline equivalent of RepeatUntilEnd
+			for j := len(s.assignment[i]); j < nbPaddedInstances; j++ {
+				d.assignment[i][j] = d.assignment[i][j-1] // pad with the last value
+			}
+		}
+	}
+
+	return &d
 }
 
 // this module assumes that wire and instance indexes respect dependencies
 
-func setOuts(a WireAssignment, circuit gkrtypes.Circuit, outs []*big.Int) {
-	outsI := 0
-	for i := range circuit {
-		if circuit[i].IsOutput() {
-			for j := range a[i] {
-				a[i][j].BigInt(outs[outsI])
+
+func GetAssignmentHint(data *SolvingData) hint.Hint {
+	return func(_ *big.Int, ins, outs []*big.Int) error {
+		if len(ins) != 3 {
+			return fmt.Errorf("GetAssignmentHint expects 3 inputs: instance index, wire index, and dummy dependency enforcer")
+		}
+		wireI := ins[0].Uint64()
+		instanceI := ins[1].Uint64()
+
+		data.assignment[wireI][instanceI].BigInt(outs[0])
+
+		return nil
+	}
+}
+
+func SolveHint(data *SolvingData) hint.Hint {
+	return func(_ *big.Int, ins, outs []*big.Int) error {
+		instanceI := ins[0].Uint64()
+
+		gateIns := make([]frontend.Variable, data.maxNbIn)
+		outsI := 0
+		insI := 1 // skip the first input, which is the instance index
+		for wI := range data.circuit {
+			w := &data.circuit[wI]
+			if w.IsInput() { // read from provided input
+				data.assignment[wI][instanceI].SetBigInt(ins[insI])
+				insI++
+			} else {
+
+				// assemble input for gate
+				for i, inWI := range w.Inputs {
+					gateIns[i] = &data.assignment[inWI][instanceI]
+				}
+
+				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element))
+			}
+			if w.IsOutput() {
+				data.assignment[wI][instanceI].BigInt(outs[outsI])
 				outsI++
 			}
 		}
-	}
-	// Check if outsI == len(outs)?
-}
-
-func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
-	return func(_ *big.Int, ins, outs []*big.Int) error {
-		// assumes assignmentVector is arranged wire first, instance second in order of solution
-		offsets := info.AssignmentOffsets()
-		data.init(info)
-		maxNIn := data.circuit.MaxGateNbIn()
-
-		chunks := info.Chunks()
-
-		solveTask := func(chunkOffset int) utils.Task {
-			return func(startInChunk, endInChunk int) {
-				start := startInChunk + chunkOffset
-				end := endInChunk + chunkOffset
-				inputs := make([]frontend.Variable, maxNIn)
-				dependencyHeads := make([]int, len(data.circuit)) // for each wire, which of its dependencies we would look at next
-				for wI := range data.circuit {                    // skip instances that are not relevant (related to instances before the current task)
-					deps := info.Dependencies[wI]
-					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
-						return deps[i].InputInstance
-					}, len(deps), start)
-				}
-
-				for instanceI := start; instanceI < end; instanceI++ {
-					for wireI := range data.circuit {
-						wire := &data.circuit[wireI]
-						deps := info.Dependencies[wireI]
-						if wire.IsInput() {
-							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
-								dep := deps[dependencyHeads[wireI]]
-								data.assignment[wireI][instanceI].Set(&data.assignment[dep.OutputWire][dep.OutputInstance])
-								dependencyHeads[wireI]++
-							} else {
-								data.assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
-							}
-						} else {
-							// assemble the inputs
-							inputIndexes := info.Circuit[wireI].Inputs
-							for i, inputI := range inputIndexes {
-								inputs[i] = &data.assignment[inputI][instanceI]
-							}
-							gate := data.circuit[wireI].Gate
-							data.assignment[wireI][instanceI].Set(gate.Evaluate(api, inputs[:len(inputIndexes)]...).(*fr.Element))
-						}
-					}
-				}
-			}
-		}
-
-		start := 0
-		for _, end := range chunks {
-			data.workers.Submit(end-start, solveTask(start), 1024).Wait()
-			start = end
-		}
-
-		for _, p := range info.Prints {
-			serializable := make([]any, len(p.Values))
-			for i, v := range p.Values {
-				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
-					serializable[i] = data.assignment[algo_utils.ForceUint32(v)][p.Instance].String()
-				} else {
-					serializable[i] = v
-				}
-			}
-			fmt.Println(serializable...)
-		}
-
-		setOuts(data.assignment, info.Circuit, outs)
 
 		return nil
 	}
@@ -120,7 +125,13 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
+
+		data.assignment.RepeatUntilEnd(data.nbInstances)
+
+		// The first input is dummy, just to ensure the solver's work is done before the prover is called.
+		// The rest constitute the initial fiat shamir challenge
+		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte {
+
 			b := make([]byte, fr.Bytes)
 			i.FillBytes(b)
 			return b[:]
@@ -128,12 +139,22 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 		hsh := hash.NewHash(hashName + "_{{.FieldID}}")
 
-		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...), WithWorkers(data.workers))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
 		if err != nil {
 			return err
 		}
 
 		return proof.SerializeToBigInts(outs)
 
+	}
+}
+
+// RepeatUntilEnd for each wire, sets all the values starting from n to its predecessor.
+{{ print "// e.g. {{1, 2, 3}, {4, 5, 6}}.RepeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}"}}
+func (a WireAssignment) RepeatUntilEnd(n int) {
+	for i := range a {
+		for j := n; j < len(a[i]); j++ {
+			a[i][j] = a[i][j-1]
+		}
 	}
 }
