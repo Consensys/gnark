@@ -335,6 +335,20 @@ func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	}
 }
 
+func (g2 G2) Neg(p G2Affine) G2Affine {
+	xr := &p.P.X
+	yr := g2.Ext2.Neg(&p.P.Y)
+	return G2Affine{
+		P: g2AffP{
+			X: *xr,
+			Y: fields_bls12381.E2{
+				A0: *g2.fp.Reduce(&yr.A0),
+				A1: *g2.fp.Reduce(&yr.A1),
+			},
+		},
+	}
+}
+
 func (g2 G2) neg(p *G2Affine) *G2Affine {
 	xr := &p.P.X
 	yr := g2.Ext2.Neg(&p.P.Y)
