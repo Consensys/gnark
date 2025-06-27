@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
@@ -241,4 +242,131 @@ func TestMultiScalarMul(t *testing.T) {
 		Scalars: make([]Scalar, nbLen),
 	}, &assignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type MarshalG2Test struct {
+	G G2Affine
+	R []frontend.Variable
+}
+
+func (c *MarshalG2Test) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	br := g2.Marshal(c.G)
+	for i := 0; i < len(c.R); i++ {
+		api.AssertIsEqual(c.R[i], br[i])
+	}
+	return nil
+}
+
+func TestMarshalG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	testFn := func(r fr_bls12381.Element) {
+		var P bls12381.G2Affine
+		P.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+		gBytes := P.Marshal()
+		nbBytes := 4 * fp_bls12381.Bytes
+		nbBits := nbBytes * 8
+		circuit := &MarshalG2Test{
+			R: make([]frontend.Variable, nbBits),
+		}
+		witness := &MarshalG2Test{
+			G: G2Affine{
+				P: g2AffP{
+					X: fields_bls12381.E2{
+						A0: emulated.ValueOf[emulated.BLS12381Fp](P.X.A0),
+						A1: emulated.ValueOf[emulated.BLS12381Fp](P.X.A1),
+					},
+					Y: fields_bls12381.E2{
+						A0: emulated.ValueOf[emulated.BLS12381Fp](P.Y.A0),
+						A1: emulated.ValueOf[emulated.BLS12381Fp](P.Y.A1),
+					},
+				},
+			},
+			R: make([]frontend.Variable, nbBits),
+		}
+		for i := 0; i < nbBytes; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
+		}
+		err := test.IsSolved(circuit, witness, bls12381.ID.ScalarField())
+		assert.NoError(err)
+	}
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bls12381.Element
+		r.SetRandom()
+		testFn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bls12381.Element
+		r.SetZero()
+		testFn(r)
+	})
+}
+
+type UnmarshalG2Test struct {
+	G G2Affine
+	R []frontend.Variable
+}
+
+func (c *UnmarshalG2Test) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	p, err := g2.Unmarshal(c.R)
+	if err != nil {
+		return fmt.Errorf("unmarshal G2: %w", err)
+	}
+	g2.AssertIsEqual(&c.G, p)
+	return nil
+}
+
+func TestUnmarshalG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	testFn := func(r fr_bls12381.Element) {
+		var P bls12381.G2Affine
+		P.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+		gBytes := P.Marshal()
+		nbBytes := 4 * fp_bls12381.Bytes
+		nbBits := nbBytes * 8
+		circuit := &MarshalG2Test{
+			R: make([]frontend.Variable, nbBits),
+		}
+		witness := &MarshalG2Test{
+			G: G2Affine{
+				P: g2AffP{
+					X: fields_bls12381.E2{
+						A0: emulated.ValueOf[emulated.BLS12381Fp](P.X.A0),
+						A1: emulated.ValueOf[emulated.BLS12381Fp](P.X.A1),
+					},
+					Y: fields_bls12381.E2{
+						A0: emulated.ValueOf[emulated.BLS12381Fp](P.Y.A0),
+						A1: emulated.ValueOf[emulated.BLS12381Fp](P.Y.A1),
+					},
+				},
+			},
+			R: make([]frontend.Variable, nbBits),
+		}
+		for i := 0; i < nbBytes; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
+		}
+		err := test.IsSolved(circuit, witness, bls12381.ID.ScalarField())
+		assert.NoError(err)
+	}
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bls12381.Element
+		r.SetRandom()
+		testFn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bls12381.Element
+		r.SetZero()
+		testFn(r)
+	})
 }
