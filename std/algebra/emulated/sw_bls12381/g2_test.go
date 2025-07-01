@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
 
@@ -369,4 +370,72 @@ func TestUnmarshalG2(t *testing.T) {
 		r.SetZero()
 		testFn(r)
 	})
+}
+
+type FromBytesG2Test struct {
+	CompressedPoint []uints.U8
+	XA0             emulated.Element[BaseField]
+	XA1             emulated.Element[BaseField]
+	YA0             emulated.Element[BaseField]
+	YA1             emulated.Element[BaseField]
+}
+
+func (c *FromBytesG2Test) Define(api frontend.API) error {
+	g, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	point, err := g.FromCompressedBytes(c.CompressedPoint)
+	if err != nil {
+		return err
+	}
+	g.Ext2.AssertIsEqual(&point.P.X, &fields_bls12381.E2{A0: c.XA0, A1: c.XA1})
+	g.Ext2.AssertIsEqual(&point.P.Y, &fields_bls12381.E2{A0: c.YA0, A1: c.YA1})
+	return nil
+}
+
+func TestFromBytesG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	{
+		_, _, _, p := bls12381.Generators()
+		var r fr_bls12381.Element
+		r.SetRandom()
+		p.ScalarMultiplication(&p, r.BigInt(new(big.Int)))
+		pMarshalled := p.Bytes()
+		var witness, circuit FromBytesG2Test
+		nbBytes := 2 * fp_bls12381.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.XA0 = emulated.ValueOf[BaseField](p.X.A0)
+		witness.XA1 = emulated.ValueOf[BaseField](p.X.A1)
+		witness.YA0 = emulated.ValueOf[BaseField](p.Y.A0)
+		witness.YA1 = emulated.ValueOf[BaseField](p.Y.A1)
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+	// infinity
+	{
+		var witness, circuit FromBytesG2Test
+		nbBytes := 2 * fp_bls12381.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		var p bls12381.G2Affine
+		p.X.SetZero()
+		p.Y.SetZero()
+		pMarshalled := p.Bytes()
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.XA0 = emulated.ValueOf[BaseField](p.X.A0)
+		witness.XA1 = emulated.ValueOf[BaseField](p.X.A1)
+		witness.YA0 = emulated.ValueOf[BaseField](p.Y.A0)
+		witness.YA1 = emulated.ValueOf[BaseField](p.Y.A1)
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
 }

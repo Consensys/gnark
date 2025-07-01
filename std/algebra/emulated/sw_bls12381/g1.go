@@ -1,14 +1,18 @@
 package sw_bls12381
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 // G1Affine is the point in G1. It is an alias to the generic emulated affine
@@ -18,6 +22,12 @@ type G1Affine = sw_emulated.AffinePoint[BaseField]
 // Scalar is the scalar in the groups. It is an alias to the emulated element
 // defined over the scalar field of the groups.
 type Scalar = emulated.Element[ScalarField]
+
+var (
+	ErrInvalidSizeEncodedX = errors.New("invalid number of bytes on the encoded point")
+
+	halfP = "2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279893"
+)
 
 // NewG1Affine allocates a witness from the native G1 element and returns it.
 func NewG1Affine(v bls12381.G1Affine) G1Affine {
@@ -44,6 +54,104 @@ func NewG1(api frontend.API) (*G1, error) {
 		curveF: ba,
 		w:      w,
 	}, nil
+}
+
+func (g1 *G1) FromCompressedBytes(bytes []uints.U8, opts ...algopts.AlgebraOption) (*G1Affine, error) {
+	// 1 - compute the x coordinate (so it fits in Fp)
+	nbBytes := fp_bls12381.Bytes
+	uapi, err := uints.New[uints.U32](g1.api)
+	if err != nil {
+		return nil, err
+	}
+	mask := uints.NewU32(0x1FFFFFFF)   // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	unmask := uints.NewU32(0xE0000000) // unmaks = ^mask
+	firstFourBytes := uapi.PackMSB(
+		bytes[0],
+		bytes[1],
+		bytes[2],
+		bytes[3],
+	)
+	firstFourBytesPrefix := uapi.And(unmask, firstFourBytes)
+	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
+	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	unpackedFirstFourBytesPrefix := uapi.UnpackMSB(firstFourBytesPrefix)
+	prefix := unpackedFirstFourBytesPrefix[0].Val
+	unmaskedXCoord := make([]uints.U8, nbBytes)
+	copy(unmaskedXCoord, unpackedFirstFourBytes)
+	copy(unmaskedXCoord[4:], bytes[4:])
+	x, err := Unmarshal[BaseField](g1.api, unmaskedXCoord)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2 - hint y coordinate of the result
+	if len(bytes) != nbBytes {
+		return nil, ErrInvalidSizeEncodedX
+	}
+	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
+	for i := 0; i < nbBytes; i++ {
+		rawBytesCompressedPoints[i] = bytes[i].Val
+	}
+	yRawBytes, err := g1.api.NewHint(g1UnmarshalHint, nbBytes, rawBytesCompressedPoints...)
+	if err != nil {
+		return nil, err
+	}
+	yMarshalled := make([]uints.U8, nbBytes)
+	for i := 0; i < nbBytes; i++ {
+		yMarshalled[i] = uapi.ByteValueOf(yRawBytes[i])
+	}
+	y, err := Unmarshal[BaseField](g1.api, yMarshalled)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &G1Affine{
+		X: *x,
+		Y: *y,
+	}
+
+	// 3 - subgroup check
+
+	// if the point is infinity, we do the subgroup check on the base point (otherwise the subgroup
+	// check fails for (0,0) ). We check later on that the actual point is equal to (0,0).
+	compressedInfinity := 0xc0 // b1100 0000
+	isCompressedInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix))
+	_, _, g, _ := bls12381.Generators()
+	base := NewG1Affine(g)
+	resTmpX := g1.curveF.Select(isCompressedInfinity, &base.X, x)
+	resTmpY := g1.curveF.Select(isCompressedInfinity, &base.Y, y)
+	resTmp := &G1Affine{
+		X: *resTmpX,
+		Y: *resTmpY,
+	}
+	g1.AssertIsOnG1(resTmp)
+
+	// 4 - check logic with the mask
+
+	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
+	isInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix))
+	zero := emulated.ValueOf[BaseField](0)
+	infX := g1.curveF.Select(isInfinity, &zero, x)
+	infY := g1.curveF.Select(isInfinity, &zero, y)
+	g1.curveF.AssertIsEqual(infX, x)
+	g1.curveF.AssertIsEqual(infY, y)
+
+	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	emulatedHalfP := emulated.ValueOf[BaseField](halfP)
+	compressedSmallest := 0x80
+	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(compressedSmallest, prefix))
+	negY := g1.curveF.Neg(y)
+	negY = g1.curveF.Reduce(negY)
+	smallest := g1.curveF.Select(isCompressedSmallest, y, negY)
+	g1.curveF.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	compressedLargest := 0xa0
+	isCompressedLargest := g1.api.IsZero(g1.api.Sub(compressedLargest, prefix))
+	smallest = g1.curveF.Select(isCompressedLargest, negY, y)
+	g1.curveF.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	return res, nil
 }
 
 func (g1 G1) neg(p *G1Affine) *G1Affine {

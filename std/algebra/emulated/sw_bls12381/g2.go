@@ -6,12 +6,14 @@ import (
 	"slices"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 type G2 struct {
@@ -210,6 +212,118 @@ func (g2 *G2) Unmarshal(data []frontend.Variable) (*G2Affine, error) {
 	return &G2Affine{
 		P: g2AffP{X: x, Y: y},
 	}, nil
+}
+
+func (g2 *G2) FromCompressedBytes(bytes []uints.U8, opts ...algopts.AlgebraOption) (*G2Affine, error) {
+	// 1 - compute the x coordinate (so it fits in Fp)
+	nbBytes := 2 * fp.Bytes
+	uapi, err := uints.New[uints.U32](g2.api)
+	if err != nil {
+		return nil, err
+	}
+	mask := uints.NewU32(0x1FFFFFFF)   // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	unmask := uints.NewU32(0xE0000000) // unmaks = ^mask
+	firstFourBytes := uapi.PackMSB(
+		bytes[0],
+		bytes[1],
+		bytes[2],
+		bytes[3],
+	)
+	firstFourBytesPrefix := uapi.And(unmask, firstFourBytes)
+	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
+	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	unpackedFirstFourBytesPrefix := uapi.UnpackMSB(firstFourBytesPrefix)
+	prefix := unpackedFirstFourBytesPrefix[0].Val
+	unmaskedXCoord := make([]uints.U8, nbBytes)
+	copy(unmaskedXCoord, unpackedFirstFourBytes)
+	copy(unmaskedXCoord[4:], bytes[4:])
+	xa1, err := Unmarshal[BaseField](g2.api, unmaskedXCoord[:fp.Bytes])
+	if err != nil {
+		return nil, err
+	}
+	xa0, err := Unmarshal[BaseField](g2.api, unmaskedXCoord[fp.Bytes:])
+	if err != nil {
+		return nil, err
+	}
+
+	// 2 - hint y coordinate of the result
+	if len(bytes) != nbBytes {
+		return nil, ErrInvalidSizeEncodedX
+	}
+	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
+	for i := 0; i < nbBytes; i++ {
+		rawBytesCompressedPoints[i] = bytes[i].Val
+	}
+	yRawBytes, err := g2.api.NewHint(g2UnmarshalHint, nbBytes, rawBytesCompressedPoints...)
+	if err != nil {
+		return nil, err
+	}
+	yMarshalled := make([]uints.U8, nbBytes)
+	for i := 0; i < nbBytes; i++ {
+		yMarshalled[i] = uapi.ByteValueOf(yRawBytes[i])
+	}
+	ya1, err := Unmarshal[BaseField](g2.api, yMarshalled[:fp.Bytes])
+	if err != nil {
+		return nil, err
+	}
+	ya0, err := Unmarshal[BaseField](g2.api, yMarshalled[fp.Bytes:])
+	if err != nil {
+		return nil, err
+	}
+
+	res := &G2Affine{
+		P: g2AffP{
+			X: fields_bls12381.E2{A0: *xa0, A1: *xa1},
+			Y: fields_bls12381.E2{A0: *ya0, A1: *ya1},
+		},
+	}
+
+	// 3 - subgroup check
+
+	// if the point is infinity, we do the subgroup check on the base point (otherwise the subgroup
+	// check fails for (0,0) ). We check later on that the actual point is equal to (0,0).
+	compressedInfinity := 0xc0 // b1100 0000
+	isCompressedInfinity := g2.api.IsZero(g2.api.Sub(compressedInfinity, prefix))
+	_, _, _, g := bls12381.Generators()
+	base := NewG2Affine(g)
+	resTmpX := g2.Ext2.Select(isCompressedInfinity, &base.P.X, &res.P.X)
+	resTmpY := g2.Ext2.Select(isCompressedInfinity, &base.P.Y, &res.P.Y)
+	resTmp := &G2Affine{
+		P: g2AffP{
+			X: *resTmpX,
+			Y: *resTmpY,
+		},
+	}
+	g2.AssertIsOnG2(resTmp)
+
+	// 4 - check logic with the mask
+
+	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
+	isInfinity := g2.api.IsZero(g2.api.Sub(compressedInfinity, prefix))
+	zero := g2.Ext2.Zero()
+	infX := g2.Ext2.Select(isInfinity, zero, &res.P.X)
+	infY := g2.Ext2.Select(isInfinity, zero, &res.P.Y)
+	g2.Ext2.AssertIsEqual(infX, &res.P.X)
+	g2.Ext2.AssertIsEqual(infY, &res.P.Y)
+
+	isYA1Zero := g2.fp.IsZero(&res.P.Y.A1)
+	y := g2.fp.Select(isYA1Zero, &res.P.Y.A0, &res.P.Y.A1)
+	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	emulatedHalfP := emulated.ValueOf[BaseField](halfP)
+	compressedSmallest := 0x80
+	isCompressedSmallest := g2.api.IsZero(g2.api.Sub(compressedSmallest, prefix))
+	negY := g2.fp.Neg(y)
+	negY = g2.fp.Reduce(negY)
+	smallest := g2.fp.Select(isCompressedSmallest, y, negY)
+	g2.fp.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	compressedLargest := 0xa0
+	isCompressedLargest := g2.api.IsZero(g2.api.Sub(compressedLargest, prefix))
+	smallest = g2.fp.Select(isCompressedLargest, negY, y)
+	g2.fp.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	return res, nil
 }
 
 func (g2 *G2) psi(q *G2Affine) *G2Affine {
