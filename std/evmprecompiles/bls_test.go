@@ -57,7 +57,7 @@ func TestECAddG1BLSCircuitShort(t *testing.T) {
 
 func TestECAddG1BLSCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECAdd()
+	circuit, witness := testRoutineECAddG1BLS()
 	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 }
 
