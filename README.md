@@ -38,17 +38,17 @@ Refer to [known security advisories](https://github.com/Consensys/gnark/security
 ## Testing
 
 `gnark` employs the following testing procedures:
-* unit testing - we test the primitives in unit tests
+* unit testing - we test the primitives in unit tests.
 * circuit testing - we test the circuit implementation against several targets:
   - test engine - instead of running the full prover and verifier stack, we run the computations only to ensure the completeness of the circuits
   - proof engines - we compile the circuits, run the setup, prove and verify using native implementation
   - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-checker`]
 * regression testing - we have implemented [tests for reported issues](internal/regression_tests) to avoid regressions
-* constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions
+* constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions.
 * serialization testing - we check that [serialization round-trip is complete](io/roundtrip.go)
 * side-effect testing - we check that circuit [compilation is deterministic](test/assert.go)
 * fuzz testing:
-  - circuit input fuzzing - we provide random inputs to the circuit to cause solver error
+  - circuit input fuzzing - we provide random inputs to the circuit to cause solver error.
   - native input fuzzing - we provide random inputs to various native methods to cause errors. We have also stored initial fuzzing corpus for regression tests.
   - circuit definition fuzzing - we cooperate with Consensys Diligence to fuzz the circuit definitions to find bugs in the `gnark` circuit compiler.
 
