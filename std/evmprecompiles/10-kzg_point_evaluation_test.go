@@ -1,104 +1,144 @@
 package evmprecompiles
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
-	"errors"
+	"encoding/hex"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
 
-const (
-	kzgSize        = 128
-	polynomialSize = 100
-	nbPolynomials  = 5
-)
+type kzgPointEvalCircuit struct {
+	VersionedHash      [2]frontend.Variable
+	EvaluationPoint    emulated.Element[sw_bls12381.ScalarField]
+	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
+	Commitment         [3]frontend.Variable
+	Proof              [3]frontend.Variable
+	ExpectedBlobSize   [2]frontend.Variable
+	ExpectedBlsModulus [2]frontend.Variable
 
-type kzgPointEvaluationPrecompile struct {
-	VersionnedHash  []uints.U8
-	Z               emulated.Element[sw_bls12381.ScalarField]
-	Y               emulated.Element[sw_bls12381.ScalarField]
-	ComSerialised   []uints.U8
-	ProofSerialised []uints.U8
-	Vk              kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+	ExpectedSuccess frontend.Variable
 }
 
-func (c *kzgPointEvaluationPrecompile) Define(api frontend.API) error {
-
-	res, err := KzgPointEvaluation(api, c.VersionnedHash, c.Z, c.Y, c.ComSerialised, c.ProofSerialised, c.Vk)
+func (c *kzgPointEvalCircuit) Define(api frontend.API) error {
+	err := KzgPointEvaluation(api, c.VersionedHash, c.EvaluationPoint, c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
-		return err
+		return fmt.Errorf("KzgPointEvaluation: %w", err)
 	}
-
-	if len(res) != len(blobPrecompileReturnValueBytes) {
-		return errors.New("wrong size return value")
-	}
-
-	for i := 0; i < len(res); i++ {
-		api.AssertIsEqual(res[i].Val, blobPrecompileReturnValueBytes[i])
-	}
-
 	return nil
 }
 
-func TestKzgPointOpeningPrecompile(t *testing.T) {
-
+func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	alpha, err := rand.Int(rand.Reader, ecc.BLS12_381.ScalarField())
-	assert.NoError(err)
-	srs, err := kzg_bls12381.NewSRS(kzgSize, alpha)
-	assert.NoError(err)
+	// setup loading
+	f, err := os.Open(locTrustedSetup)
+	assert.NoError(err, "failed to open trusted setup file")
+	defer f.Close()
+	setup, err := parseTrustedSetup(f)
+	assert.NoError(err, "failed to parse trusted setup")
 
-	f := make([]fr.Element, polynomialSize)
-	for i := range f {
-		f[i].SetRandom()
-	}
-	com, err := kzg_bls12381.Commit(f, srs.Pk)
-	assert.NoError(err)
-	var point fr.Element
-	point.SetRandom()
-	proof, err := kzg_bls12381.Open(f, point, srs.Pk)
-	assert.NoError(err)
+	// compute the proving key for commitment and opening
+	pk, err := setup.toProvingKey()
+	assert.NoError(err, "failed to convert trusted setup to proving key")
 
-	comSerialised := com.Bytes()
-	proofSerialised := proof.H.Bytes()
+	// commit to a random polynomial
+	randPoly := make(fr.Vector, evmBlockSize)
+	randPoly.MustSetRandom()
+	kzgCommitment, err := kzg_bls12381.Commit(randPoly, *pk)
+	assert.NoError(err, "failed to compute KZG commitment")
 
-	// versioned hash
-	h := sha256.Sum256(comSerialised[:])
+	// compute the KZG proof for a random evaluation point
+	var evaluationPoint fr.Element
+	evaluationPoint.MustSetRandom()
+	kzgProof, err := kzg_bls12381.Open(randPoly, evaluationPoint, *pk)
+	assert.NoError(err, "failed to compute KZG proof")
+
+	// prepare the witness elements
+	// - versioned hash (hash of the commitment)
+	commitmentBytes := kzgCommitment.Bytes()
+	h := sha256.Sum256(commitmentBytes[:])
 	h[0] = blobCommitmentVersionKZG
 
-	var witness, circuit kzgPointEvaluationPrecompile
-	witness.VersionnedHash = make([]uints.U8, 32)
-	for i := 0; i < 32; i++ {
-		witness.VersionnedHash[i] = uints.NewU8(h[i])
+	encode := func(b []byte) string {
+		return "0x" + hex.EncodeToString(b)
 	}
-	witness.Z = emulated.ValueOf[sw_bls12381.ScalarField](point)
-	witness.Y = emulated.ValueOf[sw_bls12381.ScalarField](proof.ClaimedValue)
-	witness.ComSerialised = make([]uints.U8, fp.Bytes)
-	witness.ProofSerialised = make([]uints.U8, fp.Bytes)
-	for i := 0; i < fp.Bytes; i++ {
-		witness.ComSerialised[i] = uints.NewU8(comSerialised[i])
-		witness.ProofSerialised[i] = uints.NewU8(proofSerialised[i])
+
+	witnessHash := [2]frontend.Variable{
+		encode(h[16:32]),
+		encode(h[0:16]),
 	}
-	witness.Vk, err = kzg.ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
-	assert.NoError(err)
+	// - commitment into 3 limbs
+	witnessCommitment := [3]frontend.Variable{
+		encode(commitmentBytes[32:48]),
+		encode(commitmentBytes[16:32]),
+		encode(commitmentBytes[0:16]),
+	}
+	// - proof into 3 limbs
+	proofUncompressed := kzgProof.H.Bytes()
+	witnessProof := [3]frontend.Variable{
+		encode(proofUncompressed[32:48]),
+		encode(proofUncompressed[16:32]),
+		encode(proofUncompressed[0:16]),
+	}
 
-	circuit.VersionnedHash = make([]uints.U8, 32)
-	circuit.ComSerialised = make([]uints.U8, fp.Bytes)
-	circuit.ProofSerialised = make([]uints.U8, fp.Bytes)
+	// prepare the constant return values
+	witnessBlobSize := [2]frontend.Variable{
+		0,
+		evmBlockSize,
+	}
+	witnessBlsModulus := [2]frontend.Variable{
+		"0x73eda753299d7d483339d80809a1d805",
+		"0x53bda402fffe5bfeffffffff00000001",
+	}
 
-	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	// prepare the full witness
+	witness := kzgPointEvalCircuit{
+		VersionedHash:      witnessHash,
+		EvaluationPoint:    emulated.ValueOf[sw_bls12381.ScalarField](evaluationPoint),
+		ClaimedValue:       emulated.ValueOf[sw_bls12381.ScalarField](kzgProof.ClaimedValue),
+		Commitment:         witnessCommitment,
+		Proof:              witnessProof,
+		ExpectedBlobSize:   witnessBlobSize,
+		ExpectedBlsModulus: witnessBlsModulus,
+		ExpectedSuccess:    1,
+	}
+	err = test.IsSolved(&kzgPointEvalCircuit{}, &witness, ecc.BLS12_377.ScalarField())
+	assert.NoError(err, "test solver")
+}
+
+func TestTrustedSetupCompleteness(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	f, err := os.Open(locTrustedSetup)
+	assert.NoError(err, "failed to open trusted setup file")
+	defer f.Close()
+
+	setup, err := parseTrustedSetup(f)
+	assert.NoError(err, "failed to parse trusted setup")
+	pk, err := setup.toProvingKey()
+	assert.NoError(err, "failed to convert trusted setup to proving key")
+	vk, err := setup.toVerifyingKey()
+	assert.NoError(err, "failed to convert trusted setup to verifying key")
+
+	randPoly := make(fr.Vector, evmBlockSize)
+	randPoly.MustSetRandom()
+	kzgCommitment, err := kzg_bls12381.Commit(randPoly, *pk)
+	assert.NoError(err, "failed to compute KZG commitment")
+	var evaluationPoint fr.Element
+	evaluationPoint.MustSetRandom()
+	kzgProof, err := kzg_bls12381.Open(randPoly, evaluationPoint, *pk)
+	assert.NoError(err, "failed to compute KZG proof")
+
+	err = kzg_bls12381.Verify(&kzgCommitment, &kzgProof, evaluationPoint, *vk)
+	assert.NoError(err, "KZG verification failed")
 
 }
