@@ -384,7 +384,7 @@ func unmarshalHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	nbBytes := fp.Bytes
 	xCoord := make([]byte, nbBytes)
 	if len(inputs) != nbBytes {
-		return ErrInvalidSizeEncodedX
+		return fmt.Errorf("expecting %d inputs, got %d", nbBytes, len(inputs))
 	}
 	for i := 0; i < nbBytes; i++ {
 		tmp := inputs[i].Bytes()

@@ -1,7 +1,7 @@
 package sw_bls12381
 
 import (
-	"errors"
+	"fmt"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	ErrInvalidSizeEncodedX = errors.New("invalid number of bytes on the encoded point")
-	halfP                  = "2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279893"
+	halfP = "2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279893"
 )
 
 // UnmarshalCompressed unmarshal a compressed point.
@@ -49,7 +48,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 
 	// 1 - hint y coordinate of the result
 	if len(compressedPoint) != nbBytes {
-		return nil, ErrInvalidSizeEncodedX
+		return nil, fmt.Errorf("compressed point must be %d bytes, got %d", nbBytes, len(compressedPoint))
 	}
 	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
 	for i := 0; i < nbBytes; i++ {
