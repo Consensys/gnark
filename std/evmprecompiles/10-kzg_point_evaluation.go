@@ -10,7 +10,6 @@ import (
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -22,11 +21,15 @@ import (
 	"github.com/consensys/gnark/std/math/uints"
 )
 
-var vk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+// fixedKzgSrsVk is the verifying key for the KZG precompile. As it is fixed,
+// then we can embed it into the circuit instead of passing as a witness
+// argument.
+var fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
 
 func init() {
+	// perform one-time loading of the KZG trusted setup verifying key
 	var err error
-	vk, err = evmMainnetKzgTrustedSetup()
+	fixedKzgSrsVk, err = evmMainnetKzgTrustedSetup()
 	if err != nil {
 		panic(fmt.Sprintf("failed to load KZG trusted setup: %v", err))
 	}
@@ -41,12 +44,10 @@ const (
 	// defines the polynomial degree and therefore the size of the blob. It is also the expected
 	// return value of the POINTEVAL precompile.
 	evmBlockSize = 4096
-)
-
-var (
 	// evmBlsModulus is the modulus of the BLS12-381 scalar field in hexadecimal
-	// format (without the 0x prefix). It is the expected return value of the POINTEVAL precompile.
-	evmBlsModulus = fr.Modulus().Text(16)
+	// format, split into 16-byte high and low parts for the expected values.
+	evmBlsModulusHi = "0x73eda753299d7d483339d80809a1d805"
+	evmBlsModulusLo = "0x53bda402fffe5bfeffffffff00000001"
 )
 
 // KzgPointEvaluation implements the [KZG_POINT_EVALUATION] precompile at
@@ -86,30 +87,30 @@ func KzgPointEvaluation(
 	// versioned hash
 	var versionedHashBytes [32]uints.U8
 	for i := range versionedHash {
-		res, err := conversion.NativeToBytes(api, versionedHash[i])
+		res, err := conversion.NativeToBytes(api, versionedHash[len(versionedHash)-1-i])
 		if err != nil {
 			return fmt.Errorf("convert versioned hash element %d to bytes: %w", i, err)
 		}
-		copy(versionedHashBytes[i*16:(i+1)*16], res)
+		copy(versionedHashBytes[i*16:(i+1)*16], res[16:])
 	}
 
 	// commitment
 	var comSerializedBytes [48]uints.U8
-	for i, v := range commitmentCompressed {
-		res, err := conversion.NativeToBytes(api, v)
+	for i := range commitmentCompressed {
+		res, err := conversion.NativeToBytes(api, commitmentCompressed[len(commitmentCompressed)-1-i])
 		if err != nil {
 			return fmt.Errorf("convert commitment element %d to bytes: %w", i, err)
 		}
-		copy(comSerializedBytes[i*16:(i+1)*16], res)
+		copy(comSerializedBytes[i*16:(i+1)*16], res[16:])
 	}
 	// proof
 	var proofSerialisedBytes [48]uints.U8
-	for i, v := range proofCompressed {
-		res, err := conversion.NativeToBytes(api, v)
+	for i := range proofCompressed {
+		res, err := conversion.NativeToBytes(api, proofCompressed[len(proofCompressed)-1-i])
 		if err != nil {
 			return fmt.Errorf("convert proof element %d to bytes: %w", i, err)
 		}
-		copy(proofSerialisedBytes[i*16:(i+1)*16], res)
+		copy(proofSerialisedBytes[i*16:(i+1)*16], res[16:])
 	}
 
 	// -- unmarshal compressed commitment and proof into uncompressed points
@@ -152,7 +153,7 @@ func KzgPointEvaluation(
 		Quotient:     *proofUncompressed,
 		ClaimedValue: claimedValue,
 	}
-	err = v.CheckOpeningProof(kzgCommitment, kzgOpeningProof, evaluationPoint, *vk)
+	err = v.CheckOpeningProof(kzgCommitment, kzgOpeningProof, evaluationPoint, *fixedKzgSrsVk)
 	if err != nil {
 		return fmt.Errorf("check opening proof: %w", err)
 	}
@@ -160,8 +161,8 @@ func KzgPointEvaluation(
 	// -- check expected values. These are constant values, so we just check that they match the expected values.
 	api.AssertIsEqual(expectedBlobSize[0], 0)
 	api.AssertIsEqual(expectedBlobSize[1], evmBlockSize)
-	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulus[16:32])
-	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulus[0:16])
+	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
+	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
 
 	return nil
 }
@@ -176,6 +177,12 @@ type trustedSetupJSON struct {
 	G2         []string `json:"g2_monomial"`
 }
 
+// parseTrustedSetup reads the trusted setup from the given reader and returns a
+// trustedSetupJSON struct. It validates the setup to ensure it has the correct
+// number of elements in G1, G2, and G1Lagrange. The G1 and G1Lagrange arrays
+// must have exactly `evmBlockSize` elements, while G2 must have at least 2
+// elements (but in practice has more for future extensibility). If the setup is
+// invalid, it returns an error.
 func parseTrustedSetup(r io.Reader) (*trustedSetupJSON, error) {
 	var setup trustedSetupJSON
 	dec := json.NewDecoder(r)
@@ -191,6 +198,8 @@ func parseTrustedSetup(r io.Reader) (*trustedSetupJSON, error) {
 	return &setup, nil
 }
 
+// toProvingKey converts the trusted setup JSON to a ProvingKey for allowing to
+// compute the commitment and opening proof.
 func (t *trustedSetupJSON) toProvingKey() (*kzg_bls12381.ProvingKey, error) {
 	pk := kzg_bls12381.ProvingKey{
 		G1: make([]bls12381.G1Affine, len(t.G1)),
@@ -211,6 +220,8 @@ func (t *trustedSetupJSON) toProvingKey() (*kzg_bls12381.ProvingKey, error) {
 	return &pk, nil
 }
 
+// toVerifyingKey converts the trusted setup JSON to a VerifyingKey for allowing
+// to verify the opening proof.
 func (t *trustedSetupJSON) toVerifyingKey() (*kzg_bls12381.VerifyingKey, error) {
 	var vk kzg_bls12381.VerifyingKey
 	if len(t.G2) < 2 {
@@ -258,6 +269,12 @@ func decodePrefixed(line string) ([]byte, error) {
 	return decoded, nil
 }
 
+// evmMainnetKzgTrustedSetup loads the KZG trusted setup from the file as a
+// circuit variable. Particularly, it uses the fixed version of the verifying
+// key where the G1 and G2 elements are constants. This allows to reduce the
+// number of constraints and use the precomputed lines for G2 which
+// significantly speeds up the pairing check required for KZG proof
+// verification.
 func evmMainnetKzgTrustedSetup() (*kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine], error) {
 	f, err := os.Open(locTrustedSetup)
 	if err != nil {
