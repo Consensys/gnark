@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -54,6 +55,83 @@ func NewG1(api frontend.API) (*G1, error) {
 		curveF: ba,
 		w:      w,
 	}, nil
+}
+
+func (g1 *G1) ToCompressedBytes(p G1Affine, opts ...algopts.AlgebraOption) ([]uints.U8, error) {
+	nbBytes := fp_bls12381.Bytes
+	uapi, err := uints.New[uints.U32](g1.api)
+	if err != nil {
+		return nil, err
+	}
+	xBytes, err := Marshal[BaseField](g1.api, &p.X)
+	if err != nil {
+		return nil, err
+	}
+	yBytes, err := Marshal[BaseField](g1.api, &p.Y)
+	if err != nil {
+		return nil, err
+	}
+	// Compute masked 4 bytes
+	rawBytes := make([]frontend.Variable, 2*nbBytes)
+	for i := 0; i < nbBytes; i++ {
+		rawBytes[i] = xBytes[nbBytes-i-1].Val
+	}
+	for i := 0; i < nbBytes; i++ {
+		rawBytes[nbBytes+i] = yBytes[nbBytes-i-1].Val
+	}
+	bytes, err := g1.api.NewHint(g1MarshalMaskHint, 4, rawBytes...)
+	if err != nil {
+		return nil, err
+	}
+	// Verify mask
+	mask := uints.NewU32(0x1FFFFFFF)   // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	unmask := uints.NewU32(0xE0000000) // unmaks = ^mask
+	firstFourBytes := uapi.PackMSB(
+		uapi.ByteValueOf(bytes[0]),
+		uapi.ByteValueOf(bytes[1]),
+		uapi.ByteValueOf(bytes[2]),
+		uapi.ByteValueOf(bytes[3]),
+	)
+	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
+	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	for i := 0; i < 4; i++ {
+		g1.api.AssertIsEqual(unpackedFirstFourBytes[i].Val, xBytes[nbBytes-i-1].Val)
+	}
+	// Verify flags
+	firstFourBytesPrefix := uapi.And(unmask, firstFourBytes)
+	unpackedFirstFourBytesPrefix := uapi.UnpackMSB(firstFourBytesPrefix)
+	prefix := unpackedFirstFourBytesPrefix[0].Val
+
+	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
+	compressedInfinity := 0xc0 // b1100 0000
+	isInfinity := g1.api.IsZero(g1.api.Sub(compressedInfinity, prefix))
+	zero := emulated.ValueOf[BaseField](0)
+	infX := g1.curveF.Select(isInfinity, &zero, &p.X)
+	infY := g1.curveF.Select(isInfinity, &zero, &p.Y)
+	g1.curveF.AssertIsEqual(infX, &p.X)
+	g1.curveF.AssertIsEqual(infY, &p.Y)
+
+	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	emulatedHalfP := emulated.ValueOf[BaseField](halfP)
+	compressedSmallest := 0x80
+	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(compressedSmallest, prefix))
+	negY := g1.curveF.Neg(&p.Y)
+	negY = g1.curveF.Reduce(negY)
+	smallest := g1.curveF.Select(isCompressedSmallest, &p.Y, negY)
+	g1.curveF.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	compressedLargest := 0xa0
+	isCompressedLargest := g1.api.IsZero(g1.api.Sub(compressedLargest, prefix))
+	smallest = g1.curveF.Select(isCompressedLargest, negY, &p.Y)
+	g1.curveF.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// Construct response
+	res := make([]uints.U8, nbBytes)
+	copy(res, xBytes)
+	slices.Reverse(res)
+	copy(res[:4], uapi.UnpackMSB(firstFourBytes))
+	return res, nil
 }
 
 func (g1 *G1) FromCompressedBytes(bytes []uints.U8, opts ...algopts.AlgebraOption) (*G1Affine, error) {

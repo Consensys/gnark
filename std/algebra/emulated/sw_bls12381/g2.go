@@ -214,6 +214,100 @@ func (g2 *G2) Unmarshal(data []frontend.Variable) (*G2Affine, error) {
 	}, nil
 }
 
+func (g2 *G2) ToCompressedBytes(p G2Affine, opts ...algopts.AlgebraOption) ([]uints.U8, error) {
+	nbBytes := 2 * fp.Bytes
+	uapi, err := uints.New[uints.U32](g2.api)
+	if err != nil {
+		return nil, err
+	}
+	xa0Bytes, err := Marshal[BaseField](g2.api, &p.P.X.A0)
+	if err != nil {
+		return nil, err
+	}
+	xa1Bytes, err := Marshal[BaseField](g2.api, &p.P.X.A1)
+	if err != nil {
+		return nil, err
+	}
+	ya0Bytes, err := Marshal[BaseField](g2.api, &p.P.Y.A0)
+	if err != nil {
+		return nil, err
+	}
+	ya1Bytes, err := Marshal[BaseField](g2.api, &p.P.Y.A1)
+	if err != nil {
+		return nil, err
+	}
+	// Compute masked 4 bytes
+	rawBytes := make([]frontend.Variable, 2*nbBytes)
+	for i := 0; i < fp.Bytes; i++ {
+		rawBytes[i] = xa1Bytes[fp.Bytes-i-1].Val
+	}
+	for i := 0; i < fp.Bytes; i++ {
+		rawBytes[fp.Bytes+i] = xa0Bytes[fp.Bytes-i-1].Val
+	}
+	for i := 0; i < fp.Bytes; i++ {
+		rawBytes[2*fp.Bytes+i] = ya1Bytes[fp.Bytes-i-1].Val
+	}
+	for i := 0; i < fp.Bytes; i++ {
+		rawBytes[3*fp.Bytes+i] = ya0Bytes[fp.Bytes-i-1].Val
+	}
+	bytes, err := g2.api.NewHint(g2MarshalMaskHint, 4, rawBytes...)
+	if err != nil {
+		return nil, err
+	}
+	// Verify mask
+	mask := uints.NewU32(0x1FFFFFFF)   // mask = [0xFF, 0xFF, 0xFF, 0x1F]
+	unmask := uints.NewU32(0xE0000000) // unmaks = ^mask
+	firstFourBytes := uapi.PackMSB(
+		uapi.ByteValueOf(bytes[0]),
+		uapi.ByteValueOf(bytes[1]),
+		uapi.ByteValueOf(bytes[2]),
+		uapi.ByteValueOf(bytes[3]),
+	)
+	firstFourBytesUnMasked := uapi.And(mask, firstFourBytes)
+	unpackedFirstFourBytes := uapi.UnpackMSB(firstFourBytesUnMasked)
+	for i := 0; i < 4; i++ {
+		g2.api.AssertIsEqual(unpackedFirstFourBytes[i].Val, xa1Bytes[fp.Bytes-i-1].Val)
+	}
+	// Verify flags
+	firstFourBytesPrefix := uapi.And(unmask, firstFourBytes)
+	unpackedFirstFourBytesPrefix := uapi.UnpackMSB(firstFourBytesPrefix)
+	prefix := unpackedFirstFourBytesPrefix[0].Val
+
+	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
+	compressedInfinity := 0xc0 // b1100 0000
+	isInfinity := g2.api.IsZero(g2.api.Sub(compressedInfinity, prefix))
+	zero := g2.Ext2.Zero()
+	infX := g2.Ext2.Select(isInfinity, zero, &p.P.X)
+	infY := g2.Ext2.Select(isInfinity, zero, &p.P.Y)
+	g2.Ext2.AssertIsEqual(infX, &p.P.X)
+	g2.Ext2.AssertIsEqual(infY, &p.P.Y)
+
+	isYA1Zero := g2.fp.IsZero(&p.P.Y.A1)
+	y := g2.fp.Select(isYA1Zero, &p.P.Y.A0, &p.P.Y.A1)
+	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	emulatedHalfP := emulated.ValueOf[BaseField](halfP)
+	compressedSmallest := 0x80
+	isCompressedSmallest := g2.api.IsZero(g2.api.Sub(compressedSmallest, prefix))
+	negY := g2.fp.Neg(y)
+	negY = g2.fp.Reduce(negY)
+	smallest := g2.fp.Select(isCompressedSmallest, y, negY)
+	g2.fp.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	compressedLargest := 0xa0
+	isCompressedLargest := g2.api.IsZero(g2.api.Sub(compressedLargest, prefix))
+	smallest = g2.fp.Select(isCompressedLargest, negY, y)
+	g2.fp.AssertIsLessOrEqual(smallest, &emulatedHalfP)
+
+	// Construct response
+	res := make([]uints.U8, nbBytes)
+	copy(res[:fp.Bytes], xa0Bytes)
+	copy(res[fp.Bytes:], xa1Bytes)
+	slices.Reverse(res)
+	copy(res[:4], uapi.UnpackMSB(firstFourBytes))
+	return res, nil
+}
+
 func (g2 *G2) FromCompressedBytes(bytes []uints.U8, opts ...algopts.AlgebraOption) (*G2Affine, error) {
 	// 1 - compute the x coordinate (so it fits in Fp)
 	nbBytes := 2 * fp.Bytes

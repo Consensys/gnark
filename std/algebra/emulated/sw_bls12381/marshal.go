@@ -2,6 +2,7 @@ package sw_bls12381
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -29,7 +30,7 @@ func bitsToU8(api frontend.API, b []frontend.Variable) []uints.U8 {
 		for j := 0; j < 8 && 8*i+j < nbBits; j++ {
 			buf[j] = b[8*i+j]
 		}
-		res[i].Val = api.FromBinary(buf)
+		res[i].Val = bits.FromBinary(api, buf)
 	}
 
 	return res

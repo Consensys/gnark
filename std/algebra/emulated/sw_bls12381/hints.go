@@ -27,7 +27,9 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Signs,
 		g1SqrtRatioHint,
 		g2SqrtRatioHint,
+		g1MarshalMaskHint,
 		g1UnmarshalHint,
+		g2MarshalMaskHint,
 		g2UnmarshalHint,
 	}
 }
@@ -388,6 +390,35 @@ func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	})
 }
 
+func g1MarshalMaskHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	nbBytes := 2 * fp.Bytes
+	rawBytes := make([]byte, nbBytes)
+	if len(inputs) != nbBytes {
+		return ErrInvalidSizeEncodedX
+	}
+	for i := 0; i < nbBytes; i++ {
+		tmp := inputs[i].Bytes()
+		if len(tmp) == 0 {
+			rawBytes[i] = 0
+		} else {
+			rawBytes[i] = tmp[0]
+		}
+	}
+
+	var point bls12381.G1Affine
+	_, err := point.SetBytes(rawBytes)
+	if err != nil {
+		return err
+	}
+
+	compressedBytes := point.Bytes()
+	for i := 0; i < 4; i++ {
+		outputs[i].SetBytes([]byte{compressedBytes[i]})
+	}
+
+	return nil
+}
+
 func g1UnmarshalHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	nbBytes := fp.Bytes
 	xCoord := make([]byte, nbBytes)
@@ -414,6 +445,35 @@ func g1UnmarshalHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 	yMarshalled := point.Y.Marshal()
 	for i := 0; i < len(yMarshalled); i++ {
 		outputs[i].SetBytes([]byte{yMarshalled[i]})
+	}
+
+	return nil
+}
+
+func g2MarshalMaskHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	nbBytes := 4 * fp.Bytes
+	rawBytes := make([]byte, nbBytes)
+	if len(inputs) != nbBytes {
+		return ErrInvalidSizeEncodedX
+	}
+	for i := 0; i < nbBytes; i++ {
+		tmp := inputs[i].Bytes()
+		if len(tmp) == 0 {
+			rawBytes[i] = 0
+		} else {
+			rawBytes[i] = tmp[0]
+		}
+	}
+
+	var point bls12381.G2Affine
+	_, err := point.SetBytes(rawBytes)
+	if err != nil {
+		return err
+	}
+
+	compressedBytes := point.Bytes()
+	for i := 0; i < 4; i++ {
+		outputs[i].SetBytes([]byte{compressedBytes[i]})
 	}
 
 	return nil

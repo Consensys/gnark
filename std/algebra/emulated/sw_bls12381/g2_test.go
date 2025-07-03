@@ -372,6 +372,88 @@ func TestUnmarshalG2(t *testing.T) {
 	})
 }
 
+type ToBytesG2Test struct {
+	P               G2Affine
+	CompressedPoint []uints.U8
+}
+
+func (c *ToBytesG2Test) Define(api frontend.API) error {
+	g, err := NewG2(api)
+	if err != nil {
+		return err
+	}
+	bytes, err := g.ToCompressedBytes(c.P)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(c.CompressedPoint); i++ {
+		api.AssertIsEqual(c.CompressedPoint[i].Val, bytes[i].Val)
+	}
+	return nil
+}
+
+func TestToBytesG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	{
+		_, _, _, p := bls12381.Generators()
+		var r fr_bls12381.Element
+		r.SetRandom()
+		p.ScalarMultiplication(&p, r.BigInt(new(big.Int)))
+		pMarshalled := p.Bytes()
+		var witness, circuit ToBytesG2Test
+		nbBytes := 2 * fp_bls12381.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.P = G2Affine{
+			P: g2AffP{
+				X: fields_bls12381.E2{
+					A0: emulated.ValueOf[emulated.BLS12381Fp](p.X.A0),
+					A1: emulated.ValueOf[emulated.BLS12381Fp](p.X.A1),
+				},
+				Y: fields_bls12381.E2{
+					A0: emulated.ValueOf[emulated.BLS12381Fp](p.Y.A0),
+					A1: emulated.ValueOf[emulated.BLS12381Fp](p.Y.A1),
+				},
+			},
+		}
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+	// infinity
+	{
+		var witness, circuit ToBytesG2Test
+		nbBytes := 2 * fp_bls12381.Bytes
+		witness.CompressedPoint = make([]uints.U8, nbBytes)
+		circuit.CompressedPoint = make([]uints.U8, nbBytes)
+		var p bls12381.G2Affine
+		p.X.SetZero()
+		p.Y.SetZero()
+		pMarshalled := p.Bytes()
+		for i := 0; i < nbBytes; i++ {
+			witness.CompressedPoint[i] = uints.NewU8(pMarshalled[i])
+		}
+		witness.P = G2Affine{
+			P: g2AffP{
+				X: fields_bls12381.E2{
+					A0: emulated.ValueOf[emulated.BLS12381Fp](p.X.A0),
+					A1: emulated.ValueOf[emulated.BLS12381Fp](p.X.A1),
+				},
+				Y: fields_bls12381.E2{
+					A0: emulated.ValueOf[emulated.BLS12381Fp](p.Y.A0),
+					A1: emulated.ValueOf[emulated.BLS12381Fp](p.Y.A1),
+				},
+			},
+		}
+
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
+}
+
 type FromBytesG2Test struct {
 	CompressedPoint []uints.U8
 	XA0             emulated.Element[BaseField]
