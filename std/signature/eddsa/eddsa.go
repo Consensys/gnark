@@ -36,10 +36,22 @@ type Signature struct {
 	S frontend.Variable
 }
 
-// Verify verifies an eddsa signature using MiMC hash function
+// Verify checks that an eddsa signature verifies for the message msg and
+// public key pk provided using MiMC hash function.
 // cf https://en.wikipedia.org/wiki/EdDSA
 func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.FieldHasher) error {
+	isValid, err := SignIsValid(curve, sig, msg, pubKey, hash)
+	if err != nil {
+		return err
+	}
+	curve.API().AssertIsEqual(isValid, 1)
+	return nil
+}
 
+// SignIsValid returns 1 if the signature sig verifies  an eddsa signature
+// using MiMC hash function for the message msg and public key pk or 0 if not.
+// cf https://en.wikipedia.org/wiki/EdDSA
+func SignIsValid(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.FieldHasher) (frontend.Variable, error) {
 	// compute H(R, A, M)
 	hash.Write(sig.R.X)
 	hash.Write(sig.R.Y)
@@ -56,7 +68,9 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 	//[S]G-[H(R,A,M)]*A
 	_A := curve.Neg(pubKey.A)
 	Q := curve.DoubleBaseScalarMul(base, _A, sig.S, hRAM)
-	curve.AssertIsOnCurve(Q)
+	// check if Q is on the curve, if not multiply by 0
+	isOnCurve := curve.IsOnCurve(Q)
+	Q = curve.ScalarMul(Q, isOnCurve)
 
 	//[S]G-[H(R,A,M)]*A-R
 	Q = curve.Add(curve.Neg(Q), sig.R)
@@ -66,7 +80,7 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 	if !curve.Params().Cofactor.IsUint64() {
 		err := errors.New("invalid cofactor")
 		log.Err(err).Str("cofactor", curve.Params().Cofactor.String()).Send()
-		return err
+		return nil, err
 	}
 	cofactor := curve.Params().Cofactor.Uint64()
 	switch cofactor {
@@ -78,10 +92,10 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 		log.Warn().Str("cofactor", curve.Params().Cofactor.String()).Msg("curve cofactor is not implemented")
 	}
 
-	curve.API().AssertIsEqual(Q.X, 0)
-	curve.API().AssertIsEqual(Q.Y, 1)
-
-	return nil
+	zeroX := curve.API().IsZero(Q.X)
+	oneY := curve.API().IsZero(curve.API().Sub(Q.Y, 1))
+	expectedPoint := curve.API().And(zeroX, oneY)
+	return curve.API().And(isOnCurve, expectedPoint), nil
 }
 
 // Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
