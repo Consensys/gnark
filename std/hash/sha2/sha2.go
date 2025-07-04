@@ -107,6 +107,10 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	maxTotalLen := maxLen + maxPaddingCount
 
 	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxTotalLen)), false)
+	// assert that the length is not larger than the maximum length of the
+	// hashed input. I don't currently see how it could be exploited if it was,
+	// but just to be safe.
+	comparator.AssertIsLessEq(length, maxLen)
 	// when minimal length is 0 (i.e. not set), then we can skip the check as it holds naturally (all field elements are non-negative)
 	if d.minimalLength > 0 {
 		// we use comparator as [frontend.API] doesn't have a fast path for case API.AssertIsLessOrEqual(constant, variable)
