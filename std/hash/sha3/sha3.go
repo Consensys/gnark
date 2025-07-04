@@ -1,10 +1,10 @@
 package sha3
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/arith"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/permutation/keccakf"
@@ -84,7 +84,7 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	copy(padded[:], d.in[:])
 	padded = append(padded, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
 
-	quotient, modulus := arith.DivMod(d.api, length, uint(d.rate))
+	quotient, remainder := d.quoRemRate(length)
 
 	// When i < minLen or i > maxLen, padding dsbyte is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
@@ -98,7 +98,7 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 		padded[i].Val = d.api.Select(isPaddingPos, 0, padded[i].Val)
 	}
 
-	paddingCount := d.api.Sub(d.rate, modulus)
+	paddingCount := d.api.Sub(d.rate, remainder)
 	totalLen := d.api.Add(length, paddingCount)
 	lastPaddingPos := d.api.Sub(totalLen, 1)
 
@@ -177,6 +177,20 @@ func (d *digest) squeezeBlocks() (result []uints.U8) {
 		result = append(result, d.uapi.UnpackLSB(d.state[i])...)
 	}
 	return
+}
+
+// quoRemRate returns quotient = x / d.rate and remainder = x % d.rate with
+func (d *digest) quoRemRate(x frontend.Variable) (quotient, remainder frontend.Variable) {
+	var err error
+	// we can use api.AssertIsLessOrEqual when the bound is constant. It has a short path for case when bound is constant.
+	res, err := d.api.NewHint(remHint, 1, d.rate, x)
+	if err != nil {
+		panic(fmt.Sprintf("call remHint: %v", err))
+	}
+	c := cmp.NewBoundedComparator(d.api, big.NewInt(int64(d.rate)), false)
+	c.AssertIsLess(res[0], d.rate)
+	quotient = d.api.DivUnchecked(d.api.Sub(x, res[0]), d.rate)
+	return quotient, res[0]
 }
 
 func newState() (state [25]uints.U64) {
