@@ -39,14 +39,14 @@ func nbMultiplicationResLimbs(lenLeft, lenRight int) int {
 	return res
 }
 
-// computeInverseHint packs the inputs for the InverseHint hint function.
-func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+// computeInverseHint packs the inputs for the InverseHint hint function. The modulus is passed as an argument,
+// allowing the method to be used both for fixed and variable modulus cases.
+func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable, modulus *Element[T]) (inverseLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		f.fParams.BitsPerLimb(),
 		f.fParams.NbLimbs(),
 	}
-	p := f.Modulus()
-	hintInputs = append(hintInputs, p.Limbs...)
+	hintInputs = append(hintInputs, modulus.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
 	return f.api.NewHint(InverseHint, int(f.fParams.NbLimbs()), hintInputs...)
 }
