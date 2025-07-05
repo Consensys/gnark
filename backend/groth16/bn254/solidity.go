@@ -236,7 +236,7 @@ contract Verifier {
     /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
     /// @param x The X coordinate in Fp.
     /// @param y The Y coordinate in Fp.
-    /// @return c The compresed point (x with one signal bit).
+    /// @return c The compressed point (x with one signal bit).
     function compress_g1(uint256 x, uint256 y) internal view returns (uint256 c) {
         if (x >= P || y >= P) {
             // G1 point not in field.
@@ -262,7 +262,7 @@ contract Verifier {
     /// Decompress a G1 point.
     /// @notice Reverts with InvalidProof if the input does not represent a valid point.
     /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
-    /// @param c The compresed point (x with one signal bit).
+    /// @param c The compressed point (x with one signal bit).
     /// @return x The X coordinate in Fp.
     /// @return y The Y coordinate in Fp.
     function decompress_g1(uint256 c) internal view returns (uint256 x, uint256 y) {
@@ -298,7 +298,7 @@ contract Verifier {
     /// @param x1 The imaginary poart of the X coordinate.
     /// @param y0 The real part of the Y coordinate.
     /// @param y1 The imaginary part of the Y coordinate.
-    /// @return c0 The first half of the compresed point (x0 with two signal bits).
+    /// @return c0 The first half of the compressed point (x0 with two signal bits).
     /// @return c1 The second half of the compressed point (x1 unmodified).
     function compress_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1)
     internal view returns (uint256 c0, uint256 c1) {
@@ -350,7 +350,7 @@ contract Verifier {
     /// @notice The G2 curve is defined over the complex extension Fp[i]/(i^2 + 1)
     /// with coordinates (x0 + x1 ⋅ i, y0 + y1 ⋅ i).
     /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
-    /// @param c0 The first half of the compresed point (x0 with two signal bits).
+    /// @param c0 The first half of the compressed point (x0 with two signal bits).
     /// @param c1 The second half of the compressed point (x1 unmodified).
     /// @return x0 The real part of the X coordinate.
     /// @return x1 The imaginary poart of the X coordinate.
