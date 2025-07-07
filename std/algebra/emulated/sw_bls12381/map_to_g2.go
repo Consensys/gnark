@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
-	"github.com/consensys/gnark/std/hash/tofield"
+	"github.com/consensys/gnark/std/hash/expand"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -28,7 +28,7 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	// 6. return P
 	lenPerBaseElement := len_per_base_element
 	lenInBytes := lenPerBaseElement * 4
-	uniformBytes, e := tofield.ExpandMsgXmd(g2.api, msg, dst, lenInBytes)
+	uniformBytes, e := expand.ExpandMsgXmd(g2.api, msg, dst, lenInBytes)
 	if e != nil {
 		return &G2Affine{}, e
 	}

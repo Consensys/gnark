@@ -1,4 +1,4 @@
-package tofield
+package expand
 
 import (
 	"encoding/hex"
@@ -12,7 +12,7 @@ import (
 
 type expandMsgXmdCircuit struct {
 	Msg      []uints.U8
-	Dst      []uint8
+	Dst      []byte
 	Len      int
 	Expected []uints.U8
 }
@@ -42,6 +42,7 @@ func (c *expandMsgXmdCircuit) Define(api frontend.API) error {
 
 // adapted from gnark-crypto/field/hash/hashutils_test.go
 func TestExpandMsgXmd(t *testing.T) {
+	assert := test.NewAssert(t)
 	//name := "expand_message_xmd"
 	dst := "QUUX-V01-CS02-with-expander-SHA256-128"
 	//hash := "SHA256"
@@ -136,23 +137,19 @@ func TestExpandMsgXmd(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		uniformBytes := make([]uint8, len(testCase.uniformBytesHex)>>1)
-		hex.Decode(uniformBytes, []uint8(testCase.uniformBytesHex))
-		witness := expandMsgXmdCircuit{
-			Msg:      uints.NewU8Array([]uint8(testCase.msg)),
-			Dst:      []uint8(dst),
-			Len:      testCase.lenInBytes,
-			Expected: uints.NewU8Array(uniformBytes),
-		}
+		uniformBytes, err := hex.DecodeString(testCase.uniformBytesHex)
+		assert.NoError(err, "failed to decode uniform bytes hex")
 		circuit := expandMsgXmdCircuit{
-			Msg:      uints.NewU8Array(make([]uint8, len(testCase.msg))),
+			Msg:      make([]uints.U8, len(testCase.msg)),
 			Dst:      []uint8(dst),
 			Len:      testCase.lenInBytes,
+			Expected: make([]uints.U8, len(uniformBytes)),
+		}
+		witness := expandMsgXmdCircuit{
+			Msg:      uints.NewU8Array([]byte(testCase.msg)),
 			Expected: uints.NewU8Array(uniformBytes),
 		}
-		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-		if err != nil {
-			t.Fatal(err)
-		}
+		err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err, "circuit should be solved")
 	}
 }
