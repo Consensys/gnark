@@ -27,8 +27,12 @@ func bitsToU8(api frontend.API, b []frontend.Variable) []uints.U8 {
 
 	for i := 0; i < nbBytes; i++ {
 		buf := make([]frontend.Variable, 8)
-		for j := 0; j < 8 && 8*i+j < nbBits; j++ {
-			buf[j] = b[8*i+j]
+		for j := 0; j < 8; j++ {
+			if 8*i+j < nbBits {
+				buf[j] = b[8*i+j]
+			} else {
+				buf[j] = 0
+			}
 		}
 		res[i].Val = bits.FromBinary(api, buf)
 	}
