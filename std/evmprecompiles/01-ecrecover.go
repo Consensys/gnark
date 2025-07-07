@@ -22,7 +22,7 @@ import (
 //  1. The public key is zero.
 //  2. The value r^3 + 7 is not a quadratic residue.
 //
-// [ECRECOVER]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/ecrecover/index.html
+// [ECRECOVER]: https://github.com/ethereum/execution-specs/blob/master/src/ethereum/cancun/vm/precompiled_contracts/ecrecover.py
 func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	v frontend.Variable, r, s emulated.Element[emulated.Secp256k1Fr],
 	strictRange frontend.Variable, isFailure frontend.Variable) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
