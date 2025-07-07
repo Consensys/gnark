@@ -74,10 +74,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new g2: %w", err)
 	}
-	g2, err := NewG2(api)
-	if err != nil {
-		return nil, fmt.Errorf("new g2: %w", err)
-	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
