@@ -26,10 +26,10 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	emuGm := make([]AffinePoint[Base], len(params.Gm))
 	for i, v := range params.Gm {
-		emuGm[i] = AffinePoint[Base]{emulated.ValueOf[Base](v[0]), emulated.ValueOf[Base](v[1])}
+		emuGm[i] = AffinePoint[Base]{*ba.NewElement(v[0]), *ba.NewElement(v[1])}
 	}
-	Gx := emulated.ValueOf[Base](params.Gx)
-	Gy := emulated.ValueOf[Base](params.Gy)
+	Gx := ba.NewElement(params.Gx)
+	Gy := ba.NewElement(params.Gy)
 	var eigenvalue *emulated.Element[Scalars]
 	var thirdRootOne *emulated.Element[Base]
 	if params.Eigenvalue != nil && params.ThirdRootOne != nil {
@@ -42,12 +42,12 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		baseApi:   ba,
 		scalarApi: sa,
 		g: AffinePoint[Base]{
-			X: Gx,
-			Y: Gy,
+			X: *Gx,
+			Y: *Gy,
 		},
 		gm:           emuGm,
-		a:            emulated.ValueOf[Base](params.A),
-		b:            emulated.ValueOf[Base](params.B),
+		a:            *ba.NewElement(params.A),
+		b:            *ba.NewElement(params.B),
 		addA:         params.A.Cmp(big.NewInt(0)) != 0,
 		eigenvalue:   eigenvalue,
 		thirdRootOne: thirdRootOne,
@@ -492,6 +492,10 @@ func (c *Curve[B, S]) Mux(sel frontend.Variable, inputs ...*AffinePoint[B]) *Aff
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ScalarMul calls scalarMulFakeGLV or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
+//
+// N.B. For scalarMulGLVAndFakeGLV, the result is undefined when the input point is
+// not on the prime order subgroup. For scalarMulFakeGLV the result is well
+// defined for any point on the curve
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(p, s, opts...)
@@ -725,6 +729,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // subtract the initial value (p) if LSB is 1. We also handle the bits at
 // positions 1 and n-1 outside of the loop to optimize the number of
 // constraints using [ELM03] (Section 3.1)
+//
+// Contrary to the GLV method, this method doesn't require the endomorphism and
+// thus is also suitable for points not in the prime order subgroup.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
@@ -1234,7 +1241,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 }
 
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
-// It implements the "fake GLV" explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+// It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
@@ -1244,6 +1251,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // P256, P384 and STARK curve.
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -1282,9 +1290,26 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// Then we compute the hinted scalar mul R = [s]Q
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	Q.X.Initialize(c.api.Compiler().Field())
+	Q.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(Q.X.Limbs))
 	inps = append(inps, Q.X.Limbs...)
+	inps = append(inps, len(Q.Y.Limbs))
 	inps = append(inps, Q.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	R, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {
@@ -1512,17 +1537,19 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 }
 
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
-// It implements the "GLV + fake GLV" explained in [ethresear.ch/fake-GLV].
+// It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
+// The result is undefined for input points that are not in the prime subgroup.
+//
 // TODO @yelhousni: generalize for any supported curve as it currently supports only:
 // BN254, BLS12-381, BW6-761 and Secp256k1.
 //
-// [ethresear.ch/fake-GLV]: https://ethresear.ch/t/fake-glv-you-dont-need-an-efficient-endomorphism-to-implement-glv-like-scalar-multiplication-in-snark-circuits/20394
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -1612,9 +1639,26 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
+
+	// but first - in some edge cases it is possible that we compute the scalar multiplication
+	// for a constant scalar and constant point. This happens when the recursive SNARK verifier
+	// is used with a static verification key for example. Usually, the non-native element is always
+	// lazily initialized during witness parsing, circuit compilation and non-native arithmetic time.
+	// However here none of the cases applies and we perform operation directly on limbs of non-native element.
+	// So we initialize it here.
+	P.X.Initialize(c.api.Compiler().Field())
+	P.Y.Initialize(c.api.Compiler().Field())
+	s.Initialize(c.api.Compiler().Field())
+
 	var inps []frontend.Variable
+	_, effNbBitsB := emulated.GetEffectiveFieldParams[B](c.api.Compiler().Field())
+	_, effNbBitsS := emulated.GetEffectiveFieldParams[S](c.api.Compiler().Field())
+	inps = append(inps, effNbBitsB, effNbBitsS)
+	inps = append(inps, len(P.X.Limbs))
 	inps = append(inps, P.X.Limbs...)
+	inps = append(inps, len(P.Y.Limbs))
 	inps = append(inps, P.Y.Limbs...)
+	inps = append(inps, len(s.Limbs))
 	inps = append(inps, s.Limbs...)
 	point, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
 	if err != nil {

@@ -7,13 +7,15 @@ package cs_test
 
 import (
 	"bytes"
+	"reflect"
+	"testing"
+
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"reflect"
-	"testing"
+	"github.com/consensys/gnark/internal/widecommitter"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -30,8 +32,13 @@ func TestSerialization(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
+			builder := r1cs.NewBuilder[constraint.U32]
+			if name == "commit" {
+				// smallfield builders do not support commitment. We use the wrapper which has the methods
+				builder = widecommitter.From(builder)
+			}
 
-			r1cs1, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +47,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// compile a second time to ensure determinism
-			r1cs2, err := frontend.CompileGeneric[constraint.U32](fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}

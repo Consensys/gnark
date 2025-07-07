@@ -2,12 +2,13 @@ package compress
 
 import (
 	"errors"
+	"hash"
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
-	"hash"
-	"math/big"
 )
 
 // Pack packs the words as tightly as possible, and works Big Endian: i.e. the first word is the most significant in the packed elem

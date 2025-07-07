@@ -15,6 +15,7 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -24,10 +25,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -40,12 +41,12 @@ import (
 type engine struct {
 	curveID ecc.ID
 	q       *big.Int
-	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
-	blueprints        []constraint.Blueprint
-	internalVariables []*big.Int
+	blueprints                []constraint.Blueprint
+	internalVariables         []*big.Int
+	noSmallFieldCompatibility bool
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -62,15 +63,16 @@ func SetAllVariablesAsConstants() TestEngineOption {
 	}
 }
 
-// WithBackendProverOptions is a test engine option which allows to define
-// prover options. If not set, then default prover configuration is used.
-func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
+// WithNoSmallFieldCompatibility prevents trying to make the test engine
+// compatible with the different backends in case the circuit is compiled over
+// a small field. Particularly, in the compatibility mode, the test engine
+// would implement [frontend.WideCommitter] and [frontend.Rangechecker] interfaces.
+// When this option is set, the test engine will not implement these interfaces.
+//
+// It is useful for checking edge cases.
+func WithNoSmallFieldCompatibility() TestEngineOption {
 	return func(e *engine) error {
-		cfg, err := backend.NewProverConfig(opts...)
-		if err != nil {
-			return fmt.Errorf("new prover config: %w", err)
-		}
-		e.opt = cfg
+		e.noSmallFieldCompatibility = true
 		return nil
 	}
 }
@@ -104,7 +106,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	c := shallowClone(circuit)
 
 	// set the witness values
-	copyWitness(c, witness)
+	e.copyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -128,10 +130,17 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		}
 	*/
 
-	if err = c.Define(e); err != nil {
+	var apiEngine frontend.API
+	if smallfields.IsSmallField(e.modulus()) && !e.noSmallFieldCompatibility {
+		apiEngine = &smallfieldEngine{engine: e}
+	} else {
+		apiEngine = e
+	}
+
+	if err = c.Define(apiEngine); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
-	if err = callDeferred(e); err != nil {
+	if err = callDeferred(apiEngine); err != nil {
 		return fmt.Errorf("deferred: %w", err)
 	}
 
@@ -145,7 +154,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	return
 }
 
-func callDeferred(builder *engine) error {
+func callDeferred(builder frontend.API) error {
 	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
 		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
@@ -559,11 +568,6 @@ func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...fronten
 	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
 }
 
-// IsConstant returns true if v is a constant known at compile time
-func (e *engine) IsConstant(v frontend.Variable) bool {
-	return e.constVars
-}
-
 // ConstantValue returns the big.Int value of v
 func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
@@ -630,7 +634,7 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 	return circuitCopy
 }
 
-func copyWitness(to, from frontend.Circuit) {
+func (e *engine) copyWitness(to, from frontend.Circuit) {
 	var wValues []reflect.Value
 
 	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
@@ -641,18 +645,27 @@ func copyWitness(to, from frontend.Circuit) {
 		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(e.Field(), from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
 	i := 0
 	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
-		tInput.Set(wValues[i])
+		wValueIntf := wValues[i].Interface()
+		val := utils.FromInterface(wValueIntf)
+		if val.Cmp(e.modulus()) >= 0 {
+			val.Mod(&val, e.modulus())
+		}
+		if val.Sign() < 0 {
+			val.Add(&val, e.modulus())
+		}
+		wValueReduced := reflect.ValueOf(val)
+		tInput.Set(wValueReduced)
 		i++
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Walk(to, tVariable, setHandler)
+	_, _ = schema.Walk(e.Field(), to, tVariable, setHandler)
 
 }
 
@@ -665,6 +678,9 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	if smallfields.IsSmallField(e.modulus()) {
+		panic("commitment not supported for small fields")
+	}
 	nb := (e.FieldBitLen() + 7) / 8
 	buf := make([]byte, nb)
 	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
@@ -763,7 +779,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
+func (e *engine) SetGkrInfo(gkrinfo.StoringInfo) error {
 	return nil
 }
 
@@ -789,4 +805,38 @@ func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aF
 	if v.Cmp(bound) > 0 {
 		panic(fmt.Sprintf("%d > %d", v, bound))
 	}
+}
+
+type smallfieldEngine struct {
+	*engine
+}
+
+func (e *smallfieldEngine) WideCommit(width int, v ...frontend.Variable) ([]frontend.Variable, error) {
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	res := make([]frontend.Variable, width)
+	for i := 0; i < width; i++ {
+		hasher.Read(buf)
+		resi := new(big.Int).SetBytes(buf)
+		resi.Mod(resi, e.modulus())
+		res[i] = new(big.Int).Set(resi)
+	}
+	return res, nil
+}
+
+func (e *smallfieldEngine) Check(in frontend.Variable, width int) {
+	bin := e.toBigInt(in)
+	if bin.BitLen() > width {
+		panic(fmt.Sprintf("range check failed: %s (bitLen == %d) with %d bits", bin.String(), bin.BitLen(), width))
+	}
+}
+
+func (e *smallfieldEngine) Compiler() frontend.Compiler {
+	return e
 }

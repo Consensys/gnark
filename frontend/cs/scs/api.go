@@ -19,6 +19,8 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/frontendtype"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -542,7 +544,7 @@ func (builder *builder[E]) Println(a ...frontend.Variable) {
 
 func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
-	leafCount, err := schema.Walk(a, tVariable, nil)
+	leafCount, err := schema.Walk(builder.Field(), a, tVariable, nil)
 	count := leafCount.Public + leafCount.Secret
 
 	// no variables in nested struct, we use fmt std print function
@@ -568,7 +570,7 @@ func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Build
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_, _ = schema.Walk(a, tVariable, printer)
+	_, _ = schema.Walk(builder.Field(), a, tVariable, printer)
 	sbb.WriteByte('}')
 }
 
@@ -577,6 +579,9 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 }
 
 func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	if smallfields.IsSmallField(builder.Field()) {
+		return nil, fmt.Errorf("commitment not supported for small field %s", builder.Field())
+	}
 
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 	v = filterConstants[E](v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
@@ -682,6 +687,6 @@ func (*builder[E]) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
 }
 
-func (builder *builder[E]) SetGkrInfo(info constraint.GkrInfo) error {
+func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
 	return builder.cs.AddGkr(info)
 }

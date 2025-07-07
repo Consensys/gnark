@@ -4,10 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"github.com/consensys/gnark/std/compress/internal"
-	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"reflect"
 	"testing"
+
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"

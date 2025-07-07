@@ -7,11 +7,12 @@ package gkr
 
 import (
 	"fmt"
+	"hash"
+	"strings"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	"hash"
-	"reflect"
-	"strings"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 )
 
 func toElement(i int64) *fr.Element {
@@ -20,9 +21,7 @@ func toElement(i int64) *fr.Element {
 	return &res
 }
 
-type hashDescription map[string]interface{}
-
-func hashFromDescription(d hashDescription) (hash.Hash, error) {
+func hashFromDescription(d gkrtesting.HashDescription) (hash.Hash, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
@@ -79,28 +78,6 @@ func newMessageCounterGenerator(startState, step int) func() hash.Hash {
 	}
 }
 
-type listHash []fr.Element
-
-func (h *listHash) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (h *listHash) Sum(b []byte) []byte {
-	res := (*h)[0].Bytes()
-	*h = (*h)[1:]
-	return res[:]
-}
-
-func (h *listHash) Reset() {
-}
-
-func (h *listHash) Size() int {
-	return fr.Bytes
-}
-
-func (h *listHash) BlockSize() int {
-	return fr.Bytes
-}
 func setElement(z *fr.Element, value interface{}) (*fr.Element, error) {
 
 	// TODO: Put this in element.SetString?
@@ -154,18 +131,6 @@ func sliceEquals(a []fr.Element, b []fr.Element) error {
 	return nil
 }
 
-func sliceSliceEquals(a [][]fr.Element, b [][]fr.Element) error {
-	if len(a) != len(b) {
-		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
-	}
-	for i := range a {
-		if err := sliceEquals(a[i], b[i]); err != nil {
-			return fmt.Errorf("at index %d: %w", i, err)
-		}
-	}
-	return nil
-}
-
 func polynomialSliceEquals(a []polynomial.Polynomial, b []polynomial.Polynomial) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
@@ -176,41 +141,4 @@ func polynomialSliceEquals(a []polynomial.Polynomial, b []polynomial.Polynomial)
 		}
 	}
 	return nil
-}
-
-func elementToInterface(x *fr.Element) interface{} {
-	if i := x.BigInt(nil); i != nil {
-		return i
-	}
-	return x.Text(10)
-}
-
-func elementSliceToInterfaceSlice(x interface{}) []interface{} {
-	if x == nil {
-		return nil
-	}
-
-	X := reflect.ValueOf(x)
-
-	res := make([]interface{}, X.Len())
-	for i := range res {
-		xI := X.Index(i).Interface().(fr.Element)
-		res[i] = elementToInterface(&xI)
-	}
-	return res
-}
-
-func elementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
-	if x == nil {
-		return nil
-	}
-
-	X := reflect.ValueOf(x)
-
-	res := make([][]interface{}, X.Len())
-	for i := range res {
-		res[i] = elementSliceToInterfaceSlice(X.Index(i).Interface())
-	}
-
-	return res
 }

@@ -100,7 +100,17 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	// use.
 
 	maxLen := len(d.in)
-	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxLen+64+8)), false)
+	maxPaddingCount := 64 - maxLen%64
+	if maxPaddingCount <= 8 {
+		maxPaddingCount += 64
+	}
+	maxTotalLen := maxLen + maxPaddingCount
+
+	comparator := cmp.NewBoundedComparator(d.api, big.NewInt(int64(maxTotalLen)), false)
+	// assert that the length is not larger than the maximum length of the
+	// hashed input. I don't currently see how it could be exploited if it was,
+	// but just to be safe.
+	comparator.AssertIsLessEq(length, maxLen)
 	// when minimal length is 0 (i.e. not set), then we can skip the check as it holds naturally (all field elements are non-negative)
 	if d.minimalLength > 0 {
 		// we use comparator as [frontend.API] doesn't have a fast path for case API.AssertIsLessOrEqual(constant, variable)
@@ -109,7 +119,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 
 	data := make([]uints.U8, maxLen)
 	copy(data, d.in)
-	data = append(data, uints.NewU8Array(make([]uint8, 64+8))...)
+	data = append(data, uints.NewU8Array(make([]uint8, maxPaddingCount))...)
 
 	lenMod64 := d.mod64(length)
 	lenMod64Less56 := comparator.IsLess(lenMod64, 56)
@@ -123,22 +133,23 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	var dataLenBtyes [8]frontend.Variable
 	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
-	// When i < minLen or i > maxLen, padding 1 0r 0 is completely unnecessary
+	// When i < minLen or i > maxLen, padding 0x80 is completely unnecessary
 	for i := d.minimalLength; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
 		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
+	}
 
+	// When i <= minLen or i >= maxLen, padding 0 is completely unnecessary
+	for i := d.minimalLength + 1; i < maxLen; i++ {
 		isPaddingPos := comparator.IsLess(length, i)
 		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
-	// When i <= minLen, padding length is completely unnecessary
-	for i := d.minimalLength + 1; i < len(data); i++ {
+	// When i <= minLen or i > maxTotalLen-8, padding length is completely unnecessary
+	for i := d.minimalLength + 1; i <= maxTotalLen-8; i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
-			if i+j < len(data) {
-				data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
-			}
+			data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
 		}
 	}
 
@@ -147,7 +158,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	var buf [64]uints.U8
 	copy(runningDigest[:], _seed)
 
-	for i := 0; i < len(data)/64; i++ {
+	for i := 0; i < maxTotalLen/64; i++ {
 		copy(buf[:], data[i*64:(i+1)*64])
 		runningDigest = sha2.Permute(d.uapi, runningDigest, buf)
 

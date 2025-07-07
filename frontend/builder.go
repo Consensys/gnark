@@ -81,8 +81,6 @@ type Compiler interface {
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	ToCanonicalVariable(Variable) CanonicalVariable
-
-	SetGkrInfo(constraint.GkrInfo) error
 }
 
 // Builder represents a constraint system builder
@@ -107,6 +105,26 @@ type Builder[E constraint.Element] interface {
 type Committer interface {
 	// Commit commits to the variables and returns the commitment.
 	Commit(toCommit ...Variable) (commitment Variable, err error)
+}
+
+// WideCommitter allows to commit to the variables and returns the commitment as
+// an extension field element. The commitment can be used as a challenge using
+// Fiat-Shamir heuristic. This method is required when the circuit is defined
+// over a small field where the individual commitment would be too small to
+// achieve desired soundness level.
+//
+// This is experimental API and may be subject to change. It is not relevant for
+// pairing-based backends where the commitment is in a large field and is not
+// defined for such cases. Thus, the caller should check if this or [Committer]
+// interfaces is implemented and use the appropriate method.
+type WideCommitter interface {
+	// WideCommit commits to the variables and returns the commitments.
+	// This method is required when the circuit is defined over a small field
+	// where the individual commitment would be too small to achieve desired
+	// soundness level.
+	//
+	// The width parameter defines the number of elements in the commitment.
+	WideCommit(width int, toCommit ...Variable) (commitment []Variable, err error)
 }
 
 // Rangechecker allows to externally range-check the variables to be of

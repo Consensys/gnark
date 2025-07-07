@@ -7,13 +7,15 @@ package gkr
 
 import (
 	"fmt"
+	"hash"
+
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/stretchr/testify/assert"
-	"hash"
+
+	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"math/bits"
 
 	"strings"
 	"testing"

@@ -1,6 +1,7 @@
 package bits
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
@@ -25,6 +26,32 @@ func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 			panic(err)
 		}
 	}
+	// check if the inputs are all constant. In this case, recompose without adding any constraints.
+	allConst := true
+	constDigits := make([]*big.Int, len(digits))
+	for i := range digits {
+		if constV, ok := api.Compiler().ConstantValue(digits[i]); !ok {
+			// there is at least one digit which is not a constant. Break out to the general case.
+			allConst = false
+			break
+		} else {
+			constDigits[len(digits)-i-1] = constV
+		}
+	}
+	if allConst {
+		res := new(big.Int)
+		for _, d := range constDigits {
+			// check that the inputs are binary digits. 1 has 1 bit and 0 has 0 bits.
+			if d.BitLen() > 1 {
+				panic(fmt.Sprintf("constant input to FromBinary has more than 1 bit. Has %d bits", d.BitLen()))
+			}
+			res.Lsh(res, 1)
+			res.Add(res, d)
+		}
+		res.Mod(res, api.Compiler().Field()) // ensure the result is mod reduced
+		return res
+	}
+	// if we are here, then we have at least one unconstrained input or the inputs are not constant.
 
 	// Σbi = Σ (2**i * b[i])
 	Σbi := frontend.Variable(0)
@@ -54,6 +81,24 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		if err := o(&cfg); err != nil {
 			panic(err)
 		}
+	}
+	// handle the case when the input is constant separately to avoid creating any constraints
+	if constV, ok := api.Compiler().ConstantValue(v); ok {
+		// first we ensure that the constant value is mod reduced
+		constV.Mod(constV, api.Compiler().Field())
+		// we still want to honor the number of bits requested. And we have a
+		// promise that for non-constant input we would get unsatisfiable
+		// constraint if the bitlength of the input is larger than the option.
+		// For constant input, we panic instead. We can do it as it will happen
+		// at circuit compile time, so the developer can fix it.
+		if cfg.NbDigits > 0 && cfg.NbDigits < constV.BitLen() {
+			panic(fmt.Sprintf("constant input to ToBinary has more bits than requested by WithNbDigits option. Has %d bits, requested %d bits", constV.BitLen(), cfg.NbDigits))
+		}
+		res := make([]frontend.Variable, cfg.NbDigits)
+		for i := range cfg.NbDigits {
+			res[i] = constV.Bit(i)
+		}
+		return res
 	}
 
 	// by default, we also check that the value to be decomposed is less than the

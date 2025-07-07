@@ -26,6 +26,23 @@ type FieldParams interface {
 	Modulus() *big.Int // returns modulus. Do not modify.
 }
 
+// DynamicFieldParams extends the FieldParams interface to allow for limb size
+// and count depending on the native field size. If the field emulation
+// parameters do not implement this interface, then the limb size and count are
+// fixed to the values defined in the FieldParams interface.
+//
+// The interface allows for optimized emulation in case the native field is
+// large (more than 256 bits) and enables field emulation when the native field
+// is small (less than 128 bits).
+//
+// All defined parameters in the [emparams] package implement this interface.
+type DynamicFieldParams interface {
+	FieldParams
+
+	NbLimbsDynamic(field *big.Int) uint
+	BitsPerLimbDynamic(field *big.Int) uint
+}
+
 type (
 	Goldilocks   = emparams.Goldilocks
 	Secp256k1Fp  = emparams.Secp256k1Fp
@@ -46,3 +63,59 @@ type (
 	BabyBear     = emparams.BabyBear
 	KoalaBear    = emparams.KoalaBear
 )
+
+// ensure that all parameters implement the DynamicFieldParams interface
+var (
+	_ DynamicFieldParams = (*Goldilocks)(nil)
+	_ DynamicFieldParams = (*Secp256k1Fp)(nil)
+	_ DynamicFieldParams = (*Secp256k1Fr)(nil)
+	_ DynamicFieldParams = (*BN254Fp)(nil)
+	_ DynamicFieldParams = (*BN254Fr)(nil)
+	_ DynamicFieldParams = (*BLS12377Fp)(nil)
+	_ DynamicFieldParams = (*BLS12381Fp)(nil)
+	_ DynamicFieldParams = (*BLS12381Fr)(nil)
+	_ DynamicFieldParams = (*P256Fp)(nil)
+	_ DynamicFieldParams = (*P256Fr)(nil)
+	_ DynamicFieldParams = (*P384Fp)(nil)
+	_ DynamicFieldParams = (*P384Fr)(nil)
+	_ DynamicFieldParams = (*BW6761Fp)(nil)
+	_ DynamicFieldParams = (*BW6761Fr)(nil)
+	_ DynamicFieldParams = (*STARKCurveFp)(nil)
+	_ DynamicFieldParams = (*STARKCurveFr)(nil)
+	_ DynamicFieldParams = (*BabyBear)(nil)
+	_ DynamicFieldParams = (*KoalaBear)(nil)
+)
+
+// staticFieldParams is a wrapper to avoid calling the dynamic methods in DynamicFieldParams
+// all the time. The native field stays intact and we can cache the values.
+type staticFieldParams[T FieldParams] struct {
+	fp              T
+	nbLimbs, nbBits uint
+}
+
+func newStaticFieldParams[T FieldParams](field *big.Int) staticFieldParams[T] {
+	var fp T
+	nbLimbs, nbBits := GetEffectiveFieldParams[T](field)
+	return staticFieldParams[T]{fp: fp, nbLimbs: nbLimbs, nbBits: nbBits}
+}
+
+func (s *staticFieldParams[T]) Modulus() *big.Int { return s.fp.Modulus() }
+func (s *staticFieldParams[T]) IsPrime() bool     { return s.fp.IsPrime() }
+func (s *staticFieldParams[T]) NbLimbs() uint     { return s.nbLimbs }
+func (s *staticFieldParams[T]) BitsPerLimb() uint { return s.nbBits }
+
+// GetEffectiveFieldParams returns the number of limbs and bits per limb for a
+// given field. If the field implements the DynamicFieldParams interface, then
+// the number of limbs and bits per limb are computed dynamically based on the
+// field size. Otherwise, the values are taken from the FieldParams interface.
+func GetEffectiveFieldParams[T FieldParams](field *big.Int) (nbLimbs, nbBits uint) {
+	var fp T
+	if f, ok := any(fp).(DynamicFieldParams); ok {
+		nbLimbs = f.NbLimbsDynamic(field)
+		nbBits = f.BitsPerLimbDynamic(field)
+	} else {
+		nbLimbs = fp.NbLimbs()
+		nbBits = fp.BitsPerLimb()
+	}
+	return nbLimbs, nbBits
+}

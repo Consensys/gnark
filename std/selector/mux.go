@@ -2,6 +2,7 @@ package selector
 
 import (
 	"fmt"
+
 	"github.com/consensys/gnark/frontend"
 )
 

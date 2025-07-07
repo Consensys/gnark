@@ -7,6 +7,9 @@ package groth16
 
 import (
 	"errors"
+	"math/big"
+	"math/bits"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -15,8 +18,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls24-315"
-	"math/big"
-	"math/bits"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement

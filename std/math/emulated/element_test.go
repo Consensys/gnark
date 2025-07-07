@@ -890,6 +890,7 @@ func testAssertIsInRange[T FieldParams](t *testing.T) {
 		witness := AssertInRangeCircuit[T]{X: ValueOf[T](X)}
 		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 		witness2 := AssertInRangeCircuit[T]{X: ValueOf[T](0)}
+		witness2.X.Limbs = make([]frontend.Variable, fp.NbLimbs())
 		t := 0
 		for i := 0; i < int(fp.NbLimbs())-1; i++ {
 			L := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb())
@@ -1499,4 +1500,95 @@ func testFastPaths[T FieldParams](t *testing.T) {
 	assignment := &FastPathsCircuit[T]{Rand: ValueOf[T](randVal), Zero: ValueOf[T](0)}
 
 	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
+}
+
+type TestAssertIsDifferentCircuit[T FieldParams] struct {
+	A, B   Element[T]
+	addMod bool
+}
+
+func (c *TestAssertIsDifferentCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	b := &c.B
+	if c.addMod {
+		b = f.Add(b, f.Modulus())
+	}
+	f.AssertIsDifferent(&c.A, b)
+	return nil
+}
+
+func TestAssertIsDifferent(t *testing.T) {
+	testAssertIsDifferent[Goldilocks](t)
+	testAssertIsDifferent[Secp256k1Fp](t)
+	testAssertIsDifferent[BN254Fp](t)
+}
+
+func testAssertIsDifferent[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	circuitNoMod := &TestAssertIsDifferentCircuit[T]{addMod: false}
+	var fp T
+	a, _ := rand.Int(rand.Reader, fp.Modulus())
+	assignment1 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](a)}
+	var b *big.Int
+	for {
+		b, _ = rand.Int(rand.Reader, fp.Modulus())
+		if b.Cmp(a) == 0 {
+			continue
+		}
+		break
+	}
+	assignment2 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](b)}
+	assert.CheckCircuit(circuitNoMod, test.WithInvalidAssignment(assignment1), test.WithValidAssignment(assignment2))
+
+	circuitWithMod := &TestAssertIsDifferentCircuit[T]{addMod: true}
+	assignment3 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](a)}
+	assignment4 := &TestAssertIsDifferentCircuit[T]{A: ValueOf[T](a), B: ValueOf[T](b)}
+	assert.CheckCircuit(circuitWithMod, test.WithInvalidAssignment(assignment3), test.WithValidAssignment(assignment4))
+}
+
+type TestLookup2AndMuxOnAllLimbsCircuit[T FieldParams] struct {
+	A Element[T] `gnark:",public"`
+}
+
+func (c *TestLookup2AndMuxOnAllLimbsCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+
+	one := f.One()
+	res := f.Lookup2(1, 0, one, &c.A, &c.A, &c.A)
+	if len(res.Limbs) != len(c.A.Limbs) {
+		return fmt.Errorf("unexpected number of limbs: got %d, expected %d", len(res.Limbs), len(c.A.Limbs))
+	}
+	for i := range res.Limbs {
+		api.AssertIsEqual(res.Limbs[i], c.A.Limbs[i])
+	}
+
+	res2 := f.Mux(1, one, &c.A, &c.A, &c.A)
+	if len(res2.Limbs) != len(c.A.Limbs) {
+		return fmt.Errorf("unexpected number of limbs: got %d, expected %d", len(res2.Limbs), len(c.A.Limbs))
+	}
+	for i := range res2.Limbs {
+		api.AssertIsEqual(res2.Limbs[i], c.A.Limbs[i])
+	}
+	return nil
+}
+
+// TestLookup2AndMuxOnAllLimbs tests the Lookup2 and Mux switch all limbs.
+func TestLookup2AndMuxOnAllLimbs(t *testing.T) {
+	testLookup2AndMuxOnAllLimbs[Goldilocks](t)
+	testLookup2AndMuxOnAllLimbs[Secp256k1Fp](t)
+	testLookup2AndMuxOnAllLimbs[BN254Fp](t)
+}
+
+func testLookup2AndMuxOnAllLimbs[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	a, _ := rand.Int(rand.Reader, fp.Modulus())
+	assignment := &TestLookup2AndMuxOnAllLimbsCircuit[T]{A: ValueOf[T](a)}
+	assert.CheckCircuit(&TestLookup2AndMuxOnAllLimbsCircuit[T]{}, test.WithValidAssignment(assignment))
 }

@@ -48,7 +48,7 @@ func NewExt2(api frontend.API) *Ext2 {
 	nonResidues := make(map[int]map[int]*E2)
 	for pwr, v := range pwrs {
 		for coeff, v := range v {
-			el := E2{emulated.ValueOf[emulated.BLS12381Fp](v.A0), emulated.ValueOf[emulated.BLS12381Fp](v.A1)}
+			el := E2{*fp.NewElement(v.A0), *fp.NewElement(v.A1)}
 			if nonResidues[pwr] == nil {
 				nonResidues[pwr] = make(map[int]*E2)
 			}
@@ -109,10 +109,10 @@ func (e Ext2) MulByNonResidue1Power1(x *E2) *E2 {
 
 // MulByNonResidue1Power2 returns x*(1+u)^(2*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power2(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
-	a := e.fp.Mul(&x.A1, &element)
+	element := e.fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	a := e.fp.Mul(&x.A1, element)
 	a = e.fp.Neg(a)
-	b := e.fp.Mul(&x.A0, &element)
+	b := e.fp.Mul(&x.A0, element)
 	return &E2{
 		A0: *a,
 		A1: *b,
@@ -126,10 +126,10 @@ func (e Ext2) MulByNonResidue1Power3(x *E2) *E2 {
 
 // MulByNonResidue1Power4 returns x*(1+u)^(4*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power4(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
+	element := e.fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
@@ -140,46 +140,46 @@ func (e Ext2) MulByNonResidue1Power5(x *E2) *E2 {
 
 // MulByNonResidue2Power1 returns x*(1+u)^(1*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620351")
+	element := e.fp.NewElement("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620351")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
 // MulByNonResidue2Power2 returns x*(1+u)^(2*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350")
+	element := e.fp.NewElement("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
 // MulByNonResidue2Power3 returns x*(1+u)^(3*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559786")
+	element := e.fp.NewElement("4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559786")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
 // MulByNonResidue2Power4 returns x*(1+u)^(4*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	element := e.fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
 // MulByNonResidue2Power5 returns x*(1+u)^(5*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
+	element := e.fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
 	return &E2{
-		A0: *e.fp.Mul(&x.A0, &element),
-		A1: *e.fp.Mul(&x.A1, &element),
+		A0: *e.fp.Mul(&x.A0, element),
+		A1: *e.fp.Mul(&x.A1, element),
 	}
 }
 
