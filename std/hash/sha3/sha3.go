@@ -27,6 +27,8 @@ func (d *digest) Write(in []uints.U8) {
 
 func (d *digest) Size() int { return d.outputLen }
 
+func (d *digest) BlockSize() int { return d.rate }
+
 func (d *digest) Reset() {
 	d.in = nil
 	d.state = newState()
