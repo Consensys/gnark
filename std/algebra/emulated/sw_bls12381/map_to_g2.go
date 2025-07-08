@@ -279,12 +279,13 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	R := g2.AddUnified(Q0, Q1)
 
 	return g2.ClearCofactor(R), nil
-	// R := g2.AddUnified(Q0, Q1)
-	// return g2.ClearCofactor(R), nil
 }
 
 func bytesToElement(api frontend.API, fp *emulated.Field[emulated.BLS12381Fp], data []uints.U8) *emulated.Element[BaseField] {
-	// TODO: remove when conversion package is done
+	// TODO(ivokub) NB! This function is a temporary workaround to convert bytes to an element. We will replace it soon.
+	//
+	// NB! it modifies data in place, but in the current usage it is not an issue as we only use it once per bytes
+
 	// data in BE, need to convert to LE
 	slices.Reverse(data)
 
