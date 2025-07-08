@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/expand"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -182,10 +183,61 @@ func (g1 *G1) MapToG1(u *baseEl) (*G1Affine, error) {
 	return z, nil
 }
 
+// EncodeToG1 hashes a message to a point on the G1 curve using the SSWU map as
+// defined in [RFC9380]. It is faster than [G1.HashToG1], but the result is not
+// uniformly distributed. Unsuitable as a random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function
+//
+// // This method corresponds to the [bls12381.EncodeToG1] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
 func (g1 *G1) EncodeToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
-	panic("todo")
+	uniformBytes, err := expand.ExpandMsgXmd(g1.api, msg, dst, secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	el := bytesToElement(g1.api, g1.curveF, uniformBytes)
+	R, err := g1.MapToCurve1(el)
+	if err != nil {
+		return nil, fmt.Errorf("map to curve: %w", err)
+	}
+	R = g1.isogeny(R)
+	R = g1.ClearCofactor(R)
+	return R, nil
 }
 
+// HashToG1 hashes a message to a point on the G1 curve using the SSWU map as
+// defined in [RFC9380]. It is slower than [G1.EncodeToG1], but usable as a
+// random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function.
+//
+// This method corresponds to the [bls12381.HashToG1] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
 func (g1 *G1) HashToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
-	panic("Todo")
+	els := make([]*baseEl, 2)
+	uniformBytes, err := expand.ExpandMsgXmd(g1.api, msg, dst, len(els)*secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	for i := range els {
+		els[i] = bytesToElement(g1.api, g1.curveF, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+	}
+	Q0, err := g1.MapToCurve1(els[0])
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q0: %w", err)
+	}
+	Q1, err := g1.MapToCurve1(els[1])
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q1: %w", err)
+	}
+	R0 := g1.isogeny(Q0)
+	R1 := g1.isogeny(Q1)
+	R := g1.add(R0, R1)
+	R = g1.ClearCofactor(R)
+	return R, nil
 }
