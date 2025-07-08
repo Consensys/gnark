@@ -267,11 +267,11 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	// we will still do iso_map before point addition, as we do not have point addition in E' (yet)
 	Q0, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
 	if err != nil {
-		return nil, fmt.Errorf("map to curve Q1: %w", err)
+		return nil, fmt.Errorf("map to curve Q0: %w", err)
 	}
 	Q1, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[2], A1: *els[3]})
 	if err != nil {
-		return nil, fmt.Errorf("map to curve Q2: %w", err)
+		return nil, fmt.Errorf("map to curve Q1: %w", err)
 	}
 	Q0 = g2.isogeny(Q0)
 	Q1 = g2.isogeny(Q1)
