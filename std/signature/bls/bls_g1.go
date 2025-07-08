@@ -31,10 +31,10 @@ func (pk PublicKeyG1) VerifyG2(api frontend.API, sig *SignatureG2, prehashed *sw
 		return fmt.Errorf("new field: %w", err)
 	}
 
-	// public key cannot be infinity
+	// public key cannot be infinity. Thus either coordinate has to be non-zero.
 	xtest := fp.IsZero(&pk.X)
 	ytest := fp.IsZero(&pk.Y)
-	pubTest := api.Or(xtest, ytest)
+	pubTest := api.And(xtest, ytest)
 	api.AssertIsEqual(pubTest, 0)
 
 	// prime order subgroup checks
