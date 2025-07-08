@@ -36,7 +36,7 @@ var testCasesG2Sig = []struct {
 	},
 }
 
-func TestBlsSigTestSolve(t *testing.T) {
+func TestMinimalPublicKeyTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	for _, tc := range testCasesG2Sig {
