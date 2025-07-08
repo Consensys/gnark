@@ -154,11 +154,11 @@ type EncodeToG2Circuit struct {
 func (c *EncodeToG2Circuit) Define(api frontend.API) error {
 	g, err := NewG2(api)
 	if err != nil {
-		return fmt.Errorf("new G1: %w", err)
+		return fmt.Errorf("new G2: %w", err)
 	}
 	res, err := g.EncodeToG2(c.Msg, []byte(c.Dst))
 	if err != nil {
-		return fmt.Errorf("encode to G1: %w", err)
+		return fmt.Errorf("encode to G2: %w", err)
 	}
 
 	g.AssertIsEqual(res, &c.Res)
@@ -167,7 +167,7 @@ func (c *EncodeToG2Circuit) Define(api frontend.API) error {
 
 func TestEncodeToG2(t *testing.T) {
 	assert := test.NewAssert(t)
-	dst := []byte("BLS12381G1Test")
+	dst := []byte("BLS12381G2Test")
 	for _, msgLen := range []int{0, 1, 31, 32, 33, 63, 64, 65} {
 		assert.Run(func(assert *test.Assert) {
 			msg := make([]byte, msgLen)
@@ -192,11 +192,11 @@ type HashToG2Circuit struct {
 func (c *HashToG2Circuit) Define(api frontend.API) error {
 	g, err := NewG2(api)
 	if err != nil {
-		return fmt.Errorf("new G1: %w", err)
+		return fmt.Errorf("new G2: %w", err)
 	}
 	res, err := g.HashToG2(c.Msg, []byte(c.Dst))
 	if err != nil {
-		return fmt.Errorf("hash to G1: %w", err)
+		return fmt.Errorf("hash to G2: %w", err)
 	}
 
 	g.AssertIsEqual(res, &c.Res)
@@ -205,7 +205,7 @@ func (c *HashToG2Circuit) Define(api frontend.API) error {
 
 func TestHashToG2(t *testing.T) {
 	assert := test.NewAssert(t)
-	dst := []byte("BLS12381G1Test")
+	dst := []byte("BLS12381G2Test")
 	for _, msgLen := range []int{0, 1, 31, 32, 33, 63, 64, 65} {
 		assert.Run(func(assert *test.Assert) {
 			msg := make([]byte, msgLen)
