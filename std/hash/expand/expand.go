@@ -91,6 +91,7 @@ func ExpandMsgXmd(api frontend.API, msg []uints.U8, dst []byte, lenInBytes int) 
 }
 
 func xor(api frontend.API, a, b uints.U8) (uints.U8, error) {
+	// TODO: when done with conversion package then can remove this function
 	aBits := api.ToBinary(a.Val, 8)
 	bBits := api.ToBinary(b.Val, 8)
 	cBits := make([]frontend.Variable, 8)

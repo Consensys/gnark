@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
@@ -179,4 +180,12 @@ func (g1 *G1) MapToG1(u *baseEl) (*G1Affine, error) {
 	z := g1.isogeny(res)
 	z = g1.ClearCofactor(z)
 	return z, nil
+}
+
+func (g1 *G1) EncodeToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
+	panic("todo")
+}
+
+func (g1 *G1) HashToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
+	panic("Todo")
 }
