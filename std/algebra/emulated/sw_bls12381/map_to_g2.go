@@ -211,7 +211,7 @@ func (g2 *G2) MapToG2(u *fields_bls12381.E2) (*G2Affine, error) {
 // [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
 func (g2 *G2) EncodeToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	const L = 64
-	els := make([]*emulated.Element[BaseField], 2)
+	els := make([]*baseEl, 2)
 	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*L)
 	if err != nil {
 		return nil, fmt.Errorf("expand msg: %w", err)
@@ -228,6 +228,11 @@ func (g2 *G2) EncodeToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	Q := g2.isogeny(R)
 	return g2.ClearCofactor(Q), nil
 }
+
+// secureBaseElementLen is the length of bytes for sampling uniform element from
+// the base field. We use 64 bytes per base element, this is 48 bytes for the
+// base field and 16 bytes for security parameter. Copied from gnark-crypto
+const secureBaseElementLen = 64
 
 // HashToG2 hashes a message to a point on the G2 curve using the SSWU map as
 // defined in [RFC9380]. It is slower than [G2.EncodeToG2], but usable as a
@@ -248,19 +253,15 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	// 5. P = clear_cofactor(R)
 	// 6. return P
 
-	// we use 64 bytes per base element, this is 48 bytes for the base field and
-	// 16 bytes for security parameter. Copied from gnark-crypto
-	//
 	// corresponds to fp.Hash method which we don't explicitly have in gnark
-	const L = 64
-	els := make([]*emulated.Element[BaseField], 4)
-	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*L)
+	els := make([]*baseEl, 4)
+	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*secureBaseElementLen)
 	if err != nil {
 		return nil, fmt.Errorf("expand msg: %w", err)
 	}
 	for i := range els {
 		// TODO: use conversion package when done
-		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*L:(i+1)*L])
+		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
 	}
 
 	// we will still do iso_map before point addition, as we do not have point addition in E' (yet)
