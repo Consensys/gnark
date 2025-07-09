@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/consensys/gnark"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
@@ -17,15 +19,27 @@ type Gate struct {
 	nbIn        int              // number of inputs
 	degree      int              // total degree of the polynomial
 	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+	curves      []ecc.ID         // curves that the gate is allowed to be used over
 }
 
-func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int) *Gate {
+func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
+
 	return &Gate{
 		evaluate:    f,
 		nbIn:        nbIn,
 		degree:      degree,
 		solvableVar: solvableVar,
+		curves:      curves,
 	}
+}
+
+func (g *Gate) SupportsCurve(curve ecc.ID) bool {
+	for _, c := range g.curves {
+		if c == curve {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
@@ -133,49 +147,9 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 }
 
 type SolvingInfo struct {
-	Circuit      Circuit
-	Dependencies [][]gkrinfo.InputDependency
-	NbInstances  int
-	HashName     string
-	Prints       []gkrinfo.PrintInfo
-}
-
-// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
-func (info *SolvingInfo) Chunks() []int {
-	res := make([]int, 0, 1)
-	lastSeenDependencyI := make([]int, len(info.Circuit))
-
-	for start, end := 0, 0; start != info.NbInstances; start = end {
-		end = info.NbInstances
-		endWireI := -1
-		for wI := range info.Circuit {
-			deps := info.Dependencies[wI]
-			if wDepI := lastSeenDependencyI[wI]; wDepI < len(deps) && deps[wDepI].InputInstance < end {
-				end = deps[wDepI].InputInstance
-				endWireI = wI
-			}
-		}
-		if endWireI != -1 {
-			lastSeenDependencyI[endWireI]++
-		}
-		res = append(res, end)
-	}
-	return res
-}
-
-// AssignmentOffsets describes the input layout of the Solve hint, by returning
-// for each wire, the index of the first hint input element corresponding to it.
-func (info *SolvingInfo) AssignmentOffsets() []int {
-	c := info.Circuit
-	res := make([]int, len(c)+1)
-	for i := range c {
-		nbExplicitAssignments := 0
-		if c[i].IsInput() {
-			nbExplicitAssignments = info.NbInstances - len(info.Dependencies[i])
-		}
-		res[i+1] = res[i] + nbExplicitAssignments
-	}
-	return res
+	Circuit     Circuit
+	NbInstances int
+	HashName    string
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
@@ -206,7 +180,7 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func (c Circuit) SetNbUniqueOutputs() {
+func (c Circuit) setNbUniqueOutputs() {
 
 	for i := range c {
 		c[i].NbUniqueOutputs = 0
@@ -254,6 +228,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 	resCircuit := make(Circuit, len(info))
 	for i := range info {
 		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
+			resCircuit[i].Gate = Identity() // input wire
 			continue
 		}
 		resCircuit[i].Inputs = info[i].Inputs
@@ -262,17 +237,16 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
 		}
 	}
+	resCircuit.setNbUniqueOutputs()
 	return resCircuit, nil
 }
 
 func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
 	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
 	return SolvingInfo{
-		Circuit:      circuit,
-		NbInstances:  info.NbInstances,
-		HashName:     info.HashName,
-		Dependencies: info.Dependencies,
-		Prints:       info.Prints,
+		Circuit:     circuit,
+		NbInstances: info.NbInstances,
+		HashName:    info.HashName,
 	}, err
 }
 
@@ -388,33 +362,33 @@ var ErrZeroFunction = errors.New("detected a zero function")
 func Identity() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[0]
-	}, 1, 1, 0)
+	}, 1, 1, 0, gnark.Curves())
 }
 
 // Add2 gate: (x, y) -> x + y
 func Add2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Add(in[0], in[1])
-	}, 2, 1, 0)
+	}, 2, 1, 0, gnark.Curves())
 }
 
 // Sub2 gate: (x, y) -> x - y
 func Sub2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Sub(in[0], in[1])
-	}, 2, 1, 0)
+	}, 2, 1, 0, gnark.Curves())
 }
 
 // Neg gate: x -> -x
 func Neg() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Neg(in[0])
-	}, 1, 1, 0)
+	}, 1, 1, 0, gnark.Curves())
 }
 
 // Mul2 gate: (x, y) -> x * y
 func Mul2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Mul(in[0], in[1])
-	}, 2, 2, -1)
+	}, 2, 2, -1, gnark.Curves())
 }
