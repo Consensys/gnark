@@ -190,7 +190,7 @@ func TestHintNativeOutput(t *testing.T) {
 
 func hintNativeInNativeOut(mod *big.Int, inputs, outputs []*big.Int) error {
 	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
-		inputs, outputs := ctx.InputsOutputs(mod)
+		inputs, outputs := ctx.NativeInputsOutputs()
 		if len(inputs) != 2 || len(outputs) != 1 {
 			return fmt.Errorf("expected 2 inputs and 1 output, got %d inputs and %d outputs", len(inputs), len(outputs))
 		}
@@ -257,12 +257,12 @@ func TestGenericHintNativeInNativeOut(t *testing.T) {
 
 func hintNativeInEmulatedOut(mod *big.Int, inputs, outputs []*big.Int) error {
 	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
-		moduli := ctx.Moduli()
-		if len(moduli) != 2 {
-			return fmt.Errorf("expected 2 moduli, got %d", len(moduli))
+		moduli := ctx.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
 		}
-		nativeMod, emulatedMod := moduli[0], moduli[1]
-		nativeInputs, _ := ctx.InputsOutputs(nativeMod)
+		emulatedMod := moduli[0]
+		nativeInputs, _ := ctx.NativeInputsOutputs()
 		_, emulatedOut := ctx.InputsOutputs(emulatedMod)
 		if len(nativeInputs) != 2 || len(emulatedOut) != 1 {
 			return fmt.Errorf("expected 2 inputs and 1 output, got %d inputs and %d outputs", len(nativeInputs), len(emulatedOut))
@@ -331,7 +331,7 @@ func TestGenericHintNativeInEmulatedeOut(t *testing.T) {
 
 func hintEmulatedInEmulatedOut(mod *big.Int, inputs, outputs []*big.Int) error {
 	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
-		moduli := ctx.Moduli()
+		moduli := ctx.EmulatedModuli()
 		if len(moduli) != 1 {
 			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
 		}
@@ -404,12 +404,12 @@ func TestGenericHintEmulatedInEmulatedOut(t *testing.T) {
 
 func hintEmulatedInNativeOut(mod *big.Int, inputs, outputs []*big.Int) error {
 	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
-		moduli := ctx.Moduli()
-		if len(moduli) != 2 {
+		moduli := ctx.EmulatedModuli()
+		if len(moduli) != 1 {
 			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
 		}
-		nativeMod, emulatedMod := moduli[0], moduli[1]
-		_, nativeOut := ctx.InputsOutputs(nativeMod)
+		nativeMod, emulatedMod := ctx.NativeModulus(), moduli[0]
+		_, nativeOut := ctx.NativeInputsOutputs()
 		emulatedIn, _ := ctx.InputsOutputs(emulatedMod)
 		if len(emulatedIn) != 2 || len(nativeOut) != 1 {
 			return fmt.Errorf("expected 2 inputs and 1 output, got %d inputs and %d outputs", len(emulatedIn), len(nativeOut))
@@ -477,12 +477,12 @@ func TestGenericHintEmulatedInNativeOut(t *testing.T) {
 
 func crossfieldHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(ctx HintContext) error {
-		moduli := ctx.Moduli()
-		if len(moduli) != 3 {
-			return fmt.Errorf("expected 3 moduli, got %d", len(moduli))
+		moduli := ctx.EmulatedModuli()
+		if len(moduli) != 2 {
+			return fmt.Errorf("expected 2 moduli, got %d", len(moduli))
 		}
-		nativeMod, emulatedMod1, emulatedMod2 := moduli[0], moduli[1], moduli[2]
-		nativeInputs, nativeOutputs := ctx.InputsOutputs(nativeMod)
+		emulatedMod1, emulatedMod2 := moduli[0], moduli[1]
+		nativeInputs, nativeOutputs := ctx.NativeInputsOutputs()
 		emulatedInputs1, emulatedOutputs1 := ctx.InputsOutputs(emulatedMod1)
 		emulatedInputs2, emulatedOutputs2 := ctx.InputsOutputs(emulatedMod2)
 		if len(nativeInputs) != 2 || len(nativeOutputs) != 1 ||

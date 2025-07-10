@@ -15,7 +15,7 @@ import (
 // decomposes the outputs into limbs.
 func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	return UnwrapHintContext(nil, nativeInputs, nativeOutputs, func(hc HintContext) error {
-		moduli := hc.Moduli()
+		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
 			return fmt.Errorf("expected 1 modulus, got %d", len(moduli))
 		}
@@ -33,12 +33,12 @@ func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hin
 // returns, it returns native outputs as-is.
 func UnwrapHintWithNativeOutput(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	return UnwrapHintContext(nil, nativeInputs, nativeOutputs, func(hc HintContext) error {
-		moduli := hc.Moduli()
-		if len(moduli) != 2 {
-			return fmt.Errorf("expected 2 moduli, got %d", len(moduli))
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
 		}
-		nonnativeMod := moduli[1]
-		_, nativeOutputs := hc.InputsOutputs(nil)
+		nonnativeMod := moduli[0]
+		_, nativeOutputs := hc.NativeInputsOutputs()
 		emuInputs, _ := hc.InputsOutputs(nonnativeMod)
 		if err := nonnativeHint(nonnativeMod, emuInputs, nativeOutputs); err != nil {
 			return fmt.Errorf("nonnative hint: %w", err)
@@ -52,12 +52,12 @@ func UnwrapHintWithNativeOutput(nativeInputs, nativeOutputs []*big.Int, nonnativ
 // returns, it decomposes the outputs into limbs.
 func UnwrapHintWithNativeInput(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	return UnwrapHintContext(nil, nativeInputs, nativeOutputs, func(hc HintContext) error {
-		moduli := hc.Moduli()
-		if len(moduli) != 2 {
-			return fmt.Errorf("expected 2 moduli, got %d", len(moduli))
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
 		}
-		nonnativeMod := moduli[1]
-		nativeInputs, _ := hc.InputsOutputs(nil)
+		nonnativeMod := moduli[0]
+		nativeInputs, _ := hc.NativeInputsOutputs()
 		_, emuOutputs := hc.InputsOutputs(nonnativeMod)
 		if err := nonnativeHint(nonnativeMod, nativeInputs, emuOutputs); err != nil {
 			return fmt.Errorf("nonnative hint: %w", err)
@@ -172,53 +172,67 @@ type HintContext []hintContextField
 // hint does not modify the inputs and assigns values to the outputs using
 // [big.Int.Set] method.
 //
-// To access the native field inputs and outputs, pass nil as the field
-// argument.
+// To access the native field inputs and outputs, use the
+// [HintContext.NativeInputsOutputs] method to avoid disambiguation with
+// when emulation is defined over same field as the native field.
 func (hi HintContext) InputsOutputs(field *big.Int) (inputs []*big.Int, outputs []*big.Int) {
-	if len(hi) == 0 {
-		return nil, nil
-	}
-	for _, input := range hi {
-		if field == nil && input.native {
-			// if the given field is nil and it is the native context, then we return it.
-			// This is due to the backwards compatibility promise where we don't have
-			// access to the native field modulus and assume it being nil.
-			return input.Inputs, input.Outputs
-		}
-		if input.Modulus == nil {
-			// if the context modulus is nil, then it is from the backwards
-			// compatibility promise. This shouldn't happen in new code. But for
-			// now we cannot compare it against the search value.
-			continue
-		}
-		if field != nil && input.Modulus.Cmp(field) == 0 {
+	for _, input := range hi[1:] {
+		if input.Modulus.Cmp(field) == 0 {
 			return input.Inputs, input.Outputs
 		}
 	}
 	return nil, nil
 }
 
-// Moduli returns all moduli for which there are inputs or outputs in the
-// context. If there are no inputs or outputs, then returns nil.
-func (hi HintContext) Moduli() []*big.Int {
+// NativeInputsOutputs returns the inputs and outputs for the native field.
+func (hi HintContext) NativeInputsOutputs() (inputs []*big.Int, outputs []*big.Int) {
+	for _, input := range hi {
+		if input.native {
+			return input.Inputs, input.Outputs
+		}
+	}
+	// shouldn't happen, we always set the native field in the context
+	panic("native field not found in hint context")
+}
+
+// EmulatedModuli returns all emulated moduli. Currently when calling
+// [Field.NewHintGeneric] it has length 1 and when calling [NewVarGenericHint]
+// it has length 2.
+func (hi HintContext) EmulatedModuli() []*big.Int {
 	if len(hi) == 0 {
 		return nil
 	}
-	moduli := make([]*big.Int, len(hi))
-	for i, input := range hi {
+	moduli := make([]*big.Int, len(hi)-1) // -1 because the first element is the native field
+	for i, input := range hi[1:] {
 		moduli[i] = input.Modulus
 	}
 	return moduli
 }
 
+// NativeModulus returns the modulus of the native field.
+func (hi HintContext) NativeModulus() *big.Int {
+	for _, input := range hi {
+		if input.native {
+			return input.Modulus
+		}
+	}
+	return nil
+}
+
 // wrapGenericHintInputs wraps the inputs for different fields into a slice
 // which can be passed into the native hint calling mechanism. To unwrap, use
 // the [unwrapGenericHintOutputs] function.
-func wrapGenericHintInputs[T1, T2 FieldParams](nativeField *big.Int, nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs int,
+func wrapGenericHintInputs[T1, T2 FieldParams](
+	nativeField *big.Int,
+	hasSecondField bool,
+	nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs int,
 	nativeInputs []frontend.Variable,
 	emulated1Inputs []*Element[T1],
 	emulated2Inputs []*Element[T2],
 ) (wrappedInputs []frontend.Variable, nbOutputs int, err error) {
+	if !hasSecondField && (len(emulated2Inputs) > 0 || nbEmulated2Outputs > 0) {
+		return nil, 0, errors.New("non-zero inputs or outputs for second field when not requested")
+	}
 	// packing:
 	//  - nbNativeInputs
 	//  - nbNativeOutputs
@@ -236,6 +250,7 @@ func wrapGenericHintInputs[T1, T2 FieldParams](nativeField *big.Int, nbNativeOut
 	//  - modulus for T2
 	//  - emulated2 inputs (for every input: nbLimbs || limb decomposition)
 	effNbLimbs1, effNbBits1 := GetEffectiveFieldParams[T1](nativeField)
+	// when the second field is not actually present, then it is a dummy value essentially (decided by the parametrization of the function).
 	effNbLimbs2, effNbBits2 := GetEffectiveFieldParams[T2](nativeField)
 	var t1 T1
 	var t2 T2
@@ -262,11 +277,9 @@ func wrapGenericHintInputs[T1, T2 FieldParams](nativeField *big.Int, nbNativeOut
 		nbEmulated2Outputs,
 	}
 	wrappedInputs = append(wrappedInputs, nativeInputs...)
-	if len(emulated1Inputs) > 0 || nbEmulated1Outputs > 0 {
-		wrappedInputs = append(wrappedInputs, effNbLimbs1, effNbBits1)
-		for i := range mod1Limbs {
-			wrappedInputs = append(wrappedInputs, mod1Limbs[i])
-		}
+	wrappedInputs = append(wrappedInputs, effNbLimbs1, effNbBits1)
+	for i := range mod1Limbs {
+		wrappedInputs = append(wrappedInputs, mod1Limbs[i])
 	}
 	for i := range emulated1Inputs {
 		if emulated1Inputs[i] == nil {
@@ -275,7 +288,7 @@ func wrapGenericHintInputs[T1, T2 FieldParams](nativeField *big.Int, nbNativeOut
 		wrappedInputs = append(wrappedInputs, len(emulated1Inputs[i].Limbs))
 		wrappedInputs = append(wrappedInputs, emulated1Inputs[i].Limbs...)
 	}
-	if len(emulated2Inputs) > 0 || nbEmulated2Outputs > 0 {
+	if hasSecondField {
 		wrappedInputs = append(wrappedInputs, effNbLimbs2, effNbBits2)
 		for i := range mod2Limbs {
 			wrappedInputs = append(wrappedInputs, mod2Limbs[i])
@@ -382,7 +395,7 @@ func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOut
 	for i := range nonNativeInputs {
 		nonNativeInputs[i].Initialize(f.api.Compiler().Field())
 	}
-	wrappedInputs, nbOutputs, err := wrapGenericHintInputs[T, T](f.api.Compiler().Field(), nbNativeOutputs, nbEmulatedOutputs, 0, nativeInputs, nonNativeInputs, nil)
+	wrappedInputs, nbOutputs, err := wrapGenericHintInputs[T, T](f.api.Compiler().Field(), false, nbNativeOutputs, nbEmulatedOutputs, 0, nativeInputs, nonNativeInputs, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("wrap generic hint context: %w", err)
 	}
@@ -431,71 +444,69 @@ func UnwrapHintContext(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.In
 
 	ptr := 6
 	var hctx HintContext
-	if nbNativeInputs > 0 || nbNativeOutputs > 0 {
-		if len(nativeInputs) < ptr+nbNativeInputs {
-			return fmt.Errorf("not enough native inputs, expected %d, got %d", ptr+nbNativeInputs, len(nativeInputs))
+	if len(nativeInputs) < ptr+nbNativeInputs {
+		return fmt.Errorf("not enough native inputs, expected %d, got %d", ptr+nbNativeInputs, len(nativeInputs))
+	}
+	nhctx := hintContextField{
+		Modulus: nativeMod,
+		Inputs:  nativeInputs[ptr : ptr+nbNativeInputs],
+		Outputs: make([]*big.Int, nbNativeOutputs),
+		native:  true,
+	}
+	ptr += nbNativeInputs
+	for i := range nhctx.Outputs {
+		nhctx.Outputs[i] = new(big.Int)
+	}
+	hctx = append(hctx, nhctx)
+	decomposeEmulated := func(nbEmulatedInputs, nbEmulatedOutputs int) error {
+		if len(nativeInputs) < ptr+nbEmulatedInputs+2 {
+			// when there are no more inputs, then it means that it is called in the context where there is only a single emulated field.
+			// in this case, we can skip creating the context here.
+			return nil
 		}
+		if !nativeInputs[ptr].IsInt64() || !nativeInputs[ptr+1].IsInt64() {
+			return fmt.Errorf("emulated header elements must be castable to int64, got %v and %v", nativeInputs[ptr], nativeInputs[ptr+1])
+		}
+		nbLimbs := int(nativeInputs[ptr].Int64())
+		nbBits := int(nativeInputs[ptr+1].Int64())
+		ptr += 2
+		if len(nativeInputs) < ptr+nbLimbs {
+			return fmt.Errorf("not enough emulated modulus limbs, expected %d, got %d", ptr+nbLimbs, len(nativeInputs))
+		}
+		modEm := new(big.Int)
+		if err := limbs.Recompose(nativeInputs[ptr:ptr+nbLimbs], uint(nbBits), modEm); err != nil {
+			return fmt.Errorf("recompose emulated modulus: %w", err)
+		}
+		ptr += nbLimbs
 		nhctx := hintContextField{
-			Modulus: nativeMod,
-			Inputs:  nativeInputs[ptr : ptr+nbNativeInputs],
-			Outputs: make([]*big.Int, nbNativeOutputs),
-			native:  true,
+			Modulus: modEm,
+			Inputs:  make([]*big.Int, nbEmulatedInputs),
+			Outputs: make([]*big.Int, nbEmulatedOutputs),
+			nbLimbs: nbLimbs,
+			nbBits:  nbBits,
 		}
-		ptr += nbNativeInputs
+		for i := range nhctx.Inputs {
+			if len(nativeInputs) < ptr+1 {
+				return fmt.Errorf("not enough emulated inputs, expected %d, got %d", ptr+1, len(nativeInputs))
+			}
+			if !nativeInputs[ptr].IsInt64() {
+				return fmt.Errorf("emulated input %d must be castable to int64, got %v", i, nativeInputs[ptr])
+			}
+			currentInputLen := int(nativeInputs[ptr].Int64())
+			ptr++
+			if len(nativeInputs) < ptr+currentInputLen {
+				return fmt.Errorf("not enough emulated input limbs, expected %d, got %d", ptr+currentInputLen, len(nativeInputs))
+			}
+			nhctx.Inputs[i] = new(big.Int)
+			if err := limbs.Recompose(nativeInputs[ptr:ptr+currentInputLen], uint(nbBits), nhctx.Inputs[i]); err != nil {
+				return fmt.Errorf("recompose emulated input %d: %w", i, err)
+			}
+			ptr += currentInputLen
+		}
 		for i := range nhctx.Outputs {
 			nhctx.Outputs[i] = new(big.Int)
 		}
 		hctx = append(hctx, nhctx)
-	}
-	decomposeEmulated := func(nbEmulatedInputs, nbEmulatedOutputs int) error {
-		if nbEmulatedInputs > 0 || nbEmulatedOutputs > 0 {
-			if len(nativeInputs) < ptr+nbEmulatedInputs+2 {
-				return fmt.Errorf("not enough emulated inputs, expected %d, got %d", ptr+nbEmulatedInputs+2, len(nativeInputs))
-			}
-			if !nativeInputs[ptr].IsInt64() || !nativeInputs[ptr+1].IsInt64() {
-				return fmt.Errorf("emulated header elements must be castable to int64, got %v and %v", nativeInputs[ptr], nativeInputs[ptr+1])
-			}
-			nbLimbs := int(nativeInputs[ptr].Int64())
-			nbBits := int(nativeInputs[ptr+1].Int64())
-			ptr += 2
-			if len(nativeInputs) < ptr+nbLimbs {
-				return fmt.Errorf("not enough emulated modulus limbs, expected %d, got %d", ptr+nbLimbs, len(nativeInputs))
-			}
-			modEm := new(big.Int)
-			if err := limbs.Recompose(nativeInputs[ptr:ptr+nbLimbs], uint(nbBits), modEm); err != nil {
-				return fmt.Errorf("recompose emulated modulus: %w", err)
-			}
-			ptr += nbLimbs
-			nhctx := hintContextField{
-				Modulus: modEm,
-				Inputs:  make([]*big.Int, nbEmulatedInputs),
-				Outputs: make([]*big.Int, nbEmulatedOutputs),
-				nbLimbs: nbLimbs,
-				nbBits:  nbBits,
-			}
-			for i := range nhctx.Inputs {
-				if len(nativeInputs) < ptr+1 {
-					return fmt.Errorf("not enough emulated inputs, expected %d, got %d", ptr+1, len(nativeInputs))
-				}
-				if !nativeInputs[ptr].IsInt64() {
-					return fmt.Errorf("emulated input %d must be castable to int64, got %v", i, nativeInputs[ptr])
-				}
-				currentInputLen := int(nativeInputs[ptr].Int64())
-				ptr++
-				if len(nativeInputs) < ptr+currentInputLen {
-					return fmt.Errorf("not enough emulated input limbs, expected %d, got %d", ptr+currentInputLen, len(nativeInputs))
-				}
-				nhctx.Inputs[i] = new(big.Int)
-				if err := limbs.Recompose(nativeInputs[ptr:ptr+currentInputLen], uint(nbBits), nhctx.Inputs[i]); err != nil {
-					return fmt.Errorf("recompose emulated input %d: %w", i, err)
-				}
-				ptr += currentInputLen
-			}
-			for i := range nhctx.Outputs {
-				nhctx.Outputs[i] = new(big.Int)
-			}
-			hctx = append(hctx, nhctx)
-		}
 		return nil
 	}
 	if err := decomposeEmulated(nbEmulated1Inputs, nbEmulated1Outputs); err != nil {
@@ -513,7 +524,7 @@ func UnwrapHintContext(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.In
 	if len(nativeOutputs) < nbNativeOutputs {
 		return fmt.Errorf("not enough native outputs, expected %d, got %d", nbNativeOutputs, len(nativeOutputs))
 	}
-	_, hnout := hctx.InputsOutputs(nativeMod)
+	_, hnout := hctx.NativeInputsOutputs()
 	if len(hnout) != nbNativeOutputs {
 		return fmt.Errorf("hint outputs length mismatch: expected %d, got %d", nbNativeOutputs, len(hnout))
 	}
@@ -593,7 +604,7 @@ func NewVarGenericHint[T1, T2 FieldParams](
 		return nil, nil, nil, fmt.Errorf("create emulated2 field: %w", err)
 	}
 	nativeField := api.Compiler().Field()
-	wrappedInputs, nbOutputs, err := wrapGenericHintInputs(nativeField, nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs, nativeInputs, emulated1Inputs, emulated2Inputs)
+	wrappedInputs, nbOutputs, err := wrapGenericHintInputs(nativeField, true, nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs, nativeInputs, emulated1Inputs, emulated2Inputs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("wrap generic hint inputs: %w", err)
 	}
