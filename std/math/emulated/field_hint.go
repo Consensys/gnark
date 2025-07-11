@@ -603,6 +603,13 @@ func NewVarGenericHint[T1, T2 FieldParams](
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create emulated2 field: %w", err)
 	}
+	// ensure that the emulated elements are initialized
+	for i := range emulated1Inputs {
+		emulated1Inputs[i].Initialize(api.Compiler().Field())
+	}
+	for i := range emulated2Inputs {
+		emulated2Inputs[i].Initialize(api.Compiler().Field())
+	}
 	nativeField := api.Compiler().Field()
 	wrappedInputs, nbOutputs, err := wrapGenericHintInputs(nativeField, true, nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs, nativeInputs, emulated1Inputs, emulated2Inputs)
 	if err != nil {
