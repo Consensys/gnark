@@ -703,20 +703,16 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
 	//
 	// N.B.: this check may overflow. But we don't use this method anywhere but for testing purposes.
-	sd, err := api.NewHint(halfGCDEisenstein, 5, _s, cc.lambda)
+	//
+	// Eisenstein integers real and imaginary parts can be negative. So we
+	// return the absolute value in the hint and negate the corresponding
+	// points here when needed.
+	sd, err := api.NewHint(halfGCDEisenstein, 10, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
 	}
 	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
-
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
-	signs, err := api.NewHint(halfGCDEisensteinSigns, 5, _s, cc.lambda)
-	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisensteinSigns hint: %v", err))
-	}
-	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := signs[0], signs[1], signs[2], signs[3], signs[4]
+	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
 
 	// We need to check that:
 	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0

@@ -607,15 +607,11 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	// sub-scalars.
 
 	// decompose s into s1 and s2
-	sd, err := g2.fr.NewHint(decomposeScalarG1Subscalars, 2, s, g2.eigenvalue)
+	sdBits, sd, err := g2.fr.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[ScalarField]{s, g2.eigenvalue})
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	sdBits, err := g2.fr.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, g2.eigenvalue)
-	if err != nil {
-		panic(fmt.Sprintf("compute GLV decomposition bits: %v", err))
-	}
 	selector1, selector2 := sdBits[0], sdBits[1]
 	s3 := g2.fr.Select(selector1, g2.fr.Neg(s1), s1)
 	s4 := g2.fr.Select(selector2, g2.fr.Neg(s2), s2)
