@@ -2,11 +2,16 @@ package sw_bls12381
 
 import (
 	"fmt"
+	"math/big"
+	"slices"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
+	"github.com/consensys/gnark/std/hash/expand"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 func (g2 *G2) evalFixedPolynomial(monic bool, coefficients []bls12381.E2, x *fields_bls12381.E2) *fields_bls12381.E2 {
@@ -192,4 +197,115 @@ func (g2 *G2) MapToG2(u *fields_bls12381.E2) (*G2Affine, error) {
 	z := g2.isogeny(res)
 	z = g2.ClearCofactor(z)
 	return z, nil
+}
+
+// EncodeToG2 hashes a message to a point on the G2 curve using the SSWU map as
+// defined in [RFC9380]. It is faster than [G2.HashToG2], but the result is not
+// uniformly distributed. Unsuitable as a random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function
+//
+// // This method corresponds to the [bls12381.EncodeToG2] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g2 *G2) EncodeToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
+	const L = 64
+	els := make([]*baseEl, 2)
+	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*L)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+
+	for i := range els {
+		// TODO: use conversion package when done
+		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*L:(i+1)*L])
+	}
+	R, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve: %w", err)
+	}
+	Q := g2.isogeny(R)
+	return g2.ClearCofactor(Q), nil
+}
+
+// secureBaseElementLen is the length of bytes for sampling uniform element from
+// the base field. We use 64 bytes per base element, this is 48 bytes for the
+// base field and 16 bytes for security parameter. Copied from gnark-crypto
+const secureBaseElementLen = 64
+
+// HashToG2 hashes a message to a point on the G2 curve using the SSWU map as
+// defined in [RFC9380]. It is slower than [G2.EncodeToG2], but usable as a
+// random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function.
+//
+// This method corresponds to the [bls12381.HashToG2] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
+	// Steps:
+	// 1. u = hash_to_field(msg, 4)
+	// 2. Q0 = map_to_curve({u[0], u[1]})
+	// 3. Q1 = map_to_curve({u[2], u[3]})
+	// 4. R = Q0 + Q1              # Point addition
+	// 5. P = clear_cofactor(R)
+	// 6. return P
+
+	// corresponds to fp.Hash method which we don't explicitly have in gnark
+	els := make([]*baseEl, 4)
+	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	for i := range els {
+		// TODO: use conversion package when done
+		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+	}
+
+	// we will still do iso_map before point addition, as we do not have point addition in E' (yet)
+	Q0, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q0: %w", err)
+	}
+	Q1, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[2], A1: *els[3]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q1: %w", err)
+	}
+	Q0 = g2.isogeny(Q0)
+	Q1 = g2.isogeny(Q1)
+
+	R := g2.AddUnified(Q0, Q1)
+
+	return g2.ClearCofactor(R), nil
+}
+
+func bytesToElement(api frontend.API, fp *emulated.Field[emulated.BLS12381Fp], data []uints.U8) *emulated.Element[BaseField] {
+	// TODO(ivokub) NB! This function is a temporary workaround to convert bytes to an element. We will replace it soon.
+	//
+	// NB! it modifies data in place, but in the current usage it is not an issue as we only use it once per bytes
+
+	// data in BE, need to convert to LE
+	slices.Reverse(data)
+
+	bits := make([]frontend.Variable, len(data)*8)
+	for i := 0; i < len(data); i++ {
+		u8 := data[i]
+		u8Bits := api.ToBinary(u8.Val, 8)
+		for j := 0; j < 8; j++ {
+			bits[i*8+j] = u8Bits[j]
+		}
+	}
+
+	cutoff := 17
+	tailBits, headBits := bits[:cutoff*8], bits[cutoff*8:]
+	tail := fp.FromBits(tailBits...)
+	head := fp.FromBits(headBits...)
+
+	byteMultiplier := big.NewInt(256)
+	headMultiplier := byteMultiplier.Exp(byteMultiplier, big.NewInt(int64(cutoff)), big.NewInt(0))
+	head = fp.MulConst(head, headMultiplier)
+
+	return fp.Add(head, tail)
 }

@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"crypto/rand"
 	"fmt"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
 
@@ -144,4 +146,80 @@ func TestIsogenyG1(t *testing.T) {
 	}
 	err := test.IsSolved(&IsogenyG1Circuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type EncodeToG1Circuit struct {
+	Msg []uints.U8
+	Res G1Affine
+	Dst []byte
+}
+
+func (c *EncodeToG1Circuit) Define(api frontend.API) error {
+	g, err := NewG1(api)
+	if err != nil {
+		return fmt.Errorf("new G1: %w", err)
+	}
+	res, err := g.EncodeToG1(c.Msg, []byte(c.Dst))
+	if err != nil {
+		return fmt.Errorf("encode to G1: %w", err)
+	}
+
+	g.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestEncodeToG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	dst := []byte("BLS12381G1Test")
+	for _, msgLen := range []int{0, 1, 31, 32, 33, 63, 64, 65} {
+		assert.Run(func(assert *test.Assert) {
+			msg := make([]byte, msgLen)
+			_, err := rand.Reader.Read(msg)
+			assert.NoError(err, "failed to generate random message")
+			res, err := bls12381.EncodeToG1(msg, dst)
+			assert.NoError(err, "failed to encode message to G1")
+			circuit := EncodeToG1Circuit{Msg: make([]uints.U8, msgLen), Dst: dst}
+			witness := EncodeToG1Circuit{Msg: uints.NewU8Array(msg), Res: NewG1Affine(res)}
+			err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err, "solving failed")
+		}, fmt.Sprintf("msgLen=%d", msgLen))
+	}
+}
+
+type HashToG1Circuit struct {
+	Msg []uints.U8
+	Res G1Affine
+	Dst []byte
+}
+
+func (c *HashToG1Circuit) Define(api frontend.API) error {
+	g, err := NewG1(api)
+	if err != nil {
+		return fmt.Errorf("new G1: %w", err)
+	}
+	res, err := g.HashToG1(c.Msg, []byte(c.Dst))
+	if err != nil {
+		return fmt.Errorf("hash to G1: %w", err)
+	}
+
+	g.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestHashToG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	dst := []byte("BLS12381G1Test")
+	for _, msgLen := range []int{0, 1, 31, 32, 33, 63, 64, 65} {
+		assert.Run(func(assert *test.Assert) {
+			msg := make([]byte, msgLen)
+			_, err := rand.Reader.Read(msg)
+			assert.NoError(err, "failed to generate random message")
+			res, err := bls12381.HashToG1(msg, dst)
+			assert.NoError(err, "failed to hash message to G1")
+			circuit := HashToG1Circuit{Msg: make([]uints.U8, msgLen), Dst: dst}
+			witness := HashToG1Circuit{Msg: uints.NewU8Array(msg), Res: NewG1Affine(res)}
+			err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err, "solving failed")
+		}, fmt.Sprintf("msgLen=%d", msgLen))
+	}
 }
