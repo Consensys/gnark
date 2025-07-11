@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/test"
 )
 
@@ -579,4 +580,81 @@ func TestCrossFieldHint(t *testing.T) {
 	testCrossFieldHint[Secp256k1Fp, BN254Fp](t)
 	testCrossFieldHint[BN254Fp, Goldilocks](t)
 	testCrossFieldHint[BN254Fp, Secp256k1Fp](t)
+}
+
+func matchingFieldHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
+		moduli := ctx.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expected 1 moduli, got %d", len(moduli))
+		}
+		nativeMod, emulatedMod := ctx.NativeModulus(), moduli[0]
+		nativeInputs, nativeOutputs := ctx.NativeInputsOutputs()
+		emulatedInputs, emulatedOutputs := ctx.InputsOutputs(emulatedMod)
+		if len(nativeInputs) != 2 || len(nativeOutputs) != 1 ||
+			len(emulatedInputs) != 2 || len(emulatedOutputs) != 1 {
+			return errors.New("unexpected number of inputs or outputs")
+		}
+		res1 := new(big.Int).Mul(nativeInputs[0], nativeInputs[1])
+		res1.Mod(res1, nativeMod)
+		res2 := new(big.Int).Mul(emulatedInputs[0], emulatedInputs[1])
+		res2.Mod(res2, emulatedMod)
+		nativeOutputs[0].Mod(res1, nativeMod)
+		emulatedOutputs[0].Mod(res2, emulatedMod)
+		return nil
+	})
+}
+
+type matchingFieldHintCircuit[T FieldParams] struct {
+	A, B             frontend.Variable
+	C, D             Element[T]
+	ExpectedNative   frontend.Variable
+	ExpectedEmulated Element[T]
+}
+
+func (c *matchingFieldHintCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	outNative, outEm, err := f.NewHintGeneric(matchingFieldHint, 1, 1, []frontend.Variable{c.A, c.B}, []*Element[T]{&c.C, &c.D})
+	if err != nil {
+		return fmt.Errorf("new hint: %w", err)
+	}
+	if len(outNative) != 1 {
+		return fmt.Errorf("expected 1 native output, got %d", len(outNative))
+	}
+	if len(outEm) != 1 {
+		return fmt.Errorf("expected 1 emulated output, got %d", len(outEm))
+	}
+	api.AssertIsEqual(outNative[0], c.ExpectedNative)
+	f.AssertIsEqual(outEm[0], &c.ExpectedEmulated)
+	return nil
+}
+
+func testMatchingFieldHint[T FieldParams](t *testing.T) {
+	var fr T
+	assert := test.NewAssert(t)
+	a, _ := rand.Int(rand.Reader, fr.Modulus())
+	b, _ := rand.Int(rand.Reader, fr.Modulus())
+	c, _ := rand.Int(rand.Reader, fr.Modulus())
+	d, _ := rand.Int(rand.Reader, fr.Modulus())
+	res1 := new(big.Int).Mod(new(big.Int).Mul(a, b), fr.Modulus())
+	res2 := new(big.Int).Mod(new(big.Int).Mul(c, d), fr.Modulus())
+
+	circuit := matchingFieldHintCircuit[T]{}
+	witness := matchingFieldHintCircuit[T]{
+		A:                a,
+		B:                b,
+		C:                ValueOf[T](c),
+		D:                ValueOf[T](d),
+		ExpectedNative:   res1,
+		ExpectedEmulated: ValueOf[T](res2),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(utils.FieldToCurve(fr.Modulus())))
+}
+
+func TestMatchingFieldHint(t *testing.T) {
+	testMatchingFieldHint[BN254Fr](t)
+	testMatchingFieldHint[BLS12381Fr](t)
 }
