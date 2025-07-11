@@ -39,7 +39,7 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
-			return fmt.Errorf("expecting one moduli, got %d", len(moduli))
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
 		_, nativeOutputs := hc.NativeInputsOutputs()
 		if len(nativeOutputs) != 2 {
@@ -160,7 +160,7 @@ func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
-			return fmt.Errorf("expecting one moduli, got %d", len(moduli))
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
 		_, nativeOutputs := hc.NativeInputsOutputs()
 		if len(nativeOutputs) != 1 {
@@ -171,7 +171,7 @@ func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return fmt.Errorf("expecting one input, got %d", len(emuInputs))
 		}
 		if len(emuOutputs) != 2 {
-			return fmt.Errorf("expecting one output, got %d", len(emuOutputs))
+			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(moduli[0], emuInputs[0], glvBasis)
@@ -195,7 +195,7 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
-			return fmt.Errorf("expecting two moduli, got %d", len(moduli))
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
 		_, nativeOutputs := hc.NativeInputsOutputs()
 		if len(nativeOutputs) != 4 {
