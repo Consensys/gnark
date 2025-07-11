@@ -306,7 +306,7 @@ func (c *genericHintCircuitNativeInEmulatedOut[T]) Define(api frontend.API) erro
 	return nil
 }
 
-func testGenericHintNativeInEmulatedeOut[T FieldParams](t *testing.T) {
+func testGenericHintNativeInEmulatedOut[T FieldParams](t *testing.T) {
 	var fr T
 	assert := test.NewAssert(t)
 	a, _ := rand.Int(rand.Reader, ecc.BN254.ScalarField())
@@ -324,10 +324,10 @@ func testGenericHintNativeInEmulatedeOut[T FieldParams](t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
 }
 
-func TestGenericHintNativeInEmulatedeOut(t *testing.T) {
-	testGenericHintNativeInEmulatedeOut[Goldilocks](t)
-	testGenericHintNativeInEmulatedeOut[Secp256k1Fp](t)
-	testGenericHintNativeInEmulatedeOut[BN254Fp](t)
+func TestGenericHintNativeInEmulatedOut(t *testing.T) {
+	testGenericHintNativeInEmulatedOut[Goldilocks](t)
+	testGenericHintNativeInEmulatedOut[Secp256k1Fp](t)
+	testGenericHintNativeInEmulatedOut[BN254Fp](t)
 }
 
 func hintEmulatedInEmulatedOut(mod *big.Int, inputs, outputs []*big.Int) error {
