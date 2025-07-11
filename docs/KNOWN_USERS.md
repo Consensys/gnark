@@ -4,3 +4,4 @@
 * [DAVINCI](https://davinci.vote) - Specialized L2 rollup based on ZKPs for voting. A decentralized, anonymous and receipt-free voting protocol designed and implemented by the [Vocdoni](https://vocdoni.io) team. Uses Proof recursion and settles to Ethereum.
 * [Union](https://union.build) - Modular interoperability protocol which facilitates the exchange of messages between blockchains. Gnark is used to prove consensus.
 * [Reclaim protocol](https://reclaimprotocol.org/) - Migrated circuits from snarkjs to gnark for mobile-proof generation efficiency; open‑sourced their symmetric‑crypto circuits.
+* [Celer Network](https://celer.network/) – Implemented a GPU-accelerated backend for gnark to optimize Groth16 and PLONK proof generation. Used to speed up zkSNARK computations in high-performance environments.
