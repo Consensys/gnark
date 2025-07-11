@@ -459,7 +459,7 @@ func UnwrapHintContext(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.In
 	}
 	hctx = append(hctx, nhctx)
 	decomposeEmulated := func(nbEmulatedInputs, nbEmulatedOutputs int) error {
-		if len(nativeInputs) < ptr+nbEmulatedInputs+2 {
+		if len(nativeInputs) < ptr+2 {
 			// when there are no more inputs, then it means that it is called in the context where there is only a single emulated field.
 			// in this case, we can skip creating the context here.
 			return nil
