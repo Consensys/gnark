@@ -31,7 +31,7 @@ type Bytes struct {
 // for bitwise operations and it amortizes the cost of creating these lookup
 // tables.
 func NewBytes(api frontend.API) (*Bytes, error) {
-	if kv, ok := api.Compiler().(kvstore.Store); ok {
+	if kv, ok := api.(kvstore.Store); ok {
 		uapi := kv.GetKeyValue(ctxKey{})
 		if tuapi, ok := uapi.(*Bytes); ok {
 			return tuapi, nil
