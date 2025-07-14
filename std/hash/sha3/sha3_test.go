@@ -44,7 +44,7 @@ func (c *sha3Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	uapi, err := uints.New[uints.U64](api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (c *sha3Circuit) Define(api frontend.API) error {
 	res := h.Sum()
 
 	for i := range c.Expected {
-		uapi.ByteAssertEq(c.Expected[i], res[i])
+		uapi.AssertIsEqual(c.Expected[i], res[i])
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	uapi, err := uints.New[uints.U64](api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (c *sha3FixedLengthSumCircuit) Define(api frontend.API) error {
 	res := h.FixedLengthSum(c.Length)
 
 	for i := range c.Expected {
-		uapi.ByteAssertEq(c.Expected[i], res[i])
+		uapi.AssertIsEqual(c.Expected[i], res[i])
 	}
 	return nil
 }
