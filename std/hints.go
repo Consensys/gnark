@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
+	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/evmprecompiles"
 	"github.com/consensys/gnark/std/hash/sha3"
 	"github.com/consensys/gnark/std/internal/logderivarg"
@@ -48,6 +49,7 @@ func registerHints() {
 	solver.RegisterHint(bitslice.GetHints()...)
 	solver.RegisterHint(sha3.GetHints()...)
 	solver.RegisterHint(uints.GetHints()...)
+	solver.RegisterHint(conversion.GetHints()...)
 	// emulated fields
 	solver.RegisterHint(fields_bls12381.GetHints()...)
 	solver.RegisterHint(fields_bn254.GetHints()...)
