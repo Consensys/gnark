@@ -16,3 +16,16 @@ func References[T any](v []T) []*T {
 	}
 	return res
 }
+
+// ExtendRepeatLast extends a non-empty slice s by repeating the last element until it reaches the length n.
+func ExtendRepeatLast[T any](s []T, n int) []T {
+	if n <= len(s) {
+		return s[:n]
+	}
+	res := make([]T, n)
+	copy(res, s)
+	for i := len(s); i < n; i++ {
+		res[i] = res[i-1]
+	}
+	return res
+}
