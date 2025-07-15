@@ -230,6 +230,8 @@ func (c *genericHintCircuitNativeInNativeOut[T]) Define(api frontend.API) error 
 		return fmt.Errorf("expected 0 emulated outputs, got %d", len(outEm))
 	}
 	api.AssertIsEqual(outNative[0], c.Expected)
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Expected, c.Expected)
 	return nil
 }
 
@@ -450,6 +452,8 @@ func (c *genericHintCircuitEmulatedInNativeOut[T]) Define(api frontend.API) erro
 		return fmt.Errorf("expected 0 emulated outputs, got %d", len(outEm))
 	}
 	api.AssertIsEqual(outNat[0], c.Expected)
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Expected, c.Expected)
 	return nil
 }
 
