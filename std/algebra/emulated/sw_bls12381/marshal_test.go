@@ -186,7 +186,6 @@ func TestUnmarshalPoint(t *testing.T) {
 		p.FromJacobian(&pj)
 		pMarshalled := p.Bytes()
 		// check that mask is what we expect
-		fmt.Println(pMarshalled[0], pMarshalled[0]&(0b110<<5), 0b100<<5)
 		assert.Equal(byte(0b100)<<5, pMarshalled[0]&(0b110<<5), "mask should be compressed regular")
 		assert.CheckCircuit(
 			&unmarshalPoint{CP: make([]uints.U8, bls12381.SizeOfG1AffineCompressed)},
