@@ -35,7 +35,7 @@ const (
 //   - compressed regular point, with y lexicographically largest (header 0b101<<5)
 //   - compressed point at infinity (header 0b110<<5).
 //
-// Particulary, the method DOES NOT support uncompressed points (header
+// Particularly, the method DOES NOT support uncompressed points (header
 // 0b000<<5) and uncompressed points at infinity (header 0b010<<5).
 //
 // The method performs curve membership check and subgroup membership check.
