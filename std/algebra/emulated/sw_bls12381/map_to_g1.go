@@ -6,7 +6,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/hash/expand"
+	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -198,7 +200,10 @@ func (g1 *G1) EncodeToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("expand msg: %w", err)
 	}
-	el := bytesToElement(g1.api, g1.curveF, uniformBytes)
+	el, err := secureBytesToElement(g1.api, g1.curveF, uniformBytes)
+	if err != nil {
+		return nil, fmt.Errorf("bytes to element: %w", err)
+	}
 	R, err := g1.MapToCurve1(el)
 	if err != nil {
 		return nil, fmt.Errorf("map to curve: %w", err)
@@ -225,7 +230,10 @@ func (g1 *G1) HashToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
 		return nil, fmt.Errorf("expand msg: %w", err)
 	}
 	for i := range els {
-		els[i] = bytesToElement(g1.api, g1.curveF, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		els[i], err = secureBytesToElement(g1.api, g1.curveF, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		if err != nil {
+			return nil, fmt.Errorf("bytes to element: %w", err)
+		}
 	}
 	Q0, err := g1.MapToCurve1(els[0])
 	if err != nil {
@@ -240,4 +248,31 @@ func (g1 *G1) HashToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
 	R := g1.add(R0, R1)
 	R = g1.ClearCofactor(R)
 	return R, nil
+}
+
+func secureBytesToElement(api frontend.API, f *emulated.Field[BaseField], data []uints.U8) (*emulated.Element[BaseField], error) {
+	// we have sampled more bytes than is needed to serialize to field element.
+	// The goal is to have more uniform distribution of the output.
+	//
+	// However, we cannot easily initialize non-native elements with more than 48 bytes. So we instead look at
+	// x * 2^376 + y, where x are first 17 bytes and y are the last 47 bytes.
+	if len(data) != secureBaseElementLen {
+		return nil, fmt.Errorf("expected %d bytes, got %d", secureBaseElementLen, len(data))
+	}
+
+	hib := data[:secureBaseElementLen-fp.Bytes+1]
+	lob := data[secureBaseElementLen-fp.Bytes+1 : secureBaseElementLen]
+	// coeff is 2^376 % Fp
+	coeff := f.NewElement("153914086704665934422965000391185991426092731525255651046673021110334850669910978950836977558144201721900890587136")
+	hi, err := conversion.BytesToEmulated[BaseField](api, hib, conversion.WithAllowOverflow())
+	if err != nil {
+		return nil, fmt.Errorf("convert hi bytes to emulated element: %w", err)
+	}
+	lo, err := conversion.BytesToEmulated[BaseField](api, lob, conversion.WithAllowOverflow())
+	if err != nil {
+		return nil, fmt.Errorf("convert lo bytes to emulated element: %w", err)
+	}
+	res := f.Mul(hi, coeff)
+	res = f.Add(res, lo)
+	return res, nil
 }

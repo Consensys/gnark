@@ -2,15 +2,12 @@ package sw_bls12381
 
 import (
 	"fmt"
-	"math/big"
-	"slices"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/hash/expand"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -218,8 +215,10 @@ func (g2 *G2) EncodeToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	}
 
 	for i := range els {
-		// TODO: use conversion package when done
-		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*L:(i+1)*L])
+		els[i], err = secureBytesToElement(g2.api, g2.fp, uniformBytes[i*L:(i+1)*L])
+		if err != nil {
+			return nil, fmt.Errorf("convert bytes to emulated element: %w", err)
+		}
 	}
 	R, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
 	if err != nil {
@@ -260,8 +259,10 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 		return nil, fmt.Errorf("expand msg: %w", err)
 	}
 	for i := range els {
-		// TODO: use conversion package when done
-		els[i] = bytesToElement(g2.api, g2.fp, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		els[i], err = secureBytesToElement(g2.api, g2.fp, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		if err != nil {
+			return nil, fmt.Errorf("convert bytes to emulated element: %w", err)
+		}
 	}
 
 	// we will still do iso_map before point addition, as we do not have point addition in E' (yet)
@@ -279,33 +280,4 @@ func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
 	R := g2.AddUnified(Q0, Q1)
 
 	return g2.ClearCofactor(R), nil
-}
-
-func bytesToElement(api frontend.API, fp *emulated.Field[emulated.BLS12381Fp], data []uints.U8) *emulated.Element[BaseField] {
-	// TODO(ivokub) NB! This function is a temporary workaround to convert bytes to an element. We will replace it soon.
-	//
-	// NB! it modifies data in place, but in the current usage it is not an issue as we only use it once per bytes
-
-	// data in BE, need to convert to LE
-	slices.Reverse(data)
-
-	bits := make([]frontend.Variable, len(data)*8)
-	for i := 0; i < len(data); i++ {
-		u8 := data[i]
-		u8Bits := api.ToBinary(u8.Val, 8)
-		for j := 0; j < 8; j++ {
-			bits[i*8+j] = u8Bits[j]
-		}
-	}
-
-	cutoff := 17
-	tailBits, headBits := bits[:cutoff*8], bits[cutoff*8:]
-	tail := fp.FromBits(tailBits...)
-	head := fp.FromBits(headBits...)
-
-	byteMultiplier := big.NewInt(256)
-	headMultiplier := byteMultiplier.Exp(byteMultiplier, big.NewInt(int64(cutoff)), big.NewInt(0))
-	head = fp.MulConst(head, headMultiplier)
-
-	return fp.Add(head, tail)
 }
