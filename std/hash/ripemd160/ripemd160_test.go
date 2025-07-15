@@ -21,7 +21,7 @@ func (c *ripemd160Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	uapi, err := uints.New[uints.U32](api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (c *ripemd160Circuit) Define(api frontend.API) error {
 		return fmt.Errorf("not 20 bytes")
 	}
 	for i := range c.Expected {
-		uapi.ByteAssertEq(c.Expected[i], res[i])
+		uapi.AssertIsEqual(c.Expected[i], res[i])
 	}
 	return nil
 }

@@ -30,41 +30,18 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivprecomp"
 	"github.com/consensys/gnark/std/math/bitslice"
-	"github.com/consensys/gnark/std/rangecheck"
 )
-
-// TODO: if internal then enforce range check!
 
 // TODO: all operations can take rand linear combinations instead. Then instead
 // of one check can perform multiple at the same time.
 
-// TODO: implement versions which take multiple inputs. Maybe can combine multiple together
-
-// TODO: instantiate tables only when we first query. Maybe do not need to build!
-
 // TODO: maybe can store everything in a single table? Later! Or if we have a
 // lot of queries then makes sense to extract into separate table?
-
-// TODO: in ValueOf ensure consistency
-
-// TODO: distinguish between when we set constant in-circuit or witness
-// assignment. For constant we don't have to range check but for witness
-// assignment we have to.
-
-// TODO: add something which allows to store array in native element
-
-// TODO: add methods for checking if U8/Long is constant.
-
-// TODO: should something for byte-only ops. Implement a type and then embed it in BinaryField
 
 // TODO: add helper method to call hints which allows to pass in uint8s (bytes)
 // and returns bytes. Then can to byte array manipulation nicely. It is useful
 // for X509. For the implementation we want to pack as much bytes into a field
 // element as possible.
-
-// TODO: methods for converting uint array into emulated element and native
-// element. Most probably should add the implementation for non-native in its
-// package, but for native we should add it here.
 
 type U8 struct {
 	Val      frontend.Variable
@@ -84,45 +61,47 @@ type U32 [4]U8
 
 type Long interface{ U32 | U64 }
 
-type BinaryField[T U32 | U64] struct {
-	api             frontend.API
-	xorT, andT, orT *logderivprecomp.Precomputed
-	rchecker        frontend.Rangechecker
-	allOne          U8
+type BinaryField[T Long] struct {
+	*Bytes
 }
 
+// NewBinaryField creates a new [BinaryField] for the given integer type T
+// specified by parameter [Long]. It allows to manipulate long integers in
+// circuit.
+func NewBinaryField[T Long](api frontend.API) (*BinaryField[T], error) {
+	bts, err := NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("new bytes: %w", err)
+	}
+	return &BinaryField[T]{Bytes: bts}, nil
+}
+
+// New is an alias to [NewBinaryField]. It is retained for backwards
+// compatibility. New uses should use [NewBinaryField] instead.
 func New[T Long](api frontend.API) (*BinaryField[T], error) {
-	xorT, err := logderivprecomp.New(api, xorHint, []uint{8})
-	if err != nil {
-		return nil, fmt.Errorf("new xor table: %w", err)
-	}
-	andT, err := logderivprecomp.New(api, andHint, []uint{8})
-	if err != nil {
-		return nil, fmt.Errorf("new and table: %w", err)
-	}
-	orT, err := logderivprecomp.New(api, orHint, []uint{8})
-	if err != nil {
-		return nil, fmt.Errorf("new or table: %w", err)
-	}
-	rchecker := rangecheck.New(api)
-	bf := &BinaryField[T]{
-		api:      api,
-		xorT:     xorT,
-		andT:     andT,
-		orT:      orT,
-		rchecker: rchecker,
-	}
-	// TODO: this is const. add way to init constants
-	allOne := bf.ByteValueOf(0xff)
-	bf.allOne = allOne
-	return bf, nil
+	return NewBinaryField[T](api)
 }
 
+// NewU8 creates a new [U8] value. It represents a single byte. It can both be
+// used in-circuit to initialize a constant or as a witness assignment. For
+// in-circuit initialization use [Bytes.ValueOf] method instead which ensures
+// that the value is range checked.
 func NewU8(v uint8) U8 {
-	// TODO: don't have to check constants
+	// if NewU8 is used inside the circuit, then this means that the input is a
+	// constant and this ensures that the value is already range checked by
+	// default (as the argument is uint8). If it is used as a witness
+	// assignment, then the flag `internal` is not set for the actual witness
+	// value inside the circuit, as witness parser only copies
+	// [frontend.Variable] part of U8. And the `internal=false` is set in the
+	// [U8.Initialize] method.
 	return U8{Val: v, internal: true}
 }
 
+// NewU32 creates a new [U32] value. It represents a 32-bit unsigned integer
+// which is split into 4 bytes. It can both be used in-circuit to initialize a
+// constant or as a witness assignment. For in-circuit initialization use
+// [BinaryField.ValueOf] method instead which ensures that the value is range
+// checked.
 func NewU32(v uint32) U32 {
 	return [4]U8{
 		NewU8(uint8((v >> (0 * 8)) & 0xff)),
@@ -132,6 +111,11 @@ func NewU32(v uint32) U32 {
 	}
 }
 
+// NewU64 creates a new [U64] value. It represents a 64-bit unsigned integer
+// which is split into 4 bytes. It can both be used in-circuit to initialize a
+// constant or as a witness assignment. For in-circuit initialization use
+// [BinaryField.ValueOf] method instead which ensures that the value is range
+// checked.
 func NewU64(v uint64) U64 {
 	return [8]U8{
 		NewU8(uint8((v >> (0 * 8)) & 0xff)),
@@ -145,6 +129,8 @@ func NewU64(v uint64) U64 {
 	}
 }
 
+// NewU8Array is a utility method to create a slice of [U8] from a slice of
+// uint8.
 func NewU8Array(v []uint8) []U8 {
 	ret := make([]U8, len(v))
 	for i := range v {
@@ -153,6 +139,8 @@ func NewU8Array(v []uint8) []U8 {
 	return ret
 }
 
+// NewU32Array is a utility method to create a slice of [U32] from a slice of
+// uint32.
 func NewU32Array(v []uint32) []U32 {
 	ret := make([]U32, len(v))
 	for i := range v {
@@ -161,6 +149,8 @@ func NewU32Array(v []uint32) []U32 {
 	return ret
 }
 
+// NewU64Array is a utility method to create a slice of [U64] from a slice of
+// uint64.
 func NewU64Array(v []uint64) []U64 {
 	ret := make([]U64, len(v))
 	for i := range v {
@@ -170,19 +160,18 @@ func NewU64Array(v []uint64) []U64 {
 }
 
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
-	bf.rchecker.Check(a, 8)
-	return U8{Val: a, internal: true}
+	return bf.Bytes.ValueOf(a)
 }
 
 func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	var r T
-	bts, err := bf.api.Compiler().NewHint(toBytes, len(r), len(r), a)
+	bts, err := bf.api.Compiler().NewHint(toBytes, bf.lenBts(), bf.lenBts(), a)
 	if err != nil {
 		panic(err)
 	}
 
 	for i := range bts {
-		r[i] = bf.ByteValueOf(bts[i])
+		r[i] = bf.Bytes.ValueOf(bts[i])
 	}
 	expectedValue := bf.ToValue(r)
 	bf.api.AssertIsEqual(a, expectedValue)
@@ -217,8 +206,8 @@ func (bf *BinaryField[T]) PackLSB(a ...U8) T {
 
 func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 	ret := make([]U8, bf.lenBts())
-	for i := 0; i < len(ret); i++ {
-		ret[len(a)-i-1] = a[i]
+	for i := range ret {
+		ret[bf.lenBts()-i-1] = a[i]
 	}
 	return ret
 }
@@ -226,23 +215,15 @@ func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 func (bf *BinaryField[T]) UnpackLSB(a T) []U8 {
 	// cannot deduce that a can be cast to []U8
 	ret := make([]U8, bf.lenBts())
-	for i := 0; i < len(ret); i++ {
+	for i := range ret {
 		ret[i] = a[i]
 	}
 	return ret
 }
 
-func (bf *BinaryField[T]) twoArgFn(tbl *logderivprecomp.Precomputed, a ...U8) U8 {
-	ret := tbl.Query(a[0].Val, a[1].Val)[0]
-	for i := 2; i < len(a); i++ {
-		ret = tbl.Query(ret, a[i].Val)[0]
-	}
-	return U8{Val: ret}
-}
-
 func (bf *BinaryField[T]) twoArgWideFn(tbl *logderivprecomp.Precomputed, a ...T) T {
 	var r T
-	for i, v := range reslice(a) {
+	for i, v := range bf.reslice(a) {
 		r[i] = bf.twoArgFn(tbl, v...)
 	}
 	return r
@@ -252,15 +233,10 @@ func (bf *BinaryField[T]) And(a ...T) T { return bf.twoArgWideFn(bf.andT, a...) 
 func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
 func (bf *BinaryField[T]) Or(a ...T) T  { return bf.twoArgWideFn(bf.orT, a...) }
 
-func (bf *BinaryField[T]) not(a U8) U8 {
-	ret := bf.xorT.Query(a.Val, bf.allOne.Val)
-	return U8{Val: ret[0]}
-}
-
 func (bf *BinaryField[T]) Not(a T) T {
 	var r T
-	for i := 0; i < len(a); i++ {
-		r[i] = bf.not(a[i])
+	for i := 0; i < bf.lenBts(); i++ {
+		r[i] = bf.Bytes.Not(a[i])
 	}
 	return r
 }
@@ -332,7 +308,7 @@ func (bf *BinaryField[T]) Rshift(a T, c int) T {
 }
 
 func (bf *BinaryField[T]) ByteAssertEq(a, b U8) {
-	bf.api.AssertIsEqual(a.Val, b.Val)
+	bf.Bytes.AssertIsEqual(a, b)
 }
 
 func (bf *BinaryField[T]) AssertEq(a, b T) {
@@ -346,16 +322,16 @@ func (bf *BinaryField[T]) lenBts() int {
 	return len(a)
 }
 
-func reslice[T U32 | U64](in []T) [][]U8 {
+func (bf *BinaryField[T]) reslice(in []T) [][]U8 {
 	if len(in) == 0 {
 		panic("zero-length input")
 	}
-	ret := make([][]U8, len(in[0]))
+	ret := make([][]U8, bf.lenBts())
 	for i := range ret {
 		ret[i] = make([]U8, len(in))
 	}
-	for i := 0; i < len(in); i++ {
-		for j := 0; j < len(in[0]); j++ {
+	for i := range in {
+		for j := range bf.lenBts() {
 			ret[j][i] = in[i][j]
 		}
 	}

@@ -88,7 +88,7 @@ func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
 // bound can be a constant or a Variable
 //
 // derived from:
-// https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
+// https://zips.z.cash/protocol/protocol.pdf
 func (builder *builder[E]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	cv, vConst := builder.constantValue(v)
 	cb, bConst := builder.constantValue(bound)
