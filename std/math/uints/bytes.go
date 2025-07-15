@@ -57,8 +57,7 @@ func NewBytes(api frontend.API) (*Bytes, error) {
 		orT:      orT,
 		rchecker: rchecker,
 	}
-	// TODO: this is const. add way to init constants
-	bf.allOne = bf.ValueOf(0xff)
+	bf.allOne = NewU8(0xff)
 
 	// store the API in the key-value store so that can be easily reused
 	if kv, ok := api.(kvstore.Store); ok {
