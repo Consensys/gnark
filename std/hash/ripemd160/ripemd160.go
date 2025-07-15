@@ -80,3 +80,7 @@ func (d *digest) Reset() {
 func (d *digest) Size() int {
 	return 20
 }
+
+func (d *digest) BlockSize() int {
+	return 64
+}

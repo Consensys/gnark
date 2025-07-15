@@ -187,6 +187,8 @@ func (d *digest) Reset() {
 
 func (d *digest) Size() int { return 32 }
 
+func (d *digest) BlockSize() int { return 64 }
+
 func (d *digest) mod64(v frontend.Variable) frontend.Variable {
 	lower, _ := bitslice.Partition(d.api, v, 6, bitslice.WithNbDigits(64))
 	return lower
