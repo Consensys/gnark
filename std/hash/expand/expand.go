@@ -21,6 +21,10 @@ import (
 // [RFC9380 Section 5.3.1]: https://datatracker.ietf.org/doc/html/rfc9380#name-expand_message_xmd
 // [gnark-crypto]: https://github.com/consensys/gnark-crypto/blob/master/field/hash/hashutils.go#L11
 func ExpandMsgXmd(api frontend.API, msg []uints.U8, dst []byte, lenInBytes int) ([]uints.U8, error) {
+	uapi, err := uints.NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("new uints.Bytes: %w", err)
+	}
 	h, err := sha2.New(api)
 	if err != nil {
 		return nil, fmt.Errorf("new hasher: %w", err)
@@ -74,11 +78,7 @@ func ExpandMsgXmd(api frontend.API, msg []uints.U8, dst []byte, lenInBytes int) 
 		// b_i = H(strxor(b₀, b_(i - 1)) ∥ I2OSP(i, 1) ∥ DST_prime)
 		strxor := make([]uints.U8, h.Size())
 		for j := 0; j < h.Size(); j++ {
-			// TODO: use here uints.Bytes Xor when finally implemented
-			strxor[j], err = xor(api, b0[j], b1[j])
-			if err != nil {
-				return res, err
-			}
+			strxor[j] = uapi.Xor(b0[j], b1[j])
 		}
 		h.Write(strxor)
 		h.Write([]uints.U8{uints.NewU8(uint8(i))})
@@ -88,21 +88,4 @@ func ExpandMsgXmd(api frontend.API, msg []uints.U8, dst []byte, lenInBytes int) 
 	}
 
 	return res, nil
-}
-
-func xor(api frontend.API, a, b uints.U8) (uints.U8, error) {
-	// TODO: when done with conversion package then can remove this function
-	aBits := api.ToBinary(a.Val, 8)
-	bBits := api.ToBinary(b.Val, 8)
-	cBits := make([]frontend.Variable, 8)
-
-	for i := 0; i < 8; i++ {
-		cBits[i] = api.Xor(aBits[i], bBits[i])
-	}
-
-	uapi, err := uints.New[uints.U32](api)
-	if err != nil {
-		return uints.NewU8(255), err
-	}
-	return uapi.ByteValueOf(api.FromBinary(cBits...)), nil
 }
