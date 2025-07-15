@@ -74,7 +74,7 @@ func ChecksumPaddedBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits i
 
 // UnpackIntoBytes construes every element in packed as consisting of bytesPerElem bytes, returning those bytes
 // it DOES NOT prove that the elements in unpacked are actually bytes
-// nbBytes is the number of "valid" bytes according to the padding scheme in https://github.com/Consensys/zkevm-monorepo/blob/main/prover/lib/compressor/blob/blob_maker.go#L299
+// nbBytes is the number of "valid" bytes according to the padding scheme in https://github.com/Consensys/linea-monorepo/blob/main/prover/lib/compressor/blob/v0/blob_maker.go#L299
 // TODO @tabaie @gbotrel move the padding/packing code to gnark or compress
 // the very last non-zero byte in the unpacked stream is meant to encode the number of unused bytes in the last field element used.
 // though UnpackIntoBytes includes that last byte in unpacked, it is not counted in nbBytes
