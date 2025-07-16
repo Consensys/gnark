@@ -234,7 +234,8 @@ func (builder *builder[E]) mulConstant(v1 expr.LinearExpression[E], lambda E, in
 	} else {
 		res = v1.Clone()
 	}
-	if lambda.IsZero() {
+	if !inPlace && lambda.IsZero() {
+		// we cannot modify in-place as we have passed copy of the slice header
 		res = builder.cstZero()
 		return res
 	}
