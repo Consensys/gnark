@@ -230,6 +230,8 @@ func (c *genericHintCircuitNativeInNativeOut[T]) Define(api frontend.API) error 
 		return fmt.Errorf("expected 0 emulated outputs, got %d", len(outEm))
 	}
 	api.AssertIsEqual(outNative[0], c.Expected)
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Expected, c.Expected)
 	return nil
 }
 
@@ -247,7 +249,7 @@ func testGenericHintNativeInNativeOut[T FieldParams](t *testing.T) {
 		Denominator: b,
 		Expected:    c,
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254), test.WithSolverOpts(solver.WithHints(hintNativeInNativeOut)))
 }
 
 func TestGenericHintNativeInNativeOut(t *testing.T) {
@@ -321,7 +323,7 @@ func testGenericHintNativeInEmulatedOut[T FieldParams](t *testing.T) {
 		Denominator: b,
 		Expected:    ValueOf[T](c),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254), test.WithSolverOpts(solver.WithHints(hintNativeInEmulatedOut)))
 }
 
 func TestGenericHintNativeInEmulatedOut(t *testing.T) {
@@ -394,7 +396,7 @@ func testGenericHintEmulatedInEmulatedOut[T FieldParams](t *testing.T) {
 		Denominator: ValueOf[T](b),
 		Expected:    ValueOf[T](c),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithSolverOpts(solver.WithHints(hintEmulatedInEmulatedOut)))
 }
 
 func TestGenericHintEmulatedInEmulatedOut(t *testing.T) {
@@ -450,6 +452,8 @@ func (c *genericHintCircuitEmulatedInNativeOut[T]) Define(api frontend.API) erro
 		return fmt.Errorf("expected 0 emulated outputs, got %d", len(outEm))
 	}
 	api.AssertIsEqual(outNat[0], c.Expected)
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Expected, c.Expected)
 	return nil
 }
 
@@ -467,7 +471,7 @@ func testGenericHintEmulatedInNativeOut[T FieldParams](t *testing.T) {
 		Denominator: ValueOf[T](b),
 		Expected:    c,
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254), test.WithSolverOpts(solver.WithHints(hintEmulatedInNativeOut)))
 }
 
 func TestGenericHintEmulatedInNativeOut(t *testing.T) {
@@ -570,7 +574,7 @@ func testCrossFieldHint[T1, T2 FieldParams](t *testing.T) {
 		ExpectedEmulated1: ValueOf[T1](res2),
 		ExpectedEmulated2: ValueOf[T2](res3),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BN254), test.WithSolverOpts(solver.WithHints(crossfieldHint)))
 }
 
 func TestCrossFieldHint(t *testing.T) {
@@ -651,7 +655,7 @@ func testMatchingFieldHint[T FieldParams](t *testing.T) {
 		ExpectedNative:   res1,
 		ExpectedEmulated: ValueOf[T](res2),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(utils.FieldToCurve(fr.Modulus())))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(utils.FieldToCurve(fr.Modulus())), test.WithSolverOpts(solver.WithHints(matchingFieldHint)))
 }
 
 func TestMatchingFieldHint(t *testing.T) {
