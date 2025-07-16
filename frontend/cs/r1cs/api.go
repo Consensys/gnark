@@ -234,6 +234,10 @@ func (builder *builder[E]) mulConstant(v1 expr.LinearExpression[E], lambda E, in
 	} else {
 		res = v1.Clone()
 	}
+	if lambda.IsZero() {
+		res = builder.cstZero()
+		return res
+	}
 
 	for i := 0; i < len(res); i++ {
 		res[i].Coeff = builder.cs.Mul(res[i].Coeff, lambda)
