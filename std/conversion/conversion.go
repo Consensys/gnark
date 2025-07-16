@@ -5,6 +5,18 @@
 // some conversion methods between these types.
 //
 // It is still work in progress and interfaces may change in the future.
+// Currently we have implemented:
+//   - convert from bytes to native field element ✅
+//   - convert from bytes to emulated field element ✅
+//   - convert from bytes to emulated field element, but allow for overflow with an option ✅
+//   - convert from native field element to bytes ✅
+//   - convert from emulated field element to bytes ✅
+//
+// Still work in progress (open issue if you need the functionality):
+//   - convert from native field element to emulated field element
+//   - convert from emulated field element to another emulated field element (ECDSA)
+//   - convert from bits to native field element (duplicate existing method, for completeness)
+//   - convert from bits to emulated field element (? duplicate existing method, for completeness)
 package conversion
 
 import (
@@ -17,17 +29,6 @@ import (
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/rangecheck"
 )
-
-// should have:
-//  - convert from bytes to native field element ✅
-//  - convert from bytes to emulated field element ✅
-//    * same, but allow for overflow? maybe could add an option ✅
-//  - convert from native field element to bytes ✅
-//  - convert from emulated field element to bytes ✅
-//  - convert from native field element to emulated field element
-//  - convert from emulated field element to another emulated field element (ECDSA)
-//  - convert from bits to native field element (duplicate existing method, for completeness)
-//  - convert from bits to emulated field element (? duplicate existing method, for completeness)
 
 // Option allows to configure the conversion functions behavior.
 type Option func(*config) error
