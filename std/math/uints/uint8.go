@@ -130,10 +130,14 @@ func NewU64Array(v []uint64) []U64 {
 	return ret
 }
 
+// ByteValueOf converts a frontend.Variable into a single byte. If the input
+// doesn't fit into a byte then solver fails.
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
 	return bf.Bytes.ValueOf(a)
 }
 
+// ValueOf converts a frontend.Variable into a long integer. If the input
+// doesn't fit into T then solver fails.
 func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	var r T
 	bts, err := bf.api.Compiler().NewHint(toBytes, bf.lenBts(), bf.lenBts(), a)
@@ -150,6 +154,7 @@ func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	return r
 }
 
+// ToValue converts a long integer value into a single [frontend.Variable].
 func (bf *BinaryField[T]) ToValue(a T) frontend.Variable {
 	v := make([]frontend.Variable, bf.lenBts())
 	for i := range v {
