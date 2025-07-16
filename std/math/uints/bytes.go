@@ -215,3 +215,15 @@ func (bf *Bytes) Value(a U8) frontend.Variable {
 func (bf *Bytes) ValueUnchecked(a U8) frontend.Variable {
 	return a.Val
 }
+
+// Select returns a new [U8] value which is:
+//   - if selector is true then a
+//   - if selector is false then b
+func (bf *Bytes) Select(selector frontend.Variable, a, b U8) U8 {
+	bf.enforceWidth(a)
+	bf.enforceWidth(b)
+	ret := bf.api.Select(selector, bf.ValueUnchecked(a), bf.ValueUnchecked(b))
+	// we have checked the inputs and select returns either of them. So the
+	// result is also in range.
+	return bf.packInternal(ret)
+}
