@@ -5,6 +5,18 @@
 // some conversion methods between these types.
 //
 // It is still work in progress and interfaces may change in the future.
+// Currently we have implemented:
+//   - convert from bytes to native field element ✅
+//   - convert from bytes to emulated field element ✅
+//   - convert from bytes to emulated field element, but allow for overflow with an option ✅
+//   - convert from native field element to bytes ✅
+//   - convert from emulated field element to bytes ✅
+//
+// Still work in progress (open issue if you need the functionality):
+//   - convert from native field element to emulated field element
+//   - convert from emulated field element to another emulated field element (ECDSA)
+//   - convert from bits to native field element (duplicate existing method, for completeness)
+//   - convert from bits to emulated field element (? duplicate existing method, for completeness)
 package conversion
 
 import (
@@ -17,17 +29,6 @@ import (
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/rangecheck"
 )
-
-// should have:
-//  - convert from bytes to native field element ✅
-//  - convert from bytes to emulated field element ✅
-//    * same, but allow for overflow? maybe could add an option ✅
-//  - convert from native field element to bytes ✅
-//  - convert from emulated field element to bytes ✅
-//  - convert from native field element to emulated field element
-//  - convert from emulated field element to another emulated field element (ECDSA)
-//  - convert from bits to native field element (duplicate existing method, for completeness)
-//  - convert from bits to emulated field element (? duplicate existing method, for completeness)
 
 // Option allows to configure the conversion functions behavior.
 type Option func(*config) error
@@ -74,7 +75,10 @@ func BytesToNative(api frontend.API, b []uints.U8, opts ...Option) (frontend.Var
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
-	res := bytesToNative(api, b)
+	res, err := bytesToNative(api, b)
+	if err != nil {
+		return nil, fmt.Errorf("bytes to native: %w", err)
+	}
 	// check that the input was in range of the field modulus. Omit if cfg.allowOverflow is set.
 	if !cfg.allowOverflow {
 		assertBytesLeq(api, b, api.Compiler().Field())
@@ -82,15 +86,19 @@ func BytesToNative(api frontend.API, b []uints.U8, opts ...Option) (frontend.Var
 	return res, nil
 }
 
-func bytesToNative(api frontend.API, b []uints.U8) frontend.Variable {
+func bytesToNative(api frontend.API, b []uints.U8) (frontend.Variable, error) {
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("new uints: %w", err)
+	}
 	var res frontend.Variable = 0
 	shift := big.NewInt(1)
 	for i := len(b) - 1; i >= 0; i-- {
-		res = api.Add(res, api.Mul(b[i].Val, shift))
+		res = api.Add(res, api.Mul(bapi.Value(b[i]), shift))
 		// shift the value to the left by 8 bits
 		shift.Lsh(shift, 8)
 	}
-	return res
+	return res, nil
 }
 
 // BytesToEmulated converts the bytes in MSB order to an emulated field element.
@@ -136,6 +144,10 @@ func BytesToEmulated[T emulated.FieldParams](api frontend.API, b []uints.U8, opt
 }
 
 func bytesToEmulatedDivisible[T emulated.FieldParams](cfg *config, api frontend.API, b []uints.U8) (*emulated.Element[T], error) {
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("new bytes: %w", err)
+	}
 	effNbLimbs, effNbBits := emulated.GetEffectiveFieldParams[T](api.Compiler().Field())
 	// pad the input bytes to be exactly the number of bytes needed for the emulated field element
 	paddingLen := int(effNbLimbs*effNbBits/8) - len(b)
@@ -149,7 +161,7 @@ func bytesToEmulatedDivisible[T emulated.FieldParams](cfg *config, api frontend.
 		limbs[i] = 0
 		shift := big.NewInt(1)
 		for j := range int(effNbBits) / 8 {
-			limbs[i] = api.Add(limbs[i], api.Mul(bPadded[len(bPadded)-1-i*int(effNbBits)/8-j].Val, shift))
+			limbs[i] = api.Add(limbs[i], api.Mul(bapi.Value(bPadded[len(bPadded)-1-i*int(effNbBits)/8-j]), shift))
 			shift.Lsh(shift, 8)
 		}
 	}
@@ -199,7 +211,10 @@ func NativeToBytes(api frontend.API, v frontend.Variable, opts ...Option) ([]uin
 		resU8[i] = uapi.ValueOf(res[i])
 	}
 	// check that the decomposed bytes compose to the original value
-	computed := bytesToNative(api, resU8)
+	computed, err := bytesToNative(api, resU8)
+	if err != nil {
+		return nil, fmt.Errorf("bytes to native: %w", err)
+	}
 	api.AssertIsEqual(v, computed)
 	// assert that the bytes are in range of the field modulus. We can omit the
 	// check if we don't care about the uniqueness (in case later when composing
@@ -263,7 +278,10 @@ func EmulatedToBytes[T emulated.FieldParams](api frontend.API, v *emulated.Eleme
 		for j := range nbLimbBytes {
 			resU8[uint(i)*nbLimbBytes+j] = uapi.ValueOf(res[j])
 		}
-		computed := bytesToNative(api, resU8[uint(i)*nbLimbBytes:uint(i+1)*nbLimbBytes])
+		computed, err := bytesToNative(api, resU8[uint(i)*nbLimbBytes:uint(i+1)*nbLimbBytes])
+		if err != nil {
+			return nil, fmt.Errorf("bytes to native: %w", err)
+		}
 		api.AssertIsEqual(vr.Limbs[len(vr.Limbs)-i-1], computed)
 	}
 	return resU8, nil
@@ -275,7 +293,11 @@ func EmulatedToBytes[T emulated.FieldParams](api frontend.API, v *emulated.Eleme
 
 // assertBytesLeq checks that the bytes in MSB order are less or equal than the
 // bound. The method internally decomposes the bound into MSB bytes.
-func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) {
+func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) error {
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return err
+	}
 	// we check that the bytes are in range of the field modulus
 	// we do it by checking that the first byte is smaller than the first byte of the modulus
 
@@ -283,11 +305,11 @@ func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) {
 	mBytes := bound.Bytes()
 	// if there are less bytes than the modulus, then we don't need to perform the check, it is always smaller
 	if len(b) < len(mBytes) {
-		return // nothing to check
+		return nil // nothing to check
 	}
 	// if there are more bytes than the modulus, then we need to check that the high bytes are zero
 	for i := 0; i < len(b)-len(mBytes); i++ {
-		api.AssertIsEqual(b[i].Val, 0)
+		api.AssertIsEqual(bapi.ValueUnchecked(b[i]), 0)
 	}
 	bb := b[len(b)-len(mBytes):] // take the last bytes that correspond to the modulus length
 	rchecker := rangecheck.New(api)
@@ -306,11 +328,12 @@ func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) {
 	var eq_i frontend.Variable = 1
 	for i := range mBytes {
 		// compute the difference
-		diff := api.Sub(mBytes[i], bb[i].Val)
+		diff := api.Sub(mBytes[i], bapi.Value(bb[i]))
 		// check that the difference is non-negative. Compute the number of bits to represent the modulus byte
 		nbBits := bits.Len8(mBytes[i])
 		rchecker.Check(api.Mul(eq_i, diff), nbBits)
 		isEq := api.IsZero(diff)
 		eq_i = api.Mul(eq_i, isEq)
 	}
+	return nil
 }

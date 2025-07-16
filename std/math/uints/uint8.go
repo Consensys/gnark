@@ -24,7 +24,6 @@ package uints
 
 import (
 	"fmt"
-	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
@@ -42,19 +41,6 @@ import (
 // and returns bytes. Then can to byte array manipulation nicely. It is useful
 // for X509. For the implementation we want to pack as much bytes into a field
 // element as possible.
-
-type U8 struct {
-	Val      frontend.Variable
-	internal bool
-}
-
-// Initialize describes how to initialise the element.
-func (e *U8) Initialize(field *big.Int) {
-	if e.Val == nil {
-		e.Val = 0
-		e.internal = false // we need to constrain in later.
-	}
-}
 
 type U64 [8]U8
 type U32 [4]U8
@@ -80,21 +66,6 @@ func NewBinaryField[T Long](api frontend.API) (*BinaryField[T], error) {
 // compatibility. New uses should use [NewBinaryField] instead.
 func New[T Long](api frontend.API) (*BinaryField[T], error) {
 	return NewBinaryField[T](api)
-}
-
-// NewU8 creates a new [U8] value. It represents a single byte. It can both be
-// used in-circuit to initialize a constant or as a witness assignment. For
-// in-circuit initialization use [Bytes.ValueOf] method instead which ensures
-// that the value is range checked.
-func NewU8(v uint8) U8 {
-	// if NewU8 is used inside the circuit, then this means that the input is a
-	// constant and this ensures that the value is already range checked by
-	// default (as the argument is uint8). If it is used as a witness
-	// assignment, then the flag `internal` is not set for the actual witness
-	// value inside the circuit, as witness parser only copies
-	// [frontend.Variable] part of U8. And the `internal=false` is set in the
-	// [U8.Initialize] method.
-	return U8{Val: v, internal: true}
 }
 
 // NewU32 creates a new [U32] value. It represents a 32-bit unsigned integer
@@ -159,10 +130,14 @@ func NewU64Array(v []uint64) []U64 {
 	return ret
 }
 
+// ByteValueOf converts a frontend.Variable into a single byte. If the input
+// doesn't fit into a byte then solver fails.
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
 	return bf.Bytes.ValueOf(a)
 }
 
+// ValueOf converts a frontend.Variable into a long integer. If the input
+// doesn't fit into T then solver fails.
 func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	var r T
 	bts, err := bf.api.Compiler().NewHint(toBytes, bf.lenBts(), bf.lenBts(), a)
@@ -179,10 +154,11 @@ func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	return r
 }
 
+// ToValue converts a long integer value into a single [frontend.Variable].
 func (bf *BinaryField[T]) ToValue(a T) frontend.Variable {
 	v := make([]frontend.Variable, bf.lenBts())
 	for i := range v {
-		v[i] = bf.api.Mul(a[i].Val, 1<<(i*8))
+		v[i] = bf.api.Mul(bf.Value(a[i]), 1<<(i*8))
 	}
 	vv := bf.api.Add(v[0], v[1], v[2:]...)
 	return vv
@@ -269,15 +245,16 @@ func (bf *BinaryField[T]) Lrot(a T, c int) T {
 	}
 	partitioned := make([][2]frontend.Variable, l)
 	for i := range partitioned {
-		lower, upper := bitslice.Partition(bf.api, a[i].Val, uint(revShiftBt), bitslice.WithNbDigits(8))
+		lower, upper := bitslice.Partition(bf.api, bf.Value(a[i]), uint(revShiftBt), bitslice.WithNbDigits(8))
+		// here lower and upper are already range checked
 		partitioned[i] = [2]frontend.Variable{lower, upper}
 	}
 	var ret T
 	for i := 0; i < l; i++ {
 		if shiftBt != 0 {
-			ret[(i+shiftBl)%l].Val = bf.api.Add(bf.api.Mul(1<<(shiftBt), partitioned[i][0]), partitioned[(i+l-1)%l][1])
+			ret[(i+shiftBl)%l] = bf.packInternal(bf.api.Add(bf.api.Mul(1<<(shiftBt), partitioned[i][0]), partitioned[(i+l-1)%l][1]))
 		} else {
-			ret[(i+shiftBl)%l].Val = partitioned[i][1]
+			ret[(i+shiftBl)%l] = bf.packInternal(partitioned[i][1])
 		}
 	}
 	return ret
@@ -289,18 +266,19 @@ func (bf *BinaryField[T]) Rshift(a T, c int) T {
 	shiftBt := c % 8
 	partitioned := make([][2]frontend.Variable, lenB-shiftBl)
 	for i := range partitioned {
-		lower, upper := bitslice.Partition(bf.api, a[i+shiftBl].Val, uint(shiftBt), bitslice.WithNbDigits(8))
+		lower, upper := bitslice.Partition(bf.api, bf.Value(a[i+shiftBl]), uint(shiftBt), bitslice.WithNbDigits(8))
+		// here lower and upper are already range checked
 		partitioned[i] = [2]frontend.Variable{lower, upper}
 	}
 	var ret T
 	for i := 0; i < bf.lenBts()-shiftBl-1; i++ {
 		if shiftBt != 0 {
-			ret[i].Val = bf.api.Add(partitioned[i][1], bf.api.Mul(1<<(8-shiftBt), partitioned[i+1][0]))
+			ret[i] = bf.packInternal(bf.api.Add(partitioned[i][1], bf.api.Mul(1<<(8-shiftBt), partitioned[i+1][0])))
 		} else {
-			ret[i].Val = partitioned[i][1]
+			ret[i] = bf.packInternal(partitioned[i][1])
 		}
 	}
-	ret[lenB-shiftBl-1].Val = partitioned[lenB-shiftBl-1][1]
+	ret[lenB-shiftBl-1] = bf.packInternal(partitioned[lenB-shiftBl-1][1])
 	for i := lenB - shiftBl; i < lenB; i++ {
 		ret[i] = NewU8(0)
 	}
