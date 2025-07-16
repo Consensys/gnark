@@ -4,7 +4,6 @@ import (
 	"math/bits"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -27,29 +26,18 @@ func (c *lrotCirc) Define(api frontend.API) error {
 
 func TestLeftRotation(t *testing.T) {
 	assert := test.NewAssert(t)
-	var err error
-	err = test.IsSolved(&lrotCirc{Shift: 4}, &lrotCirc{In: NewU32(0x12345678), Shift: 4, Out: NewU32(bits.RotateLeft32(0x12345678, 4))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: 14}, &lrotCirc{In: NewU32(0x12345678), Shift: 14, Out: NewU32(bits.RotateLeft32(0x12345678, 14))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: 3}, &lrotCirc{In: NewU32(0x12345678), Shift: 3, Out: NewU32(bits.RotateLeft32(0x12345678, 3))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: 11}, &lrotCirc{In: NewU32(0x12345678), Shift: 11, Out: NewU32(bits.RotateLeft32(0x12345678, 11))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.CheckCircuit(&lrotCirc{Shift: 4}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 4, Out: NewU32(bits.RotateLeft32(0x12345678, 4))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 14}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 14, Out: NewU32(bits.RotateLeft32(0x12345678, 14))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 3}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 3, Out: NewU32(bits.RotateLeft32(0x12345678, 3))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 11}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 11, Out: NewU32(bits.RotateLeft32(0x12345678, 11))}))
 	// full block
-	err = test.IsSolved(&lrotCirc{Shift: 16}, &lrotCirc{In: NewU32(0x12345678), Shift: 16, Out: NewU32(bits.RotateLeft32(0x12345678, 16))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.CheckCircuit(&lrotCirc{Shift: 16}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 16, Out: NewU32(bits.RotateLeft32(0x12345678, 16))}))
 	// negative rotations
-	err = test.IsSolved(&lrotCirc{Shift: -4}, &lrotCirc{In: NewU32(0x12345678), Shift: -4, Out: NewU32(bits.RotateLeft32(0x12345678, -4))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: -14}, &lrotCirc{In: NewU32(0x12345678), Shift: -14, Out: NewU32(bits.RotateLeft32(0x12345678, -14))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: -3}, &lrotCirc{In: NewU32(0x12345678), Shift: -3, Out: NewU32(bits.RotateLeft32(0x12345678, -3))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: -11}, &lrotCirc{In: NewU32(0x12345678), Shift: -11, Out: NewU32(bits.RotateLeft32(0x12345678, -11))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&lrotCirc{Shift: -16}, &lrotCirc{In: NewU32(0x12345678), Shift: -16, Out: NewU32(bits.RotateLeft32(0x12345678, -16))}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.CheckCircuit(&lrotCirc{Shift: -4}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -4, Out: NewU32(bits.RotateLeft32(0x12345678, -4))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -14}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -14, Out: NewU32(bits.RotateLeft32(0x12345678, -14))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -3}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -3, Out: NewU32(bits.RotateLeft32(0x12345678, -3))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -11}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -11, Out: NewU32(bits.RotateLeft32(0x12345678, -11))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -16}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -16, Out: NewU32(bits.RotateLeft32(0x12345678, -16))}))
 }
 
 type rshiftCircuit struct {
@@ -69,15 +57,10 @@ func (c *rshiftCircuit) Define(api frontend.API) error {
 
 func TestRshift(t *testing.T) {
 	assert := test.NewAssert(t)
-	var err error
-	err = test.IsSolved(&rshiftCircuit{Shift: 4}, &rshiftCircuit{Shift: 4, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 4)}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&rshiftCircuit{Shift: 12}, &rshiftCircuit{Shift: 12, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 12)}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&rshiftCircuit{Shift: 3}, &rshiftCircuit{Shift: 3, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 3)}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&rshiftCircuit{Shift: 11}, &rshiftCircuit{Shift: 11, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 11)}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.CheckCircuit(&rshiftCircuit{Shift: 4}, test.WithValidAssignment(&rshiftCircuit{Shift: 4, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 4)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 12}, test.WithValidAssignment(&rshiftCircuit{Shift: 12, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 12)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 3}, test.WithValidAssignment(&rshiftCircuit{Shift: 3, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 3)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 11}, test.WithValidAssignment(&rshiftCircuit{Shift: 11, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 11)}))
 }
 
 type valueOfCircuit[T Long] struct {
@@ -97,13 +80,9 @@ func (c *valueOfCircuit[T]) Define(api frontend.API) error {
 
 func TestValueOf(t *testing.T) {
 	assert := test.NewAssert(t)
-	var err error
-	err = test.IsSolved(&valueOfCircuit[U64]{}, &valueOfCircuit[U64]{In: 0x12345678, Expected: [8]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12), NewU8(0), NewU8(0), NewU8(0), NewU8(0)}}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&valueOfCircuit[U32]{}, &valueOfCircuit[U32]{In: 0x12345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = test.IsSolved(&valueOfCircuit[U32]{}, &valueOfCircuit[U32]{In: 0x1234567812345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}, ecc.BN254.ScalarField())
-	assert.Error(err)
+	assert.CheckCircuit(&valueOfCircuit[U64]{}, test.WithValidAssignment(&valueOfCircuit[U64]{In: 0x12345678, Expected: [8]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12), NewU8(0), NewU8(0), NewU8(0), NewU8(0)}}))
+	assert.CheckCircuit(&valueOfCircuit[U32]{}, test.WithValidAssignment(&valueOfCircuit[U32]{In: 0x12345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}))
+	assert.CheckCircuit(&valueOfCircuit[U32]{}, test.WithInvalidAssignment(&valueOfCircuit[U32]{In: 0x1234567812345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}))
 }
 
 type addCircuit struct {
@@ -123,6 +102,5 @@ func (c *addCircuit) Define(api frontend.API) error {
 
 func TestAdd(t *testing.T) {
 	assert := test.NewAssert(t)
-	err := test.IsSolved(&addCircuit{}, &addCircuit{In: [2]U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.CheckCircuit(&addCircuit{}, test.WithValidAssignment(&addCircuit{In: [2]U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}))
 }
