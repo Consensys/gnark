@@ -24,6 +24,7 @@ var _seed = uints.NewU32Array([]uint32{
 
 type digest struct {
 	api  frontend.API
+	bapi *uints.Bytes
 	uapi *uints.BinaryField[uints.U32]
 	in   []uints.U8
 
@@ -37,11 +38,15 @@ func New(api frontend.API, opts ...hash.Option) (hash.BinaryFixedLengthHasher, e
 			return nil, fmt.Errorf("applying option: %w", err)
 		}
 	}
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("initializing bytes: %w", err)
+	}
 	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
 		return nil, fmt.Errorf("initializing uints: %w", err)
 	}
-	return &digest{api: api, uapi: uapi, minimalLength: cfg.MinimalLength}, nil
+	return &digest{api: api, bapi: bapi, uapi: uapi, minimalLength: cfg.MinimalLength}, nil
 }
 
 func (d *digest) Write(data []uints.U8) {
@@ -130,26 +135,28 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	totalLen := d.api.Add(length, paddingCount)
 	last8BytesPos := d.api.Sub(totalLen, 8)
 
-	var dataLenBtyes [8]frontend.Variable
-	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
+	// var dataLenBtyes [8]frontend.Variable
+	dataLenBytes := d.bigEndianPutUint64(d.api.Mul(length, 8))
 
 	// When i < minLen or i > maxLen, padding 0x80 is completely unnecessary
+	pad0x80 := uints.NewU8(0x80)
 	for i := d.minimalLength; i <= maxLen; i++ {
 		isPaddingStartPos := cmp.IsEqual(d.api, i, length)
-		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
+		data[i] = d.bapi.Select(isPaddingStartPos, pad0x80, data[i])
 	}
 
 	// When i <= minLen or i >= maxLen, padding 0 is completely unnecessary
+	pad0x00 := uints.NewU8(0x00)
 	for i := d.minimalLength + 1; i < maxLen; i++ {
 		isPaddingPos := comparator.IsLess(length, i)
-		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
+		data[i] = d.bapi.Select(isPaddingPos, pad0x00, data[i])
 	}
 
 	// When i <= minLen or i > maxTotalLen-8, padding length is completely unnecessary
 	for i := d.minimalLength + 1; i <= maxTotalLen-8; i++ {
 		isLast8BytesPos := cmp.IsEqual(d.api, i, last8BytesPos)
 		for j := 0; j < 8; j++ {
-			data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
+			data[i+j] = d.bapi.Select(isLast8BytesPos, dataLenBytes[j], data[i+j])
 		}
 	}
 
@@ -173,7 +180,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 		isInRange := comparator.IsLess(i*64, totalLen)
 		for j := 0; j < 8; j++ {
 			for k := 0; k < 4; k++ {
-				resultDigest[j][k].Val = d.api.Select(isInRange, runningDigest[j][k].Val, resultDigest[j][k].Val)
+				resultDigest[j][k] = d.bapi.Select(isInRange, runningDigest[j][k], resultDigest[j][k])
 			}
 		}
 	}
@@ -192,9 +199,11 @@ func (d *digest) mod64(v frontend.Variable) frontend.Variable {
 	return lower
 }
 
-func (d *digest) bigEndianPutUint64(b []frontend.Variable, x frontend.Variable) {
+func (d *digest) bigEndianPutUint64(x frontend.Variable) []uints.U8 {
+	res := make([]uints.U8, 8)
 	bts := bits.ToBinary(d.api, x, bits.WithNbDigits(64))
 	for i := 0; i < 8; i++ {
-		b[i] = bits.FromBinary(d.api, bts[(8-i-1)*8:(8-i)*8])
+		res[i] = d.bapi.ValueOf(bits.FromBinary(d.api, bts[(8-i-1)*8:(8-i)*8]))
 	}
+	return res
 }
