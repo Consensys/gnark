@@ -1,12 +1,8 @@
 package evmprecompiles
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -27,19 +23,60 @@ import (
 var fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
 
 func init() {
-	// perform one-time loading of the KZG trusted setup verifying key
-	var err error
-	fixedKzgSrsVk, err = evmMainnetKzgTrustedSetup()
-	if err != nil {
-		panic(fmt.Sprintf("failed to load KZG trusted setup: %v", err))
+	fixedKzgSrsVk = fixedVerificationKey() // initialize the fixed verifying key
+}
+
+var (
+	// srs contains concatenated G1 and G2 elements of the KZG SRS in compressed form.
+	srs = []byte{
+		// G1 part
+		0x97, 0xf1, 0xd3, 0xa7, 0x31, 0x97, 0xd7, 0x94, 0x26, 0x95, 0x63, 0x8c, 0x4f, 0xa9, 0xac, 0x0f,
+		0xc3, 0x68, 0x8c, 0x4f, 0x97, 0x74, 0xb9, 0x05, 0xa1, 0x4e, 0x3a, 0x3f, 0x17, 0x1b, 0xac, 0x58,
+		0x6c, 0x55, 0xe8, 0x3f, 0xf9, 0x7a, 0x1a, 0xef, 0xfb, 0x3a, 0xf0, 0x0a, 0xdb, 0x22, 0xc6, 0xbb,
+		// G2[0] part
+		0x93, 0xe0, 0x2b, 0x60, 0x52, 0x71, 0x9f, 0x60, 0x7d, 0xac, 0xd3, 0xa0, 0x88, 0x27, 0x4f, 0x65,
+		0x59, 0x6b, 0xd0, 0xd0, 0x99, 0x20, 0xb6, 0x1a, 0xb5, 0xda, 0x61, 0xbb, 0xdc, 0x7f, 0x50, 0x49,
+		0x33, 0x4c, 0xf1, 0x12, 0x13, 0x94, 0x5d, 0x57, 0xe5, 0xac, 0x7d, 0x05, 0x5d, 0x04, 0x2b, 0x7e,
+		0x02, 0x4a, 0xa2, 0xb2, 0xf0, 0x8f, 0x0a, 0x91, 0x26, 0x08, 0x05, 0x27, 0x2d, 0xc5, 0x10, 0x51,
+		0xc6, 0xe4, 0x7a, 0xd4, 0xfa, 0x40, 0x3b, 0x02, 0xb4, 0x51, 0x0b, 0x64, 0x7a, 0xe3, 0xd1, 0x77,
+		0x0b, 0xac, 0x03, 0x26, 0xa8, 0x05, 0xbb, 0xef, 0xd4, 0x80, 0x56, 0xc8, 0xc1, 0x21, 0xbd, 0xb8,
+		// G2[1] part
+		0xb5, 0xbf, 0xd7, 0xdd, 0x8c, 0xde, 0xb1, 0x28, 0x84, 0x3b, 0xc2, 0x87, 0x23, 0x0a, 0xf3, 0x89,
+		0x26, 0x18, 0x70, 0x75, 0xcb, 0xfb, 0xef, 0xa8, 0x10, 0x09, 0xa2, 0xce, 0x61, 0x5a, 0xc5, 0x3d,
+		0x29, 0x14, 0xe5, 0x87, 0x0c, 0xb4, 0x52, 0xd2, 0xaf, 0xaa, 0xab, 0x24, 0xf3, 0x49, 0x9f, 0x72,
+		0x18, 0x5c, 0xbf, 0xee, 0x53, 0x49, 0x27, 0x14, 0x73, 0x44, 0x29, 0xb7, 0xb3, 0x86, 0x08, 0xe2,
+		0x39, 0x26, 0xc9, 0x11, 0xcc, 0xec, 0xea, 0xc9, 0xa3, 0x68, 0x51, 0x47, 0x7b, 0xa4, 0xc6, 0x0b,
+		0x08, 0x70, 0x41, 0xde, 0x62, 0x10, 0x00, 0xed, 0xc9, 0x8e, 0xda, 0xda, 0x20, 0xc1, 0xde, 0xf2,
 	}
+)
+
+func fixedVerificationKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine] {
+	var vk kzg_bls12381.VerifyingKey
+	dec := bls12381.NewDecoder(bytes.NewBuffer(srs), bls12381.NoSubgroupChecks())
+	err := dec.Decode(&vk.G1)
+	if err != nil {
+		panic(fmt.Sprintf("failed to set G1 element: %v", err))
+	}
+	err = dec.Decode(&vk.G2[0])
+	if err != nil {
+		panic(fmt.Sprintf("failed to set G2[0] element: %v", err))
+	}
+	err = dec.Decode(&vk.G2[1])
+	if err != nil {
+		panic(fmt.Sprintf("failed to set G2[1] element: %v", err))
+	}
+	vk.Lines[0] = bls12381.PrecomputeLines(vk.G2[0])
+	vk.Lines[1] = bls12381.PrecomputeLines(vk.G2[1])
+	vkw, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
+	}
+	return &vkw
 }
 
 const (
 	// blobCommitmentVersionKZG is the version byte for the KZG point evaluation precompile.
 	blobCommitmentVersionKZG uint8 = 0x01
-	// locTrustedSetup is the location of the trusted setup file for the KZG precompile.
-	locTrustedSetup = "kzg_trusted_setup.json"
 	// evmBlockSize is the size of the SRS used in the KZG precompile. This
 	// defines the polynomial degree and therefore the size of the blob. It is also the expected
 	// return value of the POINTEVAL precompile.
@@ -165,133 +202,4 @@ func KzgPointEvaluation(
 	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
 
 	return nil
-}
-
-// trustedSetupJSON represents the trusted setup for the KZG precompile. It is
-// used to verify the KZG commitments and openings. The setup is available at
-// https://github.com/ethereum/go-ethereum/blob/master/crypto/kzg4844/trusted_setup.json.
-// It was generated during the KZG Ceremony.
-type trustedSetupJSON struct {
-	G1         []string `json:"g1_monomial"`
-	G1Lagrange []string `json:"g1_lagrange"`
-	G2         []string `json:"g2_monomial"`
-}
-
-// parseTrustedSetup reads the trusted setup from the given reader and returns a
-// trustedSetupJSON struct. It validates the setup to ensure it has the correct
-// number of elements in G1, G2, and G1Lagrange. The G1 and G1Lagrange arrays
-// must have exactly `evmBlockSize` elements, while G2 must have at least 2
-// elements (but in practice has more for future extensibility). If the setup is
-// invalid, it returns an error.
-func parseTrustedSetup(r io.Reader) (*trustedSetupJSON, error) {
-	var setup trustedSetupJSON
-	dec := json.NewDecoder(r)
-	if err := dec.Decode(&setup); err != nil {
-		return nil, fmt.Errorf("decode trusted setup: %w", err)
-	}
-	if len(setup.G1) == 0 || len(setup.G2) == 0 || len(setup.G1Lagrange) == 0 {
-		return nil, fmt.Errorf("invalid trusted setup: missing G1 or G2 or G1Lagrange")
-	}
-	if len(setup.G1) != evmBlockSize || len(setup.G1Lagrange) != evmBlockSize {
-		return nil, fmt.Errorf("invalid trusted setup: G1 must have %d elements, got %d", evmBlockSize, len(setup.G1))
-	}
-	return &setup, nil
-}
-
-// toProvingKey converts the trusted setup JSON to a ProvingKey for allowing to
-// compute the commitment and opening proof.
-func (t *trustedSetupJSON) toProvingKey() (*kzg_bls12381.ProvingKey, error) {
-	pk := kzg_bls12381.ProvingKey{
-		G1: make([]bls12381.G1Affine, len(t.G1)),
-	}
-	for i, g1 := range t.G1 {
-		decoded, err := decodePrefixed(g1)
-		if err != nil {
-			return nil, fmt.Errorf("decode G1 element %d: %w", i, err)
-		}
-		nbDec, err := pk.G1[i].SetBytes(decoded)
-		if err != nil {
-			return nil, fmt.Errorf("set G1 element %d: %w", i, err)
-		}
-		if nbDec != len(decoded) {
-			return nil, fmt.Errorf("set G1 element %d: expected %d bytes, got %d", i, len(decoded), nbDec)
-		}
-	}
-	return &pk, nil
-}
-
-// toVerifyingKey converts the trusted setup JSON to a VerifyingKey for allowing
-// to verify the opening proof.
-func (t *trustedSetupJSON) toVerifyingKey() (*kzg_bls12381.VerifyingKey, error) {
-	var vk kzg_bls12381.VerifyingKey
-	if len(t.G2) < 2 {
-		return nil, fmt.Errorf("invalid trusted setup: G2 must have at least 2 elements")
-	}
-	if len(t.G1) < 1 {
-		return nil, fmt.Errorf("invalid trusted setup: G1 must have at least 1 element")
-	}
-	decoded, err := decodePrefixed(t.G1[0])
-	if err != nil {
-		return nil, fmt.Errorf("decode G1 element 0: %w", err)
-	}
-	nbDec, err := vk.G1.SetBytes(decoded)
-	if err != nil {
-		return nil, fmt.Errorf("set G1 element 0: %w", err)
-	}
-	if nbDec != len(decoded) {
-		return nil, fmt.Errorf("set G1 element 0: expected %d bytes, got %d", len(decoded), nbDec)
-	}
-	for i := range 2 {
-		decoded, err := decodePrefixed(t.G2[i])
-		if err != nil {
-			return nil, fmt.Errorf("decode G2 element %d: %w", i, err)
-		}
-		nbDec, err := vk.G2[i].SetBytes(decoded)
-		if err != nil {
-			return nil, fmt.Errorf("set G2 element %d: %w", i, err)
-		}
-		if nbDec != len(decoded) {
-			return nil, fmt.Errorf("set G2 element %d: expected %d bytes, got %d", i, len(decoded), nbDec)
-		}
-		vk.Lines[i] = bls12381.PrecomputeLines(vk.G2[i])
-	}
-	return &vk, nil
-}
-
-func decodePrefixed(line string) ([]byte, error) {
-	if !strings.HasPrefix(line, "0x") {
-		return nil, fmt.Errorf("invalid prefix in line: %s", line)
-	}
-	decoded, err := hex.DecodeString(line[2:])
-	if err != nil {
-		return nil, fmt.Errorf("decode hex string: %w", err)
-	}
-	return decoded, nil
-}
-
-// evmMainnetKzgTrustedSetup loads the KZG trusted setup from the file as a
-// circuit variable. Particularly, it uses the fixed version of the verifying
-// key where the G1 and G2 elements are constants. This allows to reduce the
-// number of constraints and use the precomputed lines for G2 which
-// significantly speeds up the pairing check required for KZG proof
-// verification.
-func evmMainnetKzgTrustedSetup() (*kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine], error) {
-	f, err := os.Open(locTrustedSetup)
-	if err != nil {
-		return nil, fmt.Errorf("open trusted setup file: %w", err)
-	}
-	defer f.Close()
-	setup, err := parseTrustedSetup(f)
-	if err != nil {
-		return nil, fmt.Errorf("parse trusted setup: %w", err)
-	}
-	vk, err := setup.toVerifyingKey()
-	if err != nil {
-		return nil, fmt.Errorf("convert trusted setup to verifying key: %w", err)
-	}
-	vkw, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](*vk)
-	if err != nil {
-		return nil, fmt.Errorf("convert verifying key to fixed: %w", err)
-	}
-	return &vkw, nil
 }
