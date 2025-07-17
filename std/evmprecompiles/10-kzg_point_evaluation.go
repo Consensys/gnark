@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/conversion"
-	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
@@ -165,13 +163,12 @@ func KzgPointEvaluation(
 	}
 
 	// verify commitment matches versioned_hash
-	sizeCompressedPoint := fp.Bytes
-	h, err := sha2.New(api, hash.WithMinimalLength(sizeCompressedPoint))
+	h, err := sha2.New(api)
 	if err != nil {
 		return fmt.Errorf("new sha2: %w", err)
 	}
 	h.Write(comSerializedBytes[:])
-	hashedKzg := h.FixedLengthSum(sizeCompressedPoint)
+	hashedKzg := h.Sum()
 	api.AssertIsEqual(versionedHashBytes[0].Val, blobCommitmentVersionKZG)
 	for i := 1; i < len(hashedKzg); i++ {
 		api.AssertIsEqual(hashedKzg[i].Val, versionedHashBytes[i].Val)
