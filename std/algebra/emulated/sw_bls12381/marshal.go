@@ -74,7 +74,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	// 1 - hint y coordinate of the result
 	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
 	for i := range nbBytes {
-		rawBytesCompressedPoints[i] = compressedPoint[i].Val
+		rawBytesCompressedPoints[i] = uapi.Value(compressedPoint[i])
 	}
 	hout, err := g1.curveF.NewHintWithNativeInput(unmarshalG1, 1, rawBytesCompressedPoints...)
 	if err != nil {
@@ -87,7 +87,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 
 	// if the point is infinity, we do the subgroup check on the base point (otherwise the subgroup
 	// check fails for (0,0) ). We check later on that the actual point is equal to (0,0).
-	isCompressedInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, prefix.Val))
+	isCompressedInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
 	_, _, g, _ := bls12381.Generators()
 	base := NewG1Affine(g)
 	resTmpX := g1.curveF.Select(isCompressedInfinity, &base.X, x)
@@ -98,7 +98,7 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	// 4 - check logic with the mask
 
 	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
-	isInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, prefix.Val))
+	isInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
 	zero := emulated.ValueOf[BaseField](0)
 	infX := g1.curveF.Select(isInfinity, &zero, x)
 	infY := g1.curveF.Select(isInfinity, &zero, y)
@@ -106,14 +106,14 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	g1.curveF.AssertIsEqual(infY, y)
 
 	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
-	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(mCompressedSmallest, prefix.Val))
+	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(mCompressedSmallest, uapi.Value(prefix)))
 	negY := g1.curveF.Neg(y)
 	negY = g1.curveF.Reduce(negY)
 	smallest := g1.curveF.Select(isCompressedSmallest, y, negY)
 	g1.curveF.AssertIsLessOrEqual(smallest, g1.halfp)
 
 	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
-	isCompressedLargest := g1.api.IsZero(g1.api.Sub(mCompressedLargest, prefix.Val))
+	isCompressedLargest := g1.api.IsZero(g1.api.Sub(mCompressedLargest, uapi.Value(prefix)))
 	smallest = g1.curveF.Select(isCompressedLargest, negY, y)
 	g1.curveF.AssertIsLessOrEqual(smallest, g1.halfp)
 

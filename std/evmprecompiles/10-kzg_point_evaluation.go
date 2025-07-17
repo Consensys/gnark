@@ -169,9 +169,13 @@ func KzgPointEvaluation(
 	}
 	h.Write(comSerializedBytes[:])
 	hashedKzg := h.Sum()
-	api.AssertIsEqual(versionedHashBytes[0].Val, blobCommitmentVersionKZG)
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return fmt.Errorf("new uints api: %w", err)
+	}
+	api.AssertIsEqual(bapi.ValueUnchecked(versionedHashBytes[0]), blobCommitmentVersionKZG)
 	for i := 1; i < len(hashedKzg); i++ {
-		api.AssertIsEqual(hashedKzg[i].Val, versionedHashBytes[i].Val)
+		bapi.AssertIsEqual(hashedKzg[i], versionedHashBytes[i])
 	}
 
 	v, err := kzg.NewVerifier[emulated.BLS12381Fr, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](api)
