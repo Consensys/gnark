@@ -2,7 +2,6 @@ package uints
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
@@ -52,18 +51,6 @@ func NewU8(v uint8) U8 {
 	// [frontend.Variable] part of U8. And the `internal=false` is set in the
 	// [U8.Initialize] method.
 	return U8{Val: v, internal: true}
-}
-
-// Initialize describes how to initialise the element.
-func (e *U8) Initialize(field *big.Int) {
-	if e == nil {
-		// we cannot initialize nil element, so we just return
-		return
-	}
-	if e.Val == nil {
-		e.Val = 0
-		e.internal = false // we need to constrain in later.
-	}
 }
 
 // NewBytes creates a new [Bytes] instance which can manipulate bytes and byte
