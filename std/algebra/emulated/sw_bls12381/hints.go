@@ -26,6 +26,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1,
 		g1SqrtRatioHint,
 		g2SqrtRatioHint,
+		unmarshalG1,
 	}
 }
 
@@ -371,6 +372,35 @@ func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		outputs[0].SetUint64(isQNr)
 		z.A0.BigInt(outputs[1])
 		z.A1.BigInt(outputs[2])
+		return nil
+	})
+}
+
+// unmarshalG1 unmarshals the y coordinate of a compressed BLS12-381 G1 point.
+// It takes as input the bytes of the compressed point and returns the y
+// coordinate. It uses non-native methods for outputting non-native value.
+func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintWithNativeInput(nativeInputs, outputs, func(emulatedMod *big.Int, nativeInputs, outputs []*big.Int) error {
+		nbBytes := fp.Bytes
+		xCoord := make([]byte, nbBytes)
+		if len(nativeInputs) != nbBytes {
+			return fmt.Errorf("expecting %d inputs, got %d", nbBytes, len(nativeInputs))
+		}
+		for i := range nbBytes {
+			tmp := nativeInputs[i].Bytes()
+			if len(tmp) == 0 {
+				xCoord[i] = 0
+			} else {
+				xCoord[i] = tmp[len(tmp)-1] // tmp is in big endian
+			}
+		}
+
+		var point bls12381.G1Affine
+		_, err := point.SetBytes(xCoord)
+		if err != nil {
+			return fmt.Errorf("set bytes: %w", err)
+		}
+		point.Y.BigInt(outputs[0])
 		return nil
 	})
 }

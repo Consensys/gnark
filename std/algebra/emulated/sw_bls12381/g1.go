@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -31,6 +32,7 @@ type G1 struct {
 	api    frontend.API
 	curveF *emulated.Field[BaseField]
 	w      *emulated.Element[BaseField]
+	halfp  *emulated.Element[BaseField]
 }
 
 func NewG1(api frontend.API) (*G1, error) {
@@ -39,10 +41,12 @@ func NewG1(api frontend.API) (*G1, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	w := ba.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	halfpE := ba.NewElement(new(big.Int).Div(fp_bls12381.Modulus(), big.NewInt(2))) // we know that the modulus is odd and division floors.
 	return &G1{
 		api:    api,
 		curveF: ba,
 		w:      w,
+		halfp:  halfpE,
 	}, nil
 }
 
