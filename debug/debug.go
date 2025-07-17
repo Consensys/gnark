@@ -9,6 +9,7 @@ import (
 
 func Stack() string {
 	var sbb strings.Builder
+	sbb.Grow(1024) // Pre-allocate memory to reduce reallocations
 	writeStack(&sbb)
 	return sbb.String()
 }
