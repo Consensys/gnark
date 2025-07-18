@@ -15,6 +15,13 @@ func (p *Point) neg(api frontend.API, p1 *Point) *Point {
 // assertIsOnCurve checks if a point is on the reduced twisted Edwards curve
 // a*x² + y² = 1 + d*x²*y².
 func (p *Point) assertIsOnCurve(api frontend.API, curve *CurveParams) {
+	flag := p.isOnCurve(api, curve)
+	api.AssertIsEqual(flag, 1)
+}
+
+// isOnCurve returns 1 if a point is on the reduced twisted Edwards curve
+// a*x² + y² = 1 + d*x²*y², 0 otherwise.
+func (p *Point) isOnCurve(api frontend.API, curve *CurveParams) frontend.Variable {
 
 	xx := api.Mul(p.X, p.X)
 	yy := api.Mul(p.Y, p.Y)
@@ -25,8 +32,7 @@ func (p *Point) assertIsOnCurve(api frontend.API, curve *CurveParams) {
 	dxxyy := api.Mul(dxx, yy)
 	rhs := api.Add(dxxyy, 1)
 
-	api.AssertIsEqual(lhs, rhs)
-
+	return api.IsZero(api.Sub(lhs, rhs))
 }
 
 // add Adds two points on a twisted edwards curve (eg jubjub)

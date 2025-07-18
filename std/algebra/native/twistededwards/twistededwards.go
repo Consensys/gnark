@@ -27,6 +27,7 @@ type Curve interface {
 	Add(p1, p2 Point) Point
 	Double(p1 Point) Point
 	Neg(p1 Point) Point
+	IsOnCurve(p1 Point) frontend.Variable
 	AssertIsOnCurve(p1 Point)
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point

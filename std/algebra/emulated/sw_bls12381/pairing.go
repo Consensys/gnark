@@ -251,6 +251,10 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	return &ret
 }
 
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
 func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
 	if len(inputs) == 0 {
 		return nil
