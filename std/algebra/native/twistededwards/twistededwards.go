@@ -29,6 +29,7 @@ type Curve interface {
 	Neg(p1 Point) Point
 	AssertIsOnCurve(p1 Point)
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
+	ScalarMulGeneric(p1 Point, scalar frontend.Variable) Point
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
