@@ -77,19 +77,20 @@ func TestIsOnCurve(t *testing.T) {
 
 }
 
-type addCircuit struct {
+type circuit struct {
 	curveID               twistededwards.ID
 	P1, P2                Point
 	AddResult             Point
 	DoubleResult          Point
 	ScalarMulResult       Point
+	ScalarMulGenResult    Point
 	DoubleScalarMulResult Point
 	NegResult             Point
-	S1, S2                frontend.Variable
+	S1, S2, Z             frontend.Variable
 	fixedPoint            Point `gnark:"-"`
 }
 
-func (circuit *addCircuit) Define(api frontend.API) error {
+func (circuit *circuit) Define(api frontend.API) error {
 
 	// get edwards curve curve
 	curve, err := NewEdCurve(api, circuit.curveID)
@@ -140,6 +141,13 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 	}
 
 	{
+		// scalar mul by 0
+		res := curve.ScalarMulGeneric(circuit.P2, circuit.Z)
+		api.AssertIsEqual(res.X, circuit.ScalarMulGenResult.X)
+		api.AssertIsEqual(res.Y, circuit.ScalarMulGenResult.Y)
+	}
+
+	{
 		// double scalar mul
 		res := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, circuit.S1, circuit.S2)
 		api.AssertIsEqual(res.X, circuit.DoubleScalarMulResult.X)
@@ -152,7 +160,7 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 func TestCurve(t *testing.T) {
 	assert := test.NewAssert(t)
 	for _, curve := range curves {
-		var circuit, witness addCircuit
+		var circuit, witness circuit
 		circuit.curveID = curve
 
 		// get matching snark curve
@@ -169,9 +177,10 @@ func TestCurve(t *testing.T) {
 			witness.AddResult,
 			witness.DoubleResult,
 			witness.ScalarMulResult,
+			witness.ScalarMulGenResult,
 			witness.DoubleScalarMulResult,
 			witness.NegResult,
-			witness.S1, witness.S2 = testData(params, curve)
+			witness.S1, witness.S2, witness.Z = testData(params, curve)
 
 		circuit.fixedPoint = witness.P2
 
@@ -198,9 +207,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 	_r,
 	_d,
 	_rs1,
+	_zero,
 	_rs12,
 	_n Point,
-	s1, s2 frontend.Variable) {
+	s1, s2, z frontend.Variable) {
 	scalar1 := params.randomScalar()
 	scalar2 := params.randomScalar()
 
@@ -224,9 +234,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BLS12_381:
 		var p1, p2, r, d, rs1, rs12, n tbls12381.PointAffine
@@ -248,9 +259,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BLS12_381_BANDERSNATCH:
 		var p1, p2, r, d, rs1, rs12, n tbls12381_bandersnatch.PointAffine
@@ -272,9 +284,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BLS12_377:
 		var p1, p2, r, d, rs1, rs12, n tbls12377.PointAffine
@@ -296,9 +309,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BLS24_317:
 		var p1, p2, r, d, rs1, rs12, n tbls24317.PointAffine
@@ -320,9 +334,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BLS24_315:
 		var p1, p2, r, d, rs1, rs12, n tbls24315.PointAffine
@@ -344,9 +359,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BW6_633:
 		var p1, p2, r, d, rs1, rs12, n tbw6633.PointAffine
@@ -368,9 +384,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	case twistededwards.BW6_761:
 		var p1, p2, r, d, rs1, rs12, n tbw6761.PointAffine
@@ -392,9 +409,10 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 			Point{r.X, r.Y},
 			Point{d.X, d.Y},
 			Point{rs1.X, rs1.Y},
+			Point{0, 1},
 			Point{rs12.X, rs12.Y},
 			Point{n.X, n.Y},
-			scalar1, scalar2
+			scalar1, scalar2, 0
 
 	default:
 		panic("not implemented")
@@ -405,27 +423,4 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
-}
-
-type varScalarMul struct {
-	curveID twistededwards.ID
-	P       Point
-	R       Point
-	S       frontend.Variable
-}
-
-func (circuit *varScalarMul) Define(api frontend.API) error {
-
-	// get edwards curve curve
-	curve, err := NewEdCurve(api, circuit.curveID)
-	if err != nil {
-		return err
-	}
-
-	// scalar mul
-	res := curve.ScalarMul(circuit.P, circuit.S)
-	api.AssertIsEqual(res.X, circuit.R.X)
-	api.AssertIsEqual(res.Y, circuit.R.Y)
-
-	return nil
 }

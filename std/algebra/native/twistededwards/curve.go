@@ -46,7 +46,12 @@ func (c *curve) AssertIsOnCurve(p1 Point) {
 }
 func (c *curve) ScalarMul(p1 Point, scalar frontend.Variable) Point {
 	var p Point
-	p.scalarMul(c.api, &p1, scalar, c.params, c.endo)
+	p.scalarMulFakeGLV(c.api, &p1, scalar, c.params)
+	return p
+}
+func (c *curve) ScalarMulGeneric(p1 Point, scalar frontend.Variable) Point {
+	var p Point
+	p.scalarMulGeneric(c.api, &p1, scalar, c.params)
 	return p
 }
 func (c *curve) DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point {
