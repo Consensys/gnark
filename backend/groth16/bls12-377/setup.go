@@ -139,13 +139,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	var t0, t1 fr.Element
 
-	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
-		t1.Mul(&A[i], &toxicWaste.beta)
-		t0.Mul(&B[i], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i]).
-			Mul(&t1, coeff)
-	}
 	vI := 0 // number of public wires seen so far
 	committedIterator := internal.NewMergeIterator(privateCommitted)
 	nbPrivateCommittedSeen := 0 // = ∑ᵢ cI[i]
@@ -162,7 +155,11 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		}
 
 		if isPublic || isCommitment || commitmentIndex != -1 {
-			computeK(i, &toxicWaste.gammaInv)
+			t1.Mul(&A[i], &toxicWaste.beta)
+			t0.Mul(&B[i], &toxicWaste.alpha)
+			t1.Add(&t1, &t0).
+				Add(&t1, &C[i]).
+				Mul(&t1, &toxicWaste.gammaInv)
 
 			if isPublic || isCommitment {
 				vkK[vI] = t1
@@ -172,7 +169,11 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				nbPrivateCommittedSeen++
 			}
 		} else {
-			computeK(i, &toxicWaste.deltaInv)
+			t1.Mul(&A[i], &toxicWaste.beta)
+			t0.Mul(&B[i], &toxicWaste.alpha)
+			t1.Add(&t1, &t0).
+				Add(&t1, &C[i]).
+				Mul(&t1, &toxicWaste.deltaInv)
 			pkK[i-vI-nbPrivateCommittedSeen] = t1 // vI = nbPublicSeen + nbCommitmentsSeen
 		}
 	}
