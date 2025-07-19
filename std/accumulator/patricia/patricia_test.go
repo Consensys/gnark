@@ -12,6 +12,180 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+// TestRLPLength tests all RLP encoding cases for length calculation
+func TestRLPLength(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	t.Run("SingleByte", func(t *testing.T) {
+		circuit := &RLPLengthTestCircuit{
+			Data:           make([]uints.U8, 1),
+			ExpectedLength: 0,
+		}
+
+		witness := &RLPLengthTestCircuit{
+			Data:           []uints.U8{uints.NewU8(0x42)}, // Single byte < 0x80
+			ExpectedLength: 1,
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("ShortString", func(t *testing.T) {
+		circuit := &RLPLengthTestCircuit{
+			Data:           make([]uints.U8, 4),
+			ExpectedLength: 0,
+		}
+
+		witness := &RLPLengthTestCircuit{
+			Data: []uints.U8{
+				uints.NewU8(0x83), // 0x80 + 3 (short string of length 3)
+				uints.NewU8(0xaa),
+				uints.NewU8(0xbb),
+				uints.NewU8(0xcc),
+			},
+			ExpectedLength: 4, // prefix byte + 3 data bytes
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("LongString", func(t *testing.T) {
+		circuit := &RLPLengthTestCircuit{
+			Data:           make([]uints.U8, 5),
+			ExpectedLength: 0,
+		}
+
+		witness := &RLPLengthTestCircuit{
+			Data: []uints.U8{
+				uints.NewU8(0xb9), // 0xb8 + 1 (long string with 1-byte length)
+				uints.NewU8(0x02), // length = 2
+				uints.NewU8(0xaa),
+				uints.NewU8(0xbb),
+				uints.NewU8(0x00), // padding
+			},
+			ExpectedLength: 4, // prefix byte + length byte + 2 data bytes
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("ShortList", func(t *testing.T) {
+		circuit := &RLPLengthTestCircuit{
+			Data:           make([]uints.U8, 4),
+			ExpectedLength: 0,
+		}
+
+		witness := &RLPLengthTestCircuit{
+			Data: []uints.U8{
+				uints.NewU8(0xc3), // 0xc0 + 3 (short list of total length 3)
+				uints.NewU8(0x01), // element 1
+				uints.NewU8(0x02), // element 2
+				uints.NewU8(0x03), // element 3
+			},
+			ExpectedLength: 4, // prefix byte + 3 data bytes
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("LongList", func(t *testing.T) {
+		circuit := &RLPLengthTestCircuit{
+			Data:           make([]uints.U8, 5),
+			ExpectedLength: 0,
+		}
+
+		witness := &RLPLengthTestCircuit{
+			Data: []uints.U8{
+				uints.NewU8(0xf9), // 0xf8 + 1 (long list with 1-byte length)
+				uints.NewU8(0x02), // length = 2
+				uints.NewU8(0x01), // element 1
+				uints.NewU8(0x02), // element 2
+				uints.NewU8(0x00), // padding
+			},
+			ExpectedLength: 4, // prefix byte + length byte + 2 data bytes
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+}
+
+// RLPLengthTestCircuit tests RLP length calculation
+type RLPLengthTestCircuit struct {
+	Data           []uints.U8        `gnark:",public"`
+	ExpectedLength frontend.Variable `gnark:",public"`
+}
+
+func (circuit *RLPLengthTestCircuit) Define(api frontend.API) error {
+	decoder := NewRLPDecoder(api)
+
+	actualLength := decoder.RLPLength(circuit.Data, 0)
+	api.AssertIsEqual(actualLength, circuit.ExpectedLength)
+
+	return nil
+}
+
+// TestRLPListDetection tests the IsRLPList function
+func TestRLPListDetection(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	t.Run("NotList", func(t *testing.T) {
+		circuit := &RLPListTestCircuit{
+			Data:           make([]uints.U8, 1),
+			ExpectedIsList: 0,
+		}
+
+		witness := &RLPListTestCircuit{
+			Data:           []uints.U8{uints.NewU8(0x42)}, // Single byte (not a list)
+			ExpectedIsList: 0,
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("ShortList", func(t *testing.T) {
+		circuit := &RLPListTestCircuit{
+			Data:           make([]uints.U8, 1),
+			ExpectedIsList: 0,
+		}
+
+		witness := &RLPListTestCircuit{
+			Data:           []uints.U8{uints.NewU8(0xc0)}, // Empty short list
+			ExpectedIsList: 1,
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+
+	t.Run("LongList", func(t *testing.T) {
+		circuit := &RLPListTestCircuit{
+			Data:           make([]uints.U8, 1),
+			ExpectedIsList: 0,
+		}
+
+		witness := &RLPListTestCircuit{
+			Data:           []uints.U8{uints.NewU8(0xf8)}, // Long list prefix
+			ExpectedIsList: 1,
+		}
+
+		assert.ProverSucceeded(circuit, witness)
+	})
+}
+
+// RLPListTestCircuit tests RLP list detection
+type RLPListTestCircuit struct {
+	Data           []uints.U8        `gnark:",public"`
+	ExpectedIsList frontend.Variable `gnark:",public"`
+}
+
+func (circuit *RLPListTestCircuit) Define(api frontend.API) error {
+	helper := NewRLPHelper(api)
+
+	actualIsList := helper.IsRLPList(circuit.Data)
+	api.AssertIsEqual(actualIsList, circuit.ExpectedIsList)
+
+	return nil
+}
+
 // PatriciaTestCircuit is a test circuit for Patricia tree verification
 type PatriciaTestCircuit struct {
 	// Inputs
