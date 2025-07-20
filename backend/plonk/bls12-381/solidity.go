@@ -181,6 +181,8 @@ contract PlonkVerifier {
   uint8 private constant EC_ADD = 0x6;
   uint8 private constant EC_MUL = 0x7;
   uint8 private constant EC_PAIR = 0x8;
+
+  event PrintUint256(uint256 x);
   
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -188,9 +190,10 @@ contract PlonkVerifier {
   /// @param public_inputs (must be reduced)
   /// @return success true if the proof passes false otherwise
   function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
-  public view returns(bool success) {
+  public returns(bool success) {
 
-    // assembly {
+    uint256 check;
+    assembly {
 
     //   let mem := mload(0x40)
     //   let freeMem := add(mem, STATE_LAST_MEM)
@@ -412,76 +415,94 @@ contract PlonkVerifier {
 
     //   // Beginning challenges -------------------------------------------------
 
-    //   /// Derive gamma as Sha256(<transcript>)
-    //   /// @param aproof pointer to the proof
-    //   /// @param nb_pi number of public inputs
-    //   /// @param pi pointer to the array of public inputs
-    //   /// @return the challenge gamma, not reduced
-    //   /// @notice The transcript is the concatenation (in this order) of:
-    //   /// * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
-    //   /// * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
-    //   /// * the commitments of Ql, Qr, Qm, Qo, Qk
-    //   /// * the public inputs
-    //   /// * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
-    //   /// * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
-    //   /// The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
-    //   /// and is encoded as a uint256 number n. In basis b = 256, the number looks like this
-    //   /// [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
-    //   /// Gamma reduced (the actual challenge) is stored at add(state, state_gamma)
-    //   function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
+      /// Derive gamma as Sha256(<transcript>)
+      /// @param aproof pointer to the proof
+      /// @param nb_pi number of public inputs
+      /// @param pi pointer to the array of public inputs
+      /// @return the challenge gamma, not reduced
+      /// @notice The transcript is the concatenation (in this order) of:
+      /// * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
+      /// * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
+      /// * the commitments of Ql, Qr, Qm, Qo, Qk
+      /// * the public inputs
+      /// * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
+      /// * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
+      /// The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
+      /// and is encoded as a uint256 number n. In basis b = 256, the number looks like this
+      /// [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
+      /// Gamma reduced (the actual challenge) is stored at add(state, state_gamma)
+      function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
         
-    //     let state := mload(0x40)
-    //     let mPtr := add(state, STATE_LAST_MEM)
+        let state := mload(0x40)
+        let mPtr := add(state, STATE_LAST_MEM)
 
-    //     mstore(mPtr, FS_GAMMA) // "gamma"
+        mstore(mPtr, FS_GAMMA) // "gamma"
 
-    //     {{ $offset = 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y) {{ $offset = add $offset 0x20}}
-    //     {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X) {{ $offset = add $offset 0x20}}
-    //     mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y) {{ $offset = add $offset 0x20}}
-    //     {{ end }}
-    //     // public inputs
-    //     let _mPtr := add(mPtr, {{ hex (add (mul (len .Vk.CommitmentConstraintIndexes) 64) 544) }})
-    //     let size_pi_in_bytes := mul(nb_pi, 0x20)
-    //     calldatacopy(_mPtr, pi, size_pi_in_bytes)
-    //     _mPtr := add(_mPtr, size_pi_in_bytes)
+        {{ $offset = 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi) {{ $offset = add $offset 0x10}}
+        {{ end }}
+        // public inputs
+        let _mPtr := add(mPtr, {{ hex (add (mul (len .Vk.CommitmentConstraintIndexes) 64) 544) }})
+        let size_pi_in_bytes := mul(nb_pi, 0x20)
+        calldatacopy(_mPtr, pi, size_pi_in_bytes)
+        _mPtr := add(_mPtr, size_pi_in_bytes)
 
-    //     // commitments to l, r, o
-    //     let size_commitments_lro_in_bytes := 0xc0
-    //     calldatacopy(_mPtr, aproof, size_commitments_lro_in_bytes)
-    //     _mPtr := add(_mPtr, size_commitments_lro_in_bytes)
+        // commitments to l, r, o
+        let size_commitments_lro_in_bytes := {{ hex (mul 0x30 3)}}
+        calldatacopy(_mPtr, aproof, size_commitments_lro_in_bytes)
+        _mPtr := add(_mPtr, size_commitments_lro_in_bytes)
 
-    //     // total size is :
-    //     // sizegamma(=0x5) + 11*64(=0x2c0)
-    //     // + nb_public_inputs*0x20
-    //     // + nb_custom gates*0x40
-    //     let size := add(0x2c5, size_pi_in_bytes)
-    //     {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-    //     size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
-    //     {{ end -}}
-    //     let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-    //     if iszero(l_success) {
-    //       error_verify()
-    //     }
-    //     gamma_not_reduced := mload(mPtr)
-    //     mstore(add(state, STATE_GAMMA), mod(gamma_not_reduced, R_MOD))
-    //   }
+        // total size is :
+        // sizegamma(=0x5) + 11*64(=0x2c0)
+        // + nb_public_inputs*0x20
+        // + nb_custom gates*0x40
+        let size := add(0x2c5, size_pi_in_bytes)
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+        size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
+        {{ end -}}
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
+        }
+        gamma_not_reduced := mload(mPtr)
+        mstore(add(state, STATE_GAMMA), mod(gamma_not_reduced, R_MOD))
+      }
 
     //   /// derive beta as Sha256<transcript>
     //   /// @param gamma_not_reduced the previous challenge (gamma) not reduced
@@ -1359,10 +1380,10 @@ contract PlonkVerifier {
     //     }
     //     res := mload(mPtr)
     //   }
-    // }
+    }
+    emit PrintUint256(check);
 		return true;
 	}
-}
 `
 
 // MarshalSolidity converts a proof to a byte array that can be used in a
