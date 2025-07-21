@@ -110,13 +110,13 @@ func (b *builder) start() {
 	if b.config.Title != "" {
 		graphname = b.config.Title
 	}
-	fmt.Fprintln(b, `digraph "`+graphname+`" {`)
-	fmt.Fprintln(b, `node [style=filled fillcolor="#f8f8f8"]`)
+	_, _ = fmt.Fprintln(b, `digraph "`+graphname+`" {`)
+	_, _ = fmt.Fprintln(b, `node [style=filled fillcolor="#f8f8f8"]`)
 }
 
 // finish closes the opening curly bracket in the constructed DOT buffer.
 func (b *builder) finish() {
-	fmt.Fprintln(b, "}")
+	_, _ = fmt.Fprintln(b, "}")
 }
 
 // addLegend generates a legend in DOT format.
@@ -126,7 +126,7 @@ func (b *builder) addLegend() {
 		return
 	}
 	title := labels[0]
-	fmt.Fprintf(b, `subgraph cluster_L { "%s" [shape=box fontsize=16`, escapeForDot(title))
+	_, _ = fmt.Fprintf(b, `subgraph cluster_L { "%s" [shape=box fontsize=16`, escapeForDot(title))
 	fmt.Fprintf(b, ` label="%s\l"`, strings.Join(escapeAllForDot(labels), `\l`))
 	if b.config.LegendURL != "" {
 		fmt.Fprintf(b, ` URL="%s" target="_blank"`, b.config.LegendURL)
