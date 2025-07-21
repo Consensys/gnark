@@ -9,6 +9,7 @@
 package groth16
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -166,6 +167,54 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 			return witness.ErrInvalidWitness
 		}
 		return groth16_bw6633.Verify(_proof, vk.(*groth16_bw6633.VerifyingKey), w, opts...)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+func Solve(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (any, error) {
+	switch _r1cs := r1cs.(type) {
+	case *cs_bls12377.R1CS:
+		return groth16_bls12377.Solve(_r1cs, pk.(*groth16_bls12377.ProvingKey), fullWitness, opts...)
+	case *cs_bls12381.R1CS:
+		return groth16_bls12381.Solve(_r1cs, pk.(*groth16_bls12381.ProvingKey), fullWitness, opts...)
+	case *cs_bn254.R1CS:
+		if icicle_bn254.HasIcicle {
+			return nil, fmt.Errorf("bn254 icicle has not impl solve")
+		}
+		return groth16_bn254.Solve(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
+	case *cs_bw6761.R1CS:
+		return groth16_bw6761.Solve(_r1cs, pk.(*groth16_bw6761.ProvingKey), fullWitness, opts...)
+	case *cs_bls24317.R1CS:
+		return groth16_bls24317.Solve(_r1cs, pk.(*groth16_bls24317.ProvingKey), fullWitness, opts...)
+	case *cs_bls24315.R1CS:
+		return groth16_bls24315.Solve(_r1cs, pk.(*groth16_bls24315.ProvingKey), fullWitness, opts...)
+	case *cs_bw6633.R1CS:
+		return groth16_bw6633.Solve(_r1cs, pk.(*groth16_bw6633.ProvingKey), fullWitness, opts...)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+func ProofComputing(solveResult any, pk ProvingKey) (Proof, error) {
+	switch solveResult.(type) {
+	case *groth16_bls12377.SolveResult:
+		return groth16_bls12377.ProofComputing(solveResult.(*groth16_bls12377.SolveResult), pk.(*groth16_bls12377.ProvingKey))
+	case *groth16_bls12381.SolveResult:
+		return groth16_bls12381.ProofComputing(solveResult.(*groth16_bls12381.SolveResult), pk.(*groth16_bls12381.ProvingKey))
+	case *groth16_bn254.SolveResult:
+		if icicle_bn254.HasIcicle {
+			return nil, fmt.Errorf("bn254 icicle has not impl solve")
+		}
+		return groth16_bn254.ProofComputing(solveResult.(*groth16_bn254.SolveResult), pk.(*groth16_bn254.ProvingKey))
+	case *groth16_bw6761.SolveResult:
+		return groth16_bw6761.ProofComputing(solveResult.(*groth16_bw6761.SolveResult), pk.(*groth16_bw6761.ProvingKey))
+	case *groth16_bls24317.SolveResult:
+		return groth16_bls24317.ProofComputing(solveResult.(*groth16_bls24317.SolveResult), pk.(*groth16_bls24317.ProvingKey))
+	case *groth16_bls24315.SolveResult:
+		return groth16_bls24315.ProofComputing(solveResult.(*groth16_bls24315.SolveResult), pk.(*groth16_bls24315.ProvingKey))
+	case *groth16_bw6633.SolveResult:
+		return groth16_bw6633.ProofComputing(solveResult.(*groth16_bw6633.SolveResult), pk.(*groth16_bw6633.ProvingKey))
 	default:
 		panic("unrecognized R1CS curve type")
 	}
