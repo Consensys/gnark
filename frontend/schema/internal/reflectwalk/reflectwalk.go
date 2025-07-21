@@ -179,7 +179,9 @@ func walk(v reflect.Value, w interface{}) (err error) {
 func walkSlice(v reflect.Value, w interface{}) (err error) {
 	ew, ok := w.(EnterExitWalker)
 	if ok {
-		ew.Enter(Slice)
+		if err := ew.Enter(Slice); err != nil {
+			return err
+		}
 	}
 
 	if sw, ok := w.(SliceWalker); ok {
@@ -199,7 +201,9 @@ func walkSlice(v reflect.Value, w interface{}) (err error) {
 
 		ew, ok := w.(EnterExitWalker)
 		if ok {
-			ew.Enter(SliceElem)
+			if err := ew.Enter(SliceElem); err != nil {
+				return err
+			}
 		}
 
 		if err := walk(elem, w); err != nil && err != ErrSkipEntry {
@@ -207,13 +211,17 @@ func walkSlice(v reflect.Value, w interface{}) (err error) {
 		}
 
 		if ok {
-			ew.Exit(SliceElem)
+			if err := ew.Exit(SliceElem); err != nil {
+				return err
+			}
 		}
 	}
 
 	ew, ok = w.(EnterExitWalker)
 	if ok {
-		ew.Exit(Slice)
+		if err := ew.Exit(Slice); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -222,7 +230,9 @@ func walkSlice(v reflect.Value, w interface{}) (err error) {
 func walkArray(v reflect.Value, w interface{}) (err error) {
 	ew, ok := w.(EnterExitWalker)
 	if ok {
-		ew.Enter(Array)
+		if err := ew.Enter(Array); err != nil {
+			return err
+		}
 	}
 
 	if aw, ok := w.(ArrayWalker); ok {
@@ -250,7 +260,9 @@ func walkArray(v reflect.Value, w interface{}) (err error) {
 		}
 
 		if ok {
-			ew.Exit(ArrayElem)
+			if err := ew.Exit(ArrayElem); err != nil {
+				return err
+			}
 		}
 	}
 
