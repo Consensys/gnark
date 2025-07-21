@@ -29,7 +29,7 @@ func RegisterHint(hintFns ...Hint) {
 		if _, ok := registry[key]; ok {
 			log := logger.Logger()
 			log.Debug().Str("name", name).Msg("function registered multiple times")
-			return
+			continue
 		}
 		registry[key] = hintFn
 	}
