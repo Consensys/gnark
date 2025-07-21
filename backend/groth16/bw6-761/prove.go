@@ -60,6 +60,7 @@ type SolveResult struct {
 // i.e. Only Witness Generation
 func Solve(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*SolveResult, error) {
 	opt, err := backend.NewProverConfig(opts...)
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "none").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 	if err != nil {
 		return nil, fmt.Errorf("new prover config: %w", err)
 	}
@@ -104,8 +105,10 @@ func Solve(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		res.BigInt(out[0])
 		return nil
 	}))
-
+	start := time.Now()
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
+	log.Debug().Dur("took", time.Since(start)).Msg("solver done")
+
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +124,8 @@ func Solve(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 // ProofComputing another pipeline processing, it has a high-usage of cpu and is fast
 // fft and msm
 func ProofComputing(solve *SolveResult, pk *ProvingKey) (*Proof, error) {
+	log := logger.Logger().With().Str("curve", pk.CurveID().String()).Str("acceleration", "none").Int("nbCommitmentInfo", len(solve.commitmentInfo)).Int("nbPublic", solve.nbPublic).Int("nbPrivateCommittedValues", len(solve.privateCommittedValues)).Str("backend", "groth16").Logger()
+	start := time.Now()
 	wireValues := []fr.Element(solve.solution.W)
 	proof := solve.proof
 	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
@@ -322,6 +327,8 @@ func ProofComputing(solve *SolveResult, pk *ProvingKey) (*Proof, error) {
 	if err := <-chKrsDone; err != nil {
 		return nil, err
 	}
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+
 	return proof, nil
 }
 
