@@ -107,9 +107,9 @@ contract PlonkVerifier {
   uint256 private constant PROOF_H_2_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x30}}
 
   // "evaluations of wire polynomials at zeta
-  uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x30}}
-  uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x30}}
-  uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x30}}
+  uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // S1(zeta),S2(zeta)
   uint256 private constant PROOF_S1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Sσ1(zeta)
@@ -207,8 +207,8 @@ contract PlonkVerifier {
     //   // compute the challenges
       let prev_challenge_non_reduced
       prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
-    //   prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
-    //   prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
+      prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
+      prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
     //   derive_zeta(proof.offset, prev_challenge_non_reduced)
 
     //   // evaluation of Z=Xⁿ-1 at ζ, we save this value
@@ -506,63 +506,63 @@ contract PlonkVerifier {
         mstore(add(state, STATE_GAMMA), mod(gamma_not_reduced, R_MOD))
       }
 
-    //   /// derive beta as Sha256<transcript>
-    //   /// @param gamma_not_reduced the previous challenge (gamma) not reduced
-    //   /// @return beta_not_reduced the next challenge, beta, not reduced
-    //   /// @notice the transcript consists of the previous challenge only.
-    //   /// The reduced version of beta is stored at add(state, state_beta)
-    //   function derive_beta(gamma_not_reduced)->beta_not_reduced{
+      /// derive beta as Sha256<transcript>
+      /// @param gamma_not_reduced the previous challenge (gamma) not reduced
+      /// @return beta_not_reduced the next challenge, beta, not reduced
+      /// @notice the transcript consists of the previous challenge only.
+      /// The reduced version of beta is stored at add(state, state_beta)
+      function derive_beta(gamma_not_reduced)->beta_not_reduced{
         
-    //     let state := mload(0x40)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
-    //     // beta
-    //     mstore(mPtr, FS_BETA) // "beta"
-    //     mstore(add(mPtr, 0x20), gamma_not_reduced)
-    //     let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-    //     if iszero(l_success) {
-    //       error_verify()
-    //     }
-    //     beta_not_reduced := mload(mPtr)
-    //     mstore(add(state, STATE_BETA), mod(beta_not_reduced, R_MOD))
-    //   }
+        // beta
+        mstore(mPtr, FS_BETA) // "beta"
+        mstore(add(mPtr, 0x20), gamma_not_reduced)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
+        }
+        beta_not_reduced := mload(mPtr)
+        mstore(add(state, STATE_BETA), mod(beta_not_reduced, R_MOD))
+      }
 
-    //   /// derive alpha as sha256<transcript>
-    //   /// @param aproof pointer to the proof object
-    //   /// @param beta_not_reduced the previous challenge (beta) not reduced
-    //   /// @return alpha_not_reduced the next challenge, alpha, not reduced
-    //   /// @notice the transcript consists of the previous challenge (beta)
-    //   /// not reduced, the commitments to the wires associated to the QCP_i,
-    //   /// and the commitment to the grand product polynomial 
-    //   function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
+      /// derive alpha as sha256<transcript>
+      /// @param aproof pointer to the proof object
+      /// @param beta_not_reduced the previous challenge (beta) not reduced
+      /// @return alpha_not_reduced the next challenge, alpha, not reduced
+      /// @notice the transcript consists of the previous challenge (beta)
+      /// not reduced, the commitments to the wires associated to the QCP_i,
+      /// and the commitment to the grand product polynomial 
+      function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
         
-    //     let state := mload(0x40)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
-    //     let full_size := 0x65 // size("alpha") + 0x20 (previous challenge)
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
+        let full_size := 0x85 // "alpha" || previous challenge || grand product commitment
 
-    //     // alpha
-    //     mstore(mPtr, FS_ALPHA) // "alpha"
-    //     let _mPtr := add(mPtr, 0x20)
-    //     mstore(_mPtr, beta_not_reduced)
-    //     _mPtr := add(_mPtr, 0x20)
-    //     {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-    //     // Bsb22Commitments
-    //     let proof_bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
-    //     let size_bsb_commitments := mul(0x40, VK_NB_CUSTOM_GATES)
-    //     calldatacopy(_mPtr, proof_bsb_commitments, size_bsb_commitments)
-    //     _mPtr := add(_mPtr, size_bsb_commitments)
-    //     full_size := add(full_size, size_bsb_commitments)
-    //     {{ end }}
-    //     // [Z], the commitment to the grand product polynomial
-    //     calldatacopy(_mPtr, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x40)
-    //     let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
-    //     if iszero(l_success) {
-    //       error_verify()
-    //     }
+        // alpha
+        mstore(mPtr, FS_ALPHA) // "alpha"
+        let _mPtr := add(mPtr, 0x20)
+        mstore(_mPtr, beta_not_reduced)
+        _mPtr := add(_mPtr, 0x20)
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+        // Bsb22Commitments
+        let proof_bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
+        let size_bsb_commitments := mul(0x60, VK_NB_CUSTOM_GATES)
+        calldatacopy(_mPtr, proof_bsb_commitments, size_bsb_commitments)
+        _mPtr := add(_mPtr, size_bsb_commitments)
+        full_size := add(full_size, size_bsb_commitments)
+        {{ end }}
+        // [Z], the commitment to the grand product polynomial
+        calldatacopy(_mPtr, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x60)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
+        if iszero(l_success) {
+          error_verify()
+        }
 
-    //     alpha_not_reduced := mload(mPtr)
-    //     mstore(add(state, STATE_ALPHA), mod(alpha_not_reduced, R_MOD))
-    //   }
+        alpha_not_reduced := mload(mPtr)
+        mstore(add(state, STATE_ALPHA), mod(alpha_not_reduced, R_MOD))
+      }
 
     //   /// derive zeta as sha256<transcript>
     //   /// @param aproof pointer to the proof object
