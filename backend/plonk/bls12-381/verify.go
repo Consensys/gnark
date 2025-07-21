@@ -422,6 +422,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		"add": func(i, j int) int {
 			return i + j
 		},
+		"sub": func(i, j int) int {
+			return i - j
+		},
 	}
 
 	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
