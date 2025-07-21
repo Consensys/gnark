@@ -195,8 +195,8 @@ contract PlonkVerifier {
     uint256 check;
     assembly {
 
-    //   let mem := mload(0x40)
-    //   let freeMem := add(mem, STATE_LAST_MEM)
+      let mem := mload(0x40)
+      let freeMem := add(mem, STATE_LAST_MEM)
 
     //   // sanity checks
     //   check_number_of_public_inputs(public_inputs.length)
@@ -205,8 +205,8 @@ contract PlonkVerifier {
     //   check_proof_openings_size(proof.offset)
 
     //   // compute the challenges
-    //   let prev_challenge_non_reduced
-    //   prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
+      let prev_challenge_non_reduced
+      prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
     //   prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
     //   prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
     //   derive_zeta(proof.offset, prev_challenge_non_reduced)
@@ -308,14 +308,14 @@ contract PlonkVerifier {
     //     revert(ptError, 0x64)
     //   }
 
-    //   function error_verify() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0xc)
-    //     mstore(add(ptError, 0x44), "error verify")
-    //     revert(ptError, 0x64)
-    //   }
+      function error_verify() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error verify")
+        revert(ptError, 0x64)
+      }
 
     //   function error_random_generation() {
     //     let ptError := mload(0x40)
@@ -436,65 +436,67 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
-        mstore(mPtr, FS_GAMMA) // "gamma"
-
-        {{ $offset = 0x20 }}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_hi) {{ $offset = add $offset 0x10}}
+        {{ $offset = 0x10 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_hi) {{ $offset = add $offset 0x30}}
         {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi) {{ $offset = add $offset 0x10}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo) {{ $offset = add $offset 0x20}}
-        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi) {{ $offset = add $offset 0x10}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi) {{ $offset = add $offset 0x30}}
+        {{ end }}
+        mstore(mPtr, FS_GAMMA) // "gamma"
+        {{ $offset = 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y_lo) {{ $offset = add $offset 0x30}}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo) {{ $offset = add $offset 0x30}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo) {{ $offset = add $offset 0x30}}
         {{ end }}
         // public inputs
-        let _mPtr := add(mPtr, {{ hex (add (mul (len .Vk.CommitmentConstraintIndexes) 64) 544) }})
+        let _mPtr := add(mPtr, {{ hex ( sub $offset 0x10 ) }} )
         let size_pi_in_bytes := mul(nb_pi, 0x20)
         calldatacopy(_mPtr, pi, size_pi_in_bytes)
         _mPtr := add(_mPtr, size_pi_in_bytes)
 
         // commitments to l, r, o
-        let size_commitments_lro_in_bytes := {{ hex (mul 0x30 3)}}
+        let size_commitments_lro_in_bytes := {{ hex (mul 0x60 3)}}
         calldatacopy(_mPtr, aproof, size_commitments_lro_in_bytes)
         _mPtr := add(_mPtr, size_commitments_lro_in_bytes)
 
         // total size is :
-        // sizegamma(=0x5) + 11*64(=0x2c0)
+        // sizegamma(=0x5) + 11*96(=0x420)
         // + nb_public_inputs*0x20
-        // + nb_custom gates*0x40
-        let size := add(0x2c5, size_pi_in_bytes)
+        // + nb_custom gates*0x60
+        let size := add({{ hex ( add 5 ( mul 11 96 ))}}, size_pi_in_bytes)
         {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-        size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
+        size := add(size, mul(VK_NB_CUSTOM_GATES, 0x60))
         {{ end -}}
         let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(l_success) {
@@ -1384,6 +1386,7 @@ contract PlonkVerifier {
     emit PrintUint256(check);
 		return true;
 	}
+}
 `
 
 // MarshalSolidity converts a proof to a byte array that can be used in a
