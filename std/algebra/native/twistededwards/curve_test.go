@@ -152,8 +152,6 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 func TestCurve(t *testing.T) {
 	assert := test.NewAssert(t)
 	for _, curve := range curves {
-		var circuit, witness addCircuit
-		circuit.curveID = curve
 
 		// get matching snark curve
 		snarkField, err := GetSnarkField(curve)
@@ -164,27 +162,30 @@ func TestCurve(t *testing.T) {
 		params, err := GetCurveParams(curve)
 		assert.NoError(err)
 
-		witness.P1,
-			witness.P2,
-			witness.AddResult,
-			witness.DoubleResult,
-			witness.ScalarMulResult,
-			witness.DoubleScalarMulResult,
-			witness.NegResult,
-			witness.S1, witness.S2 = testData(params, curve)
+		for _, bb := range []int{0b00, 0b01, 0b10, 0b11} {
+			var circuit, witness addCircuit
+			circuit.curveID = curve
+			witness.P1,
+				witness.P2,
+				witness.AddResult,
+				witness.DoubleResult,
+				witness.ScalarMulResult,
+				witness.DoubleScalarMulResult,
+				witness.NegResult,
+				witness.S1, witness.S2 = testData(params, curve, bb&0b01 > 0, bb&0b10 > 0)
+			circuit.fixedPoint = witness.P2
 
-		circuit.fixedPoint = witness.P2
+			invalidWitness := witness
+			invalidWitness.P1.Y = params.randomScalar()
 
-		invalidWitness := witness
-		invalidWitness.P1.Y = params.randomScalar()
+			assert.CheckCircuit(
+				&circuit,
 
-		assert.CheckCircuit(
-			&circuit,
-
-			test.WithValidAssignment(&witness),
-			test.WithInvalidAssignment(&invalidWitness),
-			test.WithCurves(snarkCurve),
-		)
+				test.WithValidAssignment(&witness),
+				test.WithInvalidAssignment(&invalidWitness),
+				test.WithCurves(snarkCurve),
+			)
+		}
 	}
 }
 
@@ -192,7 +193,7 @@ func TestCurve(t *testing.T) {
 // returns p1, p2 and r, d such that p1 + p2 == r and p1 + p1 == d
 // returns rs1, rs12, s1, s2 such that rs1 = p2 * s2 and rs12 = p1*s1 + p2 * s2
 // returns n such that n = -p2
-func testData(params *CurveParams, curveID twistededwards.ID) (
+func testData(params *CurveParams, curveID twistededwards.ID, zero1, zero2 bool) (
 	_p1,
 	_p2,
 	_r,
@@ -201,8 +202,17 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 	_rs12,
 	_n Point,
 	s1, s2 frontend.Variable) {
-	scalar1 := params.randomScalar()
-	scalar2 := params.randomScalar()
+	var scalar1, scalar2 *big.Int
+	if !zero1 {
+		scalar1 = params.randomScalar()
+	} else {
+		scalar1 = big.NewInt(0)
+	}
+	if !zero2 {
+		scalar2 = params.randomScalar()
+	} else {
+		scalar2 = big.NewInt(0)
+	}
 
 	switch curveID {
 	case twistededwards.BN254:
