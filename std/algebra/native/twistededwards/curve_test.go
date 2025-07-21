@@ -416,26 +416,3 @@ func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
 }
-
-type varScalarMul struct {
-	curveID twistededwards.ID
-	P       Point
-	R       Point
-	S       frontend.Variable
-}
-
-func (circuit *varScalarMul) Define(api frontend.API) error {
-
-	// get edwards curve curve
-	curve, err := NewEdCurve(api, circuit.curveID)
-	if err != nil {
-		return err
-	}
-
-	// scalar mul
-	res := curve.ScalarMul(circuit.P, circuit.S)
-	api.AssertIsEqual(res.X, circuit.R.X)
-	api.AssertIsEqual(res.Y, circuit.R.Y)
-
-	return nil
-}
