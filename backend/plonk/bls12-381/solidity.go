@@ -224,7 +224,7 @@ contract PlonkVerifier {
       {{ end -}}
       mstore(add(mem, STATE_PI), l_pi)
 
-    //   compute_alpha_square_lagrange_0()
+      compute_alpha_square_lagrange_0()
     //   compute_opening_linearised_polynomial(proof.offset)
     //   fold_h(proof.offset)
     //   compute_commitment_linearised_polynomial(proof.offset)
@@ -820,26 +820,26 @@ contract PlonkVerifier {
       {{ end }}
       // END compute_pi -------------------------------------------------
 
-    //   /// @notice compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
-    //   /// *  α = challenge derived in derive_gamma_beta_alpha_zeta
-    //   /// * n = vk_domain_size
-    //   /// * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-    //   /// * ζ = zeta (challenge derived with Fiat Shamir)
-    //   function compute_alpha_square_lagrange_0() {   
-    //     let state := mload(0x40)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
+      /// @notice compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
+      /// *  α = challenge derived in derive_gamma_beta_alpha_zeta
+      /// * n = vk_domain_size
+      /// * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      /// * ζ = zeta (challenge derived with Fiat Shamir)
+      function compute_alpha_square_lagrange_0() {   
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
-    //     let res := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
-    //     let den := addmod(mload(add(state, STATE_ZETA)), sub(R_MOD, 1), R_MOD)
-    //     den := pow(den, sub(R_MOD, 2), mPtr)
-    //     den := mulmod(den, VK_INV_DOMAIN_SIZE, R_MOD)
-    //     res := mulmod(den, res, R_MOD)
+        let res := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
+        let den := addmod(mload(add(state, STATE_ZETA)), sub(R_MOD, 1), R_MOD)
+        den := pow(den, sub(R_MOD, 2), mPtr)
+        den := mulmod(den, VK_INV_DOMAIN_SIZE, R_MOD)
+        res := mulmod(den, res, R_MOD)
 
-    //     let l_alpha := mload(add(state, STATE_ALPHA))
-    //     res := mulmod(res, l_alpha, R_MOD)
-    //     res := mulmod(res, l_alpha, R_MOD)
-    //     mstore(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0), res)
-    //   }
+        let l_alpha := mload(add(state, STATE_ALPHA))
+        res := mulmod(res, l_alpha, R_MOD)
+        res := mulmod(res, l_alpha, R_MOD)
+        mstore(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0), res)
+      }
 
     //   /// @notice follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
     //   /// with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
