@@ -128,6 +128,15 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...Variable)
 
+	// Printf behaves like fmt.Printf but accepts cd.Variable as parameter
+	// whose value will be resolved at runtime when computed by the solver.
+	// Supported format specifiers:
+	// %v - default format
+	// %d - decimal integer
+	// %x - hexadecimal
+	// %b - binary
+	Printf(format string, a ...Variable)
+
 	// Compiler returns the compiler object for advanced circuit development
 	Compiler() Compiler
 
