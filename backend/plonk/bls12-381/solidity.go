@@ -1197,6 +1197,18 @@ contract PlonkVerifier {
     //     compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
     //   }
 
+      /// @notice stores a point at dst, from src. The point in src is stored
+      /// as [x || y] where x and y are on 0x30 bytes, and in dst the point is stored
+      /// as [x || y] where x and y are on 0x40 bytes, the top 0x10 bytes being 0.
+      /// @param dst destination pointer storing the new point
+      /// @param src source pointer (calldata)
+      function store_point_calldata(dst, src) {
+        mstore(dst, 0x00)
+        calldatacopy(add(dst, 0x10), src, 0x30)
+        mstore(add(dst, 0x40), 0x00)
+        calldatacopy(add(dst, 0x50), add(src, 0x30), 0x30)
+      }
+
       /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
       /// state + state_folded_h
       /// @param aproof pointer to the proof
@@ -1210,20 +1222,11 @@ contract PlonkVerifier {
         h_zeta := sub(R_MOD, h_zeta)
         zeta_power_n_plus_two := mulmod(zeta_power_n_plus_two, h_zeta, R_MOD)
         zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two_square, h_zeta, R_MOD)
-        mstore(mPtr, 0x00)
-        calldatacopy(add(mPtr, 0x10), add(aproof, PROOF_H_0_COM_X), 0x30)
-        mstore(add(mPtr, 0x40), 0x00)
-        calldatacopy(add(mPtr, 0x50), add(aproof, PROOF_H_0_COM_Y), 0x30)
+        store_point_calldata(mPtr, add(aproof, PROOF_H_0_COM_X))
+        store_point_calldata(add(mPtr, 0xa0), add(aproof, PROOF_H_1_COM_X))
+        store_point_calldata(add(mPtr, 0x140), add(aproof, PROOF_H_2_COM_X))
         mstore(add(mPtr, 0x80), h_zeta)
-        mstore(add(mPtr, 0xa0), 0x00)
-        calldatacopy(add(mPtr, 0xb0), add(aproof, PROOF_H_1_COM_X), 0x30)
-        mstore(add(mPtr, 0xe0), 0x00)
-        calldatacopy(add(mPtr, 0xf0), add(aproof, PROOF_H_1_COM_Y), 0x30)
         mstore(add(mPtr, 0x120), zeta_power_n_plus_two)
-        mstore(add(mPtr, 0x140), 0x00)
-        calldatacopy(add(mPtr, 0x150), add(aproof, PROOF_H_2_COM_X), 0x30)
-        mstore(add(mPtr, 0x180), 0x00)
-        calldatacopy(add(mPtr, 0x190), add(aproof, PROOF_H_2_COM_Y), 0x30)
         mstore(add(mPtr, 0x1c0), zeta_power_n_plus_two_square)
         let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, 0x1e0, add(state, STATE_FOLDED_H), 0x80)
         if iszero(l_success){
