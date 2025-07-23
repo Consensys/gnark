@@ -606,16 +606,26 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) error {
+	isValid, err := v.ProofIsValid(vk, proof, witness, opts...)
+	if err != nil {
+		return err
+	}
+	v.api.AssertIsEqual(isValid, 1)
+	return nil
+}
+
+// ProofIsValid returns a variable that is 1 if the proof is valid and 0 otherwise.
+func (v *Verifier[FR, G1El, G2El, GtEl]) ProofIsValid(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) (frontend.Variable, error) {
 	if len(vk.CommitmentKeys) != len(proof.Commitments) {
-		return fmt.Errorf("invalid number of commitments, got %d, expected %d", len(proof.Commitments), len(vk.CommitmentKeys))
+		return 0, fmt.Errorf("invalid number of commitments, got %d, expected %d", len(proof.Commitments), len(vk.CommitmentKeys))
 	}
 	if len(vk.CommitmentKeys) != len(vk.PublicAndCommitmentCommitted) {
-		return fmt.Errorf("invalid number of commitment keys, got %d, expected %d", len(vk.CommitmentKeys), len(vk.PublicAndCommitmentCommitted))
+		return 0, fmt.Errorf("invalid number of commitment keys, got %d, expected %d", len(vk.CommitmentKeys), len(vk.PublicAndCommitmentCommitted))
 	}
 	var fr FR
 	nbPublicVars := len(vk.G1.K) - len(vk.PublicAndCommitmentCommitted)
 	if len(witness.Public) != nbPublicVars-1 {
-		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(witness.Public), len(vk.G1.K)-1)
+		return 0, fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(witness.Public), len(vk.G1.K)-1)
 	}
 
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
@@ -629,11 +639,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 	opt, err := newCfg(opts...)
 	if err != nil {
-		return fmt.Errorf("apply options: %w", err)
+		return 0, fmt.Errorf("apply options: %w", err)
 	}
 	hashToField, err := recursion.NewHash(v.api, fr.Modulus(), true)
 	if err != nil {
-		return fmt.Errorf("hash to field: %w", err)
+		return 0, fmt.Errorf("hash to field: %w", err)
 	}
 
 	maxNbPublicCommitted := 0
@@ -662,16 +672,16 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		// explicitly do not verify the commitment as there is nothing
 	case 1:
 		if err = v.commitment.AssertCommitment(proof.Commitments[0], proof.CommitmentPok, vk.CommitmentKeys[0], opt.pedopt...); err != nil {
-			return fmt.Errorf("assert commitment: %w", err)
+			return 0, fmt.Errorf("assert commitment: %w", err)
 		}
 	default:
 		// TODO: we support only a single commitment in the recursion for now
-		return fmt.Errorf("multiple commitments are not supported")
+		return 0, fmt.Errorf("multiple commitments are not supported")
 	}
 
 	kSum, err := v.curve.MultiScalarMul(inP, inS, opt.algopt...)
 	if err != nil {
-		return fmt.Errorf("multi scalar mul: %w", err)
+		return 0, fmt.Errorf("multi scalar mul: %w", err)
 	}
 	kSum = v.curve.Add(kSum, &vk.G1.K[0])
 
@@ -686,10 +696,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 	}
 	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
 	if err != nil {
-		return fmt.Errorf("pairing: %w", err)
+		return 0, fmt.Errorf("pairing: %w", err)
 	}
-	v.pairing.AssertIsEqual(pairing, &vk.E)
-	return nil
+	return v.pairing.IsEqual(pairing, &vk.E), nil
 }
 
 // SwitchVerification key switches the verification key based on the provided
