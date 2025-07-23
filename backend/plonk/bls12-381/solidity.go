@@ -140,14 +140,11 @@ contract PlonkVerifier {
   uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_FOLDED_H_X = {{ hex $offset }};{{ $offset = add $offset 0x30}}
-  uint256 private constant STATE_FOLDED_H_Y = {{ hex $offset }};{{ $offset = add $offset 0x30}}
-  uint256 private constant STATE_LINEARISED_POLYNOMIAL_X = {{ hex $offset }};{{ $offset = add $offset 0x30}}
-  uint256 private constant STATE_LINEARISED_POLYNOMIAL_Y = {{ hex $offset }};{{ $offset = add $offset 0x30}}
+  uint256 private constant STATE_FOLDED_H = {{ hex $offset }}; // each coord is on 0x40 bytes, the top 0x10 bytes equal to 0{{ $offset = add $offset 0x80}}
+  uint256 private constant STATE_LINEARISED_POLYNOMIAL = {{ hex $offset }};{{ $offset = add $offset 0x80}}
   uint256 private constant STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_FOLDED_CLAIMED_VALUES = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_DIGESTS_X = {{ hex $offset }};{{ $offset = add $offset 0x30}} // linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_DIGESTS_Y = {{ hex $offset }};{{ $offset = add $offset 0x30}}
+  uint256 private constant STATE_FOLDED_DIGESTS = {{ hex $offset }};{{ $offset = add $offset 0x80}} // linearised poly, l, r, o, s_1, s_2, qcp
   uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_GAMMA_KZG = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -179,8 +176,7 @@ contract PlonkVerifier {
   uint8 private constant SHA2 = 0x2;
   uint8 private constant MOD_EXP = 0x5;
   uint8 private constant EC_ADD = 0x6;
-  uint8 private constant EC_MUL = 0x7;
-  uint8 private constant EC_PAIR = 0x8;
+  uint8 private constant BLS12_MSM_G1 = 0x0c;
 
   event PrintUint256(uint256 x);
   
@@ -225,7 +221,7 @@ contract PlonkVerifier {
       mstore(add(mem, STATE_PI), l_pi)
 
       compute_alpha_square_lagrange_0()
-    //   compute_opening_linearised_polynomial(proof.offset)
+      compute_opening_linearised_polynomial(proof.offset)
     //   fold_h(proof.offset)
     //   compute_commitment_linearised_polynomial(proof.offset)
     //   compute_gamma_kzg(proof.offset)
@@ -255,16 +251,16 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-    //   /// Called when an operation on Bn254 fails
-    //   /// @dev for instance when calling EcMul on a point not on Bn254.
-    //   function error_ec_op() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x12)
-    //     mstore(add(ptError, 0x44), "error ec operation")
-    //     revert(ptError, 0x64)
-    //   }
+      /// Called when an operation on Bn254 fails
+      /// @dev for instance when calling EcMul on a point not on Bn254.
+      function error_ec_op() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x12)
+        mstore(add(ptError, 0x44), "error ec operation")
+        revert(ptError, 0x64)
+      }
 
     //   /// Called when one of the public inputs is not reduced.
     //   function error_inputs_size() {
@@ -1201,62 +1197,78 @@ contract PlonkVerifier {
     //     compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
     //   }
 
-    //   /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
-    //   /// state + state_folded_h
-    //   /// @param aproof pointer to the proof
-    //   function fold_h(aproof) {
-    //     let state := mload(0x40)
-    //     let n_plus_two := add(VK_DOMAIN_SIZE, 2)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
-    //     let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-    //     point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_COM_X), zeta_power_n_plus_two, mPtr)
-    //     point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_COM_X), mPtr)
-    //     point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), zeta_power_n_plus_two, mPtr)
-    //     point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_COM_X), mPtr)
-    //       point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE)), mPtr)
-    //     let folded_h_y := mload(add(state, STATE_FOLDED_H_Y))
-    //     folded_h_y := sub(P_MOD, folded_h_y)
-    //     mstore(add(state, STATE_FOLDED_H_Y), folded_h_y)
-    //   }
+      /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
+      /// state + state_folded_h
+      /// @param aproof pointer to the proof
+      function fold_h(aproof) {
+        let state := mload(0x40)
+        let n_plus_two := add(VK_DOMAIN_SIZE, 2)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
+        let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
+        let zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two, zeta_power_n_plus_two, R_MOD)
+        let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
+        h_zeta := sub(R_MOD, h_zeta)
+        zeta_power_n_plus_two := mulmod(zeta_power_n_plus_two, h_zeta, R_MOD)
+        zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two_square, h_zeta, R_MOD)
+        mstore(mPtr, 0x00)
+        calldatacopy(add(mPtr, 0x10), add(aproof, PROOF_H_0_COM_X), 0x30)
+        mstore(add(mPtr, 0x40), 0x00)
+        calldatacopy(add(mPtr, 0x50), add(aproof, PROOF_H_0_COM_Y), 0x30)
+        mstore(add(mPtr, 0x80), h_zeta)
+        mstore(add(mPtr, 0xa0), 0x00)
+        calldatacopy(add(mPtr, 0xb0), add(aproof, PROOF_H_1_COM_X), 0x30)
+        mstore(add(mPtr, 0xe0), 0x00)
+        calldatacopy(add(mPtr, 0xf0), add(aproof, PROOF_H_1_COM_Y), 0x30)
+        mstore(add(mPtr, 0x120), zeta_power_n_plus_two)
+        mstore(add(mPtr, 0x140), 0x00)
+        calldatacopy(add(mPtr, 0x150), add(aproof, PROOF_H_2_COM_X), 0x30)
+        mstore(add(mPtr, 0x180), 0x00)
+        calldatacopy(add(mPtr, 0x190), add(aproof, PROOF_H_2_COM_Y), 0x30)
+        mstore(add(mPtr, 0x1c0), zeta_power_n_plus_two_square)
+        let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, 0x1e0, add(state, STATE_FOLDED_H), 0x80)
+        if iszero(l_success){
+          error_ec_op()
+        }
+      }
 
-    //   /// @notice check that the opening of the linearised polynomial at zeta is equal to
-    //   /// - [ PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ) ]
-    //   /// @param aproof pointer to the proof
-    //   function compute_opening_linearised_polynomial(aproof) {
+      /// @notice check that the opening of the linearised polynomial at zeta is equal to
+      /// - [ PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ) ]
+      /// @param aproof pointer to the proof
+      function compute_opening_linearised_polynomial(aproof) {
         
-    //     let state := mload(0x40)
+        let state := mload(0x40)
 
-    //     // (l(ζ)+β*s1(ζ)+γ)
-    //     let s1
-    //     s1 := mulmod(calldataload(add(aproof, PROOF_S1_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
-    //     s1 := addmod(s1, mload(add(state, STATE_GAMMA)), R_MOD)
-    //     s1 := addmod(s1, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
+        // (l(ζ)+β*s1(ζ)+γ)
+        let s1
+        s1 := mulmod(calldataload(add(aproof, PROOF_S1_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
+        s1 := addmod(s1, mload(add(state, STATE_GAMMA)), R_MOD)
+        s1 := addmod(s1, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
 
-    //     // (r(ζ)+β*s2(ζ)+γ)
-    //     let s2
-    //     s2 := mulmod(calldataload(add(aproof, PROOF_S2_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
-    //     s2 := addmod(s2, mload(add(state, STATE_GAMMA)), R_MOD)
-    //     s2 := addmod(s2, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
+        // (r(ζ)+β*s2(ζ)+γ)
+        let s2
+        s2 := mulmod(calldataload(add(aproof, PROOF_S2_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
+        s2 := addmod(s2, mload(add(state, STATE_GAMMA)), R_MOD)
+        s2 := addmod(s2, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
 
-    //     // (o(ζ)+γ)
-    //     let o
-    //     o := addmod(calldataload(add(aproof, PROOF_O_AT_ZETA)), mload(add(state, STATE_GAMMA)), R_MOD)
+        // (o(ζ)+γ)
+        let o
+        o := addmod(calldataload(add(aproof, PROOF_O_AT_ZETA)), mload(add(state, STATE_GAMMA)), R_MOD)
 
-    //     //  α*Z(μζ)*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-    //     s1 := mulmod(s1, s2, R_MOD)
-    //     s1 := mulmod(s1, o, R_MOD)
-    //     s1 := mulmod(s1, mload(add(state, STATE_ALPHA)), R_MOD)
-    //     s1 := mulmod(s1, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), R_MOD)
+        //  α*Z(μζ)*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
+        s1 := mulmod(s1, s2, R_MOD)
+        s1 := mulmod(s1, o, R_MOD)
+        s1 := mulmod(s1, mload(add(state, STATE_ALPHA)), R_MOD)
+        s1 := mulmod(s1, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), R_MOD)
 
-    //     // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
-    //     s1 := addmod(s1, mload(add(state, STATE_PI)), R_MOD)
-    //     s2 := mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0))
-    //     s2 := sub(R_MOD, s2)
-    //     s1 := addmod(s1, s2, R_MOD)
-    //     s1 := sub(R_MOD, s1)
+        // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+        s1 := addmod(s1, mload(add(state, STATE_PI)), R_MOD)
+        s2 := mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0))
+        s2 := sub(R_MOD, s2)
+        s1 := addmod(s1, s2, R_MOD)
+        s1 := sub(R_MOD, s1)
 
-    //     mstore(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA), s1)
-    //   }
+        mstore(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA), s1)
+      }
 
     //   // BEGINNING utils math functions -------------------------------------------------
       
