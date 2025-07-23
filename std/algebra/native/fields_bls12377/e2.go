@@ -182,6 +182,14 @@ func (e *E2) AssertIsEqual(api frontend.API, other E2) {
 	api.AssertIsEqual(e.A1, other.A1)
 }
 
+// IsEqual returns 1 if e is equal to other, 0 otherwise
+func (e *E2) IsEqual(api frontend.API, other E2) frontend.Variable {
+	return api.And(
+		api.IsZero(api.Sub(e.A0, other.A0)),
+		api.IsZero(api.Sub(e.A1, other.A1)),
+	)
+}
+
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E2) Select(api frontend.API, b frontend.Variable, r1, r2 E2) *E2 {
 

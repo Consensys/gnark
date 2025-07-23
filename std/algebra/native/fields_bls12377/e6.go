@@ -345,6 +345,17 @@ func (e *E6) AssertIsEqual(api frontend.API, other E6) {
 	e.B2.AssertIsEqual(api, other.B2)
 }
 
+// IsEqual returns 1 if e is equal to other, 0 otherwise
+func (e *E6) IsEqual(api frontend.API, other E6) frontend.Variable {
+	return api.And(
+		api.And(
+			e.B0.IsEqual(api, other.B0),
+			e.B1.IsEqual(api, other.B1),
+		),
+		e.B2.IsEqual(api, other.B2),
+	)
+}
+
 // MulByE2 multiplies an element in E6 by an element in E2
 func (e *E6) MulByE2(api frontend.API, e1 E6, e2 E2) *E6 {
 	e.B0.Mul(api, e1.B0, e2)
