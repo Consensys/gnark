@@ -147,8 +147,8 @@ contract PlonkVerifier {
   uint256 private constant STATE_FOLDED_DIGESTS = {{ hex $offset }};{{ $offset = add $offset 0x80}} // linearised poly, l, r, o, s_1, s_2, qcp
   uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant ZETA_POWER_N_PLUS_TWO = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant ZETA_POWER_N_PLUS_TWO_SQUARE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA_POWER_N_PLUS_TWO = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA_POWER_N_PLUS_TWO_SQUARE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_GAMMA_KZG = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}} // /!\ this slot is used for debugging only
@@ -1099,8 +1099,8 @@ contract PlonkVerifier {
       mstore(add(mPtr, {{ hex $offset }}), s1){{ $offset = add $offset 0xa0 }}
       mstore(add(mPtr, {{ hex $offset }}), coeffz){{ $offset = add $offset 0xa0 }}
       mstore(add(mPtr, {{ hex $offset }}), h_zeta){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, ZETA_POWER_N_PLUS_TWO))){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, ZETA_POWER_N_PLUS_TWO_SQUARE))){{ $offset = add $offset 0xa0 }}
+      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO))){{ $offset = add $offset 0xa0 }}
+      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO_SQUARE))){{ $offset = add $offset 0xa0 }}
       {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
       {{ $tmp := 0 }}
       for {let i := 0} lt(i, VK_NB_CUSTOM_GATES) {i := add(i, 1)} {
@@ -1193,14 +1193,14 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let n_plus_two := add(VK_DOMAIN_SIZE, 2)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
-        let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-        let zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two, zeta_power_n_plus_two, R_MOD)
+        let STATE_ZETA_POWER_N_PLUS_TWO := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
+        let STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, STATE_ZETA_POWER_N_PLUS_TWO, R_MOD)
         let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
         h_zeta := sub(R_MOD, h_zeta)
-        zeta_power_n_plus_two := mulmod(zeta_power_n_plus_two, h_zeta, R_MOD)
-        zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two_square, h_zeta, R_MOD)
-        mstore(add(state, ZETA_POWER_N_PLUS_TWO), zeta_power_n_plus_two)
-        mstore(add(state, ZETA_POWER_N_PLUS_TWO_SQUARE), zeta_power_n_plus_two_square)
+        STATE_ZETA_POWER_N_PLUS_TWO := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, h_zeta, R_MOD)
+        STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO_square, h_zeta, R_MOD)
+        mstore(add(state, STATE_ZETA_POWER_N_PLUS_TWO), STATE_ZETA_POWER_N_PLUS_TWO)
+        mstore(add(state, STATE_ZETA_POWER_N_PLUS_TWO_SQUARE), STATE_ZETA_POWER_N_PLUS_TWO_square)
       }
 
       /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
@@ -1210,18 +1210,18 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let n_plus_two := add(VK_DOMAIN_SIZE, 2)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
-        let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-        let zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two, zeta_power_n_plus_two, R_MOD)
+        let STATE_ZETA_POWER_N_PLUS_TWO := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
+        let STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, STATE_ZETA_POWER_N_PLUS_TWO, R_MOD)
         let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
         h_zeta := sub(R_MOD, h_zeta)
-        zeta_power_n_plus_two := mulmod(zeta_power_n_plus_two, h_zeta, R_MOD)
-        zeta_power_n_plus_two_square := mulmod(zeta_power_n_plus_two_square, h_zeta, R_MOD)
+        STATE_ZETA_POWER_N_PLUS_TWO := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, h_zeta, R_MOD)
+        STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO_square, h_zeta, R_MOD)
         store_point_calldata(mPtr, add(aproof, PROOF_H_0_COM_X))
         store_point_calldata(add(mPtr, 0xa0), add(aproof, PROOF_H_1_COM_X))
         store_point_calldata(add(mPtr, 0x140), add(aproof, PROOF_H_2_COM_X))
         mstore(add(mPtr, 0x80), h_zeta)
-        mstore(add(mPtr, 0x120), zeta_power_n_plus_two)
-        mstore(add(mPtr, 0x1c0), zeta_power_n_plus_two_square)
+        mstore(add(mPtr, 0x120), STATE_ZETA_POWER_N_PLUS_TWO)
+        mstore(add(mPtr, 0x1c0), STATE_ZETA_POWER_N_PLUS_TWO_square)
         let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, 0x1e0, add(state, STATE_FOLDED_H), 0x80)
         if iszero(l_success){
           error_ec_op()
