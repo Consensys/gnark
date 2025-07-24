@@ -227,7 +227,7 @@ contract PlonkVerifier {
       compute_commitment_linearised_polynomial(proof.offset)
       compute_opening_linearised_polynomial(proof.offset)
       compute_gamma_kzg(proof.offset)
-    //   fold_state(proof.offset)
+      fold_state(proof.offset)
     //   batch_verify_multi_points(proof.offset)
 
     //   success := mload(add(mem, STATE_SUCCESS))
@@ -942,61 +942,65 @@ contract PlonkVerifier {
     //     mstore(add(state, STATE_SUCCESS), res_pairing)
     //   }
 
-    //   /// @notice Fold the opening proofs at ζ:
-    //   /// * at state+state_folded_digest we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
-    //   /// * at state+state_folded_claimed_values we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
-    //   /// @param aproof pointer to the proof
-    //   /// acc_gamma stores the γⁱ
-    //   function fold_state(aproof) {
+    /// @notice Fold the opening proofs at ζ:
+    /// * at state+STATE_FOLDED_DIGEST we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
+    /// * at state+STATE_FOLDED_CLAIMED_VALUE we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
+    /// @param aproof pointer to the proof
+    /// acc_gamma stores the γⁱ
+    function fold_state(aproof) {
 
-    //     let state := mload(0x40)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
-    //     let mPtr20 := add(mPtr, 0x20)
-    //     let mPtr40 := add(mPtr, 0x40)
+      let state := mload(0x40)
+      let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
-    //     let l_gamma_kzg := mload(add(state, STATE_GAMMA_KZG))
-    //     let acc_gamma := l_gamma_kzg
-    //     let state_folded_digests := add(state, STATE_FOLDED_DIGESTS_X)
+      let l_gamma_kzg := mload(add(state, STATE_GAMMA_KZG))
+      let acc_gamma := l_gamma_kzg
 
-    //     mstore(state_folded_digests, mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
-    //     mstore(add(state, STATE_FOLDED_DIGESTS_Y), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
-    //     mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
+      {{ $offset = 0x00 }}
+      mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
+      mcopy(mPtr, add(state, STATE_LINEARISED_POLYNOMIAL), 0x80){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), 1){{ $offset = add $offset 0x20 }}
 
-    //     point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
+      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X)){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+      
+      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_R_AT_ZETA), acc_gamma)
+      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_R_COM_X)){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
 
-    //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-    //     point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_R_COM_X), acc_gamma, mPtr)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_R_AT_ZETA), acc_gamma)
+      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_O_AT_ZETA), acc_gamma)
+      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_O_COM_X)){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
 
-    //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-    //     point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_O_COM_X), acc_gamma, mPtr)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_O_AT_ZETA), acc_gamma)
+      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S1_AT_ZETA), acc_gamma)
+      store_point(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi, VK_S1_COM_X_lo, VK_S1_COM_Y_hi, VK_S1_COM_Y_lo){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
 
-    //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-    //     mstore(mPtr, VK_S1_COM_X)
-    //     mstore(mPtr20, VK_S1_COM_Y)
-    //     point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S1_AT_ZETA), acc_gamma)
+      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
+      store_point(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi, VK_S2_COM_X_lo, VK_S2_COM_Y_hi, VK_S2_COM_Y_lo){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
 
-    //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-    //     mstore(mPtr, VK_S2_COM_X)
-    //     mstore(mPtr20, VK_S2_COM_Y)
-    //     point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
-
-    //     {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 ) }}
-    //     let poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
-    //     {{ range $index, $element := .Vk.CommitmentConstraintIndexes }}
-    //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-    //     mstore(mPtr, VK_QCP_{{ $index }}_X)
-    //     mstore(mPtr20, VK_QCP_{{ $index }}_Y)
-    //     point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
-    //     fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), poqaz, acc_gamma)
-    //     poqaz := add(poqaz, 0x20)
-    //     {{ end }}
-    //     {{ end -}}
-    //   }
+      {{ if (gt (len .Vk.CommitmentConstraintIndexes ) 1 ) }}
+      {{- $offsetValues := 0x00 }}
+      {{- $offsetComs := 0x00 }}
+      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, add(PROOF_OPENING_QCP_AT_ZETA, {{ hex $offsetValues }})), acc_gamma){{ $offsetValues = add $offsetValues 0x20 }}
+      store_point(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi, VK_QCP_{{ $index }}_X_lo, VK_QCP_{{ $index }}_Y_hi, VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x80 }}
+      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+      {{ end -}}
+      {{ end }}
+       
+      let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, {{ hex $offset }}, add(state, STATE_FOLDED_DIGESTS), 0x80)
+      if iszero(l_success){
+        error_ec_op()
+      }
+      
+    }
 
     /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
     /// at ζ.
@@ -1354,14 +1358,14 @@ contract PlonkVerifier {
     //     }
     //   }
 
-    //   /// @notice dst <- dst + src*s (Fr) dst,src are addresses, s is a value
-    //   /// @param dst pointer storing the result
-    //   /// @param src pointer to the scalar to multiply and add (on calldata)
-    //   /// @param s scalar
-    //   function fr_acc_mul_calldata(dst, src, s) {
-    //     let tmp :=  mulmod(calldataload(src), s, R_MOD)
-    //     mstore(dst, addmod(mload(dst), tmp, R_MOD))
-    //   }
+      /// @notice dst <- dst + src*s (Fr) dst,src are addresses, s is a value
+      /// @param dst pointer storing the result
+      /// @param src pointer to the scalar to multiply and add (on calldata)
+      /// @param s scalar
+      function fr_acc_mul_calldata(dst, src, s) {
+        let tmp :=  mulmod(calldataload(src), s, R_MOD)
+        mstore(dst, addmod(mload(dst), tmp, R_MOD))
+      }
 
       /// @param x element to exponentiate
       /// @param e exponent
