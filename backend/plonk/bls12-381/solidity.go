@@ -226,7 +226,7 @@ contract PlonkVerifier {
       compute_zeta_powers_n_plus_two()
       compute_commitment_linearised_polynomial(proof.offset)
       compute_opening_linearised_polynomial(proof.offset)
-    //   compute_gamma_kzg(proof.offset)
+      compute_gamma_kzg(proof.offset)
     //   fold_state(proof.offset)
     //   batch_verify_multi_points(proof.offset)
 
@@ -998,69 +998,77 @@ contract PlonkVerifier {
     //     {{ end -}}
     //   }
 
-    //   /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
-    //   /// at ζ.
-    //   /// The process for deriving γ is the same as in derive_gamma but this time the inputs are
-    //   /// in this order (the [] means it's a commitment):
-    //   /// * ζ
-    //   /// * [Linearised polynomial]
-    //   /// * [L], [R], [O]
-    //   /// * [S₁] [S₂]
-    //   /// * [Pi_{i}] (wires associated to custom gates)
-    //   /// Then there are the purported evaluations of the previous committed polynomials:
-    //   /// * Linearised_polynomial(ζ)
-    //   /// * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
-    //   /// * Pi_{i}(ζ)
-    //   /// * Z(ζω)
-    //   /// @param aproof pointer to the proof
-    //   function compute_gamma_kzg(aproof) {
+    /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
+    /// at ζ.
+    /// The process for deriving γ is the same as in derive_gamma but this time the inputs are
+    /// in this order (the [] means it's a commitment):
+    /// * ζ
+    /// * [Linearised polynomial]
+    /// * [L], [R], [O]
+    /// * [S₁] [S₂]
+    /// * [Pi_{i}] (wires associated to custom gates)
+    /// Then there are the purported evaluations of the previous committed polynomials:
+    /// * Linearised_polynomial(ζ)
+    /// * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
+    /// * Pi_{i}(ζ)
+    /// * Z(ζω)
+    /// @param aproof pointer to the proof
+    function compute_gamma_kzg(aproof) {
 
-    //     let state := mload(0x40)
-    //     let mPtr := add(mload(0x40), STATE_LAST_MEM)
-    //     mstore(mPtr, FS_GAMMA_KZG) // "gamma"
-    //     mstore(add(mPtr, 0x20), mload(add(state, STATE_ZETA)))
-    //     mstore(add(mPtr,0x40), mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
-    //     mstore(add(mPtr,0x60), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
-    //     calldatacopy(add(mPtr, 0x80), add(aproof, PROOF_L_COM_X), 0xc0)
-    //     mstore(add(mPtr,0x140), VK_S1_COM_X)
-    //     mstore(add(mPtr,0x160), VK_S1_COM_Y)
-    //     mstore(add(mPtr,0x180), VK_S2_COM_X)
-    //     mstore(add(mPtr,0x1a0), VK_S2_COM_Y)
-        
-    //     let offset := 0x1c0
-        
-    //     {{ range $index, $element := .Vk.CommitmentConstraintIndexes -}}
-    //     mstore(add(mPtr,offset), VK_QCP_{{ $index }}_X)
-    //     mstore(add(mPtr,add(offset, 0x20)), VK_QCP_{{ $index }}_Y)
-    //     offset := add(offset, 0x40)
-    //     {{ end -}}
-        
-    //     mstore(add(mPtr, offset), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
-    //     mstore(add(mPtr, add(offset, 0x20)), calldataload(add(aproof, PROOF_L_AT_ZETA)))
-    //     mstore(add(mPtr, add(offset, 0x40)), calldataload(add(aproof, PROOF_R_AT_ZETA)))
-    //     mstore(add(mPtr, add(offset, 0x60)), calldataload(add(aproof, PROOF_O_AT_ZETA)))
-    //     mstore(add(mPtr, add(offset, 0x80)), calldataload(add(aproof, PROOF_S1_AT_ZETA)))
-    //     mstore(add(mPtr, add(offset, 0xa0)), calldataload(add(aproof, PROOF_S2_AT_ZETA)))
+      let state := mload(0x40)
+      let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
-    //     let _mPtr := add(mPtr, add(offset, 0xc0))
+      {{ $offset = 0x1b0 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi){{ $offset = add $offset 0x30 }}
+      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi){{ $offset = add $offset 0x30 }}
+      {{ end -}}
+      {{ $offset = 0x1d0 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo){{ $offset = add $offset 0x30 }}
+      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo){{ $offset = add $offset 0x30 }}
+      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x30 }}
+      {{ end -}}
+      {{ $tmp := sub $offset 0x10 }}
 
-    //     {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-    //     let _poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
-    //     calldatacopy(_mPtr, _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
-    //     _mPtr := add(_mPtr, mul(VK_NB_CUSTOM_GATES, 0x20))
-    //     {{ end }}
+      {{ $offset = 0 }}
+      mstore(mPtr, FS_GAMMA_KZG) // "gamma" {{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA))){{ $offset = add $offset 0x20 }}
+      mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x10)), 0x30){{ $offset = add $offset 0x30 }}
+      mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x50)), 0x30){{ $offset = add $offset 0x30 }}
+      calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X), 0x120)
+      
+      {{ $offset = $tmp }}
+      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA))) {{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_L_AT_ZETA))){{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_R_AT_ZETA))){{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_O_AT_ZETA))){{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S1_AT_ZETA))){{ $offset = add $offset 0x20 }}
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S2_AT_ZETA))){{ $offset = add $offset 0x20 }}
 
-    //     mstore(_mPtr, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)))
+      {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+      let _poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+      calldatacopy(add(mPtr, {{ hex $offset }}), _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
+      {{ $offset = add $offset ( mul (len .Vk.CommitmentConstraintIndexes) 0x20 ) }}
+      {{ end -}}
 
-    //     let start_input := 0x1b // 00.."gamma"
-    //     let size_input := add(0x14, mul(VK_NB_CUSTOM_GATES,3)) // number of 32bytes elmts = 0x14 (zeta+3*6 for the digests+openings) + 3*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + 1 (opening of Z at ζω)
-    //     size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-    //     let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
-    //     if iszero(check_staticcall) {
-    //       error_verify()
-    //     }
-    //     mstore(add(state, STATE_GAMMA_KZG), mod(mload(add(state, STATE_GAMMA_KZG)), R_MOD))
-    //   }
+      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA))){{ $offset = add $offset 0x20 }}
+
+      let start_input := 0x1b // 00.."gamma"
+      {{ $offset = add (sub $offset 0x20 ) 0x5 }}
+      let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), {{ hex $offset }}, add(state, STATE_GAMMA_KZG), 0x20)
+      if iszero(check_staticcall) {
+        error_verify()
+      }
+      mstore(add(state, STATE_GAMMA_KZG), mod(mload(add(state, STATE_GAMMA_KZG)), R_MOD))
+    }
 
     /// @notice Compute the commitment to the linearized polynomial equal to
     ///	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
@@ -1135,12 +1143,12 @@ contract PlonkVerifier {
       store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_1_COM_X)){{ $offset = add $offset 0xa0 }}
       store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_2_COM_X)){{ $offset = add $offset 0xa0 }}
       {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-      {{- $tmp := 0 }}
+      {{- $tmp = 0 }}
       {{- range .Vk.Qcp}}
       store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_BSB_COMMITMENTS, {{ hex $tmp }}))){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x60 }}
       {{- end }}
       {{- end }}
-      
+
       let l := calldataload(add(aproof, PROOF_L_AT_ZETA))
       let r := calldataload(add(aproof, PROOF_R_AT_ZETA))
       let rl := mulmod(l, r, R_MOD)
@@ -1210,31 +1218,6 @@ contract PlonkVerifier {
         mstore(add(state, STATE_ZETA_POWER_N_PLUS_TWO), zeta_power_n_plus_two)
         mstore(add(state, STATE_ZETA_POWER_N_PLUS_TWO_SQUARE), zeta_power_n_plus_two_square)
       }
-
-      /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
-      /// state + state_folded_h
-      /// @param aproof pointer to the proof
-      // function fold_h(aproof) {
-      //   let state := mload(0x40)
-      //   let n_plus_two := add(VK_DOMAIN_SIZE, 2)
-      //   let mPtr := add(mload(0x40), STATE_LAST_MEM)
-      //   let STATE_ZETA_POWER_N_PLUS_TWO := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-      //   let STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, STATE_ZETA_POWER_N_PLUS_TWO, R_MOD)
-      //   let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
-      //   h_zeta := sub(R_MOD, h_zeta)
-      //   STATE_ZETA_POWER_N_PLUS_TWO := mulmod(STATE_ZETA_POWER_N_PLUS_TWO, h_zeta, R_MOD)
-      //   STATE_ZETA_POWER_N_PLUS_TWO_square := mulmod(STATE_ZETA_POWER_N_PLUS_TWO_square, h_zeta, R_MOD)
-      //   store_point_calldata(mPtr, add(aproof, PROOF_H_0_COM_X))
-      //   store_point_calldata(add(mPtr, 0xa0), add(aproof, PROOF_H_1_COM_X))
-      //   store_point_calldata(add(mPtr, 0x140), add(aproof, PROOF_H_2_COM_X))
-      //   mstore(add(mPtr, 0x80), h_zeta)
-      //   mstore(add(mPtr, 0x120), STATE_ZETA_POWER_N_PLUS_TWO)
-      //   mstore(add(mPtr, 0x1c0), STATE_ZETA_POWER_N_PLUS_TWO_square)
-      //   let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, 0x1e0, add(state, STATE_FOLDED_H), 0x80)
-      //   if iszero(l_success){
-      //     error_ec_op()
-      //   }
-      // }
 
       /// @notice check that the opening of the linearised polynomial at zeta is equal to
       /// - [ PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ) ]
