@@ -128,7 +128,7 @@ contract PlonkVerifier {
   uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = {{ hex $offset }};{{ $offset = add $offset 0x30}}
   uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = {{ hex $offset }};{{ $offset = add $offset 0x30}}
 
-  uint256 private constant PROOF_OPENING_QCP_AT_ZETA = {{ hex $offset }};
+  uint256 private constant PROOF_QCP_AT_ZETA = {{ hex $offset }};
   uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .Vk.CommitmentConstraintIndexes) 0x20 ) )}};
 
   // -------- offset state
@@ -397,9 +397,9 @@ contract PlonkVerifier {
     //       error_proof_openings_size()
     //     }
 
-    //     // PROOF_OPENING_QCP_AT_ZETA
+    //     // PROOF_QCP_AT_ZETA
         
-    //     p := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+    //     p := add(aproof, PROOF_QCP_AT_ZETA)
     //     for {let i:=0} lt(i, VK_NB_CUSTOM_GATES) {i:=add(i,1)}
     //     {
     //       if gt(calldataload(p), R_MOD_MINUS_ONE) {
@@ -989,7 +989,7 @@ contract PlonkVerifier {
       {{- $offsetComs := 0x00 }}
       {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
       acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, add(PROOF_OPENING_QCP_AT_ZETA, {{ hex $offsetValues }})), acc_gamma){{ $offsetValues = add $offsetValues 0x20 }}
+      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $offsetValues }})), acc_gamma){{ $offsetValues = add $offsetValues 0x20 }}
       store_point(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi, VK_QCP_{{ $index }}_X_lo, VK_QCP_{{ $index }}_Y_hi, VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x80 }}
       mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
       {{ end -}}
@@ -1058,7 +1058,7 @@ contract PlonkVerifier {
       mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S2_AT_ZETA))){{ $offset = add $offset 0x20 }}
 
       {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-      let _poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+      let _poqaz := add(aproof, PROOF_QCP_AT_ZETA)
       calldatacopy(add(mPtr, {{ hex $offset }}), _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
       {{ $offset = add $offset ( mul (len .Vk.CommitmentConstraintIndexes) 0x20 ) }}
       {{ end -}}
@@ -1173,7 +1173,7 @@ contract PlonkVerifier {
       {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
       {{- $tmp := 0 }}
       {{- range .Vk.Qcp}}
-      calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_OPENING_QCP_AT_ZETA, {{ hex $tmp }})), 0x20){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x20 }}
+      calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $tmp }})), 0x20){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x20 }}
       {{- end }}
       {{- end }}
       {{ $offset = sub $offset 0x80 }}
