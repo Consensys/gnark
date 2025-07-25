@@ -194,9 +194,9 @@ contract PlonkVerifier {
       let mem := mload(0x40)
       let freeMem := add(mem, STATE_LAST_MEM)
 
-    //   // sanity checks
-    //   check_number_of_public_inputs(public_inputs.length)
-    //   check_inputs_size(public_inputs.length, public_inputs.offset)
+      // sanity checks
+      check_number_of_public_inputs(public_inputs.length)
+      check_inputs_size(public_inputs.length, public_inputs.offset)
     //   check_proof_size(proof.length)
     //   check_proof_openings_size(proof.offset)
 
@@ -231,14 +231,14 @@ contract PlonkVerifier {
 
     //   // Beginning errors -------------------------------------------------
 
-    //   function error_nb_public_inputs() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x1d)
-    //     mstore(add(ptError, 0x44), "wrong number of public inputs")
-    //     revert(ptError, 0x64)
-    //   }
+      function error_nb_public_inputs() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x1d)
+        mstore(add(ptError, 0x44), "wrong number of public inputs")
+        revert(ptError, 0x64)
+      }
 
       /// Called when an exponentiation mod r fails
       function error_mod_exp() {
@@ -261,15 +261,15 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-    //   /// Called when one of the public inputs is not reduced.
-    //   function error_inputs_size() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x18)
-    //     mstore(add(ptError, 0x44), "inputs are bigger than r")
-    //     revert(ptError, 0x64)
-    //   }
+      /// Called when one of the public inputs is not reduced.
+      function error_inputs_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x18)
+        mstore(add(ptError, 0x44), "inputs are bigger than r")
+        revert(ptError, 0x64)
+      }
 
     //   /// Called when the size proof is not as expected
     //   /// @dev to avoid overflow attack for instance
@@ -324,25 +324,25 @@ contract PlonkVerifier {
 
     //   // Beginning checks -------------------------------------------------
       
-    //   /// @param s actual number of public inputs
-    //   function check_number_of_public_inputs(s) {
-    //     if iszero(eq(s, VK_NB_PUBLIC_INPUTS)) {
-    //       error_nb_public_inputs()
-    //     }
-    //   }
+      /// @param s actual number of public inputs
+      function check_number_of_public_inputs(s) {
+        if iszero(eq(s, VK_NB_PUBLIC_INPUTS)) {
+          error_nb_public_inputs()
+        }
+      }
     
-    //   /// Checks that the public inputs are < R_MOD.
-    //   /// @param s number of public inputs
-    //   /// @param p pointer to the public inputs array
-    //   function check_inputs_size(s, p) {
-    //     for {let i} lt(i, s) {i:=add(i,1)}
-    //     {
-    //       if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //         error_inputs_size()
-    //       }
-    //       p := add(p, 0x20)
-    //     }
-    //   }
+      /// Checks that the public inputs are < R_MOD.
+      /// @param s number of public inputs
+      /// @param p pointer to the public inputs array
+      function check_inputs_size(s, p) {
+        for {let i} lt(i, s) {i:=add(i,1)}
+        {
+          if gt(calldataload(p), R_MOD_MINUS_ONE) {
+            error_inputs_size()
+          }
+          p := add(p, 0x20)
+        }
+      }
 
     //   /// Checks if the proof is of the correct size
     //   /// @param actual_proof_size size of the proof (not the expected size)
