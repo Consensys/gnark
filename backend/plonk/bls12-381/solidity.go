@@ -312,15 +312,15 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-    //   function error_random_generation() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x14)
-    //     mstore(add(ptError, 0x44), "error random gen kzg")
-    //     revert(ptError, 0x64)
-    //   }
-    //   // end errors -------------------------------------------------
+      function error_random_generation() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x14)
+        mstore(add(ptError, 0x44), "error random gen kzg")
+        revert(ptError, 0x64)
+      }
+      // end errors -------------------------------------------------
 
       // Beginning checks -------------------------------------------------
       
@@ -850,22 +850,18 @@ contract PlonkVerifier {
         // do an FS like challenge derivation, depending on both digests and
         // ζ to ensure that the prover cannot control the random number.
         // Note: adding the other point ζω is not needed, as ω is known beforehand.
-        // mstore(mPtr, mload(add(state, STATE_FOLDED_DIGESTS_X)))
-        // mstore(add(mPtr, 0x20), mload(add(state, STATE_FOLDED_DIGESTS_Y)))
-        // mstore(add(mPtr, 0x40), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X)))
-        // mstore(add(mPtr, 0x60), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_Y)))
-        // mstore(add(mPtr, 0x80), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)))
-        // mstore(add(mPtr, 0xa0), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_Y)))
-        // mstore(add(mPtr, 0xc0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X)))
-        // mstore(add(mPtr, 0xe0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_Y)))
-        // mstore(add(mPtr, 0x100), mload(add(state, STATE_ZETA)))
-        // mstore(add(mPtr, 0x120), mload(add(state, STATE_GAMMA_KZG)))
-        // let random := staticcall(gas(), SHA2, mPtr, 0x140, mPtr, 0x20)
-        // if iszero(random){
-        //   error_random_generation()
-        // }
-        // random := mod(mload(mPtr), R_MOD) // use the same variable as we are one variable away from getting stack-too-deep error...
-        let random := 5
+        {{ $offset = 0 }}
+        mcopy(mPtr, add(state, STATE_FOLDED_DIGESTS), 0x80){{ $offset = add $offset 0x60 }}
+        calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X), 0x60){{ $offset = add $offset 0x60 }}
+        calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x60){{ $offset = add $offset 0x60 }}
+        calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X), 0x60){{ $offset = add $offset 0x60 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA))){{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_GAMMA_KZG))){{ $offset = add $offset 0x20 }}
+        let random := staticcall(gas(), SHA2, mPtr, {{ $offset }}, mPtr, 0x20){{ $offset = add $offset 0x20 }}
+        if iszero(random){
+          error_random_generation()
+        }
+        random := mod(mload(mPtr), R_MOD)
 
         let folded_evals := add(state, STATE_FOLDED_CLAIMED_VALUES)
         fr_acc_mul_calldata(folded_evals, add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA), random)
