@@ -87,7 +87,7 @@ contract PlonkVerifier {
   // ------------------------------------------------
 
   // size of the proof without call custom gate
-  uint256 private constant FIXED_PROOF_SIZE = 0x300;
+  uint256 private constant FIXED_PROOF_SIZE = 0x420;
 
   // offset proof
   {{ $offset := 0 }}
@@ -197,8 +197,8 @@ contract PlonkVerifier {
       // sanity checks
       check_number_of_public_inputs(public_inputs.length)
       check_inputs_size(public_inputs.length, public_inputs.offset)
-    //   check_proof_size(proof.length)
-    //   check_proof_openings_size(proof.offset)
+      check_proof_size(proof.length)
+      check_proof_openings_size(proof.offset)
 
     //   // compute the challenges
       let prev_challenge_non_reduced
@@ -271,28 +271,28 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-    //   /// Called when the size proof is not as expected
-    //   /// @dev to avoid overflow attack for instance
-    //   function error_proof_size() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x10)
-    //     mstore(add(ptError, 0x44), "wrong proof size")
-    //     revert(ptError, 0x64)
-    //   }
+      /// Called when the size proof is not as expected
+      /// @dev to avoid overflow attack for instance
+      function error_proof_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x10)
+        mstore(add(ptError, 0x44), "wrong proof size")
+        revert(ptError, 0x64)
+      }
 
-    //   /// Called when one the openings is bigger than r
-    //   /// The openings are the claimed evalutions of a polynomial
-    //   /// in a Kzg proof.
-    //   function error_proof_openings_size() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0x16)
-    //     mstore(add(ptError, 0x44), "openings bigger than r")
-    //     revert(ptError, 0x64)
-    //   }
+      /// Called when one the openings is bigger than r
+      /// The openings are the claimed evalutions of a polynomial
+      /// in a Kzg proof.
+      function error_proof_openings_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x16)
+        mstore(add(ptError, 0x44), "openings bigger than r")
+        revert(ptError, 0x64)
+      }
 
       function error_pairing() {
         let ptError := mload(0x40)
@@ -322,7 +322,7 @@ contract PlonkVerifier {
     //   }
     //   // end errors -------------------------------------------------
 
-    //   // Beginning checks -------------------------------------------------
+      // Beginning checks -------------------------------------------------
       
       /// @param s actual number of public inputs
       function check_number_of_public_inputs(s) {
@@ -344,69 +344,69 @@ contract PlonkVerifier {
         }
       }
 
-    //   /// Checks if the proof is of the correct size
-    //   /// @param actual_proof_size size of the proof (not the expected size)
-    //   function check_proof_size(actual_proof_size) {
-    //     let expected_proof_size := add(FIXED_PROOF_SIZE, mul(VK_NB_CUSTOM_GATES,0x60))
-    //     if iszero(eq(actual_proof_size, expected_proof_size)) {
-    //      error_proof_size() 
-    //     }
-    //   }
+      /// Checks if the proof is of the correct size
+      /// @param actual_proof_size size of the proof (not the expected size)
+      function check_proof_size(actual_proof_size) {
+        let expected_proof_size := add(FIXED_PROOF_SIZE, mul(VK_NB_CUSTOM_GATES,0x80))
+        if iszero(eq(actual_proof_size, expected_proof_size)) {
+         error_proof_size() 
+        }
+      }
     
-    //   /// Checks if the multiple openings of the polynomials are < R_MOD.
-    //   /// @param aproof pointer to the beginning of the proof
-    //   /// @dev the 'a' prepending proof is to have a local name
-    //   function check_proof_openings_size(aproof) {
+      /// Checks if the multiple openings of the polynomials are < R_MOD.
+      /// @param aproof pointer to the beginning of the proof
+      /// @dev the 'a' prepending proof is to have a local name
+      function check_proof_openings_size(aproof) {
         
-    //     // PROOF_L_AT_ZETA
-    //     let p := add(aproof, PROOF_L_AT_ZETA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_L_AT_ZETA
+        let p := add(aproof, PROOF_L_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
-    //     // PROOF_R_AT_ZETA
-    //     p := add(aproof, PROOF_R_AT_ZETA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_R_AT_ZETA
+        p := add(aproof, PROOF_R_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
-    //     // PROOF_O_AT_ZETA
-    //     p := add(aproof, PROOF_O_AT_ZETA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_O_AT_ZETA
+        p := add(aproof, PROOF_O_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
-    //     // PROOF_S1_AT_ZETA
-    //     p := add(aproof, PROOF_S1_AT_ZETA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_S1_AT_ZETA
+        p := add(aproof, PROOF_S1_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
         
-    //     // PROOF_S2_AT_ZETA
-    //     p := add(aproof, PROOF_S2_AT_ZETA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_S2_AT_ZETA
+        p := add(aproof, PROOF_S2_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
-    //     // PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA
-    //     p := add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)
-    //     if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //       error_proof_openings_size()
-    //     }
+        // PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA
+        p := add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
-    //     // PROOF_QCP_AT_ZETA
+        // PROOF_QCP_AT_ZETA
         
-    //     p := add(aproof, PROOF_QCP_AT_ZETA)
-    //     for {let i:=0} lt(i, VK_NB_CUSTOM_GATES) {i:=add(i,1)}
-    //     {
-    //       if gt(calldataload(p), R_MOD_MINUS_ONE) {
-    //         error_proof_openings_size()
-    //       }
-    //       p := add(p, 0x20)
-    //     }
+        p := add(aproof, PROOF_QCP_AT_ZETA)
+        for {let i:=0} lt(i, VK_NB_CUSTOM_GATES) {i:=add(i,1)}
+        {
+          if gt(calldataload(p), R_MOD_MINUS_ONE) {
+            error_proof_openings_size()
+          }
+          p := add(p, 0x20)
+        }
 
-    //   }
-    //   // end checks -------------------------------------------------
+      }
+      // end checks -------------------------------------------------
 
     //   // Beginning challenges -------------------------------------------------
 
