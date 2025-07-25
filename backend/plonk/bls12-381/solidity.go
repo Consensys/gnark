@@ -25,14 +25,14 @@ contract PlonkVerifier {
   uint256 private constant R_MOD = 52435875175126190479447740508185965837690552500527637822603658699938581184513;
   uint256 private constant R_MOD_MINUS_ONE = 52435875175126190479447740508185965837690552500527637822603658699938581184512;
   {{ range $index, $element := .Vk.Kzg.G2 }}
-  uint256 private constant G2_SRS_{{ $index }}_X_0_lo = {{ (fpstr_lo $element.X.A1) }};
-	uint256 private constant G2_SRS_{{ $index }}_X_0_hi = {{ (fpstr_hi $element.X.A1) }};
-  uint256 private constant G2_SRS_{{ $index }}_X_1_lo = {{ (fpstr_lo $element.X.A0) }};
-  uint256 private constant G2_SRS_{{ $index }}_X_1_hi = {{ (fpstr_hi $element.X.A0) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_0_lo = {{ (fpstr_lo $element.Y.A1) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_0_hi = {{ (fpstr_hi $element.Y.A1) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_1_lo = {{ (fpstr_lo $element.Y.A0) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_1_hi = {{ (fpstr_hi $element.Y.A0) }};
+  uint256 private constant G2_SRS_{{ $index }}_X_0_lo = {{ (fpstr_lo $element.X.A0) }};
+	uint256 private constant G2_SRS_{{ $index }}_X_0_hi = {{ (fpstr_hi $element.X.A0) }};
+  uint256 private constant G2_SRS_{{ $index }}_X_1_lo = {{ (fpstr_lo $element.X.A1) }};
+  uint256 private constant G2_SRS_{{ $index }}_X_1_hi = {{ (fpstr_hi $element.X.A1) }};
+  uint256 private constant G2_SRS_{{ $index }}_Y_0_lo = {{ (fpstr_lo $element.Y.A0) }};
+  uint256 private constant G2_SRS_{{ $index }}_Y_0_hi = {{ (fpstr_hi $element.Y.A0) }};
+  uint256 private constant G2_SRS_{{ $index }}_Y_1_lo = {{ (fpstr_lo $element.Y.A1) }};
+  uint256 private constant G2_SRS_{{ $index }}_Y_1_hi = {{ (fpstr_hi $element.Y.A1) }};
   {{ end }}
   uint256 private constant G1_SRS_X_lo = {{ fpstr_lo .Vk.Kzg.G1.X }};
 	uint256 private constant G1_SRS_X_hi = {{ fpstr_hi .Vk.Kzg.G1.X }};
@@ -179,8 +179,7 @@ contract PlonkVerifier {
   uint8 private constant MOD_EXP = 0x5;
   uint8 private constant EC_ADD = 0x6;
   uint8 private constant BLS12_MSM_G1 = 0x0c;
-
-  event PrintUint256(uint256 x);
+  uint8 private constant BLS12_PAIR = 0x0f;
   
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -188,9 +187,8 @@ contract PlonkVerifier {
   /// @param public_inputs (must be reduced)
   /// @return success true if the proof passes false otherwise
   function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
-  public returns(bool success) {
+  public view returns(bool success) {
 
-    uint256 check;
     assembly {
 
       let mem := mload(0x40)
@@ -228,9 +226,8 @@ contract PlonkVerifier {
       compute_opening_linearised_polynomial(proof.offset)
       compute_gamma_kzg(proof.offset)
       fold_state(proof.offset)
-    //   batch_verify_multi_points(proof.offset)
-
-    //   success := mload(add(mem, STATE_SUCCESS))
+      batch_verify_multi_points(proof.offset)
+      success := mload(add(mem, STATE_SUCCESS))
 
     //   // Beginning errors -------------------------------------------------
 
@@ -297,14 +294,14 @@ contract PlonkVerifier {
     //     revert(ptError, 0x64)
     //   }
 
-    //   function error_pairing() {
-    //     let ptError := mload(0x40)
-    //     mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-    //     mstore(add(ptError, 0x4), 0x20)
-    //     mstore(add(ptError, 0x24), 0xd)
-    //     mstore(add(ptError, 0x44), "error pairing")
-    //     revert(ptError, 0x64)
-    //   }
+      function error_pairing() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xd)
+        mstore(add(ptError, 0x44), "error pairing")
+        revert(ptError, 0x64)
+      }
 
       function error_verify() {
         let ptError := mload(0x40)
@@ -839,350 +836,319 @@ contract PlonkVerifier {
         mstore(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0), res)
       }
 
-    //   /// @notice follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
-    //   /// with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
-    //   /// * [state_folded_state_digests], [proof_batch_opening_at_zeta_x], state_folded_evals
-    //   /// * [proof_grand_product_commitment], [proof_opening_at_zeta_omega_x], [proof_grand_product_at_zeta_omega]
-    //   /// @param aproof pointer to the proof
-    //   function batch_verify_multi_points(aproof) {
-    //     let state := mload(0x40)
-    //     let mPtr := add(state, STATE_LAST_MEM)
-
-    //     // derive a random number. As there is no random generator, we
-    //     // do an FS like challenge derivation, depending on both digests and
-    //     // ζ to ensure that the prover cannot control the random number.
-    //     // Note: adding the other point ζω is not needed, as ω is known beforehand.
-    //     mstore(mPtr, mload(add(state, STATE_FOLDED_DIGESTS_X)))
-    //     mstore(add(mPtr, 0x20), mload(add(state, STATE_FOLDED_DIGESTS_Y)))
-    //     mstore(add(mPtr, 0x40), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X)))
-    //     mstore(add(mPtr, 0x60), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_Y)))
-    //     mstore(add(mPtr, 0x80), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)))
-    //     mstore(add(mPtr, 0xa0), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_Y)))
-    //     mstore(add(mPtr, 0xc0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X)))
-    //     mstore(add(mPtr, 0xe0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_Y)))
-    //     mstore(add(mPtr, 0x100), mload(add(state, STATE_ZETA)))
-    //     mstore(add(mPtr, 0x120), mload(add(state, STATE_GAMMA_KZG)))
-    //     let random := staticcall(gas(), SHA2, mPtr, 0x140, mPtr, 0x20)
-    //     if iszero(random){
-    //       error_random_generation()
-    //     }
-    //     random := mod(mload(mPtr), R_MOD) // use the same variable as we are one variable away from getting stack-too-deep error...
-
-    //     let folded_quotients := mPtr
-    //     mPtr := add(folded_quotients, 0x40)
-    //     mstore(folded_quotients, calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X)))
-    //     mstore(add(folded_quotients, 0x20), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_Y)))
-    //     point_acc_mul_calldata(folded_quotients, add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X), random, mPtr)
-
-    //     let folded_digests := add(state, STATE_FOLDED_DIGESTS_X)
-    //     point_acc_mul_calldata(folded_digests, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), random, mPtr)
-
-    //     let folded_evals := add(state, STATE_FOLDED_CLAIMED_VALUES)
-    //     fr_acc_mul_calldata(folded_evals, add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA), random)
-
-    //     let folded_evals_commit := mPtr
-    //     mPtr := add(folded_evals_commit, 0x40)
-    //     mstore(folded_evals_commit, G1_SRS_X)
-    //     mstore(add(folded_evals_commit, 0x20), G1_SRS_Y)
-    //     mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
-    //     let check_staticcall := staticcall(gas(), 7, folded_evals_commit, 0x60, folded_evals_commit, 0x40)
-    //     if iszero(check_staticcall) {
-    //       error_verify()
-    //     }
-
-    //     let folded_evals_commit_y := add(folded_evals_commit, 0x20)
-    //     mstore(folded_evals_commit_y, sub(P_MOD, mload(folded_evals_commit_y)))
-    //     point_add(folded_digests, folded_digests, folded_evals_commit, mPtr)
-
-    //     let folded_points_quotients := mPtr
-    //     mPtr := add(mPtr, 0x40)
-    //     point_mul_calldata(
-    //       folded_points_quotients,
-    //       add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X),
-    //       mload(add(state, STATE_ZETA)),
-    //       mPtr
-    //     )
-    //     let zeta_omega := mulmod(mload(add(state, STATE_ZETA)), VK_OMEGA, R_MOD)
-    //     random := mulmod(random, zeta_omega, R_MOD)
-    //     point_acc_mul_calldata(folded_points_quotients, add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X), random, mPtr)
-
-    //     point_add(folded_digests, folded_digests, folded_points_quotients, mPtr)
-
-    //     let folded_quotients_y := add(folded_quotients, 0x20)
-    //     mstore(folded_quotients_y, sub(P_MOD, mload(folded_quotients_y)))
-
-    //     mstore(mPtr, mload(folded_digests))
-    //     {{ $offset = 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), mload(add(folded_digests, 0x20))) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_X_0) {{ $offset = add $offset 0x20 }} // the 4 lines are the canonical G2 point on BN254
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_X_1) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_Y_0) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_Y_1) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), mload(folded_quotients)) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), mload(add(folded_quotients, 0x20))) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_X_0) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_X_1) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_Y_0) {{ $offset = add $offset 0x20 }}
-    //     mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_Y_1) {{ $offset = add $offset 0x20 }}
-    //     check_pairing_kzg(mPtr)
-    //   }
-
-    //   /// @notice check_pairing_kzg checks the result of the final pairing product of the batched
-    //   /// kzg verification. The purpose of this function is to avoid exhausting the stack
-    //   /// in the function batch_verify_multi_points.
-    //   /// @param mPtr pointer storing the tuple of pairs
-    //   function check_pairing_kzg(mPtr) {
-    //     let state := mload(0x40)
-
-    //     let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
-    //     if iszero(l_success) {
-    //       error_pairing()
-    //     }
-    //     let res_pairing := mload(0x00)
-    //     mstore(add(state, STATE_SUCCESS), res_pairing)
-    //   }
-
-    /// @notice Fold the opening proofs at ζ:
-    /// * at state+STATE_FOLDED_DIGEST we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
-    /// * at state+STATE_FOLDED_CLAIMED_VALUE we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
-    /// @param aproof pointer to the proof
-    /// acc_gamma stores the γⁱ
-    function fold_state(aproof) {
-
-      let state := mload(0x40)
-      let mPtr := add(mload(0x40), STATE_LAST_MEM)
-
-      let l_gamma_kzg := mload(add(state, STATE_GAMMA_KZG))
-      let acc_gamma := l_gamma_kzg
-
-      {{ $offset = 0x00 }}
-      mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
-      mcopy(mPtr, add(state, STATE_LINEARISED_POLYNOMIAL), 0x80){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), 1){{ $offset = add $offset 0x20 }}
-
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X)){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-      
-      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_R_AT_ZETA), acc_gamma)
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_R_COM_X)){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-
-      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_O_AT_ZETA), acc_gamma)
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_O_COM_X)){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-
-      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S1_AT_ZETA), acc_gamma)
-      store_point(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi, VK_S1_COM_X_lo, VK_S1_COM_Y_hi, VK_S1_COM_Y_lo){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-
-      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
-      store_point(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi, VK_S2_COM_X_lo, VK_S2_COM_Y_hi, VK_S2_COM_Y_lo){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-
-      {{ if (gt (len .Vk.CommitmentConstraintIndexes ) 1 ) }}
-      {{- $offsetValues := 0x00 }}
-      {{- $offsetComs := 0x00 }}
-      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
-      acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-      fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $offsetValues }})), acc_gamma){{ $offsetValues = add $offsetValues 0x20 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi, VK_QCP_{{ $index }}_X_lo, VK_QCP_{{ $index }}_Y_hi, VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
-      {{ end -}}
-      {{ end }}
-       
-      let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, {{ hex $offset }}, add(state, STATE_FOLDED_DIGESTS), 0x80)
-      if iszero(l_success){
-        error_ec_op()
-      }
-      
-    }
-
-    /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
-    /// at ζ.
-    /// The process for deriving γ is the same as in derive_gamma but this time the inputs are
-    /// in this order (the [] means it's a commitment):
-    /// * ζ
-    /// * [Linearised polynomial]
-    /// * [L], [R], [O]
-    /// * [S₁] [S₂]
-    /// * [Pi_{i}] (wires associated to custom gates)
-    /// Then there are the purported evaluations of the previous committed polynomials:
-    /// * Linearised_polynomial(ζ)
-    /// * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
-    /// * Pi_{i}(ζ)
-    /// * Z(ζω)
-    /// @param aproof pointer to the proof
-    function compute_gamma_kzg(aproof) {
-
-      let state := mload(0x40)
-      let mPtr := add(mload(0x40), STATE_LAST_MEM)
-
-      {{ $offset = 0x1b0 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi){{ $offset = add $offset 0x30 }}
-      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi){{ $offset = add $offset 0x30 }}
-      {{ end -}}
-      {{ $offset = 0x1d0 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo){{ $offset = add $offset 0x30 }}
-      {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo){{ $offset = add $offset 0x30 }}
-      mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x30 }}
-      {{ end -}}
-      {{ $tmp := sub $offset 0x10 }}
-
-      {{ $offset = 0 }}
-      mstore(mPtr, FS_GAMMA_KZG) // "gamma" {{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA))){{ $offset = add $offset 0x20 }}
-      mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x10)), 0x30){{ $offset = add $offset 0x30 }}
-      mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x50)), 0x30){{ $offset = add $offset 0x30 }}
-      calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X), 0x120)
-      
-      {{ $offset = $tmp }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA))) {{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_L_AT_ZETA))){{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_R_AT_ZETA))){{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_O_AT_ZETA))){{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S1_AT_ZETA))){{ $offset = add $offset 0x20 }}
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S2_AT_ZETA))){{ $offset = add $offset 0x20 }}
-
-      {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-      let _poqaz := add(aproof, PROOF_QCP_AT_ZETA)
-      calldatacopy(add(mPtr, {{ hex $offset }}), _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
-      {{ $offset = add $offset ( mul (len .Vk.CommitmentConstraintIndexes) 0x20 ) }}
-      {{ end -}}
-
-      mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA))){{ $offset = add $offset 0x20 }}
-
-      let start_input := 0x1b // 00.."gamma"
-      {{ $offset = add (sub $offset 0x20 ) 0x5 }}
-      let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), {{ hex $offset }}, add(state, STATE_GAMMA_KZG), 0x20)
-      if iszero(check_staticcall) {
-        error_verify()
-      }
-      mstore(add(state, STATE_GAMMA_KZG), mod(mload(add(state, STATE_GAMMA_KZG)), R_MOD))
-    }
-
-    /// @notice Compute the commitment to the linearized polynomial equal to
-    ///	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
-    ///	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2}(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
-    ///	α²*L₁(ζ)[Z] - Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
-    /// where
-    /// * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
-    /// * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
-    /// * Z_{H}(ζ) = ζ^n-1
-    /// @param aproof pointer to the proof
-    function compute_commitment_linearised_polynomial(aproof) {
-      
-      let state := mload(0x40)
-      let l_beta := mload(add(state, STATE_BETA))
-      let l_gamma := mload(add(state, STATE_GAMMA))
-      let l_zeta := mload(add(state, STATE_ZETA))
-      let l_alpha := mload(add(state, STATE_ALPHA))
-
-      let u := mulmod(calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), l_beta, R_MOD)
-      let v := mulmod(l_beta, calldataload(add(aproof, PROOF_S1_AT_ZETA)), R_MOD)
-      v := addmod(v, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
-      v := addmod(v, l_gamma, R_MOD)
-
-      let w := mulmod(l_beta, calldataload(add(aproof, PROOF_S2_AT_ZETA)), R_MOD)
-      w := addmod(w, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
-      w := addmod(w, l_gamma, R_MOD)
-
-      let s1 := mulmod(u, v, R_MOD)
-      s1 := mulmod(s1, w, R_MOD)
-      s1 := mulmod(s1, l_alpha, R_MOD)
-
-      let coset_square := mulmod(VK_COSET_SHIFT, VK_COSET_SHIFT, R_MOD)
-      let betazeta := mulmod(l_beta, l_zeta, R_MOD)
-      u := addmod(betazeta, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
-      u := addmod(u, l_gamma, R_MOD)
-
-      v := mulmod(betazeta, VK_COSET_SHIFT, R_MOD)
-      v := addmod(v, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
-      v := addmod(v, l_gamma, R_MOD)
-
-      w := mulmod(betazeta, coset_square, R_MOD)
-      w := addmod(w, calldataload(add(aproof, PROOF_O_AT_ZETA)), R_MOD)
-      w := addmod(w, l_gamma, R_MOD)
-
-      let coeff_z := mulmod(u, v, R_MOD)
-      coeff_z := mulmod(coeff_z, w, R_MOD)
-      coeff_z := sub(R_MOD, coeff_z)
-      coeff_z := mulmod(coeff_z, l_alpha, R_MOD)
-      mstore(add(state, STATE_CHECK_VAR), coeff_z)
-      coeff_z := addmod(coeff_z, mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0)), R_MOD)
-
-      // at this stage:
-      // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
-      // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
-
-      compute_commitment_linearised_polynomial_ec(aproof, s1, coeff_z)
-    }
-
-    function compute_commitment_linearised_polynomial_ec(aproof, s1, coeff_z) {
+      /// @notice follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
+      /// with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
+      /// * [state_folded_state_digests], [proof_batch_opening_at_zeta_x], state_folded_evals
+      /// * [proof_grand_product_commitment], [proof_opening_at_zeta_omega_x], [proof_grand_product_at_zeta_omega]
+      /// @param aproof pointer to the proof
+      function batch_verify_multi_points(aproof) {
         
-      let state := mload(0x40)
-      let mPtr := add(mload(0x40), STATE_LAST_MEM)
-      {{ $offset = 0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_hi, VK_QL_COM_X_lo, VK_QL_COM_Y_hi, VK_QL_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_hi, VK_QR_COM_X_lo, VK_QR_COM_Y_hi, VK_QR_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_hi, VK_QM_COM_X_lo, VK_QM_COM_Y_hi, VK_QM_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_hi, VK_QO_COM_X_lo, VK_QO_COM_Y_hi, VK_QO_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_hi, VK_QK_COM_X_lo, VK_QK_COM_Y_hi, VK_QK_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_hi, VK_S3_COM_X_lo, VK_S3_COM_Y_hi, VK_S3_COM_Y_lo){{ $offset = add $offset 0xa0 }}
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)){{ $offset = add $offset 0xa0 }}
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_0_COM_X)){{ $offset = add $offset 0xa0 }}
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_1_COM_X)){{ $offset = add $offset 0xa0 }}
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_2_COM_X)){{ $offset = add $offset 0xa0 }}
-      {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-      {{- $tmp = 0 }}
-      {{- range .Vk.Qcp}}
-      store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_BSB_COMMITMENTS, {{ hex $tmp }}))){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x60 }}
-      {{- end }}
-      {{- end }}
+        let state := mload(0x40)
+        let mPtr := add(state, STATE_LAST_MEM)
 
-      let l := calldataload(add(aproof, PROOF_L_AT_ZETA))
-      let r := calldataload(add(aproof, PROOF_R_AT_ZETA))
-      let rl := mulmod(l, r, R_MOD)
-      let o := calldataload(add(aproof, PROOF_O_AT_ZETA))
-      let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
-      h_zeta := sub(R_MOD, h_zeta)
-      {{ $offset = 0x80 }}
-      mstore(add(mPtr, {{ hex $offset }}), l){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), r){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), rl){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), o){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), 1){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), s1){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), coeff_z){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), h_zeta){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO))){{ $offset = add $offset 0xa0 }}
-      mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO_SQUARE))){{ $offset = add $offset 0xa0 }}
-      {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
-      {{- $tmp := 0 }}
-      {{- range .Vk.Qcp}}
-      calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $tmp }})), 0x20){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x20 }}
-      {{- end }}
-      {{- end }}
-      {{ $offset = sub $offset 0x80 }}
-      let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, {{ hex $offset }}, add(state, STATE_LINEARISED_POLYNOMIAL), 0x80)
-      if iszero(l_success){
-        error_ec_op()
+        // derive a random number. As there is no random generator, we
+        // do an FS like challenge derivation, depending on both digests and
+        // ζ to ensure that the prover cannot control the random number.
+        // Note: adding the other point ζω is not needed, as ω is known beforehand.
+        // mstore(mPtr, mload(add(state, STATE_FOLDED_DIGESTS_X)))
+        // mstore(add(mPtr, 0x20), mload(add(state, STATE_FOLDED_DIGESTS_Y)))
+        // mstore(add(mPtr, 0x40), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X)))
+        // mstore(add(mPtr, 0x60), calldataload(add(aproof, PROOF_BATCH_OPENING_AT_ZETA_Y)))
+        // mstore(add(mPtr, 0x80), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)))
+        // mstore(add(mPtr, 0xa0), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_Y)))
+        // mstore(add(mPtr, 0xc0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X)))
+        // mstore(add(mPtr, 0xe0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_Y)))
+        // mstore(add(mPtr, 0x100), mload(add(state, STATE_ZETA)))
+        // mstore(add(mPtr, 0x120), mload(add(state, STATE_GAMMA_KZG)))
+        // let random := staticcall(gas(), SHA2, mPtr, 0x140, mPtr, 0x20)
+        // if iszero(random){
+        //   error_random_generation()
+        // }
+        // random := mod(mload(mPtr), R_MOD) // use the same variable as we are one variable away from getting stack-too-deep error...
+        let random := 5
+
+        let folded_evals := add(state, STATE_FOLDED_CLAIMED_VALUES)
+        fr_acc_mul_calldata(folded_evals, add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA), random)
+
+        let folded_digests := mPtr
+        mcopy(folded_digests, add(state, STATE_FOLDED_DIGESTS), 0x80)
+        mstore(add(folded_digests, 0x80), 1)
+        store_point_calldata(add(folded_digests, 0xa0), add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X))
+        mstore(add(folded_digests, 0x120), random)
+        store_point(add(folded_digests, 0x140), G1_SRS_X_hi, G1_SRS_X_lo, G1_SRS_Y_hi, G1_SRS_Y_lo)
+        mstore(add(folded_digests, 0x1c0), sub(R_MOD, mload(folded_evals)))
+        store_point_calldata(add(folded_digests, 0x1e0), add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X))
+        mstore(add(folded_digests, 0x260), mload(add(state, STATE_ZETA)))
+        store_point_calldata(add(folded_digests, 0x280), add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X))
+        let zeta_omega := mulmod(mload(add(state, STATE_ZETA)), VK_OMEGA, R_MOD)
+        mstore(add(folded_digests, 0x300), mulmod(random, zeta_omega, R_MOD))
+        let l_success := staticcall(gas(), BLS12_MSM_G1, folded_digests, 0x320, folded_digests, 0x80)
+        if iszero(l_success){
+          error_ec_op()
+        }
+
+        let folded_quotients := add(mPtr, 0x180)
+        store_point_calldata(folded_quotients, add(aproof, PROOF_BATCH_OPENING_AT_ZETA_X))
+        mstore(add(folded_quotients, 0x80), sub(R_MOD, 1))
+        store_point_calldata(add(folded_quotients, 0xa0), add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_X))
+        mstore(add(folded_quotients, 0x120), sub(R_MOD, random))
+        l_success := staticcall(gas(), BLS12_MSM_G1, folded_quotients, 0x140, folded_quotients, 0x80)
+        if iszero(l_success){
+          error_ec_op()
+        }
+      
+        store_point(add(mPtr,  0x80), G2_SRS_0_X_0_hi, G2_SRS_0_X_0_lo, G2_SRS_0_X_1_hi, G2_SRS_0_X_1_lo)
+        store_point(add(mPtr, 0x100), G2_SRS_0_Y_0_hi, G2_SRS_0_Y_0_lo, G2_SRS_0_Y_1_hi, G2_SRS_0_Y_1_lo)
+        store_point(add(mPtr, 0x200), G2_SRS_1_X_0_hi, G2_SRS_1_X_0_lo, G2_SRS_1_X_1_hi, G2_SRS_1_X_1_lo)
+        store_point(add(mPtr, 0x280), G2_SRS_1_Y_0_hi, G2_SRS_1_Y_0_lo, G2_SRS_1_Y_1_hi, G2_SRS_1_Y_1_lo)
+        l_success := staticcall(gas(), BLS12_PAIR, mPtr, 0x300, mPtr, 0x20)
+        if iszero(l_success) {
+          error_pairing()
+        }
+        mstore(add(state, STATE_SUCCESS), mload(mPtr))
       }
 
-    }
+      /// @notice Fold the opening proofs at ζ:
+      /// * at state+STATE_FOLDED_DIGEST we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
+      /// * at state+STATE_FOLDED_CLAIMED_VALUE we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
+      /// @param aproof pointer to the proof
+      /// acc_gamma stores the γⁱ
+      function fold_state(aproof) {
+
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
+
+        let l_gamma_kzg := mload(add(state, STATE_GAMMA_KZG))
+        let acc_gamma := l_gamma_kzg
+
+        {{ $offset = 0x00 }}
+        mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
+        mcopy(mPtr, add(state, STATE_LINEARISED_POLYNOMIAL), 0x80){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), 1){{ $offset = add $offset 0x20 }}
+
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X)){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+        
+        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_R_AT_ZETA), acc_gamma)
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_R_COM_X)){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+
+        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_O_AT_ZETA), acc_gamma)
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_O_COM_X)){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+
+        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S1_AT_ZETA), acc_gamma)
+        store_point(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi, VK_S1_COM_X_lo, VK_S1_COM_Y_hi, VK_S1_COM_Y_lo){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+
+        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
+        store_point(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi, VK_S2_COM_X_lo, VK_S2_COM_Y_hi, VK_S2_COM_Y_lo){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes ) 1 ) }}
+        {{- $offsetValues := 0x00 }}
+        {{- $offsetComs := 0x00 }}
+        {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $offsetValues }})), acc_gamma){{ $offsetValues = add $offsetValues 0x20 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi, VK_QCP_{{ $index }}_X_lo, VK_QCP_{{ $index }}_Y_hi, VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
+        {{ end -}}
+        {{ end }}
+        
+        let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, {{ hex $offset }}, add(state, STATE_FOLDED_DIGESTS), 0x80)
+        if iszero(l_success){
+          error_ec_op()
+        }
+        
+      }
+
+      /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
+      /// at ζ.
+      /// The process for deriving γ is the same as in derive_gamma but this time the inputs are
+      /// in this order (the [] means it's a commitment):
+      /// * ζ
+      /// * [Linearised polynomial]
+      /// * [L], [R], [O]
+      /// * [S₁] [S₂]
+      /// * [Pi_{i}] (wires associated to custom gates)
+      /// Then there are the purported evaluations of the previous committed polynomials:
+      /// * Linearised_polynomial(ζ)
+      /// * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
+      /// * Pi_{i}(ζ)
+      /// * Z(ζω)
+      /// @param aproof pointer to the proof
+      function compute_gamma_kzg(aproof) {
+
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
+
+        {{ $offset = 0x1b0 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_hi){{ $offset = add $offset 0x30 }}
+        {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_hi){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_hi){{ $offset = add $offset 0x30 }}
+        {{ end -}}
+        {{ $offset = 0x1d0 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_lo){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_lo){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_lo){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y_lo){{ $offset = add $offset 0x30 }}
+        {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo){{ $offset = add $offset 0x30 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo){{ $offset = add $offset 0x30 }}
+        {{ end -}}
+        {{ $tmp := sub $offset 0x10 }}
+
+        {{ $offset = 0 }}
+        mstore(mPtr, FS_GAMMA_KZG) // "gamma" {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA))){{ $offset = add $offset 0x20 }}
+        mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x10)), 0x30){{ $offset = add $offset 0x30 }}
+        mcopy(add(mPtr, {{ hex $offset }}), add(state, add(STATE_LINEARISED_POLYNOMIAL, 0x50)), 0x30){{ $offset = add $offset 0x30 }}
+        calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_L_COM_X), 0x120)
+        
+        {{ $offset = $tmp }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA))) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_L_AT_ZETA))){{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_R_AT_ZETA))){{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_O_AT_ZETA))){{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S1_AT_ZETA))){{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_S2_AT_ZETA))){{ $offset = add $offset 0x20 }}
+
+        {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+        let _poqaz := add(aproof, PROOF_QCP_AT_ZETA)
+        calldatacopy(add(mPtr, {{ hex $offset }}), _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
+        {{ $offset = add $offset ( mul (len .Vk.CommitmentConstraintIndexes) 0x20 ) }}
+        {{ end -}}
+
+        mstore(add(mPtr, {{ hex $offset }}), calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA))){{ $offset = add $offset 0x20 }}
+
+        let start_input := 0x1b // 00.."gamma"
+        {{ $offset = add (sub $offset 0x20 ) 0x5 }}
+        let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), {{ hex $offset }}, add(state, STATE_GAMMA_KZG), 0x20)
+        if iszero(check_staticcall) {
+          error_verify()
+        }
+        mstore(add(state, STATE_GAMMA_KZG), mod(mload(add(state, STATE_GAMMA_KZG)), R_MOD))
+      }
+
+      /// @notice Compute the commitment to the linearized polynomial equal to
+      ///	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
+      ///	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2}(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
+      ///	α²*L₁(ζ)[Z] - Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
+      /// where
+      /// * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
+      /// * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
+      /// * Z_{H}(ζ) = ζ^n-1
+      /// @param aproof pointer to the proof
+      function compute_commitment_linearised_polynomial(aproof) {
+        
+        let state := mload(0x40)
+        let l_beta := mload(add(state, STATE_BETA))
+        let l_gamma := mload(add(state, STATE_GAMMA))
+        let l_zeta := mload(add(state, STATE_ZETA))
+        let l_alpha := mload(add(state, STATE_ALPHA))
+
+        let u := mulmod(calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), l_beta, R_MOD)
+        let v := mulmod(l_beta, calldataload(add(aproof, PROOF_S1_AT_ZETA)), R_MOD)
+        v := addmod(v, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
+        v := addmod(v, l_gamma, R_MOD)
+
+        let w := mulmod(l_beta, calldataload(add(aproof, PROOF_S2_AT_ZETA)), R_MOD)
+        w := addmod(w, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
+        w := addmod(w, l_gamma, R_MOD)
+
+        let s1 := mulmod(u, v, R_MOD)
+        s1 := mulmod(s1, w, R_MOD)
+        s1 := mulmod(s1, l_alpha, R_MOD)
+
+        let coset_square := mulmod(VK_COSET_SHIFT, VK_COSET_SHIFT, R_MOD)
+        let betazeta := mulmod(l_beta, l_zeta, R_MOD)
+        u := addmod(betazeta, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
+        u := addmod(u, l_gamma, R_MOD)
+
+        v := mulmod(betazeta, VK_COSET_SHIFT, R_MOD)
+        v := addmod(v, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
+        v := addmod(v, l_gamma, R_MOD)
+
+        w := mulmod(betazeta, coset_square, R_MOD)
+        w := addmod(w, calldataload(add(aproof, PROOF_O_AT_ZETA)), R_MOD)
+        w := addmod(w, l_gamma, R_MOD)
+
+        let coeff_z := mulmod(u, v, R_MOD)
+        coeff_z := mulmod(coeff_z, w, R_MOD)
+        coeff_z := sub(R_MOD, coeff_z)
+        coeff_z := mulmod(coeff_z, l_alpha, R_MOD)
+        mstore(add(state, STATE_CHECK_VAR), coeff_z)
+        coeff_z := addmod(coeff_z, mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0)), R_MOD)
+
+        // at this stage:
+        // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
+        // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+
+        compute_commitment_linearised_polynomial_ec(aproof, s1, coeff_z)
+      }
+
+      function compute_commitment_linearised_polynomial_ec(aproof, s1, coeff_z) {
+          
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), STATE_LAST_MEM)
+        {{ $offset = 0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QL_COM_X_hi, VK_QL_COM_X_lo, VK_QL_COM_Y_hi, VK_QL_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QR_COM_X_hi, VK_QR_COM_X_lo, VK_QR_COM_Y_hi, VK_QR_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QM_COM_X_hi, VK_QM_COM_X_lo, VK_QM_COM_Y_hi, VK_QM_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QO_COM_X_hi, VK_QO_COM_X_lo, VK_QO_COM_Y_hi, VK_QO_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_QK_COM_X_hi, VK_QK_COM_X_lo, VK_QK_COM_Y_hi, VK_QK_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point(add(mPtr, {{ hex $offset }}), VK_S3_COM_X_hi, VK_S3_COM_X_lo, VK_S3_COM_Y_hi, VK_S3_COM_Y_lo){{ $offset = add $offset 0xa0 }}
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)){{ $offset = add $offset 0xa0 }}
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_0_COM_X)){{ $offset = add $offset 0xa0 }}
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_1_COM_X)){{ $offset = add $offset 0xa0 }}
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, PROOF_H_2_COM_X)){{ $offset = add $offset 0xa0 }}
+        {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+        {{- $tmp = 0 }}
+        {{- range .Vk.Qcp}}
+        store_point_calldata(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_BSB_COMMITMENTS, {{ hex $tmp }}))){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x60 }}
+        {{- end }}
+        {{- end }}
+
+        let l := calldataload(add(aproof, PROOF_L_AT_ZETA))
+        let r := calldataload(add(aproof, PROOF_R_AT_ZETA))
+        let rl := mulmod(l, r, R_MOD)
+        let o := calldataload(add(aproof, PROOF_O_AT_ZETA))
+        let h_zeta := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
+        h_zeta := sub(R_MOD, h_zeta)
+        {{ $offset = 0x80 }}
+        mstore(add(mPtr, {{ hex $offset }}), l){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), r){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), rl){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), o){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), 1){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), s1){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), coeff_z){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), h_zeta){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO))){{ $offset = add $offset 0xa0 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(state, STATE_ZETA_POWER_N_PLUS_TWO_SQUARE))){{ $offset = add $offset 0xa0 }}
+        {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
+        {{- $tmp := 0 }}
+        {{- range .Vk.Qcp}}
+        calldatacopy(add(mPtr, {{ hex $offset }}), add(aproof, add(PROOF_QCP_AT_ZETA, {{ hex $tmp }})), 0x20){{ $offset = add $offset 0xa0 }}{{ $tmp = add $tmp 0x20 }}
+        {{- end }}
+        {{- end }}
+        {{ $offset = sub $offset 0x80 }}
+        let l_success := staticcall(gas(), BLS12_MSM_G1, mPtr, {{ hex $offset }}, add(state, STATE_LINEARISED_POLYNOMIAL), 0x80)
+        if iszero(l_success){
+          error_ec_op()
+        }
+
+      }
 
       /// @notice stores a point at dst, from src. The point in src is stored
       /// as [x || y] where x and y are on 0x30 bytes, and in dst the point is stored
@@ -1262,101 +1228,7 @@ contract PlonkVerifier {
         mstore(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA), s1)
       }
 
-    //   // BEGINNING utils math functions -------------------------------------------------
-      
-    //   /// @param dst pointer storing the result
-    //   /// @param p pointer to the first point
-    //   /// @param q pointer to the second point
-    //   /// @param mPtr pointer to free memory
-    //   function point_add(dst, p, q, mPtr) {
-    //     mstore(mPtr, mload(p))
-    //     mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
-    //     mstore(add(mPtr, 0x40), mload(q))
-    //     mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-    //     let l_success := staticcall(gas(),EC_ADD,mPtr,0x80,dst,0x40)
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
-
-    //   /// @param dst pointer storing the result
-    //   /// @param p pointer to the first point (calldata)
-    //   /// @param q pointer to the second point (calladata)
-    //   /// @param mPtr pointer to free memory
-    //   function point_add_calldata(dst, p, q, mPtr) {
-    //     mstore(mPtr, mload(p))
-    //     mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
-    //     mstore(add(mPtr, 0x40), calldataload(q))
-    //     mstore(add(mPtr, 0x60), calldataload(add(q, 0x20)))
-    //     let l_success := staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40)
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
-
-    //   /// @parma dst pointer storing the result
-    //   /// @param src pointer to a point on Bn254(𝔽_p)
-    //   /// @param s scalar
-    //   /// @param mPtr free memory
-    //   function point_mul(dst,src,s, mPtr) {
-    //     mstore(mPtr,mload(src))
-    //     mstore(add(mPtr,0x20),mload(add(src,0x20)))
-    //     mstore(add(mPtr,0x40),s)
-    //     let l_success := staticcall(gas(),EC_MUL,mPtr,0x60,dst,0x40)
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
-
-    //   /// @parma dst pointer storing the result
-    //   /// @param src pointer to a point on Bn254(𝔽_p) on calldata
-    //   /// @param s scalar
-    //   /// @param mPtr free memory
-    //   function point_mul_calldata(dst, src, s, mPtr) {
-    //     mstore(mPtr, calldataload(src))
-    //     mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
-    //     mstore(add(mPtr, 0x40), s)
-    //     let l_success := staticcall(gas(), EC_MUL, mPtr, 0x60, dst, 0x40)
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
-
-    //   /// @notice dst <- dst + [s]src (Elliptic curve)
-    //   /// @param dst pointer accumulator point storing the result
-    //   /// @param src pointer to the point to multiply and add
-    //   /// @param s scalar
-    //   /// @param mPtr free memory
-    //   function point_acc_mul(dst,src,s, mPtr) {
-    //     mstore(mPtr,mload(src))
-    //     mstore(add(mPtr,0x20),mload(add(src,0x20)))
-    //     mstore(add(mPtr,0x40),s)
-    //     let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
-    //     mstore(add(mPtr,0x40),mload(dst))
-    //     mstore(add(mPtr,0x60),mload(add(dst,0x20)))
-    //     l_success := and(l_success, staticcall(gas(),EC_ADD,mPtr,0x80,dst, 0x40))
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
-
-    //   /// @notice dst <- dst + [s]src (Elliptic curve)
-    //   /// @param dst pointer accumulator point storing the result
-    //   /// @param src pointer to the point to multiply and add (on calldata)
-    //   /// @param s scalar
-    //   /// @mPtr free memory
-    //   function point_acc_mul_calldata(dst, src, s, mPtr) {
-    //     mstore(mPtr, calldataload(src))
-    //     mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
-    //     mstore(add(mPtr, 0x40), s)
-    //     let l_success := staticcall(gas(), 7, mPtr, 0x60, mPtr, 0x40)
-    //     mstore(add(mPtr, 0x40), mload(dst))
-    //     mstore(add(mPtr, 0x60), mload(add(dst, 0x20)))
-    //     l_success := and(l_success, staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40))
-    //     if iszero(l_success) {
-    //       error_ec_op()
-    //     }
-    //   }
+      // BEGINNING utils math functions -------------------------------------------------
 
       /// @notice dst <- dst + src*s (Fr) dst,src are addresses, s is a value
       /// @param dst pointer storing the result
@@ -1385,8 +1257,7 @@ contract PlonkVerifier {
         res := mload(mPtr)
       }
     }
-    emit PrintUint256(check);
-		return true;
+		return success;
 	}
 }
 `
