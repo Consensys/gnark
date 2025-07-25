@@ -122,7 +122,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// for each valid witness, run the prover and verifier
 					for _, w := range validWitnesses {
 						assert.Run(func(assert *Assert) {
-							checkSolidity := opt.checkSolidity && curve == ecc.BN254
+							checkSolidity := opt.checkSolidity && (curve == ecc.BN254 || curve == ecc.BLS12_381)
 							proverOpts := opt.proverOpts
 							verifierOpts := opt.verifierOpts
 							if b == backend.GROTH16 {
