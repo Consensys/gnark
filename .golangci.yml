@@ -1,10 +1,10 @@
+version: 2
+
 linters:
   disable-all: true
   enable:
-    - gofmt
     - staticcheck
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - misspell
