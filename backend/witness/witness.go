@@ -38,6 +38,7 @@ package witness
 
 import (
 	"bytes"
+	"context"
 	"encoding"
 	"encoding/binary"
 	"encoding/json"
@@ -380,11 +381,21 @@ func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 	} else {
 		chValues = make(chan any, len(publicValues)+len(secretValues))
 	}
+
+	// Use a context with timeout for additional safety
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go func() {
 		defer close(chValues)
+		defer cancel() // Cancel context when goroutine finishes
 
 		for _, v := range publicValues {
-			chValues <- v
+			select {
+			case chValues <- v:
+			case <-ctx.Done():
+				return
+			}
 		}
 
 		if publicOnly {
@@ -392,7 +403,11 @@ func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 		}
 
 		for _, v := range secretValues {
-			chValues <- v
+			select {
+			case chValues <- v:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
