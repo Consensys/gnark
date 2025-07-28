@@ -86,7 +86,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) 
 func GetAssignmentHint(data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		if len(ins) != 3 {
-			return fmt.Errorf("GetAssignmentHint expects 3 inputs: instance index, wire index, and dummy dependency enforcer")
+			return fmt.Errorf("GetAssignmentHint expects 3 inputs: wire index, instance index, and dummy dependency enforcer")
 		}
 		wireI := ins[0].Uint64()
 		instanceI := ins[1].Uint64()
@@ -155,7 +155,7 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 	}
 }
 
-// RepeatUntilEnd for each wire, sets all the values starting from n to its predecessor.
+// RepeatUntilEnd for each wire, sets all the values starting from n > 0 to its predecessor.
 // e.g. {{1, 2, 3}, {4, 5, 6}}.RepeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}
 func (a WireAssignment) RepeatUntilEnd(n int) {
 	for i := range a {

@@ -153,7 +153,7 @@ pairing_bls12377,bls24_315,plonk,0,0
 pairing_bls12377,bls24_317,plonk,0,0
 pairing_bls12377,bw6_761,plonk,51280,51280
 pairing_bls12377,bw6_633,plonk,0,0
-pairing_bls12381,bn254,groth16,949289,1570543
+pairing_bls12381,bn254,groth16,949275,1570529
 pairing_bls12381,bls12_377,groth16,0,0
 pairing_bls12381,bls12_381,groth16,0,0
 pairing_bls12381,bls24_315,groth16,0,0
@@ -181,7 +181,7 @@ pairing_bls24315,bls24_315,plonk,0,0
 pairing_bls24315,bls24_317,plonk,0,0
 pairing_bls24315,bw6_761,plonk,0,0
 pairing_bls24315,bw6_633,plonk,141249,141249
-pairing_bn254,bn254,groth16,607322,995002
+pairing_bn254,bn254,groth16,607313,994993
 pairing_bn254,bls12_377,groth16,0,0
 pairing_bn254,bls12_381,groth16,0,0
 pairing_bn254,bls24_315,groth16,0,0

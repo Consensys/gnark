@@ -16,12 +16,17 @@ func newHash(api frontend.API, dsByte byte, rate, outputLen int, opts ...hash.Op
 			return nil, fmt.Errorf("applying option: %w", err)
 		}
 	}
+	bapi, err := uints.NewBytes(api)
+	if err != nil {
+		return nil, fmt.Errorf("initializing bytes: %w", err)
+	}
 	uapi, err := uints.New[uints.U64](api)
 	if err != nil {
 		return nil, fmt.Errorf("initializing uints: %w", err)
 	}
 	return &digest{
 		api:           api,
+		bapi:          bapi,
 		uapi:          uapi,
 		state:         newState(),
 		dsbyte:        dsByte,

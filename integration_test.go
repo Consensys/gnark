@@ -44,11 +44,6 @@ func TestIntegrationAPI(t *testing.T) {
 				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
 			}
 
-			if name == "multi-output-hint" {
-				// TODO @gbotrel FIXME
-				opts = append(opts, test.NoFuzzing())
-			}
-
 			assert.CheckCircuit(tData.Circuit, opts...)
 		}, name)
 	}
