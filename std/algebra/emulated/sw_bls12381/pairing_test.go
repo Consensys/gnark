@@ -441,7 +441,6 @@ func TestGroupMembershipSolve(t *testing.T) {
 		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
 		qjac := bls12381.GeneratePointNotInG2(bls12381.E2{A0: s1, A1: s2})
 		q.FromJacobian(&qjac)
-		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
 		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
 		witness := GroupMembershipCircuit{
 			InG1: NewG1Affine(p),
