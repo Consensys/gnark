@@ -374,13 +374,82 @@ func (c *GroupMembershipCircuit) Define(api frontend.API) error {
 
 func TestGroupMembershipSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
-	witness := GroupMembershipCircuit{
-		InG1: NewG1Affine(p),
-		InG2: NewG2Affine(q),
-	}
-	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	assert.Run(func(assert *test.Assert) {
+		p, q := randomG1G2Affines()
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=random")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		p.SetInfinity()
+		q.SetInfinity()
+		assert.True(p.IsInSubGroup(), "expected p to be in subgroup")
+		assert.True(q.IsInSubGroup(), "expected q to be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=infinity")
+	assert.Run(func(assert *test.Assert) {
+		_, q := randomG1G2Affines()
+		var p bls12381.G1Affine
+		var s1 fp_bls12381.Element
+		s1.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s1)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		assert.True(q.IsInSubGroup(), "expected q to be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g1")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		var s1, s2 fp_bls12381.Element
+		s1.MustSetRandom()
+		s2.MustSetRandom()
+		qjac := bls12381.GeneratePointNotInG2(bls12381.E2{A0: s1, A1: s2})
+		q.FromJacobian(&qjac)
+		assert.True(p.IsInSubGroup(), "expected p to be in subgroup")
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		var s1, s2 fp_bls12381.Element
+		s1.MustSetRandom()
+		s2.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s1)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		qjac := bls12381.GeneratePointNotInG2(bls12381.E2{A0: s1, A1: s2})
+		q.FromJacobian(&qjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g1-g2")
 }
 
 type MuxesCircuits struct {
