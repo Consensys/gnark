@@ -9,6 +9,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -73,6 +74,85 @@ func TestMillerLoopTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type MillerLoopSingleCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GTEl
+}
+
+func (c *MillerLoopSingleCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	mlres, err := pairing.MillerLoop([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
+	}
+	pairing.AssertIsEqual(mlres, &c.Res)
+	return nil
+}
+
+func TestMillerLoopSingleTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p, q := randomG1G2Affines()
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=valid")
+	assert.Run(func(assert *test.Assert) {
+		_, q := randomG1G2Affines()
+		var p bls12381.G1Affine
+		p.SetInfinity()
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g1-zero")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		q.SetInfinity()
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g2-zero")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		p.SetInfinity()
+		q.SetInfinity()
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g1-g2-zero")
 }
 
 type FinalExponentiationCircuit struct {
