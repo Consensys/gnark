@@ -452,6 +452,56 @@ func TestGroupMembershipSolve(t *testing.T) {
 	}, "case=not-in-group-g1-g2")
 }
 
+type IsOnGroupCircuit struct {
+	InG1           G1Affine
+	ExpectedIsOnG1 frontend.Variable
+}
+
+func (c *IsOnGroupCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res := pairing.IsOnG1(&c.InG1)
+	api.AssertIsEqual(c.ExpectedIsOnG1, res)
+	return nil
+}
+
+func TestIsOnG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		p.SetInfinity()
+
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 1},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=infinity")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 1},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=random")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var s fp_bls12381.Element
+		s.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 0},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=not-in-group")
+}
+
 type MuxesCircuits struct {
 	InG2       []G2Affine
 	InGt       []GTEl
