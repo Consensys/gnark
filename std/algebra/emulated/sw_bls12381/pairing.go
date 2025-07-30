@@ -315,6 +315,15 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 // IsOnG1 returns a boolean indicating if the G1 point is on the curve and in
 // the prime subgroup.
 func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
+	// To check that a point P is on G1, we need to check it is of prime order r.
+	// This means that we need to check:
+	//   [r]P == 0
+	// Instead of computing a big scalar multiplication, we check the equivalent condition:
+	//   P + [x^2]ϕ(P) == 0
+	// where ϕ is the endomorphism of G1, and x is the seed of the curve.
+	// The last equation is equivalent of checking that:
+	//   P = -[x^2]ϕ(P)
+
 	// 1 - is P on curve
 	isOnCurve := pr.IsOnCurve(P)
 	// 2- Check P has the right subgroup order
@@ -322,7 +331,7 @@ func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
 	phiP := pr.g1.phi(P)
 	_P := pr.g1.scalarMulBySeedSquare(phiP)
 	_P = pr.curve.Neg(_P)
-	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	// [r]P == 0 <==>  P = -[x²]ϕ(P)
 	isInSubgroup := pr.g1.IsEqual(_P, P)
 	return pr.api.And(isOnCurve, isInSubgroup)
 }
