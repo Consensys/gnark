@@ -499,6 +499,22 @@ func TestIsOnG1(t *testing.T) {
 			ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}, "case=not-in-group")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 0},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=not-on-curve")
 }
 
 type MuxesCircuits struct {
