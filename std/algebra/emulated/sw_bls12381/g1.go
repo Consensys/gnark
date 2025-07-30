@@ -147,6 +147,17 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 }
 
 func (g1 *G1) scalarMulBySeedSquare(q *G1Affine) *G1Affine {
+	// It computes the scalar multiplication by the seed square. It is used to
+	// verify if a point is in the subgroup of G1. However, it uses incomplete
+	// formulas and as such doesn't work for point at infinity as we get a
+	// division by zero. But as we represent the point at infinity as (0,0),
+	// then in this case we can run the computations using a dummy point (1,1)
+	// and then later replace it again with the point at infinity.
+	isInfinity := g1.api.And(g1.curveF.IsZero(&q.X), g1.curveF.IsZero(&q.Y))
+	q = &G1Affine{
+		X: *g1.curveF.Select(isInfinity, g1.curveF.One(), &q.X),
+		Y: *g1.curveF.Select(isInfinity, g1.curveF.One(), &q.Y),
+	}
 	z := g1.double(q)
 	z = g1.add(q, z)
 	z = g1.double(z)
@@ -168,6 +179,11 @@ func (g1 *G1) scalarMulBySeedSquare(q *G1Affine) *G1Affine {
 	z = g1.doubleN(z, 32)
 	z = g1.doubleAndAdd(z, q)
 	z = g1.doubleN(z, 32)
+
+	z = &G1Affine{
+		X: *g1.curveF.Select(isInfinity, g1.curveF.Zero(), &z.X),
+		Y: *g1.curveF.Select(isInfinity, g1.curveF.Zero(), &z.Y),
+	}
 
 	return z
 }

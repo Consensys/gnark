@@ -315,13 +315,24 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 // IsOnG1 returns a boolean indicating if the G1 point is on the curve and in
 // the prime subgroup.
 func (pr Pairing) IsOnG1(P *G1Affine) frontend.Variable {
-	// 1 - is Q on curve
+	// To check that a point P is on G1, we need to check it is of prime order r.
+	// This means that we need to check:
+	//   [r]P == 0
+	// Instead of computing a big scalar multiplication, we check the equivalent condition:
+	//   P + [x^2]ϕ(P) == 0
+	// where ϕ is the endomorphism of G1, and x is the seed of the curve.
+	// The last equation is equivalent of checking that:
+	//   P = -[x^2]ϕ(P)
+
+	// 1 - is P on curve
 	isOnCurve := pr.IsOnCurve(P)
-	// 2 - is Q in the subgroup
+	// 2- Check P has the right subgroup order
+	// [x²]ϕ(P)
 	phiP := pr.g1.phi(P)
 	_P := pr.g1.scalarMulBySeedSquare(phiP)
 	_P = pr.curve.Neg(_P)
-	isInSubgroup := pr.g1.IsEqual(_P, phiP)
+	// [r]P == 0 <==>  P = -[x²]ϕ(P)
+	isInSubgroup := pr.g1.IsEqual(_P, P)
 	return pr.api.And(isOnCurve, isInSubgroup)
 }
 
@@ -399,10 +410,11 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
-		// P are supposed to be on G1 respectively of prime order r.
-		// The point (x,0) is of order 2. But this function does not check
-		// subgroup membership.
-		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		// If we have point at infinity, we set yInv[k] to 0 manually to avoid
+		// undefined inversion of 0.
+		isYZero := pr.curveF.IsZero(&P[k].Y)
+		y := pr.curveF.Select(isYZero, pr.curveF.One(), &P[k].Y)
+		yInv[k] = pr.curveF.Select(isYZero, pr.curveF.Zero(), pr.curveF.Inverse(y))
 		xNegOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
