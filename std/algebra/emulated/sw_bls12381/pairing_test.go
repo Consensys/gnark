@@ -114,7 +114,8 @@ func TestMillerLoopSingleTestSolve(t *testing.T) {
 		_, q := randomG1G2Affines()
 		var p bls12381.G1Affine
 		p.SetInfinity()
-		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
 		assert.NoError(err)
 		witness := MillerLoopSingleCircuit{
 			InG1: NewG1Affine(p),
@@ -128,7 +129,8 @@ func TestMillerLoopSingleTestSolve(t *testing.T) {
 		p, _ := randomG1G2Affines()
 		var q bls12381.G2Affine
 		q.SetInfinity()
-		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
 		assert.NoError(err)
 		witness := MillerLoopSingleCircuit{
 			InG1: NewG1Affine(p),
@@ -143,7 +145,8 @@ func TestMillerLoopSingleTestSolve(t *testing.T) {
 		var q bls12381.G2Affine
 		p.SetInfinity()
 		q.SetInfinity()
-		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{{}})
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
 		assert.NoError(err)
 		witness := MillerLoopSingleCircuit{
 			InG1: NewG1Affine(p),
