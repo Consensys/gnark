@@ -449,6 +449,68 @@ func TestGroupMembershipSolve(t *testing.T) {
 		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
 		assert.Error(err, "expected error for not in subgroup")
 	}, "case=not-in-group-g1-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		for {
+			q.X.MustSetRandom()
+			q.Y.MustSetRandom()
+			if !q.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g1-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		_, q := randomG1G2Affines()
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g1")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		for {
+			q.X.MustSetRandom()
+			q.Y.MustSetRandom()
+			if !q.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g2")
 }
 
 type IsOnGroupCircuit struct {
