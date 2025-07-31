@@ -836,3 +836,57 @@ func (builder *builder[E]) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
 func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
 	return builder.cs.AddGkr(info)
 }
+
+// Printf enables circuit debugging and behaves like fmt.Printf()
+// Format specifiers:
+// %v - default format
+// %d - decimal integer
+// %x - hexadecimal
+// %b - binary
+func (builder *builder) Printf(format string, a ...frontend.Variable) {
+	var log constraint.LogEntry
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	}
+
+	var sbb strings.Builder
+	argIndex := 0
+
+	for i := 0; i < len(format); {
+		if i+1 < len(format) && format[i] == '%' {
+			if argIndex >= len(a) {
+				panic("Printf: not enough arguments for format string")
+			}
+
+			switch format[i+1] {
+			case 'v', 'd', 'x', 'b':
+				if v, ok := a[argIndex].(expr.LinearExpression); ok {
+					assertIsSet(v)
+					sbb.WriteString("%s")
+					// Store format specifier with the value
+					log.ToResolve = append(log.ToResolve, builder.getLinearExpression(v))
+					log.FormatSpecifiers = append(log.FormatSpecifiers, string(format[i+1]))
+				} else {
+					builder.printArg(&log, &sbb, a[argIndex])
+				}
+				argIndex++
+				i += 2
+			case '%':
+				sbb.WriteByte('%')
+				i += 2
+			default:
+				sbb.WriteByte(format[i])
+				i++
+			}
+		} else {
+			sbb.WriteByte(format[i])
+			i++
+		}
+	}
+
+	// set format string to be used with fmt.Sprintf
+	log.Format = sbb.String()
+	builder.cs.AddLog(log)
+}
