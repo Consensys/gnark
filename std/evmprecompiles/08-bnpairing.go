@@ -12,12 +12,8 @@ import (
 // To have a fixed-circuit regardless of the number of inputs, we need 2 fixed circuits:
 //   - MillerLoopAndMul:
 //     A Miller loop of fixed size 1 followed by a multiplication in 𝔽p¹².
-//   - MillerLoopAndFinalExpCheck:
-//     A Miller loop of fixed size 1 followed by a multiplication in 𝔽p¹², and
-//     a check that the result lies in the same equivalence class as the
-//     reduced pairing purported to be 1. This check replaces the final
-//     exponentiation step in-circuit and follows Section 4 of [On Proving
-//     Pairings] paper by A. Novakovic and L. Eagen.
+//   - FinalExponentiation:
+//     An optimized exponentiation in 𝔽p¹² by the fixed exponent (p¹²-1)/r.
 //
 // N.B.: This is a sub-optimal routine but defines a fixed circuit regardless
 // of the number of inputs.  We can extend this routine to handle a 2-by-2
@@ -27,6 +23,7 @@ import (
 // See the method [ECPairIsOnG2] for the check that Qᵢ are on G2.
 //
 // [ALT_BN128_PAIRING_CHECK]: https://github.com/ethereum/execution-specs/blob/master/src/ethereum/cancun/vm/precompiled_contracts/alt_bn128.py
+//
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	if len(P) != len(Q) {
@@ -44,11 +41,11 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	// N.B.: BN254 has a prime order so G1 membership boils down to curve
 	// membership only, which is checked in the zkEVM.
 	//
-	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck`)
+	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul`)
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
 	ml := pair.Ext12.One()
-	for i := 0; i < n-1; i++ {
+	for i := 0; i < n; i++ {
 		// fixed circuit 1
 		ml, err = pair.MillerLoopAndMul(P[i], Q[i], ml)
 		if err != nil {
@@ -57,7 +54,8 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	}
 
 	// fixed circuit 2
-	pair.AssertMillerLoopAndFinalExpIsOne(P[n-1], Q[n-1], ml)
+	pair.FinalExponentiation(ml)
+	pair.AssertIsEqual(ml, pair.Ext12.One())
 }
 
 // ECPairIsOnG2 implements the fixed circuit for checking G2 membership and non-membership.
@@ -97,7 +95,11 @@ func ECPairMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bn254.GT
 		return fmt.Errorf("new pairing: %w", err)
 	}
 
-	isSuccess := pairing.IsMillerLoopAndFinalExpOne(P, Q, accumulator)
+	ml, err := pairing.MillerLoopAndMul(P, Q, accumulator)
+	if err != nil {
+		return fmt.Errorf("miller loop and mul: %w", err)
+	}
+	isSuccess := pairing.FinalExponentiation(ml)
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
 	return nil
 }

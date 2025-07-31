@@ -12,12 +12,8 @@ import (
 // To have a fixed-circuit regardless of the number of inputs, we need 2 fixed circuits:
 //   - MillerLoopAndMul:
 //     A Miller loop of fixed size 1 followed by a multiplication in 𝔽p¹².
-//   - MillerLoopAndFinalExpCheck:
-//     A Miller loop of fixed size 1 followed by a multiplication in 𝔽p¹², and
-//     a check that the result lies in the same equivalence class as the
-//     reduced pairing purported to be 1. This check replaces the final
-//     exponentiation step in-circuit and follows Section 4 of [On Proving
-//     Pairings] paper by A. Novakovic and L. Eagen.
+//   - FinalExponentiation:
+//     An optimized exponentiation in 𝔽p¹² by the fixed exponent (p¹²-1)/r.
 //
 // N.B.: This is a sub-optimal routine but defines a fixed circuit regardless
 // of the number of inputs.  We can extend this routine to handle a 2-by-2
@@ -27,6 +23,7 @@ import (
 // See the methods [ECPairBLSIsOnG1] and [ECPairBLSIsOnG2] for the check that Pᵢ and Qᵢ are on G1 and resp. G2.
 //
 // [BLS12_PAIRING_CHECK]: https://eips.ethereum.org/EIPS/eip-2537
+//
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2Affine) {
 	if len(P) != len(Q) {
@@ -52,7 +49,7 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
 	ml := pair.Ext12.One()
-	for i := 0; i < n-1; i++ {
+	for i := 0; i < n; i++ {
 		// fixed circuit 1
 		ml, err = pair.MillerLoopAndMul(P[i], Q[i], ml)
 		if err != nil {
@@ -61,7 +58,8 @@ func ECPairBLS(api frontend.API, P []*sw_bls12381.G1Affine, Q []*sw_bls12381.G2A
 	}
 
 	// fixed circuit 2
-	pair.AssertMillerLoopAndFinalExpIsOne(P[n-1], Q[n-1], ml)
+	pair.FinalExponentiation(ml)
+	pair.AssertIsEqual(ml, pair.Ext12.One())
 }
 
 // ECPairBLSIsOnG2 implements the fixed circuit for checking G2 membership and non-membership.
@@ -112,7 +110,11 @@ func ECPairBLSMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bls12
 		return fmt.Errorf("new pairing: %w", err)
 	}
 
-	isSuccess := pairing.IsMillerLoopAndFinalExpOne(P, Q, accumulator)
+	ml, err := pairing.MillerLoopAndMul(P, Q, accumulator)
+	if err != nil {
+		return fmt.Errorf("miller loop and mul: %w", err)
+	}
+	isSuccess := pairing.FinalExponentiation(ml)
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
 	return nil
 }
