@@ -35,7 +35,7 @@ listing steps, don't just say what you did, but explain how you did it. For exam
 commands used in the terminal to start `gnark`. 
 * Provide **specific examples** to demonstrate the steps. Include links to files or GitHub projects, or 
 copy/pasteable snippets, which you use in those examples. If you're providing snippets in the issue, 
-use [Markdown code blocks](https://help.github.com/articles/getting-started-with-writing-and-formatting-on-github/).
+use [Markdown code blocks](https://docs.github.com/articles/getting-started-with-writing-and-formatting-on-github/).
 * Describe the **behavior you observed** after following the steps and explain the 
 problem with that behavior.
 * Explain the **behavior you expected** instead and why.
