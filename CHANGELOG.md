@@ -2676,10 +2676,10 @@
 - fast path with int64 in divide linear expression
 - cs.coeffID with gobencode
 - fast path for coeffID when coeff is int64
-- sparseR1CS reduce improvments
-- plonk frontend split and reduce improvments
+- sparseR1CS reduce improvements
+- plonk frontend split and reduce improvements
 - plonk compile, replace sha256 with fast lookup with collisions
-- minor perf adjustement on big.Int operations and allocations
+- minor perf adjustment on big.Int operations and allocations
 - reduced redundant constraints in range check
 
 ### Refactor
@@ -2709,7 +2709,7 @@
 - remove plonk and groth16 assert.go
 - added comment in range check
 - remove code no longer used in the pairing
-- commented ml test used to diplay nb constraints
+- commented ml test used to display nb constraints
 
 ### Test
 - groth16 marshal 10 round only
@@ -2718,7 +2718,7 @@
 
 ### Tests
 - added add and sub internal test circuits
-- minor adjustements or better fuzzing
+- minor adjustments or better fuzzing
 
 ### Pull Requests
 - Merge pull request [#159](https://github.com/Consensys/gnark/issues/159) from ConsenSys/std/bandersnatch
@@ -2956,7 +2956,7 @@
 - backend plonk bls24 process error
 - create cbor decoder with MaxArrayElements set to max value
 - regenerated code
-- **frontend:** restored isBoolean logic to avoid dupplicate constraints. remove dangling variable thing
+- **frontend:** restored isBoolean logic to avoid duplicate constraints. remove dangling variable thing
 - **frontend:** set initial capacity for constraint system slices to 0
 - **gnarkd:** kzg srs generation in test cases with correct size
 - **plonk:** fixed error in ComputeH  when nbConstraints+nbPublicInputs<6
@@ -2971,7 +2971,7 @@
 - plonk.computeLinearizedPolynomial with less polynomial clones
 - improving parallelism in prover
 - minor change
-- make constraint slice initalCapacity an optional paremeter in compile
+- make constraint slice initalCapacity an optional parameter in compile
 - plonk frontend replace map by slice, avoid few allocs and useless slice copies
 - frontend.ConstraintSystem special values fast path for coefficients
 - plonk frontend fast path for -1, 0 and 1 as coeffs
@@ -2990,7 +2990,7 @@
 - **experimental:** start too many go routines in Prover
 - **frontend:** rewrote linear expression reduce in place instead of multiple map allocs
 - **frontend:** minor adjustements
-- **frontend:** rewrote cs.ToBinary to avoid unecessary func calls
+- **frontend:** rewrote cs.ToBinary to avoid unnecessary func calls
 - **plonk:** shiftEval done without copy or bitReverse
 - **plonk:** compute shifted Z element on the fly without allocating a new polynomial
 - **plonk:** partly parallel computeBlindedZ
@@ -3065,17 +3065,17 @@
 - **plonk:** fixed doc for computeH
 
 ### Eddsa
-- bw761 blinding factor and private key size are consistant with the field size
+- bw761 blinding factor and private key size are consistent with the field size
 
 ### Feat
-- added funcitons for proving PLONK's claim 1 (bn256), not tested
+- added functions for proving PLONK's claim 1 (bn256), not tested
 - mock polynomial commitments for all curves + templates
 - added code gen for placeholder feature
 - added Fiat Shamir for plonk
-- added intefaces for polynomial commitments
+- added interfaces for polynomial commitments
 - updated go.mod (points to gnark-crypto[@hotfix](https://github.com/hotfix)/issue_36)
 - support for batch proofs opening at single point
-- **fft:** fft/fftInv now works on abitrary cosets (bounded by maxOrder)
+- **fft:** fft/fftInv now works on arbitrary cosets (bounded by maxOrder)
 - **gnarkd:** exposing gnark APIs through RPCs ([#54](https://github.com/Consensys/gnark/issues/54))
 - **gnarkd:** added optional TTL in CreateProveJobRequest
 - **gnarkd:** added CancelProveJob method
@@ -3149,7 +3149,7 @@
 - **plonk:** challenges are built in init() until Fiat Shamir
 - **plonk:** suffix raw added to plonk API
 - **plonk:** setup, prove, verify take frontend.Circuit as witness
-- **plonk:** prove, verifiy now return error
+- **plonk:** prove, verify now return error
 
 ### Style
 - simplified findUnsolvedVariable in SparseR1CS
