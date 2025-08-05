@@ -8,16 +8,17 @@ package mpcsetup
 import (
 	"bytes"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	groth16Impl "github.com/consensys/gnark/backend/groth16/bls12-377"
-	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"io"
 	"math/big"
 	"slices"
 	"sync"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	groth16Impl "github.com/consensys/gnark/backend/groth16/bls12-377"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"

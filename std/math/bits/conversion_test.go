@@ -1,9 +1,15 @@
 package bits_test
 
 import (
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
 )
@@ -63,4 +69,142 @@ func (c *toTernaryCircuit) Define(api frontend.API) error {
 func TestToTernary(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&toTernaryCircuit{}, test.WithValidAssignment(&toTernaryCircuit{A: 5, T0: 2, T1: 1, T2: 0}))
+}
+
+type toBinaryCircuitConstantInput struct {
+	A         frontend.Variable
+	constantA *big.Int
+	nbBits    int
+}
+
+func (c *toBinaryCircuitConstantInput) Define(api frontend.API) error {
+	opts := []bits.BaseConversionOption{}
+	if c.nbBits > 0 {
+		opts = append(opts, bits.WithNbDigits(c.nbBits))
+	}
+	decomposedA := bits.ToBinary(api, c.A, opts...)
+	constantA := new(big.Int).Set(c.constantA)
+	if _, ok := api.Compiler().ConstantValue(constantA); !ok {
+		// we work inside a test engine. It doesn't differentiate between a constant and a variable. We manually reduce for now.
+		constantA.Mod(constantA, api.Compiler().Field())
+	}
+	decomposedAConstant := bits.ToBinary(api, constantA, opts...)
+	if len(decomposedA) != len(decomposedAConstant) {
+		return errors.New("decomposedA and decomposedAConstant must have the same length")
+	}
+	for i := 0; i < len(decomposedA); i++ {
+		api.AssertIsEqual(decomposedA[i], decomposedAConstant[i])
+	}
+
+	return nil
+}
+
+func TestToBinaryConstantInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	for _, v := range []int{0, 1, 2, 10, 100, 300} {
+		assert.Run(func(assert *test.Assert) {
+			val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
+			assert.NoError(err)
+			assert.CheckCircuit(&toBinaryCircuitConstantInput{constantA: val, nbBits: v}, test.WithValidAssignment(&toBinaryCircuitConstantInput{A: val}))
+		}, fmt.Sprintf("v=%d", v))
+	}
+}
+
+type testFromBinaryCircuitConstantInput struct {
+	Inputs           []*big.Int
+	ThirdVariableBit frontend.Variable
+	allConstant      bool
+	Expected         frontend.Variable
+}
+
+func (c *testFromBinaryCircuitConstantInput) Define(api frontend.API) error {
+	inps := make([]frontend.Variable, len(c.Inputs))
+	for i, inp := range c.Inputs {
+		inps[i] = inp
+		// we also want to test the case where inside the constant inputs we have a variable
+		if i == 2 && !c.allConstant {
+			inps[i] = c.ThirdVariableBit
+		}
+	}
+	res := bits.FromBinary(api, inps)
+	api.AssertIsEqual(res, c.Expected)
+	api.AssertIsEqual(c.Expected, c.Expected) // dummy constraint to overcome prover bug with 1 constraint
+	return nil
+}
+
+func TestFromBinaryConstantInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	for _, v := range []int{1, 2, 10, 100, 300} {
+		val, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(v)))
+		assert.NoError(err)
+
+		bts := make([]*big.Int, v)
+		for i := 0; i < v; i++ {
+			bts[i] = new(big.Int).SetUint64(uint64(val.Bit(i)))
+		}
+		assert.Run(func(assert *test.Assert) {
+			assert.Run(func(assert *test.Assert) {
+				assert.CheckCircuit(&testFromBinaryCircuitConstantInput{
+					Inputs:      bts,
+					allConstant: true,
+				},
+					test.WithValidAssignment(&testFromBinaryCircuitConstantInput{
+						ThirdVariableBit: 0,
+						Expected:         val,
+					}))
+			}, "allconstant=true")
+			if v > 2 {
+				assert.Run(func(assert *test.Assert) {
+					assert.CheckCircuit(&testFromBinaryCircuitConstantInput{
+						Inputs:      bts,
+						allConstant: false,
+					},
+						test.WithValidAssignment(&testFromBinaryCircuitConstantInput{
+							Expected:         val,
+							ThirdVariableBit: val.Bit(2),
+						}))
+				}, "allconstant=false")
+			}
+		}, fmt.Sprintf("v=%d", v))
+	}
+}
+
+type testFromBinaryInvalidInput struct {
+	ConstantInputs []*big.Int
+	VariableInputs []frontend.Variable
+	Variable       frontend.Variable
+}
+
+func (c *testFromBinaryInvalidInput) Define(api frontend.API) error {
+	if len(c.ConstantInputs) != 0 {
+		inps := make([]frontend.Variable, len(c.ConstantInputs))
+		for i, inp := range c.ConstantInputs {
+			inps[i] = inp
+		}
+		// test when constant inputs are not binary
+		res := bits.FromBinary(api, inps)
+		api.AssertIsDifferent(res, 0)
+		// ensure we have at least two constraints to overcome PLONK prover bug with 1 constraint only
+		api.AssertIsEqual(c.Variable, c.Variable)
+		api.AssertIsEqual(c.Variable, c.Variable)
+	} else {
+		res := bits.FromBinary(api, c.VariableInputs)
+		api.AssertIsDifferent(res, 0)
+	}
+	return nil
+}
+
+func TestFromBinaryInvalidInput(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &testFromBinaryInvalidInput{
+		ConstantInputs: []*big.Int{big.NewInt(2), big.NewInt(1)},
+	})
+	assert.Error(err)
+	assert.CheckCircuit(&testFromBinaryInvalidInput{VariableInputs: make([]frontend.Variable, 2)}, test.WithInvalidAssignment(&testFromBinaryInvalidInput{
+		VariableInputs: []frontend.Variable{2, 1},
+		Variable:       big.NewInt(3),
+	}))
 }

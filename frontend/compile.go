@@ -103,7 +103,7 @@ func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (er
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
-	s, err := schema.Walk(circuit, tVariable, nil)
+	s, err := schema.Walk(builder.Field(), circuit, tVariable, nil)
 	if err != nil {
 		return err
 	}
@@ -134,13 +134,13 @@ func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (er
 	}
 
 	// add public inputs first to compute correct offsets
-	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Public))
+	_, err = schema.Walk(builder.Field(), circuit, tVariable, variableAdder(schema.Public))
 	if err != nil {
 		return err
 	}
 
 	// add secret inputs
-	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Secret))
+	_, err = schema.Walk(builder.Field(), circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}

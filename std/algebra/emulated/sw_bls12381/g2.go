@@ -58,13 +58,13 @@ func NewG2(api frontend.API) (*G2, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new scalar api: %w", err)
 	}
-	w := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
-	w2 := emulated.ValueOf[BaseField]("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350")
-	eigenvalue := emulated.ValueOf[ScalarField]("228988810152649578064853576960394133503")
-	u1 := emulated.ValueOf[BaseField]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
+	w := fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	w2 := fp.NewElement("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350")
+	eigenvalue := fr.NewElement("228988810152649578064853576960394133503")
+	u1 := fp.NewElement("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
 	v := fields_bls12381.E2{
-		A0: emulated.ValueOf[BaseField]("2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
-		A1: emulated.ValueOf[BaseField]("1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"),
+		A0: *fp.NewElement("2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
+		A1: *fp.NewElement("1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"),
 	}
 	sswuCoeffA, sswuCoeffB := hash_to_curve.G2SSWUIsogenyCurveCoefficients()
 	coeffA := &fields_bls12381.E2{
@@ -85,10 +85,10 @@ func NewG2(api frontend.API) (*G2, error) {
 		fp:         fp,
 		fr:         fr,
 		Ext2:       fields_bls12381.NewExt2(api),
-		w:          &w,
-		w2:         &w2,
-		eigenvalue: &eigenvalue,
-		u1:         &u1,
+		w:          w,
+		w2:         w2,
+		eigenvalue: eigenvalue,
+		u1:         u1,
 		v:          &v,
 		// SSWU map
 		sswuCoeffA: coeffA,
@@ -443,8 +443,8 @@ func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 	bTwist := fields_bls12381.E2{
-		A0: emulated.ValueOf[BaseField]("4"),
-		A1: emulated.ValueOf[BaseField]("4"),
+		A0: *g2.fp.NewElement("4"),
+		A1: *g2.fp.NewElement("4"),
 	}
 	// if Q=(0,0) we assign b=0 otherwise 4(1+u), and continue
 	selector := g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
@@ -571,6 +571,19 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 	return R0
 }
 
+// ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
+// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [Halo]: https://eprint.iacr.org/2019/1021.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
+	return g2.scalarMulGLV(Q, s, opts...)
+}
+
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
@@ -607,15 +620,11 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	// sub-scalars.
 
 	// decompose s into s1 and s2
-	sd, err := g2.fr.NewHint(decomposeScalarG1Subscalars, 2, s, g2.eigenvalue)
+	sdBits, sd, err := g2.fr.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[ScalarField]{s, g2.eigenvalue})
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	sdBits, err := g2.fr.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, g2.eigenvalue)
-	if err != nil {
-		panic(fmt.Sprintf("compute GLV decomposition bits: %v", err))
-	}
 	selector1, selector2 := sdBits[0], sdBits[1]
 	s3 := g2.fr.Select(selector1, g2.fr.Neg(s1), s1)
 	s4 := g2.fr.Select(selector2, g2.fr.Neg(s2), s2)

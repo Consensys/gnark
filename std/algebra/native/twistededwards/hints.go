@@ -73,6 +73,16 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(outputs) != 4 {
 		return errors.New("expecting four outputs")
 	}
+	// using PrecomputeLattice for scalar decomposition is a hack and it doesn't
+	// work in case the scalar is zero. override it for now to avoid division by
+	// zero until a long-term solution is found.
+	if inputs[0].Sign() == 0 {
+		outputs[0].SetUint64(0)
+		outputs[1].SetUint64(0)
+		outputs[2].SetUint64(0)
+		outputs[3].SetUint64(0)
+		return nil
+	}
 	glvBasis := new(ecc.Lattice)
 	ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
 	outputs[0].Set(&glvBasis.V1[0])

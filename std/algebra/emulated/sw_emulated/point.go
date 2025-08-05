@@ -26,10 +26,10 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	emuGm := make([]AffinePoint[Base], len(params.Gm))
 	for i, v := range params.Gm {
-		emuGm[i] = AffinePoint[Base]{emulated.ValueOf[Base](v[0]), emulated.ValueOf[Base](v[1])}
+		emuGm[i] = AffinePoint[Base]{*ba.NewElement(v[0]), *ba.NewElement(v[1])}
 	}
-	Gx := emulated.ValueOf[Base](params.Gx)
-	Gy := emulated.ValueOf[Base](params.Gy)
+	Gx := ba.NewElement(params.Gx)
+	Gy := ba.NewElement(params.Gy)
 	var eigenvalue *emulated.Element[Scalars]
 	var thirdRootOne *emulated.Element[Base]
 	if params.Eigenvalue != nil && params.ThirdRootOne != nil {
@@ -42,12 +42,12 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		baseApi:   ba,
 		scalarApi: sa,
 		g: AffinePoint[Base]{
-			X: Gx,
-			Y: Gy,
+			X: *Gx,
+			Y: *Gy,
 		},
 		gm:           emuGm,
-		a:            emulated.ValueOf[Base](params.A),
-		b:            emulated.ValueOf[Base](params.B),
+		a:            *ba.NewElement(params.A),
+		b:            *ba.NewElement(params.B),
 		addA:         params.A.Cmp(big.NewInt(0)) != 0,
 		eigenvalue:   eigenvalue,
 		thirdRootOne: thirdRootOne,
@@ -492,6 +492,10 @@ func (c *Curve[B, S]) Mux(sel frontend.Variable, inputs ...*AffinePoint[B]) *Aff
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ScalarMul calls scalarMulFakeGLV or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
+//
+// N.B. For scalarMulGLVAndFakeGLV, the result is undefined when the input point is
+// not on the prime order subgroup. For scalarMulFakeGLV the result is well
+// defined for any point on the curve
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(p, s, opts...)
@@ -535,15 +539,11 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// sub-scalars.
 
 	// decompose s into s1 and s2
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, s, c.eigenvalue)
+	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue})
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	sdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, c.eigenvalue)
-	if err != nil {
-		panic(fmt.Sprintf("compute GLV decomposition bits: %v", err))
-	}
 	selector1, selector2 := sdBits[0], sdBits[1]
 	s3 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
 	s4 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
@@ -726,6 +726,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // positions 1 and n-1 outside of the loop to optimize the number of
 // constraints using [ELM03] (Section 3.1)
 //
+// Contrary to the GLV method, this method doesn't require the endomorphism and
+// thus is also suitable for points not in the prime order subgroup.
+//
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
@@ -873,16 +876,11 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// Φ(R) instead of the corresponding sub-scalars.
 
 	// decompose s into s1 and s2
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, s, c.eigenvalue)
+	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue})
 	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
+		panic(fmt.Sprintf("compute GLV decomposition s: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	sdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, c.eigenvalue)
-	if err != nil {
-		panic(fmt.Sprintf("compute s GLV decomposition bits: %v", err))
-	}
 	selector1, selector2 := sdBits[0], sdBits[1]
 	s3 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
 	s4 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
@@ -893,16 +891,11 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	)
 
 	// decompose t into t1 and t2
-	td, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, t, c.eigenvalue)
+	tdBits, td, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{t, c.eigenvalue})
 	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
+		panic(fmt.Sprintf("compute GLV decomposition t: %v", err))
 	}
 	t1, t2 := td[0], td[1]
-	tdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, t, c.eigenvalue)
-	if err != nil {
-		panic(fmt.Sprintf("compute t GLV decomposition bits: %v", err))
-	}
 	selector3, selector4 := tdBits[0], tdBits[1]
 	t3 := c.scalarApi.Select(selector3, c.scalarApi.Neg(t1), t1)
 	t4 := c.scalarApi.Select(selector4, c.scalarApi.Neg(t2), t2)
@@ -1234,7 +1227,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 }
 
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
-// It implements the "fake GLV" explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+// It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
@@ -1244,6 +1237,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // P256, P384 and STARK curve.
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -1258,17 +1252,12 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
-	sd, err := c.scalarApi.NewHint(halfGCD, 2, _s)
+	// we also output the sign in case s2 is negative. In that case we compute _s2 = -s2 mod r.
+	sign, sd, err := c.scalarApi.NewHintGeneric(halfGCD, 1, 2, nil, []*emulated.Element[S]{_s})
 	if err != nil {
 		panic(fmt.Sprintf("halfGCD hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	// s2 can be negative. If so, we return in the halfGCD hint -s2
-	// and here compute _s2 = -s2 mod r
-	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, _s)
-	if err != nil {
-		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
-	}
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
 	// We check that s1 + s*_s2 == 0 mod r
 	c.scalarApi.AssertIsEqual(
@@ -1282,11 +1271,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// Then we compute the hinted scalar mul R = [s]Q
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
-	var inps []frontend.Variable
-	inps = append(inps, Q.X.Limbs...)
-	inps = append(inps, Q.Y.Limbs...)
-	inps = append(inps, s.Limbs...)
-	R, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
+	_, R, _, err := emulated.NewVarGenericHint(c.api, 0, 2, 0, nil, []*emulated.Element[B]{&Q.X, &Q.Y}, []*emulated.Element[S]{s}, scalarMulHint)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}
@@ -1512,17 +1497,19 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 }
 
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
-// It implements the "GLV + fake GLV" explained in [ethresear.ch/fake-GLV].
+// It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
+// The result is undefined for input points that are not in the prime subgroup.
+//
 // TODO @yelhousni: generalize for any supported curve as it currently supports only:
 // BN254, BLS12-381, BW6-761 and Secp256k1.
 //
-// [ethresear.ch/fake-GLV]: https://ethresear.ch/t/fake-glv-you-dont-need-an-efficient-endomorphism-to-implement-glv-like-scalar-multiplication-in-snark-circuits/20394
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -1565,20 +1552,16 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// The hint returns u1, u2, v1, v2.
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
-	sd, err := c.scalarApi.NewHint(halfGCDEisenstein, 4, _s, c.eigenvalue)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
-
+	//
+	//
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, err := c.scalarApi.NewHintWithNativeOutput(halfGCDEisensteinSigns, 4, _s, c.eigenvalue)
+	signs, sd, err := c.scalarApi.NewHintGeneric(halfGCDEisenstein, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
+		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
 	}
+	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
 	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
 
 	// We need to check that:
@@ -1612,11 +1595,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
-	var inps []frontend.Variable
-	inps = append(inps, P.X.Limbs...)
-	inps = append(inps, P.Y.Limbs...)
-	inps = append(inps, s.Limbs...)
-	point, err := c.baseApi.NewHintWithNativeInput(scalarMulHint, 2, inps...)
+	_, point, _, err := emulated.NewVarGenericHint(c.api, 0, 2, 0, nil, []*emulated.Element[B]{&P.X, &P.Y}, []*emulated.Element[S]{s}, scalarMulHint)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}

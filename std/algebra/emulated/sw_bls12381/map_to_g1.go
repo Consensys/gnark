@@ -6,14 +6,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 )
 
 func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
 	emuCoefficients := make([]*baseEl, len(coefficients))
 	for i := range coefficients {
-		emulatedCoefficient := emulated.ValueOf[emulated.BLS12381Fp](coefficients[i])
-		emuCoefficients[i] = &emulatedCoefficient
+		emuCoefficients[i] = g1.curveF.NewElement(coefficients[i])
 	}
 	var res *baseEl
 	if monic {

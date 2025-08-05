@@ -67,8 +67,8 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
 	bTwist := fields_bn254.E2{
-		A0: emulated.ValueOf[BaseField]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
-		A1: emulated.ValueOf[BaseField]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+		A0: *ba.NewElement("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: *ba.NewElement("266929791119991161246907387137283842545076965332900288569378510910307636690"),
 	}
 	g2, err := NewG2(api)
 	if err != nil {
@@ -552,10 +552,11 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
-		// P are supposed to be on G1 respectively of prime order r.
-		// The point (x,0) is of order 2. But this function does not check
-		// subgroup membership.
-		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		// If we have point at infinity, we set yInv[k] to 0 manually to avoid
+		// undefined inversion of 0.
+		isYZero := pr.curveF.IsZero(&P[k].Y)
+		y := pr.curveF.Select(isYZero, pr.curveF.One(), &P[k].Y)
+		yInv[k] = pr.curveF.Select(isYZero, pr.curveF.Zero(), pr.curveF.Inverse(y))
 		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}

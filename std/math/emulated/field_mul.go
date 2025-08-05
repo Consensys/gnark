@@ -9,6 +9,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
+	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
@@ -19,6 +20,11 @@ import (
 // checks.
 //
 // Currently used for multiplication and multivariate evaluation checks.
+//
+// The methods [evalRound1], [evalRound2] and [check] may receive as inputs
+// either [frontend.Variable] or [fieldextension.Element]. The
+// implementation should differentiate on the different input types and use the
+// appropriate API (native or extension).
 type deferredChecker interface {
 	// toCommit outputs the variable which should be committed to. The checker
 	// then uses the commitment to obtain the verifier challenge for the
@@ -166,9 +172,37 @@ func (mc *mulCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 	if mc.p != nil {
 		peval = mc.p.evaluation
 	}
-	ls := api.Mul(mc.a.evaluation, mc.b.evaluation)
-	rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
-	api.AssertIsEqual(ls, rs)
+	// we either have to perform the equality check in the native field or in
+	// the extension field. It was already determined at the [Field]
+	// initialization time which kind of check needs to be done.
+	if mc.f.extensionApi == nil {
+		ls := api.Mul(mc.a.evaluation, mc.b.evaluation)
+		rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
+		api.AssertIsEqual(ls, rs)
+	} else {
+		// here we use the fact that [frontend.Variable] is defined as any, but
+		// we have actually provided [ExtensionVariable]. We type assert to be
+		// able to use the fieldextension API.
+		//
+		// the computations are same as in the previous conditional block, but
+		// only in the extension.
+		aext := mc.a.evaluation.(fieldextension.Element)
+		bext := mc.b.evaluation.(fieldextension.Element)
+		ls := mc.f.extensionApi.Mul(aext, bext)
+
+		rext := mc.r.evaluation.(fieldextension.Element)
+		pevalext := peval.(fieldextension.Element)
+		cext := mc.c.evaluation.(fieldextension.Element)
+		kext := mc.k.evaluation.(fieldextension.Element)
+		coefext := coef.(fieldextension.Element)
+		pkext := mc.f.extensionApi.Mul(pevalext, kext)
+		ccoefext := mc.f.extensionApi.Mul(coefext, cext)
+
+		rs := mc.f.extensionApi.Add(rext, pkext)
+		rs = mc.f.extensionApi.Add(rs, ccoefext)
+
+		mc.f.extensionApi.AssertIsEqual(ls, rs)
+	}
 }
 
 // cleanEvaluations cleans the cached evaluation values. This is necessary for
@@ -194,7 +228,7 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 // defers the actual multiplication check.
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	f.enforceWidthConditional(a)
@@ -220,7 +254,7 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 // checkZero creates multiplication check a * 1 = 0 + k*p.
 func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	// fast path - the result is on zero limbs. This means that it is constant zero
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return
 	}
 	// the method works similarly to mulMod, but we know that we are multiplying
@@ -255,6 +289,18 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 	if len(at) < len(a.Limbs)-1 {
 		panic("evaluation powers less than limbs")
 	}
+	var sum frontend.Variable
+	if f.extensionApi != nil {
+		sum = f.evalWithChallengeExtension(a, at)
+	} else {
+		sum = f.evalWithChallengeNative(a, at)
+	}
+	a.isEvaluated = true
+	a.evaluation = sum
+	return a
+}
+
+func (f *Field[T]) evalWithChallengeNative(a *Element[T], at []frontend.Variable) frontend.Variable {
 	var sum frontend.Variable = 0
 	if len(a.Limbs) > 0 {
 		sum = f.api.Mul(a.Limbs[0], 1) // copy because we use MulAcc
@@ -262,9 +308,26 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 	for i := 1; i < len(a.Limbs); i++ {
 		sum = f.api.MulAcc(sum, a.Limbs[i], at[i-1])
 	}
-	a.isEvaluated = true
-	a.evaluation = sum
-	return a
+	return sum
+}
+
+func (f *Field[T]) evalWithChallengeExtension(a *Element[T], at []frontend.Variable) frontend.Variable {
+	// even though at is []frontend.Variable, then we abuse the fact that
+	// frontend.Variable is defined as any and at is []ExtensionVariable. We
+	// type assert it.
+	atext := make([]fieldextension.Element, len(at))
+	for i := 0; i < len(at); i++ {
+		atext[i] = at[i].(fieldextension.Element)
+	}
+	sum := f.extensionApi.Zero()
+	if len(a.Limbs) > 0 {
+		sum = f.extensionApi.AsExtensionVariable(a.Limbs[0])
+	}
+	for i := 1; i < len(a.Limbs); i++ {
+		toAdd := f.extensionApi.MulByElement(atext[i-1], a.Limbs[i])
+		sum = f.extensionApi.Add(sum, toAdd)
+	}
+	return sum
 }
 
 // performDeferredChecks should be deferred to actually perform all the
@@ -289,43 +352,91 @@ func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 	for i := range f.deferredChecks {
 		toCommit = append(toCommit, f.deferredChecks[i].toCommit()...)
 	}
-	// we give all the inputs as inputs to obtain random verifier challenge.
-	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		// for efficiency, we compute all powers of the challenge as slice at.
-		coefsLen := int(f.fParams.NbLimbs())
-		for i := range f.deferredChecks {
-			coefsLen = max(coefsLen, f.deferredChecks[i].maxLen())
-		}
-		at := make([]frontend.Variable, coefsLen)
-		at[0] = commitment
-		for i := 1; i < len(at); i++ {
-			at[i] = api.Mul(at[i-1], commitment)
-		}
-		// evaluate all r, k, c
-		for i := range f.deferredChecks {
-			f.deferredChecks[i].evalRound1(at)
-		}
-		// assuming r is input to some other multiplication, then is already evaluated
-		for i := range f.deferredChecks {
-			f.deferredChecks[i].evalRound2(at)
-		}
-		// evaluate p(X) at challenge
-		pval := f.evalWithChallenge(f.Modulus(), at)
-		// compute (2^t-X) at challenge
-		coef := big.NewInt(1)
-		coef.Lsh(coef, f.fParams.BitsPerLimb())
-		ccoef := api.Sub(coef, commitment)
-		// verify all mulchecks
-		for i := range f.deferredChecks {
-			f.deferredChecks[i].check(api, pval.evaluation, ccoef)
-		}
-		// clean cached evaluation. Helps in case we compile the same circuit
-		// multiple times.
-		for i := range f.deferredChecks {
-			f.deferredChecks[i].cleanEvaluations()
-		}
-		return nil
-	}, toCommit...)
+	if f.extensionApi == nil {
+		// we give all the inputs as inputs to obtain random verifier challenge.
+		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+			// for efficiency, we compute all powers of the challenge as slice at.
+			coefsLen := int(f.fParams.NbLimbs())
+			for i := range f.deferredChecks {
+				coefsLen = max(coefsLen, f.deferredChecks[i].maxLen())
+			}
+			at := make([]frontend.Variable, coefsLen)
+			at[0] = commitment
+			for i := 1; i < len(at); i++ {
+				at[i] = api.Mul(at[i-1], commitment)
+			}
+			// evaluate all r, k, c
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].evalRound1(at)
+			}
+			// assuming r is input to some other multiplication, then is already evaluated
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].evalRound2(at)
+			}
+			// evaluate p(X) at challenge
+			pval := f.evalWithChallenge(f.Modulus(), at)
+			// compute (2^t-X) at challenge
+			coef := big.NewInt(1)
+			coef.Lsh(coef, f.fParams.BitsPerLimb())
+			ccoef := api.Sub(coef, commitment)
+			// verify all mulchecks
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].check(api, pval.evaluation, ccoef)
+			}
+			// clean cached evaluation. Helps in case we compile the same circuit
+			// multiple times.
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].cleanEvaluations()
+			}
+			return nil
+		}, toCommit...)
+	} else {
+		// this is the same as above, but we have challenges in the extension
+		// field. The commitment argument below is actually extension field
+		// element, but we give it as []frontend.Variable for interface
+		// compatibility.
+		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+			// for efficiency, we compute all powers of the challenge as slice at.
+			coefsLen := int(f.fParams.NbLimbs())
+			for i := range f.deferredChecks {
+				coefsLen = max(coefsLen, f.deferredChecks[i].maxLen())
+			}
+			at := make([]fieldextension.Element, coefsLen)
+			at[0] = commitment
+			for i := 1; i < len(at); i++ {
+				at[i] = f.extensionApi.Mul(at[i-1], commitment)
+			}
+			atv := make([]frontend.Variable, len(at))
+			for i := range at {
+				atv[i] = at[i]
+			}
+			// evaluate all r, k, c
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].evalRound1(atv)
+			}
+			// assuming r is input to some other multiplication, then is already evaluated
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].evalRound2(atv)
+			}
+			// evaluate p(X) at challenge
+			pval := f.evalWithChallenge(f.Modulus(), atv)
+			// compute (2^t-X) at challenge
+			coef := big.NewInt(1)
+			coef.Lsh(coef, f.fParams.BitsPerLimb())
+			coefext := f.extensionApi.AsExtensionVariable(coef)
+			ccoef := f.extensionApi.Sub(coefext, commitment)
+			// verify all mulchecks
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].check(api, pval.evaluation, ccoef)
+			}
+			// clean cached evaluation. Helps in case we compile the same circuit
+			// multiple times.
+			for i := range f.deferredChecks {
+				f.deferredChecks[i].cleanEvaluations()
+			}
+			return nil
+		}, f.extensionApi.Degree(), toCommit...)
+	}
 	return nil
 }
 
@@ -483,7 +594,7 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 // efficient.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
@@ -495,7 +606,7 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 // Equivalent to [Field[T].Mul], kept for backwards compatibility.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
@@ -507,7 +618,7 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 // general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
 // the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
-	if len(a.Limbs) == 0 {
+	if a.isStrictZero() {
 		return f.Zero()
 	}
 	switch c.Sign() {
@@ -524,7 +635,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newConstElement[T](ba, false)
+				return newConstElement[T](f.api.Compiler().Field(), ba, false)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
@@ -562,7 +673,7 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 // number of limbs of the inputs.
 func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
-	if len(a.Limbs) == 0 || len(b.Limbs) == 0 {
+	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
 	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
@@ -585,7 +696,7 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 // number of limbs and zero overflow.
 func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 	// fast path - if the base is zero, then the result is also zero
-	if len(base.Limbs) == 0 {
+	if base.isStrictZero() {
 		return f.Zero()
 	}
 	expBts := f.ToBits(exp)
@@ -830,19 +941,58 @@ func (mc *mvCheck[T]) evalRound2(at []frontend.Variable) {
 	}
 }
 
+// check checks that the multivariate polynomial f(x1(ch), x2(ch), ...) = r(ch)
+// + k(ch)*p(ch) + (2^t-ch) c(ch) holds. As p and (2^t-ch) are same over all
+// checks then we get them as arguments to this method.
 func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
-	ls := frontend.Variable(0)
-	for i, term := range mc.mv.Terms {
-		termProd := frontend.Variable(mc.mv.Coefficients[i])
-		for i, pow := range term {
-			for j := 0; j < pow; j++ {
-				termProd = api.Mul(termProd, mc.vals[i].evaluation)
+	// we either have to perform the equality check in the native field or in
+	// the extension field. It was already determined at the [Field]
+	// initialization time which kind of check needs to be done.
+	if mc.f.extensionApi == nil {
+		ls := frontend.Variable(0)
+		for i, term := range mc.mv.Terms {
+			termProd := frontend.Variable(mc.mv.Coefficients[i])
+			for i, pow := range term {
+				for j := 0; j < pow; j++ {
+					termProd = api.Mul(termProd, mc.vals[i].evaluation)
+				}
 			}
+			ls = api.Add(ls, termProd)
 		}
-		ls = api.Add(ls, termProd)
+		rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
+		api.AssertIsEqual(ls, rs)
+	} else {
+		// here we use the fact that [frontend.Variable] is defined as any, but
+		// we have actually provided [ExtensionVariable]. We type assert to be
+		// able to use the fieldextension API.
+		//
+		// the computations are same as in the previous conditional block, but
+		// only in the extension.
+		ls := mc.f.extensionApi.Zero()
+		for i, term := range mc.mv.Terms {
+			termProd := mc.f.extensionApi.AsExtensionVariable(mc.mv.Coefficients[i])
+			for i, pow := range term {
+				for j := 0; j < pow; j++ {
+					valsexti := mc.vals[i].evaluation.(fieldextension.Element)
+					termProd = mc.f.extensionApi.Mul(termProd, valsexti)
+				}
+			}
+			ls = mc.f.extensionApi.Add(ls, termProd)
+		}
+		rext := mc.r.evaluation.(fieldextension.Element)
+		pevalext := peval.(fieldextension.Element)
+		kext := mc.k.evaluation.(fieldextension.Element)
+		cext := mc.c.evaluation.(fieldextension.Element)
+		coefext := coef.(fieldextension.Element)
+
+		pkext := mc.f.extensionApi.Mul(pevalext, kext)
+		ccoefext := mc.f.extensionApi.Mul(coefext, cext)
+
+		rs := mc.f.extensionApi.Add(rext, pkext)
+		rs = mc.f.extensionApi.Add(rs, ccoefext)
+
+		mc.f.extensionApi.AssertIsEqual(ls, rs)
 	}
-	rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
-	api.AssertIsEqual(ls, rs)
 }
 
 func (mc *mvCheck[T]) cleanEvaluations() {
@@ -865,7 +1015,6 @@ func (mc *mvCheck[T]) cleanEvaluations() {
 // As it only depends on the bit-length of the inputs, then we can precompute it
 // regardless of the actual values.
 func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quoSize uint) {
-	var fp T
 	quoSizes := make([]uint, len(mv.Terms))
 	for i, term := range mv.Terms {
 		// for every term, the result length is the sum of the lengths of the
@@ -873,7 +1022,7 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 		var lengths []uint
 		for j, pow := range term {
 			for k := 0; k < pow; k++ {
-				lengths = append(lengths, uint(len(at[j].Limbs))*fp.BitsPerLimb()+at[j].overflow)
+				lengths = append(lengths, uint(len(at[j].Limbs))*f.fParams.BitsPerLimb()+at[j].overflow)
 			}
 		}
 		lengths = append(lengths, uint(bits.Len(uint(mv.Coefficients[i]))))

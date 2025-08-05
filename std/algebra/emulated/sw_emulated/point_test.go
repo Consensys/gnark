@@ -2437,6 +2437,25 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// -2 * P == -2P
+	minusTwo := big.NewInt(-2)
+	var expected secp256k1.G1Affine
+	expected.ScalarMultiplication(&g, minusTwo)
+	witness6 := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](minusTwo),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](expected.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](expected.Y),
+		},
+	}
+
+	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
+	assert.NoError(err)
 }
 
 func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {

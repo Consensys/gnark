@@ -45,7 +45,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/internal/mimc"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
@@ -148,6 +148,10 @@ func Build(api frontend.API, table Table, queries Table) error {
 }
 
 func randLinearCoefficients(api frontend.API, nbRow int, commitment frontend.Variable) (rowCoeffs []frontend.Variable, challenge frontend.Variable) {
+	if nbRow == 1 {
+		// to avoid initializing the hasher.
+		return []frontend.Variable{1}, commitment
+	}
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
 		panic(err)

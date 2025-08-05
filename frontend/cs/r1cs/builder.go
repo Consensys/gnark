@@ -307,19 +307,29 @@ func (builder *builder[E]) constantValue(v frontend.Variable) (E, bool) {
 	var zero E
 	if _v, ok := v.(expr.LinearExpression[E]); ok {
 		assertIsSet(_v)
-
-		if len(_v) != 1 {
-			// TODO @gbotrel this assumes linear expressions of coeff are not possible
-			// and are always reduced to one element. may not always be true?
-			return zero, false
-		}
-		if _v[0].Coeff == zero { // fast path for zero comparison to avoid overhead of calling IsZero
+		switch len(_v) {
+		case 0:
+			// empty linear expression, this is a constant zero
+			return zero, true
+		case 1:
+			// linear expression with one term, check if it is a constant
+			if _v[0].Coeff == zero { // fast path for zero comparison to avoid overhead of calling IsZero
+				return zero, true
+			}
+			if !(_v[0].WireID() == 0) { // public ONE WIRE
+				return zero, false
+			}
+			return _v[0].Coeff, true
+		default:
+			// linear expression with more than one term. Here it is only constant in case all coefficients are zero.
+			for _, t := range _v {
+				if !t.Coeff.IsZero() {
+					return zero, false
+				}
+			}
+			// all coefficients are zero, this is a constant zero
 			return zero, true
 		}
-		if !(_v[0].WireID() == 0) { // public ONE WIRE
-			return zero, false
-		}
-		return _v[0].Coeff, true
 	}
 	return builder.cs.FromInterface(v), true
 }

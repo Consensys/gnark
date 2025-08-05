@@ -1,15 +1,14 @@
-package polynomial
+package polynomial_test
 
 import (
-	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
 )
 
@@ -20,7 +19,7 @@ type evalPolyCircuit struct {
 }
 
 func (c *evalPolyCircuit) Define(api frontend.API) error {
-	p := Polynomial(c.P)
+	p := polynomial.Polynomial(c.P)
 	evaluation := p.Eval(api, c.At)
 	api.AssertIsEqual(evaluation, c.Evaluation)
 	return nil
@@ -30,72 +29,16 @@ func testEvalPoly(t *testing.T, p []int64, at int64, evaluation int64) {
 	assert := test.NewAssert(t)
 
 	witness := evalPolyCircuit{
-		P:          Polynomial(int64SliceToVariableSlice(p)),
+		P:          polynomial.Polynomial(int64SliceToVariableSlice(p)),
 		At:         at,
 		Evaluation: evaluation,
 	}
 
-	assert.CheckCircuit(&evalPolyCircuit{P: make(Polynomial, len(p))}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalPolyCircuit{P: make(polynomial.Polynomial, len(p))}, test.WithValidAssignment(&witness))
 }
 
 func TestEvalPoly(t *testing.T) {
 	testEvalPoly(t, []int64{1, 2, 3, 4}, 5, 586)
-}
-
-type evalDeltasCircuit struct {
-	ExpectedDeltas []frontend.Variable
-	At             frontend.Variable
-}
-
-func (c *evalDeltasCircuit) Define(api frontend.API) error {
-	observedDeltas := computeDeltaAtNaive(api, c.At, len(c.ExpectedDeltas))
-	for i := range c.ExpectedDeltas {
-		api.AssertIsEqual(observedDeltas[i], c.ExpectedDeltas[i])
-	}
-	return nil
-}
-
-func testEvalDeltas(t *testing.T, at int64, expected []int64) {
-
-	test.NewAssert(t).CheckCircuit(
-		&evalDeltasCircuit{ExpectedDeltas: make([]frontend.Variable, len(expected))},
-
-		test.WithValidAssignment(&evalDeltasCircuit{ExpectedDeltas: int64SliceToVariableSlice(expected), At: at}),
-	)
-}
-
-func TestEvalDeltasLinear(t *testing.T) {
-	testEvalDeltas(t, 2, []int64{-1, 2})
-}
-
-func TestEvalDeltasQuadratic(t *testing.T) {
-	testEvalDeltas(t, 3, []int64{1, -3, 3})
-}
-
-type foldMultiLinCircuit struct {
-	M      []frontend.Variable
-	At     frontend.Variable
-	Result []frontend.Variable
-}
-
-func (c *foldMultiLinCircuit) Define(api frontend.API) error {
-	if len(c.M) != 2*len(c.Result) {
-		return errors.New("folding size mismatch")
-	}
-	m := MultiLin(c.M)
-	m.fold(api, c.At)
-	for i := range c.Result {
-		api.AssertIsEqual(m[i], c.Result[i])
-	}
-	return nil
-}
-
-func TestFoldSmall(t *testing.T) {
-	test.NewAssert(t).CheckCircuit(
-		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
-
-		test.WithValidAssignment(&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}}),
-	)
 }
 
 type evalMultiLinCircuit struct {
@@ -105,7 +48,7 @@ type evalMultiLinCircuit struct {
 }
 
 func (c *evalMultiLinCircuit) Define(api frontend.API) error {
-	m := MultiLin(c.M)
+	m := polynomial.MultiLin(c.M)
 	evaluation := m.Evaluate(api, c.At)
 	api.AssertIsEqual(evaluation, c.Evaluation)
 	return nil
@@ -116,12 +59,12 @@ func TestEvalMultiLin(t *testing.T) {
 
 	// M = 2 X₀ + X₁ + 1
 	witness := evalMultiLinCircuit{
-		M:          MultiLin{1, 2, 3, 4},
+		M:          polynomial.MultiLin{1, 2, 3, 4},
 		At:         []frontend.Variable{5, 6},
 		Evaluation: 17,
 	}
 
-	assert.CheckCircuit(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalMultiLinCircuit{M: make(polynomial.MultiLin, 4), At: make([]frontend.Variable, 2)}, test.WithValidAssignment(&witness))
 }
 
 type evalEqCircuit struct {
@@ -131,7 +74,7 @@ type evalEqCircuit struct {
 }
 
 func (c *evalEqCircuit) Define(api frontend.API) error {
-	evaluation := EvalEq(api, c.X, c.Y)
+	evaluation := polynomial.EvalEq(api, c.X, c.Y)
 	api.AssertIsEqual(evaluation, c.Eq)
 	return nil
 }
@@ -155,7 +98,7 @@ type interpolateLDECircuit struct {
 }
 
 func (c *interpolateLDECircuit) Define(api frontend.API) error {
-	evaluation := InterpolateLDE(api, c.At, c.Values)
+	evaluation := polynomial.InterpolateLDE(api, c.At, c.Values)
 	api.AssertIsEqual(evaluation, c.ExpectedInterpolation)
 	return nil
 }
@@ -216,12 +159,6 @@ func TestInterpolateQuadraticExtension(t *testing.T) {
 	)
 }
 
-func TestNegFactorial(t *testing.T) {
-	for n, expected := range []int{0, -1, 2, -6, 24} {
-		assert.Equal(t, expected, negFactorial(n))
-	}
-}
-
 func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(slice))
 	for _, v := range slice {
@@ -233,8 +170,8 @@ func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 func ExampleMultiLin_Evaluate() {
 	const logSize = 20
 	const size = 1 << logSize
-	m := MultiLin(make([]frontend.Variable, size))
-	e := MultiLin(make([]frontend.Variable, logSize))
+	m := polynomial.MultiLin(make([]frontend.Variable, size))
+	e := polynomial.MultiLin(make([]frontend.Variable, logSize))
 
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
 	if err != nil {

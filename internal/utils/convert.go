@@ -105,3 +105,18 @@ func Uint64SliceSliceToIntSliceSlice(in [][]uint64) [][]int {
 	}
 	return res
 }
+
+// ForceUint32 converts an object that may have been a uint64, or a uint32, to a uint32.
+func ForceUint32(v any) uint32 {
+	switch x := v.(type) {
+	case uint32:
+		return x
+	case uint64:
+		if x > 0xFFFFFFFF {
+			panic("value too large to fit in uint32")
+		}
+		return uint32(x)
+	default:
+		panic("value is not uint32 or uint64")
+	}
+}

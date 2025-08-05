@@ -8,17 +8,21 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/constraint"
-	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/rs/zerolog"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
+	"github.com/consensys/gnark/constraint"
+	csolver "github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	gkr "github.com/consensys/gnark/internal/gkr/bw6-761"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
@@ -47,10 +51,14 @@ type solver struct {
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// add GKR options to overwrite the placeholder
 	if cs.GkrInfo.Is() {
-		var gkrData GkrSolvingData
+		var gkrData gkr.SolvingData
+		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		if err != nil {
+			return nil, err
+		}
 		opts = append(opts,
-			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
+			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(solvingInfo, &gkrData)),
+			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, &gkrData)))
 	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)

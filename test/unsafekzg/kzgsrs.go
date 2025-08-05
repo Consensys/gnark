@@ -195,6 +195,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 	switch srs := canonicalSRS.(type) {
 	case *kzg_bn254.SRS:
+		ttau := new(fr_bn254.Element).SetBigInt(tau)
 		newSRS := &kzg_bn254.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -202,9 +203,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bn254.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 		// do a fft on this.
 		d := fft_bn254.NewDomain(size)
@@ -217,6 +217,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bls12381.SRS:
+		ttau := new(fr_bls12381.Element).SetBigInt(tau)
 		newSRS := &kzg_bls12381.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -224,9 +225,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bls12381.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 		// do a fft on this.
 		d := fft_bls12381.NewDomain(size)
@@ -239,6 +239,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bls12377.SRS:
+		ttau := new(fr_bls12377.Element).SetBigInt(tau)
 		newSRS := &kzg_bls12377.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -246,9 +247,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bls12377.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 		// do a fft on this.
 		d := fft_bls12377.NewDomain(size)
@@ -261,6 +261,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bw6761.SRS:
+		ttau := new(fr_bw6761.Element).SetBigInt(tau)
 		newSRS := &kzg_bw6761.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -268,9 +269,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bw6761.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 
 		// do a fft on this.
@@ -284,6 +284,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bls24317.SRS:
+		ttau := new(fr_bls24317.Element).SetBigInt(tau)
 		newSRS := &kzg_bls24317.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -291,9 +292,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bls24317.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 
 		// do a fft on this.
@@ -307,6 +307,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bls24315.SRS:
+		ttau := new(fr_bls24315.Element).SetBigInt(tau)
 		newSRS := &kzg_bls24315.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -314,9 +315,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bls24315.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 
 		// do a fft on this.
@@ -330,6 +330,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 
 		lagrangeSRS = newSRS
 	case *kzg_bw6633.SRS:
+		ttau := new(fr_bw6633.Element).SetBigInt(tau)
 		newSRS := &kzg_bw6633.SRS{Vk: srs.Vk}
 		size := uint64(len(srs.Pk.G1)) - 3
 
@@ -337,9 +338,8 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// since we know the randomness in test.
 		pAlpha := make([]fr_bw6633.Element, size)
 		pAlpha[0].SetUint64(1)
-		pAlpha[1].SetBigInt(tau)
-		for i := 2; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], &pAlpha[1])
+		for i := 1; i < len(pAlpha); i++ {
+			pAlpha[i].Mul(&pAlpha[i-1], ttau)
 		}
 
 		// do a fft on this.
