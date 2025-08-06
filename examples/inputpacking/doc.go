@@ -1,5 +1,5 @@
 // Package inputpacking illustrates input packing for reducing public input.
-
+//
 // Usually in a SNARK circuit there are public and private inputs. The public
 // inputs are known to the prover and verifier, while the private inputs are
 // known only to the prover. To verify the proof, the verifier needs to provide
