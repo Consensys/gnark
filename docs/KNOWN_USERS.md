@@ -6,3 +6,4 @@
 * [Reclaim protocol](https://reclaimprotocol.org/) - Migrated circuits from snarkjs to gnark for mobile-proof generation efficiency; open‑sourced their symmetric‑crypto circuits.
 * [AlgoPlonk](https://github.com/giuliop/AlgoPlonk) - Go toolkit that turns any gnark-defined PLONK circuit into an Algorand smart contract verifier.
 * [Celer Network](https://celer.network/) – Leveraging gnark for zero-knowledge proof generation within cross-chain messaging and state verification mechanisms.
+* [zkBank](https://github.com/zksecurity/zkBank) – Capture-the-flag style ZK banking system built by the zkSecurity team. Uses gnark to implement and verify GKR-based zero‑knowledge proofs in Go.
