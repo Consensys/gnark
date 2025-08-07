@@ -518,3 +518,11 @@ func (e *E12) AssertIsEqual(api frontend.API, other E12) {
 	e.C0.AssertIsEqual(api, other.C0)
 	e.C1.AssertIsEqual(api, other.C1)
 }
+
+// IsEqual returns a variable that is 1 if self == other, 0 otherwise
+func (e *E12) IsEqual(api frontend.API, other E12) frontend.Variable {
+	return api.And(
+		e.C0.IsEqual(api, other.C0),
+		e.C1.IsEqual(api, other.C1),
+	)
+}
