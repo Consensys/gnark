@@ -113,8 +113,8 @@ const (
 func KzgPointEvaluation(
 	api frontend.API,
 	versionedHash [2]frontend.Variable, // arithmetization gives us a 2-element array. We convert it ourselves to a byte array.
-	evaluationPoint emulated.Element[sw_bls12381.ScalarField],
-	claimedValue emulated.Element[sw_bls12381.ScalarField],
+	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
+	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed [3]frontend.Variable, // commitment is a 48 byte compressed point. Arithmetization uses 16-byte words, so we use a 3-element array.
 	proofCompressed [3]frontend.Variable, // proof is a 48 byte compressed point. Arithmetization uses 16-byte words, so we use a 3-element array.
 	expectedSuccess frontend.Variable, // expected success is a single byte that is 1 if the proof is valid, 0 otherwise
@@ -124,7 +124,7 @@ func KzgPointEvaluation(
 	// -- perform conversion from 16-byte words to 1-byte words
 
 	// versioned hash
-	var versionedHashBytes [32]uints.U8
+	var versionedHashBytes [sha256.Size]uints.U8
 	for i := range versionedHash {
 		res, err := conversion.NativeToBytes(api, versionedHash[len(versionedHash)-1-i])
 		if err != nil {
@@ -134,7 +134,7 @@ func KzgPointEvaluation(
 	}
 
 	// commitment
-	var comSerializedBytes [48]uints.U8
+	var comSerializedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range commitmentCompressed {
 		res, err := conversion.NativeToBytes(api, commitmentCompressed[len(commitmentCompressed)-1-i])
 		if err != nil {
@@ -143,7 +143,7 @@ func KzgPointEvaluation(
 		copy(comSerializedBytes[i*16:(i+1)*16], res[16:])
 	}
 	// proof
-	var proofSerialisedBytes [48]uints.U8
+	var proofSerialisedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range proofCompressed {
 		res, err := conversion.NativeToBytes(api, proofCompressed[len(proofCompressed)-1-i])
 		if err != nil {
@@ -193,9 +193,9 @@ func KzgPointEvaluation(
 	}
 	kzgOpeningProof := kzg.OpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine]{
 		Quotient:     *proofUncompressed,
-		ClaimedValue: claimedValue,
+		ClaimedValue: *claimedValue,
 	}
-	err = v.CheckOpeningProof(kzgCommitment, kzgOpeningProof, evaluationPoint, *fixedKzgSrsVk)
+	err = v.CheckOpeningProof(kzgCommitment, kzgOpeningProof, *evaluationPoint, *fixedKzgSrsVk)
 	if err != nil {
 		return fmt.Errorf("check opening proof: %w", err)
 	}
