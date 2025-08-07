@@ -366,7 +366,7 @@ func KzgPointEvaluationFailure(
 		copy(versionedHashBytes[i*16:(i+1)*16], res[16:])
 	}
 	// - check the hash version
-	isCorrectHashVersion := api.IsZero(api.Sub(bapi.ValueUnchecked(versionedHashBytes[0]), uints.NewU8(blobCommitmentVersionKZG)))
+	isCorrectHashVersion := api.IsZero(api.Sub(bapi.ValueUnchecked(versionedHashBytes[0]), blobCommitmentVersionKZG))
 	// - check the rest of the hash
 	isCorrectHash := isCorrectHashVersion
 	for i := 1; i < len(hashedKzg); i++ {
