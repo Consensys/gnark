@@ -402,8 +402,17 @@ func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) erro
 		// this case, we return a random point not on curve ourselves and then
 		// it is later checked in circuit indeed not to be on a curve.
 		if err != nil {
+			var sign int64
+			switch (xCoord[0] & mMask) >> 5 {
+			case 0b100:
+				sign = 1
+			case 0b101:
+				sign = -1
+			default:
+				return fmt.Errorf("invalid mask %b for unmarshalG1", (xCoord[0]&mMask)>>5)
+			}
 			for i := 1; i < 100; i++ { // we have probability 1/2 for each i to find a point not on curve
-				point.Y.SetInt64(int64(i))
+				point.Y.SetInt64(int64(i) * sign)
 				if !point.IsOnCurve() {
 					break
 				}
