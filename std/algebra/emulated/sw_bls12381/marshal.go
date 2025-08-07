@@ -8,8 +8,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/conversion"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/selector"
 )
 
 const (
@@ -61,6 +61,19 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.Al
 	}
 	unmask := uints.NewU8(mMask)                   // unmaks = ^mask
 	prefix := uapi.And(unmask, compressedPoint[0]) // prefix = compressedPoint[0] & unmask
+	// lets ensure that we have a valid prefix (0b100, 0b101, 0b110)
+	prefixShifted := g1.api.Div(uapi.Value(prefix), 32) // prefixShifted = prefix >> 5
+	isValidPrefix := selector.Mux(g1.api, prefixShifted,
+		0, // 0b000 << 5
+		0, // 0b001 << 5
+		0, // 0b010 << 5
+		0, // 0b011 << 5
+		1, // 0b100 << 5 - compressed regular point, with y lexicographically smallest
+		1, // 0b101 << 5 - compressed regular point, with y lexicographically largest
+		1, // 0b110 << 5 - compressed point at infinity
+		0, // 0b111 << 5
+	)
+	g1.api.AssertIsEqual(isValidPrefix, 1)
 
 	// first we remove the prefix from the first byte. The prefix indicates if
 	// the input is compressed and point at infinity. It also indicates the sign
@@ -75,6 +88,10 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.Al
 	if err != nil {
 		return nil, fmt.Errorf("bytes to emulated: %w", err)
 	}
+	// if the prefix was for compressed infinity, then check that the X coordinate is zero
+	isPrefixCompressedInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
+	isXZero := g1.curveF.IsZero(x)
+	g1.api.AssertIsEqual(isXZero, isPrefixCompressedInfinity)
 
 	// 1 - hint y coordinate of the result
 	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
@@ -89,31 +106,18 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.Al
 	res := &G1Affine{X: *x, Y: *y}
 
 	// 3 - subgroup check
-
-	// if the point is infinity, we do the subgroup check on the base point (otherwise the subgroup
-	// check fails for (0,0) ). We check later on that the actual point is equal to (0,0).
-	isCompressedInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
-	_, _, g, _ := bls12381.Generators()
-	base := NewG1Affine(g)
-	resTmpX := g1.curveF.Select(isCompressedInfinity, &base.X, x)
-	resTmpY := g1.curveF.Select(isCompressedInfinity, &base.Y, y)
-	resTmp := &G1Affine{X: *resTmpX, Y: *resTmpY}
 	// we omit subgroup memberhship check if the option is set. We use it in negative cases
 	// in KZG pointeval circuit in evmprecompiles package where we need to get the membership
 	// result to be able to switch to dummy values.
 	if !cfg.NoGroupMembership {
-		g1.AssertIsOnG1(resTmp)
+		g1.AssertIsOnG1(res)
 	}
 
 	// 4 - check logic with the mask
-
-	// if p=O, we set P'=(0,0) and check equality, else we artificially set P'=P and check equality
-	isInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
-	zero := emulated.ValueOf[BaseField](0)
-	infX := g1.curveF.Select(isInfinity, &zero, x)
-	infY := g1.curveF.Select(isInfinity, &zero, y)
-	g1.curveF.AssertIsEqual(infX, x)
-	g1.curveF.AssertIsEqual(infY, y)
+	// if the mask is for zero, then the hint is supposed to have returned also y=0
+	isYZero := g1.curveF.IsZero(&res.Y)
+	isZeroPoint := g1.api.And(isXZero, isYZero)
+	g1.api.AssertIsEqual(isZeroPoint, isPrefixCompressedInfinity)
 
 	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
 	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(mCompressedSmallest, uapi.Value(prefix)))
