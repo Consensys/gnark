@@ -38,7 +38,7 @@ type kzgPointEvalCircuit struct {
 }
 
 func (c *kzgPointEvalCircuit) Define(api frontend.API) error {
-	err := KzgPointEvaluation(api, c.VersionedHash, c.EvaluationPoint, c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+	err := KzgPointEvaluation(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
 		return fmt.Errorf("KzgPointEvaluation: %w", err)
 	}
