@@ -12,6 +12,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
@@ -77,10 +78,6 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	h := sha256.Sum256(commitmentBytes[:])
 	h[0] = blobCommitmentVersionKZG
 
-	encode := func(b []byte) string {
-		return "0x" + hex.EncodeToString(b)
-	}
-
 	witnessHash := [2]frontend.Variable{
 		encode(h[16:32]),
 		encode(h[0:16]),
@@ -122,6 +119,201 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	}
 	err = test.IsSolved(&kzgPointEvalCircuit{}, &witness, ecc.BLS12_377.ScalarField())
 	assert.NoError(err, "test solver")
+}
+
+type kzgPointEvalFailureCircuit struct {
+	VersionedHash      [2]frontend.Variable
+	EvaluationPoint    emulated.Element[sw_bls12381.ScalarField]
+	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
+	Commitment         [3]frontend.Variable
+	Proof              [3]frontend.Variable
+	ExpectedBlobSize   [2]frontend.Variable
+	ExpectedBlsModulus [2]frontend.Variable
+
+	ExpectedSuccess frontend.Variable
+}
+
+func (c *kzgPointEvalFailureCircuit) Define(api frontend.API) error {
+	err := KzgPointEvaluationFailure(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+	if err != nil {
+		return fmt.Errorf("KzgPointEvaluationFailure: %w", err)
+	}
+	return nil
+}
+
+func runFailureCircuit(assert *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
+	witnessHash := [2]frontend.Variable{
+		encode(hashBytes[16:32]),
+		encode(hashBytes[0:16]),
+	}
+	// - commitment into 3 limbs
+	witnessCommitment := [3]frontend.Variable{
+		encode(commitmentBytes[32:48]),
+		encode(commitmentBytes[16:32]),
+		encode(commitmentBytes[0:16]),
+	}
+	// - proof into 3 limbs
+	witnessProof := [3]frontend.Variable{
+		encode(proofBytes[32:48]),
+		encode(proofBytes[16:32]),
+		encode(proofBytes[0:16]),
+	}
+
+	// prepare the constant return values
+	witnessBlobSize := [2]frontend.Variable{
+		blobSize[0],
+		blobSize[1],
+	}
+	witnessBlsModulus := [2]frontend.Variable{
+		blsModulus[0],
+		blsModulus[1],
+	}
+
+	// prepare the full witness
+	witness := kzgPointEvalFailureCircuit{
+		VersionedHash:      witnessHash,
+		EvaluationPoint:    emulated.ValueOf[sw_bls12381.ScalarField](evaluationPoint),
+		ClaimedValue:       emulated.ValueOf[sw_bls12381.ScalarField](claimedValue),
+		Commitment:         witnessCommitment,
+		Proof:              witnessProof,
+		ExpectedBlobSize:   witnessBlobSize,
+		ExpectedBlsModulus: witnessBlsModulus,
+		ExpectedSuccess:    1,
+	}
+	return test.IsSolved(&kzgPointEvalFailureCircuit{}, &witness, ecc.BLS12_377.ScalarField())
+}
+
+func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// setup loading
+	f, err := os.Open(locTrustedSetup)
+	assert.NoError(err, "failed to open trusted setup file")
+	defer f.Close()
+	setup, err := parseTrustedSetup(f)
+	assert.NoError(err, "failed to parse trusted setup")
+
+	// compute the proving key for commitment and opening
+	pk, err := setup.toProvingKey()
+	assert.NoError(err, "failed to convert trusted setup to proving key")
+
+	// commit to a random polynomial
+	randPoly := make(fr.Vector, evmBlockSize)
+	randPoly.MustSetRandom()
+	kzgCommitment, err := kzg_bls12381.Commit(randPoly, *pk)
+	assert.NoError(err, "failed to compute KZG commitment")
+
+	// compute the KZG proof for a random evaluation point
+	var evaluationPoint fr.Element
+	evaluationPoint.MustSetRandom()
+	kzgProof, err := kzg_bls12381.Open(randPoly, evaluationPoint, *pk)
+	assert.NoError(err, "failed to compute KZG proof")
+
+	// prepare the witness elements
+	// - versioned hash (hash of the commitment)
+	commitmentBytes := kzgCommitment.Bytes()
+	h := sha256.Sum256(commitmentBytes[:])
+	h[0] = blobCommitmentVersionKZG
+
+	// -- ensure that for valid inputs the circuit fails
+	assert.Run(func(assert *test.Assert) {
+		err = runFailureCircuit(assert,
+			evaluationPoint,
+			kzgProof.ClaimedValue,
+			h[:],
+			commitmentBytes,
+			kzgProof.H.Bytes(),
+			[]int{0, evmBlockSize},
+			[]string{evmBlsModulusHi, evmBlsModulusLo},
+		)
+		assert.Error(err, "should fail on valid inputs")
+	}, "valid-inputs")
+	// -- generate proof not on curve and not on subgroup
+	assert.Run(func(assert *test.Assert) {
+		var proof bls12381.G1Affine
+		for {
+			proof.X.MustSetRandom()
+			proof.Y.MustSetRandom()
+			if !proof.IsOnCurve() {
+				break
+			}
+		}
+		proofBytes := proof.Bytes()
+		err = runFailureCircuit(assert,
+			evaluationPoint,
+			kzgProof.ClaimedValue,
+			h[:],
+			commitmentBytes,
+			proofBytes,
+			[]int{0, evmBlockSize},
+			[]string{evmBlsModulusHi, evmBlsModulusLo},
+		)
+		assert.NoError(err, "should pass")
+	}, "proof-not-on-curve")
+	assert.Run(func(assert *test.Assert) {
+		var proof bls12381.G1Affine
+		var r fp.Element
+		r.MustSetRandom()
+		proofJac := bls12381.GeneratePointNotInG1(r)
+		proof.FromJacobian(&proofJac)
+		proofBytes := proof.Bytes()
+		err = runFailureCircuit(assert,
+			evaluationPoint,
+			kzgProof.ClaimedValue,
+			h[:],
+			commitmentBytes,
+			proofBytes,
+			[]int{0, evmBlockSize},
+			[]string{evmBlsModulusHi, evmBlsModulusLo},
+		)
+		assert.NoError(err, "should pass")
+	}, "proof-not-in-subgroup")
+	// -- generate commitment not on curve and not on subgroup
+	assert.Run(func(assert *test.Assert) {
+	}, "commitment-not-on-curve")
+	assert.Run(func(assert *test.Assert) {
+	}, "commitment-not-in-subgroup")
+	// -- generate proof masks invalid
+	assert.Run(func(assert *test.Assert) {
+		// internally all cases
+	}, "proof-mask-invalid")
+	// -- proof x coordinate overflows field
+	assert.Run(func(assert *test.Assert) {
+	}, "proof-x-coordinate-overflow")
+	// -- generate commitment masks invalid
+	assert.Run(func(assert *test.Assert) {
+		// internally all cases
+	}, "commitment-mask-invalid")
+	// -- commitment x coordinate overflows field
+	assert.Run(func(assert *test.Assert) {
+	}, "commitment-x-coordinate-overflow")
+	// -- generate hash version incorrect
+	assert.Run(func(assert *test.Assert) {
+		// random value not 1
+	}, "hash-version-incorrect")
+	// -- generate hash incorrect
+	assert.Run(func(assert *test.Assert) {
+		// change at random place
+	}, "hash-incorrect")
+	// -- generate invalid expected result
+	assert.Run(func(assert *test.Assert) {
+		// change expected blob size
+	}, "expected-blob-size-invalid")
+	assert.Run(func(assert *test.Assert) {
+		// change expected bls modulus
+	}, "expected-bls-modulus-invalid")
+	// -- change claimed value
+	assert.Run(func(assert *test.Assert) {
+		// change claimed value
+	}, "claimed-value-invalid")
+	// -- change evaluation point
+	assert.Run(func(assert *test.Assert) {
+		// change evaluation point
+	}, "evaluation-point-invalid")
+}
+
+func encode(b []byte) string {
+	return "0x" + hex.EncodeToString(b)
 }
 
 // trustedSetupJSON represents the trusted setup for the KZG precompile. It is
