@@ -6,6 +6,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
@@ -41,12 +42,16 @@ const (
 // The method performs curve membership check and subgroup membership check.
 //
 // [pairing friendly curves IETF draft]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/.
-func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error) {
+func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.AlgebraOption) (*G1Affine, error) {
 	// for future compatibility (adding method to the [algebra.Pairing]
 	// interface) we haven't set the method signature to be [48]uints.U8, but
 	// rather a slice. Thus we need to check the length of the input.
 	if len(compressedPoint) != bls12381.SizeOfG1AffineCompressed {
 		return nil, fmt.Errorf("compressed point must be %d bytes, got %d", bls12381.SizeOfG1AffineCompressed, len(compressedPoint))
+	}
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new config: %w", err)
 	}
 	// 1 - compute the x coordinate (so it fits in Fp)
 	nbBytes := fp.Bytes
@@ -93,7 +98,12 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8) (*G1Affine, error)
 	resTmpX := g1.curveF.Select(isCompressedInfinity, &base.X, x)
 	resTmpY := g1.curveF.Select(isCompressedInfinity, &base.Y, y)
 	resTmp := &G1Affine{X: *resTmpX, Y: *resTmpY}
-	g1.AssertIsOnG1(resTmp)
+	// we omit subgroup memberhship check if the option is set. We use it in negative cases
+	// in KZG pointeval circuit in evmprecompiles package where we need to get the membership
+	// result to be able to switch to dummy values.
+	if !cfg.NoGroupMembership {
+		g1.AssertIsOnG1(resTmp)
+	}
 
 	// 4 - check logic with the mask
 
