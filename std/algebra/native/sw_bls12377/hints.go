@@ -17,7 +17,6 @@ func GetHints() []solver.Hint {
 		decomposeScalarG2,
 		scalarMulGLVG1Hint,
 		halfGCDEisenstein,
-		halfGCDEisensteinSigns,
 		pairingCheckHint,
 	}
 }
@@ -201,8 +200,8 @@ func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 	if len(inputs) != 2 {
 		return errors.New("expecting two input")
 	}
-	if len(outputs) != 5 {
-		return errors.New("expecting five outputs")
+	if len(outputs) != 10 {
+		return errors.New("expecting ten outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 	glvBasis := new(ecc.Lattice)
@@ -232,76 +231,33 @@ func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 	outputs[4].Add(outputs[4], s.A0).
 		Div(outputs[4], cc.fr)
 
+		// set the signs
+	outputs[5].SetUint64(0)
+	outputs[6].SetUint64(0)
+	outputs[7].SetUint64(0)
+	outputs[8].SetUint64(0)
+	outputs[9].SetUint64(0)
+
 	if outputs[0].Sign() == -1 {
 		outputs[0].Neg(outputs[0])
+		outputs[5].SetUint64(1)
 	}
 	if outputs[1].Sign() == -1 {
 		outputs[1].Neg(outputs[1])
+		outputs[6].SetUint64(1)
 	}
 	if outputs[2].Sign() == -1 {
 		outputs[2].Neg(outputs[2])
+		outputs[7].SetUint64(1)
 	}
 	if outputs[3].Sign() == -1 {
 		outputs[3].Neg(outputs[3])
+		outputs[8].SetUint64(1)
 	}
 	if outputs[4].Sign() == -1 {
 		outputs[4].Neg(outputs[4])
+		outputs[9].SetUint64(1)
 	}
 
-	return nil
-}
-
-func halfGCDEisensteinSigns(scalarField *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) != 2 {
-		return errors.New("expecting two input")
-	}
-	if len(outputs) != 5 {
-		return errors.New("expecting five outputs")
-	}
-	cc := getInnerCurveConfig(scalarField)
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(cc.fr, inputs[1], glvBasis)
-	r := eisenstein.ComplexNumber{
-		A0: &glvBasis.V1[0],
-		A1: &glvBasis.V1[1],
-	}
-	sp := ecc.SplitScalar(inputs[0], glvBasis)
-	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-	// so here we return -s instead of s.
-	s := eisenstein.ComplexNumber{
-		A0: &sp[0],
-		A1: &sp[1],
-	}
-	s.Neg(&s)
-
-	outputs[0].SetUint64(0)
-	outputs[1].SetUint64(0)
-	outputs[2].SetUint64(0)
-	outputs[3].SetUint64(0)
-	outputs[4].SetUint64(0)
-	res := eisenstein.HalfGCD(&r, &s)
-	s.A1.Mul(res[1].A1, inputs[1]).
-		Add(s.A1, res[1].A0).
-		Mul(s.A1, inputs[0]).
-		Add(s.A1, res[0].A0)
-	s.A0.Mul(res[0].A1, inputs[1])
-	s.A1.Add(s.A1, s.A0).
-		Div(s.A1, cc.fr)
-
-	if res[0].A0.Sign() == -1 {
-		outputs[0].SetUint64(1)
-	}
-	if res[0].A1.Sign() == -1 {
-		outputs[1].SetUint64(1)
-	}
-	if res[1].A0.Sign() == -1 {
-		outputs[2].SetUint64(1)
-	}
-	if res[1].A1.Sign() == -1 {
-		outputs[3].SetUint64(1)
-	}
-	if s.A1.Sign() == -1 {
-		outputs[4].SetUint64(1)
-	}
 	return nil
 }
