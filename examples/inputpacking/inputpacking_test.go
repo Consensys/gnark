@@ -145,15 +145,34 @@ func Example() {
 	input2.FillBytes(buf[:])
 	h.Write(buf[:])
 	emulatedInput1.FillBytes(buf2[:])
-	h.Write(buf2[24:32])
-	h.Write(buf2[16:24])
-	h.Write(buf2[8:16])
-	h.Write(buf2[0:8])
+	// write each 64-bit limb as a separate 32-byte BN254 scalar field element (big-endian)
+	var limb [fr_bn254.Bytes]byte
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[24:32]) // limb 0 (least significant)
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[16:24]) // limb 1
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[8:16]) // limb 2
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[0:8]) // limb 3 (most significant)
+	h.Write(limb[:])
+
 	emulatedInput2.FillBytes(buf2[:])
-	h.Write(buf2[24:32])
-	h.Write(buf2[16:24])
-	h.Write(buf2[8:16])
-	h.Write(buf2[0:8])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[24:32]) // limb 0 (least significant)
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[16:24]) // limb 1
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[8:16]) // limb 2
+	h.Write(limb[:])
+	limb = [fr_bn254.Bytes]byte{}
+	copy(limb[24:32], buf2[0:8]) // limb 3 (most significant)
+	h.Write(limb[:])
 
 	dgst := h.Sum(nil)
 	phash := new(big.Int).SetBytes(dgst)
