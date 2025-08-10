@@ -29,7 +29,7 @@ func (circuit *printlnCircuit) Define(api frontend.API) error {
 	c := api.Add(circuit.A, circuit.B)
 	api.Println(c, "is the addition")
 	d := api.Mul(circuit.A, c)
-	api.Println(d, new(big.Int).SetInt64(42))
+	api.Println(d, big.NewInt(42))
 	bs := api.ToBinary(circuit.B, 10)
 	api.Println("bits", bs[3])
 	api.Println("circuit", circuit)
