@@ -53,7 +53,7 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping, to *[]uint32) {
 	for _, l := range h.Inputs {
 		(*to) = append((*to), uint32(len(l)))
 		for _, t := range l {
-			(*to) = append((*to), uint32(t.CoeffID()), uint32(t.WireID()))
+			(*to) = append((*to), t.CID, t.VID)
 		}
 	}
 
