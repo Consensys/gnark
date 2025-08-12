@@ -320,6 +320,11 @@ func (system *System) AddLog(l LogEntry) {
 	system.Logs = append(system.Logs, l)
 }
 
+// GetLogs returns all log entries
+func (system *System) GetLogs() []LogEntry {
+	return system.Logs
+}
+
 func (system *System) AttachDebugInfo(debugInfo DebugInfo, constraintID []int) {
 	system.DebugInfo = append(system.DebugInfo, LogEntry(debugInfo))
 	id := len(system.DebugInfo) - 1

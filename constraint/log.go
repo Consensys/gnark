@@ -11,10 +11,11 @@ import (
 // to represent string values (in logs or debug info) where a value is not known at compile time
 // (which is the case for variables that need to be resolved in the R1CS)
 type LogEntry struct {
-	Caller    string
-	Format    string
-	ToResolve []LinearExpression // TODO @gbotrel we could store here a struct with a flag that says if we expand or evaluate the expression
-	Stack     []int
+	Caller           string
+	Format           string
+	ToResolve        []LinearExpression // TODO @gbotrel we could store here a struct with a flag that says if we expand or evaluate the expression
+	Stack            []int
+	FormatSpecifiers []string // Format specifiers for each value in ToResolve
 }
 
 func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {

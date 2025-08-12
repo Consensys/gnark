@@ -486,21 +486,62 @@ func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variabl
 }
 
 func (e *engine) Println(a ...frontend.Variable) {
+	const reset = "\033[0m"
+	const yellow = "\033[33m"
+
 	var sbb strings.Builder
-	sbb.WriteString("(test.engine) ")
 
-	// prefix log line with file.go:line
+	// prefix with caller info
 	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
+		sbb.WriteString(fmt.Sprintf("%s%s:%d%s ", yellow, filepath.Base(file), line, reset))
 	}
 
-	for i := 0; i < len(a); i++ {
-		e.print(&sbb, a[i])
-		sbb.WriteByte(' ')
+	for i, v := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		e.print(&sbb, v)
 	}
+	fmt.Println(sbb.String())
+}
+
+// Printf implements the Printf API method for the test engine
+func (e *engine) Printf(format string, a ...frontend.Variable) {
+	const reset = "\033[0m"
+	const yellow = "\033[33m"
+
+	var sbb strings.Builder
+
+	// prefix with caller info
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(fmt.Sprintf("%s%s:%d%s ", yellow, filepath.Base(file), line, reset))
+	}
+
+	var argIndex int
+	for i := 0; i < len(format); {
+		if i+1 < len(format) && format[i] == '%' {
+			if argIndex >= len(a) {
+				panic("Printf: not enough arguments for format string")
+			}
+
+			switch format[i+1] {
+			case 'v', 'd', 'x', 'b':
+				e.print(&sbb, a[argIndex])
+				argIndex++
+				i += 2
+			case '%':
+				sbb.WriteByte('%')
+				i += 2
+			default:
+				sbb.WriteByte(format[i])
+				i++
+			}
+		} else {
+			sbb.WriteByte(format[i])
+			i++
+		}
+	}
+
 	fmt.Println(sbb.String())
 }
 
