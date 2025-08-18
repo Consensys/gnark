@@ -5,6 +5,8 @@
 package hash
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -110,7 +112,7 @@ type merkleDamgardHasher struct {
 
 // NewMerkleDamgardHasher transforms a 2-1 one-way function into a hash
 // initialState is a value whose preimage is not known
-func NewMerkleDamgardHasher(api frontend.API, f Compressor, initialState frontend.Variable) FieldHasher {
+func NewMerkleDamgardHasher(api frontend.API, f Compressor, initialState frontend.Variable) StateStorer {
 	return &merkleDamgardHasher{
 		state: initialState,
 		iv:    initialState,
@@ -131,4 +133,19 @@ func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 
 func (h *merkleDamgardHasher) Sum() frontend.Variable {
 	return h.state
+}
+
+func (h *merkleDamgardHasher) State() []frontend.Variable {
+	return []frontend.Variable{h.state}
+}
+
+func (h *merkleDamgardHasher) SetState(state []frontend.Variable) error {
+	if h.state != h.iv {
+		return fmt.Errorf("the hasher is not in an initial state; reset before attempting to set the state")
+	}
+	if len(state) != 1 {
+		return fmt.Errorf("expected one state variable, got %d", len(state))
+	}
+	h.state = state[0]
+	return nil
 }
