@@ -235,7 +235,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	}
 	c.toStore.ProveHintID = solver.GetHintID(c.hints.Prove)
 
-	forSnarkSorted := utils.MapRange(0, len(c.toStore.Circuit), slicePtrAt(forSnark.circuit))
+	forSnarkSorted := utils.SliceOfRefs(forSnark.circuit)
 
 	if proof, err = gadget.DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
 		return err
@@ -247,12 +247,6 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	}
 
 	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
-}
-
-func slicePtrAt[T any](slice []T) func(int) *T {
-	return func(i int) *T {
-		return &slice[i]
-	}
 }
 
 func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
