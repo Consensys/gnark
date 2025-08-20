@@ -604,7 +604,7 @@ func (e *engine) FieldBitLen() int {
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
-	if !b.IsUint64() || !(b.Uint64() == 0 || b.Uint64() == 1) {
+	if !b.IsUint64() || (b.Uint64() != 0 && b.Uint64() != 1) {
 		panic(fmt.Sprintf("[assertIsBoolean] %s", b.String()))
 	}
 }
