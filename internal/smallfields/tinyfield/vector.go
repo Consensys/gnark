@@ -73,12 +73,12 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 // It also returns a channel that will be closed when the validation is done.
 // The validation consist of checking that the elements are smaller than the modulus, and
 // converting them to montgomery form.
-func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
+func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, chan error, error) {
 	chErr := make(chan error, 1)
 	var buf [Bytes]byte
 	if read, err := io.ReadFull(r, buf[:4]); err != nil {
 		close(chErr)
-		return int64(read), err, chErr
+		return int64(read), chErr, err
 	}
 	sliceLen := binary.BigEndian.Uint32(buf[:4])
 
@@ -86,7 +86,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
 	(*vector) = make(Vector, sliceLen)
 	if sliceLen == 0 {
 		close(chErr)
-		return n, nil, chErr
+		return n, chErr, nil
 	}
 
 	bSlice := unsafe.Slice((*byte)(unsafe.Pointer(&(*vector)[0])), sliceLen*Bytes)
@@ -94,7 +94,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
 	n += int64(read)
 	if err != nil {
 		close(chErr)
-		return n, err, chErr
+		return n, chErr, err
 	}
 
 	go func() {
@@ -124,7 +124,7 @@ func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
 		}
 		close(chErr)
 	}()
-	return n, nil, chErr
+	return n, chErr, nil
 }
 
 // ReadFrom implements io.ReaderFrom and reads a vector of big endian encoded Element.

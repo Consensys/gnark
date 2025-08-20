@@ -77,7 +77,7 @@ func TestVectorEmptyRoundTrip(t *testing.T) {
 
 func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
 	r := bytes.NewReader(data)
-	_, err, chErr := vector.AsyncReadFrom(r)
+	_, chErr, err := vector.AsyncReadFrom(r)
 	if err != nil {
 		return err
 	}
