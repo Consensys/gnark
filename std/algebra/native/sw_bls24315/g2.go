@@ -146,11 +146,11 @@ func (p *g2AffP) Double(api frontend.API, p1 g2AffP) *g2AffP {
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...algopts.AlgebraOption) *g2AffP {
+func (p *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...algopts.AlgebraOption) *g2AffP {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return P.constScalarMul(api, Q, n, opts...)
+		return p.constScalarMul(api, Q, n, opts...)
 	} else {
-		return P.varScalarMul(api, Q, s, opts...)
+		return p.varScalarMul(api, Q, s, opts...)
 	}
 }
 
@@ -163,7 +163,7 @@ func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 //
 // [Halo]: https://eprint.iacr.org/2019/1021.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
+func (p *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
@@ -313,23 +313,23 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 		Acc.Select(api, selector, g2AffP{X: zeroE4, Y: zeroE4}, Acc)
 	}
 
-	P.X = Acc.X
-	P.Y = Acc.Y
+	p.X = Acc.X
+	p.Y = Acc.Y
 
-	return P
+	return p
 }
 
 // constScalarMul sets P = [s] Q and returns P.
-func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...algopts.AlgebraOption) *g2AffP {
+func (p *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...algopts.AlgebraOption) *g2AffP {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
 	if s.BitLen() == 0 {
 		zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
-		P.X = zero
-		P.Y = zero
-		return P
+		p.X = zero
+		p.Y = zero
+		return p
 	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
@@ -413,9 +413,9 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 		negPhiQ.AddAssign(api, Acc)
 	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
-	P.X, P.Y = Acc.X, Acc.Y
+	p.X, p.Y = Acc.X, Acc.Y
 
-	return P
+	return p
 }
 
 // Assign a value to self (witness assignment)
@@ -469,7 +469,7 @@ func (p *g2AffP) DoubleAndAdd(api frontend.API, p1, p2 *g2AffP) *g2AffP {
 }
 
 // ScalarMulBase computes s * g2 and returns it, where g2 is the fixed generator. It doesn't modify s.
-func (P *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
+func (p *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 
 	points := getTwistPoints()
 
@@ -532,8 +532,8 @@ func (P *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 	tmp.AddAssign(api, res)
 	res.Select(api, sBits[0], res, tmp)
 
-	P.X = res.X
-	P.Y = res.Y
+	p.X = res.X
+	p.Y = res.Y
 
-	return P
+	return p
 }

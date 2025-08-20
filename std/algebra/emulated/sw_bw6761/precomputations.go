@@ -29,11 +29,11 @@ func precomputeLines(Q bw6761.G2Affine) lineEvaluations {
 	return cLines
 }
 
-func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
+func (pr *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	var cLines lineEvaluations
 	imQ := &g2AffP{
-		X: *p.curveF.Mul(&Q.X, p.thirdRootOne),
-		Y: *p.curveF.Neg(&Q.Y),
+		X: *pr.curveF.Mul(&Q.X, pr.thirdRootOne),
+		Y: *pr.curveF.Neg(&Q.Y),
 	}
 	accQ := &g2AffP{
 		X: imQ.X,
@@ -43,15 +43,15 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		switch loopCounter2[i]*3 + loopCounter1[i] {
 		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
 		case -3:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQ, true)
+			accQ, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(accQ, imQ, true)
 		case -1:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, Q, true)
+			accQ, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(accQ, Q, true)
 		case 0:
-			accQ, cLines[0][i] = p.doubleStep(accQ)
+			accQ, cLines[0][i] = pr.doubleStep(accQ)
 		case 1:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, Q, false)
+			accQ, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(accQ, Q, false)
 		case 3:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQ, false)
+			accQ, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(accQ, imQ, false)
 		default:
 			panic("unknown case for loopCounter")
 		}
@@ -59,6 +59,6 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	// i = 0 (case -3)
 	// x₀+1+λ(x₀³-x₀²-x₀) = 0 mod r so accQ = ∞ at the last iteration,
 	// we only compute the tangent.
-	cLines[0][0] = p.tangentCompute(accQ)
+	cLines[0][0] = pr.tangentCompute(accQ)
 	return cLines
 }

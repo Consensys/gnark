@@ -255,71 +255,71 @@ func NewPairing(api frontend.API) *Pairing {
 	}
 }
 
-func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
-	diff0 := c.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
-	diff1 := c.api.Sub(&x.D0.C0.B0.A1, &y.D0.C0.B0.A1)
-	diff2 := c.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
-	diff3 := c.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
-	diff4 := c.api.Sub(&x.D0.C0.B1.A0, &y.D0.C0.B1.A0)
-	diff5 := c.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
-	diff6 := c.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
-	diff7 := c.api.Sub(&x.D0.C1.B0.A1, &y.D0.C1.B0.A1)
-	diff8 := c.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
-	diff9 := c.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
-	diff10 := c.api.Sub(&x.D0.C1.B1.A0, &y.D0.C1.B1.A0)
-	diff11 := c.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
-	diff12 := c.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
-	diff13 := c.api.Sub(&x.D1.C0.B0.A1, &y.D1.C0.B0.A1)
-	diff14 := c.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
-	diff15 := c.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
-	diff16 := c.api.Sub(&x.D1.C0.B1.A0, &y.D1.C0.B1.A0)
-	diff17 := c.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
-	diff18 := c.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
-	diff19 := c.api.Sub(&x.D1.C1.B0.A1, &y.D1.C1.B0.A1)
-	diff20 := c.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
-	diff21 := c.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
-	diff22 := c.api.Sub(&x.D1.C1.B1.A0, &y.D1.C1.B1.A0)
-	diff23 := c.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := pr.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff1 := pr.api.Sub(&x.D0.C0.B0.A1, &y.D0.C0.B0.A1)
+	diff2 := pr.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff3 := pr.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff4 := pr.api.Sub(&x.D0.C0.B1.A0, &y.D0.C0.B1.A0)
+	diff5 := pr.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff6 := pr.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff7 := pr.api.Sub(&x.D0.C1.B0.A1, &y.D0.C1.B0.A1)
+	diff8 := pr.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff9 := pr.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff10 := pr.api.Sub(&x.D0.C1.B1.A0, &y.D0.C1.B1.A0)
+	diff11 := pr.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff12 := pr.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff13 := pr.api.Sub(&x.D1.C0.B0.A1, &y.D1.C0.B0.A1)
+	diff14 := pr.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff15 := pr.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff16 := pr.api.Sub(&x.D1.C0.B1.A0, &y.D1.C0.B1.A0)
+	diff17 := pr.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff18 := pr.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff19 := pr.api.Sub(&x.D1.C1.B0.A1, &y.D1.C1.B0.A1)
+	diff20 := pr.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff21 := pr.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+	diff22 := pr.api.Sub(&x.D1.C1.B1.A0, &y.D1.C1.B1.A0)
+	diff23 := pr.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
 
-	isZero0 := c.api.IsZero(diff0)
-	isZero1 := c.api.IsZero(diff1)
-	isZero2 := c.api.IsZero(diff2)
-	isZero3 := c.api.IsZero(diff3)
-	isZero4 := c.api.IsZero(diff4)
-	isZero5 := c.api.IsZero(diff5)
-	isZero6 := c.api.IsZero(diff6)
-	isZero7 := c.api.IsZero(diff7)
-	isZero8 := c.api.IsZero(diff8)
-	isZero9 := c.api.IsZero(diff9)
-	isZero10 := c.api.IsZero(diff10)
-	isZero11 := c.api.IsZero(diff11)
-	isZero12 := c.api.IsZero(diff12)
-	isZero13 := c.api.IsZero(diff13)
-	isZero14 := c.api.IsZero(diff14)
-	isZero15 := c.api.IsZero(diff15)
-	isZero16 := c.api.IsZero(diff16)
-	isZero17 := c.api.IsZero(diff17)
-	isZero18 := c.api.IsZero(diff18)
-	isZero19 := c.api.IsZero(diff19)
-	isZero20 := c.api.IsZero(diff20)
-	isZero21 := c.api.IsZero(diff21)
-	isZero22 := c.api.IsZero(diff22)
-	isZero23 := c.api.IsZero(diff23)
+	isZero0 := pr.api.IsZero(diff0)
+	isZero1 := pr.api.IsZero(diff1)
+	isZero2 := pr.api.IsZero(diff2)
+	isZero3 := pr.api.IsZero(diff3)
+	isZero4 := pr.api.IsZero(diff4)
+	isZero5 := pr.api.IsZero(diff5)
+	isZero6 := pr.api.IsZero(diff6)
+	isZero7 := pr.api.IsZero(diff7)
+	isZero8 := pr.api.IsZero(diff8)
+	isZero9 := pr.api.IsZero(diff9)
+	isZero10 := pr.api.IsZero(diff10)
+	isZero11 := pr.api.IsZero(diff11)
+	isZero12 := pr.api.IsZero(diff12)
+	isZero13 := pr.api.IsZero(diff13)
+	isZero14 := pr.api.IsZero(diff14)
+	isZero15 := pr.api.IsZero(diff15)
+	isZero16 := pr.api.IsZero(diff16)
+	isZero17 := pr.api.IsZero(diff17)
+	isZero18 := pr.api.IsZero(diff18)
+	isZero19 := pr.api.IsZero(diff19)
+	isZero20 := pr.api.IsZero(diff20)
+	isZero21 := pr.api.IsZero(diff21)
+	isZero22 := pr.api.IsZero(diff22)
+	isZero23 := pr.api.IsZero(diff23)
 
-	return c.api.And(
-		c.api.And(
-			c.api.And(
-				c.api.And(c.api.And(isZero0, isZero1), c.api.And(isZero2, isZero3)),
-				c.api.And(c.api.And(isZero4, isZero5), c.api.And(isZero6, isZero7)),
+	return pr.api.And(
+		pr.api.And(
+			pr.api.And(
+				pr.api.And(pr.api.And(isZero0, isZero1), pr.api.And(isZero2, isZero3)),
+				pr.api.And(pr.api.And(isZero4, isZero5), pr.api.And(isZero6, isZero7)),
 			),
-			c.api.And(
-				c.api.And(c.api.And(isZero8, isZero9), c.api.And(isZero10, isZero11)),
-				c.api.And(c.api.And(isZero12, isZero13), c.api.And(isZero14, isZero15)),
+			pr.api.And(
+				pr.api.And(pr.api.And(isZero8, isZero9), pr.api.And(isZero10, isZero11)),
+				pr.api.And(pr.api.And(isZero12, isZero13), pr.api.And(isZero14, isZero15)),
 			),
 		),
-		c.api.And(
-			c.api.And(c.api.And(isZero16, isZero17), c.api.And(isZero18, isZero19)),
-			c.api.And(c.api.And(isZero20, isZero21), c.api.And(isZero22, isZero23)),
+		pr.api.And(
+			pr.api.And(pr.api.And(isZero16, isZero17), pr.api.And(isZero18, isZero19)),
+			pr.api.And(pr.api.And(isZero20, isZero21), pr.api.And(isZero22, isZero23)),
 		),
 	)
 }
@@ -327,7 +327,7 @@ func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
 // modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
-func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -336,19 +336,19 @@ func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := MillerLoop(p.api, inP, inQ)
+	res, err := MillerLoop(pr.api, inP, inQ)
 	return &res, err
 }
 
 // FinalExponentiation performs the final exponentiation on the target group
 // element. It doesn't modify the input.
-func (p *Pairing) FinalExponentiation(e *GT) *GT {
-	res := FinalExponentiation(p.api, *e)
+func (pr *Pairing) FinalExponentiation(e *GT) *GT {
+	res := FinalExponentiation(pr.api, *e)
 	return &res
 }
 
 // Pair computes a full multi-pairing on the input pairs.
-func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -357,14 +357,14 @@ func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := Pair(pr.api, inP, inQ)
 	return &res, err
 }
 
 // PairingCheck computes the multi-pairing of the input pairs and asserts that
 // the result is an identity element in the target group. It returns an error if
 // there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -373,19 +373,19 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := Pair(pr.api, inP, inQ)
 	if err != nil {
 		return err
 	}
 	var one fields_bls24315.E24
 	one.SetOne()
-	res.AssertIsEqual(p.api, one)
+	res.AssertIsEqual(pr.api, one)
 	return nil
 }
 
 // AssertIsEqual asserts the equality of the target group elements.
-func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
-	e1.AssertIsEqual(p.api, *e2)
+func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
+	e1.AssertIsEqual(pr.api, *e2)
 }
 func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
@@ -570,11 +570,11 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 	return &ret
 }
 
-func (p *Pairing) AssertIsOnG1(P *G1Affine) {
+func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	panic("not implemented")
 }
 
-func (p *Pairing) AssertIsOnG2(P *G2Affine) {
+func (pr *Pairing) AssertIsOnG2(P *G2Affine) {
 	panic("not implemented")
 }
 
