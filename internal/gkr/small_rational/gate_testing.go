@@ -146,7 +146,7 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 // Note that the runtime is O(len(X)³)
 func interpolate(X, Y []small_rational.SmallRational) (polynomial.Polynomial, error) {
 	if len(X) != len(Y) {
-		return nil, errors.New("same length expected for X and Y")
+		return nil, errors.New("X and Y must have the same length")
 	}
 
 	// solve the system of equations by Gaussian elimination
