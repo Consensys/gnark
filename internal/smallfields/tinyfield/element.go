@@ -110,7 +110,7 @@ func (z *Element) Set(x *Element) *Element {
 }
 
 // SetInterface converts provided interface into Element
-// returns an error if provided type is not supported
+// returns an error if provided type is not supported.
 // supported types:
 //
 //	Element
@@ -834,19 +834,34 @@ func init() {
 
 // Legendre returns the Legendre symbol of z (either +1, -1, or 0.)
 func (z *Element) Legendre() int {
-	var l Element
-	// z^((q-1)/2)
-	l.Exp(*z, _bLegendreExponentElement)
+	// Use Binary GCD to compute the Legendre symbol.
+	a := z[0]
+	b := uint32(q0)
+	l := 1 // invariant: (z|q) = (a|b) . l
 
-	if l.IsZero() {
-		return 0
+	for a != 0 {
+		pow2 := bits.TrailingZeros32(a)
+		a >>= pow2
+		if bMod8 := b % 8; pow2%2 == 1 && (bMod8 == 3 || bMod8 == 5) {
+			l = -l // (2ⁿ|b) = 1 if b ≡ 1 or 7 (mod 8), and (-1)ⁿ if b ≡ 3 or 5 (mod 8)
+		}
+
+		s, borrow := bits.Sub32(a, b, 0)
+		if borrow == 1 {
+			if b%4 == 3 && a%4 == 3 {
+				l = -l // (b-a|a) = (b|a). (b|a) = (a|b) unless a, b ≡ 3 (mod 4), in which case (b|a) = -(a|b).
+			}
+			a, b = b-a, a
+		} else {
+			a = s
+		}
 	}
 
-	// if l == 1
-	if l.IsOne() {
-		return 1
+	if b == 1 {
+		return l // (0|1) = 1
+	} else {
+		return 0 // if b ≠ 1, then (z,q) ≠ 0 ⇒ (z|q) = 0
 	}
-	return -1
 }
 
 // Sqrt z = √x (mod q)

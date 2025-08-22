@@ -106,39 +106,39 @@ func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
 }
 
-func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
-	diff0 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
-	diff1 := c.api.Sub(&x.C0.B0.A1, &y.C0.B0.A1)
-	diff2 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
-	diff3 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
-	diff4 := c.api.Sub(&x.C0.B1.A0, &y.C0.B1.A0)
-	diff5 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
-	diff6 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
-	diff7 := c.api.Sub(&x.C1.B0.A1, &y.C1.B0.A1)
-	diff8 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
-	diff9 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
-	diff10 := c.api.Sub(&x.C1.B1.A0, &y.C1.B1.A0)
-	diff11 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := pr.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff1 := pr.api.Sub(&x.C0.B0.A1, &y.C0.B0.A1)
+	diff2 := pr.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff3 := pr.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff4 := pr.api.Sub(&x.C0.B1.A0, &y.C0.B1.A0)
+	diff5 := pr.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff6 := pr.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff7 := pr.api.Sub(&x.C1.B0.A1, &y.C1.B0.A1)
+	diff8 := pr.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff9 := pr.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+	diff10 := pr.api.Sub(&x.C1.B1.A0, &y.C1.B1.A0)
+	diff11 := pr.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
 
-	isZero0 := c.api.IsZero(diff0)
-	isZero1 := c.api.IsZero(diff1)
-	isZero2 := c.api.IsZero(diff2)
-	isZero3 := c.api.IsZero(diff3)
-	isZero4 := c.api.IsZero(diff4)
-	isZero5 := c.api.IsZero(diff5)
-	isZero6 := c.api.IsZero(diff6)
-	isZero7 := c.api.IsZero(diff7)
-	isZero8 := c.api.IsZero(diff8)
-	isZero9 := c.api.IsZero(diff9)
-	isZero10 := c.api.IsZero(diff10)
-	isZero11 := c.api.IsZero(diff11)
+	isZero0 := pr.api.IsZero(diff0)
+	isZero1 := pr.api.IsZero(diff1)
+	isZero2 := pr.api.IsZero(diff2)
+	isZero3 := pr.api.IsZero(diff3)
+	isZero4 := pr.api.IsZero(diff4)
+	isZero5 := pr.api.IsZero(diff5)
+	isZero6 := pr.api.IsZero(diff6)
+	isZero7 := pr.api.IsZero(diff7)
+	isZero8 := pr.api.IsZero(diff8)
+	isZero9 := pr.api.IsZero(diff9)
+	isZero10 := pr.api.IsZero(diff10)
+	isZero11 := pr.api.IsZero(diff11)
 
-	return c.api.And(
-		c.api.And(
-			c.api.And(c.api.And(isZero0, isZero1), c.api.And(isZero2, isZero3)),
-			c.api.And(c.api.And(isZero4, isZero5), c.api.And(isZero6, isZero7)),
+	return pr.api.And(
+		pr.api.And(
+			pr.api.And(pr.api.And(isZero0, isZero1), pr.api.And(isZero2, isZero3)),
+			pr.api.And(pr.api.And(isZero4, isZero5), pr.api.And(isZero6, isZero7)),
 		),
-		c.api.And(c.api.And(isZero8, isZero9), c.api.And(isZero10, isZero11)),
+		pr.api.And(pr.api.And(isZero8, isZero9), pr.api.And(isZero10, isZero11)),
 	)
 }
 
@@ -303,7 +303,7 @@ func NewPairing(api frontend.API) *Pairing {
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
 // modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
-func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -312,19 +312,19 @@ func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := MillerLoop(p.api, inP, inQ)
+	res, err := MillerLoop(pr.api, inP, inQ)
 	return &res, err
 }
 
 // FinalExponentiation performs the final exponentiation on the target group
 // element. It doesn't modify the input.
-func (p *Pairing) FinalExponentiation(e *GT) *GT {
-	res := FinalExponentiation(p.api, *e)
+func (pr *Pairing) FinalExponentiation(e *GT) *GT {
+	res := FinalExponentiation(pr.api, *e)
 	return &res
 }
 
 // Pair computes a full multi-pairing on the input pairs.
-func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -333,14 +333,14 @@ func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := Pair(pr.api, inP, inQ)
 	return &res, err
 }
 
 // PairingCheck computes the multi-pairing of the input pairs and asserts that
 // the result is an identity element in the target group. It returns an error if
 // there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -349,7 +349,7 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	err := PairingCheck(p.api, inP, inQ)
+	err := PairingCheck(pr.api, inP, inQ)
 	if err != nil {
 		return err
 	}
@@ -358,8 +358,8 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 }
 
 // AssertIsEqual asserts the equality of the target group elements.
-func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
-	e1.AssertIsEqual(p.api, *e2)
+func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
+	e1.AssertIsEqual(pr.api, *e2)
 }
 
 func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
@@ -477,73 +477,73 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 }
 
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
-func (c *Pairing) AssertIsOnCurve(p *G1Affine) {
+func (pr *Pairing) AssertIsOnCurve(p *G1Affine) {
 	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
-	selector := c.api.And(c.api.IsZero(p.X), c.api.IsZero(p.Y))
-	b := c.api.Select(selector, 0, 1)
+	selector := pr.api.And(pr.api.IsZero(p.X), pr.api.IsZero(p.Y))
+	b := pr.api.Select(selector, 0, 1)
 
-	left := c.api.Mul(p.Y, p.Y)
-	right := c.api.Mul(p.X, c.api.Mul(p.X, p.X))
-	right = c.api.Add(right, b)
-	c.api.AssertIsEqual(left, right)
+	left := pr.api.Mul(p.Y, p.Y)
+	right := pr.api.Mul(p.X, pr.api.Mul(p.X, p.X))
+	right = pr.api.Add(right, b)
+	pr.api.AssertIsEqual(left, right)
 }
 
-func (c *Pairing) AssertIsOnG1(P *G1Affine) {
+func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	// 1- Check P is on the curve
-	c.AssertIsOnCurve(P)
+	pr.AssertIsOnCurve(P)
 
 	// 2- Check P has the right subgroup order
 	// [x²]ϕ(P)
 	phiP := G1Affine{
-		X: c.api.Mul(P.X, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
+		X: pr.api.Mul(P.X, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
 		Y: P.Y,
 	}
 	var _P G1Affine
-	_P.scalarMulBySeed(c.api, &phiP)
-	_P.scalarMulBySeed(c.api, &_P)
-	_P.Neg(c.api, _P)
+	_P.scalarMulBySeed(pr.api, &phiP)
+	_P.scalarMulBySeed(pr.api, &_P)
+	_P.Neg(pr.api, _P)
 
 	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
-	P.AssertIsEqual(c.api, _P)
+	P.AssertIsEqual(pr.api, _P)
 }
 
 // AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.
-func (c *Pairing) AssertIsOnTwist(p *G2Affine) {
+func (pr *Pairing) AssertIsOnTwist(p *G2Affine) {
 	// (X,Y) ∈ {Y² == X³ + 1/u} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
-	selector := c.api.And(p.P.X.IsZero(c.api), p.P.Y.IsZero(c.api))
+	selector := pr.api.And(p.P.X.IsZero(pr.api), p.P.Y.IsZero(pr.api))
 	var zero fields_bls12377.E2
 	zero.SetZero()
 	b := fields_bls12377.E2{
 		A0: 0,
 		A1: "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906",
 	}
-	b.Select(c.api, selector, zero, b)
+	b.Select(pr.api, selector, zero, b)
 
 	var left, right fields_bls12377.E2
-	left.Square(c.api, p.P.Y)
-	right.Square(c.api, p.P.X)
-	right.Mul(c.api, right, p.P.X)
-	right.Add(c.api, right, b)
-	left.AssertIsEqual(c.api, right)
+	left.Square(pr.api, p.P.Y)
+	right.Square(pr.api, p.P.X)
+	right.Mul(pr.api, right, p.P.X)
+	right.Add(pr.api, right, b)
+	left.AssertIsEqual(pr.api, right)
 }
 
-func (c *Pairing) AssertIsOnG2(P *G2Affine) {
+func (pr *Pairing) AssertIsOnG2(P *G2Affine) {
 	// 1- Check P is on the curve
-	c.AssertIsOnTwist(P)
+	pr.AssertIsOnTwist(P)
 
 	// 2- Check P has the right subgroup order
 	// [x₀]Q
 	var xP, psiP g2AffP
-	xP.scalarMulBySeed(c.api, &P.P)
+	xP.scalarMulBySeed(pr.api, &P.P)
 	// ψ(Q)
-	psiP.psi(c.api, &P.P)
+	psiP.psi(pr.api, &P.P)
 
 	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
-	xP.AssertIsEqual(c.api, psiP)
+	xP.AssertIsEqual(pr.api, psiP)
 }
 
 // NewG1Affine allocates a witness from the native G1 element and returns it.

@@ -232,7 +232,7 @@ func (builder *builder[E]) getLinearExpression(_l interface{}) constraint.Linear
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 func (builder *builder[E]) MarkBoolean(v frontend.Variable) {
 	if b, ok := builder.constantValue(v); ok {
-		if !(b.IsZero() || builder.isCstOne(b)) {
+		if !(b.IsZero() || builder.isCstOne(b)) { // nolint QF1001
 			panic("MarkBoolean called a non-boolean constant")
 		}
 		return
@@ -320,7 +320,7 @@ func (builder *builder[E]) constantValue(v frontend.Variable) (E, bool) {
 			if _v[0].Coeff == zero { // fast path for zero comparison to avoid overhead of calling IsZero
 				return zero, true
 			}
-			if !(_v[0].WireID() == 0) { // public ONE WIRE
+			if _v[0].WireID() != 0 { // public ONE WIRE
 				return zero, false
 			}
 			return _v[0].Coeff, true
