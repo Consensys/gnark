@@ -6,7 +6,10 @@
 package groth16
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"runtime"
 	"time"
@@ -386,4 +389,47 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
 
 	return a
+}
+
+// ExportProof serializes a Groth16 proof into a JSON format compatible with snarkjs
+// and writes it to the provided writer.
+// This is an experimental feature and the export format / compatibility with external tools
+// has not been thoroughly tested.
+func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
+	const fpSize = 48 // BLS12-381 field element size (bytes)
+
+	var buf bytes.Buffer
+	if _, err := proof.WriteRawTo(&buf); err != nil {
+		return fmt.Errorf("failed to serialize proof: %w", err)
+	}
+	proofBytes := buf.Bytes()
+
+	offset := 0
+	readBig := func(n int) *big.Int {
+		s := proofBytes[offset : offset+n]
+		offset += n
+		return new(big.Int).SetBytes(s)
+	}
+
+	// parse proof elements
+	Ax, Ay := readBig(fpSize), readBig(fpSize)
+	Bx1, Bx0, By1, By0 := readBig(fpSize), readBig(fpSize), readBig(fpSize), readBig(fpSize)
+	Cx, Cy := readBig(fpSize), readBig(fpSize)
+
+	data := map[string]any{
+		"protocol": "groth16",
+		"curve":    "bls12381",
+		"pi_a":     []string{Ax.String(), Ay.String(), "1"},
+		"pi_b": [][]string{
+			{Bx0.String(), Bx1.String()},
+			{By0.String(), By1.String()},
+			{"1", "0"},
+		},
+		"pi_c":          []string{Cx.String(), Cy.String(), "1"},
+		"publicSignals": publicSignals,
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(data)
 }

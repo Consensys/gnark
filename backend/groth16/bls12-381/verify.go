@@ -6,9 +6,11 @@
 package groth16
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -132,4 +134,85 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // ExportSolidity not implemented for BLS12-381
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
+}
+
+// ExportVerifyingKey serializes the verifying key into a JSON format compatible with snarkjs
+// and writes it to the provided writer.
+// This is an experimental feature and the export format / compatibility with external tools
+// has not been thoroughly tested.
+func (vk *VerifyingKey) ExportVerifyingKey(w io.Writer) error {
+	if vk == nil {
+		return fmt.Errorf("verifying key is nil")
+	}
+
+	// g1 -> []string{x,y,"1"}
+	g1 := func(p curve.G1Affine) []string {
+		return []string{
+			p.X.BigInt(new(big.Int)).String(),
+			p.Y.BigInt(new(big.Int)).String(),
+			"1",
+		}
+	}
+
+	// g2 -> [][]string{{x0,x1},{y0,y1},{"1","0"}}
+	g2 := func(p curve.G2Affine) [][]string {
+		return [][]string{
+			{p.X.A0.BigInt(new(big.Int)).String(), p.X.A1.BigInt(new(big.Int)).String()},
+			{p.Y.A0.BigInt(new(big.Int)).String(), p.Y.A1.BigInt(new(big.Int)).String()},
+			{"1", "0"},
+		}
+	}
+
+	// vk_alphabeta_12 = e(alpha, beta) -> 2x3x2 строки
+	ab, err := curve.Pair(
+		[]curve.G1Affine{vk.G1.Alpha},
+		[]curve.G2Affine{vk.G2.Beta},
+	)
+	if err != nil {
+		return fmt.Errorf("pairing(alpha,beta) failed: %w", err)
+	}
+
+	gt := [][][]string{
+		{
+			{ab.C0.B0.A0.BigInt(new(big.Int)).String(), ab.C0.B0.A1.BigInt(new(big.Int)).String()},
+			{ab.C0.B1.A0.BigInt(new(big.Int)).String(), ab.C0.B1.A1.BigInt(new(big.Int)).String()},
+			{ab.C0.B2.A0.BigInt(new(big.Int)).String(), ab.C0.B2.A1.BigInt(new(big.Int)).String()},
+		},
+		{
+			{ab.C1.B0.A0.BigInt(new(big.Int)).String(), ab.C1.B0.A1.BigInt(new(big.Int)).String()},
+			{ab.C1.B1.A0.BigInt(new(big.Int)).String(), ab.C1.B1.A1.BigInt(new(big.Int)).String()},
+			{ab.C1.B2.A0.BigInt(new(big.Int)).String(), ab.C1.B2.A1.BigInt(new(big.Int)).String()},
+		},
+	}
+
+	var ic [][]string
+	for _, p := range vk.G1.K {
+		ic = append(ic, g1(p))
+	}
+
+	out := struct {
+		Protocol    string       `json:"protocol"`
+		Curve       string       `json:"curve"`
+		NPublic     int          `json:"nPublic"`
+		VKAlpha1    []string     `json:"vk_alpha_1"`
+		VKBeta2     [][]string   `json:"vk_beta_2"`
+		VKGamma2    [][]string   `json:"vk_gamma_2"`
+		VKDelta2    [][]string   `json:"vk_delta_2"`
+		VKAlphaBeta [][][]string `json:"vk_alphabeta_12,omitempty"`
+		IC          [][]string   `json:"IC"`
+	}{
+		Protocol:    "groth16",
+		Curve:       "bls12381",
+		NPublic:     vk.NbPublicWitness(),
+		VKAlpha1:    g1(vk.G1.Alpha),
+		VKBeta2:     g2(vk.G2.Beta),
+		VKGamma2:    g2(vk.G2.Gamma),
+		VKDelta2:    g2(vk.G2.Delta),
+		VKAlphaBeta: gt,
+		IC:          ic,
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
