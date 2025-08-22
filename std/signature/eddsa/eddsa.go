@@ -39,7 +39,17 @@ type Signature struct {
 // Verify verifies an eddsa signature using MiMC hash function
 // cf https://en.wikipedia.org/wiki/EdDSA
 func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.FieldHasher) error {
+	res, err := IsValid(curve, sig, msg, pubKey, hash)
+	if err != nil {
+		return err
+	}
+	curve.API().AssertIsEqual(res, 1)
+	return nil
+}
 
+// IsValid checks if the signature is valid for the given message and public
+// key. It returns 1 if the signature is valid and 0 otherwise.
+func IsValid(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.FieldHasher) (frontend.Variable, error) {
 	// compute H(R, A, M)
 	hash.Write(sig.R.X)
 	hash.Write(sig.R.Y)
@@ -69,7 +79,7 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 	if !curve.Params().Cofactor.IsUint64() {
 		err := errors.New("invalid cofactor")
 		log.Err(err).Str("cofactor", curve.Params().Cofactor.String()).Send()
-		return err
+		return 0, err
 	}
 	cofactor := curve.Params().Cofactor.Uint64()
 	switch cofactor {
@@ -81,10 +91,10 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 		log.Warn().Str("cofactor", curve.Params().Cofactor.String()).Msg("curve cofactor is not implemented")
 	}
 
-	curve.API().AssertIsEqual(Q.X, 0)
-	curve.API().AssertIsEqual(Q.Y, 1)
-
-	return nil
+	return curve.API().And(
+		curve.API().IsZero(Q.X),
+		curve.API().IsZero(curve.API().Sub(Q.Y, 1)),
+	), nil
 }
 
 // Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
