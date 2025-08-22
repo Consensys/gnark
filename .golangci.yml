@@ -16,8 +16,6 @@ linters:
         - '-QF1003'
         - '-QF1008'
         - '-ST1003'
-        - '-ST1005'
-        - '-ST1008'
     gosec:
       excludes:
         - G115
