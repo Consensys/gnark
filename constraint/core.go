@@ -220,7 +220,7 @@ func (system *System) Field() *big.Int {
 	return new(big.Int).Set(system.q)
 }
 
-// bitLen returns the number of bits needed to represent a fr.Element
+// FieldBitLen returns the number of bits needed to represent a fr.Element
 func (system *System) FieldBitLen() int {
 	return system.bitLen
 }
@@ -344,28 +344,28 @@ func (system *System) VariableToString(vID int) string {
 	return fmt.Sprintf("v%d", vID) // TODO @gbotrel  vs strconv.Itoa.
 }
 
-func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
+func (system *System) AddR1C(c R1C, bID BlueprintID) int {
 	profile.RecordConstraint()
 
-	blueprint := cs.Blueprints[bID]
+	blueprint := system.Blueprints[bID]
 
 	// get a []uint32 from a pool
 	calldata := getBuffer()
 
 	// compress the R1C into a []uint32 and add the instruction
 	blueprint.(BlueprintR1C).CompressR1C(&c, calldata)
-	cs.AddInstruction(bID, *calldata)
+	system.AddInstruction(bID, *calldata)
 
 	// release the []uint32 to the pool
 	putBuffer(calldata)
 
-	return cs.NbConstraints - 1
+	return system.NbConstraints - 1
 }
 
-func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
+func (system *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	profile.RecordConstraint()
 
-	blueprint := cs.Blueprints[bID]
+	blueprint := system.Blueprints[bID]
 
 	// get a []uint32 from a pool
 	calldata := getBuffer()
@@ -373,75 +373,75 @@ func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	// compress the SparceR1C into a []uint32 and add the instruction
 	blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c, calldata)
 
-	cs.AddInstruction(bID, *calldata)
+	system.AddInstruction(bID, *calldata)
 
 	// release the []uint32 to the pool
 	putBuffer(calldata)
 
-	return cs.NbConstraints - 1
+	return system.NbConstraints - 1
 }
 
-func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
+func (system *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	// set the offsets
 	pi := PackedInstruction{
-		StartCallData:    uint64(len(cs.CallData)),
-		ConstraintOffset: uint32(cs.NbConstraints),
-		WireOffset:       uint32(cs.NbInternalVariables + cs.GetNbPublicVariables() + cs.GetNbSecretVariables()),
+		StartCallData:    uint64(len(system.CallData)),
+		ConstraintOffset: uint32(system.NbConstraints),
+		WireOffset:       uint32(system.NbInternalVariables + system.GetNbPublicVariables() + system.GetNbSecretVariables()),
 		BlueprintID:      bID,
 	}
 
 	// append the call data
-	cs.CallData = append(cs.CallData, calldata...)
+	system.CallData = append(system.CallData, calldata...)
 
 	// update the total number of constraints
-	blueprint := cs.Blueprints[pi.BlueprintID]
-	cs.NbConstraints += blueprint.NbConstraints()
+	blueprint := system.Blueprints[pi.BlueprintID]
+	system.NbConstraints += blueprint.NbConstraints()
 
 	// add the output wires
-	inst := pi.Unpack(cs)
+	inst := pi.Unpack(system)
 	nbOutputs := blueprint.NbOutputs(inst)
 	var wires []uint32
 	for i := 0; i < nbOutputs; i++ {
-		wires = append(wires, uint32(cs.AddInternalVariable()))
+		wires = append(wires, uint32(system.AddInternalVariable()))
 	}
 
 	// add the instruction
-	cs.Instructions = append(cs.Instructions, pi)
+	system.Instructions = append(system.Instructions, pi)
 
 	// update the instruction dependency tree
-	level := blueprint.UpdateInstructionTree(inst, cs)
-	iID := uint32(len(cs.Instructions) - 1)
+	level := blueprint.UpdateInstructionTree(inst, system)
+	iID := uint32(len(system.Instructions) - 1)
 
 	// we can't skip levels, so appending is fine.
-	if int(level) >= len(cs.Levels) {
-		cs.Levels = append(cs.Levels, []uint32{iID})
+	if int(level) >= len(system.Levels) {
+		system.Levels = append(system.Levels, []uint32{iID})
 	} else {
-		cs.Levels[level] = append(cs.Levels[level], iID)
+		system.Levels[level] = append(system.Levels[level], iID)
 	}
 
 	return wires
 }
 
 // GetNbConstraints returns the number of constraints
-func (cs *System) GetNbConstraints() int {
-	return cs.NbConstraints
+func (system *System) GetNbConstraints() int {
+	return system.NbConstraints
 }
 
-func (cs *System) CheckUnconstrainedWires() error {
+func (system *System) CheckUnconstrainedWires() error {
 	// TODO @gbotrel
 	return nil
 }
 
-func (cs *System) GetR1CIterator() R1CIterator {
-	return R1CIterator{cs: cs}
+func (system *System) GetR1CIterator() R1CIterator {
+	return R1CIterator{cs: system}
 }
 
-func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
-	return SparseR1CIterator{cs: cs}
+func (system *System) GetSparseR1CIterator() SparseR1CIterator {
+	return SparseR1CIterator{cs: system}
 }
 
-func (cs *System) GetCommitments() Commitments {
-	return cs.CommitmentInfo
+func (system *System) GetCommitments() Commitments {
+	return system.CommitmentInfo
 }
 
 // bufPool is a pool of buffers used by getBuffer and putBuffer.

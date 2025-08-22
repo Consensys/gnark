@@ -294,7 +294,6 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	return n, err
 }
 
-
-func (s *system) AddGkr(gkr gkrinfo.StoringInfo) error {
-	return s.System.AddGkr(gkr)
+func (cs *system) AddGkr(gkr gkrinfo.StoringInfo) error {
+	return cs.System.AddGkr(gkr)
 }
