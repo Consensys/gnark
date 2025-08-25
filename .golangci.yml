@@ -1,19 +1,41 @@
+version: "2"
+run:
+  issues-exit-code: 1
 linters:
-  disable-all: true
+  default: none
   enable:
-    - gofmt
     - staticcheck
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - misspell
-    
-linters-settings:
-  gosec:
-    excludes:
-      - G115 # Conversions from int -> uint etc.
-issues:
-  exclude-generated: disable
-run:
-  issues-exit-code: 1
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - '-QF1003'
+        - '-QF1008'
+        - '-ST1003'
+    gosec:
+      excludes:
+        - G115
+  exclusions:
+    generated: disable
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: disable
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

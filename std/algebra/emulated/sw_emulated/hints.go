@@ -212,24 +212,24 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
 		r := eisenstein.ComplexNumber{
-			A0: &glvBasis.V1[0],
-			A1: &glvBasis.V1[1],
+			A0: glvBasis.V1[0],
+			A1: glvBasis.V1[1],
 		}
 		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
 		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 		// so here we return -s instead of s.
 		s := eisenstein.ComplexNumber{
-			A0: &sp[0],
-			A1: &sp[1],
+			A0: sp[0],
+			A1: sp[1],
 		}
 		s.Neg(&s)
 
 		res := eisenstein.HalfGCD(&r, &s)
 		// values
-		emuOutputs[0].Set(res[0].A0)
-		emuOutputs[1].Set(res[0].A1)
-		emuOutputs[2].Set(res[1].A0)
-		emuOutputs[3].Set(res[1].A1)
+		emuOutputs[0].Set(&res[0].A0)
+		emuOutputs[1].Set(&res[0].A1)
+		emuOutputs[2].Set(&res[1].A0)
+		emuOutputs[3].Set(&res[1].A1)
 		// signs
 		nativeOutputs[0].SetUint64(0)
 		nativeOutputs[1].SetUint64(0)

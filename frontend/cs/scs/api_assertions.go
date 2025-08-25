@@ -84,10 +84,10 @@ func (builder *builder[E]) AssertIsDifferent(i1, i2 frontend.Variable) {
 	builder.Inverse(s)
 }
 
-// AssertIsBoolean fails if v != 0 ∥ v != 1
+// AssertIsBoolean fails if v ≠ 0 ∥ v ≠ 1
 func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
-		if !(c.IsZero() || builder.cs.IsOne(c)) {
+		if !(c.IsZero() || builder.cs.IsOne(c)) { // nolint QF1001
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(c)))
 		}
 		return
