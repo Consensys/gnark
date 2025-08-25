@@ -1,4 +1,4 @@
-package gkrapi_test
+package v2_test
 
 import (
 	"encoding/binary"
@@ -8,8 +8,8 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/gkrapi"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
 	"github.com/consensys/gnark/test"
 )
@@ -90,7 +90,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkrapi.New()
+	gkrApi := v2.New()
 
 	// create the GKR circuit
 	X := gkrApi.NewInput()

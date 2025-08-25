@@ -1,4 +1,4 @@
-package gkrapi
+package v2
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/multicommit"
 )

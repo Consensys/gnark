@@ -10,13 +10,13 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 
 	"errors"
 	"slices"
 
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 // IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in f

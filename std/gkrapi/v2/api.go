@@ -1,11 +1,11 @@
-package gkrapi
+package v2
 
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 )
 
 type API struct {
