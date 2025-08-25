@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	"github.com/consensys/gnark/std/gkrapi/v2"
+	gkrapi "github.com/consensys/gnark/std/gkrapi/v2"
 	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -110,7 +110,7 @@ func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 
 type GkrCompressor struct {
 	api           frontend.API
-	gkrCircuit    *v2.Circuit
+	gkrCircuit    *gkrapi.Circuit
 	in1, in2, out gkr.Variable
 }
 
@@ -147,7 +147,7 @@ func (p *GkrCompressor) Compress(a, b frontend.Variable) frontend.Variable {
 // defineCircuitBls12377 defines the GKR circuit for the Poseidon2 permutation over BLS12-377
 // insLeft and insRight are the inputs to the permutation
 // they must be padded to a power of 2
-func defineCircuitBls12377() (gkrApi *v2.API, in1, in2, out gkr.Variable, err error) {
+func defineCircuitBls12377() (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, err error) {
 	// variable indexes
 	const (
 		xI = iota
@@ -164,7 +164,7 @@ func defineCircuitBls12377() (gkrApi *v2.API, in1, in2, out gkr.Variable, err er
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi = v2.New()
+	gkrApi = gkrapi.New()
 
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
