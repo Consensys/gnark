@@ -1,4 +1,4 @@
-package v2
+package gkrapi
 
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"

@@ -4,26 +4,6 @@ import "github.com/bits-and-blooms/bitset"
 
 // this package provides some generic (in both senses of the word) algorithmic conveniences.
 
-// Permute operates in-place but is not thread-safe; it uses the permutation for scratching
-// permutation[i] signifies which index slice[i] is going to
-func Permute[T any](slice []T, permutation []int) {
-	var cached T
-	for next := 0; next < len(permutation); next++ {
-
-		cached = slice[next]
-		j := permutation[next]
-		permutation[next] = ^j
-		for j >= 0 {
-			cached, slice[j] = slice[j], cached
-			j, permutation[j] = permutation[j], ^permutation[j]
-		}
-		permutation[next] = ^permutation[next]
-	}
-	for i := range permutation {
-		permutation[i] = ^permutation[i]
-	}
-}
-
 // Map returns [f(in[0]), f(in[1]), ..., f(in[len(in)-1])]
 func Map[T, S any](in []T, f func(T) S) []S {
 	out := make([]S, len(in))
@@ -33,15 +13,13 @@ func Map[T, S any](in []T, f func(T) S) []S {
 	return out
 }
 
-// TODO: Move this to gnark-crypto and use it for gkr there as well
-
 // TopologicalSort takes a list of lists of dependencies and proposes a sorting of the lists in order of dependence. Such that for any wire, any one it depends on
 // occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
 // As a bonus, it returns for each list its "unique" outputs. That is, a list of its outputs with no duplicates.
-// Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
+// Worst-case inefficient O(n²), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input.
 // If performance was bad, consider using a heap for finding the value "leastReady".
-// WARNING: Due to the current implementation of intSet, it is ALWAYS O(n^2).
+// WARNING: Due to the current implementation of intSet, it is ALWAYS O(n²).
 func TopologicalSort(inputs [][]int) (sorted []int, uniqueOutputs [][]int) {
 	data := newTopSortData(inputs)
 	sorted = make([]int, len(inputs))

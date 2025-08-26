@@ -1,4 +1,4 @@
-package v2
+package gkrapi
 
 import (
 	"fmt"
@@ -23,13 +23,12 @@ type circuitDataForSnark struct {
 	assignments gkrtypes.WireAssignment
 }
 
-type InitialChallengeGetter func() []frontend.Variable
-
 // Circuit represents a GKR circuit.
 type Circuit struct {
 	toStore              gkrinfo.StoringInfo
 	assignments          gkrtypes.WireAssignment
-	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
+	hashNameProvider     func() string
+	getInitialChallenges func() []frontend.Variable // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
 	api                  frontend.API            // the parent API used for hints
@@ -50,24 +49,45 @@ type compileOption func(*Circuit)
 
 // WithInitialChallenge provides a getter for the initial Fiat-Shamir challenge.
 // If not provided, the initial challenge will be a commitment to all the input and output values of the circuit.
-func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) compileOption {
+func WithInitialChallenge(getInitialChallenge func() []frontend.Variable) compileOption {
 	return func(c *Circuit) {
 		c.getInitialChallenges = getInitialChallenge
+	}
+}
+
+// WithHashName sets the hash function used for
+// applying Fiat-Shamir to the GKR verification protocol.
+// If this option is not provided, MiMC will be used.
+// Choose the hash function deliberately. It is important
+// for the Fiat-Shamir hash not to be computable by the
+// GKR circuit. This can be achieved for example by choosing
+// a hash that is more complex than the circuit.
+// For more insights see https://eprint.iacr.org/2025/118.
+func WithHashName(hashName string) compileOption {
+	return WithHashNameProvider(func() string { return hashName })
+}
+
+// WithHashNameProvider defers the provision of the Fiat-Shamir hash function.
+// NB! This function is provided mainly to continue support for the deprecated
+// v1 API. Its general use is discouraged as normally the hash used should be known
+// at compile time. Use [WithHashName] instead.
+func WithHashNameProvider(hashNameProvider func() string) compileOption {
+	return func(c *Circuit) {
+		c.hashNameProvider = hashNameProvider
 	}
 }
 
 // Compile finalizes the GKR circuit.
 // From this point on, the circuit cannot be modified.
 // But instances can be added to the circuit.
-func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, options ...compileOption) *Circuit {
+func (api *API) Compile(parentApi frontend.API, options ...compileOption) *Circuit {
 	// TODO define levels here
 	res := Circuit{
-		toStore:     api.toStore,
-		assignments: make(gkrtypes.WireAssignment, len(api.toStore.Circuit)),
-		api:         parentApi,
+		toStore:          api.toStore,
+		assignments:      make(gkrtypes.WireAssignment, len(api.toStore.Circuit)),
+		api:              parentApi,
+		hashNameProvider: func() string { return "MIMC" },
 	}
-
-	res.toStore.HashName = fiatshamirHashName
 
 	var err error
 	res.hints, err = gadget.NewTestEngineHints(&res.toStore)
@@ -164,6 +184,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 		}
 	}
 
+	c.toStore.HashName = c.hashNameProvider()
 	if err := api.(gkrinfo.ConstraintSystem).SetGkrInfo(c.toStore); err != nil {
 		return err
 	}
@@ -269,9 +290,9 @@ func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment g
 
 // GetValue is a debugging utility returning the value of variable v at instance i.
 // While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
-func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
+func (c *Circuit) GetValue(v gkr.Variable, instance int) frontend.Variable {
 	// last input to ensure the solver's work is done before GetAssignment is called
-	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, int(v), i, c.assignments[c.outs[0]][i])
+	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, int(v), instance, c.assignments[c.outs[0]][instance])
 	if err != nil {
 		panic(err)
 	}
