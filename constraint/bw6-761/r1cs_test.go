@@ -106,14 +106,14 @@ func TestSerialization(t *testing.T) {
 				var r, r2 cs.R1CS
 				n, err = r.ReadFrom(&buffer)
 				if err != nil {
-					t.Fatal(nil)
+					t.Fatal(err)
 				}
 				if n == 0 {
 					t.Fatal("No bytes are read")
 				}
 				_, err = r2.ReadFrom(&buffer2)
 				if err != nil {
-					t.Fatal(nil)
+					t.Fatal(err)
 				}
 
 				if !reflect.DeepEqual(r, r2) {
