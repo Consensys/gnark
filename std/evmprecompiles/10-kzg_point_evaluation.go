@@ -327,6 +327,65 @@ func KzgPointEvaluationFailure(
 	claimedValue = fr.Select(isValidMasks, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isValidMasks, versionedHash[0], dummyVersionedHash[0])
 	versionedHash[1] = api.Select(isValidMasks, versionedHash[1], dummyVersionedHash[1])
+	// -- now we need to ensure that both compressed commitment and proof have x coordinate
+	// values in range. Otherwise, the underlying call to UnmarshalCompress will fail as
+	// we explicitly perform range check in the BytesToEmulated method.
+	//
+	// For this we do BytesToEmulated ourself, but without range checking. Then we perform strict
+	// modular reduction and see if the values changed.
+	mask := uints.NewU8(^byte(0b111 << 5))
+	firstByteCom := bapi.And(mask, comSerializedBytes[0])
+	firstByteProof := bapi.And(mask, proofSerialisedBytes[0])
+	var xCoordComBytes, xCoordProofBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
+	copy(xCoordComBytes[1:], comSerializedBytes[1:])
+	copy(xCoordProofBytes[1:], proofSerialisedBytes[1:])
+	xCoordComBytes[0] = firstByteCom
+	xCoordProofBytes[0] = firstByteProof
+	// - here we convert from bytes to emulated without range checking. However,
+	// below in EmulatedToBytes we do not pass any option. In this case
+	// EmulatedToBytes will call [emulated.Field.ReduceStrict] on the input,
+	// which ensures that we convert the in-range emulated value to bytes. Thus,
+	// when the initial value xCoordComBytes/xCoordProofBytes is out of range,
+	// then the value after EmulatedToBytes will be different.
+	xCoordComEmul, err := conversion.BytesToEmulated[sw_bls12381.BaseField](api, xCoordComBytes[:], conversion.WithAllowOverflow())
+	if err != nil {
+		return fmt.Errorf("bytes to emulated commitment x coordinate: %w", err)
+	}
+	xCoordProofEmul, err := conversion.BytesToEmulated[sw_bls12381.BaseField](api, xCoordProofBytes[:], conversion.WithAllowOverflow())
+	if err != nil {
+		return fmt.Errorf("bytes to emulated proof x coordinate: %w", err)
+	}
+	xCoordComConverted, err := conversion.EmulatedToBytes(api, xCoordComEmul)
+	if err != nil {
+		return fmt.Errorf("emulated to bytes commitment x coordinate: %w", err)
+	}
+	xCoordProofConverted, err := conversion.EmulatedToBytes(api, xCoordProofEmul)
+	if err != nil {
+		return fmt.Errorf("emulated to bytes proof x coordinate: %w", err)
+	}
+	if len(xCoordComConverted) != len(xCoordComBytes) {
+		return fmt.Errorf("unexpected length of converted commitment x coordinate: expected %d, got %d", len(xCoordComBytes), len(xCoordComConverted))
+	}
+	if len(xCoordProofConverted) != len(xCoordProofBytes) {
+		return fmt.Errorf("unexpected length of converted proof x coordinate: expected %d, got %d", len(xCoordProofBytes), len(xCoordProofConverted))
+	}
+	// - check that the values are the same
+	var isInRangeCom frontend.Variable = 1
+	var isInRangeProof frontend.Variable = 1
+	for i := range bls12381.SizeOfG1AffineCompressed {
+		isInRangeCom = api.Mul(isInRangeCom, api.IsZero(api.Sub(bapi.ValueUnchecked(xCoordComBytes[i]), bapi.ValueUnchecked(xCoordComConverted[i]))))
+		isInRangeProof = api.Mul(isInRangeProof, api.IsZero(api.Sub(bapi.ValueUnchecked(xCoordProofBytes[i]), bapi.ValueUnchecked(xCoordProofConverted[i]))))
+	}
+	isInRange := api.And(isInRangeCom, isInRangeProof)
+	// - swap with dummy values if they are not in range
+	for i := range bls12381.SizeOfG1AffineCompressed {
+		comSerializedBytes[i] = bapi.Select(isInRange, comSerializedBytes[i], dummyComBytes[i])
+		proofSerialisedBytes[i] = bapi.Select(isInRange, proofSerialisedBytes[i], dummyProofBytes[i])
+	}
+	evaluationPoint = fr.Select(isInRange, evaluationPoint, dummyEvaluationPoint)
+	claimedValue = fr.Select(isInRange, claimedValue, dummyClaimedValue)
+	versionedHash[0] = api.Select(isInRange, versionedHash[0], dummyVersionedHash[0])
+	versionedHash[1] = api.Select(isInRange, versionedHash[1], dummyVersionedHash[1])
 	// -- uncompress the commitment and proof
 	commitmentUncompressed, err := g1.UnmarshalCompressed(comSerializedBytes[:], algopts.WithNoSubgroupMembershipCheck())
 	if err != nil {
@@ -405,10 +464,12 @@ func KzgPointEvaluationFailure(
 	// currently only asserts correctness.
 	// - first we perform sanity check that we only had up to a single failure before
 	isNotValidMasks := api.Sub(1, isValidMasks)
+	isNotInRange := api.Sub(1, isInRange)
 	isNotInSubgroups := api.Sub(1, isInSubgroups)
 	isNotCorrectHash := api.Sub(1, isCorrectHash)
 	isAnyPreviousFailure := api.Add(
 		isNotValidMasks,
+		isNotInRange,
 		isNotInSubgroups,
 		isNotCorrectHash,
 	)
