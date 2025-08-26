@@ -189,14 +189,10 @@ func (builder *builder[E]) newR1C(l, r, o frontend.Variable) constraint.R1C {
 	R := builder.getLinearExpression(r)
 	O := builder.getLinearExpression(o)
 
-	// interestingly, this is key to groth16 performance.
-	// l * r == r * l == o
-	// but the "l" linear expression is going to end up in the A matrix
-	// the "r" linear expression is going to end up in the B matrix
-	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
-	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(L) > len(R) {
-		// TODO @gbotrel shouldn't we do the opposite? Code doesn't match comment.
+	// We want R (the B matrix) to have fewer variables to increase the chance
+        // of infinity points in pk.G1.B / pk.G2.B during Groth16 setup,
+        // which improves proving time. Therefore, we swap L and R if R has more terms.
+	if len(R) > len(L) {
 		L, R = R, L
 	}
 
