@@ -117,7 +117,6 @@ func KzgPointEvaluation(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed [3]frontend.Variable, // commitment is a 48 byte compressed point. Arithmetization uses 16-byte words, so we use a 3-element array.
 	proofCompressed [3]frontend.Variable, // proof is a 48 byte compressed point. Arithmetization uses 16-byte words, so we use a 3-element array.
-	expectedSuccess frontend.Variable, // expected success is a single byte that is 1 if the proof is valid, 0 otherwise
 	expectedBlobSize [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
 	expectedBlsModulus [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
 ) error { // we don't return a value as the result is a constant value
@@ -217,7 +216,6 @@ func KzgPointEvaluationFailure(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed [3]frontend.Variable,
 	proofCompressed [3]frontend.Variable,
-	expectedSuccess frontend.Variable,
 	expectedBlobSize [2]frontend.Variable,
 	expectedBlsModulus [2]frontend.Variable,
 ) error {
