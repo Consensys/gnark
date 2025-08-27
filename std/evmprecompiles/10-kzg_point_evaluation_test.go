@@ -37,12 +37,10 @@ type kzgPointEvalCircuit struct {
 	Proof              [3]frontend.Variable
 	ExpectedBlobSize   [2]frontend.Variable
 	ExpectedBlsModulus [2]frontend.Variable
-
-	ExpectedSuccess frontend.Variable
 }
 
 func (c *kzgPointEvalCircuit) Define(api frontend.API) error {
-	err := KzgPointEvaluation(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+	err := KzgPointEvaluation(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
 		return fmt.Errorf("KzgPointEvaluation: %w", err)
 	}
@@ -118,7 +116,6 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 		Proof:              witnessProof,
 		ExpectedBlobSize:   witnessBlobSize,
 		ExpectedBlsModulus: witnessBlsModulus,
-		ExpectedSuccess:    1,
 	}
 	err = test.IsSolved(&kzgPointEvalCircuit{}, &witness, ecc.BLS12_377.ScalarField())
 	assert.NoError(err, "test solver")
@@ -132,19 +129,17 @@ type kzgPointEvalFailureCircuit struct {
 	Proof              [3]frontend.Variable
 	ExpectedBlobSize   [2]frontend.Variable
 	ExpectedBlsModulus [2]frontend.Variable
-
-	ExpectedSuccess frontend.Variable
 }
 
 func (c *kzgPointEvalFailureCircuit) Define(api frontend.API) error {
-	err := KzgPointEvaluationFailure(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedSuccess, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+	err := KzgPointEvaluationFailure(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
 		return fmt.Errorf("KzgPointEvaluationFailure: %w", err)
 	}
 	return nil
 }
 
-func runFailureCircuit(assert *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
+func runFailureCircuit(_ *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
 	witnessHash := [2]frontend.Variable{
 		encode(hashBytes[16:32]),
 		encode(hashBytes[0:16]),
@@ -181,7 +176,6 @@ func runFailureCircuit(assert *test.Assert, evaluationPoint fr.Element, claimedV
 		Proof:              witnessProof,
 		ExpectedBlobSize:   witnessBlobSize,
 		ExpectedBlsModulus: witnessBlsModulus,
-		ExpectedSuccess:    1,
 	}
 	return test.IsSolved(&kzgPointEvalFailureCircuit{}, &witness, ecc.BLS12_377.ScalarField())
 }
