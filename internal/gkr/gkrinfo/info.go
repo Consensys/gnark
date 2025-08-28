@@ -6,12 +6,6 @@ import (
 )
 
 type (
-	InputDependency struct {
-		OutputWire     int
-		OutputInstance int
-		InputInstance  int
-	}
-
 	Wire struct {
 		Gate   string
 		Inputs []int
@@ -26,13 +20,6 @@ type (
 		GetAssignmentHintID solver.HintID
 		SolveHintID         solver.HintID
 		ProveHintID         solver.HintID
-	}
-
-	Permutations struct {
-		SortedInstances      []int
-		SortedWires          []int
-		InstancesPermutation []int
-		WiresPermutation     []int
 	}
 )
 

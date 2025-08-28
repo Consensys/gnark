@@ -8,8 +8,8 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/gkrapi"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
 	"github.com/consensys/gnark/test"
 )
@@ -114,7 +114,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
 	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit := gkrApi.Compile(api)
 
 	// add input and check output for correctness
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
