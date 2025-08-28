@@ -29,26 +29,26 @@ func precomputeLines(Q bn254.G2Affine) lineEvaluations {
 	return cLines
 }
 
-func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
+func (pr *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 
 	// check Q is on curve
 	Qaff := G2Affine{P: *Q, Lines: nil}
-	p.IsOnTwist(&Qaff)
+	pr.IsOnTwist(&Qaff)
 
 	var cLines lineEvaluations
 	Qacc := Q
 	n := len(bn254.LoopCounter)
-	Qacc, cLines[0][n-2] = p.doubleStep(Qacc)
-	cLines[1][n-3] = p.lineCompute(Qacc, Q)
-	Qacc, cLines[0][n-3] = p.addStep(Qacc, Q)
+	Qacc, cLines[0][n-2] = pr.doubleStep(Qacc)
+	cLines[1][n-3] = pr.lineCompute(Qacc, Q)
+	Qacc, cLines[0][n-3] = pr.addStep(Qacc, Q)
 	for i := n - 4; i >= 0; i-- {
 		switch loopCounter[i] {
 		case 0:
-			Qacc, cLines[0][i] = p.doubleStep(Qacc)
+			Qacc, cLines[0][i] = pr.doubleStep(Qacc)
 		case 1:
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q, false)
+			Qacc, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(Qacc, Q, false)
 		case -1:
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q, true)
+			Qacc, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(Qacc, Q, true)
 		default:
 			return lineEvaluations{}
 		}
@@ -61,30 +61,30 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	// This test is equivalent to [computeG2ShortVector] in [AssertIsOnG2].
 	//
 	// At this point Qacc = [6x₀+2]Q.
-	psiQ := p.g2.psi(&Qaff)  // ψ(Q)
-	psi2Q := p.g2.phi(&Qaff) // ϕ(Q)=ψ²(Q)
-	psi3Q := p.g2.psi(psi2Q) // ψ³(Q)
-	lhs := p.g2.add(&G2Affine{P: *Qacc, Lines: nil}, psiQ)
-	lhs = p.g2.add(lhs, psi3Q)
-	p.g2.AssertIsEqual(lhs, psi2Q)
+	psiQ := pr.g2.psi(&Qaff)  // ψ(Q)
+	psi2Q := pr.g2.phi(&Qaff) // ϕ(Q)=ψ²(Q)
+	psi3Q := pr.g2.psi(psi2Q) // ψ³(Q)
+	lhs := pr.g2.add(&G2Affine{P: *Qacc, Lines: nil}, psiQ)
+	lhs = pr.g2.add(lhs, psi3Q)
+	pr.g2.AssertIsEqual(lhs, psi2Q)
 
-	Q1X := p.Ext2.Conjugate(&Q.X)
-	Q1X = p.Ext2.MulByNonResidue1Power2(Q1X)
-	Q1Y := p.Ext2.Conjugate(&Q.Y)
-	Q1Y = p.Ext2.MulByNonResidue1Power3(Q1Y)
+	Q1X := pr.Ext2.Conjugate(&Q.X)
+	Q1X = pr.Ext2.MulByNonResidue1Power2(Q1X)
+	Q1Y := pr.Ext2.Conjugate(&Q.Y)
+	Q1Y = pr.Ext2.MulByNonResidue1Power3(Q1Y)
 	Q1 := &g2AffP{
 		X: *Q1X,
 		Y: *Q1Y,
 	}
 
-	Q2Y := p.Ext2.MulByNonResidue2Power3(&Q.Y)
+	Q2Y := pr.Ext2.MulByNonResidue2Power3(&Q.Y)
 	Q2 := &g2AffP{
-		X: *p.Ext2.MulByNonResidue2Power2(&Q.X),
+		X: *pr.Ext2.MulByNonResidue2Power2(&Q.X),
 		Y: *Q2Y,
 	}
 
-	Qacc, cLines[0][n-1] = p.addStep(Qacc, Q1)
-	cLines[1][n-1] = p.lineCompute(Qacc, Q2)
+	Qacc, cLines[0][n-1] = pr.addStep(Qacc, Q1)
+	cLines[1][n-1] = pr.lineCompute(Qacc, Q2)
 
 	return cLines
 }

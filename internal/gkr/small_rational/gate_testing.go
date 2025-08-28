@@ -157,7 +157,7 @@ func EqualGateFunction(f gkr.GateFunction, g gkr.GateFunction, nbIn int) bool {
 // Note that the runtime is O(len(X)³)
 func interpolate(X, Y []small_rational.SmallRational) (polynomial.Polynomial, error) {
 	if len(X) != len(Y) {
-		return nil, errors.New("X and Y must have the same length")
+		return nil, errors.New("same length expected for X and Y")
 	}
 
 	// solve the system of equations by Gaussian elimination

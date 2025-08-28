@@ -142,7 +142,7 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	acc.balance.SetUint64(uint64(i) + 20)
 	rnd.SetUint64(uint64(i))
 	src := rand.NewSource(int64(i))
-	r := rand.New(src)
+	r := rand.New(src) //#nosec G404
 
 	pkey, err := eddsa.GenerateKey(r)
 	if err != nil {

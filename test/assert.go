@@ -47,9 +47,9 @@ func NewAssert(t *testing.T) *Assert {
 
 // Run runs the test function fn as a subtest. The subtest is parametrized by
 // the description strings descs.
-func (a *Assert) Run(fn func(assert *Assert), descs ...string) {
+func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
-	a.t.Run(desc, func(t *testing.T) {
+	assert.t.Run(desc, func(t *testing.T) {
 		assert := &Assert{t, require.New(t)}
 		fn(assert)
 	})
