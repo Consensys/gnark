@@ -110,39 +110,60 @@ func TestKZGVerificationEmulated2(t *testing.T) {
 	srs, err := kzg_bls12381.NewSRS(kzgSize, alpha)
 	assert.NoError(err)
 
-	f := make([]fr_bls12381.Element, polynomialSize)
-	for i := range f {
-		f[i].SetRandom()
+	check := func(assert *test.Assert, f fr_bls12381.Vector, point fr_bls12381.Element) {
+		com, err := kzg_bls12381.Commit(f, srs.Pk)
+		assert.NoError(err)
+		proof, err := kzg_bls12381.Open(f, point, srs.Pk)
+		assert.NoError(err)
+		if err = kzg_bls12381.Verify(&com, &proof, point, srs.Vk); err != nil {
+			t.Fatal("verify proof", err)
+		}
+		wCmt, err := ValueOfCommitment[sw_bls12381.G1Affine](com)
+		assert.NoError(err)
+		wVk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
+		assert.NoError(err)
+		wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
+		assert.NoError(err)
+		wPt, err := ValueOfScalar[sw_bls12381.ScalarField](point)
+		assert.NoError(err)
+
+		assignment := KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+			VerifyingKey: wVk,
+			Commitment:   wCmt,
+			OpeningProof: wProof,
+			Point:        wPt,
+		}
+		assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{}, test.WithValidAssignment(&assignment))
 	}
 
-	com, err := kzg_bls12381.Commit(f, srs.Pk)
-	assert.NoError(err)
-
-	var point fr_bls12381.Element
-	point.SetRandom()
-	proof, err := kzg_bls12381.Open(f, point, srs.Pk)
-	assert.NoError(err)
-
-	if err = kzg_bls12381.Verify(&com, &proof, point, srs.Vk); err != nil {
-		t.Fatal("verify proof", err)
-	}
-
-	wCmt, err := ValueOfCommitment[sw_bls12381.G1Affine](com)
-	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
-	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
-	assert.NoError(err)
-	wPt, err := ValueOfScalar[sw_bls12381.ScalarField](point)
-	assert.NoError(err)
-
-	assignment := KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
-		VerifyingKey: wVk,
-		Commitment:   wCmt,
-		OpeningProof: wProof,
-		Point:        wPt,
-	}
-	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{}, test.WithValidAssignment(&assignment))
+	assert.Run(func(assert *test.Assert) {
+		f := make(fr_bls12381.Vector, polynomialSize)
+		f.MustSetRandom()
+		var point fr_bls12381.Element
+		point.MustSetRandom()
+		check(assert, f, point)
+	})
+	assert.Run(func(assert *test.Assert) {
+		f := make(fr_bls12381.Vector, polynomialSize)
+		var point fr_bls12381.Element
+		point.MustSetRandom()
+		check(assert, f, point)
+	}, "case=zero_polynomial")
+	assert.Run(func(assert *test.Assert) {
+		f := make(fr_bls12381.Vector, polynomialSize)
+		f.MustSetRandom()
+		var point fr_bls12381.Element
+		point.SetZero()
+		check(assert, f, point)
+	}, "case=zero_point")
+	assert.Run(func(assert *test.Assert) {
+		f := make(fr_bls12381.Vector, polynomialSize)
+		f.MustSetRandom()
+		f[0].SetZero()
+		var point fr_bls12381.Element
+		point.SetZero()
+		check(assert, f, point)
+	}, "case=zero_first_coeff_zero_point")
 }
 
 func TestKZGVerificationEmulated3(t *testing.T) {
