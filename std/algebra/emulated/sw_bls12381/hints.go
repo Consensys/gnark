@@ -409,7 +409,7 @@ func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) erro
 			case 0b101:
 				sign = -1
 			default:
-				return fmt.Errorf("invalid mask %b for unmarshalG1", (xCoord[0]&mMask)>>5)
+				return fmt.Errorf("invalid mask %b for unmarshalG1: %w", (xCoord[0]&mMask)>>5, err)
 			}
 			for i := 1; i < 100; i++ { // we have probability 1/2 for each i to find a point not on curve
 				point.Y.SetInt64(int64(i) * sign)
