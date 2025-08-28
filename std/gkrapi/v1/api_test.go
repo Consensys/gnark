@@ -235,30 +235,6 @@ func TestSolveMulWithDependency(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
 }
 
-/*
-	func BenchmarkMiMCMerkleTree(b *testing.B) {
-		depth := 14
-		bottom := make([]frontend.Variable, 1<<depth)
-
-		for i := 0; i < 1<<depth; i++ {
-			bottom[i] = i
-		}
-
-		assignment := benchMiMCMerkleTreeCircuit{
-			depth:   depth,
-			XBottom: bottom[:len(bottom)/2],
-			YBottom: bottom[len(bottom)/2:],
-		}
-
-		circuit := benchMiMCMerkleTreeCircuit{
-			depth:   depth,
-			XBottom: make([]frontend.Variable, len(assignment.XBottom)),
-			YBottom: make([]frontend.Variable, len(assignment.YBottom)),
-		}
-
-		benchProof(b, &circuit, &assignment)
-	}
-*/
 func benchCompile(b *testing.B, circuit frontend.Circuit) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
