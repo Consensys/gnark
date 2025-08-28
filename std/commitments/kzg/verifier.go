@@ -426,14 +426,15 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment
 
 	// [f(a)]G1 + [-a]([H(α)]G₁) = [f(a) - a*H(α)]G₁
 	pointNeg := v.scalarApi.Neg(&point)
-	totalG1, err := v.curve.MultiScalarMul([]*G1El{&vk.G1, &proof.Quotient}, []*emulated.Element[FR]{&proof.ClaimedValue, pointNeg})
+	// we use complete arithmetic to allow verifying commitment to 0 polynomial.
+	totalG1, err := v.curve.MultiScalarMul([]*G1El{&vk.G1, &proof.Quotient}, []*emulated.Element[FR]{&proof.ClaimedValue, pointNeg}, algopts.WithCompleteArithmetic())
 	if err != nil {
 		return fmt.Errorf("check opening proof: %w", err)
 	}
 
 	// [f(a) - a*H(α)]G₁ + [-f(α)]G₁  = [f(a) - f(α) - a*H(α)]G₁
 	commitmentNeg := v.curve.Neg(&commitment.G1El)
-	totalG1 = v.curve.Add(totalG1, commitmentNeg)
+	totalG1 = v.curve.AddUnified(totalG1, commitmentNeg)
 
 	// e([f(a)-f(α)-a*H(α)]G₁], G₂).e([H(α)]G₁, [α]G₂) == 1
 	if err := v.pairing.PairingCheck(
