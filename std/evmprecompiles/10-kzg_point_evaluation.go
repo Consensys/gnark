@@ -381,6 +381,30 @@ func KzgPointEvaluationFailure(
 	claimedValue = fr.Select(isInRange, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isInRange, versionedHash[0], dummyVersionedHash[0])
 	versionedHash[1] = api.Select(isInRange, versionedHash[1], dummyVersionedHash[1])
+	// -- if the mask is given for infinity then we need to ensure that x is zero
+	// - load the prefix again. We may have overwritten the bytes above to dummy (zero) values.
+	prefixCom = bapi.And(unmask, comSerializedBytes[0])
+	prefixProof = bapi.And(unmask, proofSerialisedBytes[0])
+	prefixComShifted = api.Div(bapi.ValueUnchecked(prefixCom), 32)
+	prefixProofShifted = api.Div(bapi.ValueUnchecked(prefixProof), 32)
+	// - check if the mask for infinity corresponds to the x coordinate being infinity
+	isMaskInfinityCom := api.IsZero(api.Sub(prefixComShifted, 0b110))
+	isMaskInfinityProof := api.IsZero(api.Sub(prefixProofShifted, 0b110))
+	isValueXZeroCom := fp.IsZero(xCoordComEmul)
+	isValueXZeroProof := fp.IsZero(xCoordProofEmul)
+	isInvalidInfinityMaskCom := api.Xor(isMaskInfinityCom, isValueXZeroCom)
+	isInvalidInfinityMaskProof := api.Xor(isMaskInfinityProof, isValueXZeroProof)
+	isNotValidInfinityMask := api.Or(isInvalidInfinityMaskCom, isInvalidInfinityMaskProof)
+	isValidInfinityMask := api.Sub(1, isNotValidInfinityMask)
+	// - in case of invalid infinity mask, we swap to dummy values
+	for i := range bls12381.SizeOfG1AffineCompressed {
+		comSerializedBytes[i] = bapi.Select(isValidInfinityMask, comSerializedBytes[i], dummyComBytes[i])
+		proofSerialisedBytes[i] = bapi.Select(isValidInfinityMask, proofSerialisedBytes[i], dummyProofBytes[i])
+	}
+	evaluationPoint = fr.Select(isValidInfinityMask, evaluationPoint, dummyEvaluationPoint)
+	claimedValue = fr.Select(isValidInfinityMask, claimedValue, dummyClaimedValue)
+	versionedHash[0] = api.Select(isValidInfinityMask, versionedHash[0], dummyVersionedHash[0])
+	versionedHash[1] = api.Select(isValidInfinityMask, versionedHash[1], dummyVersionedHash[1])
 	// -- uncompress the commitment and proof
 	commitmentUncompressed, err := g1.UnmarshalCompressed(comSerializedBytes[:], algopts.WithNoSubgroupMembershipCheck())
 	if err != nil {
@@ -465,6 +489,7 @@ func KzgPointEvaluationFailure(
 	isAnyPreviousFailure := api.Add(
 		isNotValidMasks,
 		isNotInRange,
+		isNotValidInfinityMask,
 		isNotInSubgroups,
 		isNotCorrectHash,
 	)
