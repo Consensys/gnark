@@ -1,6 +1,7 @@
 package sw_bls12381
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	"testing"
@@ -372,4 +373,35 @@ func TestUnmarshalPoint(t *testing.T) {
 			test.WithInvalidAssignment(&unmarshalPoint{CP: uints.NewU8Array(pMarshalled[:]), P: NewG1Affine(p)}),
 		)
 	}, "case=invalid/explicit-invalid-111-infinity")
+	// - x coordinate overflows the field
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var s fr_bls12381.Element
+		b := new(big.Int)
+		x := new(big.Int)
+		xof := new(big.Int)
+		_, _, g, _ := bls12381.Generators()
+		for {
+			s.MustSetRandom()
+			p.ScalarMultiplication(&g, s.BigInt(b))
+			p.X.BigInt(x)
+			xof.Add(x, fp_bls12381.Modulus())     // overflow x coordinate
+			if xof.BitLen() <= fp_bls12381.Bits { // to ensure we can fit the mask
+				break
+			}
+		}
+		pMarshalled := p.Bytes()
+		var xBytes, xofBytes [bls12381.SizeOfG1AffineCompressed]byte
+		xof.FillBytes(xofBytes[:])
+		x.FillBytes(xBytes[:])
+		xofBytes[0] |= pMarshalled[0] & mMask // add the mask
+		xBytes[0] |= pMarshalled[0] & mMask   // add the mask
+		if !bytes.Equal(xBytes[:], pMarshalled[:]) {
+			assert.Fail("sanity check for correct serialization failed")
+		}
+		assert.CheckCircuit(
+			&unmarshalPoint{CP: make([]uints.U8, bls12381.SizeOfG1AffineCompressed)},
+			test.WithInvalidAssignment(&unmarshalPoint{CP: uints.NewU8Array(xofBytes[:]), P: NewG1Affine(p)}),
+		)
+	}, "case=invalid/x-overflow")
 }
