@@ -396,6 +396,22 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			)
 			assert.NoError(err, "should pass")
 		}, "0b111")
+		assert.Run(func(assert *test.Assert) {
+			// we have mask for compressed infinity but x coordinate has value
+			proofBytes := kzgProof.H.Bytes()
+			proofBytes[0] = (proofBytes[0] & 0x1f) | (0b110 << 5)
+			assert.Equal(byte(0b110<<5), proofBytes[0]&0xe0, "proof should be compressed infinity")
+			err = runFailureCircuit(assert,
+				evaluationPoint,
+				kzgProof.ClaimedValue,
+				h[:],
+				commitmentBytes,
+				proofBytes,
+				[]int{0, evmBlockSize},
+				[]string{evmBlsModulusHi, evmBlsModulusLo},
+			)
+			assert.NoError(err, "should pass")
+		}, "0b110")
 	}, "proof-mask-invalid")
 	assert.Run(func(assert *test.Assert) {
 		// -- proof x coordinate overflows field
@@ -530,6 +546,22 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			)
 			assert.NoError(err, "should pass")
 		}, "0b111")
+		assert.Run(func(assert *test.Assert) {
+			// we have mask for compressed infinity but x coordinate has value
+			cmtBytes := kzgCommitment.Bytes()
+			cmtBytes[0] = (cmtBytes[0] & 0x1f) | (0b110 << 5)
+			assert.Equal(byte(0b110<<5), cmtBytes[0]&0xe0, "proof should be compressed infinity")
+			err = runFailureCircuit(assert,
+				evaluationPoint,
+				kzgProof.ClaimedValue,
+				h[:],
+				cmtBytes,
+				kzgProof.H.Bytes(),
+				[]int{0, evmBlockSize},
+				[]string{evmBlsModulusHi, evmBlsModulusLo},
+			)
+			assert.NoError(err, "should pass")
+		}, "0b110")
 	}, "commitment-mask-invalid")
 	// -- commitment x coordinate overflows field
 	assert.Run(func(assert *test.Assert) {
