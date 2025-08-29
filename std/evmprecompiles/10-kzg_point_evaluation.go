@@ -377,6 +377,8 @@ func KzgPointEvaluationFailure(
 	claimedValue = fr.Select(isInRange, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isInRange, versionedHash[0], dummyVersionedHash[0])
 	versionedHash[1] = api.Select(isInRange, versionedHash[1], dummyVersionedHash[1])
+	xCoordComEmul = fp.Select(isInRange, xCoordComEmul, fp.Zero())
+	xCoordProofEmul = fp.Select(isInRange, xCoordProofEmul, fp.Zero())
 	// -- if the mask is given for infinity then we need to ensure that x is zero
 	// - load the prefix again. We may have overwritten the bytes above to dummy (zero) values.
 	prefixCom = bapi.And(unmask, comSerializedBytes[0])
@@ -421,8 +423,12 @@ func KzgPointEvaluationFailure(
 		X: *fp.Select(isInSubgroups, &proofUncompressed.X, &dummyProof.X),
 		Y: *fp.Select(isInSubgroups, &proofUncompressed.Y, &dummyProof.Y),
 	}
+	comSerializedBytes = selectVector(bapi, isInSubgroups, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectVector(bapi, isInSubgroups, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isInSubgroups, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isInSubgroups, claimedValue, dummyClaimedValue)
+	versionedHash[0] = api.Select(isInSubgroups, versionedHash[0], dummyVersionedHash[0])
+	versionedHash[1] = api.Select(isInSubgroups, versionedHash[1], dummyVersionedHash[1])
 	// -- now we check that the rest of hash is correct. If it is not, then we
 	// swap the rest of the values to dummy values
 	// - first we compute the hash of the commitment
