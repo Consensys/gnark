@@ -314,10 +314,8 @@ func KzgPointEvaluationFailure(
 	isValidMasks := api.And(isValidMaskCom, isValidMaskProof)
 	// - if the masks are correct, then we will keep the values as they are.
 	// however, if they are not correct then we will swap the bytes to dummy values.
-	for i := range bls12381.SizeOfG1AffineCompressed {
-		comSerializedBytes[i] = bapi.Select(isValidMasks, comSerializedBytes[i], dummyComBytes[i])
-		proofSerialisedBytes[i] = bapi.Select(isValidMasks, proofSerialisedBytes[i], dummyProofBytes[i])
-	}
+	comSerializedBytes = selectVector(bapi, isValidMasks, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectVector(bapi, isValidMasks, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isValidMasks, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isValidMasks, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isValidMasks, versionedHash[0], dummyVersionedHash[0])
@@ -373,10 +371,8 @@ func KzgPointEvaluationFailure(
 	}
 	isInRange := api.And(isInRangeCom, isInRangeProof)
 	// - swap with dummy values if they are not in range
-	for i := range bls12381.SizeOfG1AffineCompressed {
-		comSerializedBytes[i] = bapi.Select(isInRange, comSerializedBytes[i], dummyComBytes[i])
-		proofSerialisedBytes[i] = bapi.Select(isInRange, proofSerialisedBytes[i], dummyProofBytes[i])
-	}
+	comSerializedBytes = selectVector(bapi, isInRange, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectVector(bapi, isInRange, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isInRange, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isInRange, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isInRange, versionedHash[0], dummyVersionedHash[0])
@@ -397,10 +393,8 @@ func KzgPointEvaluationFailure(
 	isNotValidInfinityMask := api.Or(isInvalidInfinityMaskCom, isInvalidInfinityMaskProof)
 	isValidInfinityMask := api.Sub(1, isNotValidInfinityMask)
 	// - in case of invalid infinity mask, we swap to dummy values
-	for i := range bls12381.SizeOfG1AffineCompressed {
-		comSerializedBytes[i] = bapi.Select(isValidInfinityMask, comSerializedBytes[i], dummyComBytes[i])
-		proofSerialisedBytes[i] = bapi.Select(isValidInfinityMask, proofSerialisedBytes[i], dummyProofBytes[i])
-	}
+	comSerializedBytes = selectVector(bapi, isValidInfinityMask, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectVector(bapi, isValidInfinityMask, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isValidInfinityMask, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isValidInfinityMask, claimedValue, dummyClaimedValue)
 	versionedHash[0] = api.Select(isValidInfinityMask, versionedHash[0], dummyVersionedHash[0])
@@ -551,4 +545,15 @@ func KzgPointEvaluationFailure(
 	api.AssertIsEqual(isValidCase, 1)
 
 	return nil
+}
+
+func selectVector(bapi *uints.Bytes, cond frontend.Variable, onTrue [bls12381.SizeOfG1AffineCompressed]uints.U8, onFalse []uints.U8) [bls12381.SizeOfG1AffineCompressed]uints.U8 {
+	if len(onFalse) != bls12381.SizeOfG1AffineCompressed {
+		panic("unexpected length of onFalse")
+	}
+	var res [bls12381.SizeOfG1AffineCompressed]uints.U8
+	for i := range res {
+		res[i] = bapi.Select(cond, onTrue[i], onFalse[i])
+	}
+	return res
 }
