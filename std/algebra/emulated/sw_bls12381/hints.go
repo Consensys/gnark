@@ -387,7 +387,7 @@ func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) erro
 			return fmt.Errorf("expecting %d inputs, got %d", nbBytes, len(nativeInputs))
 		}
 		for i := range nbBytes {
-			if !nativeInputs[i].IsUint64() && ((nativeInputs[i].Uint64() &^ 0xff) > 0) {
+			if !nativeInputs[i].IsUint64() || ((nativeInputs[i].Uint64() &^ 0xff) > 0) {
 				return fmt.Errorf("input %d is not a byte: %s", i, nativeInputs[i].String())
 			}
 			xCoord[i] = byte(nativeInputs[i].Uint64())
