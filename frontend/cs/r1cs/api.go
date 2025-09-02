@@ -413,9 +413,9 @@ func (builder *builder[E]) Or(_a, _b frontend.Variable) frontend.Variable {
 
 	if aConstant && bConstant {
 		if builder.cs.IsOne(_aC) || builder.cs.IsOne(_bC) {
-			return 1
+			return builder.cstOne()
 		}
-		return 0
+		return builder.cstZero()
 	}
 
 	// if one input is constant, ensure we put it in b
