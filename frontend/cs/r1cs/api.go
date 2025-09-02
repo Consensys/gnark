@@ -408,6 +408,31 @@ func (builder *builder[E]) Or(_a, _b frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
 
+	_aC, aConstant := builder.constantValue(a)
+	_bC, bConstant := builder.constantValue(b)
+
+	if aConstant && bConstant {
+		if builder.cs.IsOne(_aC) || builder.cs.IsOne(_bC) {
+			return builder.cstOne()
+		}
+		return builder.cstZero()
+	}
+
+	// if one input is constant, ensure we put it in b
+	if aConstant {
+		a, b = b, a
+		_bC = _aC
+		bConstant = aConstant
+	}
+
+	if bConstant {
+		if builder.cs.IsOne(_bC) {
+			return builder.cstOne()
+		} else {
+			return a
+		}
+	}
+
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := builder.newInternalVariable()
 	builder.MarkBoolean(res)
