@@ -129,7 +129,7 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 	case *Proof[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tProof, ok := proof.(*groth16backend_bw6761.Proof)
 		if !ok {
-			return ret, fmt.Errorf("expected bls24315.Proof, got %T", proof)
+			return ret, fmt.Errorf("expected bw6761.Proof, got %T", proof)
 		}
 		ar.Ar = sw_bw6761.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bw6761.NewG1Affine(tProof.Krs)
@@ -222,7 +222,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
 		// compute E
 		e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
@@ -278,7 +278,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
 		// compute E
 		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
@@ -374,7 +374,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
 		// compute E
 		e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
@@ -554,7 +554,7 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 	case *Witness[sw_bw6761.ScalarField]:
 		vect, ok := vec.(fr_bw6761.Vector)
 		if !ok {
-			return ret, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
+			return ret, fmt.Errorf("expected fr_bw6761.Vector, got %T", vec)
 		}
 		for i := range vect {
 			s.Public = append(s.Public, sw_bw6761.NewScalar(vect[i]))
