@@ -721,7 +721,7 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 				var buf [8]byte
 				_, err := rand.Reader.Read(buf[:])
 				assert.NoError(err, "rand")
-				evmBlockSizeNew := int(binary.LittleEndian.Uint64(buf[:]))
+				evmBlockSizeNew = int(binary.LittleEndian.Uint64(buf[:]))
 				if evmBlockSizeNew != evmBlockSize {
 					break
 				}
