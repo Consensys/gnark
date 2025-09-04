@@ -73,7 +73,7 @@ func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 // It also returns a channel that will be closed when the validation is done.
 // The validation consist of checking that the elements are smaller than the modulus, and
 // converting them to montgomery form.
-func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) {
+func (vector *Vector) AsyncReadFrom(r io.Reader) (int64, error, chan error) { // nolint ST1008
 	chErr := make(chan error, 1)
 	var buf [Bytes]byte
 	if read, err := io.ReadFull(r, buf[:4]); err != nil {

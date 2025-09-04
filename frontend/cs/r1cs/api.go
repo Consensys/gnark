@@ -234,6 +234,11 @@ func (builder *builder[E]) mulConstant(v1 expr.LinearExpression[E], lambda E, in
 	} else {
 		res = v1.Clone()
 	}
+	if !inPlace && lambda.IsZero() {
+		// we cannot modify in-place as we have passed copy of the slice header
+		res = builder.cstZero()
+		return res
+	}
 
 	for i := 0; i < len(res); i++ {
 		res[i].Coeff = builder.cs.Mul(res[i].Coeff, lambda)
@@ -640,7 +645,9 @@ func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Build
 
 	// no variables in nested struct, we use fmt std print function
 	if count == 0 || err != nil {
-		sbb.WriteString(fmt.Sprint(a))
+		if _, err = fmt.Fprint(sbb, a); err != nil {
+			panic(err)
+		}
 		return
 	}
 

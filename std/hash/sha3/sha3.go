@@ -12,6 +12,7 @@ import (
 
 type digest struct {
 	api           frontend.API
+	bapi          *uints.Bytes
 	uapi          *uints.BinaryField[uints.U64]
 	state         [25]uints.U64 // 1600 bits state: 25 x 64
 	in            []uints.U8    // input to be digested
@@ -93,15 +94,17 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	quotient, remainder := d.quoRemRate(length)
 
 	// When i < minLen or i > maxLen, padding dsbyte is completely unnecessary
+	padDsbyte := uints.NewU8(d.dsbyte)
 	for i := d.minimalLength; i <= maxLen; i++ {
 		reachEnd := cmp.IsEqual(d.api, i, length)
-		padded[i].Val = d.api.Select(reachEnd, d.dsbyte, padded[i].Val)
+		padded[i] = d.bapi.Select(reachEnd, padDsbyte, padded[i])
 	}
 
 	// When i <= minLen or i >= maxLen, padding 0 is completely unnecessary
+	pad0 := uints.NewU8(0x00)
 	for i := d.minimalLength + 1; i < maxLen; i++ {
 		isPaddingPos := comparator.IsLess(length, i)
-		padded[i].Val = d.api.Select(isPaddingPos, 0, padded[i].Val)
+		padded[i] = d.bapi.Select(isPaddingPos, pad0, padded[i])
 	}
 
 	paddingCount := d.api.Sub(d.rate, remainder)
@@ -109,12 +112,14 @@ func (d *digest) paddingFixedWidth(length frontend.Variable) (padded []uints.U8,
 	lastPaddingPos := d.api.Sub(totalLen, 1)
 
 	isOnlyPaddedOneCount := cmp.IsEqual(d.api, paddingCount, 1)
-	lastPaddedByte := d.api.Select(isOnlyPaddedOneCount, d.dsbyte^0x80, 0x80)
+	padDsbyteMask := uints.NewU8(d.dsbyte ^ 0x80)
+	pad0x80 := uints.NewU8(0x80)
+	lastPaddedByte := d.bapi.Select(isOnlyPaddedOneCount, padDsbyteMask, pad0x80)
 
 	// When i < minLen, padding 0x80 is completely unnecessary
 	for i := d.minimalLength; i < maxTotalLen; i++ {
 		isLastPaddingPos := cmp.IsEqual(d.api, i, lastPaddingPos)
-		padded[i].Val = d.api.Select(isLastPaddingPos, lastPaddedByte, padded[i].Val)
+		padded[i] = d.bapi.Select(isLastPaddingPos, lastPaddedByte, padded[i])
 	}
 
 	return padded, d.api.Add(quotient, 1)
@@ -171,7 +176,8 @@ func (d *digest) absorbingFixedWidth(blocks [][]uints.U64, nbBlocks frontend.Var
 		// only select blocks that are in range. Only process the first outputLen data relevant to the result
 		for j := 0; j < d.outputLen/8; j++ {
 			for k := 0; k < 8; k++ {
-				resultState[j][k].Val = d.api.Select(isInRange, state[j][k].Val, resultState[j][k].Val)
+
+				resultState[j][k] = d.bapi.Select(isInRange, state[j][k], resultState[j][k])
 			}
 		}
 	}

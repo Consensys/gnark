@@ -49,24 +49,22 @@ func TestBytesToEmulatedDivisible(t *testing.T) {
 		S.MustSetRandom()
 		sbytes := S.Marshal()
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: make([]uints.U8, len(sbytes))},
-			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err)
 	}, "length=exact")
 
 	// case when the number of bytes is smaller than the length of the emulated field element
 	assert.Run(func(assert *test.Assert) {
 		sint := new(big.Int).SetUint64(0xffffffffffffffff)
 		sbytes := sint.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: make([]uints.U8, len(sbytes))},
-			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err)
 	}, "length=smaller")
 
 	// case when the number of bytes is larger than the length of the emulated field element
@@ -76,12 +74,11 @@ func TestBytesToEmulatedDivisible(t *testing.T) {
 		sbytes := S.Marshal()
 		sbytes = append([]byte{0x00}, sbytes...)
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: make([]uints.U8, len(sbytes))},
-			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithInvalidAssignment(&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](sint)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.Error(err)
 	}, "length=larger")
 
 	// case where everything is good, but the bytes represent element larger than the modulus
@@ -89,12 +86,11 @@ func TestBytesToEmulatedDivisible(t *testing.T) {
 		smallValue := big.NewInt(5)
 		S := new(big.Int).Add(smallValue, fp_bls12381.Modulus())
 		sbytes := S.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: make([]uints.U8, len(sbytes))},
-			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](smallValue)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithInvalidAssignment(&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](smallValue)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.Error(err, "expected error when bytes represent element larger than the modulus")
 	}, "length=overflow")
 
 	// case where everything is good, but the bytes represent element larger than the modulus, but we allow overflow
@@ -102,12 +98,11 @@ func TestBytesToEmulatedDivisible(t *testing.T) {
 		smallValue := big.NewInt(5)
 		S := new(big.Int).Add(smallValue, fp_bls12381.Modulus())
 		sbytes := S.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: make([]uints.U8, len(sbytes)), allowOverflow: true},
-			&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](smallValue)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&BytesToEmulatedCircuit[emparams.BLS12381Fp]{In: uints.NewU8Array(sbytes), Expected: emulated.ValueOf[emparams.BLS12381Fp](smallValue)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err, "expected no error when allowing overflow")
 	}, "length=overflow-allow")
 }
 
@@ -140,24 +135,22 @@ func TestBytesToNative(t *testing.T) {
 		S.MustSetRandom()
 		sbytes := S.Marshal()
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
-			&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err)
 	}, "length=exact")
 
 	// case when the number of bytes is smaller than the length of the native field element
 	assert.Run(func(assert *test.Assert) {
 		sint := new(big.Int).SetUint64(0xffffffffffffffff)
 		sbytes := sint.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
-			&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err)
 	}, "length=smaller")
 
 	// case when the number of bytes is larger than the length of the native field element
@@ -167,12 +160,11 @@ func TestBytesToNative(t *testing.T) {
 		sbytes := S.Marshal()
 		sbytes = append([]byte{0x00}, sbytes...)
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
-			&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint},
-			ecc.BN254.ScalarField(),
+			test.WithInvalidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: sint}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.Error(err)
 	}, "length=larger")
 
 	// case where everything is good, but the bytes represent element larger than the modulus
@@ -180,12 +172,11 @@ func TestBytesToNative(t *testing.T) {
 		smallValue := big.NewInt(5)
 		S := new(big.Int).Add(smallValue, fr_bn254.Modulus())
 		sbytes := S.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
-			&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: smallValue},
-			ecc.BN254.ScalarField(),
+			test.WithInvalidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: smallValue}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.Error(err, "expected error when bytes represent element larger than the modulus")
 	}, "length=overflow")
 
 	// case where everything is good, but the bytes represent element larger than the modulus, but we allow overflow
@@ -193,12 +184,11 @@ func TestBytesToNative(t *testing.T) {
 		smallValue := big.NewInt(5)
 		S := new(big.Int).Add(smallValue, fr_bn254.Modulus())
 		sbytes := S.Bytes()
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes)), allowOverflow: true},
-			&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: smallValue},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: smallValue}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err, "expected no error when allowing overflow")
 	}, "length=overflow-allow")
 }
 
@@ -234,36 +224,33 @@ func TestNativeToBytes(t *testing.T) {
 		S.MustSetRandom()
 		sbytes := S.Marshal()
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&NativeToBytesCircuit{Expected: make([]uints.U8, len(sbytes))},
-			&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbytes)},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbytes)}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err)
 
 		sbuf := make([]byte, fr_bn254.Bytes)
 		sint.FillBytes(sbuf)
-		err = test.IsSolved(
+		assert.CheckCircuit(
 			&NativeToBytesCircuit{Expected: make([]uints.U8, len(sbuf))},
-			&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbuf)},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbuf)}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err)
 	}, "length=exact")
 
 	// case when the number of bytes is smaller than the length of the emulated field element
 	assert.Run(func(assert *test.Assert) {
-		bound := new(big.Int).Lsh(big.NewInt(1), fr_bn254.Bytes-1)
+		bound := new(big.Int).Lsh(big.NewInt(1), fr_bn254.Bits-1)
 		sint, err := rand.Int(rand.Reader, bound)
 		assert.NoError(err, "failed to generate random int")
 		sbytes := make([]byte, fr_bn254.Bytes)
 		sint.FillBytes(sbytes)
-		err = test.IsSolved(
+		assert.CheckCircuit(
 			&NativeToBytesCircuit{Expected: make([]uints.U8, len(sbytes))},
-			&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbytes)},
-			ecc.BN254.ScalarField(),
+			test.WithValidAssignment(&NativeToBytesCircuit{In: sint, Expected: uints.NewU8Array(sbytes)}),
+			test.WithCurves(ecc.BN254),
 		)
-		assert.NoError(err)
 	}, "length=smaller")
 }
 
@@ -299,36 +286,33 @@ func TestEmulatedToBytes(t *testing.T) {
 		S.MustSetRandom()
 		sbytes := S.Marshal()
 		sint := S.BigInt(new(big.Int))
-		err := test.IsSolved(
+		assert.CheckCircuit(
 			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{Expected: make([]uints.U8, len(sbytes))},
-			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbytes)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbytes)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err)
 
 		sbuf := make([]byte, fp_bls12381.Bytes)
 		sint.FillBytes(sbuf)
-		err = test.IsSolved(
+		assert.CheckCircuit(
 			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{Expected: make([]uints.U8, len(sbuf))},
-			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbuf)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbuf)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err)
 	}, "length=exact")
 
 	// case when the number of bytes is smaller than the length of the emulated field element
 	assert.Run(func(assert *test.Assert) {
-		bound := new(big.Int).Lsh(big.NewInt(1), fp_bls12381.Bytes-1)
+		bound := new(big.Int).Lsh(big.NewInt(1), fp_bls12381.Bits-1)
 		sint, err := rand.Int(rand.Reader, bound)
 		assert.NoError(err, "failed to generate random int")
 		sbytes := make([]byte, fp_bls12381.Bytes)
 		sint.FillBytes(sbytes)
-		err = test.IsSolved(
+		assert.CheckCircuit(
 			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{Expected: make([]uints.U8, len(sbytes))},
-			&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbytes)},
-			ecc.BLS12_377.ScalarField(),
+			test.WithValidAssignment(&EmulatedToBytesCircuit[emparams.BLS12381Fp]{In: emulated.ValueOf[emparams.BLS12381Fp](sint), Expected: uints.NewU8Array(sbytes)}),
+			test.WithCurves(ecc.BLS12_377),
 		)
-		assert.NoError(err)
 	}, "length=smaller")
 }
 
