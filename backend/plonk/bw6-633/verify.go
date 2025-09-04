@@ -121,11 +121,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	one := fr.One()
 	bExpo.SetUint64(vk.Size)
 	zetaPowerM.Exp(zeta, &bExpo)
-	zhZeta.Sub(&zetaPowerM, &one)  // ζⁿ-1
+	zhZeta.Sub(&zetaPowerM, &one) // ζⁿ-1
 	lagrangeZero.Sub(&zeta, &one). // ζ-1
-					Inverse(&lagrangeZero).         // 1/(ζ-1)
-					Mul(&lagrangeZero, &zhZeta).    // (ζ^n-1)/(ζ-1)
-					Mul(&lagrangeZero, &vk.SizeInv) // 1/n * (ζ^n-1)/(ζ-1)
+		Inverse(&lagrangeZero). // 1/(ζ-1)
+		Mul(&lagrangeZero, &zhZeta). // (ζ^n-1)/(ζ-1)
+		Mul(&lagrangeZero, &vk.SizeInv) // 1/n * (ζ^n-1)/(ζ-1)
 
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	var pi fr.Element
@@ -173,9 +173,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 			lagrange.SetOne().
 				Sub(&zetaPowerM, &lagrange). // ζⁿ-1
-				Mul(&lagrange, &wPowI).      // wⁱ(ζⁿ-1)
-				Div(&lagrange, &den).        // wⁱ(ζⁿ-1)/(ζ-wⁱ)
-				Mul(&lagrange, &vk.SizeInv)  // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
+				Mul(&lagrange, &wPowI). // wⁱ(ζⁿ-1)
+				Div(&lagrange, &den). // wⁱ(ζⁿ-1)/(ζ-wⁱ)
+				Mul(&lagrange, &vk.SizeInv) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
 
 			xiLi.Mul(&lagrange, &hashedCmt)
 			pi.Add(&pi, &xiLi)
@@ -384,5 +384,9 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 
 // ExportSolidity not implemented for BW6-633
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
+	return errors.New("not implemented")
+}
+
+func (vk *VerifyingKey) ExportN3Contract(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }

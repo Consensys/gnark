@@ -229,3 +229,95 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 
 	return err
 }
+
+// ExportN3Contract writes a n3 Verifier contract on provided writer.
+func (vk *VerifyingKey) ExportN3Contract(w io.Writer, exportOpts ...solidity.ExportOption) error {
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	log := logger.Logger()
+	if err != nil {
+		return err
+	}
+	if cfg.HashToFieldFn == nil {
+		// set the target hash function to legacy keccak256 as it is the default for `solidity.WithTargetSolidityVerifier``
+		cfg.HashToFieldFn = sha3.NewLegacyKeccak256()
+		log.Debug().Msg("hash to field function not set, using keccak256 as default")
+	}
+	// a bit hacky way to understand what hash function is provided. We already
+	// receive instance of hash function but it is difficult to compare it with
+	// sha256.New() or sha3.NewLegacyKeccak256() directly.
+	//
+	// So, we hash an empty input and compare the outputs.
+	cfg.HashToFieldFn.Reset()
+	hashBts := cfg.HashToFieldFn.Sum(nil)
+	var hashFnName string
+	if bytes.Equal(hashBts, sha256.New().Sum(nil)) {
+		hashFnName = "sha256"
+	} else if bytes.Equal(hashBts, sha3.NewLegacyKeccak256().Sum(nil)) {
+		hashFnName = "keccak256"
+	} else {
+		return fmt.Errorf("unsupported hash function used, only supported sha256 and legacy keccak256")
+	}
+	cfg.HashToFieldFn.Reset()
+	helpers := template.FuncMap{
+		"sum": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"intRange": func(max int) []int {
+			out := make([]int, max)
+			for i := 0; i < max; i++ {
+				out[i] = i
+			}
+			return out
+		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
+		},
+		"hashFnName": func() string {
+			return hashFnName
+		}, // may be used in future (verifyCompressedProof, verifyProof)
+	}
+
+	if len(vk.PublicAndCommitmentCommitted) > 1 {
+		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
+	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
+		log.Warn().Msg("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
+	}
+
+	tmpl, err := template.New("").Funcs(helpers).Parse(n3ContractTemplate)
+	if err != nil {
+		return err
+	}
+
+	// negate Beta, Gamma and Delta, to avoid negating proof elements in the verifier
+	var betaNeg curve.G2Affine
+	betaNeg.Neg(&vk.G2.Beta)
+	beta := vk.G2.Beta
+	vk.G2.Beta = betaNeg
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
+
+	// execute template
+	err = tmpl.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
+
+	// restore Beta, Gamma and Delta
+	vk.G2.Beta = beta
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
+
+	return err
+
+}

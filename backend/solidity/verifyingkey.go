@@ -6,4 +6,5 @@ import "io"
 type VerifyingKey interface {
 	NbPublicWitness() int
 	ExportSolidity(io.Writer, ...ExportOption) error
+	ExportN3Contract(io.Writer, ...ExportOption) error // export n3 contract
 }

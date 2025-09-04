@@ -386,3 +386,7 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }
+
+func (vk *VerifyingKey) ExportN3Contract(w io.Writer, exportOpts ...solidity.ExportOption) error {
+	return errors.New("not implemented")
+}
