@@ -163,7 +163,7 @@ func (vk *VerifyingKey) ExportVerifyingKey(w io.Writer) error {
 		}
 	}
 
-	// vk_alphabeta_12 = e(alpha, beta) -> 2x3x2 строки
+	// vk_alphabeta_12 = e(alpha, beta) -> 2x3x2
 	ab, err := curve.Pair(
 		[]curve.G1Affine{vk.G1.Alpha},
 		[]curve.G2Affine{vk.G2.Beta},
