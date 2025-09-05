@@ -157,7 +157,9 @@ func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
+// This function does not check that Pᵢ and Qᵢ are in the correct subgroup. See
+// AssertIsOnG1 and AssertIsOnG2. NB! This mismatches the interfaces of sw_bls12381 and
+// sw_bn254 packages where G2 membership check is performed automatically!
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -399,13 +401,17 @@ var loopCounter2 = [190]int8{
 	1, 0, 0, 0, 1, 0, -1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
 }
 
-// MillerLoop computes the optimal Tate multi-Miller loop
-// (or twisted ate or Eta revisited)
+// MillerLoop computes the optimal Tate multi-Miller loop (or twisted ate or Eta
+// revisited)
 //
 // ∏ᵢ { fᵢ_{x₀+1+λ(x₀³-x₀²-x₀),Qᵢ}(Pᵢ) }
 //
-// Alg.2 in https://eprint.iacr.org/2021/1359.pdf
-// Eq. (6') in https://hackmd.io/@gnark/BW6-761-changes
+// This function does not check that Pᵢ and Qᵢ are in the correct subgroup. See
+// AssertIsOnG1 and AssertIsOnG2. NB! This mismatches the interfaces of sw_bls12381 and
+// sw_bn254 packages where G2 membership check is performed automatically!
+//
+// Alg.2 in https://eprint.iacr.org/2021/1359.pdf Eq. (6') in
+// https://hackmd.io/@gnark/BW6-761-changes
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match

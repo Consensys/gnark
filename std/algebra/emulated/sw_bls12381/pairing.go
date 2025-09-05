@@ -81,9 +81,11 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 }
 
 // Pair calculates the reduced pairing for a set of points
-// ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+//	∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function checks that the Qᵢ are in the correct subgroup, but does not
+// check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -376,7 +378,11 @@ var loopCounter = [64]int8{
 }
 
 // MillerLoop computes the multi-Miller loop
-// ∏ᵢ { fᵢ_{u,Q}(P) }
+//
+//	∏ᵢ { fᵢ_{u,Q}(P) }
+//
+// This function checks that the Qᵢ are in the correct subgroup, but does not
+// check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match
