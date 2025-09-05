@@ -241,7 +241,7 @@ func TestNativeToBytes(t *testing.T) {
 
 	// case when the number of bytes is smaller than the length of the emulated field element
 	assert.Run(func(assert *test.Assert) {
-		bound := new(big.Int).Lsh(big.NewInt(1), fr_bn254.Bytes-1)
+		bound := new(big.Int).Lsh(big.NewInt(1), fr_bn254.Bits-1)
 		sint, err := rand.Int(rand.Reader, bound)
 		assert.NoError(err, "failed to generate random int")
 		sbytes := make([]byte, fr_bn254.Bytes)
@@ -303,7 +303,7 @@ func TestEmulatedToBytes(t *testing.T) {
 
 	// case when the number of bytes is smaller than the length of the emulated field element
 	assert.Run(func(assert *test.Assert) {
-		bound := new(big.Int).Lsh(big.NewInt(1), fp_bls12381.Bytes-1)
+		bound := new(big.Int).Lsh(big.NewInt(1), fp_bls12381.Bits-1)
 		sint, err := rand.Int(rand.Reader, bound)
 		assert.NoError(err, "failed to generate random int")
 		sbytes := make([]byte, fp_bls12381.Bytes)

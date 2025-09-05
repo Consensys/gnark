@@ -42,6 +42,47 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 	return Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
 
+// Forge signature: S → S + order
+func forge(id tedwards.ID, sig []byte) ([]byte, error) {
+
+	forged := make([]byte, len(sig))
+	copy(forged, sig)
+
+	var offset int
+	switch id {
+	case tedwards.BN254:
+		offset = 32
+	case tedwards.BLS12_381:
+		offset = 32
+	case tedwards.BLS12_377:
+		offset = 32
+	case tedwards.BW6_761:
+		offset = 48
+	case tedwards.BLS24_317:
+		offset = 32
+	case tedwards.BLS24_315:
+		offset = 32
+	case tedwards.BW6_633:
+		offset = 40
+	default:
+		panic("not implemented")
+	}
+
+	s := new(big.Int).SetBytes(sig[offset:])
+	params, err := twistededwards.GetCurveParams(id)
+	if err != nil {
+		return nil, err
+	}
+	s.Add(s, params.Order)
+
+	sizeS := len(sig) - offset
+	buf := make([]byte, sizeS)
+	copy(buf[sizeS-len(s.Bytes()):], s.Bytes())
+
+	copy(forged[offset:], buf)
+	return forged, nil
+}
+
 func TestEddsa(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -110,9 +151,17 @@ func TestEddsa(t *testing.T) {
 		invalidWitness.PublicKey.Assign(conf.curve, pubKey.Bytes())
 		invalidWitness.Signature.Assign(conf.curve, signature)
 
+		var invalidWitnessOverflow eddsaCircuit
+		invalidWitnessOverflow.Message = msg
+		invalidWitnessOverflow.PublicKey.Assign(conf.curve, pubKey.Bytes())
+		forgedSig, err := forge(conf.curve, signature)
+		assert.NoError(err, "forging signature")
+		invalidWitnessOverflow.Signature.Assign(conf.curve, forgedSig)
+
 		assert.CheckCircuit(&circuit,
 			test.WithValidAssignment(&validWitness),
 			test.WithInvalidAssignment(&invalidWitness),
+			test.WithInvalidAssignment(&invalidWitnessOverflow),
 			test.WithCurves(snarkCurve))
 
 	}

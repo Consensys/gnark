@@ -59,6 +59,10 @@ func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulat
 	if err != nil {
 		panic(err)
 	}
+
+	scalarApi.AssertIsLessOrEqual(&sig.S, scalarApi.Modulus())
+	scalarApi.AssertIsLessOrEqual(&sig.R, scalarApi.Modulus())
+
 	pkpt := sw_emulated.AffinePoint[T](pk)
 	msInv := scalarApi.Div(msg, &sig.S)
 	rsInv := scalarApi.Div(&sig.R, &sig.S)

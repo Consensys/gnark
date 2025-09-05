@@ -212,8 +212,8 @@ func (e *E12) ExpU(api frontend.API, e1 E12) *E12 {
 // The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
-	res, err := api.NewHint(finalExpHint, 18, x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1, x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
+func (e *E12) AssertFinalExponentiationIsOne(api frontend.API) {
+	res, err := api.NewHint(finalExpHint, 18, e.C0.B0.A0, e.C0.B0.A1, e.C0.B1.A0, e.C0.B1.A1, e.C0.B2.A0, e.C0.B2.A1, e.C1.B0.A0, e.C1.B0.A1, e.C1.B1.A0, e.C1.B1.A1, e.C1.B2.A0, e.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -238,8 +238,8 @@ func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
 	t1.ExpX0(api, residueWitness)
 	t0.DivUnchecked(api, t0, t1)
 
-	t1.C0.Mul(api, x.C0, scalingFactor)
-	t1.C1.Mul(api, x.C1, scalingFactor)
+	t1.C0.Mul(api, e.C0, scalingFactor)
+	t1.C1.Mul(api, e.C1, scalingFactor)
 
 	t0.AssertIsEqual(api, t1)
 }
