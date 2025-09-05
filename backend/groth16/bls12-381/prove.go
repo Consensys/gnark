@@ -405,16 +405,48 @@ func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
 	proofBytes := buf.Bytes()
 
 	offset := 0
-	readBig := func(n int) *big.Int {
+	readBig := func(n int) (*big.Int, error) {
+		if offset+n > len(proofBytes) {
+			return nil, fmt.Errorf("invalid proof encoding: need %d bytes at offset %d, have %d", n, offset, len(proofBytes)-offset)
+		}
 		s := proofBytes[offset : offset+n]
 		offset += n
-		return new(big.Int).SetBytes(s)
+		return new(big.Int).SetBytes(s), nil
 	}
 
-	// parse proof elements
-	Ax, Ay := readBig(fpSize), readBig(fpSize)
-	Bx1, Bx0, By1, By0 := readBig(fpSize), readBig(fpSize), readBig(fpSize), readBig(fpSize)
-	Cx, Cy := readBig(fpSize), readBig(fpSize)
+	// parse proof elements with bounds checks
+	Ax, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	Ay, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	Bx1, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	Bx0, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	By1, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	By0, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	Cx, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
+	Cy, err := readBig(fpSize)
+	if err != nil {
+		return err
+	}
 
 	data := map[string]any{
 		"protocol": "groth16",
