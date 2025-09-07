@@ -92,10 +92,12 @@ func TestSHA2FixedLengthSum(t *testing.T) {
 		for _, length := range []int{0, 1, 63, 64, 65, len(bts)} {
 			assert.Run(func(assert *test.Assert) {
 				dgst := sha256.Sum256(bts[:length])
+				var exp [32]uints.U8
+				copy(exp[:], uints.NewU8Array(dgst[:]))
 				witness := &sha2FixedLengthCircuit{
 					In:       uints.NewU8Array(bts),
 					Length:   length,
-					Expected: [32]uints.U8(uints.NewU8Array(dgst[:])),
+					Expected: exp,
 				}
 
 				err = test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
