@@ -128,7 +128,9 @@ func (p *Profile) Stop() {
 		if err := p.pprof.Write(f); err != nil {
 			log.Error().Err(err).Msg("writing profile")
 		}
-		f.Close()
+		if err := f.Close(); err != nil {
+			log.Error().Err(err).Msg("closing profile file")
+		}
 		log.Info().Str("path", p.filePath).Msg("gnark profiling disabled")
 	} else {
 		log.Warn().Msg("gnark profiling disabled [not writing to disk]")
