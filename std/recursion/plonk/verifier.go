@@ -177,7 +177,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	case *Proof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tProof, ok := proof.(*plonkbackend_bw6761.Proof)
 		if !ok {
-			return ret, fmt.Errorf("expected sw_bls12377.Proof, got %T", proof)
+			return ret, fmt.Errorf("expected sw_bw6761.Proof, got %T", proof)
 		}
 		for i := range r.LRO {
 			r.LRO[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tProof.LRO[i])
@@ -214,7 +214,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	case *Proof[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine]:
 		tProof, ok := proof.(*plonkbackend_bn254.Proof)
 		if !ok {
-			return ret, fmt.Errorf("expected sw_bls12377.Proof, got %T", proof)
+			return ret, fmt.Errorf("expected sw_bn254.Proof, got %T", proof)
 		}
 		for i := range r.LRO {
 			r.LRO[i], err = kzg.ValueOfCommitment[sw_bn254.G1Affine](tProof.LRO[i])
@@ -353,7 +353,7 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 	case *BaseVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
 		}
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
@@ -523,7 +523,7 @@ func ValueOfCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT
 	case *CircuitVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
 		}
 		r.Size = tVk.Size
 		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
