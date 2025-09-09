@@ -56,6 +56,9 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	n := uint(len(inputs))
+	if n == 0 {
+		panic("invalid input length for Mux (0)")
+	}
 	if n == 1 {
 		api.AssertIsEqual(sel, 0)
 		return inputs[0]
