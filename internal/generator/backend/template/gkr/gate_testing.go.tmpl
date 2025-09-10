@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"{{.FieldPackagePath}}"
 	{{- if .CanUseFFT }}
+	gcutils "github.com/consensys/gnark-crypto/utils"
 	"{{.FieldPackagePath}}/fft"
 	"sync"{{- else}}
 	"errors"{{- end }}
@@ -89,7 +90,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 
 	// obtain p's coefficients
 	domain.FFTInverse(p, fft.DIF)
-	fft.BitReverse(p)
+	gcutils.BitReverse(p)
 	{{- else }}
 	x := make({{.FieldPackageName}}.Vector, degreeBound)
 	x.MustSetRandom()
