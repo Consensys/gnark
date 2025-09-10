@@ -6,7 +6,6 @@
 package groth16
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -396,72 +395,49 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 // This is an experimental feature and the export format / compatibility with external tools
 // has not been thoroughly tested.
 func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
-	const fpSize = 48 // BLS12-381 field element size (bytes)
-
-	var buf bytes.Buffer
-	if _, err := proof.WriteRawTo(&buf); err != nil {
-		return fmt.Errorf("failed to serialize proof: %w", err)
-	}
-	proofBytes := buf.Bytes()
-
-	offset := 0
-	readBig := func(n int) (*big.Int, error) {
-		if offset+n > len(proofBytes) {
-			return nil, fmt.Errorf("invalid proof encoding: need %d bytes at offset %d, have %d", n, offset, len(proofBytes)-offset)
+	// G1 -> [x,y,"1"]
+	g1 := func(P curve.G1Affine) []string {
+		return []string{
+			P.X.BigInt(new(big.Int)).String(),
+			P.Y.BigInt(new(big.Int)).String(),
+			"1",
 		}
-		s := proofBytes[offset : offset+n]
-		offset += n
-		return new(big.Int).SetBytes(s), nil
+	}
+	// G2 -> [[x0,x1],[y0,y1],["1","0"]]
+	g2 := func(P curve.G2Affine) [][]string {
+		return [][]string{
+			{P.X.A0.BigInt(new(big.Int)).String(), P.X.A1.BigInt(new(big.Int)).String()},
+			{P.Y.A0.BigInt(new(big.Int)).String(), P.Y.A1.BigInt(new(big.Int)).String()},
+			{"1", "0"},
+		}
 	}
 
-	// parse proof elements with bounds checks
-	Ax, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	Ay, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	Bx1, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	Bx0, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	By1, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	By0, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	Cx, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-	Cy, err := readBig(fpSize)
-	if err != nil {
-		return err
-	}
-
-	data := map[string]any{
+	out := map[string]any{
 		"protocol": "groth16",
 		"curve":    "bls12381",
-		"pi_a":     []string{Ax.String(), Ay.String(), "1"},
-		"pi_b": [][]string{
-			{Bx0.String(), Bx1.String()},
-			{By0.String(), By1.String()},
-			{"1", "0"},
-		},
-		"pi_c":          []string{Cx.String(), Cy.String(), "1"},
-		"publicSignals": publicSignals,
+		"pi_a":     g1(proof.Ar),  // A
+		"pi_b":     g2(proof.Bs),  // B
+		"pi_c":     g1(proof.Krs), // C
+	}
+	if len(publicSignals) > 0 {
+		out["publicSignals"] = publicSignals
+	}
+
+	if len(proof.Commitments) > 0 {
+		extra := struct {
+			Commitments   [][]string `json:"commitments"`
+			CommitmentPok []string   `json:"commitment_pok"`
+		}{
+			Commitments:   make([][]string, 0, len(proof.Commitments)),
+			CommitmentPok: g1(proof.CommitmentPok),
+		}
+		for _, c := range proof.Commitments {
+			extra.Commitments = append(extra.Commitments, g1(c))
+		}
+		out["extra"] = extra
 	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(data)
+	return enc.Encode(out)
 }
