@@ -127,12 +127,11 @@ func TestECRecoverCircuitShortMismatch(t *testing.T) {
 	halfFr.Div(halfFr, big.NewInt(2))
 	var circuit, witness *ecrecoverCircuit
 	var largeS bool
-	for {
-		circuit, witness, largeS = testRoutineECRecover(t, false, true)
-		if largeS {
-			witness.Strict = 1
-			break
-		}
+	circuit, witness, largeS = testRoutineECRecover(t, false, true)
+	if largeS {
+		witness.Strict = 1
+	} else {
+		assert.Fail("test setup failed to produce large S")
 	}
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.Error(err)
