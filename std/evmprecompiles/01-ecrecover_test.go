@@ -133,10 +133,12 @@ func TestECRecoverCircuitShortMismatch(t *testing.T) {
 func TestECRecoverCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECRecover(t, false)
+	_, witness2 := testRoutineECRecover(t, true)
 
 	assert.CheckCircuit(
 		circuit,
 		test.WithValidAssignment(witness),
+		test.WithValidAssignment(witness2),
 		test.WithCurves(ecc.BN254, ecc.BLS12_377),
 		test.NoProverChecks(),
 	)
@@ -257,6 +259,10 @@ func TestInvalidFailureTag(t *testing.T) {
 	circuit, witness := testRoutineECRecover(t, false)
 	witness.IsFailure = 1
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
+	assert.Error(err)
+	_, witness2 := testRoutineECRecover(t, true)
+	witness2.IsFailure = 1
+	err = test.IsSolved(circuit, witness2, ecc.BN254.ScalarField())
 	assert.Error(err)
 }
 
