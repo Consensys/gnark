@@ -60,7 +60,7 @@ func (c *ecrecoverCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func testRoutineECRecover(t *testing.T, wantStrict bool, forceLargeS bool) (circ, wit *ecrecoverCircuit, largeS bool) {
+func testRoutineECRecover(t *testing.T, forceLargeS bool) (circ, wit *ecrecoverCircuit) {
 	halfFr := new(big.Int).Sub(fr.Modulus(), big.NewInt(1))
 	halfFr.Div(halfFr, big.NewInt(2))
 
@@ -72,24 +72,22 @@ func testRoutineECRecover(t *testing.T, wantStrict bool, forceLargeS bool) (circ
 	msg := []byte("test")
 	var r, s *big.Int
 	var v uint
-	for {
-		v, r, s, err = sk.SignForRecover(msg, nil)
-		if err != nil {
-			t.Fatal("sign", err)
-		}
-		// SignForRecover always returns s < r_mod/2. But in the tests we want
-		// to check that the circuit fails when s > r_mod/2 in strict mode.
-		if forceLargeS && s.Cmp(halfFr) <= 0 {
-			s.Sub(fr.Modulus(), s)
-		}
-
-		if !wantStrict || halfFr.Cmp(s) > 0 {
-			break
-		}
+	v, r, s, err = sk.SignForRecover(msg, nil)
+	if err != nil {
+		t.Fatal("sign", err)
 	}
-	strict := 0
-	if wantStrict {
-		strict = 1
+	// SignForRecover always returns s < r_mod/2. But in the tests we want
+	// to check that the circuit fails when s > r_mod/2 in strict mode.
+	if forceLargeS {
+		// first we make s large
+		s.Sub(fr.Modulus(), s)
+		// but we also have to swap the sign of the recovered public key
+		v ^= 1
+	}
+
+	strict := 1
+	if forceLargeS {
+		strict = 0
 	}
 	circuit := ecrecoverCircuit{}
 	witness := ecrecoverCircuit{
@@ -104,19 +102,19 @@ func testRoutineECRecover(t *testing.T, wantStrict bool, forceLargeS bool) (circ
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
 		},
 	}
-	return &circuit, &witness, halfFr.Cmp(s) <= 0
+	return &circuit, &witness
 }
 
 func TestECRecoverCircuitShortStrict(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness, _ := testRoutineECRecover(t, true, false)
+	circuit, witness := testRoutineECRecover(t, false)
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 func TestECRecoverCircuitShortLax(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness, _ := testRoutineECRecover(t, false, false)
+	circuit, witness := testRoutineECRecover(t, true)
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
@@ -126,20 +124,15 @@ func TestECRecoverCircuitShortMismatch(t *testing.T) {
 	halfFr := new(big.Int).Sub(fr.Modulus(), big.NewInt(1))
 	halfFr.Div(halfFr, big.NewInt(2))
 	var circuit, witness *ecrecoverCircuit
-	var largeS bool
-	circuit, witness, largeS = testRoutineECRecover(t, false, true)
-	if largeS {
-		witness.Strict = 1
-	} else {
-		assert.Fail("test setup failed to produce large S")
-	}
+	circuit, witness = testRoutineECRecover(t, true)
+	witness.Strict = 1
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.Error(err)
 }
 
 func TestECRecoverCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness, _ := testRoutineECRecover(t, false, false)
+	circuit, witness := testRoutineECRecover(t, false)
 
 	assert.CheckCircuit(
 		circuit,
@@ -261,7 +254,7 @@ func TestECRecoverInfinityWoFailure(t *testing.T) {
 
 func TestInvalidFailureTag(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness, _ := testRoutineECRecover(t, false, false)
+	circuit, witness := testRoutineECRecover(t, false)
 	witness.IsFailure = 1
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.Error(err)
