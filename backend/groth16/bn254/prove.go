@@ -414,7 +414,7 @@ func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
 
 	out := map[string]any{
 		"protocol": "groth16",
-		"curve":    "bls12381",
+		"curve":    "bn254",
 		"pi_a":     g1(proof.Ar),  // A
 		"pi_b":     g2(proof.Bs),  // B
 		"pi_c":     g1(proof.Krs), // C
