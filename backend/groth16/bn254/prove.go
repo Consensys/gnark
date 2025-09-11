@@ -424,17 +424,7 @@ func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
 	}
 
 	if len(proof.Commitments) > 0 {
-		extra := struct {
-			Commitments   [][]string `json:"commitments"`
-			CommitmentPok []string   `json:"commitment_pok"`
-		}{
-			Commitments:   make([][]string, 0, len(proof.Commitments)),
-			CommitmentPok: g1(proof.CommitmentPok),
-		}
-		for _, c := range proof.Commitments {
-			extra.Commitments = append(extra.Commitments, g1(c))
-		}
-		out["extra"] = extra
+		return fmt.Errorf("proof contains commitments, but snarkjs verifier does not support them")
 	}
 
 	enc := json.NewEncoder(w)
