@@ -1,12 +1,13 @@
 //go:build icicle
 
-package icicle
+package bn254
 
 import (
 	"fmt"
 	"math/big"
 	"math/bits"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -17,7 +18,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark/backend"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
-	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
@@ -35,8 +35,6 @@ import (
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
-
-const HasIcicle = true
 
 var isProfileMode bool
 
@@ -496,7 +494,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
-		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), slices.Concat(toRemove...))
 		_wireValuesHost := (icicle_core.HostSlice[fr.Element])(_wireValues)
 		resKrs := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		cfg.AreScalarsMontgomeryForm = true

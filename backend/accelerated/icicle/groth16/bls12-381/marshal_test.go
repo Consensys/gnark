@@ -1,6 +1,6 @@
 //go:build icicle
 
-package icicle_test
+package bls12381_test
 
 import (
 	"bytes"
@@ -8,10 +8,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	icicle_bls12381 "github.com/consensys/gnark/backend/accelerated/icicle/groth16/bls12-381"
 	"github.com/consensys/gnark/backend/groth16"
-	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
-	icicle_bn254 "github.com/consensys/gnark/backend/groth16/bn254/icicle"
-	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
+	groth16_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
+	cs_bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -29,15 +29,15 @@ func (c *circuit) Define(api frontend.API) error {
 
 func TestMarshal(t *testing.T) {
 	assert := test.NewAssert(t)
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit{})
+	ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &circuit{})
 	assert.NoError(err)
-	tCcs := ccs.(*cs_bn254.R1CS)
-	nativePK := groth16_bn254.ProvingKey{}
-	nativeVK := groth16_bn254.VerifyingKey{}
-	err = groth16_bn254.Setup(tCcs, &nativePK, &nativeVK)
+	tCcs := ccs.(*cs_bls12381.R1CS)
+	nativePK := groth16_bls12381.ProvingKey{}
+	nativeVK := groth16_bls12381.VerifyingKey{}
+	err = groth16_bls12381.Setup(tCcs, &nativePK, &nativeVK)
 	assert.NoError(err)
 
-	pk := groth16.NewProvingKey(ecc.BN254)
+	pk := groth16.NewProvingKey(ecc.BLS12_381)
 	buf := new(bytes.Buffer)
 	_, err = nativePK.WriteTo(buf)
 	assert.NoError(err)
@@ -48,11 +48,11 @@ func TestMarshal(t *testing.T) {
 	}
 
 	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
 	assert.NoError(err)
 	pw, err := w.Public()
 	assert.NoError(err)
-	proofNative, err := groth16_bn254.Prove(tCcs, &nativePK, w)
+	proofNative, err := groth16_bls12381.Prove(tCcs, &nativePK, w)
 	assert.NoError(err)
 	proofIcicle, err := groth16.Prove(tCcs, pk, w, backend.WithIcicleAcceleration())
 	assert.NoError(err)
@@ -64,15 +64,15 @@ func TestMarshal(t *testing.T) {
 
 func TestMarshal2(t *testing.T) {
 	assert := test.NewAssert(t)
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit{})
+	ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &circuit{})
 	assert.NoError(err)
-	tCcs := ccs.(*cs_bn254.R1CS)
-	iciPK := icicle_bn254.ProvingKey{}
-	iciVK := groth16_bn254.VerifyingKey{}
-	err = icicle_bn254.Setup(tCcs, &iciPK, &iciVK)
+	tCcs := ccs.(*cs_bls12381.R1CS)
+	iciPK := icicle_bls12381.ProvingKey{}
+	iciVK := groth16_bls12381.VerifyingKey{}
+	err = groth16_bls12381.Setup(tCcs, &iciPK.ProvingKey, &iciVK)
 	assert.NoError(err)
 
-	nativePK := groth16_bn254.ProvingKey{}
+	nativePK := groth16_bls12381.ProvingKey{}
 	buf := new(bytes.Buffer)
 	_, err = iciPK.WriteTo(buf)
 	assert.NoError(err)
@@ -83,11 +83,11 @@ func TestMarshal2(t *testing.T) {
 	}
 
 	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
 	assert.NoError(err)
 	pw, err := w.Public()
 	assert.NoError(err)
-	proofNative, err := groth16_bn254.Prove(tCcs, &nativePK, w)
+	proofNative, err := groth16_bls12381.Prove(tCcs, &nativePK, w)
 	assert.NoError(err)
 	proofIcicle, err := groth16.Prove(tCcs, &iciPK, w, backend.WithIcicleAcceleration())
 	assert.NoError(err)
