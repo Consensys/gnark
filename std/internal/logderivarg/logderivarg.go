@@ -121,7 +121,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 		// handle the commitment over large fields directly
 		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 			rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
-			var lp frontend.Variable = 0
+			var lp []frontend.Variable
 
 			// For constant single-column tables with PlonkAPI, merge Sub+DivUnchecked
 			// into a single PLONK gate per table entry (2 gates instead of 3).
@@ -147,7 +147,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 					hintInputs[1+i] = exps[i]
 					hintInputs[1+n+i] = table[i][0]
 				}
-				quotients, err := api.NewHint(batchDivBySubHint, n, hintInputs...)
+				lp, err = api.NewHint(batchDivBySubHint, n, hintInputs...)
 				if err != nil {
 					return fmt.Errorf("batch div hint: %w", err)
 				}
@@ -158,35 +158,54 @@ func Build(api frontend.API, table Table, queries Table) error {
 					// qM*q*ch + qL*q + qR*ch + qO*exps + qC = 0
 					// 1*q*ch + (-c)*q + 0*ch + (-1)*exps + 0 = 0
 					// => q*(ch - c) = exps
-					plonkAPI.AddPlonkConstraint(quotients[i], challenge, exps[i], -c, 0, -1, 1, 0)
-					lp = api.Add(lp, quotients[i])
+					plonkAPI.AddPlonkConstraint(lp[i], challenge, exps[i], -c, 0, -1, 1, 0)
 				}
 			} else {
+				lp = make([]frontend.Variable, len(table))
 				for i := range table {
-					tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
-					lp = api.Add(lp, tmp)
+					lp[i] = api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
 				}
 			}
-			var rp frontend.Variable = 0
+			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
+			for len(lp) > 1 {
+				for i := range len(lp) / 2 {
+					lp[i] = api.Add(lp[2*i], lp[2*i+1])
+				}
+				if len(lp)%2 == 1 {
+					lp[len(lp)/2] = lp[len(lp)-1]
+				}
+				lp = lp[:(len(lp)+1)/2]
+			}
+			if len(lp) == 0 {
+				lp = []frontend.Variable{0}
+			}
 
-			toInvert := make([]frontend.Variable, len(queries))
+			rp := make([]frontend.Variable, len(queries))
 			for i := range queries {
-				toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
+				rp[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
 			}
 
 			if bapi, ok := api.(frontend.BatchInverter); ok {
-				toInvert = bapi.BatchInvert(toInvert)
+				rp = bapi.BatchInvert(rp)
 			} else {
-				for i := range toInvert {
-					toInvert[i] = api.Inverse(toInvert[i])
+				for i := range rp {
+					rp[i] = api.Inverse(rp[i])
 				}
 			}
-
-			for i := range queries {
-				// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
-				rp = api.Add(rp, toInvert[i])
+			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
+			for len(rp) > 1 {
+				for i := range len(rp) / 2 {
+					rp[i] = api.Add(rp[2*i], rp[2*i+1])
+				}
+				if len(rp)%2 == 1 {
+					rp[len(rp)/2] = rp[len(rp)-1]
+				}
+				rp = rp[:(len(rp)+1)/2]
 			}
-			api.AssertIsEqual(lp, rp)
+			if len(rp) == 0 {
+				rp = []frontend.Variable{0}
+			}
+			api.AssertIsEqual(lp[0], rp[0])
 			return nil
 		}, toCommit...)
 	} else {
@@ -197,7 +216,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 		}
 		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
 			rowCoeffs, challenge := randLinearCofficientsExt(extapi, nbRow, fieldextension.Element(commitment))
-			var lp fieldextension.Element
+			lpTerms := make([]fieldextension.Element, len(table))
 			tableEntriesExts := make([]fieldextension.Element, nbRow)
 			for i := range table {
 				for j := range tableEntriesExts {
@@ -207,11 +226,23 @@ func Build(api frontend.API, table Table, queries Table) error {
 				denom := extapi.Sub(challenge, tableComb)
 				denom = extapi.Inverse(denom)
 				expEntryExt := extapi.AsExtensionVariable(exps[i])
-				term := extapi.Mul(expEntryExt, denom)
-				lp = extapi.Add(lp, term)
+				lpTerms[i] = extapi.Mul(expEntryExt, denom)
+			}
+			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
+			for len(lpTerms) > 1 {
+				for i := range len(lpTerms) / 2 {
+					lpTerms[i] = extapi.Add(lpTerms[2*i], lpTerms[2*i+1])
+				}
+				if len(lpTerms)%2 == 1 {
+					lpTerms[len(lpTerms)/2] = lpTerms[len(lpTerms)-1]
+				}
+				lpTerms = lpTerms[:(len(lpTerms)+1)/2]
+			}
+			if len(lpTerms) == 0 {
+				lpTerms = []fieldextension.Element{extapi.Zero()}
 			}
 
-			var rp fieldextension.Element
+			rpTerms := make([]fieldextension.Element, len(queries))
 			queryEntryExts := make([]fieldextension.Element, nbRow)
 			for i := range queries {
 				for j := range queryEntryExts {
@@ -220,9 +251,22 @@ func Build(api frontend.API, table Table, queries Table) error {
 				queryEntryExt := randLinearCombinationExt(extapi, rowCoeffs, queryEntryExts)
 				denom := extapi.Sub(challenge, queryEntryExt)
 				denom = extapi.Inverse(denom)
-				rp = extapi.Add(rp, denom)
+				rpTerms[i] = denom
 			}
-			extapi.AssertIsEqual(lp, rp)
+			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
+			for len(rpTerms) > 1 {
+				for i := range len(rpTerms) / 2 {
+					rpTerms[i] = extapi.Add(rpTerms[2*i], rpTerms[2*i+1])
+				}
+				if len(rpTerms)%2 == 1 {
+					rpTerms[len(rpTerms)/2] = rpTerms[len(rpTerms)-1]
+				}
+				rpTerms = rpTerms[:(len(rpTerms)+1)/2]
+			}
+			if len(rpTerms) == 0 {
+				rpTerms = []fieldextension.Element{extapi.Zero()}
+			}
+			extapi.AssertIsEqual(lpTerms[0], rpTerms[0])
 			return nil
 		}, extapi.Degree(), toCommit...)
 	}
