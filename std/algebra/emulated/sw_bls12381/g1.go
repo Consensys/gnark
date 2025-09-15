@@ -146,6 +146,36 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 	}
 }
 
+func (g1 G1) triple(p *G1Affine) *G1Affine {
+
+	mone := g1.curveF.NewElement(-1)
+	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
+	xx := g1.curveF.MulMod(&p.X, &p.X)
+	xx = g1.curveF.MulConst(xx, big.NewInt(3))
+	y2 := g1.curveF.MulConst(&p.Y, big.NewInt(2))
+	λ1 := g1.curveF.Div(xx, y2)
+
+	// xr = λ1²-2p.x
+	x2 := g1.curveF.Eval([][]*baseEl{{λ1, λ1}, {mone, &p.X}}, []int{1, 2})
+
+	// omit y2 computation, and
+	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
+	x1x2 := g1.curveF.Sub(&p.X, x2)
+	λ2 := g1.curveF.Div(y2, x1x2)
+	λ2 = g1.curveF.Sub(λ2, λ1)
+
+	// xr = λ²-p.x-x2
+	xr := g1.curveF.Eval([][]*baseEl{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
+
+	// yr = λ(p.x-xr) - p.y
+	yr := g1.curveF.Eval([][]*baseEl{{λ2, g1.curveF.Sub(&p.X, xr)}, {mone, &p.Y}}, []int{1, 1})
+
+	return &G1Affine{
+		X: *xr,
+		Y: *yr,
+	}
+}
+
 func (g1 *G1) scalarMulBySeedSquare(q *G1Affine) *G1Affine {
 	// It computes the scalar multiplication by the seed square. It is used to
 	// verify if a point is in the subgroup of G1. However, it uses incomplete
