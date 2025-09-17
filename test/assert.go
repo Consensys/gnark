@@ -36,12 +36,13 @@ type Assert struct {
 	*require.Assertions
 }
 
-// NewAssert returns an Assert helper embedding a testify/require object for convenience
+// NewAssert returns an Assert helper embedding a testify/require object for convenience.
+// It accepts either a *testing.T or *testing.B object.
 //
-// The Assert object caches the compiled circuit:
-//
-// the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
-// and subsequent calls will re-use the result of the compilation, if available.
+// The Assert object caches the compiled circuit. This means that the first call
+// to [Assert.CheckCircuit] will compile the circuit for n curves, m
+// backends and subsequent calls will re-use the result of the compilation, if
+// available. Be careful when benchmarking!
 func NewAssert(tb testing.TB) *Assert {
 	switch t := (tb).(type) {
 	case *testing.T:
