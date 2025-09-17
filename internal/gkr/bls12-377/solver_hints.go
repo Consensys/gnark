@@ -103,7 +103,8 @@ func SolveHint(data *SolvingData) hint.Hint {
 
 		gateIns := make([]frontend.Variable, data.maxNbIn)
 		outsI := 0
-		insI := 1 // skip the first input, which is the instance index
+		insI := 1       // skip the first input, which is the instance index
+		var api gateAPI // since the api is synchronous, we can't share it across Solve Hint invocations.
 		for wI := range data.circuit {
 			w := &data.circuit[wI]
 			if w.IsInput() { // read from provided input
@@ -116,7 +117,7 @@ func SolveHint(data *SolvingData) hint.Hint {
 					gateIns[i] = &data.assignment[inWI][instanceI]
 				}
 
-				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element))
+				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(&api, gateIns[:len(w.Inputs)]...).(*fr.Element))
 			}
 			if w.IsOutput() {
 				data.assignment[wI][instanceI].BigInt(outs[outsI])
