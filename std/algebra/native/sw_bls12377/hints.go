@@ -207,31 +207,31 @@ func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 	glvBasis := new(ecc.Lattice)
 	ecc.PrecomputeLattice(cc.fr, inputs[1], glvBasis)
 	r := eisenstein.ComplexNumber{
-		A0: &glvBasis.V1[0],
-		A1: &glvBasis.V1[1],
+		A0: glvBasis.V1[0],
+		A1: glvBasis.V1[1],
 	}
 	sp := ecc.SplitScalar(inputs[0], glvBasis)
 	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 	// so here we return -s instead of s.
 	s := eisenstein.ComplexNumber{
-		A0: &sp[0],
-		A1: &sp[1],
+		A0: sp[0],
+		A1: sp[1],
 	}
 	s.Neg(&s)
 	res := eisenstein.HalfGCD(&r, &s)
-	outputs[0].Set(res[0].A0)
-	outputs[1].Set(res[0].A1)
-	outputs[2].Set(res[1].A0)
-	outputs[3].Set(res[1].A1)
-	outputs[4].Mul(res[1].A1, inputs[1]).
-		Add(outputs[4], res[1].A0).
+	outputs[0].Set(&res[0].A0)
+	outputs[1].Set(&res[0].A1)
+	outputs[2].Set(&res[1].A0)
+	outputs[3].Set(&res[1].A1)
+	outputs[4].Mul(&res[1].A1, inputs[1]).
+		Add(outputs[4], &res[1].A0).
 		Mul(outputs[4], inputs[0]).
-		Add(outputs[4], res[0].A0)
-	s.A0.Mul(res[0].A1, inputs[1])
-	outputs[4].Add(outputs[4], s.A0).
+		Add(outputs[4], &res[0].A0)
+	s.A0.Mul(&res[0].A1, inputs[1])
+	outputs[4].Add(outputs[4], &s.A0).
 		Div(outputs[4], cc.fr)
 
-		// set the signs
+	// set the signs
 	outputs[5].SetUint64(0)
 	outputs[6].SetUint64(0)
 	outputs[7].SetUint64(0)

@@ -94,6 +94,9 @@ func ECPairBLSMillerLoopAndMul(api frontend.API, accumulator *sw_bls12381.GTEl, 
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	// Miller loop below already checks that Q is in G2, but doesn't check that
+	// P is. So we do it manually.
+	pairing.AssertIsOnG1(P)
 	ml, err := pairing.MillerLoopAndMul(P, Q, accumulator)
 	if err != nil {
 		return fmt.Errorf("miller loop and mul: %w", err)
@@ -111,7 +114,9 @@ func ECPairBLSMillerLoopAndFinalExpCheck(api frontend.API, accumulator *sw_bls12
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-
+	// Miller loop below already checks that Q is in G2, but doesn't check that
+	// P is. So we do it manually.
+	pairing.AssertIsOnG1(P)
 	isSuccess := pairing.IsMillerLoopAndFinalExpOne(P, Q, accumulator)
 	api.AssertIsEqual(expectedIsSuccess, isSuccess)
 	return nil

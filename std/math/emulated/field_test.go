@@ -41,7 +41,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 		if !ok {
 			return errors.New("42 should be constant")
 		}
-		if !(b1.IsUint64() && b1.Uint64() == 42) {
+		if !b1.IsUint64() || b1.Uint64() != 42 {
 			return errors.New("42 != constant(42)")
 		}
 	}
