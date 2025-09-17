@@ -190,8 +190,8 @@ func (builder *builder[E]) newR1C(l, r, o frontend.Variable) constraint.R1C {
 	O := builder.getLinearExpression(o)
 
 	// We want R (the B matrix) to have fewer variables to increase the chance
-        // of infinity points in pk.G1.B / pk.G2.B during Groth16 setup,
-        // which improves proving time. Therefore, we swap L and R if R has more terms.
+	// of infinity points in pk.G1.B / pk.G2.B during Groth16 setup,
+	// which improves proving time. Therefore, we swap L and R if R has more terms.
 	if len(R) > len(L) {
 		L, R = R, L
 	}
