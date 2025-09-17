@@ -1,11 +1,15 @@
 package gkr_mimc
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -76,4 +80,86 @@ func TestGkrMiMCCompiles(t *testing.T) {
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit, frontend.WithCapacity(27_000_000))
 	require.NoError(t, err)
 	fmt.Println(cs.GetNbConstraints(), "constraints")
+}
+
+type hashTreeCircuit struct {
+	Leaves []frontend.Variable
+}
+
+func (c hashTreeCircuit) Define(api frontend.API) error {
+	if len(c.Leaves) == 0 {
+		return errors.New("no hashing to do")
+	}
+
+	hsh, err := New(api)
+	if err != nil {
+		return err
+	}
+
+	layer := slices.Clone(c.Leaves)
+
+	for len(layer) > 1 {
+		if len(layer)%2 == 1 {
+			layer = append(layer, 0) // pad with zero
+		}
+
+		for i := range len(layer) / 2 {
+			hsh.Reset()
+			hsh.Write(layer[2*i], layer[2*i+1])
+			layer[i] = hsh.Sum()
+		}
+
+		layer = layer[:len(layer)/2]
+	}
+
+	api.AssertIsDifferent(layer[0], 0)
+	return nil
+}
+
+func loadCs(t require.TestingT, filename string, circuit frontend.Circuit) constraint.ConstraintSystem {
+	f, err := os.Open(filename)
+
+	if os.IsNotExist(err) {
+		// actually compile
+		cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+		require.NoError(t, err)
+		f, err = os.Create(filename)
+		require.NoError(t, err)
+		defer f.Close()
+		_, err = cs.WriteTo(f)
+		require.NoError(t, err)
+		return cs
+	}
+
+	defer f.Close()
+	require.NoError(t, err)
+
+	cs := plonk.NewCS(ecc.BLS12_377)
+
+	_, err = cs.ReadFrom(f)
+	require.NoError(t, err)
+
+	return cs
+}
+
+func BenchmarkHashTree(b *testing.B) {
+	const size = 1 << 15 // about 2 ^ 16 total hashes
+
+	circuit := hashTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+	assignment := hashTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+
+	for i := range assignment.Leaves {
+		assignment.Leaves[i] = i
+	}
+
+	cs := loadCs(b, "gkrmimc_hashtree.cs", &circuit)
+
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	require.NoError(b, err)
+
+	require.NoError(b, cs.IsSolved(w))
 }
