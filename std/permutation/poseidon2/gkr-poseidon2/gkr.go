@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	"github.com/consensys/gnark/std/gkrapi"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
@@ -128,7 +128,7 @@ func NewGkrCompressor(api frontend.API) *GkrCompressor {
 	}
 	return &GkrCompressor{
 		api:        api,
-		gkrCircuit: gkrApi.Compile(api, "MIMC"),
+		gkrCircuit: gkrApi.Compile(api, gkrapi.WithHashName("MIMC")),
 		in1:        in1,
 		in2:        in2,
 		out:        out,
