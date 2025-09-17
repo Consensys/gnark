@@ -802,7 +802,7 @@ func (api *gateAPI) evaluate(f gkr.GateFunction, in ...fr.Element) *fr.Element {
 	return f(api, inVar...).(*fr.Element)
 }
 
-// Done with the current task. Put back all the allocated slices.
+// Put all elements back in the pool.
 func (api *gateAPI) freeElements() {
 	api.nbUsed = 0
 }

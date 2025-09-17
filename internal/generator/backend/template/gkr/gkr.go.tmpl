@@ -798,7 +798,7 @@ func (api *gateAPI) evaluate(f gkr.GateFunction, in ...{{ .ElementType }}) *{{ .
 	return f(api, inVar...).(*{{ .ElementType }})
 }
 
-// Done with the current task. Put back all the allocated slices.
+// Put all elements back in the pool.
 func (api *gateAPI) freeElements() {
 	api.nbUsed = 0
 }
