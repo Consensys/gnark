@@ -21,6 +21,7 @@ import (
 
 // IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in f
 func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
+	var api gateAPI
 	fWrapped := api.convertFunc(f)
 
 	// fix all variables except the i-th one at random points
@@ -118,6 +119,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 // FindGateFunctionDegree returns the degree of the gate function, or -1 if it fails.
 // Failure could be due to the degree being higher than max or the function not being a polynomial at all.
 func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
+	var api gateAPI
 	fFr := api.convertFunc(f)
 	bound := uint64(max) + 1
 	for degreeBound := uint64(4); degreeBound <= bound; degreeBound *= 8 {
@@ -127,11 +129,13 @@ func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
 			}
 			return len(p) - 1, nil
 		}
+		api.freeElements() // not strictly necessary as few iterations are expected.
 	}
 	return -1, fmt.Errorf("could not find a degree: tried up to %d", max)
 }
 
 func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error {
+	var api gateAPI
 	fFr := api.convertFunc(f)
 	if p := fFr.fitPoly(nbIn, ecc.NextPowerOfTwo(uint64(claimedDegree)+1)); p == nil {
 		return fmt.Errorf("detected a higher degree than %d", claimedDegree)
@@ -145,6 +149,7 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 
 // EqualGateFunction checks if two gate functions are equal, by testing the same at a random point.
 func EqualGateFunction(f gkr.GateFunction, g gkr.GateFunction, nbIn int) bool {
+	var api gateAPI
 	x := make(fr.Vector, nbIn)
 	x.MustSetRandom()
 	fFr := api.convertFunc(f)

@@ -106,7 +106,6 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		}
 		var api gateAPI
 		gateEvaluation.Set(wire.Gate.Evaluate(&api, inputEvaluations...).(*fr.Element))
-		api.freeElements()
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -275,7 +274,6 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 				res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
 			}
-
 			api.freeElements()
 		}
 		mu.Lock()
