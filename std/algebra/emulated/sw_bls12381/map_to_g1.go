@@ -53,8 +53,7 @@ func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 	// cf https://eprint.iacr.org/2019/403.pdf, 5
 
 	// mulBySeed
-	z := g1.double(q)
-	z = g1.add(z, q)
+	z := g1.triple(q)
 	z = g1.double(z)
 	z = g1.doubleAndAdd(z, q)
 	z = g1.doubleN(z, 2)
