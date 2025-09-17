@@ -159,15 +159,15 @@ func (g1 G1) triple(p *G1Affine) *G1Affine {
 	x2 := g1.curveF.Eval([][]*baseEl{{λ1, λ1}, {mone, &p.X}}, []int{1, 2})
 
 	// omit y2 computation, and
-	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
+	// compute λ2 = 2p.y/(p.x-x2) − λ1.
 	x1x2 := g1.curveF.Sub(&p.X, x2)
 	λ2 := g1.curveF.Div(y2, x1x2)
 	λ2 = g1.curveF.Sub(λ2, λ1)
 
-	// xr = λ²-p.x-x2
+	// xr = λ2²-p.x-x2
 	xr := g1.curveF.Eval([][]*baseEl{{λ2, λ2}, {mone, &p.X}, {mone, x2}}, []int{1, 1, 1})
 
-	// yr = λ(p.x-xr) - p.y
+	// yr = λ2(p.x-xr) - p.y
 	yr := g1.curveF.Eval([][]*baseEl{{λ2, g1.curveF.Sub(&p.X, xr)}, {mone, &p.Y}}, []int{1, 1})
 
 	return &G1Affine{
