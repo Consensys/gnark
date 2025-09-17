@@ -32,6 +32,7 @@ var (
 // Assert is a helper to test circuits
 type Assert struct {
 	t *testing.T
+	b *testing.B
 	*require.Assertions
 }
 
@@ -41,23 +42,42 @@ type Assert struct {
 //
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
-func NewAssert(t *testing.T) *Assert {
-	return &Assert{t: t, Assertions: require.New(t)}
+func NewAssert(tb testing.TB) *Assert {
+	switch t := (tb).(type) {
+	case *testing.T:
+		return &Assert{t: t, Assertions: require.New(t)}
+	case *testing.B:
+		return &Assert{b: t, Assertions: require.New(t)}
+	default:
+		panic("unknown testing type")
+	}
 }
 
 // Run runs the test function fn as a subtest. The subtest is parametrized by
 // the description strings descs.
 func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
-	assert.t.Run(desc, func(t *testing.T) {
-		assert := &Assert{t, require.New(t)}
-		fn(assert)
-	})
+	if assert.b != nil {
+		assert.b.Run(desc, func(b *testing.B) {
+			assert := &Assert{b: b, Assertions: require.New(b)}
+			fn(assert)
+		})
+	} else {
+		assert.t.Run(desc, func(t *testing.T) {
+			assert := &Assert{t: t, Assertions: require.New(t)}
+			fn(assert)
+		})
+	}
 }
 
 // Log logs using the test instance logger.
 func (assert *Assert) Log(v ...interface{}) {
-	assert.t.Log(v...)
+	if assert.b != nil {
+		assert.b.Log(v...)
+		return
+	} else {
+		assert.t.Log(v...)
+	}
 }
 
 // ProverSucceeded is deprecated: use [Assert.CheckCircuit] instead
