@@ -76,11 +76,6 @@ func BenchmarkGkrCompressions(b *testing.B) {
 	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	require.NoError(b, err)
 
-	// cpu profile
-	defer func() {
-		require.NoError(b, f.Close())
-	}()
-
 	_, err = cs.Solve(witness)
 	require.NoError(b, err)
 }
