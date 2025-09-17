@@ -79,11 +79,11 @@ func TestGkrMiMCCompiles(t *testing.T) {
 	fmt.Println(cs.GetNbConstraints(), "constraints")
 }
 
-type hashTreeCircuit struct {
+type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c hashTreeCircuit) Define(api frontend.API) error {
+func (c merkleTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
@@ -113,13 +113,13 @@ func (c hashTreeCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func BenchmarkHashTree(b *testing.B) {
+func BenchmarkMerkleTree(b *testing.B) {
 	const size = 1 << 15 // about 2 ^ 16 total hashes
 
-	circuit := hashTreeCircuit{
+	circuit := merkleTreeCircuit{
 		Leaves: make([]frontend.Variable, size),
 	}
-	assignment := hashTreeCircuit{
+	assignment := merkleTreeCircuit{
 		Leaves: make([]frontend.Variable, size),
 	}
 
