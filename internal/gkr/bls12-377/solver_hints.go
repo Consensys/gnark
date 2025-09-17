@@ -118,6 +118,7 @@ func SolveHint(data *SolvingData) hint.Hint {
 				}
 
 				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(&api, gateIns[:len(w.Inputs)]...).(*fr.Element))
+				api.freeElements()
 			}
 			if w.IsOutput() {
 				data.assignment[wI][instanceI].BigInt(outs[outsI])
