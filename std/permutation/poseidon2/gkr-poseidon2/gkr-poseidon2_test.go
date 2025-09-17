@@ -2,8 +2,6 @@ package gkr_poseidon2
 
 import (
 	"fmt"
-	"os"
-	"runtime/pprof"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -15,31 +13,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func gkrPermutationsCircuits(n int) (circuit, assignment testGkrPermutationCircuit) {
+func gkrCompressionsCircuits(n int) (circuit, assignment testGkrCompressionCircuit) {
 	ins := make([][2]frontend.Variable, n)
 	for i := range n {
 		ins[i] = [2]frontend.Variable{i * 2, i*2 + 1}
 	}
 
-	return testGkrPermutationCircuit{
+	return testGkrCompressionCircuit{
 			Ins: make([][2]frontend.Variable, len(ins)),
-		}, testGkrPermutationCircuit{
+		}, testGkrCompressionCircuit{
 			Ins: ins,
 		}
 }
 
 func TestGkrCompression(t *testing.T) {
-	circuit, assignment := gkrPermutationsCircuits(2)
+	circuit, assignment := gkrCompressionsCircuits(2)
 
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
 
-type testGkrPermutationCircuit struct {
+type testGkrCompressionCircuit struct {
 	Ins       [][2]frontend.Variable
 	skipCheck bool
 }
 
-func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
+func (c *testGkrCompressionCircuit) Define(api frontend.API) error {
 
 	gkr, err := NewCompressor(api)
 	if err != nil {
@@ -59,9 +57,9 @@ func (c *testGkrPermutationCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestGkrPermutationCompiles(t *testing.T) {
+func TestGkrCompressionCompiles(t *testing.T) {
 	// just measure the number of constraints
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &testGkrPermutationCircuit{
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &testGkrCompressionCircuit{
 		Ins:       make([][2]frontend.Variable, 52000),
 		skipCheck: true,
 	})
@@ -69,8 +67,8 @@ func TestGkrPermutationCompiles(t *testing.T) {
 	fmt.Println(cs.GetNbConstraints(), "constraints")
 }
 
-func BenchmarkGkrPermutations(b *testing.B) {
-	circuit, assignment := gkrPermutationsCircuits(50000)
+func BenchmarkGkrCompressions(b *testing.B) {
+	circuit, assignment := gkrCompressionsCircuits(50000)
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	require.NoError(b, err)
@@ -79,15 +77,9 @@ func BenchmarkGkrPermutations(b *testing.B) {
 	require.NoError(b, err)
 
 	// cpu profile
-	f, err := os.Create("cpu.pprof")
-	require.NoError(b, err)
 	defer func() {
 		require.NoError(b, f.Close())
 	}()
-
-	err = pprof.StartCPUProfile(f)
-	require.NoError(b, err)
-	defer pprof.StopCPUProfile()
 
 	_, err = cs.Solve(witness)
 	require.NoError(b, err)

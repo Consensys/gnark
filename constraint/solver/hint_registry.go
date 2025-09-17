@@ -36,8 +36,8 @@ func RegisterHint(hintFns ...Hint) {
 }
 
 func GetRegisteredHint(key HintID) Hint {
-	registryM.Lock()
-	defer registryM.Unlock()
+	registryM.RLock()
+	defer registryM.RUnlock()
 	return registry[key]
 }
 
@@ -62,8 +62,8 @@ func GetRegisteredHints() []Hint {
 }
 
 func cloneHintRegistry() map[HintID]Hint {
-	registryM.Lock()
-	defer registryM.Unlock()
+	registryM.RLock()
+	defer registryM.RUnlock()
 	return maps.Clone(registry)
 }
 

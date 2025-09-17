@@ -14,27 +14,27 @@ import (
 // ToBytes serializes the constraint system to a byte slice
 // This is not meant to be called directly since the constraint.System is embedded in
 // a "curve-typed" system (e.g. bls12-381.system)
-func (cs *System) ToBytes() ([]byte, error) {
+func (system *System) ToBytes() ([]byte, error) {
 	// we prepare and write 4 distinct blocks of data;
 	// that allow for a more efficient serialization/deserialization (+ parallelism)
 	var calldata, instructions, levels []byte
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
-		calldata, err = cs.calldataToBytes()
+		calldata, err = system.calldataToBytes()
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		instructions, err = cs.instructionsToBytes()
+		instructions, err = system.instructionsToBytes()
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		levels, err = cs.levelsToBytes()
+		levels, err = system.levelsToBytes()
 		return err
 	})
-	body, err := cs.toBytes()
+	body, err := system.toBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (cs *System) ToBytes() ([]byte, error) {
 // FromBytes deserializes the constraint system from a byte slice
 // This is not meant to be called directly since the constraint.System is embedded in
 // a "curve-typed" system (e.g. bls12-381.system)
-func (cs *System) FromBytes(data []byte) (int, error) {
+func (system *System) FromBytes(data []byte) (int, error) {
 	if len(data) < headerLen {
 		return 0, errors.New("invalid data length")
 	}
@@ -80,15 +80,15 @@ func (cs *System) FromBytes(data []byte) (int, error) {
 	// read the sections in parallel
 	var g errgroup.Group
 	g.Go(func() error {
-		return cs.levelsFromBytes(data[headerLen : headerLen+h.levelsLen])
+		return system.levelsFromBytes(data[headerLen : headerLen+h.levelsLen])
 	})
 
 	g.Go(func() error {
-		return cs.instructionsFromBytes(data[headerLen+h.levelsLen : headerLen+h.levelsLen+h.instructionsLen])
+		return system.instructionsFromBytes(data[headerLen+h.levelsLen : headerLen+h.levelsLen+h.instructionsLen])
 	})
 
 	g.Go(func() error {
-		return cs.calldataFromBytes(data[headerLen+h.levelsLen+h.instructionsLen : headerLen+h.levelsLen+h.instructionsLen+h.calldataLen])
+		return system.calldataFromBytes(data[headerLen+h.levelsLen+h.instructionsLen : headerLen+h.levelsLen+h.instructionsLen+h.calldataLen])
 	})
 
 	// CBOR decoding of the constraint system (except what we do directly in binary)
@@ -103,19 +103,19 @@ func (cs *System) FromBytes(data []byte) (int, error) {
 	}
 	decoder := dm.NewDecoder(bytes.NewReader(data[headerLen+h.levelsLen+h.instructionsLen+h.calldataLen : headerLen+h.levelsLen+h.instructionsLen+h.calldataLen+h.bodyLen]))
 
-	if err := decoder.Decode(&cs); err != nil {
+	if err := decoder.Decode(&system); err != nil {
 		return 0, err
 	}
 
-	if err := cs.CheckSerializationHeader(); err != nil {
+	if err := system.CheckSerializationHeader(); err != nil {
 		return 0, err
 	}
 
-	switch v := cs.CommitmentInfo.(type) {
+	switch v := system.CommitmentInfo.(type) {
 	case *Groth16Commitments:
-		cs.CommitmentInfo = *v
+		system.CommitmentInfo = *v
 	case *PlonkCommitments:
-		cs.CommitmentInfo = *v
+		system.CommitmentInfo = *v
 	}
 
 	if err := g.Wait(); err != nil {
@@ -125,7 +125,7 @@ func (cs *System) FromBytes(data []byte) (int, error) {
 	return headerLen + int(h.levelsLen) + int(h.instructionsLen) + int(h.calldataLen) + int(h.bodyLen), nil
 }
 
-func (cs *System) toBytes() ([]byte, error) {
+func (system *System) toBytes() ([]byte, error) {
 	// CBOR encoding of the constraint system (except what we do directly in binary)
 	ts := getTagSet()
 	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(ts)
@@ -136,7 +136,7 @@ func (cs *System) toBytes() ([]byte, error) {
 	encoder := enc.NewEncoder(buf)
 
 	// encode our object
-	err = encoder.Encode(cs)
+	err = encoder.Encode(system)
 	if err != nil {
 		return nil, err
 	}
@@ -172,32 +172,32 @@ func (h *header) fromBytes(buf []byte) {
 	h.bodyLen = binary.LittleEndian.Uint64(buf[24:32])
 }
 
-func (cs *System) calldataToBytes() ([]byte, error) {
+func (system *System) calldataToBytes() ([]byte, error) {
 	// calldata doesn't compress as well as the other sections;
-	// it still give a better size to use intcomp.CompressUint32 here,
+	// it still gives a better size to use intcomp.CompressUint32 here,
 	// and an even better one to use binary.UVarint
 	// but, we keep it simple as it makes deserialization much faster
 	// user is still free to compress the final []byte slice if needed.
-	buf := make([]byte, 0, 8+len(cs.CallData)*binary.MaxVarintLen32)
-	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(cs.CallData)))
-	// binary.LittleEndian.PutUint64(buf, uint64(len(cs.CallData)))
-	// buf = buf[:8+len(cs.CallData)*4]
-	for _, v := range cs.CallData {
+	buf := make([]byte, 0, 8+len(system.CallData)*binary.MaxVarintLen32)
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(system.CallData)))
+	// binary.LittleEndian.PutUint64(buf, uint64(len(system.CallData)))
+	// buf = buf[:8+len(system.CallData)*4]
+	for _, v := range system.CallData {
 		buf = binary.AppendUvarint(buf, uint64(v))
 		// binary.LittleEndian.PutUint32(buf[8+i*4:8+i*4+4], v)
 	}
 	return buf, nil
 }
 
-func (cs *System) instructionsToBytes() ([]byte, error) {
+func (system *System) instructionsToBytes() ([]byte, error) {
 	// prepare the []uint32 separated slices for the packed instructions
-	sBlueprintID := make([]uint32, len(cs.Instructions))
-	sConstraintOffset := make([]uint32, len(cs.Instructions))
-	sWireOffset := make([]uint32, len(cs.Instructions))
-	sStartCallData := make([]uint64, len(cs.Instructions))
+	sBlueprintID := make([]uint32, len(system.Instructions))
+	sConstraintOffset := make([]uint32, len(system.Instructions))
+	sWireOffset := make([]uint32, len(system.Instructions))
+	sStartCallData := make([]uint64, len(system.Instructions))
 
 	// collect them
-	for i, inst := range cs.Instructions {
+	for i, inst := range system.Instructions {
 		sBlueprintID[i] = uint32(inst.BlueprintID)
 		sConstraintOffset[i] = inst.ConstraintOffset
 		sWireOffset[i] = inst.WireOffset
@@ -208,7 +208,7 @@ func (cs *System) instructionsToBytes() ([]byte, error) {
 	var buf32 []uint32
 	var err error
 	var buf bytes.Buffer
-	buf.Grow(4 * len(cs.Instructions) * 3)
+	buf.Grow(4 * len(system.Instructions) * 3)
 
 	buf32, err = ioutils.CompressAndWriteUints32(&buf, sBlueprintID, buf32)
 	if err != nil {
@@ -231,15 +231,15 @@ func (cs *System) instructionsToBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (cs *System) levelsToBytes() ([]byte, error) {
+func (system *System) levelsToBytes() ([]byte, error) {
 	// they compress very well due to their nature (sequential integers)
 	var buf32 []uint32
 	var buf bytes.Buffer
 	var err error
-	buf.Grow(4 * len(cs.Instructions))
+	buf.Grow(4 * len(system.Instructions))
 
-	binary.Write(&buf, binary.LittleEndian, uint64(len(cs.Levels)))
-	for _, l := range cs.Levels {
+	binary.Write(&buf, binary.LittleEndian, uint64(len(system.Levels)))
+	for _, l := range system.Levels {
 		buf32, err = ioutils.CompressAndWriteUints32(&buf, l, buf32)
 		if err != nil {
 			return nil, err
@@ -249,7 +249,7 @@ func (cs *System) levelsToBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (cs *System) levelsFromBytes(in []byte) error {
+func (system *System) levelsFromBytes(in []byte) error {
 
 	levelsLen := binary.LittleEndian.Uint64(in[:8])
 
@@ -261,9 +261,9 @@ func (cs *System) levelsFromBytes(in []byte) error {
 		n     int
 	)
 
-	cs.Levels = make([][]uint32, levelsLen)
-	for i := range cs.Levels {
-		buf32, n, cs.Levels[i], err = ioutils.ReadAndDecompressUints32(in, buf32)
+	system.Levels = make([][]uint32, levelsLen)
+	for i := range system.Levels {
+		buf32, n, system.Levels[i], err = ioutils.ReadAndDecompressUints32(in, buf32)
 		if err != nil {
 			return err
 		}
@@ -273,7 +273,7 @@ func (cs *System) levelsFromBytes(in []byte) error {
 	return nil
 }
 
-func (cs *System) instructionsFromBytes(in []byte) error {
+func (system *System) instructionsFromBytes(in []byte) error {
 
 	// read the packed instructions
 	var (
@@ -304,9 +304,9 @@ func (cs *System) instructionsFromBytes(in []byte) error {
 	}
 
 	// rebuild the instructions
-	cs.Instructions = make([]PackedInstruction, len(sBlueprintID))
-	for i := range cs.Instructions {
-		cs.Instructions[i] = PackedInstruction{
+	system.Instructions = make([]PackedInstruction, len(sBlueprintID))
+	for i := range system.Instructions {
+		system.Instructions[i] = PackedInstruction{
 			BlueprintID:      BlueprintID(sBlueprintID[i]),
 			ConstraintOffset: sConstraintOffset[i],
 			WireOffset:       sWireOffset[i],
@@ -317,16 +317,16 @@ func (cs *System) instructionsFromBytes(in []byte) error {
 	return nil
 }
 
-func (cs *System) calldataFromBytes(buf []byte) error {
+func (system *System) calldataFromBytes(buf []byte) error {
 	calldataLen := binary.LittleEndian.Uint64(buf[:8])
-	cs.CallData = make([]uint32, calldataLen)
+	system.CallData = make([]uint32, calldataLen)
 	buf = buf[8:]
 	for i := uint64(0); i < calldataLen; i++ {
 		v, n := binary.Uvarint(buf[:min(len(buf), binary.MaxVarintLen64)])
 		if n <= 0 {
 			return errors.New("invalid calldata")
 		}
-		cs.CallData[i] = uint32(v)
+		system.CallData[i] = uint32(v)
 		buf = buf[n:]
 	}
 	return nil

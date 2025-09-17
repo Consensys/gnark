@@ -549,7 +549,9 @@ func (builder *builder[E]) printArg(log *constraint.LogEntry, sbb *strings.Build
 
 	// no variables in nested struct, we use fmt std print function
 	if count == 0 || err != nil {
-		sbb.WriteString(fmt.Sprint(a))
+		if _, err = fmt.Fprint(sbb, a); err != nil {
+			panic(err)
+		}
 		return
 	}
 

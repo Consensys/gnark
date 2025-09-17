@@ -52,7 +52,7 @@ func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 	v := builder.toVariable(i1)
 
 	if b, ok := builder.constantValue(v); ok {
-		if !(b.IsZero() || builder.isCstOne(b)) {
+		if !(b.IsZero() || builder.isCstOne(b)) { // nolint QF1001
 			panic("assertIsBoolean failed: constant is not 0 or 1") // TODO @gbotrel print
 		}
 		return
