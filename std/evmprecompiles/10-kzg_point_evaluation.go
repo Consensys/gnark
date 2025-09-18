@@ -106,10 +106,8 @@ const (
 // represent. The method performs decompression and all necessary checks. The
 // encoding is given by Appendix C of [PAIRING_FRIENDLY_CURVES].
 //
-// [KZG_POINT_EVALUATION]
-// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
-// [PAIRING_FRIENDLY_CURVES]
-// https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/
+// [KZG_POINT_EVALUATION]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
+// [PAIRING_FRIENDLY_CURVES]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/
 func KzgPointEvaluation(
 	api frontend.API,
 	versionedHash [2]frontend.Variable, // arithmetization gives us a 2-element array. We convert it ourselves to a byte array.
