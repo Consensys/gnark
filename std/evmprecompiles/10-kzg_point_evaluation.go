@@ -206,7 +206,30 @@ func KzgPointEvaluation(
 	return nil
 }
 
-// KzgPointEvaluationFailure checks a failing case of KZG point Evaluation
+// KzgPointEvaluationFailure checks a failing case of KZG point evaluation precompile.
+// It has the same interface as [KzgPointEvaluation] but it allows to pass in
+// inputs which should fail according to the [EIP-4844] specification. The
+// method CAN NOT assert validity of valid inputs. The goal of the method is to
+// allow proving that the precompile call failed in EVM.
+//
+// For data encoding (particularly for compressed inputs), see
+// [KzgPointEvaluation] method documentation.
+//
+// The method checks that any of the following failure cases happen:
+//   - the versioned hash version is incorrect
+//   - the versioned hash does not match the commitment
+//   - the compressed commitment or proof have invalid compression mask (allowed masks are 0b100, 0b101 and 0b110)
+//   - x coordinate value in compressed commitment or proof does overflows
+//   - x coordinate value in compressed commitment or proof differs from mask (for infinity mask x != 0, for non-infinity mask x == 0)
+//   - the compressed commitment or proof do not represent curve points
+//   - the compressed commitment or proof do not represent points in the correct subgroup
+//   - pairing check fails for the inputs
+//   - expected blob size is incorrect (should be 4096)
+//   - expected BLS modulus is incorrect (should be BLS12-381 scalar field modulus)
+//
+// The checks are non-exclusive, i.e. multiple of them can fail at the same time.
+//
+// [EIP-4844]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
 func KzgPointEvaluationFailure(
 	api frontend.API,
 	versionedHash [2]frontend.Variable,
