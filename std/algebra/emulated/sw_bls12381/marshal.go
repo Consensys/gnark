@@ -114,10 +114,10 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.Al
 	}
 
 	// 4 - check logic with the mask
-	// if the mask is for zero, then the hint is supposed to have returned also y=0
+	// We already check above that x=0 if mask is for infinity. Also assert that
+	// the hint returned value y=0 when mask is infinity.
 	isYZero := g1.curveF.IsZero(&res.Y)
-	isZeroPoint := g1.api.And(isXZero, isYZero)
-	g1.api.AssertIsEqual(isZeroPoint, isPrefixCompressedInfinity)
+	g1.api.AssertIsEqual(isYZero, isPrefixCompressedInfinity)
 
 	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
 	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(mCompressedSmallest, uapi.Value(prefix)))
