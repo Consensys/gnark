@@ -85,7 +85,7 @@ type deferredChecker interface {
 //
 // Given these values, the following holds:
 //
-//	a * b = r * k*p
+//	a * b = r + k*p
 //
 // But for asserting that the previous equation holds, we instead use the
 // polynomial representation of the elements. If a non-native element a is given
@@ -623,7 +623,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 	}
 	switch c.Sign() {
 	case -1:
-		f.MulConst(f.Neg(a), new(big.Int).Neg(c))
+		return f.MulConst(f.Neg(a), new(big.Int).Neg(c))
 	case 0:
 		return f.Zero()
 	}
