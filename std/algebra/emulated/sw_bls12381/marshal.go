@@ -64,14 +64,14 @@ func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.Al
 	// lets ensure that we have a valid prefix (0b100, 0b101, 0b110)
 	prefixShifted := g1.api.Div(uapi.Value(prefix), 32) // prefixShifted = prefix >> 5
 	isValidPrefix := selector.Mux(g1.api, prefixShifted,
-		0, // 0b000 << 5
-		0, // 0b001 << 5
-		0, // 0b010 << 5
-		0, // 0b011 << 5
-		1, // 0b100 << 5 - compressed regular point, with y lexicographically smallest
-		1, // 0b101 << 5 - compressed regular point, with y lexicographically largest
-		1, // 0b110 << 5 - compressed point at infinity
-		0, // 0b111 << 5
+		0, // 0b000
+		0, // 0b001
+		0, // 0b010
+		0, // 0b011
+		1, // 0b100 - compressed regular point, with y lexicographically smallest
+		1, // 0b101 - compressed regular point, with y lexicographically largest
+		1, // 0b110 - compressed point at infinity
+		0, // 0b111
 	)
 	g1.api.AssertIsEqual(isValidPrefix, 1)
 
