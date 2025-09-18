@@ -75,6 +75,7 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 				}
 
 				for instanceI := start; instanceI < end; instanceI++ {
+					var api gateAPI // since the api is synchronous, we can't share it across Solve Hint invocations.
 					for wireI := range data.circuit {
 						wire := &data.circuit[wireI]
 						deps := info.Dependencies[wireI]
@@ -93,7 +94,8 @@ func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
 								inputs[i] = &data.assignment[inputI][instanceI]
 							}
 							gate := data.circuit[wireI].Gate
-							data.assignment[wireI][instanceI].Set(gate.Evaluate(api, inputs[:len(inputIndexes)]...).(*fr.Element))
+							data.assignment[wireI][instanceI].Set(gate.Evaluate(&api, inputs[:len(inputIndexes)]...).(*fr.Element))
+							api.freeElements()
 						}
 					}
 				}
