@@ -188,10 +188,14 @@ func (nr *NumReader) SetNumNbBits(numNbBits int) {
 	}
 
 	if nr.last != nil { // nothing to compensate for if no values have yet been read
-		nbToRead := min(len(nr.toRead), wordsPerNum-nr.wordsPerNum)
-		delta := ReadNum(nr.api, nr.toRead[:nbToRead], nr.radix)
-		nr.toRead = nr.toRead[:nbToRead]
-		nr.last = nr.api.Add(nr.api.Mul(nr.last, twoPow(wordsPerNum-nr.wordsPerNum)), delta)
+		k := wordsPerNum - nr.wordsPerNum
+		available := 0
+		if len(nr.toRead) > nr.wordsPerNum {
+			available = len(nr.toRead) - nr.wordsPerNum
+		}
+		nbToRead := min(available, k)
+		delta := ReadNum(nr.api, nr.toRead[nr.wordsPerNum:nr.wordsPerNum+nbToRead], nr.radix)
+		nr.last = nr.api.Add(nr.api.Mul(nr.last, twoPow(k*wordNbBits)), delta)
 	}
 
 	nr.wordsPerNum, nr.numBound = wordsPerNum, twoPow(numNbBits)
