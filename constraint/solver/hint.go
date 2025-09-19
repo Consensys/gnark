@@ -102,6 +102,11 @@ func GetHintID(fn Hint) HintID {
 
 	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, will be package.glob..funcN
 	// and if new anonymous functions are added in the package, N may change, so will UUID.
+	// Enforce that hint functions are named to ensure stability of the derived ID.
+	if oldStyleAnonRe.MatchString(name) || newStyleAnonRe.MatchString(name) {
+		panic("anonymous hint function is not allowed: " + name + "; use a named function or solver.RegisterNamedHint with a stable HintID")
+	}
+	
 	hf.Write([]byte(name)) // #nosec G104 -- does not err
 
 	return HintID(hf.Sum32())
@@ -122,3 +127,6 @@ func newToOldStyle(name string) string {
 }
 
 var newStyleAnonRe = regexp.MustCompile(`^(?P<pkgname>.*\.)init(?P<funcname>\.func\d+)$`)
+
+// oldStyleAnonRe matches fully-qualified names translated to the legacy style: "...glob.funcN"
+var oldStyleAnonRe = regexp.MustCompile(`\.glob\.func\d+$`)
