@@ -101,7 +101,9 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					}
 
 					// we need to run the setup, prove and verify and check serialization
-					assert.t.Parallel()
+					if assert.t != nil {
+						assert.t.Parallel()
+					}
 
 					var concreteBackend tBackend
 
