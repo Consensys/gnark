@@ -39,7 +39,10 @@ func (pk PublicKeyG1) VerifyG2(api frontend.API, sig *SignatureG2, prehashed *sw
 
 	// prime order subgroup checks
 	pairing.AssertIsOnG1((*sw_bls12381.G1Affine)(&pk))
-	pairing.AssertIsOnG2((*sw_bls12381.G2Affine)(sig))
+	// we omit subgroup check for the G2 point as computeLines function insider
+	// PairingCheck later already does it (it can reuse existing computation
+	// during Miller loop). Thus this check is redundant.
+	// pairing.AssertIsOnG2((*sw_bls12381.G2Affine)(sig))
 
 	var g1GNeg bls12381.G1Affine
 	_, _, g1Gen, _ := bls12381.Generators()
