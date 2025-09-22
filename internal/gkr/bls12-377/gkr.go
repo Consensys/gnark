@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"math/bits"
 	"strconv"
 	"sync"
 
@@ -793,46 +792,6 @@ func (api *gateAPI) Println(a ...frontend.Variable) {
 		}
 	}
 	fmt.Println(toPrint...)
-}
-
-var seventeen = big.NewInt(17)
-
-func (api *gateAPI) Exp(i frontend.Variable, e uint8) frontend.Variable {
-
-	res := api.newElement()
-	x := api.cast(i)
-
-	if e == 17 {
-		res.Mul(x, x)     // x²
-		res.Mul(res, res) // x⁴
-		res.Mul(res, res) // x⁸
-		res.Mul(res, res) // x¹⁶
-		res.Mul(res, x)   // x¹⁷
-
-		return res
-	}
-
-	if e == 0 {
-		return 1
-	}
-	n := bits.Len8(e) - 1
-	e = bits.Reverse8(e) >> (8 - n)
-
-	*res = *x
-
-	// square and multiply
-	for n != 0 {
-		res.Mul(res, res)
-
-		if e%2 != 0 {
-			res.Mul(res, x)
-		}
-
-		e /= 2
-		n--
-	}
-
-	return res
 }
 
 func (api *gateAPI) evaluate(f gkr.GateFunction, in ...fr.Element) *fr.Element {

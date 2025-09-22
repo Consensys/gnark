@@ -794,32 +794,6 @@ func (api *gateAPI) Println(a ...frontend.Variable) {
 	fmt.Println(toPrint...)
 }
 
-func (api *gateAPI) Exp(i frontend.Variable, e uint8) frontend.Variable {
-	var res *small_rational.SmallRational
-	x := api.cast(i)
-
-	if e%2 == 0 {
-		res = api.cast(1)
-	} else {
-		*res = *x
-	}
-
-	e /= 2
-
-	// square and multiply
-	for e != 0 {
-		res.Mul(res, res)
-
-		if e%2 != 0 {
-			res.Mul(res, x)
-		}
-
-		e /= 2
-	}
-
-	return res
-}
-
 func (api *gateAPI) evaluate(f gkr.GateFunction, in ...small_rational.SmallRational) *small_rational.SmallRational {
 	inVar := make([]frontend.Variable, len(in))
 	for i := range in {

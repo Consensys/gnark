@@ -2,8 +2,6 @@ package gkr_poseidon2
 
 import (
 	"fmt"
-	"math/bits"
-	"strings"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -80,18 +78,4 @@ func BenchmarkGkrCompressions(b *testing.B) {
 
 	_, err = cs.Solve(witness)
 	require.NoError(b, err)
-}
-
-func TestGenerateTable(t *testing.T) {
-	var sb strings.Builder
-	for n := range 256 {
-		if n%16 == 0 {
-			sb.WriteString("\"+\n\"")
-		}
-		b := uint8(n)
-		b <<= bits.LeadingZeros8(b)
-		b = bits.Reverse8(b)
-		sb.WriteString(fmt.Sprintf("\\x%x", b))
-	}
-	fmt.Println(sb.String())
 }
