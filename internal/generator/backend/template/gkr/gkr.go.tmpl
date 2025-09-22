@@ -6,7 +6,6 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"math/big"
-	"math/bits"
 	"strconv"
 	"sync"
 	"github.com/consensys/gnark/frontend"
@@ -791,27 +790,27 @@ func (api *gateAPI) Println(a ...frontend.Variable) {
 	fmt.Println(toPrint...)
 }
 
-func (api *gateAPI) Exp(i frontend.Variable, e uint8) frontend.Variable {
-	if e == 0 {
-		return 1
-	}
-	n := bits.Len8(e) - 1
-	e = bits.Reverse8(e) >> (8 - n)
-
-	res := api.newElement()
+func (api *gateAPI) Exp(i frontend.Variable, n uint) frontend.Variable {
+	var res *{{ .ElementType }}
 	x := api.cast(i)
-	*res = *x
+
+	if n % 2 == 0 {
+		res = api.cast(1)
+	} else {
+		*res = *x
+	}
+
+	n /= 2
 
 	// square and multiply
 	for n != 0 {
 		res.Mul(res, res)
 
-		if e % 2 != 0 {
+		if n % 2 != 0 {
 			res.Mul(res, x)
 		}
 
-		e /= 2
-		n--
+		n /= 2
 	}
 
 	return res
