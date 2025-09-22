@@ -2,7 +2,6 @@ package gkr_mimc
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"testing"
 
@@ -77,16 +76,6 @@ func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestGkrMiMCCompiles(t *testing.T) {
-	const n = 52000
-	circuit := testGkrMiMCCircuit{
-		In: make([]frontend.Variable, n),
-	}
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit, frontend.WithCapacity(27_000_000))
-	require.NoError(t, err)
-	fmt.Println(cs.GetNbConstraints(), "constraints")
-}
-
 type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
@@ -141,5 +130,9 @@ func BenchmarkMerkleTree(b *testing.B) {
 	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	require.NoError(b, err)
 
-	require.NoError(b, cs.IsSolved(w))
+	for b.Loop() {
+		s, err := cs.Solve(w)
+		require.NoError(b, err)
+		_ = s
+	}
 }
