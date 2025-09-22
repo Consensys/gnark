@@ -790,6 +790,32 @@ func (api *gateAPI) Println(a ...frontend.Variable) {
 	fmt.Println(toPrint...)
 }
 
+func (api *gateAPI) Exp(i frontend.Variable, n uint) frontend.Variable {
+	var res *{{ .ElementType }}
+	x := api.cast(i)
+
+	if n % 2 == 0 {
+		res = api.cast(1)
+	} else {
+		*res = *x
+	}
+
+	n /= 2
+
+	// square and multiply
+	for n != 0 {
+		res.Mul(res, res)
+
+		if n % 2 != 0 {
+			res.Mul(res, x)
+		}
+
+		n /= 2
+	}
+
+	return res
+}
+
 func (api *gateAPI) evaluate(f gkr.GateFunction, in ...{{ .ElementType }}) *{{ .ElementType }} {
 	inVar := make([]frontend.Variable, len(in))
 	for i := range in {

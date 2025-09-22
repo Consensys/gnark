@@ -78,7 +78,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
 		}
 
-		gateEvaluation = wire.Gate.Evaluate(api, inputEvaluations...)
+		gateEvaluation = wire.Gate.Evaluate(FrontendApiWrapper{api}, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -382,4 +382,25 @@ func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variab
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
+}
+
+// FrontendApiWrapper implements additional functions to satisfy the gkr.GateAPI interface.
+type FrontendApiWrapper struct {
+	frontend.API
+}
+
+func (api FrontendApiWrapper) Exp(i frontend.Variable, e uint8) frontend.Variable {
+	res := frontend.Variable(1)
+	if e%2 != 0 {
+		res = i
+	}
+	e /= 2
+	for e != 0 {
+		res = api.Mul(res, res)
+		if e%2 != 0 {
+			res = api.Mul(res, i)
+		}
+		e /= 2
+	}
+	return res
 }

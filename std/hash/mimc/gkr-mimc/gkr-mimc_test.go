@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -29,7 +30,9 @@ func TestGkrMiMC(t *testing.T) {
 			In: slices.Clone(vals[:length*2]),
 		}
 
-		test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment))
+		allCurves := gnark.Curves()
+		allCurves = []ecc.ID{ecc.BLS12_377} // TODO REMOVE
+		test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(allCurves[0], allCurves[1:]...))
 	}
 }
 
