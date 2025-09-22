@@ -394,7 +394,7 @@ func (api FrontendApiWrapper) Exp(i frontend.Variable, e uint8) frontend.Variabl
 
 	for range 8 {
 		res = api.Mul(res, res)
-		if e%128 != 0 {
+		if e&128 != 0 {
 			res = api.Mul(res, i)
 		}
 		e <<= 1
