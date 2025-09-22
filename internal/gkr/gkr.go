@@ -391,16 +391,13 @@ type FrontendApiWrapper struct {
 
 func (api FrontendApiWrapper) Exp(i frontend.Variable, e uint8) frontend.Variable {
 	res := frontend.Variable(1)
-	if e%2 != 0 {
-		res = i
-	}
-	e /= 2
-	for e != 0 {
+
+	for range 8 {
 		res = api.Mul(res, res)
-		if e%2 != 0 {
+		if e%128 != 0 {
 			res = api.Mul(res, i)
 		}
-		e /= 2
+		e <<= 1
 	}
 	return res
 }
