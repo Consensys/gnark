@@ -78,7 +78,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
 		}
 
-		gateEvaluation = wire.Gate.Evaluate(api, inputEvaluations...)
+		gateEvaluation = wire.Gate.Evaluate(FrontendAPIWrapper{api}, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -382,4 +382,16 @@ func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variab
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
+}
+
+type FrontendAPIWrapper struct {
+	frontend.API
+}
+
+func (api FrontendAPIWrapper) Exp17(i frontend.Variable) frontend.Variable {
+	res := api.Mul(i, i)    // i^2
+	res = api.Mul(res, res) // i^4
+	res = api.Mul(res, res) // i^8
+	res = api.Mul(res, res) // i^16
+	return api.Mul(res, i)  // i^17
 }

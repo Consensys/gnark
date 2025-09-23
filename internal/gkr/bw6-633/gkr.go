@@ -776,6 +776,16 @@ func (api *gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	return res
 }
 
+func (api *gateAPI) Exp17(i frontend.Variable) frontend.Variable {
+	res := api.newElement()
+	x := api.cast(i)
+	res.Mul(x, x)          // x^2
+	res.Mul(res, res)      // x^4
+	res.Mul(res, res)      // x^8
+	res.Mul(res, res)      // x^16
+	return res.Mul(res, x) // x^17
+}
+
 func (api *gateAPI) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
 	var x fr.Element

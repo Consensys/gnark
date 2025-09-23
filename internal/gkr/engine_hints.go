@@ -182,6 +182,13 @@ func (g gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	return &x
 }
 
+func (g gateAPI) Exp17(i frontend.Variable) frontend.Variable {
+	x := utils.FromInterface(i)
+	var res big.Int
+	res.Exp(&x, big.NewInt(17), g.mod)
+	return &res
+}
+
 func (g gateAPI) Println(a ...frontend.Variable) {
 	strings := make([]string, len(a))
 	for i := range a {

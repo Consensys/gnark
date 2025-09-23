@@ -38,6 +38,8 @@ type GateAPI interface {
 	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...frontend.Variable)
+
+	Exp17(a frontend.Variable) frontend.Variable
 }
 
 // GateFunction is a function that evaluates a polynomial over its inputs
