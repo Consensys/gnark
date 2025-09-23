@@ -370,6 +370,7 @@ func newClaimsManager(wires []*gkrtypes.Wire, assignment WireAssignment, o setti
 	manager.memPool = o.pool
 	manager.workers = o.workers
 	manager.wires = wires
+	manager.gateAPIs = []*gateAPI{new(gateAPI)} // we will need at least one
 
 	for i, wire := range wires {
 
@@ -623,7 +624,6 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 	defer o.workers.Stop()
 
 	claims := newClaimsManager(o.sorted, assignment, o)
-	claims.gateAPIs = []*gateAPI{new(gateAPI)}
 
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))

@@ -104,8 +104,9 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.S
 		for i, uniqueI := range injectionLeftInv { // map from all to unique
 			inputEvaluations[i] = &uniqueInputEvaluations[uniqueI]
 		}
-		var api gateAPI
-		gateEvaluation.Set(wire.Gate.Evaluate(&api, inputEvaluations...).(*small_rational.SmallRational))
+		api := e.manager.gateAPIs[0]
+		gateEvaluation.Set(wire.Gate.Evaluate(api, inputEvaluations...).(*small_rational.SmallRational))
+		api.freeElements()
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -234,12 +235,20 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	// Perf-TODO: Collate once at claim "combination" time and not again. then, even folding can be done in one operation every time "next" is called
 
 	gJ := make([]small_rational.SmallRational, degGJ)
-	var mu sync.Mutex
+	var (
+		mu         sync.Mutex
+		nbAPIsUsed int
+	)
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
-		var (
-			step small_rational.SmallRational
-			api  gateAPI
-		)
+		var step small_rational.SmallRational
+
+		mu.Lock()
+		if nbAPIsUsed == len(c.manager.gateAPIs) {
+			c.manager.gateAPIs = append(c.manager.gateAPIs, new(gateAPI))
+		}
+		api := c.manager.gateAPIs[nbAPIsUsed]
+		nbAPIsUsed++
+		mu.Unlock()
 
 		res := make([]small_rational.SmallRational, degGJ)
 
@@ -269,7 +278,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 				for i := range gateInput {
 					gateInput[i] = &mlEvals[eIndex+1+i]
 				}
-				summand := wire.Gate.Evaluate(&api, gateInput...).(*small_rational.SmallRational)
+				summand := wire.Gate.Evaluate(api, gateInput...).(*small_rational.SmallRational)
 				summand.Mul(summand, &mlEvals[eIndex])
 				res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
@@ -352,6 +361,7 @@ type claimsManager struct {
 	memPool    *polynomial.Pool
 	workers    *utils.WorkerPool
 	wires      gkrtypes.Wires
+	gateAPIs   []*gateAPI
 }
 
 func newClaimsManager(wires []*gkrtypes.Wire, assignment WireAssignment, o settings) (manager claimsManager) {
@@ -360,6 +370,7 @@ func newClaimsManager(wires []*gkrtypes.Wire, assignment WireAssignment, o setti
 	manager.memPool = o.pool
 	manager.workers = o.workers
 	manager.wires = wires
+	manager.gateAPIs = []*gateAPI{new(gateAPI)} // we will need at least one
 
 	for i, wire := range wires {
 
