@@ -779,12 +779,8 @@ func (api *gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 func (api *gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
 	var x fr.Element
 
-	if _, err := x.SetInterface(c); err != nil { // a, b are expected to be *fr.Element but not c
-		panic(err)
-	}
-
-	x.Add(&x, api.cast(a))
-	x.Add(&x, api.cast(b))
+	x.Add(api.cast(a), api.cast(b))
+	x.Add(&x, api.cast(c))
 
 	res := api.newElement()
 

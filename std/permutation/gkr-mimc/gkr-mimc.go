@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
@@ -204,11 +205,22 @@ func addPow7Add(key *big.Int) gkr.GateFunction {
 
 // addPow17: (in[0]+in[1]+key)¹⁷
 func addPow17(key *big.Int) gkr.GateFunction {
+	var cachedKey frontend.Variable
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 2 {
 			panic("expected two input")
 		}
-		return api.SumExp17(in[0], in[1], key)
+		if cachedKey == nil {
+			if _, ok := in[0].(*frBls12377.Element); ok {
+				var ck frBls12377.Element
+				ck.SetBigInt(key)
+				cachedKey = &ck
+			} else {
+				return api.SumExp17(in[0], in[1], key)
+			}
+		}
+
+		return api.SumExp17(in[0], in[1], cachedKey)
 	}
 }
 
