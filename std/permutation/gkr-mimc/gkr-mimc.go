@@ -208,7 +208,7 @@ func addPow17(key *big.Int) gkr.GateFunction {
 		if len(in) != 2 {
 			panic("expected two input")
 		}
-		return api.Exp17(api.Add(in[0], in[1], key))
+		return api.SumExp17(in[0], in[1], key)
 	}
 }
 

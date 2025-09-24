@@ -388,7 +388,8 @@ type FrontendAPIWrapper struct {
 	frontend.API
 }
 
-func (api FrontendAPIWrapper) Exp17(i frontend.Variable) frontend.Variable {
+func (api FrontendAPIWrapper) SumExp17(a, b, c frontend.Variable) frontend.Variable {
+	i := api.Add(a, b, c)
 	res := api.Mul(i, i)    // i^2
 	res = api.Mul(res, res) // i^4
 	res = api.Mul(res, res) // i^8

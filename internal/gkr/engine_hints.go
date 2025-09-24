@@ -182,9 +182,13 @@ func (g gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	return &x
 }
 
-func (g gateAPI) Exp17(i frontend.Variable) frontend.Variable {
-	x := utils.FromInterface(i)
-	var res big.Int
+func (g gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
+	x := utils.FromInterface(a)
+	res := utils.FromInterface(b)
+
+	x.Add(&x, &res)
+	res = utils.FromInterface(c)
+	x.Add(&x, &res)
 	res.Exp(&x, big.NewInt(17), g.mod)
 	return &res
 }

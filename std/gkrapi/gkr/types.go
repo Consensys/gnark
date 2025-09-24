@@ -39,7 +39,7 @@ type GateAPI interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...frontend.Variable)
 
-	Exp17(a frontend.Variable) frontend.Variable
+	SumExp17(a, b, c frontend.Variable) frontend.Variable
 }
 
 // GateFunction is a function that evaluates a polynomial over its inputs
