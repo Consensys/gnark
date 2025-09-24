@@ -7,39 +7,42 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
 )
 
-var logger zerolog.Logger
+var globalLogger atomic.Value // stores zerolog.Logger
 
 func init() {
 	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}
-	logger = zerolog.New(output).With().Timestamp().Logger()
+	l := zerolog.New(output).With().Timestamp().Logger()
 
 	if !debug.Debug && strings.HasSuffix(os.Args[0], ".test") {
-		logger = zerolog.Nop()
+		l = zerolog.Nop()
 	}
 
+	globalLogger.Store(l)
 }
 
 // SetOutput changes the output of the global logger
 func SetOutput(w io.Writer) {
-	logger = logger.Output(w)
+	l := globalLogger.Load().(zerolog.Logger)
+	globalLogger.Store(l.Output(w))
 }
 
 // Set allows a gnark user to overhide the global logger
 func Set(l zerolog.Logger) {
-	logger = l
+	globalLogger.Store(l)
 }
 
 // Disable disables logging
 func Disable() {
-	logger = zerolog.Nop()
+	globalLogger.Store(zerolog.Nop())
 }
 
 // Logger returns a sublogger for a component
 func Logger() zerolog.Logger {
-	return logger
+	return globalLogger.Load().(zerolog.Logger)
 }
