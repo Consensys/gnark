@@ -784,11 +784,11 @@ func (api *gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
 
 	res := api.newElement()
 
-	res.Mul(&x, &x)         // x^2
-	res.Mul(res, res)       // x^4
-	res.Mul(res, res)       // x^8
-	res.Mul(res, res)       // x^16
-	return res.Mul(res, &x) // x^17
+	res.Mul(&x, &x)         // x²
+	res.Mul(res, res)       // x⁴
+	res.Mul(res, res)       // x⁸
+	res.Mul(res, res)       // x¹⁶
+	return res.Mul(res, &x) // x¹⁷
 }
 
 func (api *gateAPI) Println(a ...frontend.Variable) {

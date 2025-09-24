@@ -777,19 +777,18 @@ func (api *gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 }
 
 func (api *gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
-	x := api.cast(a)
-	res := api.cast(b)
-	x.Add(res, x)
-	if _, err := res.SetInterface(c); err != nil {
-		panic(err)
-	}
-	x.Add(res, x)
+	var x fr.Element
 
-	res.Mul(x, x)          // x^2
-	res.Mul(res, res)      // x^4
-	res.Mul(res, res)      // x^8
-	res.Mul(res, res)      // x^16
-	return res.Mul(res, x) // x^17
+	x.Add(api.cast(a), api.cast(b))
+	x.Add(&x, api.cast(c))
+
+	res := api.newElement()
+
+	res.Mul(&x, &x)         // x²
+	res.Mul(res, res)       // x⁴
+	res.Mul(res, res)       // x⁸
+	res.Mul(res, res)       // x¹⁶
+	return res.Mul(res, &x) // x¹⁷
 }
 
 func (api *gateAPI) Println(a ...frontend.Variable) {
