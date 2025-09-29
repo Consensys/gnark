@@ -2,6 +2,7 @@
 package gkrgates
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -36,53 +37,86 @@ type registerSettings struct {
 	curves                    []ecc.ID
 }
 
-type registerOption func(*registerSettings)
+type RegisterOption func(*registerSettings) error
 
 // WithSolvableVar gives the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will return an error if it cannot verify that this claim is correct.
-func WithSolvableVar(solvableVar int) registerOption {
-	return func(settings *registerSettings) {
+func WithSolvableVar(solvableVar int) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.solvableVar != -1 {
+			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
+		}
+		if settings.noSolvableVarVerification {
+			return errors.New("solvable variable already set to NONE")
+		}
 		settings.solvableVar = solvableVar
+		return nil
 	}
 }
 
 // WithUnverifiedSolvableVar sets the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will not verify that the given index is correct.
-func WithUnverifiedSolvableVar(solvableVar int) registerOption {
-	return func(settings *registerSettings) {
+func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.solvableVar != -1 {
+			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
+		}
+		if settings.noSolvableVarVerification {
+			return errors.New("solvable variable already set to NONE")
+		}
 		settings.noSolvableVarVerification = true
 		settings.solvableVar = solvableVar
+		return nil
 	}
 }
 
 // WithNoSolvableVar sets the gate as having no variable whose value can be uniquely determined from that of the other variables along with the gate's output.
 // RegisterGate will not check the correctness of this claim.
-func WithNoSolvableVar() registerOption {
-	return func(settings *registerSettings) {
+func WithNoSolvableVar() RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.solvableVar != -1 {
+			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
+		}
+		if settings.noSolvableVarVerification {
+			return errors.New("solvable variable already set to NONE")
+		}
 		settings.solvableVar = -1
 		settings.noSolvableVarVerification = true
+		return nil
 	}
 }
 
 // WithUnverifiedDegree sets the degree of the gate. RegisterGate will not verify that the given degree is correct.
-func WithUnverifiedDegree(degree int) registerOption {
-	return func(settings *registerSettings) {
+func WithUnverifiedDegree(degree int) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.degree != -1 {
+			return fmt.Errorf("gate degree already set to %d", settings.solvableVar)
+		}
 		settings.noDegreeVerification = true
 		settings.degree = degree
+		return nil
 	}
 }
 
 // WithDegree sets the degree of the gate. RegisterGate will return an error if the degree is not correct.
-func WithDegree(degree int) registerOption {
-	return func(settings *registerSettings) {
+func WithDegree(degree int) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.degree != -1 {
+			return fmt.Errorf("gate degree already set to %d", settings.solvableVar)
+		}
 		settings.degree = degree
+		return nil
 	}
 }
 
 // WithName can be used to set a human-readable name for the gate.
-func WithName(name gkr.GateName) registerOption {
-	return func(settings *registerSettings) {
+func WithName(name gkr.GateName) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.name != "" {
+			return fmt.Errorf("gate name already set to \"%s\"", settings.name)
+		}
 		settings.name = name
+		return nil
 	}
 }
 
@@ -90,9 +124,13 @@ func WithName(name gkr.GateName) registerOption {
 // The default is to validate on BN254.
 // This works for most gates, unless the leading coefficient is divided by
 // the curve's order, in which case the degree will be computed incorrectly.
-func WithCurves(curves ...ecc.ID) registerOption {
-	return func(settings *registerSettings) {
+func WithCurves(curves ...ecc.ID) RegisterOption {
+	return func(settings *registerSettings) error {
+		if settings.curves != nil {
+			return errors.New("gate curves already set")
+		}
 		settings.curves = curves
+		return nil
 	}
 }
 
@@ -102,10 +140,12 @@ func WithCurves(curves ...ecc.ID) registerOption {
 // - nbIn is the number of inputs to the gate.
 //
 // If the gate is already registered, it will return false and no error.
-func Register(f gkr.GateFunction, nbIn int, options ...registerOption) (registered bool, err error) {
+func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) (registered bool, err error) {
 	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f)}
 	for _, option := range options {
-		option(&s)
+		if err = option(&s); err != nil {
+			return
+		}
 	}
 
 	curvesForTesting := s.curves
