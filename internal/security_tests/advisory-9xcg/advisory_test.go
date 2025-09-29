@@ -45,8 +45,12 @@ func TestAdvisory_ghsa_9xcg_3q8v_7fq6(t *testing.T) {
 
 	// Generating a random secret witness.
 	var bound int64 = 1024 // ten bits of entropy for testing
-	secretWitness, err := rand.Int(rand.Reader, big.NewInt(bound))
-	assert.NoError(err, "random generation failed")
+	var secretWitness *big.Int
+	var err error
+	for secretWitness == nil || secretWitness.Sign() == 0 {
+		secretWitness, err = rand.Int(rand.Reader, big.NewInt(bound))
+		assert.NoError(err, "random generation failed")
+	}
 	assert.Log("random secret witness: ", secretWitness)
 
 	// Assigning some values.

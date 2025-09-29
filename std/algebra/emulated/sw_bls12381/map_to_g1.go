@@ -6,6 +6,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/conversion"
+	"github.com/consensys/gnark/std/hash/expand"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 func (g1 *G1) evalFixedPolynomial(monic bool, coefficients []fp.Element, x *baseEl) *baseEl {
@@ -53,8 +57,7 @@ func (g1 *G1) ClearCofactor(q *G1Affine) *G1Affine {
 	// cf https://eprint.iacr.org/2019/403.pdf, 5
 
 	// mulBySeed
-	z := g1.double(q)
-	z = g1.add(z, q)
+	z := g1.triple(q)
 	z = g1.double(z)
 	z = g1.doubleAndAdd(z, q)
 	z = g1.doubleN(z, 2)
@@ -179,4 +182,96 @@ func (g1 *G1) MapToG1(u *baseEl) (*G1Affine, error) {
 	z := g1.isogeny(res)
 	z = g1.ClearCofactor(z)
 	return z, nil
+}
+
+// EncodeToG1 hashes a message to a point on the G1 curve using the SSWU map as
+// defined in [RFC9380]. It is faster than [G1.HashToG1], but the result is not
+// uniformly distributed. Unsuitable as a random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function
+//
+// // This method corresponds to the [bls12381.EncodeToG1] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g1 *G1) EncodeToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
+	uniformBytes, err := expand.ExpandMsgXmd(g1.api, msg, dst, secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	el, err := secureBytesToElement(g1.api, g1.curveF, uniformBytes)
+	if err != nil {
+		return nil, fmt.Errorf("bytes to element: %w", err)
+	}
+	R, err := g1.MapToCurve1(el)
+	if err != nil {
+		return nil, fmt.Errorf("map to curve: %w", err)
+	}
+	R = g1.isogeny(R)
+	R = g1.ClearCofactor(R)
+	return R, nil
+}
+
+// HashToG1 hashes a message to a point on the G1 curve using the SSWU map as
+// defined in [RFC9380]. It is slower than [G1.EncodeToG1], but usable as a
+// random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function.
+//
+// This method corresponds to the [bls12381.HashToG1] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g1 *G1) HashToG1(msg []uints.U8, dst []byte) (*G1Affine, error) {
+	els := make([]*baseEl, 2)
+	uniformBytes, err := expand.ExpandMsgXmd(g1.api, msg, dst, len(els)*secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	for i := range els {
+		els[i], err = secureBytesToElement(g1.api, g1.curveF, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		if err != nil {
+			return nil, fmt.Errorf("bytes to element: %w", err)
+		}
+	}
+	Q0, err := g1.MapToCurve1(els[0])
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q0: %w", err)
+	}
+	Q1, err := g1.MapToCurve1(els[1])
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q1: %w", err)
+	}
+	R0 := g1.isogeny(Q0)
+	R1 := g1.isogeny(Q1)
+	R := g1.add(R0, R1)
+	R = g1.ClearCofactor(R)
+	return R, nil
+}
+
+func secureBytesToElement(api frontend.API, f *emulated.Field[BaseField], data []uints.U8) (*emulated.Element[BaseField], error) {
+	// we have sampled more bytes than is needed to serialize to field element.
+	// The goal is to have more uniform distribution of the output.
+	//
+	// However, we cannot easily initialize non-native elements with more than 48 bytes. So we instead look at
+	// x * 2^376 + y, where x are first 17 bytes and y are the last 47 bytes.
+	if len(data) != secureBaseElementLen {
+		return nil, fmt.Errorf("expected %d bytes, got %d", secureBaseElementLen, len(data))
+	}
+
+	hib := data[:secureBaseElementLen-fp.Bytes+1]
+	lob := data[secureBaseElementLen-fp.Bytes+1 : secureBaseElementLen]
+	// coeff is 2^376 % Fp
+	coeff := f.NewElement("153914086704665934422965000391185991426092731525255651046673021110334850669910978950836977558144201721900890587136")
+	hi, err := conversion.BytesToEmulated[BaseField](api, hib, conversion.WithAllowOverflow())
+	if err != nil {
+		return nil, fmt.Errorf("convert hi bytes to emulated element: %w", err)
+	}
+	lo, err := conversion.BytesToEmulated[BaseField](api, lob, conversion.WithAllowOverflow())
+	if err != nil {
+		return nil, fmt.Errorf("convert lo bytes to emulated element: %w", err)
+	}
+	res := f.Mul(hi, coeff)
+	res = f.Add(res, lo)
+	return res, nil
 }

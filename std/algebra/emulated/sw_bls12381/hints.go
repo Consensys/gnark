@@ -387,18 +387,36 @@ func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) erro
 			return fmt.Errorf("expecting %d inputs, got %d", nbBytes, len(nativeInputs))
 		}
 		for i := range nbBytes {
-			tmp := nativeInputs[i].Bytes()
-			if len(tmp) == 0 {
-				xCoord[i] = 0
-			} else {
-				xCoord[i] = tmp[len(tmp)-1] // tmp is in big endian
+			if !nativeInputs[i].IsUint64() || ((nativeInputs[i].Uint64() &^ 0xff) > 0) {
+				return fmt.Errorf("input %d is not a byte: %s", i, nativeInputs[i].String())
 			}
+			xCoord[i] = byte(nativeInputs[i].Uint64())
 		}
 
 		var point bls12381.G1Affine
 		_, err := point.SetBytes(xCoord)
+		// we have an error. However, as we have already checked the mask to be
+		// valid (0b100, 0b101, 0b110), and additionally checked that if mask is
+		// for infinity then also X is infinity, then in practice we can have
+		// only errors if x does not allow to encode valid point on a curve. In
+		// this case, we return a random point not on curve ourselves and then
+		// it is later checked in circuit indeed not to be on a curve.
 		if err != nil {
-			return fmt.Errorf("set bytes: %w", err)
+			var sign int64
+			switch (xCoord[0] & mMask) >> 5 {
+			case 0b100:
+				sign = 1
+			case 0b101:
+				sign = -1
+			default:
+				return fmt.Errorf("invalid mask %b for unmarshalG1: %w", (xCoord[0]&mMask)>>5, err)
+			}
+			for i := 1; i < 100; i++ { // we have probability 1/2 for each i to find a point not on curve
+				point.Y.SetInt64(int64(i) * sign)
+				if !point.IsOnCurve() {
+					break
+				}
+			}
 		}
 		point.Y.BigInt(outputs[0])
 		return nil
