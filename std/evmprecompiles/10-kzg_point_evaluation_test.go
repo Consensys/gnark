@@ -80,21 +80,21 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	h[0] = blobCommitmentVersionKZG
 
 	witnessHash := [2]frontend.Variable{
-		encode(h[16:32]),
 		encode(h[0:16]),
+		encode(h[16:32]),
 	}
 	// - commitment into 3 limbs
 	witnessCommitment := [3]frontend.Variable{
-		encode(commitmentBytes[32:48]),
-		encode(commitmentBytes[16:32]),
 		encode(commitmentBytes[0:16]),
+		encode(commitmentBytes[16:32]),
+		encode(commitmentBytes[32:48]),
 	}
 	// - proof into 3 limbs
 	proofUncompressed := kzgProof.H.Bytes()
 	witnessProof := [3]frontend.Variable{
-		encode(proofUncompressed[32:48]),
-		encode(proofUncompressed[16:32]),
 		encode(proofUncompressed[0:16]),
+		encode(proofUncompressed[16:32]),
+		encode(proofUncompressed[32:48]),
 	}
 
 	// prepare the constant return values
@@ -141,20 +141,20 @@ func (c *kzgPointEvalFailureCircuit) Define(api frontend.API) error {
 
 func runFailureCircuit(_ *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
 	witnessHash := [2]frontend.Variable{
-		encode(hashBytes[16:32]),
 		encode(hashBytes[0:16]),
+		encode(hashBytes[16:32]),
 	}
 	// - commitment into 3 limbs
 	witnessCommitment := [3]frontend.Variable{
-		encode(commitmentBytes[32:48]),
-		encode(commitmentBytes[16:32]),
 		encode(commitmentBytes[0:16]),
+		encode(commitmentBytes[16:32]),
+		encode(commitmentBytes[32:48]),
 	}
 	// - proof into 3 limbs
 	witnessProof := [3]frontend.Variable{
-		encode(proofBytes[32:48]),
-		encode(proofBytes[16:32]),
 		encode(proofBytes[0:16]),
+		encode(proofBytes[16:32]),
+		encode(proofBytes[32:48]),
 	}
 
 	// prepare the constant return values
