@@ -182,7 +182,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 			for inI, inWI := range w.Inputs {
 				gateIn[inI] = c.assignments[inWI][0] // take the first (only) instance
 			}
-			res := w.Gate.Evaluate(api, gateIn[:len(w.Inputs)]...)
+			res := w.Gate.Evaluate(gadget.FrontendAPIWrapper{API: api}, gateIn[:len(w.Inputs)]...)
 			if w.IsOutput() {
 				api.AssertIsEqual(res, c.assignments[wI][0])
 			} else {

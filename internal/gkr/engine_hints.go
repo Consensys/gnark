@@ -130,7 +130,7 @@ func (h *TestEngineHints) GetAssignment(_ *big.Int, ins []*big.Int, outs []*big.
 	return nil
 }
 
-type gateAPI struct{ *big.Int }
+type gateAPI struct{ mod *big.Int }
 
 func (g gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	in1 := utils.FromInterface(i1)
@@ -147,7 +147,7 @@ func (g gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 func (g gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	x, y := utils.FromInterface(b), utils.FromInterface(c)
 	x.Mul(&x, &y)
-	x.Mod(&x, g.Int) // reduce
+	x.Mod(&x, g.mod) // reduce
 	y = utils.FromInterface(a)
 	x.Add(&x, &y)
 	return &x
@@ -178,8 +178,19 @@ func (g gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 		y = utils.FromInterface(v)
 		x.Mul(&x, &y)
 	}
-	x.Mod(&x, g.Int) // reduce
+	x.Mod(&x, g.mod) // reduce
 	return &x
+}
+
+func (g gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
+	x := utils.FromInterface(a)
+	res := utils.FromInterface(b)
+
+	x.Add(&x, &res)
+	res = utils.FromInterface(c)
+	x.Add(&x, &res)
+	res.Exp(&x, big.NewInt(17), g.mod)
+	return &res
 }
 
 func (g gateAPI) Println(a ...frontend.Variable) {
