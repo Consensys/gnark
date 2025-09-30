@@ -141,7 +141,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	return res, nil
 }
 
-// finalize encodes the verification circuitry for the GKR circuit
+// finalize encodes the verification circuitry for the GKR circuit.
 func (c *Circuit) finalize(api frontend.API) error {
 	if api != c.api {
 		panic("api mismatch")

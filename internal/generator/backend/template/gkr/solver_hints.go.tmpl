@@ -26,12 +26,17 @@ type newSolvingDataSettings struct {
 
 type NewSolvingDataOption func(*newSolvingDataSettings)
 
+// WithAssignment re-use already computed wire assignments.
 func WithAssignment(assignment gkrtypes.WireAssignment) NewSolvingDataOption {
 	return func(s *newSolvingDataSettings) {
 		s.assignment = assignment
 	}
 }
 
+// NewSolvingData converts gkrtypes.SolvingInfo into a concrete SolvingData object:
+// - The gates are loaded in accordance with their names.
+// - The instances/assignments are padded into a power of 2, suitable for the multilinear extensions used
+// in the GKR prover.
 func NewSolvingData(info gkrtypes.SolvingInfo, options ...NewSolvingDataOption) *SolvingData {
 	var s newSolvingDataSettings
 	for _, opt := range options {
@@ -64,7 +69,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...NewSolvingDataOption) 
 					panic(fmt.Errorf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
 				}
 			}
-			// inline equivalent of RepeatUntilEnd
+			// inline equivalent of repeatUntilEnd
 			for j := len(s.assignment[i]); j < nbPaddedInstances; j++ {
 				d.assignment[i][j] = d.assignment[i][j-1] // pad with the last value
 			}
@@ -76,7 +81,8 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...NewSolvingDataOption) 
 
 // this module assumes that wire and instance indexes respect dependencies
 
-
+// GetAssignmentHint generates a hint that returns the value of a particular wire at a particular instance.
+// It is intended for use in the debugging function gkrapi.API.GetValue.
 func GetAssignmentHint(data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		if len(ins) != 3 {
@@ -91,6 +97,8 @@ func GetAssignmentHint(data *SolvingData) hint.Hint {
 	}
 }
 
+// SolveHint generate a hint that computes the assignments for all wires in a circuit instance.
+// It is intended for use in gkrapi.API.AddInstance.
 func SolveHint(data *SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		instanceI := ins[0].Uint64()
@@ -122,11 +130,13 @@ func SolveHint(data *SolvingData) hint.Hint {
 	}
 }
 
+// ProveHint generates a hint that produces the GKR proof using the computed assignments contained in data.
+// It is meant for use in gkrapi.Circuit.finalize.
 func ProveHint(hashName string, data *SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
-		data.assignment.RepeatUntilEnd(data.nbInstances)
+		data.assignment.repeatUntilEnd(data.nbInstances)
 
 		// The first input is dummy, just to ensure the solver's work is done before the prover is called.
 		// The rest constitute the initial fiat shamir challenge
@@ -149,9 +159,9 @@ func ProveHint(hashName string, data *SolvingData) hint.Hint {
 	}
 }
 
-// RepeatUntilEnd for each wire, sets all the values starting from n > 0 to its predecessor.
-{{ print "// e.g. {{1, 2, 3}, {4, 5, 6}}.RepeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}"}}
-func (a WireAssignment) RepeatUntilEnd(n int) {
+// repeatUntilEnd for each wire, sets all the values starting from n > 0 to its predecessor.
+{{ print "// e.g. {{1, 2, 3}, {4, 5, 6}}.repeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}"}}
+func (a WireAssignment) repeatUntilEnd(n int) {
 	for i := range a {
 		for j := n; j < len(a[i]); j++ {
 			a[i][j] = a[i][j-1]
