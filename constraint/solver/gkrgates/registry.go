@@ -112,6 +112,9 @@ func WithDegree(degree int) RegisterOption {
 // WithName can be used to set a human-readable name for the gate.
 func WithName(name gkr.GateName) RegisterOption {
 	return func(settings *registerSettings) error {
+		if name == "" {
+			return errors.New("gate name must not be empty")
+		}
 		if settings.name != "" {
 			return fmt.Errorf("gate name already set to \"%s\"", settings.name)
 		}
@@ -141,11 +144,14 @@ func WithCurves(curves ...ecc.ID) RegisterOption {
 //
 // If the gate is already registered, it will return false and no error.
 func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
-	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f)}
+	s := registerSettings{degree: -1, solvableVar: -1}
 	for _, option := range options {
 		if err := option(&s); err != nil {
 			return err
 		}
+	}
+	if s.name == "" {
+		s.name = GetDefaultGateName(f)
 	}
 
 	curvesForTesting := s.curves
