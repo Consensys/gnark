@@ -10,6 +10,7 @@ import (
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
 	bls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
@@ -19,8 +20,6 @@ import (
 	bw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 var (

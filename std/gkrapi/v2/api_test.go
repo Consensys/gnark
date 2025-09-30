@@ -18,7 +18,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/consensys/gnark/std/gkrapi/v2/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +40,7 @@ func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit := gkrApi.Compile(api, WithHashName(c.hashName))
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -86,7 +86,7 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit := gkrApi.Compile(api, WithHashName(c.hashName))
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -132,7 +132,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit := gkrApi.Compile(api, WithHashName(c.hashName))
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -190,7 +190,7 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit := gkrApi.Compile(api, WithHashName(c.hashName))
 
 	state := c.XFirst
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
@@ -292,7 +292,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Gate(mimcGate, x, y)
 
-	gkrCircuit := gkrApi.Compile(api, "-20")
+	gkrCircuit := gkrApi.Compile(api, WithHashName("-20"))
 
 	// prepare input
 	curLayer := make([]frontend.Variable, 1<<c.depth)
@@ -424,7 +424,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		z = gkrApi.Gate(mimcGate, x, z)
 	}
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit := gkrApi.Compile(api, WithHashName(c.hashName))
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -605,7 +605,7 @@ func (c *pow4Circuit) Define(api frontend.API) error {
 	x2 := gkrApi.Mul(x, x)   // x²
 	x4 := gkrApi.Mul(x2, x2) // x⁴
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit := gkrApi.Compile(api, WithHashName("MIMC"))
 
 	for i := range c.X {
 		instanceIn := make(map[gkr.Variable]frontend.Variable)
@@ -687,7 +687,7 @@ func (c *testNoInstanceCircuit) Define(api frontend.API) error {
 	y := gkrApi.Mul(x, x)
 	gkrApi.Mul(x, y)
 
-	gkrApi.Compile(api, "MIMC")
+	gkrApi.Compile(api, WithHashName("MIMC"))
 
 	return nil
 }
