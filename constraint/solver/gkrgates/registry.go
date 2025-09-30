@@ -140,11 +140,11 @@ func WithCurves(curves ...ecc.ID) RegisterOption {
 // - nbIn is the number of inputs to the gate.
 //
 // If the gate is already registered, it will return false and no error.
-func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) (registered bool, err error) {
+func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 	s := registerSettings{degree: -1, solvableVar: -1, name: GetDefaultGateName(f)}
 	for _, option := range options {
-		if err = option(&s); err != nil {
-			return
+		if err := option(&s); err != nil {
+			return err
 		}
 	}
 
@@ -162,26 +162,26 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) (register
 	if g, ok := gates[s.name]; ok {
 		// gate already registered
 		if g.NbIn() != nbIn {
-			return false, fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn(), nbIn)
+			return fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn(), nbIn)
 		}
 
 		for _, curve := range curvesForTesting {
 			gateVer, err := NewGateVerifier(curve)
 			if err != nil {
-				return false, err
+				return err
 			}
 			if !gateVer.equal(f, g.Evaluate, nbIn) {
-				return false, fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree(), curve)
+				return fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree(), curve)
 			}
 		}
 
-		return false, nil // gate already registered
+		return nil // gate already registered
 	}
 
 	for _, curve := range curvesForTesting {
 		gateVer, err := NewGateVerifier(curve)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if s.degree == -1 { // find a degree
@@ -190,12 +190,12 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) (register
 			}
 			const maxAutoDegreeBound = 32
 			if s.degree, err = gateVer.findDegree(f, maxAutoDegreeBound, nbIn); err != nil {
-				return false, fmt.Errorf("for gate \"%s\": %v", s.name, err)
+				return fmt.Errorf("for gate \"%s\": %v", s.name, err)
 			}
 		} else {
 			if !s.noDegreeVerification { // check that the given degree is correct
 				if err = gateVer.verifyDegree(f, s.degree, nbIn); err != nil {
-					return false, fmt.Errorf("for gate \"%s\": %v", s.name, err)
+					return fmt.Errorf("for gate \"%s\": %v", s.name, err)
 				}
 			}
 		}
@@ -207,14 +207,14 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) (register
 		} else {
 			// solvable variable given
 			if !s.noSolvableVarVerification && !gateVer.isVarSolvable(f, s.solvableVar, nbIn) {
-				return false, fmt.Errorf("cannot verify the solvability of variable %d in gate \"%s\"", s.solvableVar, s.name)
+				return fmt.Errorf("cannot verify the solvability of variable %d in gate \"%s\"", s.solvableVar, s.name)
 			}
 		}
 
 	}
 
 	gates[s.name] = gkrtypes.NewGate(f, nbIn, s.degree, s.solvableVar, allowedCurves)
-	return true, nil
+	return nil
 }
 
 func Get(name gkr.GateName) *gkrtypes.Gate {

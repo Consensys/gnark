@@ -25,16 +25,11 @@ func Example() {
 	// SNARK circuit being compiled.
 	// But in production applications it would be necessary.
 
-	_, err := gkrgates.Register(squareGate, 1)
-	assertNoError(err)
-	_, err = gkrgates.Register(sGate, 4)
-	assertNoError(err)
-	_, err = gkrgates.Register(zGate, 4)
-	assertNoError(err)
-	_, err = gkrgates.Register(xGate, 2)
-	assertNoError(err)
-	_, err = gkrgates.Register(yGate, 4)
-	assertNoError(err)
+	assertNoError(gkrgates.Register(squareGate, 1))
+	assertNoError(gkrgates.Register(sGate, 4))
+	assertNoError(gkrgates.Register(zGate, 4))
+	assertNoError(gkrgates.Register(xGate, 2))
+	assertNoError(gkrgates.Register(yGate, 4))
 
 	const nbInstances = 2
 	// create instances
