@@ -186,10 +186,14 @@ func (b *builder) addNode(node *Node, nodeID int, maxFlat float64) {
 	}
 
 	// Create DOT attribute for node.
+	var cumRatio float64
+	if b.config.Total != 0 {
+		cumRatio = float64(node.CumValue()) / float64(abs64(b.config.Total))
+	}
 	attr := fmt.Sprintf(`label="%s" id="node%d" fontsize=%d shape=%s tooltip="%s (%s)" color="%s" fillcolor="%s"`,
 		label, nodeID, fontSize, shape, escapeForDot(node.Info.PrintableName()), cumValue,
-		dotColor(float64(node.CumValue())/float64(abs64(b.config.Total)), false),
-		dotColor(float64(node.CumValue())/float64(abs64(b.config.Total)), true))
+		dotColor(cumRatio, false),
+		dotColor(cumRatio, true))
 
 	// Add on extra attributes if provided.
 	if attrs != nil {
