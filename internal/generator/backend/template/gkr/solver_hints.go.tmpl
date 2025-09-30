@@ -24,15 +24,15 @@ type newSolvingDataSettings struct {
 	assignment gkrtypes.WireAssignment
 }
 
-type newSolvingDataOption func(*newSolvingDataSettings)
+type NewSolvingDataOption func(*newSolvingDataSettings)
 
-func WithAssignment(assignment gkrtypes.WireAssignment) newSolvingDataOption {
+func WithAssignment(assignment gkrtypes.WireAssignment) NewSolvingDataOption {
 	return func(s *newSolvingDataSettings) {
 		s.assignment = assignment
 	}
 }
 
-func NewSolvingData(info gkrtypes.SolvingInfo, options ...newSolvingDataOption) *SolvingData {
+func NewSolvingData(info gkrtypes.SolvingInfo, options ...NewSolvingDataOption) *SolvingData {
 	var s newSolvingDataSettings
 	for _, opt := range options {
 		opt(&s)
