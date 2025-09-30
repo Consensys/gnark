@@ -123,7 +123,7 @@ func KzgPointEvaluation(
 	// versioned hash
 	var versionedHashBytes [sha256.Size]uints.U8
 	for i := range versionedHash {
-		res, err := conversion.NativeToBytes(api, versionedHash[len(versionedHash)-1-i])
+		res, err := conversion.NativeToBytes(api, versionedHash[i])
 		if err != nil {
 			return fmt.Errorf("convert versioned hash element %d to bytes: %w", i, err)
 		}
@@ -133,7 +133,7 @@ func KzgPointEvaluation(
 	// commitment
 	var comSerializedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range commitmentCompressed {
-		res, err := conversion.NativeToBytes(api, commitmentCompressed[len(commitmentCompressed)-1-i])
+		res, err := conversion.NativeToBytes(api, commitmentCompressed[i])
 		if err != nil {
 			return fmt.Errorf("convert commitment element %d to bytes: %w", i, err)
 		}
@@ -142,7 +142,7 @@ func KzgPointEvaluation(
 	// proof
 	var proofSerialisedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range proofCompressed {
-		res, err := conversion.NativeToBytes(api, proofCompressed[len(proofCompressed)-1-i])
+		res, err := conversion.NativeToBytes(api, proofCompressed[i])
 		if err != nil {
 			return fmt.Errorf("convert proof element %d to bytes: %w", i, err)
 		}
@@ -289,8 +289,8 @@ func KzgPointEvaluationFailure(
 		Y: *fp.NewElement(0),
 	}
 	dummyVersionedHash := []frontend.Variable{
-		"0xdef7ab966d7b770905398eba3c444014",
 		"0x010657f37554c781402a22917dee2f75",
+		"0xdef7ab966d7b770905398eba3c444014",
 	}
 	// -- check that the masks of compressed commitment and proof are correct
 	// (infinity, small y, large y). If either of them is not correct, then we
@@ -300,7 +300,7 @@ func KzgPointEvaluationFailure(
 	// - first we unpack the packed commitment and proof into bytes
 	var comSerializedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range commitmentCompressed {
-		res, err := conversion.NativeToBytes(api, commitmentCompressed[len(commitmentCompressed)-1-i])
+		res, err := conversion.NativeToBytes(api, commitmentCompressed[i])
 		if err != nil {
 			return fmt.Errorf("convert commitment element %d to bytes: %w", i, err)
 		}
@@ -308,7 +308,7 @@ func KzgPointEvaluationFailure(
 	}
 	var proofSerialisedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range proofCompressed {
-		res, err := conversion.NativeToBytes(api, proofCompressed[len(proofCompressed)-1-i])
+		res, err := conversion.NativeToBytes(api, proofCompressed[i])
 		if err != nil {
 			return fmt.Errorf("convert proof element %d to bytes: %w", i, err)
 		}
@@ -458,7 +458,7 @@ func KzgPointEvaluationFailure(
 	// - first map the versioned hash to bytes
 	var versionedHashBytes [sha256.Size]uints.U8
 	for i := range versionedHash {
-		res, err := conversion.NativeToBytes(api, versionedHash[len(versionedHash)-1-i])
+		res, err := conversion.NativeToBytes(api, versionedHash[i])
 		if err != nil {
 			return fmt.Errorf("convert versioned hash element %d to bytes: %w", i, err)
 		}
