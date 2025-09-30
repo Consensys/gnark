@@ -79,29 +79,12 @@ func (cc *innerConfig) phi1Neg(api frontend.API, res, P *g2AffP) *g2AffP {
 	return res
 }
 
-type curvePoints struct {
-	G1x *big.Int      // base point x
-	G1y *big.Int      // base point y
-	G1m [][2]*big.Int // m*base points (x,y)
-}
-
 var (
-	computedCurveTable [][2]*big.Int
 	computedTwistTable [][8]*big.Int
 )
 
 func init() {
-	computedCurveTable = computeCurveTable()
 	computedTwistTable = computeTwistTable()
-}
-
-func getCurvePoints() curvePoints {
-	_, _, g1aff, _ := bls24315.Generators()
-	return curvePoints{
-		G1x: g1aff.X.BigInt(new(big.Int)),
-		G1y: g1aff.Y.BigInt(new(big.Int)),
-		G1m: computedCurveTable,
-	}
 }
 
 type twistPoints struct {

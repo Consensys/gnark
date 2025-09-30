@@ -387,7 +387,7 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(pr.api, *e2)
 }
-func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -483,7 +483,7 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	return &ret
 }
 
-func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+func (pr *Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 	if len(inputs) == 0 {
 		return nil
 	}
