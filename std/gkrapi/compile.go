@@ -108,8 +108,8 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr.Variable]frontend.Variable, error) {
 	if len(input) != len(c.ins) {
 		for k := range input {
-			if k >= gkr.Variable(len(c.ins)) {
-				return nil, fmt.Errorf("variable %d is out of bounds (max %d)", k, len(c.ins)-1)
+			if k >= gkr.Variable(len(c.toStore.Circuit)) {
+				return nil, fmt.Errorf("variable %d is out of bounds (max %d)", k, len(c.toStore.Circuit)-1)
 			}
 			if !c.toStore.Circuit[k].IsInput() {
 				return nil, fmt.Errorf("value provided for non-input variable %d", k)

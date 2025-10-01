@@ -3,6 +3,7 @@ package gkrtypes
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -34,12 +35,7 @@ func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves [
 }
 
 func (g *Gate) SupportsCurve(curve ecc.ID) bool {
-	for _, c := range g.curves {
-		if c == curve {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(g.curves, curve)
 }
 
 func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {

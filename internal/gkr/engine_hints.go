@@ -85,7 +85,6 @@ func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 		return fmt.Errorf("failed to convert storing info to solving info: %w", err)
 	}
 
-	// TODO @Tabaie autogenerate this or decide not to
 	if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
 		data := bls12377.NewSolvingData(info, bls12377.WithAssignment(h.assignment))
 		return bls12377.ProveHint(info.HashName, data)(mod, ins, outs)

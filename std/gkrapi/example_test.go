@@ -16,8 +16,8 @@ import (
 
 func Example() {
 	// This example computes the double of multiple BLS12-377 G1 points, which can be computed natively over BW6-761.
-	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
-	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
+	// The two curves form a "cycle", meaning the scalar field of one is the base field of the other.
+	// The implementation is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
 
 	// register the gates: Doing so is not needed here because
