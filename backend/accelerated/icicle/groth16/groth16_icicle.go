@@ -54,6 +54,7 @@ func warmUpDevice() {
 }
 
 func Prove(r1cs constraint.ConstraintSystem, pk groth16.ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (groth16.Proof, error) {
+	warmUpDevice()
 	switch _r1cs := r1cs.(type) {
 	case *cs_bls12377.R1CS:
 		return icicle_bls12377.Prove(_r1cs, pk.(*icicle_bls12377.ProvingKey), fullWitness, opts...)
