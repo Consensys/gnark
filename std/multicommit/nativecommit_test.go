@@ -1,4 +1,4 @@
-package multicommit
+package multicommit_test
 
 import (
 	"testing"
@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/widecommitter"
 	"github.com/consensys/gnark/std/math/fieldextension"
+	"github.com/consensys/gnark/std/multicommit"
 	"github.com/consensys/gnark/test"
 )
 
@@ -18,8 +19,8 @@ type noRecursionCircuit struct {
 }
 
 func (c *noRecursionCircuit) Define(api frontend.API) error {
-	WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error { return nil }, commitment)
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error { return nil }, commitment)
 		return nil
 	}, c.X)
 	return nil
@@ -39,12 +40,12 @@ type multipleCommitmentCircuit struct {
 func (c *multipleCommitmentCircuit) Define(api frontend.API) error {
 	var stored frontend.Variable
 	// first callback receives first unique commitment derived from the root commitment
-	WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		api.AssertIsDifferent(c.X, commitment)
 		stored = commitment
 		return nil
 	}, c.X)
-	WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		api.AssertIsDifferent(stored, commitment)
 		return nil
 	}, c.X)
@@ -63,7 +64,7 @@ type noCommitVariable struct {
 }
 
 func (c *noCommitVariable) Define(api frontend.API) error {
-	WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error { return nil })
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error { return nil })
 	return nil
 }
 
@@ -83,12 +84,12 @@ type wideCommitment struct {
 
 func (c *wideCommitment) Define(api frontend.API) error {
 	if c.withCommitment {
-		WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 			api.AssertIsDifferent(commitment, 0)
 			return nil
 		}, c.X)
 	}
-	WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+	multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
 		fe, err := fieldextension.NewExtension(api, fieldextension.WithDegree(8))
 		if err != nil {
 			return err

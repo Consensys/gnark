@@ -1,7 +1,7 @@
 // Copyright 2020-2025 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
-package fiatshamir
+package fiatshamir_test
 
 import (
 	"crypto/rand"
@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	gcfiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/utils"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -33,7 +34,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, []string{"alpha", "beta", "gamma"})
+	tsSnark := fiatshamir.NewTranscript(api, &hSnark, []string{"alpha", "beta", "gamma"})
 
 	// Bind challenges
 	if err := tsSnark.Bind("alpha", circuit.Bindings[0][:]); err != nil {
@@ -88,7 +89,7 @@ func TestFiatShamir(t *testing.T) {
 	for curveID, h := range testData {
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
+		ts := gcfiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
 
 		var bindings [3][4]*big.Int
 		for i := 0; i < 3; i++ {

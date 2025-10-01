@@ -1,4 +1,4 @@
-package uints
+package uints_test
 
 import (
 	"fmt"
@@ -6,17 +6,18 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 )
 
 type lrotCirc struct {
-	In    U32
-	Out   U32
+	In    uints.U32
+	Out   uints.U32
 	Shift int
 }
 
 func (c *lrotCirc) Define(api frontend.API) error {
-	uapi, err := New[U32](api)
+	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
 		return err
 	}
@@ -27,27 +28,27 @@ func (c *lrotCirc) Define(api frontend.API) error {
 
 func TestLeftRotation(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&lrotCirc{Shift: 4}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 4, Out: NewU32(bits.RotateLeft32(0x12345678, 4))}))
-	assert.CheckCircuit(&lrotCirc{Shift: 14}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 14, Out: NewU32(bits.RotateLeft32(0x12345678, 14))}))
-	assert.CheckCircuit(&lrotCirc{Shift: 3}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 3, Out: NewU32(bits.RotateLeft32(0x12345678, 3))}))
-	assert.CheckCircuit(&lrotCirc{Shift: 11}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 11, Out: NewU32(bits.RotateLeft32(0x12345678, 11))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 4}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: 4, Out: uints.NewU32(bits.RotateLeft32(0x12345678, 4))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 14}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: 14, Out: uints.NewU32(bits.RotateLeft32(0x12345678, 14))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 3}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: 3, Out: uints.NewU32(bits.RotateLeft32(0x12345678, 3))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 11}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: 11, Out: uints.NewU32(bits.RotateLeft32(0x12345678, 11))}))
 	// full block
-	assert.CheckCircuit(&lrotCirc{Shift: 16}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: 16, Out: NewU32(bits.RotateLeft32(0x12345678, 16))}))
+	assert.CheckCircuit(&lrotCirc{Shift: 16}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: 16, Out: uints.NewU32(bits.RotateLeft32(0x12345678, 16))}))
 	// negative rotations
-	assert.CheckCircuit(&lrotCirc{Shift: -4}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -4, Out: NewU32(bits.RotateLeft32(0x12345678, -4))}))
-	assert.CheckCircuit(&lrotCirc{Shift: -14}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -14, Out: NewU32(bits.RotateLeft32(0x12345678, -14))}))
-	assert.CheckCircuit(&lrotCirc{Shift: -3}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -3, Out: NewU32(bits.RotateLeft32(0x12345678, -3))}))
-	assert.CheckCircuit(&lrotCirc{Shift: -11}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -11, Out: NewU32(bits.RotateLeft32(0x12345678, -11))}))
-	assert.CheckCircuit(&lrotCirc{Shift: -16}, test.WithValidAssignment(&lrotCirc{In: NewU32(0x12345678), Shift: -16, Out: NewU32(bits.RotateLeft32(0x12345678, -16))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -4}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: -4, Out: uints.NewU32(bits.RotateLeft32(0x12345678, -4))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -14}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: -14, Out: uints.NewU32(bits.RotateLeft32(0x12345678, -14))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -3}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: -3, Out: uints.NewU32(bits.RotateLeft32(0x12345678, -3))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -11}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: -11, Out: uints.NewU32(bits.RotateLeft32(0x12345678, -11))}))
+	assert.CheckCircuit(&lrotCirc{Shift: -16}, test.WithValidAssignment(&lrotCirc{In: uints.NewU32(0x12345678), Shift: -16, Out: uints.NewU32(bits.RotateLeft32(0x12345678, -16))}))
 }
 
 type rshiftCircuit struct {
-	In, Expected U32
+	In, Expected uints.U32
 	Shift        int
 }
 
 func (c *rshiftCircuit) Define(api frontend.API) error {
-	uapi, err := New[U32](api)
+	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
 		return err
 	}
@@ -58,19 +59,19 @@ func (c *rshiftCircuit) Define(api frontend.API) error {
 
 func TestRshift(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&rshiftCircuit{Shift: 4}, test.WithValidAssignment(&rshiftCircuit{Shift: 4, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 4)}))
-	assert.CheckCircuit(&rshiftCircuit{Shift: 12}, test.WithValidAssignment(&rshiftCircuit{Shift: 12, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 12)}))
-	assert.CheckCircuit(&rshiftCircuit{Shift: 3}, test.WithValidAssignment(&rshiftCircuit{Shift: 3, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 3)}))
-	assert.CheckCircuit(&rshiftCircuit{Shift: 11}, test.WithValidAssignment(&rshiftCircuit{Shift: 11, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 11)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 4}, test.WithValidAssignment(&rshiftCircuit{Shift: 4, In: uints.NewU32(0x12345678), Expected: uints.NewU32(0x12345678 >> 4)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 12}, test.WithValidAssignment(&rshiftCircuit{Shift: 12, In: uints.NewU32(0x12345678), Expected: uints.NewU32(0x12345678 >> 12)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 3}, test.WithValidAssignment(&rshiftCircuit{Shift: 3, In: uints.NewU32(0x12345678), Expected: uints.NewU32(0x12345678 >> 3)}))
+	assert.CheckCircuit(&rshiftCircuit{Shift: 11}, test.WithValidAssignment(&rshiftCircuit{Shift: 11, In: uints.NewU32(0x12345678), Expected: uints.NewU32(0x12345678 >> 11)}))
 }
 
-type valueOfCircuit[T Long] struct {
+type valueOfCircuit[T uints.Long] struct {
 	In       frontend.Variable
 	Expected T
 }
 
 func (c *valueOfCircuit[T]) Define(api frontend.API) error {
-	uapi, err := New[T](api)
+	uapi, err := uints.New[T](api)
 	if err != nil {
 		return err
 	}
@@ -81,18 +82,18 @@ func (c *valueOfCircuit[T]) Define(api frontend.API) error {
 
 func TestValueOf(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&valueOfCircuit[U64]{}, test.WithValidAssignment(&valueOfCircuit[U64]{In: 0x12345678, Expected: [8]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12), NewU8(0), NewU8(0), NewU8(0), NewU8(0)}}))
-	assert.CheckCircuit(&valueOfCircuit[U32]{}, test.WithValidAssignment(&valueOfCircuit[U32]{In: 0x12345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}))
-	assert.CheckCircuit(&valueOfCircuit[U32]{}, test.WithInvalidAssignment(&valueOfCircuit[U32]{In: 0x1234567812345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}))
+	assert.CheckCircuit(&valueOfCircuit[uints.U64]{}, test.WithValidAssignment(&valueOfCircuit[uints.U64]{In: 0x12345678, Expected: [8]uints.U8{uints.NewU8(0x78), uints.NewU8(0x56), uints.NewU8(0x34), uints.NewU8(0x12), uints.NewU8(0), uints.NewU8(0), uints.NewU8(0), uints.NewU8(0)}}))
+	assert.CheckCircuit(&valueOfCircuit[uints.U32]{}, test.WithValidAssignment(&valueOfCircuit[uints.U32]{In: 0x12345678, Expected: [4]uints.U8{uints.NewU8(0x78), uints.NewU8(0x56), uints.NewU8(0x34), uints.NewU8(0x12)}}))
+	assert.CheckCircuit(&valueOfCircuit[uints.U32]{}, test.WithInvalidAssignment(&valueOfCircuit[uints.U32]{In: 0x1234567812345678, Expected: [4]uints.U8{uints.NewU8(0x78), uints.NewU8(0x56), uints.NewU8(0x34), uints.NewU8(0x12)}}))
 }
 
 type addCircuit struct {
-	In       [2]U32
-	Expected U32
+	In       [2]uints.U32
+	Expected uints.U32
 }
 
 func (c *addCircuit) Define(api frontend.API) error {
-	uapi, err := New[U32](api)
+	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
 		return err
 	}
@@ -103,19 +104,19 @@ func (c *addCircuit) Define(api frontend.API) error {
 
 func TestAdd(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&addCircuit{}, test.WithValidAssignment(&addCircuit{In: [2]U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}))
+	assert.CheckCircuit(&addCircuit{}, test.WithValidAssignment(&addCircuit{In: [2]uints.U32{uints.NewU32(^uint32(0)), uints.NewU32(2)}, Expected: uints.NewU32(1)}))
 }
 
-// Add tests where we try to initialize unconstrained U8
+// Add tests where we try to initialize unconstrained uints.U8
 type ConstrainedCheckCircuit struct {
-	A, B, C U8
+	A, B, C uints.U8
 	mode    int
 }
 
 func (c *ConstrainedCheckCircuit) Define(api frontend.API) error {
-	uapi, err := NewBytes(api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
-		return fmt.Errorf("NewBytes: %w", err)
+		return fmt.Errorf("uints.NewBytes: %w", err)
 	}
 	switch c.mode {
 	case 0:
@@ -135,29 +136,29 @@ func TestConstrainedCircuit(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	assert.Run(func(assert *test.Assert) {
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 0}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: NewU8(0x0f), B: NewU8(0xf0), C: NewU8(0x00)}))
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 0}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: U8{Val: 0x00ff}, B: U8{Val: 0xf0f}, C: U8{Val: 0x00f}}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 0}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: uints.NewU8(0x0f), B: uints.NewU8(0xf0), C: uints.NewU8(0x00)}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 0}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: uints.U8{Val: 0x00ff}, B: uints.U8{Val: 0xf0f}, C: uints.U8{Val: 0x00f}}))
 	}, "and")
 	assert.Run(func(assert *test.Assert) {
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 1}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: NewU8(0x0f), B: NewU8(0xf0), C: NewU8(0xff)}))
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 1}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: U8{Val: 0x0f00}, B: U8{Val: 0x0f0}, C: U8{Val: 0xff0}}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 1}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: uints.NewU8(0x0f), B: uints.NewU8(0xf0), C: uints.NewU8(0xff)}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 1}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: uints.U8{Val: 0x0f00}, B: uints.U8{Val: 0x0f0}, C: uints.U8{Val: 0xff0}}))
 	}, "or")
 	assert.Run(func(assert *test.Assert) {
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 2}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: NewU8(0x0f), B: NewU8(0xf0), C: NewU8(0xff)}))
-		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 2}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: U8{Val: 0x0f0f}, B: U8{Val: 0x0ff}, C: U8{Val: 0xff0}}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 2}, test.WithValidAssignment(&ConstrainedCheckCircuit{A: uints.NewU8(0x0f), B: uints.NewU8(0xf0), C: uints.NewU8(0xff)}))
+		assert.CheckCircuit(&ConstrainedCheckCircuit{mode: 2}, test.WithInvalidAssignment(&ConstrainedCheckCircuit{A: uints.U8{Val: 0x0f0f}, B: uints.U8{Val: 0x0ff}, C: uints.U8{Val: 0xff0}}))
 	}, "xor")
 }
 
 type ToValueCircuit struct {
-	In        U32
+	In        uints.U32
 	withCheck bool
 	Expected  frontend.Variable
 }
 
 func (c *ToValueCircuit) Define(api frontend.API) error {
-	uapi, err := New[U32](api)
+	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
-		return fmt.Errorf("New: %w", err)
+		return fmt.Errorf("uints.New: %w", err)
 	}
 	res := uapi.ToValue(c.In)
 	if c.withCheck {
@@ -168,19 +169,19 @@ func (c *ToValueCircuit) Define(api frontend.API) error {
 
 func TestToValue(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&ToValueCircuit{withCheck: true}, test.WithValidAssignment(&ToValueCircuit{In: NewU32(0x12345678), Expected: 0x12345678}))
-	assert.CheckCircuit(&ToValueCircuit{withCheck: false}, test.WithInvalidAssignment(&ToValueCircuit{In: [4]U8{{Val: 0x780}, {Val: 0x56}, {Val: 0x34}, {Val: 0x12}}, Expected: 0x12345678}))
+	assert.CheckCircuit(&ToValueCircuit{withCheck: true}, test.WithValidAssignment(&ToValueCircuit{In: uints.NewU32(0x12345678), Expected: 0x12345678}))
+	assert.CheckCircuit(&ToValueCircuit{withCheck: false}, test.WithInvalidAssignment(&ToValueCircuit{In: [4]uints.U8{{Val: 0x780}, {Val: 0x56}, {Val: 0x34}, {Val: 0x12}}, Expected: 0x12345678}))
 }
 
 type ValueWitnessCircuit struct {
-	In       U8
+	In       uints.U8
 	Expected frontend.Variable
 }
 
 func (c *ValueWitnessCircuit) Define(api frontend.API) error {
-	uapi, err := NewBytes(api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
-		return fmt.Errorf("NewBytes: %w", err)
+		return fmt.Errorf("uints.NewBytes: %w", err)
 	}
 	res := uapi.Value(c.In)
 	api.AssertIsEqual(res, c.Expected)
@@ -189,8 +190,8 @@ func (c *ValueWitnessCircuit) Define(api frontend.API) error {
 
 func TestValueWitness(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&ValueWitnessCircuit{}, test.WithValidAssignment(&ValueWitnessCircuit{In: NewU8(0x12), Expected: 0x12}))
-	assert.CheckCircuit(&ValueWitnessCircuit{}, test.WithInvalidAssignment(&ValueWitnessCircuit{In: U8{Val: 0x1234}, Expected: 0x1234}))
+	assert.CheckCircuit(&ValueWitnessCircuit{}, test.WithValidAssignment(&ValueWitnessCircuit{In: uints.NewU8(0x12), Expected: 0x12}))
+	assert.CheckCircuit(&ValueWitnessCircuit{}, test.WithInvalidAssignment(&ValueWitnessCircuit{In: uints.U8{Val: 0x1234}, Expected: 0x1234}))
 }
 
 type ValueInCircuitCircuit struct {
@@ -199,11 +200,11 @@ type ValueInCircuitCircuit struct {
 }
 
 func (c *ValueInCircuitCircuit) Define(api frontend.API) error {
-	uapi, err := NewBytes(api)
+	uapi, err := uints.NewBytes(api)
 	if err != nil {
-		return fmt.Errorf("NewBytes: %w", err)
+		return fmt.Errorf("uints.NewBytes: %w", err)
 	}
-	in := U8{Val: c.In}
+	in := uints.U8{Val: c.In}
 	res := uapi.Value(in)
 	api.AssertIsEqual(res, c.Expected)
 	return nil

@@ -1,9 +1,10 @@
-package bitslice
+package bitslice_test
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/test"
 )
 
@@ -17,11 +18,11 @@ type partitionCircuit struct {
 }
 
 func (c *partitionCircuit) Define(api frontend.API) error {
-	var opts []Option
+	var opts []bitslice.Option
 	if c.nbDigitsOpt > 0 {
-		opts = append(opts, WithNbDigits(c.nbDigitsOpt))
+		opts = append(opts, bitslice.WithNbDigits(c.nbDigitsOpt))
 	}
-	lower, upper := Partition(api, c.In, c.Split, opts...)
+	lower, upper := bitslice.Partition(api, c.In, c.Split, opts...)
 	api.AssertIsEqual(lower, c.ExpLower)
 	api.AssertIsEqual(upper, c.ExpUpper)
 	return nil
