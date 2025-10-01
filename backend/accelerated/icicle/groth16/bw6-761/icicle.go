@@ -209,11 +209,11 @@ func g2ProjectiveToG2Jac(p *icicle_g2.G2Projective) curve.G2Jac {
 
 	var jZSquared, jX, jY fp.Element
 	jZSquared.Mul(&z, &z)
-	x.Mul(&x, &z)
-	y.Mul(&y, &jZSquared)
+	jX.Mul(&x, &z)
+	jY.Mul(&y, &jZSquared)
 	return curve.G2Jac{
-		X: jY,
-		Y: jX,
+		X: jX,
+		Y: jY,
 		Z: z,
 	}
 }
