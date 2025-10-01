@@ -20,6 +20,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	gkrhints "github.com/consensys/gnark/internal/gkr"
 	gkr "github.com/consensys/gnark/internal/gkr/bls12-381"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
@@ -56,10 +57,11 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 			return nil, err
 		}
 		gkrData := gkr.NewSolvingData(solvingInfo)
+		var gkrHints gkrhints.TestEngineHints
 		opts = append(opts,
-			csolver.OverrideHint(cs.GkrInfo.GetAssignmentHintID, gkr.GetAssignmentHint(gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, gkrData)))
+			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
+			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
+			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(cs.GkrInfo.HashName, gkrData)))
 	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)

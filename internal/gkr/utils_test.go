@@ -1,4 +1,4 @@
-package gkr
+package gkr_test
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package gkr
+package gkr_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
@@ -108,7 +109,7 @@ type GkrVerifierCircuit struct {
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	var testCase *TestCase
-	var proof Proof
+	var proof gkr.Proof
 	var err error
 	//var proofRef Proof
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
@@ -116,7 +117,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	sorted := testCase.Circuit.TopologicalSort()
 
-	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
+	if proof, err = gkr.DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
@@ -130,7 +131,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 		}
 	}
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
+	return gkr.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
 func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
@@ -158,7 +159,7 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 type TestCase struct {
 	Circuit gkrtypes.Circuit
 	Hash    HashDescription
-	Proof   Proof
+	Proof   gkr.Proof
 	Input   [][]frontend.Variable
 	Output  [][]frontend.Variable
 	Name    string
@@ -215,8 +216,8 @@ type PrintableSumcheckProof struct {
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 }
 
-func unmarshalProof(printable PrintableProof) (proof Proof) {
-	proof = make(Proof, len(printable))
+func unmarshalProof(printable PrintableProof) (proof gkr.Proof) {
+	proof = make(gkr.Proof, len(printable))
 	for i := range printable {
 
 		if printable[i].FinalEvalProof != nil {
@@ -245,7 +246,7 @@ func TestLogNbInstances(t *testing.T) {
 			assert.NoError(t, err)
 			wires := testCase.Circuit.TopologicalSort()
 			serializedProof := testCase.Proof.Serialize()
-			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
+			logNbInstances := gkr.ComputeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
 		}
 	}
