@@ -1,7 +1,7 @@
 // Copyright 2020-2025 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
-package mimc_test
+package mimc
 
 import (
 	"crypto/rand"
@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/internal/mimc"
 	"github.com/consensys/gnark/test"
 )
 
@@ -23,7 +22,7 @@ type mimcCircuit struct {
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
-	mimc, err := mimc.NewMiMC(api)
+	mimc, err := NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -94,8 +93,8 @@ type stateStoreTestCircuit struct {
 
 func (s *stateStoreTestCircuit) Define(api frontend.API) error {
 
-	hsh1, err1 := mimc.NewMiMC(api)
-	hsh2, err2 := mimc.NewMiMC(api)
+	hsh1, err1 := NewMiMC(api)
+	hsh2, err2 := NewMiMC(api)
 
 	if err1 != nil || err2 != nil {
 		return fmt.Errorf("could not instantiate the MIMC hasher: %w", errors.Join(err1, err2))
@@ -162,7 +161,7 @@ type recoveredStateTestCircuit struct {
 }
 
 func (c *recoveredStateTestCircuit) Define(api frontend.API) error {
-	h, err := mimc.NewMiMC(api)
+	h, err := NewMiMC(api)
 	if err != nil {
 		return fmt.Errorf("initialize hash: %w", err)
 	}

@@ -1,11 +1,10 @@
-package fieldextension_test
+package fieldextension
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/test"
 )
 
@@ -15,7 +14,7 @@ type ReduceCircut struct {
 }
 
 func (c *ReduceCircut) Define(api frontend.API) error {
-	e, err := fieldextension.NewExtension(api)
+	e, err := NewExtension(api)
 	if err != nil {
 		return err
 	}
@@ -76,7 +75,7 @@ type AddCircuit struct {
 }
 
 func (c *AddCircuit) Define(api frontend.API) error {
-	e, err := fieldextension.NewExtension(api)
+	e, err := NewExtension(api)
 	if err != nil {
 		return err
 	}
@@ -123,7 +122,7 @@ type SubCircuit struct {
 }
 
 func (c *SubCircuit) Define(api frontend.API) error {
-	e, err := fieldextension.NewExtension(api)
+	e, err := NewExtension(api)
 	if err != nil {
 		return err
 	}
@@ -170,7 +169,7 @@ type MulCircuit struct {
 }
 
 func (c *MulCircuit) Define(api frontend.API) error {
-	e, err := fieldextension.NewExtension(api)
+	e, err := NewExtension(api)
 	if err != nil {
 		return err
 	}
