@@ -20,8 +20,8 @@ import (
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	gkrhints "github.com/consensys/gnark/internal/gkr"
 	gkr "github.com/consensys/gnark/internal/gkr/bw6-633"
+	"github.com/consensys/gnark/internal/gkr/gkrhints"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
 

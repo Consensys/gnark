@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
+	"github.com/consensys/gnark/internal/gkr/gkrhints"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -32,8 +33,8 @@ type Circuit struct {
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
-	api                  frontend.API            // the parent API used for hints
-	hints                *gadget.TestEngineHints // hints for the GKR circuit, used for testing purposes
+	api                  frontend.API              // the parent API used for hints
+	hints                *gkrhints.TestEngineHints // hints for the GKR circuit, used for testing purposes
 }
 
 // New creates a new GKR API
@@ -70,7 +71,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	res.toStore.HashName = fiatshamirHashName
 
 	var err error
-	res.hints, err = gadget.NewTestEngineHints(&res.toStore)
+	res.hints, err = gkrhints.NewTestEngineHints(&res.toStore)
 	if err != nil {
 		panic(fmt.Errorf("failed to call GKR hints: %w", err))
 	}

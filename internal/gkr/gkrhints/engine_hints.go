@@ -1,4 +1,4 @@
-package gkr
+package gkrhints
 
 import (
 	"errors"

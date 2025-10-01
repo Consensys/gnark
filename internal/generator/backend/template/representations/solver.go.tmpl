@@ -15,7 +15,7 @@ import (
 	{{- if not .NoGKR }}
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	gkr "github.com/consensys/gnark/internal/gkr/{{ toLower .Curve }}"
-	gkrhints "github.com/consensys/gnark/internal/gkr"
+	"github.com/consensys/gnark/internal/gkr/gkrhints"
 	{{- end }}
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	{{ template "import_fr" . }}
