@@ -66,7 +66,7 @@ func NewSolvingData(info gkrtypes.SolvingInfo, options ...NewSolvingDataOption) 
 			}
 			for j := range s.assignment[i] {
 				if _, err := d.assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
-					panic(fmt.Sprintf("provided assignment for wire %d instance %d is not a valid field element: %w", i, j, err))
+					panic(fmt.Sprintf("provided assignment for wire %d instance %d is not a valid field element: %v", i, j, err))
 				}
 			}
 			// inline equivalent of repeatUntilEnd
