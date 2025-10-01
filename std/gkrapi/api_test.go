@@ -40,7 +40,10 @@ func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -86,7 +89,10 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -132,7 +138,10 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -190,7 +199,10 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	if err != nil {
+		return err
+	}
 
 	state := c.XFirst
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
@@ -292,7 +304,10 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	y := gkrApi.NewInput()
 	z := gkrApi.Gate(mimcGate, x, y)
 
-	gkrCircuit := gkrApi.Compile(api, "-20")
+	gkrCircuit, err := gkrApi.Compile(api, "-20")
+	if err != nil {
+		return err
+	}
 
 	// prepare input
 	curLayer := make([]frontend.Variable, 1<<c.depth)
@@ -424,7 +439,10 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		z = gkrApi.Gate(mimcGate, x, z)
 	}
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -605,7 +623,10 @@ func (c *pow4Circuit) Define(api frontend.API) error {
 	x2 := gkrApi.Mul(x, x)   // x²
 	x4 := gkrApi.Mul(x2, x2) // x⁴
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	if err != nil {
+		return err
+	}
 
 	for i := range c.X {
 		instanceIn := make(map[gkr.Variable]frontend.Variable)

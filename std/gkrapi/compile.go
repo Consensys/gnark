@@ -1,11 +1,11 @@
 package gkrapi
 
 import (
+	"errors"
 	"fmt"
 	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
@@ -47,11 +47,11 @@ func (api *API) NewInput() gkr.Variable {
 	return gkr.Variable(api.toStore.NewInputVariable())
 }
 
-type compileOption func(*Circuit)
+type CompileOption func(*Circuit)
 
 // WithInitialChallenge provides a getter for the initial Fiat-Shamir challenge.
 // If not provided, the initial challenge will be a commitment to all the input and output values of the circuit.
-func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) compileOption {
+func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOption {
 	return func(c *Circuit) {
 		c.getInitialChallenges = getInitialChallenge
 	}
@@ -60,8 +60,7 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) compileOpt
 // Compile finalizes the GKR circuit.
 // From this point on, the circuit cannot be modified.
 // But instances can be added to the circuit.
-func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, options ...compileOption) *Circuit {
-	// TODO define levels here
+func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
 		toStore:     api.toStore,
 		assignments: make(gkrtypes.WireAssignment, len(api.toStore.Circuit)),
@@ -73,7 +72,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 	var err error
 	res.hints, err = gkrhints.NewTestEngineHints(&res.toStore)
 	if err != nil {
-		panic(fmt.Errorf("failed to call GKR hints: %w", err))
+		return nil, fmt.Errorf("failed to call GKR hints: %w", err)
 	}
 
 	for _, opt := range options {
@@ -90,19 +89,19 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 		}
 	}
 
+	if len(res.ins) == len(res.toStore.Circuit) {
+		return nil, errors.New("circuit has no non-input wires")
+	}
+
 	for i := range res.toStore.Circuit {
 		if !notOut[i] {
 			res.outs = append(res.outs, gkr.Variable(i))
 		}
 	}
 
-	res.toStore.GetAssignmentHintID = solver.GetHintID(res.hints.GetAssignment)
-	res.toStore.ProveHintID = solver.GetHintID(res.hints.Prove)
-	res.toStore.SolveHintID = solver.GetHintID(res.hints.Solve)
-
 	parentApi.Compiler().Defer(res.finalize)
 
-	return &res
+	return &res, nil
 }
 
 // AddInstance adds a new instance to the GKR circuit, returning the values of output variables for the instance.
@@ -234,7 +233,6 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		c.hints.Prove, gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(len(c.assignments[0])))), hintIns...); err != nil {
 		return err
 	}
-	c.toStore.ProveHintID = solver.GetHintID(c.hints.Prove)
 
 	forSnarkSorted := utils.SliceOfRefs(forSnark.circuit)
 

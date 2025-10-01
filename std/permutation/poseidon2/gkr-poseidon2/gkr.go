@@ -120,15 +120,19 @@ type GkrCompressor struct {
 // Note that the solver will need the function RegisterGkrGates to be called with the desired curves
 func NewGkrCompressor(api frontend.API) *GkrCompressor {
 	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
-		panic("currently only BL12-377 is supported")
+		panic("currently only BLS12-377 is supported")
 	}
 	gkrApi, in1, in2, out, err := defineCircuitBls12377()
 	if err != nil {
-		panic(fmt.Errorf("failed to define GKR circuit: %v", err))
+		panic(fmt.Sprintf("failed to define GKR circuit: %v", err))
+	}
+	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	if err != nil {
+		panic(fmt.Sprintf("failed to compile GKR circuit: %v", err))
 	}
 	return &GkrCompressor{
 		api:        api,
-		gkrCircuit: gkrApi.Compile(api, "MIMC"),
+		gkrCircuit: gkrCircuit,
 		in1:        in1,
 		in2:        in2,
 		out:        out,

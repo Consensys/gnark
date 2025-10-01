@@ -109,7 +109,10 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
 	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	if err != nil {
+		return err
+	}
 
 	// add input and check output for correctness
 	instanceIn := make(map[gkr.Variable]frontend.Variable)

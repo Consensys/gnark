@@ -1,10 +1,6 @@
 // Package gkrinfo contains serializable information capable of being saved in a SNARK circuit CS object.
 package gkrinfo
 
-import (
-	"github.com/consensys/gnark/constraint/solver"
-)
-
 type (
 	InputDependency struct {
 		OutputWire     int
@@ -20,12 +16,9 @@ type (
 	Circuit []Wire
 
 	StoringInfo struct {
-		Circuit             Circuit
-		NbInstances         int
-		HashName            string
-		GetAssignmentHintID solver.HintID
-		SolveHintID         solver.HintID
-		ProveHintID         solver.HintID
+		Circuit     Circuit
+		NbInstances int
+		HashName    string
 	}
 
 	Permutations struct {
