@@ -57,7 +57,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 			return nil, err
 		}
 		gkrData := gkr.NewSolvingData(solvingInfo)
-		var gkrHints gkrhints.TestEngineHints
+		var gkrHints *gkrhints.TestEngineHints
 		opts = append(opts,
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
