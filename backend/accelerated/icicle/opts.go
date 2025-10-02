@@ -39,8 +39,14 @@ type Option func(*Config) error
 type Backend int
 
 const (
+	// CUDA supported with free version
 	CUDA Backend = iota
+	// CPU supported, but not included in the current dependency. Kept for future use and to reserve
+	// the enum value.
 	CPU
+	// METAL not supported with free version. Kept for future use and to reserve
+	// the enum value.
+	METAL
 	maxBackend
 )
 

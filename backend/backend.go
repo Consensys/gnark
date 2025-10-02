@@ -126,7 +126,7 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 //
 // DEPRECATED: we don't switch to ICICLE automatically anymore, the user has to
 // explicitly use methods in the [github.com/consensys/gnark/backend/accelerated/icicle]
-// package to use ICICLE acceleration. This option will be remove in a future release,
+// package to use ICICLE acceleration. This option will be removed in a future release,
 // but kept for now for API backward compatibility. It will error at runtime instead.
 //
 // [ICICLE]: https://github.com/ingonyama-zk/icicle-gnark
