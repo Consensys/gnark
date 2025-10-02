@@ -39,7 +39,7 @@ func warmUpDevice(config *icicle.Config) {
 	onceWarmUpDevice.Do(func() {
 		log := logger.Logger()
 		if config.BackendLibs != "" {
-			err := icicle_runtime.LoadBackend(config.BackendLibs, false)
+			err := icicle_runtime.LoadBackend(config.BackendLibs, true)
 			if err != icicle_runtime.Success {
 				panic(fmt.Sprintf("custom ICICLE backend loading error: %s", err.AsString()))
 			}
