@@ -53,7 +53,7 @@ func warmUpDevice(config *icicle.Config) {
 		if err != icicle_runtime.Success {
 			panic(fmt.Sprintf("ICICLE get device count error: %s", err.AsString()))
 		}
-		log.Info().Int("nbDev", nbDev).Msg("ICICLE devices detected")
+		log.Debug().Int("nbDev", nbDev).Msg("ICICLE devices detected")
 		for id := 0; id < nbDev; id++ {
 			device := icicle_runtime.CreateDevice(config.Backend.String(), id)
 			log.Debug().Int32("id", device.Id).Str("type", device.GetDeviceType()).Msg("ICICLE device created")
