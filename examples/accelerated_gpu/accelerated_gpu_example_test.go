@@ -151,4 +151,9 @@ func Example() {
 			panic(err)
 		}
 	}
+	// Output:
+	// testing curve bn254
+	// testing curve bls12_377
+	// testing curve bls12_381
+	// testing curve bw6_761
 }
