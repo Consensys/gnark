@@ -3,6 +3,7 @@ package sumcheck
 import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
+	"math/big"
 )
 
 // Proof contains the prover messages in the sumcheck protocol.
@@ -34,9 +35,36 @@ func valueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])
 	}
-	// TODO: type switch FinalEvalProof when it is not-nil
+	// Convert native FinalEvalProof into emulated representation when present.
+	var final EvaluationProof
+	switch v := any(nproof.FinalEvalProof).(type) {
+	case nil:
+		final = nil
+	case *big.Int:
+		val := emulated.ValueOf[FR](v)
+		final = val
+	case []*big.Int:
+		vals := make([]emulated.Element[FR], len(v))
+		for i := range v {
+			vals[i] = emulated.ValueOf[FR](v[i])
+		}
+		final = vals
+	case [][]*big.Int:
+		outer := make([][]emulated.Element[FR], len(v))
+		for i := range v {
+			inner := make([]emulated.Element[FR], len(v[i]))
+			for j := range v[i] {
+				inner[j] = emulated.ValueOf[FR](v[i][j])
+			}
+			outer[i] = inner
+		}
+		final = outer
+	default:
+		panic("sumcheck: unsupported FinalEvalProof type")
+	}
 	return Proof[FR]{
 		RoundPolyEvaluations: rps,
+		FinalEvalProof:       final,
 	}
 }
 
