@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/hash_to_field"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/accelerated/icicle"
 	groth16_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -230,8 +231,8 @@ func g2ProjectiveToG2Jac(p *icicle_g2.G2Projective) curve.G2Jac {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*groth16_bls12381.Proof, error) {
-	opt, err := backend.NewProverConfig(opts...)
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icicle.Config) (*groth16_bls12381.Proof, error) {
+	opt, err := backend.NewProverConfig(cfg.ProverOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("new prover config: %w", err)
 	}
@@ -240,7 +241,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "icicle").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 
-	device := icicle_runtime.CreateDevice("CUDA", 0)
+	device := icicle_runtime.CreateDevice(cfg.Backend.String(), cfg.DeviceID)
 
 	if pk.deviceInfo == nil {
 		log.Debug().Msg("precomputing proving key in GPU")
