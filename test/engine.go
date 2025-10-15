@@ -642,7 +642,6 @@ func (e *engine) copyWitness(to, from frontend.Circuit) {
 
 	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
 		if tInput.IsNil() {
-			// TODO @gbotrel test for missing assignment
 			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
 		wValues = append(wValues, tInput)
