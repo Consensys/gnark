@@ -101,3 +101,64 @@ func TestPreCompileHook(t *testing.T) {
 		t.Error("callback not called")
 	}
 }
+
+// testCircuit is a simple circuit for testing missing assignment
+type testCircuit struct {
+	A frontend.Variable
+	B frontend.Variable
+}
+
+// Define implements the frontend.Circuit interface
+func (c *testCircuit) Define(api frontend.API) error {
+	// Simple constraint: A + B = 10
+	api.AssertIsEqual(api.Add(c.A, c.B), 10)
+	return nil
+}
+
+// TestMissingAssignment tests the error handling when a variable is not assigned (nil)
+func TestMissingAssignment(t *testing.T) {
+	circuit := &testCircuit{}
+
+	// Create a witness where one variable is nil (not assigned)
+	witness := &testCircuit{
+		A: 5,   // A is assigned
+		B: nil, // B is not assigned - this should trigger the error
+	}
+
+	// Test that IsSolved panics when a variable is missing assignment
+	// We need to catch the panic since it happens in copyWitness before the defer in IsSolved
+	var panicMsg string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicMsg = fmt.Sprintf("%v", r)
+			}
+		}()
+		IsSolved(circuit, witness, ecc.BN254.ScalarField())
+	}()
+
+	// Check that we got a panic with the expected message
+	if panicMsg == "" {
+		t.Fatal("expected panic for missing assignment, but got none")
+	}
+
+	// Check that the panic message contains the expected text
+	expectedErrorMsg := "missing assignment"
+	if !contains(panicMsg, expectedErrorMsg) {
+		t.Fatalf("expected panic message to contain '%s', but got: %s", expectedErrorMsg, panicMsg)
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || (len(substr) > 0 && indexOf(s, substr) >= 0))
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
