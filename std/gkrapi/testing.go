@@ -62,12 +62,9 @@ func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTest
 
 	res := make([][]frontend.Variable, len(api.toStore.Circuit))
 	var verifiedGates sync.Map
-	for i, w := range api.toStore.Circuit {
+	for i := range api.toStore.Circuit {
 		res[i] = make([]frontend.Variable, api.nbInstances())
 		copy(res[i], api.assignments[i])
-		if len(w.Inputs) == 0 {
-			continue
-		}
 	}
 	for instanceI := range api.nbInstances() {
 		for wireI, w := range api.toStore.Circuit {
@@ -96,9 +93,6 @@ func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTest
 					ins[i] = res[in][instanceI]
 				}
 				gate := gkrgates.Get(gkr.GateName(w.Gate))
-				if gate == nil && !w.IsInput() {
-					panic(fmt.Errorf("gate %s not found", w.Gate))
-				}
 				if _, ok := verifiedGates.Load(w.Gate); !ok {
 					verifiedGates.Store(w.Gate, struct{}{})
 
@@ -110,9 +104,7 @@ func (api *API) SolveInTestEngine(parentApi frontend.API, options ...SolveInTest
 						panic(fmt.Errorf("gate %s: %w", w.Gate, err))
 					}
 				}
-				if gate != nil {
-					res[wireI][instanceI] = gate.Evaluate(parentApi, ins...)
-				}
+				res[wireI][instanceI] = gate.Evaluate(parentApi, ins...)
 			}
 		}
 	}
