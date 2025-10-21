@@ -1,0 +1,135 @@
+package sw_bls12381
+
+import (
+	"fmt"
+
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/conversion"
+	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/selector"
+)
+
+const (
+	mMask                 byte = 0b111 << 5
+	mUncompressed         byte = 0b000 << 5
+	_                     byte = 0b001 << 5 // invalid
+	mUncompressedInfinity byte = 0b010 << 5
+	_                     byte = 0b011 << 5 // invalid
+	mCompressedSmallest   byte = 0b100 << 5
+	mCompressedLargest    byte = 0b101 << 5
+	mCompressedInfinity   byte = 0b110 << 5
+	_                     byte = 0b111 << 5 // invalid
+)
+
+// UnmarshalCompressed unmarshals a compressed point in G1. See [pairing
+// friendly curves IETF draft] for the details of the encoding.
+//
+// We assume that the input is a valid compressed point. The length of the input
+// must be 48 bytes (but we keep it as a slice for future compatibility with
+// interfaces).
+//
+// The method supports the following compressed point formats:
+//   - compressed regular point, with y lexicographically smallest (header 0b100<<5)
+//   - compressed regular point, with y lexicographically largest (header 0b101<<5)
+//   - compressed point at infinity (header 0b110<<5).
+//
+// Particularly, the method DOES NOT support uncompressed points (header
+// 0b000<<5) and uncompressed points at infinity (header 0b010<<5).
+//
+// The method performs curve membership check and subgroup membership check.
+//
+// [pairing friendly curves IETF draft]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/11/.
+func (g1 *G1) UnmarshalCompressed(compressedPoint []uints.U8, opts ...algopts.AlgebraOption) (*G1Affine, error) {
+	// for future compatibility (adding method to the [algebra.Pairing]
+	// interface) we haven't set the method signature to be [48]uints.U8, but
+	// rather a slice. Thus we need to check the length of the input.
+	if len(compressedPoint) != bls12381.SizeOfG1AffineCompressed {
+		return nil, fmt.Errorf("compressed point must be %d bytes, got %d", bls12381.SizeOfG1AffineCompressed, len(compressedPoint))
+	}
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new config: %w", err)
+	}
+	// 1 - compute the x coordinate (so it fits in Fp)
+	nbBytes := fp.Bytes
+	uapi, err := uints.NewBytes(g1.api)
+	if err != nil {
+		return nil, fmt.Errorf("new uints api: %w", err)
+	}
+	unmask := uints.NewU8(mMask)                   // unmaks = ^mask
+	prefix := uapi.And(unmask, compressedPoint[0]) // prefix = compressedPoint[0] & unmask
+	// lets ensure that we have a valid prefix (0b100, 0b101, 0b110)
+	prefixShifted := g1.api.Div(uapi.Value(prefix), 32) // prefixShifted = prefix >> 5
+	isValidPrefix := selector.Mux(g1.api, prefixShifted,
+		0, // 0b000
+		0, // 0b001
+		0, // 0b010
+		0, // 0b011
+		1, // 0b100 - compressed regular point, with y lexicographically smallest
+		1, // 0b101 - compressed regular point, with y lexicographically largest
+		1, // 0b110 - compressed point at infinity
+		0, // 0b111
+	)
+	g1.api.AssertIsEqual(isValidPrefix, 1)
+
+	// first we remove the prefix from the first byte. The prefix indicates if
+	// the input is compressed and point at infinity. It also indicates the sign
+	// of the y coordinate. The prefix is first three bits 0b11100000=0xE0. So to get
+	// unprefixed x coordinate, we need to mask the first byte with 0x1F = ^0xE0.
+	mask := uints.NewU8(^mMask)                     // mask = [0x1F]
+	firstByte := uapi.And(mask, compressedPoint[0]) // firstByte = compressedPoint[0] & mask
+	unmaskedXCoord := make([]uints.U8, nbBytes)
+	unmaskedXCoord[0] = firstByte
+	copy(unmaskedXCoord[1:], compressedPoint[1:])
+	x, err := conversion.BytesToEmulated[BaseField](g1.api, unmaskedXCoord)
+	if err != nil {
+		return nil, fmt.Errorf("bytes to emulated: %w", err)
+	}
+	// if the prefix was for compressed infinity, then check that the X coordinate is zero
+	isPrefixCompressedInfinity := g1.api.IsZero(g1.api.Sub(mCompressedInfinity, uapi.Value(prefix)))
+	isXZero := g1.curveF.IsZero(x)
+	g1.api.AssertIsEqual(isXZero, isPrefixCompressedInfinity)
+
+	// 1 - hint y coordinate of the result
+	rawBytesCompressedPoints := make([]frontend.Variable, nbBytes)
+	for i := range nbBytes {
+		rawBytesCompressedPoints[i] = uapi.Value(compressedPoint[i])
+	}
+	hout, err := g1.curveF.NewHintWithNativeInput(unmarshalG1, 1, rawBytesCompressedPoints...)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal hint: %w", err)
+	}
+	y := hout[0]
+	res := &G1Affine{X: *x, Y: *y}
+
+	// 3 - subgroup check
+	// we omit subgroup memberhship check if the option is set. We use it in negative cases
+	// in KZG pointeval circuit in evmprecompiles package where we need to get the membership
+	// result to be able to switch to dummy values.
+	if !cfg.NoGroupMembership {
+		g1.AssertIsOnG1(res)
+	}
+
+	// 4 - check logic with the mask
+	// We already check above that x=0 if mask is for infinity. Also assert that
+	// the hint returned value y=0 when mask is infinity.
+	isYZero := g1.curveF.IsZero(&res.Y)
+	g1.api.AssertIsEqual(isYZero, isPrefixCompressedInfinity)
+
+	// if we take the smallest y, then y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	isCompressedSmallest := g1.api.IsZero(g1.api.Sub(mCompressedSmallest, uapi.Value(prefix)))
+	negY := g1.curveF.Neg(y)
+	negY = g1.curveF.Reduce(negY)
+	smallest := g1.curveF.Select(isCompressedSmallest, y, negY)
+	g1.curveF.AssertIsLessOrEqual(smallest, g1.halfp)
+
+	// if we take the largest y, then -y < p/2. The constraint also works if p=0 and prefix=compressedInfinity
+	isCompressedLargest := g1.api.IsZero(g1.api.Sub(mCompressedLargest, uapi.Value(prefix)))
+	smallest = g1.curveF.Select(isCompressedLargest, negY, y)
+	g1.curveF.AssertIsLessOrEqual(smallest, g1.halfp)
+
+	return res, nil
+}

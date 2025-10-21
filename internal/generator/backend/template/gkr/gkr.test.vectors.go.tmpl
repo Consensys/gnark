@@ -1,0 +1,139 @@
+{{define "gkrTestVectors"}}
+
+{{$CheckOutputCorrectness := true}}
+
+func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
+	proof := make(Proof, len(printable))
+	for i := range printable {
+		finalEvalProof := []{{.ElementType}}(nil)
+
+		if printable[i].FinalEvalProof != nil {
+			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
+			finalEvalProof = make([]{{.ElementType}}, finalEvalSlice.Len())
+			for k := range finalEvalProof {
+				if _, err := {{ setElement "finalEvalProof[k]" "finalEvalSlice.Index(k).Interface()" .ElementType}}; err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		proof[i] = sumcheckProof{
+			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
+			finalEvalProof:  finalEvalProof,
+		}
+		for k := range printable[i].PartialSumPolys {
+			var err error
+			if proof[i].partialSumPolys[k], err = sliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return proof, nil
+}
+
+type TestCase struct {
+	Circuit         gkrtypes.Circuit
+	Hash            hash.Hash
+	Proof           Proof
+	FullAssignment  WireAssignment
+	InOutAssignment WireAssignment
+	{{if .GenerateTestVectors}}Info gkrtesting.TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it{{end}}
+}
+
+var (
+	testCases = make(map[string]*TestCase)
+	cache = gkrtesting.NewCache()
+)
+
+func newTestCase(path string) (*TestCase, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Dir(path)
+
+	tCase, ok := testCases[path]
+	if ok {
+		return tCase, nil
+	}
+
+	info, err := cache.ReadTestCaseInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	circuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
+	var _hash hash.Hash
+	if _hash, err = hashFromDescription(info.Hash); err != nil {
+		return nil, err
+	}
+	var proof Proof
+	if proof, err = unmarshalProof(info.Proof); err != nil {
+		return nil, err
+	}
+
+	fullAssignment := make(WireAssignment, len(circuit))
+	inOutAssignment := make(WireAssignment, len(circuit))
+
+	sorted := circuit.TopologicalSort()
+
+	inI, outI := 0, 0
+	for i, w := range sorted {
+		var assignmentRaw []interface{}
+		if w.IsInput() {
+			if inI == len(info.Input) {
+				return nil, fmt.Errorf("fewer input in vector than in circuit")
+			}
+			assignmentRaw = info.Input[inI]
+			inI++
+		} else if w.IsOutput() {
+			if outI == len(info.Output) {
+				return nil, fmt.Errorf("fewer output in vector than in circuit")
+			}
+			assignmentRaw = info.Output[outI]
+			outI++
+		}
+		if assignmentRaw != nil {
+			var wireAssignment []{{ .ElementType }}
+			if wireAssignment, err = sliceToElementSlice(assignmentRaw); err != nil {
+				return nil, err
+			}
+
+			fullAssignment[i] = wireAssignment
+			inOutAssignment[i] = wireAssignment
+		}
+	}
+
+	fullAssignment.Complete(utils.References(circuit))
+
+	for i, w := range sorted {
+		if w.IsOutput() {
+			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
+				return nil, fmt.Errorf("assignment mismatch: %v", err)
+			}
+		}
+	}
+
+	tCase = &TestCase{
+		FullAssignment:  fullAssignment,
+		InOutAssignment: inOutAssignment,
+		Proof:           proof,
+		Hash:            _hash,
+		Circuit:         circuit,
+		{{ if .GenerateTestVectors }} Info:            info, {{ end }}
+	}
+
+	testCases[path] = tCase
+
+	return tCase, nil
+}
+
+{{end}}
+
+{{- define "setElement element value elementType"}}
+{{- if eq .elementType "fr.Element"}} setElement(&{{.element}}, {{.value}})
+{{- else if eq .elementType "small_rational.SmallRational"}} {{.element}}.SetInterface({{.value}})
+{{- else}}
+{{print "\"UNEXPECTED TYPE" .elementType "\""}}
+{{- end}}
+{{- end}}
