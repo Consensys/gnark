@@ -4,8 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"os"
-	"strings"
+	"testing"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -13,7 +12,7 @@ import (
 )
 
 func Bsb22CommitmentComputePlaceholder(mod *big.Int, _ []*big.Int, output []*big.Int) (err error) {
-	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
+	if testing.Testing() || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
 		log.Error().Msg("Augmented commitment hint not replaced. Proof will not be sound and verification will fail!")
