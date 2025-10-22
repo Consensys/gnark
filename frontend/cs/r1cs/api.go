@@ -77,8 +77,16 @@ func (builder *builder[E]) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	// results fits, _a is mutated without performing a new memalloc
 	builder.mbuf2 = builder.mbuf2[:0]
 	builder.add([]expr.LinearExpression[E]{_a, builder.mbuf1}, false, 0, &builder.mbuf2)
-	_a = _a[:0]
-	if len(builder.mbuf2) <= cap(_a) {
+
+	// if we can add the multiplication term to the accumulator LE (by having sufficient capacity)
+	// then we append directly into _a. However, _a can also be the hardcoded linear expressions corresponding
+	// to zero or one constant. Now, we we would append into those then we would modify the underlying slice
+	// thus modifying the constant themselves. This leads to undefined behaviour.
+	//
+	// So, in addition to only checking the capacity we also check that the underlying slices are different.
+	// to avoid using unsafe.Pointer, we check the address of the first elements.
+	if len(builder.mbuf2) <= cap(_a) && &(_a[0]) != &(builder.cstZero()[0]) && &(_a[0]) != &(builder.cstOne()[0]) {
+		_a = _a[:0]
 		// it fits, no mem alloc
 		_a = append(_a, builder.mbuf2...)
 	} else {
