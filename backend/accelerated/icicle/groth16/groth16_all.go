@@ -24,7 +24,8 @@ func NewProof(curveID ecc.ID) groth16.Proof {
 	return groth16.NewProof(curveID)
 }
 
-// NewProvingKey creates a new empty proving key for deserializing into. It is compatible with [groth16.NewProvingKey].
+// NewCS creates new typed R1CS constraint system for the given curve. It is compatible with [groth16.NewCS].
+// It is used for deserializing R1CS constraint systems.
 func NewCS(curveID ecc.ID) constraint.ConstraintSystem {
 	return groth16.NewCS(curveID)
 }
