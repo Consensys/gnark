@@ -29,7 +29,7 @@ func (c *circuit) Define(api frontend.API) error {
 
 func TestMarshal(t *testing.T) {
 	assert := test.NewAssert(t)
-	ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &circuit{})
+	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit{})
 	assert.NoError(err)
 	tCcs := ccs.(*cs_bw6761.R1CS)
 	nativePK := groth16_bw6761.ProvingKey{}
@@ -37,7 +37,7 @@ func TestMarshal(t *testing.T) {
 	err = groth16_bw6761.Setup(tCcs, &nativePK, &nativeVK)
 	assert.NoError(err)
 
-	pk := groth16.NewProvingKey(ecc.BLS12_381)
+	pk := groth16.NewProvingKey(ecc.BW6_761)
 	buf := new(bytes.Buffer)
 	_, err = nativePK.WriteTo(buf)
 	assert.NoError(err)
@@ -48,7 +48,7 @@ func TestMarshal(t *testing.T) {
 	}
 
 	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
+	w, err := frontend.NewWitness(&assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 	pw, err := w.Public()
 	assert.NoError(err)
@@ -64,7 +64,7 @@ func TestMarshal(t *testing.T) {
 
 func TestMarshal2(t *testing.T) {
 	assert := test.NewAssert(t)
-	ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &circuit{})
+	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit{})
 	assert.NoError(err)
 	tCcs := ccs.(*cs_bw6761.R1CS)
 	iciPK := icicle_bw6761.ProvingKey{}
@@ -83,7 +83,7 @@ func TestMarshal2(t *testing.T) {
 	}
 
 	assignment := circuit{A: 3, B: 5, Res: 15}
-	w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
+	w, err := frontend.NewWitness(&assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 	pw, err := w.Public()
 	assert.NoError(err)
