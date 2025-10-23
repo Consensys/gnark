@@ -15,10 +15,11 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
-	curveF *emulated.Field[BaseField]
-	curve  *sw_emulated.Curve[BaseField, ScalarField]
-	g1     *G1
-	g2     *G2
+	curveF       *emulated.Field[BaseField]
+	curve        *sw_emulated.Curve[BaseField, ScalarField]
+	g1           *G1
+	g2           *G2
+	thirdRootOne *emulated.Element[BaseField]
 }
 
 type GTEl = fields_bw6761.E6
@@ -52,13 +53,16 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new G2 struct: %w", err)
 	}
+	// thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
+	thirdRootOne := ba.NewElement("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
 	return &Pairing{
-		api:    api,
-		Ext6:   fields_bw6761.NewExt6(api),
-		curveF: ba,
-		curve:  curve,
-		g1:     g1,
-		g2:     g2,
+		api:          api,
+		Ext6:         fields_bw6761.NewExt6(api),
+		curveF:       ba,
+		curve:        curve,
+		g1:           g1,
+		g2:           g2,
+		thirdRootOne: thirdRootOne,
 	}, nil
 }
 
@@ -153,7 +157,9 @@ func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
+// This function does not check that Pᵢ and Qᵢ are in the correct subgroup. See
+// AssertIsOnG1 and AssertIsOnG2. NB! This mismatches the interfaces of sw_bls12381 and
+// sw_bn254 packages where G2 membership check is performed automatically!
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -223,8 +229,92 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
+	return pr.Ext6.IsEqual(x, y)
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	for i := 1; i < len(inputs); i++ {
+		if (inputs[0].Lines == nil) != (inputs[i].Lines == nil) {
+			panic("muxing points with and without precomputed lines")
+		}
+	}
+	var ret G2Affine
+	Xs := make([]*emulated.Element[BaseField], len(inputs))
+	Ys := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		Xs[i] = &inputs[i].P.X
+		Ys[i] = &inputs[i].P.Y
+	}
+	ret.P.X = *pr.curveF.Mux(sel, Xs...)
+	ret.P.Y = *pr.curveF.Mux(sel, Ys...)
+
+	if inputs[0].Lines == nil {
+		return &ret
+	}
+
+	// switch precomputed lines
+	ret.Lines = new(lineEvaluations)
+	for j := range inputs[0].Lines[0] {
+		lineR0s := make([]*emulated.Element[BaseField], len(inputs))
+		lineR1s := make([]*emulated.Element[BaseField], len(inputs))
+		for k := 0; k < 2; k++ {
+			for i := range inputs {
+				lineR0s[i] = &inputs[i].Lines[k][j].R0
+				lineR1s[i] = &inputs[i].Lines[k][j].R1
+			}
+			le := &lineEvaluation{
+				R0: *pr.curveF.Mux(sel, lineR0s...),
+				R1: *pr.curveF.Mux(sel, lineR1s...),
+			}
+			ret.Lines[k][j] = le
+		}
+	}
+
+	return &ret
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	var ret GTEl
+	A0s := make([]*emulated.Element[BaseField], len(inputs))
+	A1s := make([]*emulated.Element[BaseField], len(inputs))
+	A2s := make([]*emulated.Element[BaseField], len(inputs))
+	A3s := make([]*emulated.Element[BaseField], len(inputs))
+	A4s := make([]*emulated.Element[BaseField], len(inputs))
+	A5s := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		A0s[i] = &inputs[i].A0
+		A1s[i] = &inputs[i].A1
+		A2s[i] = &inputs[i].A2
+		A3s[i] = &inputs[i].A3
+		A4s[i] = &inputs[i].A4
+		A5s[i] = &inputs[i].A5
+	}
+	ret.A0 = *pr.curveF.Mux(sel, A0s...)
+	ret.A1 = *pr.curveF.Mux(sel, A1s...)
+	ret.A2 = *pr.curveF.Mux(sel, A2s...)
+	ret.A3 = *pr.curveF.Mux(sel, A3s...)
+	ret.A4 = *pr.curveF.Mux(sel, A4s...)
+	ret.A5 = *pr.curveF.Mux(sel, A5s...)
+	return &ret
 }
 
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
@@ -237,8 +327,8 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 
 	// if Q=(0,0) we assign b=0 otherwise 4, and continue
 	selector := pr.api.And(pr.curveF.IsZero(&Q.P.X), pr.curveF.IsZero(&Q.P.Y))
-	bTwist := emulated.ValueOf[BaseField](4)
-	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bTwist)
+	bTwist := pr.curveF.NewElement(4)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), bTwist)
 
 	left := pr.curveF.Mul(&Q.P.Y, &Q.P.Y)
 	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
@@ -311,16 +401,17 @@ var loopCounter2 = [190]int8{
 	1, 0, 0, 0, 1, 0, -1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
 }
 
-// thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
-var thirdRootOne = emulated.ValueOf[BaseField]("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
-
-// MillerLoop computes the optimal Tate multi-Miller loop
-// (or twisted ate or Eta revisited)
+// MillerLoop computes the optimal Tate multi-Miller loop (or twisted ate or Eta
+// revisited)
 //
 // ∏ᵢ { fᵢ_{x₀+1+λ(x₀³-x₀²-x₀),Qᵢ}(Pᵢ) }
 //
-// Alg.2 in https://eprint.iacr.org/2021/1359.pdf
-// Eq. (6') in https://hackmd.io/@gnark/BW6-761-changes
+// This function does not check that Pᵢ and Qᵢ are in the correct subgroup. See
+// AssertIsOnG1 and AssertIsOnG2. NB! This mismatches the interfaces of sw_bls12381 and
+// sw_bn254 packages where G2 membership check is performed automatically!
+//
+// Alg.2 in https://eprint.iacr.org/2021/1359.pdf Eq. (6') in
+// https://hackmd.io/@gnark/BW6-761-changes
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match

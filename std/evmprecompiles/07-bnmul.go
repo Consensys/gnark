@@ -9,13 +9,13 @@ import (
 
 // ECMul implements [ALT_BN128_MUL] precompile contract at address 0x07.
 //
-// [ALT_BN128_MUL]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/alt_bn128/index.html#alt-bn128-mul
+// [ALT_BN128_MUL]: https://github.com/ethereum/execution-specs/blob/master/src/ethereum/cancun/vm/precompiled_contracts/alt_bn128.py
 func ECMul(api frontend.API, P *sw_emulated.AffinePoint[emulated.BN254Fp], u *emulated.Element[emulated.BN254Fr]) *sw_emulated.AffinePoint[emulated.BN254Fp] {
 	curve, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetBN254Params())
 	if err != nil {
 		panic(err)
 	}
-	// Check that P is on the curve (done in the zkEVM ⚠️ )
+	// Check that P is on G1 (done in the zkEVM ⚠️ )
 	res := curve.ScalarMul(P, u, algopts.WithCompleteArithmetic())
 	return res
 }

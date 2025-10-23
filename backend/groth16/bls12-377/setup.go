@@ -7,6 +7,9 @@ package groth16
 
 import (
 	"errors"
+	"math/big"
+	"math/bits"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -15,8 +18,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls12-377"
-	"math/big"
-	"math/bits"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -133,7 +134,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	vkK := make([]fr.Element, nbPublicWires)
 	ckK := make([][]fr.Element, len(commitmentInfo))
 	for i := range commitmentInfo {
-		ckK[i] = make([]fr.Element, len(privateCommitted[i]))
+		ckK[i] = make([]fr.Element, 0, len(privateCommitted[i]))
 	}
 
 	var t0, t1 fr.Element
@@ -145,37 +146,29 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			Add(&t1, &C[i]).
 			Mul(&t1, coeff)
 	}
-	vI := 0                                // number of public wires seen so far
-	cI := make([]int, len(commitmentInfo)) // number of private committed wires seen so far for each commitment
-	nbPrivateCommittedSeen := 0            // = ∑ᵢ cI[i]
+	vI := 0 // number of public wires seen so far
+	committedIterator := internal.NewMergeIterator(privateCommitted)
+	nbPrivateCommittedSeen := 0 // = ∑ᵢ cI[i]
 	nbCommitmentsSeen := 0
 
 	for i := range A {
-		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
-		var isCommitment, isPublic bool
-		if isPublic = i < r1cs.GetNbPublicVariables(); !isPublic {
+		commitmentIndex := committedIterator.IndexIfNext(i) // the index of the commitment that commits to the wire i. -1 if i is not committed
+		isCommitment, isPublic := false, i < r1cs.GetNbPublicVariables()
+		if !isPublic {
 			if nbCommitmentsSeen < len(commitmentWires) && commitmentWires[nbCommitmentsSeen] == i {
 				isCommitment = true
 				nbCommitmentsSeen++
 			}
-
-			for j := range commitmentInfo { // does commitment j commit to i?
-				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
-					commitment = j
-					break // frontend guarantees that no private variable is committed to more than once
-				}
-			}
 		}
 
-		if isPublic || commitment != -1 || isCommitment {
+		if isPublic || isCommitment || commitmentIndex != -1 {
 			computeK(i, &toxicWaste.gammaInv)
 
 			if isPublic || isCommitment {
 				vkK[vI] = t1
 				vI++
 			} else { // committed and private
-				ckK[commitment][cI[commitment]] = t1
-				cI[commitment]++
+				ckK[commitmentIndex] = append(ckK[commitmentIndex], t1)
 				nbPrivateCommittedSeen++
 			}
 		} else {

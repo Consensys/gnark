@@ -12,6 +12,14 @@
 //  7. BN_MUL ✅ -- function [ECMul]
 //  8. SNARKV ✅ -- function [ECPair]
 //  9. BLAKE2F ❌ -- postponed
+//  10. POINT_EVALUATION ✅ -- functions [KzgPointEvaluation], [KzgPointEvaluationFailure]
+//  11. BLS12_G1MSM ✅ -- function [ECAddG1BLS]
+//  12. BLS12_G1MSM ✅ -- function [ECG1ScalarMulSumBLS]
+//  13. BLS12_G2ADD ✅ -- function [ECAddG2BLS]
+//  14. BLS12_G2MSM ✅ -- function [ECG2ScalarMulSumBLS]
+//  15. BLS12_PAIRING_CHECK ✅ -- function [ECPairBLS]
+//  16. BLS12_MAP_FP_TO_G1 ✅ -- function [ECMapToG1BLS]
+//  17. BLS12_MAP_FP2_TO_G2 ✅ -- function [ECMapToG2BLS]
 //
 // This package uses local representation for the arguments. It is up to the
 // user to instantiate corresponding types from their application-specific data.

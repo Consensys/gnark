@@ -29,19 +29,31 @@ func precomputeLines(Q bls12381.G2Affine) lineEvaluations {
 	return cLines
 }
 
-func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
+func (pr *Pairing) computeLines(Q *g2AffP) lineEvaluations {
+
+	// check Q is on curve
+	Qaff := G2Affine{P: *Q, Lines: nil}
+	pr.IsOnTwist(&Qaff)
 
 	var cLines lineEvaluations
 	Qacc := Q
 	n := len(loopCounter)
-	Qacc, cLines[0][n-2], cLines[1][n-2] = p.tripleStep(Qacc)
-	for i := n - 3; i >= 1; i-- {
+	Qacc, cLines[0][n-2], cLines[1][n-2] = pr.tripleStep(Qacc)
+	for i := n - 3; i >= 0; i-- {
 		if loopCounter[i] == 0 {
-			Qacc, cLines[0][i] = p.doubleStep(Qacc)
+			Qacc, cLines[0][i] = pr.doubleStep(Qacc)
 		} else {
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q)
+			Qacc, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(Qacc, Q)
 		}
 	}
-	cLines[0][0] = p.tangentCompute(Qacc)
+
+	// Check that Q is on G2 subgroup:
+	// 		[r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	// This test is equivalent to [AssertIsOnG2].
+	//
+	// At this point Qacc = [x₀]Q.
+	psiQ := pr.g2.psi(&Qaff)
+	pr.g2.AssertIsEqual(pr.g2.neg(&G2Affine{P: *Qacc, Lines: nil}), psiQ)
+
 	return cLines
 }

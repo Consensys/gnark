@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/selector"
 )
 
 var (
@@ -90,8 +91,8 @@ func initSnippets() {
 
 		x13 := secp256k1.Mul(newElement(), newElement())
 		x13 = secp256k1.Mul(x13, newElement())
-		five := emulated.ValueOf[emulated.Secp256k1Fp](5)
-		fx2 := secp256k1.Mul(&five, newElement())
+		five := secp256k1.NewElement(5)
+		fx2 := secp256k1.Mul(five, newElement())
 		nom := secp256k1.Sub(fx2, x13)
 		denom := secp256k1.Add(newElement(), newElement())
 		denom = secp256k1.Add(denom, newElement())
@@ -310,6 +311,26 @@ func initSnippets() {
 		)
 
 	}, ecc.BN254)
+
+	registerSnippet("selector/mux_3", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/mux_4", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/mux_5", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable())
+	})
+
+	registerSnippet("selector/binaryMux_4", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.BinaryMux(api, []frontend.Variable{newVariable(), newVariable()}, []frontend.Variable{newVariable(), newVariable(), newVariable(), newVariable()})
+	})
+
+	registerSnippet("selector/binaryMux_8", func(api frontend.API, newVariable func() frontend.Variable) {
+		selector.BinaryMux(api, []frontend.Variable{newVariable(), newVariable(), newVariable()}, []frontend.Variable{newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable()})
+	})
 
 }
 

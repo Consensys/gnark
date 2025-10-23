@@ -255,10 +255,79 @@ func NewPairing(api frontend.API) *Pairing {
 	}
 }
 
+func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := pr.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff1 := pr.api.Sub(&x.D0.C0.B0.A1, &y.D0.C0.B0.A1)
+	diff2 := pr.api.Sub(&x.D0.C0.B0.A0, &y.D0.C0.B0.A0)
+	diff3 := pr.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff4 := pr.api.Sub(&x.D0.C0.B1.A0, &y.D0.C0.B1.A0)
+	diff5 := pr.api.Sub(&x.D0.C0.B1.A1, &y.D0.C0.B1.A1)
+	diff6 := pr.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff7 := pr.api.Sub(&x.D0.C1.B0.A1, &y.D0.C1.B0.A1)
+	diff8 := pr.api.Sub(&x.D0.C1.B0.A0, &y.D0.C1.B0.A0)
+	diff9 := pr.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff10 := pr.api.Sub(&x.D0.C1.B1.A0, &y.D0.C1.B1.A0)
+	diff11 := pr.api.Sub(&x.D0.C1.B1.A1, &y.D0.C1.B1.A1)
+	diff12 := pr.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff13 := pr.api.Sub(&x.D1.C0.B0.A1, &y.D1.C0.B0.A1)
+	diff14 := pr.api.Sub(&x.D1.C0.B0.A0, &y.D1.C0.B0.A0)
+	diff15 := pr.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff16 := pr.api.Sub(&x.D1.C0.B1.A0, &y.D1.C0.B1.A0)
+	diff17 := pr.api.Sub(&x.D1.C0.B1.A1, &y.D1.C0.B1.A1)
+	diff18 := pr.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff19 := pr.api.Sub(&x.D1.C1.B0.A1, &y.D1.C1.B0.A1)
+	diff20 := pr.api.Sub(&x.D1.C1.B0.A0, &y.D1.C1.B0.A0)
+	diff21 := pr.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+	diff22 := pr.api.Sub(&x.D1.C1.B1.A0, &y.D1.C1.B1.A0)
+	diff23 := pr.api.Sub(&x.D1.C1.B1.A1, &y.D1.C1.B1.A1)
+
+	isZero0 := pr.api.IsZero(diff0)
+	isZero1 := pr.api.IsZero(diff1)
+	isZero2 := pr.api.IsZero(diff2)
+	isZero3 := pr.api.IsZero(diff3)
+	isZero4 := pr.api.IsZero(diff4)
+	isZero5 := pr.api.IsZero(diff5)
+	isZero6 := pr.api.IsZero(diff6)
+	isZero7 := pr.api.IsZero(diff7)
+	isZero8 := pr.api.IsZero(diff8)
+	isZero9 := pr.api.IsZero(diff9)
+	isZero10 := pr.api.IsZero(diff10)
+	isZero11 := pr.api.IsZero(diff11)
+	isZero12 := pr.api.IsZero(diff12)
+	isZero13 := pr.api.IsZero(diff13)
+	isZero14 := pr.api.IsZero(diff14)
+	isZero15 := pr.api.IsZero(diff15)
+	isZero16 := pr.api.IsZero(diff16)
+	isZero17 := pr.api.IsZero(diff17)
+	isZero18 := pr.api.IsZero(diff18)
+	isZero19 := pr.api.IsZero(diff19)
+	isZero20 := pr.api.IsZero(diff20)
+	isZero21 := pr.api.IsZero(diff21)
+	isZero22 := pr.api.IsZero(diff22)
+	isZero23 := pr.api.IsZero(diff23)
+
+	return pr.api.And(
+		pr.api.And(
+			pr.api.And(
+				pr.api.And(pr.api.And(isZero0, isZero1), pr.api.And(isZero2, isZero3)),
+				pr.api.And(pr.api.And(isZero4, isZero5), pr.api.And(isZero6, isZero7)),
+			),
+			pr.api.And(
+				pr.api.And(pr.api.And(isZero8, isZero9), pr.api.And(isZero10, isZero11)),
+				pr.api.And(pr.api.And(isZero12, isZero13), pr.api.And(isZero14, isZero15)),
+			),
+		),
+		pr.api.And(
+			pr.api.And(pr.api.And(isZero16, isZero17), pr.api.And(isZero18, isZero19)),
+			pr.api.And(pr.api.And(isZero20, isZero21), pr.api.And(isZero22, isZero23)),
+		),
+	)
+}
+
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
 // modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
-func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -267,19 +336,19 @@ func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := MillerLoop(p.api, inP, inQ)
+	res, err := MillerLoop(pr.api, inP, inQ)
 	return &res, err
 }
 
 // FinalExponentiation performs the final exponentiation on the target group
 // element. It doesn't modify the input.
-func (p *Pairing) FinalExponentiation(e *GT) *GT {
-	res := FinalExponentiation(p.api, *e)
+func (pr *Pairing) FinalExponentiation(e *GT) *GT {
+	res := FinalExponentiation(pr.api, *e)
 	return &res
 }
 
 // Pair computes a full multi-pairing on the input pairs.
-func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
+func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -288,14 +357,14 @@ func (p *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := Pair(pr.api, inP, inQ)
 	return &res, err
 }
 
 // PairingCheck computes the multi-pairing of the input pairs and asserts that
 // the result is an identity element in the target group. It returns an error if
 // there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -304,26 +373,208 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := Pair(pr.api, inP, inQ)
 	if err != nil {
 		return err
 	}
 	var one fields_bls24315.E24
 	one.SetOne()
-	res.AssertIsEqual(p.api, one)
+	res.AssertIsEqual(pr.api, one)
 	return nil
 }
 
 // AssertIsEqual asserts the equality of the target group elements.
-func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
-	e1.AssertIsEqual(p.api, *e2)
+func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
+	e1.AssertIsEqual(pr.api, *e2)
+}
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	for i := 1; i < len(inputs); i++ {
+		if (inputs[0].Lines == nil) != (inputs[i].Lines == nil) {
+			panic("muxing points with and without precomputed lines")
+		}
+	}
+	var ret G2Affine
+	XB0A0 := make([]frontend.Variable, len(inputs))
+	XB0A1 := make([]frontend.Variable, len(inputs))
+	XB1A0 := make([]frontend.Variable, len(inputs))
+	XB1A1 := make([]frontend.Variable, len(inputs))
+	YB0A0 := make([]frontend.Variable, len(inputs))
+	YB0A1 := make([]frontend.Variable, len(inputs))
+	YB1A0 := make([]frontend.Variable, len(inputs))
+	YB1A1 := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		XB0A0[i] = inputs[i].P.X.B0.A0
+		XB0A1[i] = inputs[i].P.X.B0.A1
+		XB1A0[i] = inputs[i].P.X.B1.A0
+		XB1A1[i] = inputs[i].P.X.B1.A1
+		YB0A0[i] = inputs[i].P.Y.B0.A0
+		YB0A1[i] = inputs[i].P.Y.B0.A1
+		YB1A0[i] = inputs[i].P.Y.B1.A0
+		YB1A1[i] = inputs[i].P.Y.B1.A1
+	}
+	ret.P.X.B0.A0 = selector.Mux(pr.api, sel, XB0A0...)
+	ret.P.X.B0.A1 = selector.Mux(pr.api, sel, XB0A1...)
+	ret.P.X.B1.A0 = selector.Mux(pr.api, sel, XB1A0...)
+	ret.P.X.B1.A1 = selector.Mux(pr.api, sel, XB1A1...)
+	ret.P.Y.B0.A0 = selector.Mux(pr.api, sel, YB0A0...)
+	ret.P.Y.B0.A1 = selector.Mux(pr.api, sel, YB0A1...)
+	ret.P.Y.B1.A0 = selector.Mux(pr.api, sel, YB1A0...)
+	ret.P.Y.B1.A1 = selector.Mux(pr.api, sel, YB1A1...)
+
+	if inputs[0].Lines == nil {
+		return &ret
+	}
+
+	// switch precomputed lines
+	ret.Lines = new(lineEvaluations)
+	for j := range inputs[0].Lines[0] {
+		lineR0B0A0 := make([]frontend.Variable, len(inputs))
+		lineR0B0A1 := make([]frontend.Variable, len(inputs))
+		lineR0B1A0 := make([]frontend.Variable, len(inputs))
+		lineR0B1A1 := make([]frontend.Variable, len(inputs))
+		lineR1B0A0 := make([]frontend.Variable, len(inputs))
+		lineR1B0A1 := make([]frontend.Variable, len(inputs))
+		lineR1B1A0 := make([]frontend.Variable, len(inputs))
+		lineR1B1A1 := make([]frontend.Variable, len(inputs))
+		for k := 0; k < 2; k++ {
+			for i := range inputs {
+				lineR0B0A0[i] = inputs[i].Lines[k][j].R0.B0.A0
+				lineR0B0A1[i] = inputs[i].Lines[k][j].R0.B0.A1
+				lineR0B1A0[i] = inputs[i].Lines[k][j].R0.B1.A0
+				lineR0B1A1[i] = inputs[i].Lines[k][j].R0.B1.A1
+				lineR1B0A0[i] = inputs[i].Lines[k][j].R1.B0.A0
+				lineR1B0A1[i] = inputs[i].Lines[k][j].R1.B0.A1
+				lineR1B1A0[i] = inputs[i].Lines[k][j].R1.B1.A0
+				lineR1B1A1[i] = inputs[i].Lines[k][j].R1.B1.A1
+			}
+			le := &lineEvaluation{
+				R0: fields_bls24315.E4{
+					B0: fields_bls24315.E2{
+						A0: selector.Mux(pr.api, sel, lineR0B0A0...),
+						A1: selector.Mux(pr.api, sel, lineR0B0A1...),
+					},
+					B1: fields_bls24315.E2{
+						A0: selector.Mux(pr.api, sel, lineR0B1A0...),
+						A1: selector.Mux(pr.api, sel, lineR0B1A1...),
+					},
+				},
+				R1: fields_bls24315.E4{
+					B0: fields_bls24315.E2{
+						A0: selector.Mux(pr.api, sel, lineR1B0A0...),
+						A1: selector.Mux(pr.api, sel, lineR1B0A1...),
+					},
+					B1: fields_bls24315.E2{
+						A0: selector.Mux(pr.api, sel, lineR1B1A0...),
+						A1: selector.Mux(pr.api, sel, lineR1B1A1...),
+					},
+				},
+			}
+			ret.Lines[k][j] = le
+		}
+	}
+
+	return &ret
 }
 
-func (p *Pairing) AssertIsOnG1(P *G1Affine) {
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	var ret GT
+	D0C0B0A0 := make([]frontend.Variable, len(inputs))
+	D0C0B0A1 := make([]frontend.Variable, len(inputs))
+	D0C0B1A0 := make([]frontend.Variable, len(inputs))
+	D0C0B1A1 := make([]frontend.Variable, len(inputs))
+	D0C1B0A0 := make([]frontend.Variable, len(inputs))
+	D0C1B0A1 := make([]frontend.Variable, len(inputs))
+	D0C1B1A0 := make([]frontend.Variable, len(inputs))
+	D0C1B1A1 := make([]frontend.Variable, len(inputs))
+	D0C2B0A0 := make([]frontend.Variable, len(inputs))
+	D0C2B0A1 := make([]frontend.Variable, len(inputs))
+	D0C2B1A0 := make([]frontend.Variable, len(inputs))
+	D0C2B1A1 := make([]frontend.Variable, len(inputs))
+	D1C0B0A0 := make([]frontend.Variable, len(inputs))
+	D1C0B0A1 := make([]frontend.Variable, len(inputs))
+	D1C0B1A0 := make([]frontend.Variable, len(inputs))
+	D1C0B1A1 := make([]frontend.Variable, len(inputs))
+	D1C1B0A0 := make([]frontend.Variable, len(inputs))
+	D1C1B0A1 := make([]frontend.Variable, len(inputs))
+	D1C1B1A0 := make([]frontend.Variable, len(inputs))
+	D1C1B1A1 := make([]frontend.Variable, len(inputs))
+	D1C2B0A0 := make([]frontend.Variable, len(inputs))
+	D1C2B0A1 := make([]frontend.Variable, len(inputs))
+	D1C2B1A0 := make([]frontend.Variable, len(inputs))
+	D1C2B1A1 := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		D0C0B0A0[i] = inputs[i].D0.C0.B0.A0
+		D0C0B0A1[i] = inputs[i].D0.C0.B0.A1
+		D0C0B1A0[i] = inputs[i].D0.C0.B1.A0
+		D0C0B1A1[i] = inputs[i].D0.C0.B1.A1
+		D0C1B0A0[i] = inputs[i].D0.C1.B0.A0
+		D0C1B0A1[i] = inputs[i].D0.C1.B0.A1
+		D0C1B1A0[i] = inputs[i].D0.C1.B1.A0
+		D0C1B1A1[i] = inputs[i].D0.C1.B1.A1
+		D0C2B0A0[i] = inputs[i].D0.C2.B0.A0
+		D0C2B0A1[i] = inputs[i].D0.C2.B0.A1
+		D0C2B1A0[i] = inputs[i].D0.C2.B1.A0
+		D0C2B1A1[i] = inputs[i].D0.C2.B1.A1
+		D1C0B0A0[i] = inputs[i].D1.C0.B0.A0
+		D1C0B0A1[i] = inputs[i].D1.C0.B0.A1
+		D1C0B1A0[i] = inputs[i].D1.C0.B1.A0
+		D1C0B1A1[i] = inputs[i].D1.C0.B1.A1
+		D1C1B0A0[i] = inputs[i].D1.C1.B0.A0
+		D1C1B0A1[i] = inputs[i].D1.C1.B0.A1
+		D1C1B1A0[i] = inputs[i].D1.C1.B1.A0
+		D1C1B1A1[i] = inputs[i].D1.C1.B1.A1
+		D1C2B0A0[i] = inputs[i].D1.C2.B0.A0
+		D1C2B0A1[i] = inputs[i].D1.C2.B0.A1
+		D1C2B1A0[i] = inputs[i].D1.C2.B1.A0
+		D1C2B1A1[i] = inputs[i].D1.C2.B1.A1
+	}
+	ret.D0.C0.B0.A0 = selector.Mux(pr.api, sel, D0C0B0A0...)
+	ret.D0.C0.B0.A1 = selector.Mux(pr.api, sel, D0C0B0A1...)
+	ret.D0.C0.B1.A0 = selector.Mux(pr.api, sel, D0C0B1A0...)
+	ret.D0.C0.B1.A1 = selector.Mux(pr.api, sel, D0C0B1A1...)
+	ret.D0.C1.B0.A0 = selector.Mux(pr.api, sel, D0C1B0A0...)
+	ret.D0.C1.B0.A1 = selector.Mux(pr.api, sel, D0C1B0A1...)
+	ret.D0.C1.B1.A0 = selector.Mux(pr.api, sel, D0C1B1A0...)
+	ret.D0.C1.B1.A1 = selector.Mux(pr.api, sel, D0C1B1A1...)
+	ret.D0.C2.B0.A0 = selector.Mux(pr.api, sel, D0C2B0A0...)
+	ret.D0.C2.B0.A1 = selector.Mux(pr.api, sel, D0C2B0A1...)
+	ret.D0.C2.B1.A0 = selector.Mux(pr.api, sel, D0C2B1A0...)
+	ret.D0.C2.B1.A1 = selector.Mux(pr.api, sel, D0C2B1A1...)
+	ret.D1.C0.B0.A0 = selector.Mux(pr.api, sel, D1C0B0A0...)
+	ret.D1.C0.B0.A1 = selector.Mux(pr.api, sel, D1C0B0A1...)
+	ret.D1.C0.B1.A0 = selector.Mux(pr.api, sel, D1C0B1A0...)
+	ret.D1.C0.B1.A1 = selector.Mux(pr.api, sel, D1C0B1A1...)
+	ret.D1.C1.B0.A0 = selector.Mux(pr.api, sel, D1C1B0A0...)
+	ret.D1.C1.B0.A1 = selector.Mux(pr.api, sel, D1C1B0A1...)
+	ret.D1.C1.B1.A0 = selector.Mux(pr.api, sel, D1C1B1A0...)
+	ret.D1.C1.B1.A1 = selector.Mux(pr.api, sel, D1C1B1A1...)
+	ret.D1.C2.B0.A0 = selector.Mux(pr.api, sel, D1C2B0A0...)
+	ret.D1.C2.B0.A1 = selector.Mux(pr.api, sel, D1C2B0A1...)
+	ret.D1.C2.B1.A0 = selector.Mux(pr.api, sel, D1C2B1A0...)
+	ret.D1.C2.B1.A1 = selector.Mux(pr.api, sel, D1C2B1A1...)
+
+	return &ret
+}
+
+func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	panic("not implemented")
 }
 
-func (p *Pairing) AssertIsOnG2(P *G2Affine) {
+func (pr *Pairing) AssertIsOnG2(P *G2Affine) {
 	panic("not implemented")
 }
 

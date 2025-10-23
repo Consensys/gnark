@@ -67,8 +67,12 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
 	bTwist := fields_bn254.E2{
-		A0: emulated.ValueOf[BaseField]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
-		A1: emulated.ValueOf[BaseField]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+		A0: *ba.NewElement("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: *ba.NewElement("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new g2: %w", err)
 	}
 	return &Pairing{
 		api:    api,
@@ -76,12 +80,14 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		Ext2:   fields_bn254.NewExt2(api),
 		curveF: ba,
 		curve:  curve,
-		g2:     NewG2(api),
+		g2:     g2,
 		bTwist: &bTwist,
 	}, nil
 }
 
-// Pair calculates the reduced pairing for a set of points ∏ᵢ e(Pᵢ, Qᵢ).
+// Pair calculates the reduced pairing for a set of points
+//
+//	∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function checks that the Qᵢ are in the correct subgroup, but does not
 // check Pᵢ. See AssertIsOnG1.
@@ -313,6 +319,120 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	for i := 1; i < len(inputs); i++ {
+		if (inputs[0].Lines == nil) != (inputs[i].Lines == nil) {
+			panic("muxing points with and without precomputed lines")
+		}
+	}
+	var ret G2Affine
+	XA0 := make([]*emulated.Element[BaseField], len(inputs))
+	XA1 := make([]*emulated.Element[BaseField], len(inputs))
+	YA0 := make([]*emulated.Element[BaseField], len(inputs))
+	YA1 := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		XA0[i] = &inputs[i].P.X.A0
+		XA1[i] = &inputs[i].P.X.A1
+		YA0[i] = &inputs[i].P.Y.A0
+		YA1[i] = &inputs[i].P.Y.A1
+	}
+	ret.P.X.A0 = *pr.curveF.Mux(sel, XA0...)
+	ret.P.X.A1 = *pr.curveF.Mux(sel, XA1...)
+	ret.P.Y.A0 = *pr.curveF.Mux(sel, YA0...)
+	ret.P.Y.A1 = *pr.curveF.Mux(sel, YA1...)
+
+	if inputs[0].Lines == nil {
+		return &ret
+	}
+
+	// switch precomputed lines
+	ret.Lines = new(lineEvaluations)
+	for j := range inputs[0].Lines[0] {
+		lineR0A0 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR0A1 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR1A0 := make([]*emulated.Element[BaseField], len(inputs))
+		lineR1A1 := make([]*emulated.Element[BaseField], len(inputs))
+		for k := 0; k < 2; k++ {
+			for i := range inputs {
+				lineR0A0[i] = &inputs[i].Lines[k][j].R0.A0
+				lineR0A1[i] = &inputs[i].Lines[k][j].R0.A1
+				lineR1A0[i] = &inputs[i].Lines[k][j].R1.A0
+				lineR1A1[i] = &inputs[i].Lines[k][j].R1.A1
+			}
+			le := &lineEvaluation{
+				R0: fields_bn254.E2{
+					A0: *pr.curveF.Mux(sel, lineR0A0...),
+					A1: *pr.curveF.Mux(sel, lineR0A1...),
+				},
+				R1: fields_bn254.E2{
+					A0: *pr.curveF.Mux(sel, lineR1A0...),
+					A1: *pr.curveF.Mux(sel, lineR1A1...),
+				},
+			}
+			ret.Lines[k][j] = le
+		}
+	}
+
+	return &ret
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	var ret GTEl
+	A0s := make([]*emulated.Element[BaseField], len(inputs))
+	A1s := make([]*emulated.Element[BaseField], len(inputs))
+	A2s := make([]*emulated.Element[BaseField], len(inputs))
+	A3s := make([]*emulated.Element[BaseField], len(inputs))
+	A4s := make([]*emulated.Element[BaseField], len(inputs))
+	A5s := make([]*emulated.Element[BaseField], len(inputs))
+	A6s := make([]*emulated.Element[BaseField], len(inputs))
+	A7s := make([]*emulated.Element[BaseField], len(inputs))
+	A8s := make([]*emulated.Element[BaseField], len(inputs))
+	A9s := make([]*emulated.Element[BaseField], len(inputs))
+	A10s := make([]*emulated.Element[BaseField], len(inputs))
+	A11s := make([]*emulated.Element[BaseField], len(inputs))
+	for i := range inputs {
+		A0s[i] = &inputs[i].A0
+		A1s[i] = &inputs[i].A1
+		A2s[i] = &inputs[i].A2
+		A3s[i] = &inputs[i].A3
+		A4s[i] = &inputs[i].A4
+		A5s[i] = &inputs[i].A5
+		A6s[i] = &inputs[i].A6
+		A7s[i] = &inputs[i].A7
+		A8s[i] = &inputs[i].A8
+		A9s[i] = &inputs[i].A9
+		A10s[i] = &inputs[i].A10
+		A11s[i] = &inputs[i].A11
+	}
+	ret.A0 = *pr.curveF.Mux(sel, A0s...)
+	ret.A1 = *pr.curveF.Mux(sel, A1s...)
+	ret.A2 = *pr.curveF.Mux(sel, A2s...)
+	ret.A3 = *pr.curveF.Mux(sel, A3s...)
+	ret.A4 = *pr.curveF.Mux(sel, A4s...)
+	ret.A5 = *pr.curveF.Mux(sel, A5s...)
+	ret.A6 = *pr.curveF.Mux(sel, A6s...)
+	ret.A7 = *pr.curveF.Mux(sel, A7s...)
+	ret.A8 = *pr.curveF.Mux(sel, A8s...)
+	ret.A9 = *pr.curveF.Mux(sel, A9s...)
+	ret.A10 = *pr.curveF.Mux(sel, A10s...)
+	ret.A11 = *pr.curveF.Mux(sel, A11s...)
+	return &ret
+}
+
 func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bn254.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
@@ -376,9 +496,8 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.g2.AssertIsEqual(Q, _Q)
 }
 
-// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
-// method assumes that the point is already on the curve. Call
-// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+// IsOnG2 returns a boolean indicating if the G2 point is on the curve and in
+// the subgroup.
 func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnTwist(Q)
@@ -401,7 +520,11 @@ var loopCounter = [66]int8{
 }
 
 // MillerLoop computes the multi-Miller loop
-// ∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
+//
+//	∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
+//
+// This function checks that the Qᵢ are in the correct subgroup, but does not
+// check Pᵢ. See AssertIsOnG1.
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match
@@ -435,10 +558,11 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 	xNegOverY := make([]*baseEl, n)
 
 	for k := 0; k < n; k++ {
-		// P are supposed to be on G1 respectively of prime order r.
-		// The point (x,0) is of order 2. But this function does not check
-		// subgroup membership.
-		yInv[k] = pr.curveF.Inverse(&P[k].Y)
+		// If we have point at infinity, we set yInv[k] to 0 manually to avoid
+		// undefined inversion of 0.
+		isYZero := pr.curveF.IsZero(&P[k].Y)
+		y := pr.curveF.Select(isYZero, pr.curveF.One(), &P[k].Y)
+		yInv[k] = pr.curveF.Select(isYZero, pr.curveF.Zero(), pr.curveF.Inverse(y))
 		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}

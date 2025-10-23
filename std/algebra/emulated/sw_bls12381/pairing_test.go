@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fp_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -72,6 +74,88 @@ func TestMillerLoopTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&MillerLoopCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type MillerLoopSingleCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GTEl
+}
+
+func (c *MillerLoopSingleCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	mlres, err := pairing.MillerLoop([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
+	if err != nil {
+		return fmt.Errorf("miller loop: %w", err)
+	}
+	pairing.AssertIsEqual(mlres, &c.Res)
+	return nil
+}
+
+func TestMillerLoopSingleTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		p, q := randomG1G2Affines()
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=valid")
+	assert.Run(func(assert *test.Assert) {
+		_, q := randomG1G2Affines()
+		var p bls12381.G1Affine
+		p.SetInfinity()
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g1-zero")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		q.SetInfinity()
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g2-zero")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		p.SetInfinity()
+		q.SetInfinity()
+		lines := bls12381.PrecomputeLines(q)
+		res, err := bls12381.MillerLoopFixedQ([]bls12381.G1Affine{p}, [][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines})
+		assert.NoError(err)
+		witness := MillerLoopSingleCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=g1-g2-zero")
 }
 
 type FinalExponentiationCircuit struct {
@@ -293,13 +377,302 @@ func (c *GroupMembershipCircuit) Define(api frontend.API) error {
 
 func TestGroupMembershipSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
-	witness := GroupMembershipCircuit{
-		InG1: NewG1Affine(p),
-		InG2: NewG2Affine(q),
+	assert.Run(func(assert *test.Assert) {
+		p, q := randomG1G2Affines()
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=random")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		p.SetInfinity()
+		q.SetInfinity()
+		assert.True(p.IsInSubGroup(), "expected p to be in subgroup")
+		assert.True(q.IsInSubGroup(), "expected q to be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=infinity")
+	assert.Run(func(assert *test.Assert) {
+		_, q := randomG1G2Affines()
+		var p bls12381.G1Affine
+		var s1 fp_bls12381.Element
+		s1.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s1)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		assert.True(q.IsInSubGroup(), "expected q to be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g1")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		var s1, s2 fp_bls12381.Element
+		s1.MustSetRandom()
+		s2.MustSetRandom()
+		qjac := bls12381.GeneratePointNotInG2(bls12381.E2{A0: s1, A1: s2})
+		q.FromJacobian(&qjac)
+		assert.True(p.IsInSubGroup(), "expected p to be in subgroup")
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		var s1, s2 fp_bls12381.Element
+		s1.MustSetRandom()
+		s2.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s1)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		qjac := bls12381.GeneratePointNotInG2(bls12381.E2{A0: s1, A1: s2})
+		q.FromJacobian(&qjac)
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-in-group-g1-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var q bls12381.G2Affine
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		for {
+			q.X.MustSetRandom()
+			q.Y.MustSetRandom()
+			if !q.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g1-g2")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		_, q := randomG1G2Affines()
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g1")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		var q bls12381.G2Affine
+		for {
+			q.X.MustSetRandom()
+			q.Y.MustSetRandom()
+			if !q.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(q.IsInSubGroup(), "expected q to not be in subgroup")
+		witness := GroupMembershipCircuit{
+			InG1: NewG1Affine(p),
+			InG2: NewG2Affine(q),
+		}
+		err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.Error(err, "expected error for not in subgroup")
+	}, "case=not-on-curve-g2")
+}
+
+type IsOnGroupCircuit struct {
+	InG1           G1Affine
+	ExpectedIsOnG1 frontend.Variable
+}
+
+func (c *IsOnGroupCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
 	}
-	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	res := pairing.IsOnG1(&c.InG1)
+	api.AssertIsEqual(c.ExpectedIsOnG1, res)
+	return nil
+}
+
+func TestIsOnG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		p.SetInfinity()
+
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 1},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=infinity")
+	assert.Run(func(assert *test.Assert) {
+		p, _ := randomG1G2Affines()
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 1},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=random")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		var s fp_bls12381.Element
+		s.MustSetRandom()
+		pjac := bls12381.GeneratePointNotInG1(s)
+		p.FromJacobian(&pjac)
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 0},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=not-in-group")
+	assert.Run(func(assert *test.Assert) {
+		var p bls12381.G1Affine
+		for {
+			p.X.MustSetRandom()
+			p.Y.MustSetRandom()
+			if !p.IsOnCurve() {
+				break
+			}
+		}
+		assert.False(p.IsInSubGroup(), "expected p to not be in subgroup")
+		err := test.IsSolved(
+			&IsOnGroupCircuit{},
+			&IsOnGroupCircuit{InG1: NewG1Affine(p), ExpectedIsOnG1: 0},
+			ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=not-on-curve")
+}
+
+type MuxesCircuits struct {
+	InG2       []G2Affine
+	InGt       []GTEl
+	SelG2      frontend.Variable
+	SelGt      frontend.Variable
+	ExpectedG2 G2Affine
+	ExpectedGt GTEl
+}
+
+func (c *MuxesCircuits) Define(api frontend.API) error {
+	g2api, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	var inG2 []*G2Affine
+	for i := range c.InG2 {
+		inG2 = append(inG2, &c.InG2[i])
+	}
+	var inGt []*GTEl
+	for i := range c.InGt {
+		inGt = append(inGt, &c.InGt[i])
+	}
+	g2 := pairing.MuxG2(c.SelG2, inG2...)
+	gt := pairing.MuxGt(c.SelGt, inGt...)
+	if len(c.InG2) == 0 {
+		if g2 != nil {
+			return fmt.Errorf("mux G2: expected nil, got %v", g2)
+		}
+	} else {
+		g2api.AssertIsEqual(g2, &c.ExpectedG2)
+	}
+	if len(c.InGt) == 0 {
+		if gt != nil {
+			return fmt.Errorf("mux Gt: expected nil, got %v", gt)
+		}
+	} else {
+		pairing.AssertIsEqual(gt, &c.ExpectedGt)
+	}
+	return nil
+}
+
+func TestPairingMuxes(t *testing.T) {
+	assert := test.NewAssert(t)
+	var err error
+	for _, nbPairs := range []int{0, 1, 2, 3, 4, 5} {
+		assert.Run(func(assert *test.Assert) {
+			g2s := make([]bls12381.G2Affine, nbPairs)
+			gts := make([]bls12381.GT, nbPairs)
+			var p bls12381.G1Affine
+			witG2s := make([]G2Affine, nbPairs)
+			witGts := make([]GTEl, nbPairs)
+			for i := range nbPairs {
+				p, g2s[i] = randomG1G2Affines()
+				gts[i], err = bls12381.Pair([]bls12381.G1Affine{p}, []bls12381.G2Affine{g2s[i]})
+				assert.NoError(err)
+				witG2s[i] = NewG2Affine(g2s[i])
+				witGts[i] = NewGTEl(gts[i])
+			}
+			circuit := MuxesCircuits{InG2: make([]G2Affine, nbPairs), InGt: make([]GTEl, nbPairs)}
+			var witness MuxesCircuits
+			if nbPairs > 0 {
+				selG2, err := rand.Int(rand.Reader, big.NewInt(int64(nbPairs)))
+				assert.NoError(err)
+				selGt, err := rand.Int(rand.Reader, big.NewInt(int64(nbPairs)))
+				assert.NoError(err)
+				expectedG2 := witG2s[selG2.Int64()]
+				expectedGt := witGts[selGt.Int64()]
+				witness = MuxesCircuits{
+					InG2:       witG2s,
+					InGt:       witGts,
+					SelG2:      selG2,
+					SelGt:      selGt,
+					ExpectedG2: expectedG2,
+					ExpectedGt: expectedGt,
+				}
+			} else {
+				witness = MuxesCircuits{
+					InG2:  witG2s,
+					InGt:  witGts,
+					SelG2: big.NewInt(0),
+					SelGt: big.NewInt(0),
+				}
+			}
+			err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err)
+		}, fmt.Sprintf("nbPairs=%d", nbPairs))
+	}
 }
 
 // bench

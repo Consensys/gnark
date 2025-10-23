@@ -1,14 +1,18 @@
 {{- define "import_fr" }}
-	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"	
+    {{- if ne .AutoGenerateField "" }}
+	fr "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fr "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 	{{- end}}
 {{- end }}
 
 {{- define "import_fp" }}
-	{{- if eq .Curve "tinyfield"}}
-	fr "github.com/consensys/gnark/internal/tinyfield"
+    {{- if ne .AutoGenerateField "" }}
+	fp "github.com/consensys/gnark/internal/smallfields/{{ toLower .Curve }}"
+	{{- else if .OnlyField }}
+	fp "github.com/consensys/gnark-crypto/field/{{toLower .Curve}}"
 	{{- else}}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fp"
 	{{- end}}
@@ -20,19 +24,15 @@
 {{- end}}
 
 {{- define "import_curve" }}
-	{{- if ne .Curve "tinyfield"}}
-	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"
-	{{- else }}
+	{{- if ne .AutoGenerateField "" }}
 	"github.com/consensys/gnark-crypto/ecc"
+	{{- else}}
+	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"
 	{{- end}}
 {{- end }}
 
 {{- define "import_backend_cs" }}
-	{{- if eq .Curve "tinyfield"}}
-	"github.com/consensys/gnark/constraint/tinyfield"
-	{{- else}}
-	cs "github.com/consensys/gnark/constraint/{{toLower .Curve}}"
-	{{- end}}
+	cs "github.com/consensys/gnark/constraint/{{toLower .Curve }}"
 {{- end }}
 
 {{- define "import_fft" }}
@@ -40,19 +40,19 @@
 {{- end }}
 
 {{- define "import_witness" }}
-	{{- if eq .Curve "tinyfield"}}
-	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/tinyfield/witness"
+    {{- if ne .AutoGenerateField "" | or .OnlyField}}
+	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/smallfields/{{ .Curve }}/witness"
 	{{- else}}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
 	{{- end}}
 {{- end }}
 
 {{- define "import_groth16" }}
-	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/groth16"
+	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/backend/groth16/{{toLower .Curve}}"
 {{- end }}
 
 {{- define "import_plonk" }}
-	{{toLower .CurveID}}plonk "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/plonk"
+	{{toLower .CurveID}}plonk "github.com/consensys/gnark/backend/plonk/{{toLower .Curve}}"
 {{- end }}
 
 {{- define "import_polynomial" }}
@@ -68,7 +68,7 @@
 {{- end}}
 
 {{- define "import_gkr"}}
-	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/gkr"
+	gkr "github.com/consensys/gnark/internal/gkr/{{ toLower .Curve }}"
 {{- end}}
 
 {{- define "import_hash_to_field" }}

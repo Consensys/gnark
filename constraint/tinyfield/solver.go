@@ -8,11 +8,6 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/constraint"
-	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/rs/zerolog"
 	"math"
 	"math/big"
 	"strconv"
@@ -20,7 +15,13 @@ import (
 	"sync"
 	"sync/atomic"
 
-	fr "github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
+	"github.com/consensys/gnark/constraint"
+	csolver "github.com/consensys/gnark/constraint/solver"
+	"github.com/rs/zerolog"
+
+	fr "github.com/consensys/gnark/internal/smallfields/tinyfield"
 )
 
 // solver represent the state of the solver during a call to System.Solve(...)
@@ -308,7 +309,7 @@ func (s *solver) logValue(log constraint.LogEntry) string {
 }
 
 // divByCoeff sets res = res / t.Coeff
-func (solver *solver) divByCoeff(res *fr.Element, cID uint32) {
+func (s *solver) divByCoeff(res *fr.Element, cID uint32) {
 	switch cID {
 	case constraint.CoeffIdOne:
 		return
@@ -320,23 +321,23 @@ func (solver *solver) divByCoeff(res *fr.Element, cID uint32) {
 		// this is slow, but shouldn't happen as divByCoeff is called to
 		// remove the coeff of an unsolved wire
 		// but unsolved wires are (in gnark frontend) systematically set with a coeff == 1 or -1
-		res.Div(res, &solver.Coefficients[cID])
+		res.Div(res, &s.Coefficients[cID])
 	}
 }
 
 // Implement constraint.Solver
-func (s *solver) GetValue(cID, vID uint32) constraint.Element {
-	var r constraint.Element
+func (s *solver) GetValue(cID, vID uint32) constraint.U32 {
+	var r constraint.U32
 	e := s.computeTerm(constraint.Term{CID: cID, VID: vID})
 	copy(r[:], e[:])
 	return r
 }
-func (s *solver) GetCoeff(cID uint32) constraint.Element {
-	var r constraint.Element
+func (s *solver) GetCoeff(cID uint32) constraint.U32 {
+	var r constraint.U32
 	copy(r[:], s.Coefficients[cID][:])
 	return r
 }
-func (s *solver) SetValue(vID uint32, f constraint.Element) {
+func (s *solver) SetValue(vID uint32, f constraint.U32) {
 	s.set(int(vID), *(*fr.Element)(f[:]))
 }
 
@@ -346,7 +347,7 @@ func (s *solver) IsSolved(vID uint32) bool {
 
 // Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
 // evaluates it and return the result and the number of uint32 word read.
-func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
+func (s *solver) Read(calldata []uint32) (constraint.U32, int) {
 	if s.Type == constraint.SystemSparseR1CS {
 		if calldata[0] != 1 {
 			panic("invalid calldata")
@@ -362,33 +363,33 @@ func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
 		j += 2
 	}
 
-	var ret constraint.Element
+	var ret constraint.U32
 	copy(ret[:], r[:])
 	return ret, j
 }
 
 // processInstruction decodes the instruction and execute blueprint-defined logic.
 // an instruction can encode a hint, a custom constraint or a generic constraint.
-func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratch *scratch) error {
+func (s *solver) processInstruction(pi constraint.PackedInstruction, scratch *scratch) error {
 	// fetch the blueprint
-	blueprint := solver.Blueprints[pi.BlueprintID]
-	inst := pi.Unpack(&solver.System)
+	blueprint := s.Blueprints[pi.BlueprintID]
+	inst := pi.Unpack(&s.System)
 	cID := inst.ConstraintOffset // here we have 1 constraint in the instruction only
 
-	if solver.Type == constraint.SystemR1CS {
+	if s.Type == constraint.SystemR1CS {
 		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
 			// TODO @gbotrel we use the solveR1C method for now, having user-defined
 			// blueprint for R1CS would require constraint.Solver interface to add methods
 			// to set a,b,c since it's more efficient to compute these while we solve.
 			bc.DecompressR1C(&scratch.tR1C, inst)
-			return solver.solveR1C(cID, &scratch.tR1C)
+			return s.solveR1C(cID, &scratch.tR1C)
 		}
 	}
 
 	// blueprint declared "I know how to solve this."
-	if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
-		if err := bc.Solve(solver, inst); err != nil {
-			return solver.wrapErrWithDebugInfo(cID, err)
+	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U32]); ok {
+		if err := bc.Solve(s, inst); err != nil {
+			return s.wrapErrWithDebugInfo(cID, err)
 		}
 		return nil
 	}
@@ -397,7 +398,7 @@ func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratc
 	// TODO @gbotrel may be worth it to move hint logic in blueprint "solve"
 	if bc, ok := blueprint.(constraint.BlueprintHint); ok {
 		bc.DecompressHint(&scratch.tHint, inst)
-		return solver.solveWithHint(&scratch.tHint)
+		return s.solveWithHint(&scratch.tHint)
 	}
 
 	return nil
@@ -405,7 +406,7 @@ func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratc
 
 // run runs the solver. it return an error if a constraint is not satisfied or if not all wires
 // were instantiated.
-func (solver *solver) run() error {
+func (s *solver) run() error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.
@@ -419,18 +420,18 @@ func (solver *solver) run() error {
 	// then we check that the constraint is valid
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	var wg sync.WaitGroup
-	chTasks := make(chan []uint32, solver.nbTasks)
-	chError := make(chan error, solver.nbTasks)
+	chTasks := make(chan []uint32, s.nbTasks)
+	chError := make(chan error, s.nbTasks)
 
 	// start a worker pool
 	// each worker wait on chTasks
 	// a task is a slice of constraint indexes to be solved
-	for i := 0; i < solver.nbTasks; i++ {
+	for i := 0; i < s.nbTasks; i++ {
 		go func() {
 			var scratch scratch
 			for t := range chTasks {
 				for _, i := range t {
-					if err := solver.processInstruction(solver.Instructions[i], &scratch); err != nil {
+					if err := s.processInstruction(s.Instructions[i], &scratch); err != nil {
 						chError <- err
 						wg.Done()
 						return
@@ -450,15 +451,15 @@ func (solver *solver) run() error {
 	var scratch scratch
 
 	// for each level, we push the tasks
-	for _, level := range solver.Levels {
+	for _, level := range s.Levels {
 
 		// max CPU to use
 		maxCPU := float64(len(level)) / minWorkPerCPU
 
-		if maxCPU <= 1.0 || solver.nbTasks == 1 {
+		if maxCPU <= 1.0 || s.nbTasks == 1 {
 			// we do it sequentially
 			for _, i := range level {
-				if err := solver.processInstruction(solver.Instructions[i], &scratch); err != nil {
+				if err := s.processInstruction(s.Instructions[i], &scratch); err != nil {
 					return err
 				}
 			}
@@ -467,7 +468,7 @@ func (solver *solver) run() error {
 
 		// number of tasks for this level is set to number of CPU
 		// but if we don't have enough work for all our CPU, it can be lower.
-		nbTasks := solver.nbTasks
+		nbTasks := s.nbTasks
 		maxTasks := int(math.Ceil(maxCPU))
 		if nbTasks > maxTasks {
 			nbTasks = maxTasks
@@ -506,7 +507,7 @@ func (solver *solver) run() error {
 		}
 	}
 
-	if int(solver.nbSolved) != len(solver.values) {
+	if int(s.nbSolved) != len(s.values) {
 		return errors.New("solver didn't assign a value to all wires")
 	}
 
@@ -519,8 +520,8 @@ func (solver *solver) run() error {
 // returns false, nil if there was no wire to solve
 // returns true, nil if exactly one wire was solved. In that case, it is redundant to check that
 // the constraint is satisfied later.
-func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
-	a, b, c := &solver.a[cID], &solver.b[cID], &solver.c[cID]
+func (s *solver) solveR1C(cID uint32, r *constraint.R1C) error {
+	a, b, c := &s.a[cID], &s.b[cID], &s.c[cID]
 
 	// the index of the non-zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
@@ -533,8 +534,8 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 			vID := t.WireID()
 
 			// wire is already computed, we just accumulate in val
-			if solver.solved[vID] {
-				solver.accumulateInto(t, val)
+			if s.solved[vID] {
+				s.accumulateInto(t, val)
 				continue
 			}
 
@@ -556,7 +557,7 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 		// or if we solved the unsolved wires with hint functions
 		var check fr.Element
 		if !check.Mul(a, b).Equal(c) {
-			return solver.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
+			return s.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
 		}
 		return nil
 	}
@@ -577,7 +578,7 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 			// we didn't actually ensure that a * b == c
 			var check fr.Element
 			if !check.Mul(a, b).Equal(c) {
-				return solver.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
+				return s.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
 			}
 		}
 	case 2:
@@ -588,7 +589,7 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 		} else {
 			var check fr.Element
 			if !check.Mul(a, b).Equal(c) {
-				return solver.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
+				return s.wrapErrWithDebugInfo(cID, fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String()))
 			}
 		}
 	case 3:
@@ -601,8 +602,8 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 	// wire is the term (coeff * value)
 	// but in the solver we want to store the value only
 	// note that in gnark frontend, coeff here is always 1 or -1
-	solver.divByCoeff(&wire, termToCompute.CID)
-	solver.set(wID, wire)
+	s.divByCoeff(&wire, termToCompute.CID)
+	s.set(wID, wire)
 
 	return nil
 }
@@ -621,11 +622,11 @@ func (r *UnsatisfiedConstraintError) Error() string {
 	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }
 
-func (solver *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedConstraintError {
+func (s *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedConstraintError {
 	var debugInfo *string
-	if dID, ok := solver.MDebug[int(cID)]; ok {
+	if dID, ok := s.MDebug[int(cID)]; ok {
 		debugInfo = new(string)
-		*debugInfo = solver.logValue(solver.DebugInfo[dID])
+		*debugInfo = s.logValue(s.DebugInfo[dID])
 	}
 	return &UnsatisfiedConstraintError{CID: int(cID), Err: err, DebugInfo: debugInfo}
 }

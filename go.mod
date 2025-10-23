@@ -1,37 +1,35 @@
 module github.com/consensys/gnark
 
-go 1.22
-
-toolchain go1.22.6
+go 1.24.0
 
 require (
-	github.com/bits-and-blooms/bitset v1.20.0
+	github.com/bits-and-blooms/bitset v1.24.0
 	github.com/blang/semver/v4 v4.0.0
-	github.com/consensys/bavard v0.1.29
+	github.com/consensys/bavard v0.2.1
 	github.com/consensys/compress v0.2.5
-	github.com/consensys/gnark-crypto v0.16.1-0.20250218155240-b2e7aa1a22d7
-	github.com/fxamacker/cbor/v2 v2.7.0
-	github.com/google/go-cmp v0.6.0
-	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8
+	github.com/consensys/gnark-crypto v0.19.0
+	github.com/fxamacker/cbor/v2 v2.9.0
+	github.com/google/go-cmp v0.7.0
+	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6
 	github.com/icza/bitio v1.1.0
-	github.com/ingonyama-zk/icicle/v3 v3.1.1-0.20241118092657-fccdb2f0921b
+	github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2
 	github.com/leanovate/gopter v0.2.11
-	github.com/ronanh/intcomp v1.1.0
-	github.com/rs/zerolog v1.33.0
+	github.com/ronanh/intcomp v1.1.1
+	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.33.0
-	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
-	golang.org/x/sync v0.11.0
+	golang.org/x/crypto v0.41.0
+	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
+	golang.org/x/sync v0.16.0
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )

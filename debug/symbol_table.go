@@ -76,7 +76,7 @@ func (st *SymbolTable) CollectStack() []int {
 		if strings.HasSuffix(function, "Define") {
 			break
 		}
-		if strings.HasSuffix(function, "callDeferred") {
+		if strings.HasSuffix(function, "callDeferred") || strings.HasSuffix(function, "callDeferred[...]") /* generic variant */ {
 			break
 		}
 	}

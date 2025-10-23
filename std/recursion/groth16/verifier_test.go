@@ -1,6 +1,7 @@
 package groth16
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math/big"
 	"testing"
@@ -338,11 +339,11 @@ func (c *InnerCircuitCommitment) Define(api frontend.API) error {
 	res := api.Mul(c.P, c.Q)
 	api.AssertIsEqual(res, c.N)
 
-	commitment, err := api.Compiler().(frontend.Committer).Commit(c.P, c.Q, c.N)
+	// commitment both to internal and public
+	commitment, err := api.Compiler().(frontend.Committer).Commit(res, c.N)
 	if err != nil {
 		return err
 	}
-
 	api.AssertIsDifferent(commitment, 0)
 
 	return nil
@@ -451,5 +452,147 @@ func TestBW6InBN254Commitment(t *testing.T) {
 		VerifyingKey: circuitVk,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type innerParametricCircuit struct {
+	nbConstraints int
+	SecretInput   frontend.Variable `gnark:",secret"`
+	PublicInputs  frontend.Variable `gnark:",public"`
+}
+
+func (c *innerParametricCircuit) Define(api frontend.API) error {
+	res := api.Mul(c.SecretInput, c.SecretInput)
+	for i := 2; i < c.nbConstraints-1; i++ {
+		res = api.Mul(res, c.SecretInput)
+	}
+	api.AssertIsEqual(c.PublicInputs, res)
+	commitment, err := api.Compiler().(frontend.Committer).Commit(res, c.PublicInputs)
+	if err != nil {
+		return err
+	}
+
+	api.AssertIsDifferent(commitment, 0)
+	return nil
+}
+
+// getInnerParametric method returns a dummy circuit with the number of constraints
+// of the main one provided as argument, it also generates a proof for this
+// circuit and verifies it. It returns the circuit, the verifying key, the
+// public witness and the proof.
+func getInnerParametric(assert *test.Assert, nbConstraints int, field, outer *big.Int) (
+	constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof,
+) {
+	dummyCcs, err := frontend.Compile(field, r1cs.NewBuilder, &innerParametricCircuit{
+		nbConstraints: nbConstraints,
+	})
+	assert.NoError(err)
+	dummyPK, dummyVK, err := groth16.Setup(dummyCcs)
+	assert.NoError(err)
+
+	// dummy proof
+	x, err := rand.Int(rand.Reader, field)
+	assert.NoError(err)
+	res := big.NewInt(1)
+	for i := 0; i < nbConstraints-1; i++ {
+		res.Mul(res, x)
+	}
+	dummyAssignment := &innerParametricCircuit{
+		SecretInput:  x,
+		PublicInputs: res,
+	}
+	dummyWitness, err := frontend.NewWitness(dummyAssignment, field)
+	assert.NoError(err)
+	dummyProof, err := groth16.Prove(dummyCcs, dummyPK, dummyWitness, GetNativeProverOptions(outer, field))
+	assert.NoError(err)
+	dummyPubWitness, err := dummyWitness.Public()
+	assert.NoError(err)
+	err = groth16.Verify(dummyProof, dummyVK, dummyPubWitness, GetNativeVerifierOptions(outer, field))
+	assert.NoError(err)
+	return dummyCcs, dummyVK, dummyPubWitness, dummyProof
+}
+
+type OuterCircuitMulti[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	// selectors include a 1 for inner and 0 for dummy verification keys
+	// it allows to switch between the two vks to use the right one for each
+	// proof and witness
+	Selectors []frontend.Variable
+	Proofs    []Proof[G1El, G2El]
+	// vks includes the dummy vk in the first place and the inner vk in the
+	// second place
+	vks            []VerifyingKey[G1El, G2El, GtEl] `gnark:"-"`
+	InnerWitnesses []Witness[FR]                    `gnark:",public"`
+}
+
+func (c *OuterCircuitMulti[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	// init the verifier
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	// switch between vkeys based on each selector
+	for i, selector := range c.Selectors {
+		vk, err := verifier.SwitchVerificationKey(selector, c.vks)
+		if err != nil {
+			return fmt.Errorf("switch vk: %w", err)
+		}
+		if err := verifier.AssertProof(vk, c.Proofs[i], c.InnerWitnesses[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestBLS12InBW6Multi(t *testing.T) {
+	innertField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BW6_761.ScalarField()
+	nbCircuit := 5
+	nbProofs := 5
+	assert := test.NewAssert(t)
+	var err error
+
+	ccss := make([]constraint.ConstraintSystem, nbCircuit)
+	vks := make([]groth16.VerifyingKey, nbCircuit)
+	witnesses := make([]witness.Witness, nbCircuit)
+	proofs := make([]groth16.Proof, nbCircuit)
+	for i := 0; i < nbCircuit; i++ {
+		// the different circuits can have different sizes. However, the number of public inputs and commitments must match
+		ccss[i], vks[i], witnesses[i], proofs[i] = getInnerParametric(assert, 100*(i+1), innertField, outerField)
+	}
+	circuitVks := make([]VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT], nbCircuit)
+	for i, vk := range vks {
+		circuitVks[i], err = ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](vk)
+		assert.NoError(err)
+	}
+	circuitProofs := make([]Proof[sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs)
+	circuitWitnesses := make([]Witness[sw_bls12377.ScalarField], nbProofs)
+	innerSelectors := make([]int, nbProofs)
+	circuitSelectors := make([]frontend.Variable, nbProofs)
+	for i := 0; i < nbProofs; i++ {
+		selector, err := rand.Int(rand.Reader, big.NewInt(int64(nbCircuit)))
+		assert.NoError(err)
+		innerSelectors[i] = int(selector.Int64())
+		circuitSelectors[i] = frontend.Variable(innerSelectors[i])
+		circuitProofs[i], err = ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](proofs[innerSelectors[i]])
+		assert.NoError(err)
+		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](witnesses[innerSelectors[i]])
+		assert.NoError(err)
+	}
+	outerCircuit := &OuterCircuitMulti[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Selectors:      make([]frontend.Variable, nbProofs),
+		Proofs:         make([]Proof[sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs),
+		InnerWitnesses: make([]Witness[sw_bls12377.ScalarField], nbProofs),
+		vks:            circuitVks, // the inner verification keys are hardcoded in the aggregation circuit
+	}
+	for i := 0; i < nbProofs; i++ {
+		outerCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
+		outerCircuit.InnerWitnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
+	}
+	outerAssignment := &OuterCircuitMulti[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Selectors:      circuitSelectors,
+		InnerWitnesses: circuitWitnesses,
+		Proofs:         circuitProofs,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }

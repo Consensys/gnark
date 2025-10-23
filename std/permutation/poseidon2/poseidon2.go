@@ -1,4 +1,4 @@
-package poseidon
+package poseidon2
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ type parameters struct {
 	// number of partial rounds
 	nbPartialRounds int
 
-	// round keys
+	// round keys: ordered by round then variable
 	roundKeys [][]big.Int
 }
 
@@ -50,8 +50,25 @@ func NewPoseidon2(api frontend.API) (*Permutation, error) {
 	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
 	case ecc.BLS12_377:
 		params := poseidonbls12377.GetDefaultParameters()
-		return NewPoseidon2FromParameters(api, 2, params.NbFullRounds, params.NbPartialRounds)
-	// TODO: we don't have default parameters for other curves yet. Update this when we do.
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BN254:
+		params := poseidonbn254.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BLS12_381:
+		params := poseidonbls12381.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BLS24_315:
+		params := poseidonbls24315.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BLS24_317:
+		params := poseidonbls24317.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BW6_761:
+		params := poseidonbw6761.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
+	case ecc.BW6_633:
+		params := poseidonbw6633.GetDefaultParameters()
+		return NewPoseidon2FromParameters(api, params.Width, params.NbFullRounds, params.NbPartialRounds)
 	default:
 		return nil, fmt.Errorf("field %s not supported", api.Compiler().Field().String())
 	}
@@ -236,7 +253,7 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 	}
 }
 
-// when t=2,3 the matrix are respectibely [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
+// when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 	if h.params.width == 2 {
@@ -328,5 +345,5 @@ func (h *Permutation) Compress(left, right frontend.Variable) frontend.Variable 
 	if err := h.Permutation(vars[:]); err != nil {
 		panic(err) // this would never happen
 	}
-	return vars[1]
+	return h.api.Add(vars[1], right)
 }

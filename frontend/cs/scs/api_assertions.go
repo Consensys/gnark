@@ -15,7 +15,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
@@ -32,11 +32,11 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		xa := i1.(expr.Term)
+		xa := i1.(expr.Term[E])
 		c2 := builder.cs.Neg(c2)
 
 		// xa - i2 == 0
-		toAdd := sparseR1C{
+		toAdd := sparseR1C[E]{
 			xa: xa.VID,
 			qL: xa.Coeff,
 			qC: c2,
@@ -50,12 +50,12 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 		}
 		return
 	}
-	xa := i1.(expr.Term)
-	xb := i2.(expr.Term)
+	xa := i1.(expr.Term[E])
+	xb := i2.(expr.Term[E])
 
 	xb.Coeff = builder.cs.Neg(xb.Coeff)
 	// xa - xb == 0
-	toAdd := sparseR1C{
+	toAdd := sparseR1C[E]{
 		xa: xa.VID,
 		xb: xb.VID,
 		qL: xa.Coeff,
@@ -72,28 +72,28 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (builder *builder[E]) AssertIsDifferent(i1, i2 frontend.Variable) {
 	s := builder.Sub(i1, i2)
 	if c, ok := builder.constantValue(s); ok {
 		if c.IsZero() {
 			panic("AssertIsDifferent(x,x) will never be satisfied")
 		}
-	} else if t := s.(expr.Term); t.Coeff.IsZero() {
+	} else if t := s.(expr.Term[E]); t.Coeff.IsZero() {
 		panic("AssertIsDifferent(x,x) will never be satisfied")
 	}
 	builder.Inverse(s)
 }
 
-// AssertIsBoolean fails if v != 0 ∥ v != 1
-func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
+// AssertIsBoolean fails if v ≠ 0 ∥ v ≠ 1
+func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
-		if !(c.IsZero() || builder.cs.IsOne(c)) {
+		if !(c.IsZero() || builder.cs.IsOne(c)) { // nolint QF1001
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(c)))
 		}
 		return
 	}
 
-	v := i1.(expr.Term)
+	v := i1.(expr.Term[E])
 	if builder.IsBoolean(v) {
 		return
 	}
@@ -104,7 +104,7 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	// qM = -v.Coeff*v.Coeff
 	qM := builder.cs.Neg(v.Coeff)
 	qM = builder.cs.Mul(qM, v.Coeff)
-	toAdd := sparseR1C{
+	toAdd := sparseR1C[E]{
 		xa: v.VID,
 		qL: v.Coeff,
 		qM: qM,
@@ -118,7 +118,7 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 
 }
 
-func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
+func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
 	const errorMsg = "AssertIsCrumb: input is not a crumb"
 	if c, ok := builder.constantValue(i1); ok {
 		if i, ok := builder.cs.Uint64(c); ok && i < 4 {
@@ -130,11 +130,11 @@ func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
 	// i1 (i1-1) (i1-2) (i1-3) = (i1² - 3i1) (i1² - 3i1 + 2)
 	// take X := i1² - 3i1 and we get X (X+2) = 0
 
-	x := builder.MulAcc(builder.Mul(-3, i1), i1, i1).(expr.Term)
+	x := builder.MulAcc(builder.Mul(-3, i1), i1, i1).(expr.Term[E])
 
 	// TODO @Tabaie Ideally this entire function would live in std/math/bits as it is quite specialized;
 	// however using two generic MulAccs and an AssertIsEqual results in three constraints rather than two.
-	builder.addPlonkConstraint(sparseR1C{
+	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: x.VID,
 		xb: x.VID,
 		qL: builder.cs.FromInterface(2),
@@ -143,34 +143,33 @@ func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *builder[E]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	cv, vConst := builder.constantValue(v)
 	cb, bConst := builder.constantValue(bound)
 
-	// both inputs are constants
-	if vConst && bConst {
+	switch {
+	case vConst && bConst: // both inputs are constants
 		bv, bb := builder.cs.ToBigInt(cv), builder.cs.ToBigInt(cb)
 		if bv.Cmp(bb) == 1 {
 			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", bv.String(), bb.String()))
 		}
-	}
-
-	// bound is constant
-	if bConst {
+		return
+	case bConst: // bound is constant
 		nbBits := builder.cs.FieldBitLen()
 		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
+	default:
+		if b, ok := bound.(expr.Term[E]); ok {
+			builder.mustBeLessOrEqVar(v, b)
+		} else {
+			panic(fmt.Sprintf("expected bound type expr.Term, got %T", bound))
+		}
 	}
 
-	if b, ok := bound.(expr.Term); ok {
-		builder.mustBeLessOrEqVar(v, b)
-	} else {
-		panic(fmt.Sprintf("expected bound type expr.Term, got %T", bound))
-	}
 }
 
-func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
+func (builder *builder[E]) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term[E]) {
 	var debugInfo []constraint.DebugInfo
 	if debug.Debug {
 		debugInfo = []constraint.DebugInfo{builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)}
@@ -198,7 +197,7 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 		t := builder.Select(boundBits[i], 0, p[i+1])
 
 		// (1 - t - ai) * ai == 0
-		l := builder.Sub(1, t, aBits[i]).(expr.Term)
+		l := builder.Sub(1, t, aBits[i]).(expr.Term[E])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
@@ -207,15 +206,15 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 		if ai, ok := builder.constantValue(aBits[i]); ok {
 			// a is constant; ensure l == 0
 			l.Coeff = builder.cs.Mul(l.Coeff, ai)
-			builder.addPlonkConstraint(sparseR1C{
+			builder.addPlonkConstraint(sparseR1C[E]{
 				xa: l.VID,
 				qL: l.Coeff,
 			}, debugInfo...)
 		} else {
 			// l * a[i] == 0
-			builder.addPlonkConstraint(sparseR1C{
+			builder.addPlonkConstraint(sparseR1C[E]{
 				xa: l.VID,
-				xb: aBits[i].(expr.Term).VID,
+				xb: aBits[i].(expr.Term[E]).VID,
 				qM: l.Coeff,
 			}, debugInfo...)
 		}
@@ -227,7 +226,7 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 // MustBeLessOrEqCst asserts that value represented using its bit decomposition
 // aBits is less or equal than constant bound. The method boolean constraints
 // the bits in aBits, so the caller can provide unconstrained bits.
-func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
+func (builder *builder[E]) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
 	if len(aBits) > nbBits {
@@ -276,12 +275,12 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
+			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term[E])
 			//l = builder.Sub(l, ).(term)
 
-			builder.addPlonkConstraint(sparseR1C{
+			builder.addPlonkConstraint(sparseR1C[E]{
 				xa: l.VID,
-				xb: aBits[i].(expr.Term).VID,
+				xb: aBits[i].(expr.Term[E]).VID,
 				qM: builder.tOne,
 			}, debugInfo...)
 		} else {

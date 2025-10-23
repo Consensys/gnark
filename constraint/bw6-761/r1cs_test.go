@@ -7,12 +7,14 @@ package cs_test
 
 import (
 	"bytes"
+	"reflect"
+	"testing"
+
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"reflect"
-	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -32,8 +34,9 @@ func TestSerialization(t *testing.T) {
 			if testing.Short() && name != "reference_small" {
 				return
 			}
+			builder := r1cs.NewBuilder[constraint.U64]
 
-			r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -42,7 +45,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// compile a second time to ensure determinism
-			r1cs2, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.CompileGeneric(fr.Modulus(), builder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -103,14 +106,14 @@ func TestSerialization(t *testing.T) {
 				var r, r2 cs.R1CS
 				n, err = r.ReadFrom(&buffer)
 				if err != nil {
-					t.Fatal(nil)
+					t.Fatal(err)
 				}
 				if n == 0 {
 					t.Fatal("No bytes are read")
 				}
 				_, err = r2.ReadFrom(&buffer2)
 				if err != nil {
-					t.Fatal(nil)
+					t.Fatal(err)
 				}
 
 				if !reflect.DeepEqual(r, r2) {
@@ -149,7 +152,7 @@ func BenchmarkSolve(b *testing.B) {
 
 	b.Run("scs", func(b *testing.B) {
 		var c circuit
-		ccs, err := frontend.Compile(fr.Modulus(), scs.NewBuilder, &c)
+		ccs, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), scs.NewBuilder, &c)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -163,7 +166,7 @@ func BenchmarkSolve(b *testing.B) {
 
 	b.Run("r1cs", func(b *testing.B) {
 		var c circuit
-		ccs, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, &c, frontend.WithCompressThreshold(10))
+		ccs, err := frontend.CompileGeneric[constraint.U64](fr.Modulus(), r1cs.NewBuilder, &c, frontend.WithCompressThreshold(10))
 		if err != nil {
 			b.Fatal(err)
 		}

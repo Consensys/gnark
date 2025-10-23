@@ -29,15 +29,15 @@ func RegisterHint(hintFns ...Hint) {
 		if _, ok := registry[key]; ok {
 			log := logger.Logger()
 			log.Debug().Str("name", name).Msg("function registered multiple times")
-			return
+			continue
 		}
 		registry[key] = hintFn
 	}
 }
 
 func GetRegisteredHint(key HintID) Hint {
-	registryM.Lock()
-	defer registryM.Unlock()
+	registryM.RLock()
+	defer registryM.RUnlock()
 	return registry[key]
 }
 
@@ -62,8 +62,8 @@ func GetRegisteredHints() []Hint {
 }
 
 func cloneHintRegistry() map[HintID]Hint {
-	registryM.Lock()
-	defer registryM.Unlock()
+	registryM.RLock()
+	defer registryM.RUnlock()
 	return maps.Clone(registry)
 }
 

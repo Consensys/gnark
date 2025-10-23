@@ -53,6 +53,9 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 		Y: curve.Params().Base[1],
 	}
 
+	// Assert S < GroupSize (see https://datatracker.ietf.org/doc/html/rfc8032#section-3.4)
+	curve.API().AssertIsLessOrEqual(sig.S, curve.Params().Order)
+
 	//[S]G-[H(R,A,M)]*A
 	_A := curve.Neg(pubKey.A)
 	Q := curve.DoubleBaseScalarMul(base, _A, sig.S, hRAM)

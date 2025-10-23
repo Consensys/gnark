@@ -5,7 +5,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
-	poseidon2 "github.com/consensys/gnark/std/permutation/poseidon2"
+	"github.com/consensys/gnark/std/permutation/poseidon2"
 )
 
 // NewMerkleDamgardHasher returns a Poseidon2 hasher using the Merkle-Damgard
@@ -16,4 +16,8 @@ func NewMerkleDamgardHasher(api frontend.API) (hash.FieldHasher, error) {
 		return nil, fmt.Errorf("could not create poseidon2 hasher: %w", err)
 	}
 	return hash.NewMerkleDamgardHasher(api, f, 0), nil
+}
+
+func init() {
+	hash.Register(hash.POSEIDON2, NewMerkleDamgardHasher)
 }

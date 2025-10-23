@@ -2,7 +2,7 @@
 //
 // This package chooses the most optimal path for performing range checks:
 //   - if the backend supports native range checking and the frontend exports the variables in the proprietary format by implementing [frontend.Rangechecker], then use it directly;
-//   - if the backend supports creating a commitment of variables by implementing [frontend.Committer], then we use the log-derivative variant [[Haböck22]] of the product argument as in [[BCG+18]] . [r1cs.NewBuilder] returns a builder which implements this interface;
+//   - if the backend supports creating a commitment of variables by implementing [frontend.Committer], then we use the log-derivative variant [[Haböck22]] of the product argument as in [[BCG+18]].
 //   - lacking these, we perform binary decomposition of variable into bits.
 //
 // [BCG+18]: https://eprint.iacr.org/2018/380
@@ -12,13 +12,7 @@ package rangecheck
 import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
-
-// only for documentation purposes. If we import the package then godoc knows
-// how to refer to package r1cs and we get nice links in godoc. We import the
-// package anyway in test.
-var _ = r1cs.NewBuilder
 
 // New returns a new range checker depending on the frontend capabilities.
 func New(api frontend.API) frontend.Rangechecker {
@@ -27,6 +21,16 @@ func New(api frontend.API) frontend.Rangechecker {
 	}
 	if _, ok := api.(frontend.Committer); ok {
 		return newCommitRangechecker(api)
+	}
+	if _, ok := api.(frontend.WideCommitter); ok {
+		// native field extension package does not support inversion for now which is required
+		// for the logderivate argument. However, we use wide committer only for small fields
+		// where the backend already knows how to range check (and should implement Rangechecker interface).
+		// So we can just panic here to detect the case when the backend does not implement
+		// the range checker interface.
+		//
+		// See https://github.com/Consensys/gnark/pull/1493
+		panic("wide committer does not support operations for range checking")
 	}
 	return plainChecker{api: api}
 }

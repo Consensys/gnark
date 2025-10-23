@@ -8,7 +8,25 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
+// NewBuilder is a function that creates a new constraint system builder for a
+// given field. It takes a field modulus and a CompileConfig as arguments and
+// returns a Builder interface and an error. The Builder interface provides
+// methods for building and compiling the constraint system.
+//
+// gnark currently implements two builder constructors:
+//   - r1cs.NewBuilder
+//   - plonk.NewBuilder.
+//
+// For a constructor optimized for small field modulus, use [NewBuilderU32] instead.
+type NewBuilder = NewBuilderGeneric[constraint.U64]
+
+// NewBuilderU32 is a function that creates a new constraint system builder
+// for a given small field modulus. See [NewBuilder] for more details.
+type NewBuilderU32 = NewBuilderGeneric[constraint.U32]
+
+// NewBuilderGeneric is a generic function that creates a new constraint system
+// builder for a given field. See [NewBuilder] for more details.
+type NewBuilderGeneric[E constraint.Element] func(*big.Int, CompileConfig) (Builder[E], error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
@@ -63,17 +81,15 @@ type Compiler interface {
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	ToCanonicalVariable(Variable) CanonicalVariable
-
-	SetGkrInfo(constraint.GkrInfo) error
 }
 
 // Builder represents a constraint system builder
-type Builder interface {
+type Builder[E constraint.Element] interface {
 	API
 	Compiler
 
 	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
-	Compile() (constraint.ConstraintSystem, error)
+	Compile() (constraint.ConstraintSystemGeneric[E], error)
 
 	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
@@ -89,6 +105,26 @@ type Builder interface {
 type Committer interface {
 	// Commit commits to the variables and returns the commitment.
 	Commit(toCommit ...Variable) (commitment Variable, err error)
+}
+
+// WideCommitter allows to commit to the variables and returns the commitment as
+// an extension field element. The commitment can be used as a challenge using
+// Fiat-Shamir heuristic. This method is required when the circuit is defined
+// over a small field where the individual commitment would be too small to
+// achieve desired soundness level.
+//
+// This is experimental API and may be subject to change. It is not relevant for
+// pairing-based backends where the commitment is in a large field and is not
+// defined for such cases. Thus, the caller should check if this or [Committer]
+// interfaces is implemented and use the appropriate method.
+type WideCommitter interface {
+	// WideCommit commits to the variables and returns the commitments.
+	// This method is required when the circuit is defined over a small field
+	// where the individual commitment would be too small to achieve desired
+	// soundness level.
+	//
+	// The width parameter defines the number of elements in the commitment.
+	WideCommit(width int, toCommit ...Variable) (commitment []Variable, err error)
 }
 
 // Rangechecker allows to externally range-check the variables to be of

@@ -184,7 +184,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```
 
-For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle). **NB! ICICLE CUDA kernels are covered by a special license for now. Follow the instructions to download and set up the kernels.**
+For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle-gnark).
 
 ## Citing
 
@@ -192,17 +192,17 @@ If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.12.0,
+@software{gnark-v0.14.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {Consensys/gnark: v0.12.0},
-  month        = jan,
+  title        = {Consensys/gnark: v0.14.0},
+  month        = jun,
   year         = 2025,
   publisher    = {Zenodo},
-  version      = {v0.12.0},
+  version      = {v0.14.0},
   doi          = {10.5281/zenodo.5819104},
   url          = {https://doi.org/10.5281/zenodo.5819104}
 }

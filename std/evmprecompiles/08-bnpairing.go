@@ -26,7 +26,7 @@ import (
 // See the methods [ECPairMillerLoopAndMul] and [ECPairMillerLoopAndFinalExpCheck] for the fixed circuits.
 // See the method [ECPairIsOnG2] for the check that Qᵢ are on G2.
 //
-// [ALT_BN128_PAIRING_CHECK]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/alt_bn128/index.html#alt-bn128-pairing-check
+// [ALT_BN128_PAIRING_CHECK]: https://github.com/ethereum/execution-specs/blob/master/src/ethereum/cancun/vm/precompiled_contracts/alt_bn128.py
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	if len(P) != len(Q) {
@@ -40,8 +40,11 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	if err != nil {
 		panic(err)
 	}
-	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️
-	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck)
+	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️)
+	// N.B.: BN254 has a prime order so G1 membership boils down to curve
+	// membership only, which is checked in the zkEVM.
+	//
+	// 2- Check that Qᵢ are on G2 (done in `computeLines` in `MillerLoopAndMul` and `MillerLoopAndFinalExpCheck`)
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
 	ml := pair.Ext12.One()

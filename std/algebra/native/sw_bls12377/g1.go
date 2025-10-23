@@ -134,7 +134,7 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
-func (P *G1Affine) doubleN(api frontend.API, Q *G1Affine, n int) *G1Affine {
+func (p *G1Affine) doubleN(api frontend.API, Q *G1Affine, n int) *G1Affine {
 	pn := Q
 	for s := 0; s < n; s++ {
 		pn.Double(api, *pn)
@@ -142,7 +142,7 @@ func (P *G1Affine) doubleN(api frontend.API, Q *G1Affine, n int) *G1Affine {
 	return pn
 }
 
-func (P *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
+func (p *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
 	var z, t0, t1 G1Affine
 	z.Double(api, *Q)
 	z.AddAssign(api, *Q)
@@ -156,9 +156,9 @@ func (P *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
 	t0.doubleN(api, &t0, 9)
 	z.DoubleAndAdd(api, &t0, &z)
 	z.doubleN(api, &z, 45)
-	P.DoubleAndAdd(api, &z, Q)
+	p.DoubleAndAdd(api, &z, Q)
 
-	return P
+	return p
 }
 
 // ScalarMul sets P = [s] Q and returns P.
@@ -166,11 +166,11 @@ func (P *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return P.constScalarMul(api, Q, n, opts...)
+		return p.constScalarMul(api, Q, n, opts...)
 	} else {
-		return P.varScalarMul(api, Q, s, opts...)
+		return p.varScalarMul(api, Q, s, opts...)
 	}
 }
 
@@ -183,7 +183,7 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts .
 //
 // [Halo]: https://eprint.iacr.org/2019/1021.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
@@ -301,22 +301,22 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
 	}
 
-	P.X = Acc.X
-	P.Y = Acc.Y
+	p.X = Acc.X
+	p.Y = Acc.Y
 
-	return P
+	return p
 }
 
 // constScalarMul sets P = [s] Q and returns P.
-func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
 	if s.BitLen() == 0 {
-		P.X = 0
-		P.Y = 0
-		return P
+		p.X = 0
+		p.Y = 0
+		return p
 	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
@@ -392,9 +392,9 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 		negPhiQ.AddAssign(api, Acc)
 	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
-	P.X, P.Y = Acc.X, Acc.Y
+	p.X, p.Y = Acc.X, Acc.Y
 
-	return P
+	return p
 }
 
 // Assign a value to self (witness assignment)
@@ -440,33 +440,33 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 }
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
-func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	_, _, g1aff, _ := bls12377.Generators()
 	generator := G1Affine{
 		X: g1aff.X.BigInt(new(big.Int)),
 		Y: g1aff.Y.BigInt(new(big.Int)),
 	}
-	return P.ScalarMul(api, generator, s, opts...)
+	return p.ScalarMul(api, generator, s, opts...)
 }
 
-func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
 	if cfg.CompleteArithmetic {
 		var tmp G1Affine
-		P.ScalarMul(api, Q, s, opts...)
+		p.ScalarMul(api, Q, s, opts...)
 		tmp.ScalarMul(api, R, t, opts...)
-		P.AddUnified(api, tmp)
+		p.AddUnified(api, tmp)
 	} else {
-		P.jointScalarMulUnsafe(api, Q, R, s, t)
+		p.jointScalarMulUnsafe(api, Q, R, s, t)
 	}
-	return P
+	return p
 }
 
 // P = [s]Q + [t]R using Shamir's trick
-func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+func (p *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, s)
@@ -545,15 +545,15 @@ func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t fr
 	tablePhiR[0].AddAssign(api, Acc)
 	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
 
-	P.X = Acc.X
-	P.Y = Acc.Y
+	p.X = Acc.X
+	p.Y = Acc.Y
 
-	return P
+	return p
 }
 
 // scalarBitsMul computes [s]Q and returns it where sBits is the bit decomposition of s. It doesn't modify Q nor sBits.
 // The method is similar to varScalarMul.
-func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
@@ -654,16 +654,16 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 
 	}
 
-	P.X = Acc.X
-	P.Y = Acc.Y
+	p.X = Acc.X
+	p.Y = Acc.Y
 
-	return P
+	return p
 }
 
 // fake-GLV
 //
 // N.B.: this method is more expensive than classical GLV, but it is useful for testing purposes.
-func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
@@ -703,20 +703,16 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
 	//
 	// N.B.: this check may overflow. But we don't use this method anywhere but for testing purposes.
-	sd, err := api.NewHint(halfGCDEisenstein, 5, _s, cc.lambda)
+	//
+	// Eisenstein integers real and imaginary parts can be negative. So we
+	// return the absolute value in the hint and negate the corresponding
+	// points here when needed.
+	sd, err := api.NewHint(halfGCDEisenstein, 10, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
 	}
 	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
-
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
-	signs, err := api.NewHint(halfGCDEisensteinSigns, 5, _s, cc.lambda)
-	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisensteinSigns hint: %v", err))
-	}
-	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := signs[0], signs[1], signs[2], signs[3], signs[4]
+	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
 
 	// We need to check that:
 	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
@@ -863,8 +859,8 @@ func (R *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	}
 	Acc.AssertIsEqual(api, H)
 
-	R.X = point[0]
-	R.Y = point[1]
+	p.X = point[0]
+	p.Y = point[1]
 
-	return R
+	return p
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -29,7 +29,7 @@ const permutterBound = 3
 // r1cs + sparser1cs
 const nbSystems = 2
 
-var builders [2]frontend.NewBuilder
+var builders [2]frontend.NewBuilderU32
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
@@ -45,6 +45,12 @@ func TestSolverConsistency(t *testing.T) {
 
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
+			if name == "commit" {
+				// we skip the commit circuit for consistency check because small field circuits
+				// should use [frontend.WideCommitter] interface, but in this test we want to
+				// use the given builder not, the one wrapped using [widecommitter.From].
+				return
+			}
 			tc := circuits.Circuits[name]
 			t.Parallel()
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
@@ -105,7 +111,7 @@ func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
 
 type permutter struct {
 	circuit           frontend.Circuit
-	constraintSystems [2]constraint.ConstraintSystem
+	constraintSystems [2]constraint.ConstraintSystemU32
 	witness           []tinyfield.Element
 	hints             []solver.Hint
 }
@@ -114,7 +120,7 @@ type permutter struct {
 func (p *permutter) permuteAndTest(index int) error {
 
 	for i := 0; i < len(tinyfieldElements); i++ {
-		p.witness[index].SetUint64(tinyfieldElements[i])
+		p.witness[index].SetUint64(uint64(tinyfieldElements[i]))
 		if index == len(p.witness)-1 {
 
 			// we have a unique permutation
@@ -128,10 +134,10 @@ func (p *permutter) permuteAndTest(index int) error {
 
 				// solve the cs using test engine
 				// first copy the witness in the circuit
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[0] = isSolvedEngine(p.circuit, tinyfield.Modulus())
 
-				copyWitnessFromVector(p.circuit, p.witness)
+				copyWitnessFromVector(tinyfield.Modulus(), p.circuit, p.witness)
 				errorEngines[1] = isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
 
 			}
@@ -217,9 +223,9 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 
 // fill the "to" frontend.Circuit with values from the provided vector
 // values are assumed to be ordered [public | secret]
-func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
+func copyWitnessFromVector(field *big.Int, to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++
@@ -227,7 +233,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 		return nil
 	})
 
-	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
+	schema.Walk(field, to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
 			tInput.Set(reflect.ValueOf(from[i]))
 			i++
@@ -249,7 +255,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) err
 	// compile the systems
 	for i := 0; i < nbSystems; i++ {
 
-		ccs, err := frontend.Compile(tinyfield.Modulus(), builders[i], circuit)
+		ccs, err := frontend.CompileU32(tinyfield.Modulus(), builders[i], circuit)
 		if err != nil {
 			return err
 		}

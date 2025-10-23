@@ -24,6 +24,8 @@ type checkedVariable struct {
 }
 
 type commitChecker struct {
+	api frontend.API
+
 	collected []checkedVariable
 	closed    bool
 }
@@ -41,7 +43,7 @@ func newCommitRangechecker(api frontend.API) *commitChecker {
 			panic("stored rangechecker is not valid")
 		}
 	}
-	cht := &commitChecker{}
+	cht := &commitChecker{api: api}
 	kv.SetKeyValue(ctxCheckerKey{}, cht)
 	api.Compiler().Defer(cht.commit)
 	return cht
@@ -51,7 +53,14 @@ func (c *commitChecker) Check(in frontend.Variable, bits int) {
 	if c.closed {
 		panic("checker already closed")
 	}
-	c.collected = append(c.collected, checkedVariable{v: in, bits: bits})
+	switch bits {
+	case 0:
+		c.api.AssertIsEqual(in, 0)
+	case 1:
+		c.api.AssertIsBoolean(in)
+	default:
+		c.collected = append(c.collected, checkedVariable{v: in, bits: bits})
+	}
 }
 
 func (c *commitChecker) buildTable(nbTable int) []frontend.Variable {

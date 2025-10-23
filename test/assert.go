@@ -6,6 +6,7 @@ package test
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -46,9 +47,9 @@ func NewAssert(t *testing.T) *Assert {
 
 // Run runs the test function fn as a subtest. The subtest is parametrized by
 // the description strings descs.
-func (a *Assert) Run(fn func(assert *Assert), descs ...string) {
+func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
-	a.t.Run(desc, func(t *testing.T) {
+	assert.t.Run(desc, func(t *testing.T) {
 		assert := &Assert{t, require.New(t)}
 		fn(assert)
 	})
@@ -100,10 +101,10 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-func lazySchema(circuit frontend.Circuit) func() *schema.Schema {
+func lazySchema(field *big.Int, circuit frontend.Circuit) func() *schema.Schema {
 	return func() *schema.Schema {
 		// we only parse the schema if we need to display the witness in json.
-		s, err := schema.New(circuit, tVariable)
+		s, err := schema.New(field, circuit, tVariable)
 		if err != nil {
 			panic("couldn't parse schema from circuit: " + err.Error())
 		}
@@ -144,13 +145,13 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 
 // error ensure the error is set, else fails the test
 // add a witness to the error message if provided
-func (assert *Assert) error(err error, w *_witness) {
+func (assert *Assert) error(field *big.Int, err error, w *_witness) {
 	if err != nil {
 		return
 	}
 	json := "<nil>"
 	if w != nil {
-		bjson, err := w.full.ToJSON(lazySchema(w.assignment)())
+		bjson, err := w.full.ToJSON(lazySchema(field, w.assignment)())
 		if err != nil {
 			json = err.Error()
 		} else {
@@ -164,7 +165,7 @@ func (assert *Assert) error(err error, w *_witness) {
 
 // ensure the error is nil, else fails the test
 // add a witness to the error message if provided
-func (assert *Assert) noError(err error, w *_witness) {
+func (assert *Assert) noError(field *big.Int, err error, w *_witness) {
 	if err == nil {
 		return
 	}
@@ -173,7 +174,7 @@ func (assert *Assert) noError(err error, w *_witness) {
 
 	if w != nil {
 		var json string
-		bjson, err := w.full.ToJSON(lazySchema(w.assignment)())
+		bjson, err := w.full.ToJSON(lazySchema(field, w.assignment)())
 		if err != nil {
 			json = err.Error()
 		} else {

@@ -1,9 +1,14 @@
 package sw_bls12381
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -17,6 +22,11 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		finalExpHint,
 		pairingCheckHint,
+		millerLoopAndCheckFinalExpHint,
+		decomposeScalarG1,
+		g1SqrtRatioHint,
+		g2SqrtRatioHint,
+		unmarshalG1,
 	}
 }
 
@@ -199,4 +209,216 @@ func finalExpWitness(millerLoop *bls12381.E12) (residueWitness, scalingFactor bl
 	residueWitness.Exp(*millerLoop, &exponent)
 
 	return residueWitness, scalingFactor
+}
+
+func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var P bls12381.G1Affine
+			var Q bls12381.G2Affine
+			var previous bls12381.E12
+
+			P.X.SetBigInt(inputs[0])
+			P.Y.SetBigInt(inputs[1])
+			Q.X.A0.SetBigInt(inputs[2])
+			Q.X.A1.SetBigInt(inputs[3])
+			Q.Y.A0.SetBigInt(inputs[4])
+			Q.Y.A1.SetBigInt(inputs[5])
+
+			previous.C0.B0.A0.SetBigInt(inputs[6])
+			previous.C0.B0.A1.SetBigInt(inputs[7])
+			previous.C0.B1.A0.SetBigInt(inputs[8])
+			previous.C0.B1.A1.SetBigInt(inputs[9])
+			previous.C0.B2.A0.SetBigInt(inputs[10])
+			previous.C0.B2.A1.SetBigInt(inputs[11])
+			previous.C1.B0.A0.SetBigInt(inputs[12])
+			previous.C1.B0.A1.SetBigInt(inputs[13])
+			previous.C1.B1.A0.SetBigInt(inputs[14])
+			previous.C1.B1.A1.SetBigInt(inputs[15])
+			previous.C1.B2.A0.SetBigInt(inputs[16])
+			previous.C1.B2.A1.SetBigInt(inputs[17])
+
+			if previous.IsZero() {
+				return errors.New("previous Miller loop result is zero")
+			}
+
+			lines := bls12381.PrecomputeLines(Q)
+			millerLoop, err := bls12381.MillerLoopFixedQ(
+				[]bls12381.G1Affine{P},
+				[][2][len(bls12381.LoopCounter) - 1]bls12381.LineEvaluationAff{lines},
+			)
+			if err != nil {
+				return err
+			}
+			millerLoop.Conjugate(&millerLoop)
+
+			millerLoop.Mul(&millerLoop, &previous)
+
+			residueWitnessInv, scalingFactor := finalExpWitness(&millerLoop)
+			residueWitnessInv.Inverse(&residueWitnessInv)
+
+			residueWitnessInv.C0.B0.A0.BigInt(outputs[0])
+			residueWitnessInv.C0.B0.A1.BigInt(outputs[1])
+			residueWitnessInv.C0.B1.A0.BigInt(outputs[2])
+			residueWitnessInv.C0.B1.A1.BigInt(outputs[3])
+			residueWitnessInv.C0.B2.A0.BigInt(outputs[4])
+			residueWitnessInv.C0.B2.A1.BigInt(outputs[5])
+			residueWitnessInv.C1.B0.A0.BigInt(outputs[6])
+			residueWitnessInv.C1.B0.A1.BigInt(outputs[7])
+			residueWitnessInv.C1.B1.A0.BigInt(outputs[8])
+			residueWitnessInv.C1.B1.A1.BigInt(outputs[9])
+			residueWitnessInv.C1.B2.A0.BigInt(outputs[10])
+			residueWitnessInv.C1.B2.A1.BigInt(outputs[11])
+
+			// return the scaling factor
+			scalingFactor.C0.B0.A0.BigInt(outputs[12])
+			scalingFactor.C0.B0.A1.BigInt(outputs[13])
+			scalingFactor.C0.B1.A0.BigInt(outputs[14])
+			scalingFactor.C0.B1.A1.BigInt(outputs[15])
+			scalingFactor.C0.B2.A0.BigInt(outputs[16])
+			scalingFactor.C0.B2.A1.BigInt(outputs[17])
+
+			return nil
+		})
+}
+
+func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one moduli, got %d", len(moduli))
+		}
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
+		}
+
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
+		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
+		emuOutputs[0].Set(&sp[0])
+		emuOutputs[1].Set(&sp[1])
+		nativeOutputs[0].SetUint64(0)
+		nativeOutputs[1].SetUint64(0)
+		// we need the absolute values for the in-circuit computations,
+		// otherwise the negative values will be reduced modulo the SNARK scalar
+		// field and not the emulated field.
+		// 		output0 = |s0| mod r
+		// 		output1 = |s1| mod r
+		if emuOutputs[0].Sign() == -1 {
+			emuOutputs[0].Neg(emuOutputs[0])
+			nativeOutputs[0].SetUint64(1)
+		}
+		if emuOutputs[1].Sign() == -1 {
+			emuOutputs[1].Neg(emuOutputs[1])
+			nativeOutputs[1].SetUint64(1)
+		}
+
+		return nil
+	})
+}
+
+// g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
+// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
+// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
+// The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
+//
+// nativeInputs[0] = u, nativeInputs[1]=v
+// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var u, v, z fp.Element
+			u.SetBigInt(inputs[0])
+			v.SetBigInt(inputs[1])
+
+			isQNr := hash_to_curve.G1SqrtRatio(&z, &u, &v)
+			if isQNr != 0 {
+				isQNr = 1
+			}
+			z.BigInt(outputs[0])
+			outputs[1].SetInt64(int64(isQNr))
+			return nil
+		})
+}
+
+func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 4 {
+			return fmt.Errorf("expecting 4 inputs")
+		}
+		if len(outputs) != 3 {
+			return fmt.Errorf("expecting 3 outputs")
+		}
+
+		var z, u, v bls12381.E2
+		u.A0.SetBigInt(inputs[0])
+		u.A1.SetBigInt(inputs[1])
+		v.A0.SetBigInt(inputs[2])
+		v.A1.SetBigInt(inputs[3])
+
+		isQNr := hash_to_curve.G2SqrtRatio(&z, &u, &v)
+		if isQNr != 0 {
+			isQNr = 1
+		}
+
+		outputs[0].SetUint64(isQNr)
+		z.A0.BigInt(outputs[1])
+		z.A1.BigInt(outputs[2])
+		return nil
+	})
+}
+
+// unmarshalG1 unmarshals the y coordinate of a compressed BLS12-381 G1 point.
+// It takes as input the bytes of the compressed point and returns the y
+// coordinate. It uses non-native methods for outputting non-native value.
+func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintWithNativeInput(nativeInputs, outputs, func(emulatedMod *big.Int, nativeInputs, outputs []*big.Int) error {
+		nbBytes := fp.Bytes
+		xCoord := make([]byte, nbBytes)
+		if len(nativeInputs) != nbBytes {
+			return fmt.Errorf("expecting %d inputs, got %d", nbBytes, len(nativeInputs))
+		}
+		for i := range nbBytes {
+			if !nativeInputs[i].IsUint64() || ((nativeInputs[i].Uint64() &^ 0xff) > 0) {
+				return fmt.Errorf("input %d is not a byte: %s", i, nativeInputs[i].String())
+			}
+			xCoord[i] = byte(nativeInputs[i].Uint64())
+		}
+
+		var point bls12381.G1Affine
+		_, err := point.SetBytes(xCoord)
+		// we have an error. However, as we have already checked the mask to be
+		// valid (0b100, 0b101, 0b110), and additionally checked that if mask is
+		// for infinity then also X is infinity, then in practice we can have
+		// only errors if x does not allow to encode valid point on a curve. In
+		// this case, we return a random point not on curve ourselves and then
+		// it is later checked in circuit indeed not to be on a curve.
+		if err != nil {
+			var sign int64
+			switch (xCoord[0] & mMask) >> 5 {
+			case 0b100:
+				sign = 1
+			case 0b101:
+				sign = -1
+			default:
+				return fmt.Errorf("invalid mask %b for unmarshalG1: %w", (xCoord[0]&mMask)>>5, err)
+			}
+			for i := 1; i < 100; i++ { // we have probability 1/2 for each i to find a point not on curve
+				point.Y.SetInt64(int64(i) * sign)
+				if !point.IsOnCurve() {
+					break
+				}
+			}
+		}
+		point.Y.BigInt(outputs[0])
+		return nil
+	})
 }

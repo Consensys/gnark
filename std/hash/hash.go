@@ -5,9 +5,6 @@
 package hash
 
 import (
-	"fmt"
-	"sync"
-
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -42,27 +39,6 @@ type StateStorer interface {
 	SetState(state []frontend.Variable) error
 }
 
-var (
-	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
-	lock            sync.RWMutex
-)
-
-func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
-	lock.Lock()
-	defer lock.Unlock()
-	builderRegistry[name] = builder
-}
-
-func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
-	lock.RLock()
-	defer lock.RUnlock()
-	builder, ok := builderRegistry[name]
-	if !ok {
-		return nil, fmt.Errorf("hash function \"%s\" not registered", name)
-	}
-	return builder(api)
-}
-
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and
 // outputs byte array whose length depends on the underlying hash function. For
 // SNARK-native hash functions use [FieldHasher].
@@ -76,6 +52,10 @@ type BinaryHasher interface {
 	// Size returns the number of bytes this hash function returns in a call to
 	// [BinaryHasher.Sum].
 	Size() int
+
+	// BlockSize returns the internal block size of the hash function. NB! This
+	// is different from [BinaryHasher.Size] which indicates the output size.
+	BlockSize() int
 }
 
 // BinaryFixedLengthHasher is like [BinaryHasher], but assumes the length of the
@@ -84,8 +64,32 @@ type BinaryHasher interface {
 // the length of the input is the total number of bytes written.
 type BinaryFixedLengthHasher interface {
 	BinaryHasher
-	// FixedLengthSum returns digest of the first length bytes.
+	// FixedLengthSum returns digest of the first length bytes. See the
+	// [WithMinimalLength] option for setting lower bound on length.
 	FixedLengthSum(length frontend.Variable) []uints.U8
+}
+
+// HasherConfig allows to configure the behavior of the hash constructors. Do
+// not initialize the configuration directly but rather use the [Option]
+// functions which perform correct initializations. This configuration is
+// exported for importing in hash implementations.
+type HasherConfig struct {
+	MinimalLength int
+}
+
+// Option allows configuring the hash functions.
+type Option func(*HasherConfig) error
+
+// WithMinimalLength hints the minimal length of the input to the hash function.
+// This allows to optimize the constraint count when calling
+// [BinaryFixedLengthHasher.FixedLengthSum] as we can avoid selecting between
+// the dummy padding and actual padding. If this option is not provided, then we
+// assume the minimal length is 0.
+func WithMinimalLength(minimalLength int) Option {
+	return func(cfg *HasherConfig) error {
+		cfg.MinimalLength = minimalLength
+		return nil
+	}
 }
 
 // Compressor is a 2-1 one-way function. It takes two inputs and compresses

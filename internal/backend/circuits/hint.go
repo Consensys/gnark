@@ -148,8 +148,21 @@ var make3 = func(_ *big.Int, inputs []*big.Int, result []*big.Int) error {
 }
 
 var dvHint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	// Check that inputs and outputs have the same length
+	if len(inputs) != len(res) {
+		return fmt.Errorf("dvHint: expected same length for inputs and results, got %d inputs and %d results", len(inputs), len(res))
+	}
+
+	// Ensure we have at least one input to process
+	if len(inputs) == 0 {
+		return fmt.Errorf("dvHint: no inputs provided")
+	}
+
 	two := big.NewInt(2)
 	for i := range inputs {
+		if inputs[i] == nil {
+			return fmt.Errorf("dvHint: input at index %d is nil", i)
+		}
 		res[i].Mul(two, inputs[i])
 	}
 	return nil

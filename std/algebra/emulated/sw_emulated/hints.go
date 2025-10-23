@@ -19,9 +19,7 @@ import (
 	stark_fp "github.com/consensys/gnark-crypto/ecc/stark-curve/fp"
 	"github.com/consensys/gnark-crypto/field/eisenstein"
 	"github.com/consensys/gnark/constraint/solver"
-	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 func init() {
@@ -30,395 +28,229 @@ func init() {
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		decomposeScalarG1Signs,
-		decomposeScalarG1Subscalars,
+		decomposeScalarG1,
 		scalarMulHint,
 		halfGCD,
-		halfGCDSigns,
 		halfGCDEisenstein,
-		halfGCDEisensteinSigns,
 	}
 }
 
-func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 2 {
-			return errors.New("expecting two inputs")
+func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
-		if len(outputs) != 2 {
-			return errors.New("expecting two outputs")
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
-		sp := ecc.SplitScalar(inputs[0], glvBasis)
-		outputs[0].Set(&(sp[0]))
-		outputs[1].Set(&(sp[1]))
+		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
+		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
+		emuOutputs[0].Set(&(sp[0]))
+		emuOutputs[1].Set(&(sp[1]))
 		// we need the absolute values for the in-circuit computations,
 		// otherwise the negative values will be reduced modulo the SNARK scalar
 		// field and not the emulated field.
 		// 		output0 = |s0| mod r
 		// 		output1 = |s1| mod r
-		if outputs[0].Sign() == -1 {
-			outputs[0].Neg(outputs[0])
+		nativeOutputs[0].SetUint64(0) // set the sign
+		if emuOutputs[0].Sign() == -1 {
+			emuOutputs[0].Neg(emuOutputs[0])
+			nativeOutputs[0].SetUint64(1) // we return the sign of the first subscalar
 		}
-		if outputs[1].Sign() == -1 {
-			outputs[1].Neg(outputs[1])
+		nativeOutputs[1].SetUint64(0) // set the sign
+		if emuOutputs[1].Sign() == -1 {
+			emuOutputs[1].Neg(emuOutputs[1])
+			nativeOutputs[1].SetUint64(1) // we return the sign of the second subscalar
 		}
-
 		return nil
 	})
 }
 
-func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 2 {
-			return errors.New("expecting two inputs")
+func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(field, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 2 {
+			return fmt.Errorf("expecting two moduli, got %d", len(moduli))
 		}
-		if len(outputs) != 2 {
-			return errors.New("expecting two outputs")
+		baseModulus, scalarModulus := moduli[0], moduli[1]
+		baseInputs, baseOutputs := hc.InputsOutputs(baseModulus)
+		scalarInputs, _ := hc.InputsOutputs(scalarModulus)
+		if len(baseInputs) != 2 {
+			return fmt.Errorf("expecting two base inputs, got %d", len(baseInputs))
 		}
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
-		sp := ecc.SplitScalar(inputs[0], glvBasis)
-		outputs[0].SetUint64(0)
-		if sp[0].Sign() == -1 {
-			outputs[0].SetUint64(1)
+		if len(baseOutputs) != 2 {
+			return fmt.Errorf("expecting two base outputs, got %d", len(baseOutputs))
 		}
-		outputs[1].SetUint64(0)
-		if sp[1].Sign() == -1 {
-			outputs[1].SetUint64(1)
+		if len(scalarInputs) != 1 {
+			return fmt.Errorf("expecting one scalar input, got %d", len(scalarInputs))
 		}
-
-		return nil
-	})
-}
-
-// TODO @yelhousni: generalize for any supported curve as it currently supports only:
-// BN254, BLS12-381, BW6-761 and Secp256k1, P256, P384 and STARK curve.
-func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(outputs) != 2 {
-			return errors.New("expecting two outputs")
-		}
-		if len(outputs) != 2 {
-			return errors.New("expecting two outputs")
-		}
-		if field.Cmp(elliptic.P256().Params().P) == 0 {
-			var fp emparams.P256Fp
-			var fr emparams.P256Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+		Px := baseInputs[0]
+		Py := baseInputs[1]
+		S := scalarInputs[0]
+		if baseModulus.Cmp(elliptic.P256().Params().P) == 0 {
 			curve := elliptic.P256()
 			// compute the resulting point [s]P
 			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
-			outputs[0].Set(Qx)
-			outputs[1].Set(Qy)
-		} else if field.Cmp(elliptic.P384().Params().P) == 0 {
-			var fp emparams.P384Fp
-			var fr emparams.P384Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			baseOutputs[0].Set(Qx)
+			baseOutputs[1].Set(Qy)
+		} else if baseModulus.Cmp(elliptic.P384().Params().P) == 0 {
 			curve := elliptic.P384()
 			// compute the resulting point [s]P
 			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
-			outputs[0].Set(Qx)
-			outputs[1].Set(Qy)
-		} else if field.Cmp(stark_fp.Modulus()) == 0 {
-			var fp emparams.STARKCurveFp
-			var fr emparams.STARKCurveFr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			baseOutputs[0].Set(Qx)
+			baseOutputs[1].Set(Qy)
+		} else if baseModulus.Cmp(stark_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P stark_curve.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
-			P.X.BigInt(outputs[0])
-			P.Y.BigInt(outputs[1])
-		} else if field.Cmp(bn_fp.Modulus()) == 0 {
-			var fp emparams.BN254Fp
-			var fr emparams.BN254Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
+		} else if baseModulus.Cmp(bn_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P bn254.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
-			P.X.BigInt(outputs[0])
-			P.Y.BigInt(outputs[1])
-		} else if field.Cmp(bls12381_fp.Modulus()) == 0 {
-			var fp emparams.BLS12381Fp
-			var fr emparams.BLS12381Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
+		} else if baseModulus.Cmp(bls12381_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P bls12381.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
-			P.X.BigInt(outputs[0])
-			P.Y.BigInt(outputs[1])
-		} else if field.Cmp(secp_fp.Modulus()) == 0 {
-			var fp emparams.Secp256k1Fp
-			var fr emparams.Secp256k1Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
+		} else if baseModulus.Cmp(secp_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P secp256k1.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
-			P.X.BigInt(outputs[0])
-			P.Y.BigInt(outputs[1])
-		} else if field.Cmp(bw6_fp.Modulus()) == 0 {
-			var fp emparams.BW6761Fp
-			var fr emparams.BW6761Fr
-			PXLimbs := inputs[:fp.NbLimbs()]
-			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-			SLimbs := inputs[2*fp.NbLimbs():]
-			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-				return err
-
-			}
-			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-				return err
-
-			}
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
+		} else if baseModulus.Cmp(bw6_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P bw6761.G1Affine
 			P.X.SetBigInt(Px)
 			P.Y.SetBigInt(Py)
 			P.ScalarMultiplication(&P, S)
-			P.X.BigInt(outputs[0])
-			P.Y.BigInt(outputs[1])
-
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
 		} else {
 			return errors.New("unsupported curve")
 		}
-
 		return nil
 	})
 }
 
-func halfGCDSigns(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 1 {
-			return fmt.Errorf("expecting one input")
+func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
-		if len(outputs) != 1 {
-			return fmt.Errorf("expecting one output")
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 1 {
+			return fmt.Errorf("expecting one output, got %d", len(nativeOutputs))
 		}
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[0], glvBasis)
-		outputs[0].SetUint64(0)
-		if glvBasis.V1[1].Sign() == -1 {
-			outputs[0].SetUint64(1)
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 1 {
+			return fmt.Errorf("expecting one input, got %d", len(emuInputs))
 		}
-
-		return nil
-	})
-}
-
-func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
-	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 1 {
-			return fmt.Errorf("expecting one input")
-		}
-		if len(outputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
+		if len(emuOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[0], glvBasis)
-		outputs[0].Set(&glvBasis.V1[0])
-		outputs[1].Set(&glvBasis.V1[1])
-
+		ecc.PrecomputeLattice(moduli[0], emuInputs[0], glvBasis)
+		emuOutputs[0].Set(&glvBasis.V1[0])
+		emuOutputs[1].Set(&glvBasis.V1[1])
 		// we need the absolute values for the in-circuit computations,
 		// otherwise the negative values will be reduced modulo the SNARK scalar
 		// field and not the emulated field.
 		// 		output0 = |s0| mod r
 		// 		output1 = |s1| mod r
-		if outputs[1].Sign() == -1 {
-			outputs[1].Neg(outputs[1])
-		}
-
-		return nil
-	})
-}
-
-func halfGCDEisensteinSigns(mod *big.Int, inputs, outputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two input")
-		}
-		if len(outputs) != 4 {
-			return fmt.Errorf("expecting four outputs")
-		}
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
-		r := eisenstein.ComplexNumber{
-			A0: &glvBasis.V1[0],
-			A1: &glvBasis.V1[1],
-		}
-		sp := ecc.SplitScalar(inputs[0], glvBasis)
-		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-		// so here we return -s instead of s.
-		s := eisenstein.ComplexNumber{
-			A0: &sp[0],
-			A1: &sp[1],
-		}
-		s.Neg(&s)
-
-		outputs[0].SetUint64(0)
-		outputs[1].SetUint64(0)
-		outputs[2].SetUint64(0)
-		outputs[3].SetUint64(0)
-		res := eisenstein.HalfGCD(&r, &s)
-
-		if res[0].A0.Sign() == -1 {
-			outputs[0].SetUint64(1)
-		}
-		if res[0].A1.Sign() == -1 {
-			outputs[1].SetUint64(1)
-		}
-		if res[1].A0.Sign() == -1 {
-			outputs[2].SetUint64(1)
-		}
-		if res[1].A1.Sign() == -1 {
-			outputs[3].SetUint64(1)
+		nativeOutputs[0].SetUint64(0)
+		if emuOutputs[1].Sign() == -1 {
+			emuOutputs[1].Neg(emuOutputs[1])
+			nativeOutputs[0].SetUint64(1) // we return the sign of the second subscalar
 		}
 		return nil
 	})
 }
 
 func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 2 {
-			return fmt.Errorf("expecting two input")
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
 		}
-		if len(outputs) != 4 {
-			return fmt.Errorf("expecting four outputs")
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(nativeOutputs))
 		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(emuOutputs))
+		}
+
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
+		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
 		r := eisenstein.ComplexNumber{
-			A0: &glvBasis.V1[0],
-			A1: &glvBasis.V1[1],
+			A0: glvBasis.V1[0],
+			A1: glvBasis.V1[1],
 		}
-		sp := ecc.SplitScalar(inputs[0], glvBasis)
+		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
 		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
 		// so here we return -s instead of s.
 		s := eisenstein.ComplexNumber{
-			A0: &sp[0],
-			A1: &sp[1],
+			A0: sp[0],
+			A1: sp[1],
 		}
 		s.Neg(&s)
-		res := eisenstein.HalfGCD(&r, &s)
-		outputs[0].Set(res[0].A0)
-		outputs[1].Set(res[0].A1)
-		outputs[2].Set(res[1].A0)
-		outputs[3].Set(res[1].A1)
 
-		if outputs[0].Sign() == -1 {
-			outputs[0].Neg(outputs[0])
+		res := eisenstein.HalfGCD(&r, &s)
+		// values
+		emuOutputs[0].Set(&res[0].A0)
+		emuOutputs[1].Set(&res[0].A1)
+		emuOutputs[2].Set(&res[1].A0)
+		emuOutputs[3].Set(&res[1].A1)
+		// signs
+		nativeOutputs[0].SetUint64(0)
+		nativeOutputs[1].SetUint64(0)
+		nativeOutputs[2].SetUint64(0)
+		nativeOutputs[3].SetUint64(0)
+
+		if res[0].A0.Sign() == -1 {
+			emuOutputs[0].Neg(emuOutputs[0])
+			nativeOutputs[0].SetUint64(1)
 		}
-		if outputs[1].Sign() == -1 {
-			outputs[1].Neg(outputs[1])
+		if res[0].A1.Sign() == -1 {
+			emuOutputs[1].Neg(emuOutputs[1])
+			nativeOutputs[1].SetUint64(1)
 		}
-		if outputs[2].Sign() == -1 {
-			outputs[2].Neg(outputs[2])
+		if res[1].A0.Sign() == -1 {
+			emuOutputs[2].Neg(emuOutputs[2])
+			nativeOutputs[2].SetUint64(1)
 		}
-		if outputs[3].Sign() == -1 {
-			outputs[3].Neg(outputs[3])
+		if res[1].A1.Sign() == -1 {
+			emuOutputs[3].Neg(emuOutputs[3])
+			nativeOutputs[3].SetUint64(1)
 		}
 		return nil
 	})
