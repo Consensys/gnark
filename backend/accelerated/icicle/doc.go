@@ -16,7 +16,7 @@
 //	cd icicle-gnark/wrappers/golang
 //	sudo ./build.sh -curve=all
 //
-// After that, the libraries are installed in `/usr/local/lib“ and backend in
+// After that, the libraries are installed in `/usr/local/lib` and backend in
 // `/usr/local/lib/backend`.
 //
 // Now set the environment variables:
