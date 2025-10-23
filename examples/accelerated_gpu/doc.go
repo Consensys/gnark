@@ -1,7 +1,7 @@
 // Package accelerated_gpu provides examples on how to use gnark with GPU acceleration.
 //
 // NB! This example requires a compatible GPU and acceleration library
-// installed. See the [github.com/consensys/gnark/accelerated/icicle] package
+// installed. See the [github.com/consensys/gnark/backend/accelerated/icicle] package
 // documentation for details. The example can only be run when built with
 // `icicle` build tag.
 //
