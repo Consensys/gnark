@@ -1,6 +1,8 @@
-// Package sw_grumpkin implements the arithmetics on ithe Grumpkin curve as a
-// SNARK circuit over BN254. These two curves form a 2-cycle so the operations
-// use native field arithmetic.
+// Package sw_grumpkin implements the the Grumpkin curve in-circuit.
+//
+// Grumpkin curve forms a 2-cycle over BN254 so the operations can use the
+// native field arithmetics. Grumpkin curve is not pairing friendly, so it is
+// not suitable for pairing based proof system recursion.
 //
 // References:
 // https://aztecprotocol.github.io/aztec-connect/primitives.html/
