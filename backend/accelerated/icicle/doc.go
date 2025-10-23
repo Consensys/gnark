@@ -9,7 +9,7 @@
 //
 // # Setup
 //
-// To initialize the ICICILE backend, follow the instructions in the [ICICLE]
+// To initialize the ICICLE backend, follow the instructions in the [ICICLE]
 // repository. Namely, first you should install the ICICLE library:
 //
 //	git clone github.com/ingonyama-zk/icicle-gnark
