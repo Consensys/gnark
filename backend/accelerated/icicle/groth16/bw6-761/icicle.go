@@ -166,7 +166,7 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	})
 	/*************************  End Commitment Keys Device Setup  ***************************/
 
-	/*************************  Wait for all data tranfsers  ***************************/
+	/*************************  Wait for all data transfers  ***************************/
 	<-initDomain
 	<-copyDenDone
 	<-copyADone
