@@ -4,12 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/grumpkin"
 	fr_grumpkin "github.com/consensys/gnark-crypto/ecc/grumpkin/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/selector"
@@ -36,6 +39,49 @@ func NewCurve(api frontend.API) (*Curve, error) {
 		api: api,
 		fr:  f,
 	}, nil
+}
+
+// MarshalScalar returns the scalar s in binary, little endian representation.
+func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	var ss *emulated.Element[ScalarField]
+	if cfg.ToBitsCanonical {
+		ss = c.fr.ReduceStrict(&s)
+	} else {
+		ss = c.fr.Reduce(&s)
+	}
+	x := c.fr.ToBits(ss)[:nbBits]
+	slices.Reverse(x)
+	return x
+}
+
+// MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
+// in little endian.
+func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	nbBits := 8 * ((ecc.GRUMPKIN.BaseField().BitLen() + 7) / 8)
+	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
+	if !cfg.ToBitsCanonical {
+		bOpts = append(bOpts, bits.OmitModulusCheck())
+	}
+	res := make([]frontend.Variable, 2*nbBits)
+	x := bits.ToBinary(c.api, P.X, bOpts...)
+	y := bits.ToBinary(c.api, P.Y, bOpts...)
+	for i := 0; i < nbBits; i++ {
+		res[i] = x[nbBits-1-i]
+		res[i+nbBits] = y[nbBits-1-i]
+	}
+	xZ := c.api.IsZero(P.X)
+	yZ := c.api.IsZero(P.Y)
+	res[1] = c.api.Mul(xZ, yZ)
+	return res
 }
 
 // Add points P and Q and return the result. Does not modify the inputs.
