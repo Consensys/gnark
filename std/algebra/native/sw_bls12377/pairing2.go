@@ -27,6 +27,11 @@ type Curve struct {
 
 // NewCurve initializes a new [Curve] instance.
 func NewCurve(api frontend.API) (*Curve, error) {
+	// this is a 2-chain curve, so the base field of BLS12-377 is the scalar
+	// field of BW6-761. Error early to avoid any misuse.
+	if api.Compiler().Field().Cmp(fr_bw6761.Modulus()) != 0 {
+		return nil, errors.New("expected BW6-761 scalar field for BLS12-377 curve operations")
+	}
 	f, err := emulated.NewField[ScalarField](api)
 	if err != nil {
 		return nil, errors.New("scalar field")
