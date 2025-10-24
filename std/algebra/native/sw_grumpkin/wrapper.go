@@ -78,9 +78,7 @@ func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]
 	}
-	xZ := c.api.IsZero(P.X)
-	yZ := c.api.IsZero(P.Y)
-	res[1] = c.api.Mul(xZ, yZ)
+	// We don't tag the point at infinity here as there is only 2 bits available for the mask.
 	return res
 }
 
