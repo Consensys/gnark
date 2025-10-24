@@ -40,9 +40,9 @@ func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 }
 
 func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1, s2 frontend.Variable) {
-	var fr emparams.GRUMPKINFr
+	var fr emparams.GrumpkinFr
 	cc := getInnerCurveConfig(api.Compiler().Field())
-	sapi, err := emulated.NewField[emparams.GRUMPKINFr](api)
+	sapi, err := emulated.NewField[emparams.GrumpkinFr](api)
 	if err != nil {
 		panic(err)
 	}

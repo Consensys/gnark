@@ -231,4 +231,4 @@ func (c *Curve) packScalarToVar(s *Scalar) frontend.Variable {
 }
 
 // ScalarField defines the [emulated.FieldParams] implementation on a one limb of the scalar field.
-type ScalarField = emparams.GRUMPKINFr
+type ScalarField = emparams.GrumpkinFr

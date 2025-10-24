@@ -195,7 +195,7 @@ type BN254Fr struct{ fourLimbPrimeField }
 
 func (BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 
-// GRUMPKINFp provides type parametrization for field emulation:
+// GrumpkinFp provides type parametrization for field emulation:
 //   - limbs: 4
 //   - limb width: 64 bits
 //
@@ -205,11 +205,11 @@ func (BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 //	21888242871839275222246405745257275088548364400416034343698204186575808495617 (base 10)
 //
 // This is the base field of the GRUMPKIN curve.
-type GRUMPKINFp struct{ fourLimbPrimeField }
+type GrumpkinFp struct{ fourLimbPrimeField }
 
-func (fp GRUMPKINFp) Modulus() *big.Int { return ecc.GRUMPKIN.BaseField() }
+func (fp GrumpkinFp) Modulus() *big.Int { return ecc.GRUMPKIN.BaseField() }
 
-// GRUMPKINFr provides type parametrization for field emulation:
+// GrumpkinFr provides type parametrization for field emulation:
 //   - limbs: 4
 //   - limb width: 64 bits
 //
@@ -219,9 +219,9 @@ func (fp GRUMPKINFp) Modulus() *big.Int { return ecc.GRUMPKIN.BaseField() }
 //	21888242871839275222246405745257275088696311157297823662689037894645226208583 (base 10)
 //
 // This is the scalar field of the GRUMPKIN curve.
-type GRUMPKINFr struct{ fourLimbPrimeField }
+type GrumpkinFr struct{ fourLimbPrimeField }
 
-func (fp GRUMPKINFr) Modulus() *big.Int { return ecc.GRUMPKIN.ScalarField() }
+func (fp GrumpkinFr) Modulus() *big.Int { return ecc.GRUMPKIN.ScalarField() }
 
 // BLS12377Fp provides type parametrization for field emulation:
 //   - limbs: 6

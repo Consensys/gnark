@@ -390,7 +390,7 @@ func TestMultiScalarMulEdgeCases(t *testing.T) {
 		cP[i] = NewG1Affine(P[i])
 	}
 	for i := range cS {
-		cS[i] = emulated.ValueOf[emparams.GRUMPKINFr](0)
+		cS[i] = emulated.ValueOf[emparams.GrumpkinFr](0)
 	}
 	assignment2 := MultiScalarMulEdgeCasesTest{
 		Points:  cP,
@@ -418,7 +418,7 @@ func TestMultiScalarMulEdgeCases(t *testing.T) {
 	for i := range cS {
 		cS[i] = NewScalar(S[i])
 	}
-	cS[4] = emulated.ValueOf[emparams.GRUMPKINFr](0)
+	cS[4] = emulated.ValueOf[emparams.GrumpkinFr](0)
 
 	assignment3 := MultiScalarMulEdgeCasesTest{
 		Points:  cP,
@@ -711,7 +711,7 @@ func TestMultiScalarMulFoldedEdgeCases(t *testing.T) {
 		cP[i] = NewG1Affine(P[i])
 	}
 	for i := range cS {
-		cS[i] = emulated.ValueOf[emparams.GRUMPKINFr](0)
+		cS[i] = emulated.ValueOf[emparams.GrumpkinFr](0)
 	}
 
 	assignment3 := MultiScalarMulFoldedEdgeCasesTest{
