@@ -82,7 +82,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 }
 
 func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) != 1 && len(outputs) != 4 {
+	if len(inputs) != 1 || len(outputs) != 4 {
 		return errors.New("input/output length mismatch")
 	}
 	tmp := new(big.Int).Set(inputs[0])
