@@ -24,7 +24,11 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	if !SolcCheck || len(validPublicWitness.Vector().(fr_bn254.Vector)) == 0 {
 		return // nothing to check, will make solc fail.
 	}
-	assert.t.Helper()
+	if assert.b != nil {
+		assert.b.Helper()
+	} else {
+		assert.t.Helper()
+	}
 
 	// make temp dir
 	tmpDir, err := os.MkdirTemp("", "gnark-solidity-check*")
@@ -44,7 +48,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	// generate assets
 	// gnark-solidity-checker generate --dir tmpdir --solidity contract_g16.sol
 	cmd := exec.Command("gnark-solidity-checker", "generate", "--dir", tmpDir, "--solidity", "gnark_verifier.sol")
-	assert.t.Log("running ", cmd.String())
+	assert.Log("running ", cmd.String())
 	out, err := cmd.CombinedOutput()
 	assert.NoError(err, string(out))
 
@@ -90,7 +94,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	// verify proof
 	// gnark-solidity-checker verify --dir tmdir --groth16 --nb-public-inputs 1 --proof 1234 --public-inputs dead
 	cmd = exec.Command("gnark-solidity-checker", checkerOpts...)
-	assert.t.Log("running ", cmd.String())
+	assert.Log("running ", cmd.String())
 	out, err = cmd.CombinedOutput()
 	assert.NoError(err, string(out))
 }
