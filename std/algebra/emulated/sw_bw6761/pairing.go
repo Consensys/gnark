@@ -72,7 +72,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //
 // we use instead d = s⋅(p³-1)(p+1)(p²-p+1)/r
 // where s is the cofactor (x₀+1)
-func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
+func (pr *Pairing) FinalExponentiation(z *GTEl) *GTEl {
 
 	z = pr.Reduce(z)
 	result := pr.Copy(z)
@@ -125,7 +125,7 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 // The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
+func (pr *Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 	res, err := pr.curveF.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -160,7 +160,7 @@ func (pr Pairing) AssertFinalExponentiationIsOne(x *GTEl) {
 // This function does not check that Pᵢ and Qᵢ are in the correct subgroup. See
 // AssertIsOnG1 and AssertIsOnG2. NB! This mismatches the interfaces of sw_bls12381 and
 // sw_bn254 packages where G2 membership check is performed automatically!
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	// check input size match
 	nP := len(P)
 	nQ := len(Q)
@@ -229,15 +229,15 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
-func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
+func (pr *Pairing) IsEqual(x, y *GTEl) frontend.Variable {
 	return pr.Ext6.IsEqual(x, y)
 }
 
-func (pr Pairing) AssertIsEqual(x, y *GTEl) {
+func (pr *Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
 
-func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -285,7 +285,7 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	return &ret
 }
 
-func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
+func (pr *Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -317,11 +317,11 @@ func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GTEl) *GTEl {
 	return &ret
 }
 
-func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+func (pr *Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+func (pr *Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
@@ -337,7 +337,7 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	pr.curveF.AssertIsEqual(left, right)
 }
 
-func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	// 1- Check P is on the curve
 	pr.AssertIsOnCurve(P)
 
@@ -356,7 +356,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.curve.AssertIsEqual(left, right)
 }
 
-func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+func (pr *Pairing) AssertIsOnG2(Q *G2Affine) {
 	// 1- Check Q is on the curve
 	pr.AssertIsOnTwist(Q)
 
@@ -412,7 +412,7 @@ var loopCounter2 = [190]int8{
 //
 // Alg.2 in https://eprint.iacr.org/2021/1359.pdf Eq. (6') in
 // https://hackmd.io/@gnark/BW6-761-changes
-func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -432,7 +432,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
+func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *GTEl, first bool) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -633,7 +633,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init *
 // doubleAndAddStep doubles p1 and adds or subs p2 to the result in affine coordinates, based on the isSub boolean.
 // Then evaluates the lines going through p1 and p2 or -p2 (line1) and p1 and p1+p2 or p1-p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
@@ -682,7 +682,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEv
 
 // doubleStep doubles p1 in affine coordinates, and evaluates the tangent line to p1.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
+func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var p g2AffP
 	var line lineEvaluation
@@ -711,7 +711,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 }
 
 // tangentCompute computes the tangent line to p1, but does not compute [2]p1.
-func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
+func (pr *Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	// λ = 3x²/2y
 	n := pr.curveF.Mul(&p1.X, &p1.X)
