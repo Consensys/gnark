@@ -121,7 +121,7 @@ func Example() {
 		}
 
 		// prove natively
-		proof, err := groth16.Prove(ccs, pk, wit)
+		proof, err := groth16.Prove(ccs, pk, wit, solidity.WithProverTargetSolidityVerifier(backend.GROTH16))
 		if err != nil {
 			panic(err)
 		}
@@ -142,11 +142,11 @@ func Example() {
 			panic(err)
 		}
 		// ensure that both proofs verify
-		err = groth16.Verify(proof, vk, pubwit)
+		err = groth16.Verify(proof, vk, pubwit, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16))
 		if err != nil {
 			panic(err)
 		}
-		err = groth16.Verify(proofAcc, vk, pubwit)
+		err = groth16.Verify(proofAcc, vk, pubwit, solidity.WithVerifierTargetSolidityVerifier(backend.GROTH16))
 		if err != nil {
 			panic(err)
 		}
