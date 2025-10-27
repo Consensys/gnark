@@ -6,6 +6,7 @@ package hash
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -135,4 +136,18 @@ func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 
 func (h *merkleDamgardHasher) Sum() frontend.Variable {
 	return h.state
+}
+
+// SumMerkleDamgardDynamicLength returns the hash of the data slice, truncated at the given length.
+func SumMerkleDamgardDynamicLength(api frontend.API, f Compressor, initialState frontend.Variable, length frontend.Variable, data []frontend.Variable) frontend.Variable {
+	resT := logderivlookup.New(api)
+	state := initialState
+
+	resT.Insert(state)
+	for _, v := range data {
+		state = f.Compress(state, v)
+		resT.Insert(state)
+	}
+
+	return resT.Lookup(length)[0]
 }
