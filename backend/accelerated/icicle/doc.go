@@ -14,6 +14,9 @@
 // more details. We have tested with CUDA 13 on Linux (Ubuntu 24.04), but other
 // versions should work as well.
 //
+// Additionally, for building ICICLE backend, you need to have a working clang
+// toolchain.
+//
 // To initialize the ICICLE backend, follow the instructions in the [ICICLE]
 // repository. Namely, first you should install the ICICLE library:
 //
