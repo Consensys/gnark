@@ -9,6 +9,11 @@
 //
 // # Setup
 //
+// Before using the GPU-acceleration for ICICLE backend, you must install the
+// CUDA toolkit and have a compatible NVIDIA GPU. See [CUDA instructions] for
+// more details. We have tested with CUDA 13 on Linux (Ubuntu 24.04), but other
+// versions should work as well.
+//
 // To initialize the ICICLE backend, follow the instructions in the [ICICLE]
 // repository. Namely, first you should install the ICICLE library:
 //
@@ -62,4 +67,5 @@
 // align with the external dependency changes.
 //
 // [ICICLE]: https://github.com/ingonyama-zk/icicle-gnark
+// [CUDA instructions]: https://developer.nvidia.com/cuda-downloads?target_os=Linux
 package icicle
