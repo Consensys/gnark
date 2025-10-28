@@ -17,7 +17,7 @@
 // To initialize the ICICLE backend, follow the instructions in the [ICICLE]
 // repository. Namely, first you should install the ICICLE library:
 //
-//	git clone github.com/ingonyama-zk/icicle-gnark
+//	git clone https://github.com/ingonyama-zk/icicle-gnark
 //	cd icicle-gnark/wrappers/golang
 //	sudo ./build.sh -curve=all
 //
