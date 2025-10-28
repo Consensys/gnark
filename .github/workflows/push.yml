@@ -54,7 +54,7 @@ jobs:
         go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
         go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
     - name: install solc deps
-      if: startsWith(matrix.os, 'ubuntu') == true
+      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
       run: |
         go install github.com/consensys/gnark-solidity-checker@v0.1.0
         sudo add-apt-repository ppa:ethereum/ethereum
@@ -63,11 +63,11 @@ jobs:
 
     - name: Test (windows / mac)
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
-      if: startsWith(matrix.os, 'ubuntu') == false
+      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == false
       run: |
         go test -tags=release_checks -v -timeout=60m .
     - name: Test (ubuntu - race and solc)
-      if: startsWith(matrix.os, 'ubuntu') == true
+      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
       run: |
         go test -v -p 4 -short -timeout=30m ./...
         go test -v -p 4 -timeout=120m -tags=release_checks ./std/math/emulated/...
