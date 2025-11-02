@@ -5,6 +5,7 @@ package r1cs
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -290,6 +291,10 @@ func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], err
 		}
 	}
 
+	if err := callDeferred(builder); err != nil {
+		return nil, fmt.Errorf("deferred: %w", err)
+	}
+
 	return builder.cs, nil
 }
 
@@ -524,4 +529,13 @@ func (builder *builder[E]) ToCanonicalVariable(in frontend.Variable) frontend.Ca
 		term.MarkConstant()
 		return constraint.LinearExpression{term}
 	}
+}
+
+func callDeferred[E constraint.Element](builder *builder[E]) error {
+	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }

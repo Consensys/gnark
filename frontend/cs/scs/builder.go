@@ -317,6 +317,10 @@ func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], err
 		}
 	}
 
+	if err := callDeferred(builder); err != nil {
+		return nil, fmt.Errorf("deferred: %w", err)
+	}
+
 	return builder.cs, nil
 }
 
@@ -924,4 +928,13 @@ func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, ad
 		res[i] = foundWireIDPosition[w.VID]
 	}
 	return res, nil
+}
+
+func callDeferred[E constraint.Element](builder *builder[E]) error {
+	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }
