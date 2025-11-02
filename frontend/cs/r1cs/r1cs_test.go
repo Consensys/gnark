@@ -192,7 +192,7 @@ func TestDefer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if r1cs.GetNbConstraints() == 8 {
+	if r1cs.GetNbConstraints() < 10 {
 		t.Fatalf("Deffered constraints have not been constructed")
 	}
 
