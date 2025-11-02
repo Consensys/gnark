@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -289,4 +291,29 @@ func TestRegressionOr(t *testing.T) {
 			t.Error("solve", err)
 		}
 	}
+}
+
+func TestDefer(t *testing.T) {
+	type E = constraint.U64
+	builder, err := scs.NewBuilder[E](ecc.BN254.ScalarField(), frontend.CompileConfig{
+		CompressThreshold: 300,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uapi, err := uints.NewBinaryField[uints.U64](builder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uapi.AssertEq(uapi.And(uints.NewU64(7), uints.NewU64(2)), uints.NewU64(2))
+
+	scs, err := builder.Compile()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if scs.GetNbConstraints() == 9 {
+		t.Fatalf("Deffered constraints have not been constructed")
+	}
+
 }

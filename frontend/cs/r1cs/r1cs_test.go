@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 func testQuickSortParametric[E constraint.Element](t *testing.T) {
@@ -170,4 +171,29 @@ func TestSubSameNoConstraint(t *testing.T) {
 	if ccs.GetNbConstraints() != 0 {
 		t.Fatal("expected 0 constraints")
 	}
+}
+
+func TestDefer(t *testing.T) {
+	type E = constraint.U64
+	builder, err := NewBuilder[E](ecc.BN254.ScalarField(), frontend.CompileConfig{
+		CompressThreshold: 300,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uapi, err := uints.NewBinaryField[uints.U64](builder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uapi.AssertEq(uapi.And(uints.NewU64(7), uints.NewU64(2)), uints.NewU64(2))
+
+	r1cs, err := builder.Compile()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if r1cs.GetNbConstraints() == 8 {
+		t.Fatalf("Deffered constraints have not been constructed")
+	}
+
 }
