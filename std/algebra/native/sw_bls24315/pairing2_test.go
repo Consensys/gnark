@@ -69,7 +69,7 @@ func TestMux(t *testing.T) {
 		eli := new(bls24315.G1Affine).ScalarMultiplicationBase(r[i].BigInt(new(big.Int)))
 		witness.Inputs[i] = NewG1Affine(*eli)
 	}
-	err := test.IsSolved(&circuit, &witness, ecc.BW6_761.ScalarField())
+	err := test.IsSolved(&circuit, &witness, ecc.BW6_633.ScalarField())
 	assert.NoError(err)
 }
 

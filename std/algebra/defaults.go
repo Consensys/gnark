@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/sw_grumpkin"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
@@ -54,6 +55,12 @@ func GetCurve[FR emulated.FieldParams, G1El G1ElementT](api frontend.API) (Curve
 		*s = c
 	case *Curve[emparams.Secp256k1Fr, sw_emulated.AffinePoint[emparams.Secp256k1Fp]]:
 		c, err := sw_emulated.New[emparams.Secp256k1Fp, emparams.Secp256k1Fr](api, sw_emulated.GetSecp256k1Params())
+		if err != nil {
+			return ret, fmt.Errorf("new curve: %w", err)
+		}
+		*s = c
+	case *Curve[sw_grumpkin.ScalarField, sw_grumpkin.G1Affine]:
+		c, err := sw_grumpkin.NewCurve(api)
 		if err != nil {
 			return ret, fmt.Errorf("new curve: %w", err)
 		}

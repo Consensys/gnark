@@ -27,6 +27,11 @@ type Curve struct {
 
 // NewCurve initializes a new [Curve] instance.
 func NewCurve(api frontend.API) (*Curve, error) {
+	// this is a 2-chain curve, so the base field of BLS24-315 is the scalar
+	// field of BW6-633. Error early to avoid any misuse.
+	if api.Compiler().Field().Cmp(fr_bw6633.Modulus()) != 0 {
+		return nil, errors.New("expected BW6-633 scalar field for BLS24-315 curve operations")
+	}
 	f, err := emulated.NewField[ScalarField](api)
 	if err != nil {
 		return nil, errors.New("scalar field")
@@ -387,7 +392,7 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(pr.api, *e2)
 }
-func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -483,7 +488,7 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	return &ret
 }
 
-func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+func (pr *Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 	if len(inputs) == 0 {
 		return nil
 	}
