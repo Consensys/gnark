@@ -156,6 +156,8 @@ func (h *merkleDamgardHasher) SetState(state []frontend.Variable) error {
 	}
 	h.state = state[0]
 	return nil
+}
+
 // SumMerkleDamgardDynamicLength computes the Merkle-Damgård hash of the input data, truncated at the given length.
 // Parameters:
 //   - api: constraint builder
