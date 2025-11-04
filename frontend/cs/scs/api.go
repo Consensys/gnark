@@ -614,6 +614,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
+		Width:           1,
 	})
 }
 
