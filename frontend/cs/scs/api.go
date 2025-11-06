@@ -588,7 +588,7 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 //
 // NB! This method does not create the commitment itself. The user must call the
 // hint for computing the commitment value registering the commitment output
-// using [AddPlonkCommitmentOutput] and finally add the commitment information
+// using [AddPlonkCommitmentOutputs] and finally add the commitment information
 // to the constraint system using [constraint.System.AddCommitment] method.
 //
 // This method is not exposed in standard APIs - it is meant to be used
