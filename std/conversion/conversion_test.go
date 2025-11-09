@@ -407,3 +407,17 @@ func TestAssertBytesLeq(t *testing.T) {
 	tc(assert, []byte{253, 253, 253}, []byte{254, 252}, true)
 	tc(assert, []byte{253, 253, 253}, []byte{0, 254, 252}, true)
 }
+
+func TestBytesToNative_EqualModulus(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		m := fr_bn254.Modulus()
+		sbytes := m.Bytes()
+		// Expect invalid since strict < modulus must hold
+		assert.CheckCircuit(
+			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
+			test.WithInvalidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: big.NewInt(0)}),
+			test.WithCurves(ecc.BN254),
+		)
+	}, "equal-modulus")
+}
