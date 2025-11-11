@@ -1,9 +1,8 @@
 package eddsa
 
 import (
-	"errors"
+	"fmt"
 
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark/frontend"
@@ -75,11 +74,8 @@ func IsValid(curve twistededwards.Curve, sig Signature, msg frontend.Variable, p
 	Q = curve.Add(curve.Neg(Q), sig.R)
 
 	// [cofactor]*(lhs-rhs)
-	log := logger.Logger()
 	if !curve.Params().Cofactor.IsUint64() {
-		err := errors.New("invalid cofactor")
-		log.Err(err).Str("cofactor", curve.Params().Cofactor.String()).Send()
-		return 0, err
+		return 0, fmt.Errorf("invalid cofactor: %s", curve.Params().Cofactor.String())
 	}
 	cofactor := curve.Params().Cofactor.Uint64()
 	switch cofactor {
@@ -88,7 +84,7 @@ func IsValid(curve twistededwards.Curve, sig Signature, msg frontend.Variable, p
 	case 8:
 		Q = curve.Double(curve.Double(curve.Double(Q)))
 	default:
-		log.Warn().Str("cofactor", curve.Params().Cofactor.String()).Msg("curve cofactor is not implemented")
+		return 0, fmt.Errorf("cofactor %d not implemented", cofactor)
 	}
 
 	return curve.API().And(
