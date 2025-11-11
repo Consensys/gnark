@@ -285,20 +285,6 @@ func (f *Field[T]) maxOverflow() uint {
 	return f.maxOf
 }
 
-func max[T constraints.Ordered](a ...T) T {
-	if len(a) == 0 {
-		var f T
-		return f
-	}
-	m := a[0]
-	for _, v := range a {
-		if v > m {
-			m = v
-		}
-	}
-	return m
-}
-
 func sum[T constraints.Ordered](a ...T) T {
 	if len(a) == 0 {
 		var f T
