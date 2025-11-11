@@ -25,7 +25,7 @@ func init() {
 	addNewEntry("isCrumb/case=good", &isCrumbCircuit{C: make([]frontend.Variable, len(c))}, good, nil, nil)
 	var bad []frontend.Circuit
 	for n := 0; n < 20; n++ {
-		x := rand.IntN(65531) + 4
+		x := rand.IntN(65531) + 4 //#nosec G404 weak rng OK for test
 		bad = append(bad, &isCrumbCircuit{C: []frontend.Variable{x}})
 	}
 	addNewEntry("isCrumb/case=bad", &isCrumbCircuit{C: []frontend.Variable{nil}}, nil, bad, nil)
