@@ -336,7 +336,7 @@ func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
 	return x.IsEqual(c.api, *y)
 }
 
-func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
 	}
