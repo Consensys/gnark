@@ -332,8 +332,8 @@ func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
 }
 
 // IsEqual returns 1 if x is equal to y, 0 otherwise.
-func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
-	return x.IsEqual(c.api, *y)
+func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	return x.IsEqual(pr.api, *y)
 }
 
 func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
