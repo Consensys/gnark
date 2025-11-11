@@ -249,4 +249,3 @@ func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
 	nr.toRead = nr.toRead[1:]
 	return nr.last
 }
-
