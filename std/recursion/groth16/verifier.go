@@ -606,7 +606,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) error {
-	isValid, err := v.ProofIsValid(vk, proof, witness, opts...)
+	isValid, err := v.IsValidProof(vk, proof, witness, opts...)
 	if err != nil {
 		return err
 	}
@@ -614,8 +614,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 	return nil
 }
 
-// ProofIsValid returns a variable that is 1 if the proof is valid and 0 otherwise.
-func (v *Verifier[FR, G1El, G2El, GtEl]) ProofIsValid(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) (frontend.Variable, error) {
+// IsValidProof returns a variable that is 1 if the proof is valid and 0 otherwise.
+func (v *Verifier[FR, G1El, G2El, GtEl]) IsValidProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) (frontend.Variable, error) {
 	if len(vk.CommitmentKeys) != len(proof.Commitments) {
 		return 0, fmt.Errorf("invalid number of commitments, got %d, expected %d", len(proof.Commitments), len(vk.CommitmentKeys))
 	}
