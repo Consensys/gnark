@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
@@ -60,6 +61,7 @@ func registerHints() {
 	solver.RegisterHint(twistededwards.GetHints()...)
 	// emulated curves
 	solver.RegisterHint(sw_emulated.GetHints()...)
+	solver.RegisterHint(sw_bls12381.GetHints()...)
 	solver.RegisterHint(sw_bw6761.GetHints()...)
 	// native curves
 	solver.RegisterHint(sw_bls12377.GetHints()...)

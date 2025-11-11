@@ -14,6 +14,7 @@ type algebraCfg struct {
 	FoldMulti          bool
 	CompleteArithmetic bool
 	ToBitsCanonical    bool
+	NoGroupMembership  bool // if set, then do not perform subgroup membership checks
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -75,6 +76,20 @@ func WithCanonicalBitRepresentation() AlgebraOption {
 			return errors.New("WithCanonicalBitRepresentation already set")
 		}
 		ac.ToBitsCanonical = true
+		return nil
+	}
+}
+
+// WithNoSubgroupMembershipCheck disables the subgroup membership checks if the method
+// performs them. This is useful in cases where it is checked separately, for example
+// in the [evmprecompiles] package. If this is not set, then by default subgroup membership
+// checks are always performed.
+func WithNoSubgroupMembershipCheck() AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if ac.NoGroupMembership {
+			return errors.New("WithNoSubgroupMembershipCheck already set")
+		}
+		ac.NoGroupMembership = true
 		return nil
 	}
 }
