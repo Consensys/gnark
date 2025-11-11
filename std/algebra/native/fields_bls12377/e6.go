@@ -350,7 +350,7 @@ func (e *E6) IsEqual(api frontend.API, other E6) frontend.Variable {
 	b0Equal := e.B0.IsEqual(api, other.B0)
 	b1Equal := e.B1.IsEqual(api, other.B1)
 	b2Equal := e.B2.IsEqual(api, other.B2)
-	// inputs are already boolean, so multiplication sufficies.
+	// inputs are already boolean, so multiplication suffices.
 	isEqual := api.Mul(b0Equal, b1Equal, b2Equal)
 	api.Compiler().MarkBoolean(isEqual)
 	return isEqual
