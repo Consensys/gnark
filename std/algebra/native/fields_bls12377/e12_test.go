@@ -350,7 +350,7 @@ func TestDivFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e12Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FixedExpo struct {

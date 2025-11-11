@@ -271,7 +271,7 @@ func TestDivFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e6Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e6Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type e6IsEqual struct {

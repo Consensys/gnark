@@ -39,7 +39,7 @@ func TestAddFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Add{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Add{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -98,7 +98,7 @@ func TestMulFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Mul{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Mul{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -128,7 +128,7 @@ func TestDivFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
