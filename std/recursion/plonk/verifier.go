@@ -840,25 +840,28 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	lagrange := lagrangeOne
 
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
-	wPowI := one
-	xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
-	pi := xiLi
-	if len(witness.Public) != 1 {
-		lagrange = v.scalarApi.Mul(lagrange, &vk.Generator)
-		lagrange = v.scalarApi.Mul(lagrange, denom)
-		wPowI = &vk.Generator
-		denom = v.scalarApi.Sub(zeta, wPowI)
-		lagrange = v.scalarApi.Div(lagrange, denom)
-	}
-	for i := 1; i < len(witness.Public); i++ {
-		xiLi := v.scalarApi.Mul(lagrange, &witness.Public[i])
+	pi := v.scalarApi.Zero()
+	if len(witness.Public) > 0 {
+		wPowI := one
+		xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
 		pi = v.scalarApi.Add(pi, xiLi)
-		if i+1 != len(witness.Public) {
+		if len(witness.Public) != 1 {
 			lagrange = v.scalarApi.Mul(lagrange, &vk.Generator)
 			lagrange = v.scalarApi.Mul(lagrange, denom)
-			wPowI = v.scalarApi.Mul(wPowI, &vk.Generator)
+			wPowI = &vk.Generator
 			denom = v.scalarApi.Sub(zeta, wPowI)
 			lagrange = v.scalarApi.Div(lagrange, denom)
+		}
+		for i := 1; i < len(witness.Public); i++ {
+			xiLi := v.scalarApi.Mul(lagrange, &witness.Public[i])
+			pi = v.scalarApi.Add(pi, xiLi)
+			if i+1 != len(witness.Public) {
+				lagrange = v.scalarApi.Mul(lagrange, &vk.Generator)
+				lagrange = v.scalarApi.Mul(lagrange, denom)
+				wPowI = v.scalarApi.Mul(wPowI, &vk.Generator)
+				denom = v.scalarApi.Sub(zeta, wPowI)
+				lagrange = v.scalarApi.Div(lagrange, denom)
+			}
 		}
 	}
 
