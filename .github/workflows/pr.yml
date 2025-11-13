@@ -33,7 +33,7 @@ jobs:
   
   test:
     needs: staticcheck
-    runs-on: gha-runner-scale-set-ubuntu-22.04-amd64-xxl
+    runs-on: gha-runner-scale-set-ubuntu-24-amd64-xxl
     permissions: 
       pull-requests: write
     steps:
