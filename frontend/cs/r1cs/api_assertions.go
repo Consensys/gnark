@@ -78,9 +78,20 @@ func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
-	i1 = builder.MulAcc(builder.Mul(-3, i1), i1, i1)
-	i1 = builder.MulAcc(builder.Mul(2, i1), i1, i1)
-	builder.AssertIsEqual(i1, 0)
+	const errorMsg = "AssertIsCrumb: input is not a crumb"
+	if c, ok := builder.constantValue(i1); ok {
+		cv := builder.cs.ToBigInt(c)
+		if cv.IsUint64() && cv.Uint64() < 4 {
+			return
+		}
+		panic(errorMsg)
+	}
+
+	// i1 (i1-1) (i1-2) (i1-3) = (i1² - 3i1) (i1² - 3i1 + 2)
+	// take X := i1² - 3i1 and we get X (X+2) = 0
+	x := builder.MulAcc(builder.Mul(-3, i1), i1, i1)
+	x = builder.MulAcc(builder.Mul(2, x), x, x)
+	builder.AssertIsEqual(x, 0)
 }
 
 // AssertIsLessOrEqual adds assertion in constraint builder  (v ⩽ bound)
