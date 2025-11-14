@@ -16,7 +16,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
-	gcutils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -210,7 +209,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bn254.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bn254.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bn254.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bn254.Generators()
@@ -232,7 +231,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls12381.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls12381.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bls12381.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls12381.Generators()
@@ -254,7 +253,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls12377.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls12377.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bls12377.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls12377.Generators()
@@ -277,7 +276,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bw6761.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bw6761.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bw6761.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bw6761.Generators()
@@ -300,7 +299,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls24317.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls24317.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bls24317.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls24317.Generators()
@@ -323,7 +322,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls24315.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls24315.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bls24315.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls24315.Generators()
@@ -346,7 +345,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bw6633.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bw6633.DIF)
-		gcutils.BitReverse(pAlpha)
+		fft_bw6633.BitReverse(pAlpha)
 
 		// bath scalar mul
 		_, _, g1gen, _ := bw6633.Generators()
