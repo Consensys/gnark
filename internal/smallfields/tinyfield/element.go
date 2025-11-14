@@ -855,6 +855,7 @@ var (
 func init() {
 	_bLegendreExponentElement, _ = new(big.Int).SetString("17", 16)
 	const sqrtExponentElement = "c"
+	const sqrtExponent2Element = "b"
 	_bSqrtExponentElement, _ = new(big.Int).SetString(sqrtExponentElement, 16)
 }
 
