@@ -16,7 +16,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	gcutils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
@@ -95,7 +94,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 
 	// obtain p's coefficients
 	domain.FFTInverse(p, fft.DIF)
-	gcutils.BitReverse(p)
+	fft.BitReverse(p)
 
 	// check if p is equal to f. This not being the case means that f is of a degree higher than degreeBound
 	fIn[0].MustSetRandom()

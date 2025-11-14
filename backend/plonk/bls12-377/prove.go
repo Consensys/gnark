@@ -19,7 +19,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	gcutils "github.com/consensys/gnark-crypto/utils"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
@@ -908,7 +907,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	scalingVector := cosetTable
 	scalingVectorRev := make([]fr.Element, len(cosetTable))
 	copy(scalingVectorRev, cosetTable)
-	gcutils.BitReverse(scalingVectorRev)
+	fft.BitReverse(scalingVectorRev)
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
@@ -949,7 +948,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 			// reuse memory
 			copy(scalingVectorRev, scalingVector)
-			gcutils.BitReverse(scalingVectorRev)
+			fft.BitReverse(scalingVectorRev)
 		}
 
 		// we do **a lot** of FFT here, but on the small domain.
