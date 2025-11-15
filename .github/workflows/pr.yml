@@ -33,7 +33,7 @@ jobs:
   
   test:
     needs: staticcheck
-    runs-on: ubuntu-latest-128
+    runs-on: gha-runner-scale-set-ubuntu-24-amd64-xxl
     permissions: 
       pull-requests: write
     steps:
@@ -65,9 +65,9 @@ jobs:
       run: |
         set -euo pipefail
         go test -json -v -p 4 -short -timeout=30m ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
-        go test -json -v -p 4 -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
-        go test -json -v -p 4 -tags=prover_checks ./test/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
-        go test -json -v -p 4 -tags=prover_checks ./examples/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -p 4 -timeout=30m -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -p 4 -timeout=30m -tags=prover_checks ./test/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -p 4 -timeout=30m -tags=prover_checks ./examples/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
 
 

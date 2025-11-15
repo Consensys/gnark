@@ -7,7 +7,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.2.1
 	github.com/consensys/compress v0.2.5
-	github.com/consensys/gnark-crypto v0.19.1
+	github.com/consensys/gnark-crypto v0.19.3-0.20251115174214-022ec58e8c19
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6
@@ -16,7 +16,7 @@ require (
 	github.com/leanovate/gopter v0.2.11
 	github.com/ronanh/intcomp v1.1.1
 	github.com/rs/zerolog v1.34.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.41.0
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b
 	golang.org/x/sync v0.16.0
