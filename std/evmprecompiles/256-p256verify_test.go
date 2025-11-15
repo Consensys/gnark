@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -77,7 +77,7 @@ func TestP256VerifyCircuit(t *testing.T) {
 
 func TestP256VerifyCircuitWithEIPVectors(t *testing.T) {
 	assert := test.NewAssert(t)
-	data, err := ioutil.ReadFile("test_vectors/p256verify_vectors_clean.json")
+	data, err := os.ReadFile("test_vectors/p256verify_vectors_clean.json")
 	if err != nil {
 		t.Fatalf("read vectors.json: %v", err)
 	}
