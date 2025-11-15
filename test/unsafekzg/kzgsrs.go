@@ -209,7 +209,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bn254.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bn254.DIF)
-		fft_bn254.BitReverse(pAlpha)
+		fft_bn254.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bn254.Generators()
@@ -231,7 +231,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls12381.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls12381.DIF)
-		fft_bls12381.BitReverse(pAlpha)
+		fft_bls12381.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls12381.Generators()
@@ -253,7 +253,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls12377.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls12377.DIF)
-		fft_bls12377.BitReverse(pAlpha)
+		fft_bls12377.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls12377.Generators()
@@ -276,7 +276,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bw6761.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bw6761.DIF)
-		fft_bw6761.BitReverse(pAlpha)
+		fft_bw6761.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bw6761.Generators()
@@ -299,7 +299,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls24317.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls24317.DIF)
-		fft_bls24317.BitReverse(pAlpha)
+		fft_bls24317.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls24317.Generators()
@@ -322,7 +322,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bls24315.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bls24315.DIF)
-		fft_bls24315.BitReverse(pAlpha)
+		fft_bls24315.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bls24315.Generators()
@@ -345,7 +345,7 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// do a fft on this.
 		d := fft_bw6633.NewDomain(size)
 		d.FFTInverse(pAlpha, fft_bw6633.DIF)
-		fft_bw6633.BitReverse(pAlpha)
+		fft_bw6633.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
 
 		// bath scalar mul
 		_, _, g1gen, _ := bw6633.Generators()

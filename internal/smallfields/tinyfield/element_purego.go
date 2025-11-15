@@ -8,8 +8,8 @@ package tinyfield
 // MulBy3 x *= 3 (mod q)
 func MulBy3(x *Element) {
 	var y Element
-	y.SetUint64(3)
-	x.Mul(x, &y)
+	y.Double(x)
+	x.Add(x, &y)
 }
 
 // MulBy5 x *= 5 (mod q)
