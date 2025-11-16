@@ -293,7 +293,10 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 //
 // It uses affine coordinates.
 func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleGeneric(p, false)
+}
 
+func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoint[B] {
 	mone := c.baseApi.NewElement(-1)
 	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
 	xx3a := c.baseApi.MulMod(&p.X, &p.X)
@@ -302,7 +305,16 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 		xx3a = c.baseApi.Add(xx3a, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+	var selector frontend.Variable = 0
+	if unified {
+		// if 2*p.y = 0, assign dummy 1 to y2 and continue
+		selector = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+	}
 	λ := c.baseApi.Div(xx3a, y2)
+	if unified {
+		λ = c.baseApi.Select(selector, c.baseApi.Zero(), λ)
+	}
 
 	// xr = λ²-2p.x
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}}, []int{1, 2})
@@ -328,6 +340,10 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
+	return c.tripleGeneric(p, false)
+}
+
+func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoint[B] {
 
 	mone := c.baseApi.NewElement(-1)
 	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
@@ -337,7 +353,16 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 		xx = c.baseApi.Add(xx, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+	var selector frontend.Variable = 0
+	if unified {
+		// if 2p.y = 0, assign dummy 1 to y2 and continue
+		selector = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+	}
 	λ1 := c.baseApi.Div(xx, y2)
+	if unified {
+		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+	}
 
 	// xr = λ1²-2p.x
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, &p.X}}, []int{1, 2})
@@ -345,7 +370,15 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
+	selector = 0
+	if unified {
+		selector = c.baseApi.IsZero(x1x2)
+		x1x2 = c.baseApi.Select(selector, c.baseApi.One(), x1x2)
+	}
 	λ2 := c.baseApi.Div(y2, x1x2)
+	if unified {
+		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+	}
 	λ2 = c.baseApi.Sub(λ2, λ1)
 
 	// xr = λ²-p.x-x2
@@ -372,13 +405,25 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleAndAddGeneric(p, q, false)
+}
+
+func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *AffinePoint[B] {
 
 	mone := c.baseApi.NewElement(-1)
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
 	xpn := c.baseApi.Neg(&p.X)
 	xqxp := c.baseApi.Add(&q.X, xpn)
+	var selector frontend.Variable = 0
+	if unified {
+		selector = c.baseApi.IsZero(xqxp)
+		xqxp = c.baseApi.Select(selector, c.baseApi.One(), xqxp)
+	}
 	λ1 := c.baseApi.Div(yqyp, xqxp)
+	if unified {
+		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+	}
 
 	// compute x2 = λ1²-p.x-q.x
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
@@ -388,7 +433,15 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Add(x2, xpn)
+	selector = 0
+	if unified {
+		selector = c.baseApi.IsZero(x2xp)
+		x2xp = c.baseApi.Select(selector, c.baseApi.One(), x2xp)
+	}
 	λ2 := c.baseApi.Div(ypyp, x2xp)
+	if unified {
+		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+	}
 	λ2 = c.baseApi.Add(λ1, λ2)
 
 	// compute x3 = (-λ2)²-p.x-x2
