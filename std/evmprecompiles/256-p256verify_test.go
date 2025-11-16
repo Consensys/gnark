@@ -120,6 +120,51 @@ func TestP256VerifyCircuitWithEIPVectors(t *testing.T) {
 	}
 }
 
+func TestP256VerifyMockedArithmetization(t *testing.T) {
+	assert := test.NewAssert(t)
+	data, err := os.ReadFile("test_vectors/p256verify_vectors.json")
+	// data, err := os.ReadFile("test_vectors/p256_failing.json")
+
+	assert.NoError(err, "read vectors.json")
+
+	var vecs []vector
+	err = json.Unmarshal(data, &vecs)
+	assert.NoError(err, "unmarshal vectors")
+	for _, v := range vecs {
+		assert.Run(func(assert *test.Assert) {
+			isValid, h, r, s, qx, qy, err := mockedArithmetization(&v)
+			// this means that the arithmetization detected an error.
+			// lets compare that the test case also assumed an error
+			tcVerified := expectedBool(v.Expected)
+			if err != nil && tcVerified {
+				// arithmetization said test case failed, but test case indicates success
+				assert.Fail("supposed successful verification but arithmetization failed: %v", err)
+			}
+			assert.Equal(isValid, tcVerified, "mismatch between arithmetization and test case")
+			if err != nil {
+				return
+			}
+			// this means that the arithmetization has filtered the input. We won't be calling the circuit
+			// in this case.
+			expectedRes := 0
+			if isValid {
+				expectedRes = 1
+			}
+			witness := p256verifyCircuit{
+				MsgHash:  emulated.ValueOf[emulated.P256Fr](*h),
+				R:        emulated.ValueOf[emulated.P256Fr](*r),
+				S:        emulated.ValueOf[emulated.P256Fr](*s),
+				Qx:       emulated.ValueOf[emulated.P256Fp](*qx),
+				Qy:       emulated.ValueOf[emulated.P256Fp](*qy),
+				Expected: expectedRes,
+			}
+			err = test.IsSolved(&p256verifyCircuit{}, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err)
+
+		}, v.Name)
+	}
+}
+
 // --- utils
 type vector struct {
 	Name     string `json:"Name,omitempty"`
