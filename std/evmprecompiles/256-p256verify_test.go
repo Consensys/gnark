@@ -63,7 +63,7 @@ func TestP256VerifyCircuit(t *testing.T) {
 	r.SetBytes(sig.R[:])
 	s.SetBytes(sig.S[:])
 	hash := ecdsa.HashToInt(msg)
-	var expected frontend.Variable
+	expected := 0
 	if verified {
 		expected = 1
 	}
