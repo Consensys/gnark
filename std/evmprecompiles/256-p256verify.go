@@ -12,24 +12,19 @@ import (
 // This circuit performs ECDSA signature verification over the secp256r1
 // elliptic curve (also known as P-256 or prime256v1).
 //
+// The method is specific to zkEVM context where some checks are already done by
+// the arithmetization. Particularly this method assumes:
+// * r and s are in the range [1, n-1]
+// * 0 ≤ qx < p and 0 ≤ qy < p
+// * (qx, qy) is a valid point on the curve P256
+// * (qx, qy) is not (0,0)
+//
 // [P256Verify]: https://eips.ethereum.org/EIPS/eip-7951
 func P256Verify(api frontend.API,
 	msgHash *emulated.Element[emulated.P256Fr],
 	r, s *emulated.Element[emulated.P256Fr],
 	qx, qy *emulated.Element[emulated.P256Fp],
 ) frontend.Variable {
-	// XXX: I think it is more efficient to just compute JointScalarMul here -- we don't need to do range checks.
-	// XXX: should we also explicitly check that the recovered point is not infinity? It is implicit anyway as we never receive `r==0` here (because of arithmetization checks),
-	// but I think we should at least mention it?
-	// XXX: and I think we also cannot directly check as the IsValid method checks that the r and r' are equal bitwise, but the EIP defines the check modulo n.
-
-	// Input validation:
-	// 1. input_length == 160 ==> checked by the arithmetization
-	// 2. 0 < r < n and 0 < s < n ==> checked by the arithmetization/ECDATA and enforced in `IsValid()`
-	// 3. 0 ≤ qx < p and 0 ≤ qy < p ==> checked by the arithmetization/ECDATA
-	// 4. (qx, qy) is a valid point on the curve P256 ==> checked by the arithmetization/ECDATA
-	// 5. (qx, qy) is not (0,0) ==> checked by the arithmetization/ECDATA
-
 	// we currently implement signature verification directly to avoid cases
 	// which the ECDSA gadget does not handle:
 	// * we don't need to perform range checks on r and s as they are done by the arithmetization
