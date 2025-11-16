@@ -81,50 +81,9 @@ func TestP256VerifyCircuit(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestP256VerifyCircuitWithEIPVectors(t *testing.T) {
-	assert := test.NewAssert(t)
-	data, err := os.ReadFile("test_vectors/p256verify_vectors_clean.json")
-	if err != nil {
-		t.Fatalf("read vectors.json: %v", err)
-	}
-
-	var vecs []vector
-	if err := json.Unmarshal(data, &vecs); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	for i, v := range vecs {
-		h, r, s, qx, qy, err := splitInput160(v.Input)
-		if err != nil {
-			t.Fatalf("splitInput160: %v", err)
-		}
-		verified := expectedBool(v.Expected)
-		expected := frontend.Variable(0)
-		if verified {
-			expected = 1
-		}
-		witness := p256verifyCircuit{
-			MsgHash:  emulated.ValueOf[emulated.P256Fr](*h),
-			R:        emulated.ValueOf[emulated.P256Fr](*r),
-			S:        emulated.ValueOf[emulated.P256Fr](*s),
-			Qx:       emulated.ValueOf[emulated.P256Fp](*qx),
-			Qy:       emulated.ValueOf[emulated.P256Fp](*qy),
-			Expected: expected,
-		}
-
-		circuit := p256verifyCircuit{}
-
-		t.Run(fmt.Sprintf("vector_%03d_%s", i, v.Name), func(t *testing.T) {
-			err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-			assert.NoError(err)
-		})
-	}
-}
-
 func TestP256VerifyMockedArithmetization(t *testing.T) {
 	assert := test.NewAssert(t)
 	data, err := os.ReadFile("test_vectors/p256verify_vectors.json")
-	// data, err := os.ReadFile("test_vectors/p256_failing.json")
-
 	assert.NoError(err, "read vectors.json")
 
 	var vecs []vector
