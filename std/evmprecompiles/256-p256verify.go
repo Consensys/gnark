@@ -46,10 +46,8 @@ func P256Verify(api frontend.API,
 	sinv := scalarApi.Inverse(s)
 	msInv := scalarApi.Mul(msgHash, sinv)
 	rsInv := scalarApi.Mul(r, sinv)
-	msInvG := curve.ScalarMulBase(msInv, algopts.WithCompleteArithmetic())
 	PK := sw_emulated.AffinePoint[emulated.P256Fp]{X: *qx, Y: *qy}
-	rsInvQ := curve.ScalarMul(&PK, rsInv, algopts.WithCompleteArithmetic())
-	Rprime := curve.AddUnified(msInvG, rsInvQ)
+	Rprime := curve.JointScalarMulBase(&PK, rsInv, msInv, algopts.WithCompleteArithmetic())
 
 	ResIsInfinity := api.And(
 		baseApi.IsZero(&Rprime.X),
