@@ -27,7 +27,7 @@ type AlgebraOption func(*algebraCfg) error
 func WithNbScalarBits(bits int) AlgebraOption {
 	return func(ac *algebraCfg) error {
 		if ac.NbScalarBits != 0 {
-			return errors.New("WithNbBits already set")
+			return errors.New("WithNbScalarBits already set")
 		}
 		ac.NbScalarBits = bits
 		return nil
