@@ -299,7 +299,6 @@ func generateGkrBackend(cfg gkrConfig) error {
 	// gkr backend
 	entries := []bavard.Entry{
 		{File: filepath.Join(packageDir, "gkr.go"), Templates: []string{"gkr.go.tmpl"}},
-		{File: filepath.Join(packageDir, "gate_testing.go"), Templates: []string{"gate_testing.go.tmpl"}},
 		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
 		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl", "sumcheck.test.defs.go.tmpl"}},
 		{File: filepath.Join(packageDir, testVectorUtilsFileName), Templates: []string{"test_vector_utils.go.tmpl"}},
@@ -317,9 +316,10 @@ func generateGkrBackend(cfg gkrConfig) error {
 			{File: filepath.Join(packageDir, "sumcheck_test_vector_gen.go"), Templates: []string{"sumcheck.test.vectors.gen.go.tmpl", "sumcheck.test.defs.go.tmpl"}},
 		}...)
 	} else {
-		entries = append(entries, bavard.Entry{
-			File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"},
-		})
+		entries = append(entries, []bavard.Entry{
+			{File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"}},
+			{File: filepath.Join(packageDir, "gate_testing.go"), Templates: []string{"gate_testing.go.tmpl"}},
+		}...)
 	}
 
 	if err := bgen.Generate(cfg, "gkr", "./template/gkr/", entries...); err != nil {
