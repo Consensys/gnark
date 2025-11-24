@@ -363,16 +363,24 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 	})
 }
 
-func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+func g2SqrtRatioHint(nativeMod *big.Int, nativeInputs []*big.Int, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(hc emulated.HintContext) error {
+		m := hc.EmulatedModuli()
+		if len(m) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(m))
+		}
+		inputs, outputsEm := hc.InputsOutputs(m[0])
 		if len(inputs) != 4 {
-			return fmt.Errorf("expecting 4 inputs")
+			return fmt.Errorf("expecting 4 inputs, got %d", len(inputs))
 		}
-		if len(outputs) != 3 {
-			return fmt.Errorf("expecting 3 outputs")
+		if len(outputsEm) != 2 {
+			return fmt.Errorf("expecting 2 outputs, got %d", len(outputsEm))
 		}
-
-		var z, u, v bls12381.E2
+		_, outputsN := hc.NativeInputsOutputs()
+		if len(outputsN) != 1 {
+			return fmt.Errorf("expecting 1 native output, got %d", len(outputsN))
+		}
+		var u, v, z bls12381.E2
 		u.A0.SetBigInt(inputs[0])
 		u.A1.SetBigInt(inputs[1])
 		v.A0.SetBigInt(inputs[2])
@@ -382,10 +390,9 @@ func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		if isQNr != 0 {
 			isQNr = 1
 		}
-
-		outputs[0].SetUint64(isQNr)
-		z.A0.BigInt(outputs[1])
-		z.A1.BigInt(outputs[2])
+		z.A0.BigInt(outputsEm[0])
+		z.A1.BigInt(outputsEm[1])
+		outputsN[0].SetInt64(int64(isQNr))
 		return nil
 	})
 }
