@@ -331,22 +331,36 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 // The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
 //
 // nativeInputs[0] = u, nativeInputs[1]=v
-// nativeOutput[1] = 1 if u/v is a QR, 0 otherwise, nativeOutput[1]=sqrt(u/v) or sqrt(Z u/v)
+// nativeOutput[0] = 1 if u/v is a QR, 0 otherwise, emulatedOutput[0]=sqrt(u/v) or sqrt(Z u/v)
 func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var u, v, z fp.Element
-			u.SetBigInt(inputs[0])
-			v.SetBigInt(inputs[1])
+	return emulated.UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(hc emulated.HintContext) error {
+		m := hc.EmulatedModuli()
+		if len(m) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(m))
+		}
+		inputs, outputsEm := hc.InputsOutputs(m[0])
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting 2 inputs, got %d", len(inputs))
+		}
+		if len(outputsEm) != 1 {
+			return fmt.Errorf("expecting 1 output, got %d", len(outputsEm))
+		}
+		_, outputsN := hc.NativeInputsOutputs()
+		if len(outputsN) != 1 {
+			return fmt.Errorf("expecting 1 native output, got %d", len(outputsN))
+		}
+		var u, v, z fp.Element
+		u.SetBigInt(inputs[0])
+		v.SetBigInt(inputs[1])
 
-			isQNr := hash_to_curve.G1SqrtRatio(&z, &u, &v)
-			if isQNr != 0 {
-				isQNr = 1
-			}
-			z.BigInt(outputs[0])
-			outputs[1].SetInt64(int64(isQNr))
-			return nil
-		})
+		isQNr := hash_to_curve.G1SqrtRatio(&z, &u, &v)
+		if isQNr != 0 {
+			isQNr = 1
+		}
+		z.BigInt(outputsEm[0])
+		outputsN[0].SetInt64(int64(isQNr))
+		return nil
+	})
 }
 
 func g2SqrtRatioHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
