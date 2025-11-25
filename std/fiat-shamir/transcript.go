@@ -6,7 +6,7 @@ package fiatshamir
 import (
 	"errors"
 
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
