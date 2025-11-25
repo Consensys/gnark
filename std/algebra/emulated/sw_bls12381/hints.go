@@ -331,7 +331,7 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 // The main idea is that since the computation of the square root involves taking large powers of u/v, the inversion of v can be avoided.
 //
 // nativeInputs[0] = u, nativeInputs[1]=v
-// nativeOutput[0] = 1 if u/v is a QR, 0 otherwise, emulatedOutput[0]=sqrt(u/v) or sqrt(Z u/v)
+// nativeOutput[0] = 0 if u/v is a QR, 1 otherwise, emulatedOutput[0]=sqrt(u/v) or sqrt(Z u/v)
 func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(hc emulated.HintContext) error {
 		m := hc.EmulatedModuli()
@@ -363,6 +363,13 @@ func g1SqrtRatioHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 	})
 }
 
+// g2SqrtRatioHint computes the square root of u/v for E2 field elements and returns 0 iff u/v was indeed a quadratic residue
+// if not, we get sqrt(Z * u / v). Recall that Z is non-residue
+// If v = 0, u/v is meaningless and the output is unspecified, without raising an error.
+//
+// nativeInputs: u.A0, u.A1, v.A0, v.A1 (where u and v are E2 elements)
+// nativeOutput[0] = 0 if u/v is a QR, 1 otherwise
+// emulatedOutput[0], emulatedOutput[1] = sqrt(u/v) or sqrt(Z*u/v) as an E2 element
 func g2SqrtRatioHint(nativeMod *big.Int, nativeInputs []*big.Int, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(hc emulated.HintContext) error {
 		m := hc.EmulatedModuli()
