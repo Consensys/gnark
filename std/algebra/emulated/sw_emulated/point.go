@@ -293,7 +293,10 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 //
 // It uses affine coordinates.
 func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleGeneric(p, false)
+}
 
+func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoint[B] {
 	mone := c.baseApi.NewElement(-1)
 	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
 	xx3a := c.baseApi.MulMod(&p.X, &p.X)
@@ -302,7 +305,16 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 		xx3a = c.baseApi.Add(xx3a, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+	var selector frontend.Variable = 0
+	if unified {
+		// if 2*p.y = 0, assign dummy 1 to y2 and continue
+		selector = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+	}
 	λ := c.baseApi.Div(xx3a, y2)
+	if unified {
+		λ = c.baseApi.Select(selector, c.baseApi.Zero(), λ)
+	}
 
 	// xr = λ²-2p.x
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}}, []int{1, 2})
@@ -328,6 +340,10 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
+	return c.tripleGeneric(p, false)
+}
+
+func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoint[B] {
 
 	mone := c.baseApi.NewElement(-1)
 	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
@@ -337,7 +353,16 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 		xx = c.baseApi.Add(xx, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+	var selector frontend.Variable = 0
+	if unified {
+		// if 2p.y = 0, assign dummy 1 to y2 and continue
+		selector = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+	}
 	λ1 := c.baseApi.Div(xx, y2)
+	if unified {
+		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+	}
 
 	// xr = λ1²-2p.x
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, &p.X}}, []int{1, 2})
@@ -345,7 +370,15 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
+	selector = 0
+	if unified {
+		selector = c.baseApi.IsZero(x1x2)
+		x1x2 = c.baseApi.Select(selector, c.baseApi.One(), x1x2)
+	}
 	λ2 := c.baseApi.Div(y2, x1x2)
+	if unified {
+		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+	}
 	λ2 = c.baseApi.Sub(λ2, λ1)
 
 	// xr = λ²-p.x-x2
@@ -372,13 +405,25 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleAndAddGeneric(p, q, false)
+}
+
+func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *AffinePoint[B] {
 
 	mone := c.baseApi.NewElement(-1)
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
 	xpn := c.baseApi.Neg(&p.X)
 	xqxp := c.baseApi.Add(&q.X, xpn)
+	var selector frontend.Variable = 0
+	if unified {
+		selector = c.baseApi.IsZero(xqxp)
+		xqxp = c.baseApi.Select(selector, c.baseApi.One(), xqxp)
+	}
 	λ1 := c.baseApi.Div(yqyp, xqxp)
+	if unified {
+		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+	}
 
 	// compute x2 = λ1²-p.x-q.x
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {mone, c.baseApi.Add(&p.X, &q.X)}}, []int{1, 1})
@@ -388,7 +433,15 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Add(x2, xpn)
+	selector = 0
+	if unified {
+		selector = c.baseApi.IsZero(x2xp)
+		x2xp = c.baseApi.Select(selector, c.baseApi.One(), x2xp)
+	}
 	λ2 := c.baseApi.Div(ypyp, x2xp)
+	if unified {
+		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+	}
 	λ2 = c.baseApi.Add(λ1, λ2)
 
 	// compute x3 = (-λ2)²-p.x-x2
@@ -1125,6 +1178,12 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
 		n = cfg.NbScalarBits
 	}
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	addFn := c.Add
+	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
+	}
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
 
@@ -1134,17 +1193,12 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 
 	for i := 3; i < n; i++ {
 		// gm[i] = [2^i]g
-		tmp := c.add(res, &gm[i])
+		tmp := addFn(res, &gm[i])
 		res = c.Select(sBits[i], tmp, res)
 	}
 
 	// i = 0
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	addFn := c.Add
-	if cfg.CompleteArithmetic {
-		addFn = c.AddUnified
-	}
+
 	tmp := addFn(res, c.Neg(g))
 	res = c.Select(sBits[0], res, tmp)
 
@@ -1322,7 +1376,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// formulae are incomplete we suppose that the first bits of the
 	// sub-scalars s1 and s2 are 1, and set:
 	// 		Acc = Q + R
-	Acc := c.Add(tableQ[1], tableR[1])
+	Acc := addFn(tableQ[1], tableR[1])
 
 	// At each iteration we need to compute:
 	// 		[2]Acc ± Q ± R.
@@ -1340,16 +1394,16 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//
 	// T = [3](Q + R)
 	// P = B1 and P' = B1
-	T1 := c.Add(tableQ[2], tableR[2])
+	T1 := addFn(tableQ[2], tableR[2])
 	// T = Q + R
 	// P = B1 and P' = B2
 	T2 := Acc
 	// T = [3]Q + R
 	// P = B1 and P' = B3
-	T3 := c.Add(tableQ[2], tableR[1])
+	T3 := addFn(tableQ[2], tableR[1])
 	// T = Q + [3]R
 	// P = B1 and P' = B4
-	T4 := c.Add(tableQ[1], tableR[2])
+	T4 := addFn(tableQ[1], tableR[2])
 	// T  = -Q - R
 	// P = B2 and P' = B1
 	T5 := c.Neg(T2)
@@ -1364,17 +1418,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	T8 := c.Neg(T3)
 	// T = [3]Q - R
 	// P = B3 and P' = B1
-	T9 := c.Add(tableQ[2], tableR[0])
+	T9 := addFn(tableQ[2], tableR[0])
 	// T = Q - [3]R
 	// P = B3 and P' = B2
 	T11 := c.Neg(tableR[2])
-	T10 := c.Add(tableQ[1], T11)
+	T10 := addFn(tableQ[1], T11)
 	// T = [3](Q - R)
 	// P = B3 and P' = B3
-	T11 = c.Add(tableQ[2], T11)
+	T11 = addFn(tableQ[2], T11)
 	// T = -R + Q
 	// P = B3 and P' = B4
-	T12 := c.Add(tableR[0], tableQ[1])
+	T12 := addFn(tableR[0], tableQ[1])
 	// T = [3]R - Q
 	// P = B4 and P' = B1
 	T13 := c.Neg(T10)
@@ -1399,8 +1453,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		}
 		// We don't use doubleAndAdd here as it would involve edge cases
 		// when bits are 00 (T==-Acc) or 11 (T==Acc).
-		Acc = c.double(Acc)
-		Acc = c.add(Acc, T)
+		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
+		Acc = addFn(Acc, T)
 	} else {
 		// when nbits is odd we start the main loop at normally nbits - 1
 		nbits++
@@ -1432,8 +1486,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			),
 		}
 		// Acc = [4]Acc + T
-		Acc = c.double(Acc)
-		Acc = c.doubleAndAdd(Acc, T)
+		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
+		Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
 	}
 
 	// i = 2
@@ -1466,9 +1520,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
 	// 		Acc = [4]Acc + T + [3]R
-	T = c.add(T, tableR[2])
-	Acc = c.double(Acc)
-	Acc = c.doubleAndAdd(Acc, T)
+	T = addFn(T, tableR[2])
+	Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
+	Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
 
 	// i = 0
 	// subtract Q and R if the first bits are 0.
