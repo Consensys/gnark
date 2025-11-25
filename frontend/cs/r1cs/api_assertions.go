@@ -78,13 +78,11 @@ func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
-	const errorMsg = "AssertIsCrumb: input is not a crumb"
 	if c, ok := builder.constantValue(i1); ok {
-		cv := builder.cs.ToBigInt(c)
-		if cv.IsUint64() && cv.Uint64() < 4 {
+		if i, ok := builder.cs.Uint64(c); ok && i < 4 {
 			return
 		}
-		panic(errorMsg)
+		panic(fmt.Sprintf("AssertIsCrumb constant input %s is not a crumb", builder.cs.String(c)))
 	}
 
 	// i1 (i1-1) (i1-2) (i1-3) = (i1² - 3i1) (i1² - 3i1 + 2)
