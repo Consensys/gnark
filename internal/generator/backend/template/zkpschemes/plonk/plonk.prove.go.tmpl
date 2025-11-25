@@ -1151,7 +1151,7 @@ func commitBlindingFactor(n int, b *iop.Polynomial, key kzg.ProvingKey) curve.G1
 func getRandomPolynomial(n int) *iop.Polynomial {
 	var a []fr.Element
 	if n == -1 {
-		a := make([]fr.Element, 1)
+		a = make([]fr.Element, 1)
 		a[0].SetZero()
 	} else {
 		a = make([]fr.Element, n+1)
