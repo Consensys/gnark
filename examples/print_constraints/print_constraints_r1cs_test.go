@@ -41,7 +41,7 @@ func Example_printR1CS() {
 		return
 	}
 
-	// Assert that the constraint system has the `R1Cs()` method. This allows us
+	// Assert that the constraint system has the `GetR1Cs()` method. This allows us
 	// to get the R1CS constraints, but without needing to assert to a specific
 	// curve implementation.
 
