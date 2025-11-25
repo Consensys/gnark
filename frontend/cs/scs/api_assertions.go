@@ -119,21 +119,24 @@ func (builder *builder[E]) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 func (builder *builder[E]) AssertIsCrumb(i1 frontend.Variable) {
-	const errorMsg = "AssertIsCrumb: input is not a crumb"
 	if c, ok := builder.constantValue(i1); ok {
 		if i, ok := builder.cs.Uint64(c); ok && i < 4 {
 			return
 		}
-		panic(errorMsg)
+		panic(fmt.Sprintf("AssertIsCrumb constant input %s is not a crumb", builder.cs.String(c)))
 	}
 
 	// i1 (i1-1) (i1-2) (i1-3) = (i1² - 3i1) (i1² - 3i1 + 2)
 	// take X := i1² - 3i1 and we get X (X+2) = 0
 
+	// usually MulAcc is a composition in PLONK, unless we have the condition
+	// a/c == const. This holds here so this is only a single constraint.
 	x := builder.MulAcc(builder.Mul(-3, i1), i1, i1).(expr.Term[E])
 
-	// TODO @Tabaie Ideally this entire function would live in std/math/bits as it is quite specialized;
-	// however using two generic MulAccs and an AssertIsEqual results in three constraints rather than two.
+	// usually bit assertions are defined in [std/math/bits] package, but we
+	// already have it and want to keep it backwards compatible. By doing it
+	// directly we can avoid a constraint as we do 2X + X^2 == 0 in a single
+	// constraint.
 	builder.addPlonkConstraint(sparseR1C[E]{
 		xa: x.VID,
 		xb: x.VID,
