@@ -27,6 +27,11 @@ type Curve struct {
 
 // NewCurve initializes a new [Curve] instance.
 func NewCurve(api frontend.API) (*Curve, error) {
+	// this is a 2-chain curve, so the base field of BLS12-377 is the scalar
+	// field of BW6-761. Error early to avoid any misuse.
+	if api.Compiler().Field().Cmp(fr_bw6761.Modulus()) != 0 {
+		return nil, errors.New("expected BW6-761 scalar field for BLS12-377 curve operations")
+	}
 	f, err := emulated.NewField[ScalarField](api)
 	if err != nil {
 		return nil, errors.New("scalar field")
@@ -104,42 +109,6 @@ func (c *Curve) AddUnified(P, Q *G1Affine) *G1Affine {
 // AssertIsEqual asserts the equality of P and Q.
 func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
-}
-
-func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
-	diff0 := pr.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
-	diff1 := pr.api.Sub(&x.C0.B0.A1, &y.C0.B0.A1)
-	diff2 := pr.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
-	diff3 := pr.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
-	diff4 := pr.api.Sub(&x.C0.B1.A0, &y.C0.B1.A0)
-	diff5 := pr.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
-	diff6 := pr.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
-	diff7 := pr.api.Sub(&x.C1.B0.A1, &y.C1.B0.A1)
-	diff8 := pr.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
-	diff9 := pr.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
-	diff10 := pr.api.Sub(&x.C1.B1.A0, &y.C1.B1.A0)
-	diff11 := pr.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
-
-	isZero0 := pr.api.IsZero(diff0)
-	isZero1 := pr.api.IsZero(diff1)
-	isZero2 := pr.api.IsZero(diff2)
-	isZero3 := pr.api.IsZero(diff3)
-	isZero4 := pr.api.IsZero(diff4)
-	isZero5 := pr.api.IsZero(diff5)
-	isZero6 := pr.api.IsZero(diff6)
-	isZero7 := pr.api.IsZero(diff7)
-	isZero8 := pr.api.IsZero(diff8)
-	isZero9 := pr.api.IsZero(diff9)
-	isZero10 := pr.api.IsZero(diff10)
-	isZero11 := pr.api.IsZero(diff11)
-
-	return pr.api.And(
-		pr.api.And(
-			pr.api.And(pr.api.And(isZero0, isZero1), pr.api.And(isZero2, isZero3)),
-			pr.api.And(pr.api.And(isZero4, isZero5), pr.api.And(isZero6, isZero7)),
-		),
-		pr.api.And(pr.api.And(isZero8, isZero9), pr.api.And(isZero10, isZero11)),
-	)
 }
 
 // Neg negates P and returns the result. Does not modify P.
@@ -362,7 +331,12 @@ func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(pr.api, *e2)
 }
 
-func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+// IsEqual returns 1 if x is equal to y, 0 otherwise.
+func (pr *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	return x.IsEqual(pr.api, *y)
+}
+
+func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -426,7 +400,7 @@ func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	return &ret
 }
 
-func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+func (pr *Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 	if len(inputs) == 0 {
 		return nil
 	}

@@ -271,5 +271,36 @@ func TestDivFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e6Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e6Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type e6IsEqual struct {
+	A, B E6
+	Eq   frontend.Variable `gnark:",public"`
+}
+
+func (circuit *e6IsEqual) Define(api frontend.API) error {
+	isEqual := circuit.A.IsEqual(api, circuit.B)
+	api.AssertIsEqual(isEqual, circuit.Eq)
+	return nil
+}
+
+func TestE6IsEqual(t *testing.T) {
+
+	// witness values
+	var a, b bls12377.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+
+	var witness, witness2 e6IsEqual
+	witness.A.Assign(&a)
+	witness.B.Assign(&a)
+	witness.Eq = 1
+
+	witness2.A.Assign(&a)
+	witness2.B.Assign(&b)
+	witness2.Eq = 0
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&e6IsEqual{}, test.WithValidAssignment(&witness), test.WithValidAssignment(&witness2), test.WithCurves(ecc.BW6_761))
 }

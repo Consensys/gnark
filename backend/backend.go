@@ -6,6 +6,7 @@ package backend
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"hash"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -60,7 +61,6 @@ type ProverConfig struct {
 	HashToFieldFn  hash.Hash
 	ChallengeHash  hash.Hash
 	KZGFoldingHash hash.Hash
-	Accelerator    string
 	StatisticalZK  bool
 }
 
@@ -122,16 +122,18 @@ func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 	}
 }
 
-// WithIcicleAcceleration requests to use [ICICLE] GPU proving backend for the
-// prover. This option requires that the program is compiled with `icicle` build
-// tag and the ICICLE dependencies are properly installed. See [ICICLE] for
-// installation description.
+// WithIcicleAcceleration requests to use [ICICLE] GPU proving backend.
+//
+// DEPRECATED: we don't switch to ICICLE automatically anymore, the user has to
+// explicitly use methods in the [github.com/consensys/gnark/backend/accelerated/icicle]
+// package to use ICICLE acceleration. This option will be removed in a future release,
+// but kept for now for API backward compatibility. It will error at runtime instead.
 //
 // [ICICLE]: https://github.com/ingonyama-zk/icicle-gnark
 func WithIcicleAcceleration() ProverOption {
 	return func(pc *ProverConfig) error {
-		pc.Accelerator = "icicle"
-		return nil
+		return fmt.Errorf("WithIcicleAcceleration for switching is deprecated, please use the ICICLE backend directly. " +
+			"Import \"github.com/consensys/gnark/backend/accelerated/icicle\" and use the Prove method there")
 	}
 }
 

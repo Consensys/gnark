@@ -7,16 +7,15 @@ package tinyfield
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
-	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVectorSort(t *testing.T) {
@@ -51,8 +50,8 @@ func TestVectorRoundTrip(t *testing.T) {
 	err = v3.unmarshalBinaryAsync(b)
 	assert.NoError(err)
 
-	assert.True(reflect.DeepEqual(v1, v2))
-	assert.True(reflect.DeepEqual(v3, v2))
+	assert.True(v1.Equal(v2), "vectors should be equal")
+	assert.True(v3.Equal(v2), "vectors should be equal")
 }
 
 func TestVectorEmptyRoundTrip(t *testing.T) {
@@ -71,8 +70,27 @@ func TestVectorEmptyRoundTrip(t *testing.T) {
 	err = v3.unmarshalBinaryAsync(b)
 	assert.NoError(err)
 
-	assert.True(reflect.DeepEqual(v1, v2))
-	assert.True(reflect.DeepEqual(v3, v2))
+	assert.True(v1.Equal(v2), "vectors should be equal")
+	assert.True(v3.Equal(v2), "vectors should be equal")
+}
+
+func TestVectorEmptyOps(t *testing.T) {
+	assert := require.New(t)
+
+	var sum, inner, scalar Element
+	scalar.SetUint64(42)
+	empty := make(Vector, 0)
+	result := make(Vector, 0)
+
+	assert.NotPanics(func() { result.Add(empty, empty) })
+	assert.NotPanics(func() { result.Sub(empty, empty) })
+	assert.NotPanics(func() { result.ScalarMul(empty, &scalar) })
+	assert.NotPanics(func() { result.Mul(empty, empty) })
+	assert.NotPanics(func() { sum = empty.Sum() })
+	assert.NotPanics(func() { inner = empty.InnerProduct(empty) })
+
+	assert.True(sum.IsZero())
+	assert.True(inner.IsZero())
 }
 
 func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
@@ -351,5 +369,217 @@ func genVector(size int) gopter.Gen {
 
 		genResult := gopter.NewGenResult(g, gopter.NoShrinker)
 		return genResult
+	}
+}
+
+func TestReadMismatchLength(t *testing.T) {
+	// ensure that the reader returns an error if the length encoded is larger than the actual
+	// input.
+	assert := require.New(t)
+
+	v1 := make(Vector, 4)
+	v1.MustSetRandom()
+
+	buf := new(bytes.Buffer)
+	_, err := v1.WriteTo(buf)
+	assert.NoError(err, "writing to buffer should not error out")
+
+	// tamper with the length: set it to 10
+	binary.BigEndian.PutUint32(buf.Bytes()[0:4], 10)
+
+	var v2 Vector
+	_, err = v2.ReadFrom(buf)
+	assert.Error(err, "should error out as the length encoded is larger than the input")
+	var v3 Vector
+	err = v3.unmarshalBinaryAsync(buf.Bytes())
+	assert.Error(err, "should error out as the length encoded is larger than the input")
+	var v4 Vector
+	err = v4.UnmarshalBinary(buf.Bytes())
+	assert.Error(err, "should error out as the length encoded is larger than the input")
+}
+
+func TestReadLargeHeader(t *testing.T) {
+	// skip the test. Running it on its own requires only up to 4GB of RAM, but
+	// we run tests in parallel in test suite. In that case the RAM usage blows
+	// up quickly and the test OOMs.
+	t.Skip("skipping test that requires large memory allocation")
+
+	// if header is very large (128GB) we don't allocate it directly
+	// at once but rather in smaller chunks and then read it
+	assert := require.New(t)
+
+	v1 := make(Vector, 4)
+	v1.MustSetRandom()
+
+	buf := new(bytes.Buffer)
+	_, err := v1.WriteTo(buf)
+	assert.NoError(err, "writing to buffer should not error out")
+	bufBytes := buf.Bytes()
+
+	// tamper with the length: set it to 2^32-1
+	binary.BigEndian.PutUint32(bufBytes[0:4], ^uint32(0))
+	var v2 Vector
+	_, err = v2.ReadFrom(bytes.NewBuffer(bufBytes))
+	assert.Error(err, "should error out as the length encoded is very large")
+	var v3 Vector
+	_, err, errCh := v3.AsyncReadFrom(bytes.NewBuffer(bufBytes))
+	assert.Error(err, "should error out as the length encoded is very large")
+	assert.NoError(<-errCh)
+	var v4 Vector
+	err = v4.UnmarshalBinary(bufBytes)
+	assert.Error(err, "should error out as the length encoded is very large")
+}
+
+func TestReuseSliceDeserialization(t *testing.T) {
+	// test that when we deserialize into a preallocated slice, if the slice is
+	// large enough, we reuse it (and don't allocate a new one)
+	const (
+		size     = 1 << 16
+		capacity = 1 << 20
+	)
+	assert := require.New(t)
+
+	v1 := make(Vector, size)
+	v1.MustSetRandom()
+
+	buf := new(bytes.Buffer)
+	_, err := v1.WriteTo(buf)
+	assert.NoError(err, "writing to buffer should not error out")
+
+	bufBytes := buf.Bytes()
+
+	v2 := make(Vector, capacity)
+	_, err = v2.ReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.Equal(size, len(v2), "length of the slice should equal to the original one")
+	assert.Equal(capacity, cap(v2), "capacity of the slice should remain unchanged")
+	assert.True(v1.Equal(v2), "vectors should be equal")
+	v3 := make(Vector, capacity)
+	_, err, errCh := v3.AsyncReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.NoError(<-errCh, "should validate without error")
+	assert.Equal(size, len(v3), "length of the slice should equal to the original one")
+	assert.Equal(capacity, cap(v3), "capacity of the slice should remain unchanged")
+	assert.True(v1.Equal(v3), "vectors should be equal")
+}
+
+func TestVectorEqualityLarge(t *testing.T) {
+	// this test requires very large memory allocation which is slow and not possible in
+	// small machines. We skip the test even with no-short flag. I have run it locally and
+	// it passes (@ivokub)
+	t.Skip("skipping test that requires large memory allocation")
+	// tests that the vectors equality works for large vectors (with multiple allocations)
+	const size = 1 << 28
+	assert := require.New(t)
+
+	v1 := make(Vector, size)
+	v1.MustSetRandom()
+
+	buf := new(bytes.Buffer)
+	_, err := v1.WriteTo(buf)
+	assert.NoError(err, "writing to buffer should not error out")
+
+	bufBytes := buf.Bytes()
+
+	var v2 Vector
+	_, err = v2.ReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.True(v1.Equal(v2), "vectors should be equal")
+
+	var v3 Vector
+	_, err, errCh := v3.AsyncReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.NoError(<-errCh, "should validate without error")
+	assert.True(v1.Equal(v3), "vectors should be equal")
+
+	v4 := make(Vector, size)
+	_, err = v4.ReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.True(v1.Equal(v4), "vectors should be equal")
+
+	v5 := make(Vector, size)
+	_, err, errCh = v5.AsyncReadFrom(bytes.NewReader(bufBytes))
+	assert.NoError(err, "should read without error")
+	assert.NoError(<-errCh, "should validate without error")
+	assert.True(v1.Equal(v5), "vectors should be equal")
+}
+
+func BenchmarkVectorReadFrom(b *testing.B) {
+	for _, size := range []int{5, 10, 15, 20, 24, 28} {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			v1 := make(Vector, 1<<size)
+			v1.MustSetRandom()
+
+			buf := new(bytes.Buffer)
+			_, err := v1.WriteTo(buf)
+			if err != nil {
+				b.Fatal("writing to buffer should not error out")
+			}
+
+			data := buf.Bytes()
+
+			b.Run("prealloc", func(b *testing.B) {
+				v2 := make(Vector, 1<<size)
+				for b.Loop() {
+					_, err = v2.ReadFrom(bytes.NewReader(data))
+					if err != nil {
+						b.Fatal("should read without error")
+					}
+				}
+			})
+
+			b.Run("empty", func(b *testing.B) {
+				var v2 Vector
+				for b.Loop() {
+					_, err = v2.ReadFrom(bytes.NewReader(data))
+					if err != nil {
+						b.Fatal("should read without error")
+					}
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkVectorAsyncReadFrom(b *testing.B) {
+	for _, size := range []int{5, 10, 15, 20, 24, 28} {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			v1 := make(Vector, 1<<size)
+			v1.MustSetRandom()
+
+			buf := new(bytes.Buffer)
+			_, err := v1.WriteTo(buf)
+			if err != nil {
+				b.Fatal("writing to buffer should not error out")
+			}
+
+			data := buf.Bytes()
+
+			b.Run("prealloc", func(b *testing.B) {
+				v2 := make(Vector, 1<<size)
+				for b.Loop() {
+					_, err, errCh := v2.AsyncReadFrom(bytes.NewReader(data))
+					if err != nil {
+						b.Fatal("should read without error")
+					}
+					if err = <-errCh; err != nil {
+						b.Fatal("should validate without error")
+					}
+				}
+			})
+
+			b.Run("empty", func(b *testing.B) {
+				var v2 Vector
+				for b.Loop() {
+					_, err, errCh := v2.AsyncReadFrom(bytes.NewReader(data))
+					if err != nil {
+						b.Fatal("should read without error")
+					}
+					if err = <-errCh; err != nil {
+						b.Fatal("should validate without error")
+					}
+				}
+			})
+		})
 	}
 }
