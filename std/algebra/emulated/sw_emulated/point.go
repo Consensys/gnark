@@ -1146,63 +1146,9 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 		return c.scalarMulGLVAndFakeGLV(c.Generator(), s, opts...)
 
 	} else {
-		return c.scalarMulBaseGeneric(s, opts...)
+		return c.scalarMulFakeGLV(c.Generator(), s, opts...)
 
 	}
-}
-
-// scalarMulBaseGeneric computes [s]g and returns it, where g is the fixed generator.
-// It doesn't modify s.
-//
-// ✅ When s=0, it returns (0,0).
-// (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the [EVM].
-//
-// It computes the standard little-endian fixed-base double-and-add algorithm
-// [HMV04] (Algorithm 3.26), with the points [2^i]g precomputed.  The bits at
-// positions 1 and 2 are handled outside of the loop to optimize the number of
-// constraints using a Lookup2 with pre-computed [3]g, [5]g and [7]g points.
-//
-// [HMV04]: https://link.springer.com/book/10.1007/b97644
-// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-
-	var st S
-	sr := c.scalarApi.Reduce(s)
-	sBits := c.scalarApi.ToBits(sr)
-	n := st.Modulus().BitLen()
-	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
-		n = cfg.NbScalarBits
-	}
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	addFn := c.Add
-	if cfg.CompleteArithmetic {
-		addFn = c.AddUnified
-	}
-	g := c.Generator()
-	gm := c.GeneratorMultiples()
-
-	// i = 1, 2
-	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
-	res := c.Lookup2(sBits[1], sBits[2], g, &gm[0], &gm[1], &gm[2])
-
-	for i := 3; i < n; i++ {
-		// gm[i] = [2^i]g
-		tmp := addFn(res, &gm[i])
-		res = c.Select(sBits[i], tmp, res)
-	}
-
-	// i = 0
-
-	tmp := addFn(res, c.Neg(g))
-	res = c.Select(sBits[0], res, tmp)
-
-	return res
 }
 
 // JointScalarMulBase computes [s1]g + [s2]p and returns it, where g is the
