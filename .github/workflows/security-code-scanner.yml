@@ -1,0 +1,41 @@
+name: MetaMask Security Code Scanner
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_call:
+    secrets:
+      SECURITY_SCAN_METRICS_TOKEN:
+        required: false
+      APPSEC_BOT_SLACK_WEBHOOK:
+        required: false
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@v2
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    with:
+      repo: ${{ github.repository }}
+      scanner-ref: 'v2'
+      paths-ignored: |
+        **/vendor/**
+        **/*_test.go
+        **/testdata/**
+      languages-config: |
+        [
+          {
+            "language": "go",
+            "build_mode": "none"
+          }
+        ]
+    secrets:
+      project-metrics-token: ${{ secrets.SECURITY_SCAN_METRICS_TOKEN }}
+      slack-webhook: ${{ secrets.APPSEC_BOT_SLACK_WEBHOOK }}
