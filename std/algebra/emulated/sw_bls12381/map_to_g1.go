@@ -124,15 +124,15 @@ func (g1 *G1) MapToCurve1(u *baseEl) (*G1Affine, error) {
 
 	x := g1.curveF.Mul(tv1, tv3) // 17.   x = tv1 * tv3
 
-	hint, err := g1.curveF.NewHint(g1SqrtRatioHint, 2, tv2, tv6)
+	hintN, hintEm, err := g1.curveF.NewHintGeneric(g1SqrtRatioHint, 1, 1, nil, []*baseEl{tv2, tv6})
 	if err != nil {
 		return nil, err
 	}
 
-	y1 := hint[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
+	y1 := hintEm[0] // 18. (is_gx1_square, y1) = sqrt_ratio(tv2, tv6)
 
 	// (gx1NSquare==1 AND (u/v) QNR ) OR (gx1NSquare==0 AND (u/v) QR )
-	gx1NSquare := hint[1].Limbs[0]
+	gx1NSquare := hintN[0]
 
 	g1.api.AssertIsBoolean(gx1NSquare)
 	y1Squarev := g1.curveF.Mul(y1, y1)

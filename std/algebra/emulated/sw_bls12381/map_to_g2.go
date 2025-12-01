@@ -63,13 +63,13 @@ func (g2 *G2) sgn0(x *fields_bls12381.E2) frontend.Variable {
 func (g2 *G2) sqrtRatio(u, v *fields_bls12381.E2) (frontend.Variable, *fields_bls12381.E2, error) {
 	// Steps
 	// 1. extract the base values of u, v, then compute G2SqrtRatio with gnark-crypto
-	x, err := g2.fp.NewHint(g2SqrtRatioHint, 3, &u.A0, &u.A1, &v.A0, &v.A1)
+	hintN, hintEm, err := g2.fp.NewHintGeneric(g2SqrtRatioHint, 1, 2, nil, []*baseEl{&u.A0, &u.A1, &v.A0, &v.A1})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to calculate sqrtRatio with gnark-crypto: %w", err)
 	}
 
-	b := g2.fp.IsZero(x[0])
-	y := fields_bls12381.E2{A0: *x[1], A1: *x[2]}
+	b := g2.api.Sub(1, hintN[0]) // isQR
+	y := fields_bls12381.E2{A0: *hintEm[0], A1: *hintEm[1]}
 
 	// 2. apply constraints
 	// b1 := {b = True AND y^2 * v = u}

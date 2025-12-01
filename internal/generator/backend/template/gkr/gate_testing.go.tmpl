@@ -89,7 +89,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 
 	// obtain p's coefficients
 	domain.FFTInverse(p, fft.DIF)
-	fft.BitReverse(p)
+	fft.BitReverse(p) //nolint:staticcheck // method is backwards compatible
 	{{- else }}
 	x := make({{.FieldPackageName}}.Vector, degreeBound)
 	x.MustSetRandom()
