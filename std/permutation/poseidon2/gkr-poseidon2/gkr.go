@@ -429,8 +429,3 @@ func newRoundGateNamer(p fmt.Stringer) roundGateNamer {
 func (n roundGateNamer) linear(varIndex, round int) gkr.GateName {
 	return gkr.GateName(fmt.Sprintf("x%d-l-op-round=%d;%s", varIndex, round, n))
 }
-
-// integrated is the name of a gate where a polynomial of total degree 1 is applied to the input, followed by an S-box
-func (n roundGateNamer) integrated(varIndex, round int) gkr.GateName {
-	return gkr.GateName(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
-}
