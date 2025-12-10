@@ -237,13 +237,20 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 	return resCircuit, nil
 }
 
-func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
-	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
-	return SolvingInfo{
-		Circuit:     circuit,
-		NbInstances: info.NbInstances,
-		HashName:    info.HashName,
-	}, err
+func StoringToSolvingInfo(info []gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) ([]SolvingInfo, error) {
+	res := make([]SolvingInfo, len(info))
+	for i := range info {
+		circuit, err := CircuitInfoToCircuit(info[i].Circuit, gateGetter)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = SolvingInfo{
+			Circuit:     circuit,
+			NbInstances: info[i].NbInstances,
+			HashName:    info[i].HashName,
+		}
+	}
+	return res, nil
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit

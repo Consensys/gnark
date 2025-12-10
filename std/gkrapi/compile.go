@@ -164,7 +164,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 		}
 	}
 
-	if err := api.(gkrinfo.ConstraintSystem).SetGkrInfo(c.toStore); err != nil {
+	if err := api.(gkrinfo.ConstraintSystem).AddGkrInfo(c.toStore); err != nil {
 		return err
 	}
 

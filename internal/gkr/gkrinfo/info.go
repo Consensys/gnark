@@ -39,11 +39,8 @@ func (d *StoringInfo) NewInputVariable() int {
 	return i
 }
 
-func (d *StoringInfo) Is() bool {
-	return d.Circuit != nil
-}
-
 // A ConstraintSystem that supports GKR
 type ConstraintSystem interface {
-	SetGkrInfo(info StoringInfo) error
+	AddGkrInfo(info StoringInfo) error
+	//NewGkr() (*StoringInfo, int)
 }

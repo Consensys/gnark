@@ -51,17 +51,24 @@ type solver struct {
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// add GKR options to overwrite the placeholder
-	if cs.GkrInfo.Is() {
+
+	if len(cs.GkrInfo) != 0 {
 		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
 		if err != nil {
 			return nil, err
 		}
+
 		gkrData := gkr.NewSolvingData(solvingInfo)
 		var gkrHints *gkrhints.TestEngineHints
 		opts = append(opts,
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(cs.GkrInfo.HashName, gkrData)))
+
+	}
+
+	if cs.GkrInfo.Is() {
+
 	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)

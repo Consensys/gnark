@@ -782,7 +782,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) SetGkrInfo(gkrinfo.StoringInfo) error {
+func (e *engine) AddGkrInfo(gkrinfo.StoringInfo) error {
 	return nil
 }
 

@@ -723,6 +723,6 @@ func (*builder[E]) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
 }
 
-func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
+func (builder *builder[E]) AddGkrInfo(info gkrinfo.StoringInfo) error {
 	return builder.cs.AddGkr(info)
 }

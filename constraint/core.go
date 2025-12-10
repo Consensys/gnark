@@ -125,7 +125,7 @@ type System struct {
 	lbWireLevel []Level `cbor:"-"` // at which level we solve a wire. init at -1.
 
 	CommitmentInfo Commitments
-	GkrInfo        gkrinfo.StoringInfo
+	GkrInfo        []gkrinfo.StoringInfo
 
 	genericHint BlueprintID
 }
@@ -180,7 +180,7 @@ func (system *System) GetNbInternalVariables() int {
 
 // CheckSerializationHeader parses the scalar field and gnark version headers
 //
-// This is meant to be use at the deserialization step, and will error for illegal values
+// This is meant to be used at the deserialization step, and will error for illegal values
 func (system *System) CheckSerializationHeader() error {
 	// check gnark version
 	binaryVersion := gnark.Version
@@ -471,11 +471,13 @@ func putBuffer(buf *[]uint32) {
 	bufPool.Put(buf)
 }
 
-func (system *System) AddGkr(gkrInfo gkrinfo.StoringInfo) error {
-	if system.GkrInfo.Is() {
-		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
-	}
-
-	system.GkrInfo = gkrInfo
-	return nil
+// NewGkr registers a GKR sub-circuit, returning
+// a reference to an object where serializable data
+// about the sub-circuit is to be stored, and an index
+// as a reference to the GKR sub-circuit. The index is the
+// first argument to all GKR-related hints.
+func (system *System) NewGkr() (*gkrinfo.StoringInfo, int) {
+	i := len(system.GkrInfo)
+	system.GkrInfo = append(system.GkrInfo, gkrinfo.StoringInfo{})
+	return &system.GkrInfo[i], i
 }
