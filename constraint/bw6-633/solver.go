@@ -50,8 +50,8 @@ type solver struct {
 }
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
-	// add GKR options to overwrite the placeholder
 
+	// add GKR options to overwrite placeholder hints
 	if len(cs.GkrInfo) != 0 {
 		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
 		if err != nil {
@@ -60,16 +60,15 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 
 		gkrData := gkr.NewSolvingData(solvingInfo)
 		var gkrHints *gkrhints.TestEngineHints
-		opts = append(opts,
+
+		newOpts := make([]csolver.Option, len(opts), len(opts)+3)
+		copy(newOpts, opts)
+		opts = append(newOpts,
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(cs.GkrInfo.HashName, gkrData)))
-
+			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(gkrData)))
 	}
 
-	if cs.GkrInfo.Is() {
-
-	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
 	if err != nil {

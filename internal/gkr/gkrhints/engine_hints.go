@@ -88,31 +88,31 @@ func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 
 	if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
 		data := bls12377.NewSolvingData(infos, bls12377.WithAssignment(h.assignment))
-		return bls12377.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bls12377.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
 		data := bls12381.NewSolvingData(infos, bls12381.WithAssignment(h.assignment))
-		return bls12381.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bls12381.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
 		data := bls24315.NewSolvingData(infos, bls24315.WithAssignment(h.assignment))
-		return bls24315.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bls24315.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
 		data := bls24317.NewSolvingData(infos, bls24317.WithAssignment(h.assignment))
-		return bls24317.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bls24317.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
 		data := bn254.NewSolvingData(infos, bn254.WithAssignment(h.assignment))
-		return bn254.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bn254.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
 		data := bw6633.NewSolvingData(infos, bw6633.WithAssignment(h.assignment))
-		return bw6633.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bw6633.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 		data := bw6761.NewSolvingData(infos, bw6761.WithAssignment(h.assignment))
-		return bw6761.ProveHint(infos[0].HashName, data)(mod, ins, outs)
+		return bw6761.ProveHint(data)(mod, ins, outs)
 	}
 
 	return errors.New("unsupported modulus")

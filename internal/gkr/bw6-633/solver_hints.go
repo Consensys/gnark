@@ -25,6 +25,7 @@ type SolvingData struct {
 	circuit     gkrtypes.Circuit
 	maxNbIn     int // maximum number of inputs for a gate in the circuit
 	nbInstances int
+	hashName    string
 }
 
 type newSolvingDataSettings struct {
@@ -57,6 +58,7 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 		d[k].circuit = info[k].Circuit
 		d[k].assignment = make(WireAssignment, len(info[k].Circuit))
 		d[k].nbInstances = info[k].NbInstances
+		d[k].hashName = info[k].HashName
 
 		d[k].maxNbIn = d[k].circuit.MaxGateNbIn()
 
@@ -93,13 +95,17 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 
 // GetAssignmentHint generates a hint that returns the value of a particular wire at a particular instance.
 // It is intended for use in the debugging function gkrapi.API.GetValue.
-func GetAssignmentHint(data *SolvingData) hint.Hint {
+func GetAssignmentHint(data []SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		if len(ins) != 3 {
-			return fmt.Errorf("GetAssignmentHint expects 3 inputs: wire index, instance index, and dummy dependency enforcer")
+		if len(ins) != 4 {
+			return fmt.Errorf("GetAssignmentHint expects 3 inputs: GKR sub-circuit index, wire index, instance index, and dummy dependency enforcer")
 		}
-		wireI := ins[0].Uint64()
-		instanceI := ins[1].Uint64()
+		if !ins[0].IsUint64() || !ins[1].IsUint64() || !ins[2].IsUint64() {
+			return fmt.Errorf("all 3 non-dummy input to GetAssignmentHint must fit in uint64")
+		}
+		data := data[ins[0].Uint64()]
+		wireI := ins[1].Uint64()
+		instanceI := ins[2].Uint64()
 
 		data.assignment[wireI][instanceI].BigInt(outs[0])
 
@@ -147,13 +153,14 @@ func SolveHint(data []SolvingData) hint.Hint {
 
 // ProveHint generates a hint that produces the GKR proof using the computed assignments contained in data.
 // It is meant for use in gkrapi.Circuit.finalize.
-func ProveHint(hashName string, data []SolvingData) hint.Hint {
+func ProveHint(data []SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
 		data := data[ins[0].Uint64()]
+		hashName := data.hashName
 		ins = ins[1:]
 
 		data.assignment.repeatUntilEnd(data.nbInstances)
