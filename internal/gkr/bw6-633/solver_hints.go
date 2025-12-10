@@ -93,7 +93,7 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 
 // this module assumes that wire and instance indexes respect dependencies
 
-// GetAssignmentHint generates a hint that returns the value of a particular wire at a particular instance.
+// GetAssignmentHint generates a hint that returns the value of a wire of a circuit at an instance.
 // It is intended for use in the debugging function gkrapi.API.GetValue.
 func GetAssignmentHint(data []SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
