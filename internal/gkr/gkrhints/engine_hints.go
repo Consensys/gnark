@@ -81,7 +81,7 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 
 func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 
-	infos, err := gkrtypes.StoringToSolvingInfo([]gkrinfo.StoringInfo{*h.info}, gkrgates.Get)
+	infos, err := gkrtypes.StoringToSolvingInfo([]*gkrinfo.StoringInfo{h.info}, gkrgates.Get)
 	if err != nil {
 		return fmt.Errorf("failed to convert storing info to solving info: %w", err)
 	}

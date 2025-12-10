@@ -704,3 +704,56 @@ func (c *testNoInstanceCircuit) Define(api frontend.API) error {
 
 	return err
 }
+
+type testMultiCircuit struct {
+	X [2]frontend.Variable
+	Y [2]frontend.Variable
+}
+
+func (c *testMultiCircuit) Define(api frontend.API) error {
+	api1 := New(api)
+	api2 := New(api)
+
+	x1 := api1.NewInput()
+	y1 := api1.NewInput()
+	z1 := api1.Add(x1, y1)
+
+	x2 := api2.NewInput()
+	y2 := api2.NewInput()
+	z2 := api2.Mul(x2, y2)
+
+	circuit2, err := api2.Compile("MIMC")
+	if err != nil {
+		return err
+	}
+
+	circuit1, err := api1.Compile("-1")
+	if err != nil {
+		return err
+	}
+
+	for i := range c.X {
+		out, err := circuit1.AddInstance(map[gkr.Variable]frontend.Variable{x1: c.X[i], y1: c.Y[i]})
+		if err != nil {
+			return err
+		}
+		api.AssertIsEqual(out[z1], api.Add(c.X[i], c.Y[i]))
+
+		out, err = circuit2.AddInstance(map[gkr.Variable]frontend.Variable{x2: c.X[i], y2: c.Y[i]})
+		if err != nil {
+			return err
+		}
+		api.AssertIsEqual(out[z2], api.Mul(c.X[i], c.Y[i]))
+	}
+
+	return nil
+}
+
+func TestMulti(t *testing.T) {
+	assignment := testMultiCircuit{
+		X: [2]frontend.Variable{2, 3},
+		Y: [2]frontend.Variable{4, 5},
+	}
+
+	test.NewAssert(t).CheckCircuit(new(testMultiCircuit), test.WithValidAssignment(&assignment))
+}

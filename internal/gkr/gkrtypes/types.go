@@ -237,7 +237,7 @@ func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateNam
 	return resCircuit, nil
 }
 
-func StoringToSolvingInfo(info []gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) ([]SolvingInfo, error) {
+func StoringToSolvingInfo(info []*gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) ([]SolvingInfo, error) {
 	res := make([]SolvingInfo, len(info))
 	for i := range info {
 		circuit, err := CircuitInfoToCircuit(info[i].Circuit, gateGetter)

@@ -125,7 +125,7 @@ type System struct {
 	lbWireLevel []Level `cbor:"-"` // at which level we solve a wire. init at -1.
 
 	CommitmentInfo Commitments
-	GkrInfo        []gkrinfo.StoringInfo
+	GkrInfo        []*gkrinfo.StoringInfo
 
 	genericHint BlueprintID
 }
@@ -478,6 +478,6 @@ func putBuffer(buf *[]uint32) {
 // first argument to all GKR-related hints.
 func (system *System) NewGkr() (*gkrinfo.StoringInfo, int) {
 	i := len(system.GkrInfo)
-	system.GkrInfo = append(system.GkrInfo, gkrinfo.StoringInfo{})
-	return &system.GkrInfo[i], i
+	system.GkrInfo = append(system.GkrInfo, new(gkrinfo.StoringInfo))
+	return system.GkrInfo[i], i
 }
