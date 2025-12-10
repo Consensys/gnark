@@ -85,7 +85,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkrapi.New()
+	gkrApi := gkrapi.New(api)
 
 	// create the GKR circuit
 	X := gkrApi.NewInput()
@@ -109,7 +109,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
 	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
 
-	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {
 		return err
 	}

@@ -36,11 +36,11 @@ type doubleNoDependencyCircuit struct {
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
 
-	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
 	if err != nil {
 		return err
 	}
@@ -85,11 +85,11 @@ type sqNoDependencyCircuit struct {
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
 
-	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
 	if err != nil {
 		return err
 	}
@@ -133,12 +133,12 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
 	if err != nil {
 		return err
 	}
@@ -193,13 +193,13 @@ type mulWithDependencyCircuit struct {
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 
 	x := gkrApi.NewInput() // x is the state variable
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
 	if err != nil {
 		return err
 	}
@@ -230,14 +230,6 @@ func TestSolveMulWithDependency(t *testing.T) {
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
-}
-
-func TestApiMul(t *testing.T) {
-	api := New()
-	x := api.NewInput()
-	y := api.NewInput()
-	z := api.Mul(x, y)
-	assertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
@@ -299,12 +291,12 @@ type benchMiMCMerkleTreeCircuit struct {
 func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
 	// define the circuit
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Gate(mimcGate, x, y)
 
-	gkrCircuit, err := gkrApi.Compile(api, "-20")
+	gkrCircuit, err := gkrApi.Compile("-20")
 	if err != nil {
 		return err
 	}
@@ -426,7 +418,7 @@ type mimcNoDepCircuit struct {
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// define the circuit
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 
@@ -439,7 +431,7 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		z = gkrApi.Gate(mimcGate, x, z)
 	}
 
-	gkrCircuit, err := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
 	if err != nil {
 		return err
 	}
@@ -618,12 +610,12 @@ type pow4Circuit struct {
 }
 
 func (c *pow4Circuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	x2 := gkrApi.Mul(x, x)   // x²
 	x4 := gkrApi.Mul(x2, x2) // x⁴
 
-	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {
 		return err
 	}
@@ -703,12 +695,12 @@ type testNoInstanceCircuit struct {
 }
 
 func (c *testNoInstanceCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi := New(api)
 	x := gkrApi.NewInput()
 	y := gkrApi.Mul(x, x)
 	gkrApi.Mul(x, y)
 
-	gkrApi.Compile(api, "MIMC")
+	_, err := gkrApi.Compile("MIMC")
 
-	return nil
+	return err
 }

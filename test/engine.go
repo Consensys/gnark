@@ -782,8 +782,8 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) AddGkrInfo(gkrinfo.StoringInfo) error {
-	return nil
+func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
+	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

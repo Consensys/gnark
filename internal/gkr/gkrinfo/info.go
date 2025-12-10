@@ -41,6 +41,5 @@ func (d *StoringInfo) NewInputVariable() int {
 
 // A ConstraintSystem that supports GKR
 type ConstraintSystem interface {
-	AddGkrInfo(info StoringInfo) error
-	//NewGkr() (*StoringInfo, int)
+	NewGkr() (*StoringInfo, int)
 }

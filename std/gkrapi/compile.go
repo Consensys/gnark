@@ -28,18 +28,24 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	toStore              gkrinfo.StoringInfo
+	toStore              *gkrinfo.StoringInfo
 	assignments          gkrtypes.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
 	api                  frontend.API              // the parent API used for hints
 	hints                *gkrhints.TestEngineHints // hints for the GKR circuit, used for testing purposes
+	index                int                       // index among all GKR circuits
 }
 
 // New creates a new GKR API
-func New() *API {
-	return &API{}
+func New(api frontend.API) *API {
+	toStore, index := api.(gkrinfo.ConstraintSystem).NewGkr()
+	return &API{
+		toStore:   toStore,
+		index:     index,
+		parentApi: api,
+	}
 }
 
 // NewInput creates a new input variable.
@@ -58,19 +64,21 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 }
 
 // Compile finalizes the GKR circuit.
-// From this point on, the circuit cannot be modified.
-// But instances can be added to the circuit.
-func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
+// From this point on, the circuit cannot be modified,
+// but instances can be added to it.
+func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
 		toStore:     api.toStore,
+		index:       api.index,
 		assignments: make(gkrtypes.WireAssignment, len(api.toStore.Circuit)),
-		api:         parentApi,
+		api:         api.parentApi,
 	}
 
 	res.toStore.HashName = fiatshamirHashName
+	res.toStore.Circuit = api.toStore.Circuit
 
 	var err error
-	res.hints, err = gkrhints.NewTestEngineHints(&res.toStore)
+	res.hints, err = gkrhints.NewTestEngineHints(res.toStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call GKR hints: %w", err)
 	}
@@ -99,7 +107,7 @@ func (api *API) Compile(parentApi frontend.API, fiatshamirHashName string, optio
 		}
 	}
 
-	parentApi.Compiler().Defer(res.finalize)
+	res.api.Compiler().Defer(res.finalize)
 
 	return &res, nil
 }
@@ -116,13 +124,14 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 			}
 		}
 	}
-	hintIn := make([]frontend.Variable, 1+len(c.ins)) // first input denotes the instance number
-	hintIn[0] = c.toStore.NbInstances
+	hintIn := make([]frontend.Variable, 2+len(c.ins)) // first and second input denote the circuit and instance, respectively.
+	hintIn[0] = c.index
+	hintIn[1] = c.toStore.NbInstances
 	for hintInI, wI := range c.ins {
 		if inV, ok := input[wI]; !ok {
 			return nil, fmt.Errorf("missing entry for input variable %d", wI)
 		} else {
-			hintIn[hintInI+1] = inV
+			hintIn[hintInI+2] = inV
 			c.assignments[wI] = append(c.assignments[wI], inV)
 		}
 	}
@@ -162,10 +171,6 @@ func (c *Circuit) finalize(api frontend.API) error {
 		for _, wI := range c.outs {
 			c.assignments[wI] = utils.ExtendRepeatLast(c.assignments[wI], nbPaddedInstances)
 		}
-	}
-
-	if err := api.(gkrinfo.ConstraintSystem).AddGkrInfo(c.toStore); err != nil {
-		return err
 	}
 
 	// if the circuit consists of only one instance, directly solve the circuit
@@ -218,11 +223,14 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		return fmt.Errorf("failed to create circuit data for snark: %w", err)
 	}
 
-	hintIns := make([]frontend.Variable, len(initialChallenges)+1) // hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve"
+	// first input is the circuit index.
+	// hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve".
+	hintIns := make([]frontend.Variable, len(initialChallenges)+2)
 	firstOutputAssignment := c.assignments[c.outs[0]]
-	hintIns[0] = firstOutputAssignment[len(firstOutputAssignment)-1] // take the last output of the first output wire
+	hintIns[0] = c.index
+	hintIns[1] = firstOutputAssignment[len(firstOutputAssignment)-1] // take the last output of the first output wire
 
-	copy(hintIns[1:], initialChallenges)
+	copy(hintIns[2:], initialChallenges)
 
 	var (
 		proofSerialized []frontend.Variable
@@ -248,7 +256,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 }
 
-func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
+func newCircuitDataForSnark(curve ecc.ID, info *gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
 	circuit, err := gkrtypes.CircuitInfoToCircuit(info.Circuit, gkrgates.Get)
 	if err != nil {
 		return circuitDataForSnark{}, fmt.Errorf("failed to convert GKR info to circuit: %w", err)
@@ -270,7 +278,7 @@ func newCircuitDataForSnark(curve ecc.ID, info gkrinfo.StoringInfo, assignment g
 // While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
 func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
 	// last input to ensure the solver's work is done before GetAssignment is called
-	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, int(v), i, c.assignments[c.outs[0]][i])
+	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, c.index, int(v), i, c.assignments[c.outs[0]][i])
 	if err != nil {
 		panic(err)
 	}

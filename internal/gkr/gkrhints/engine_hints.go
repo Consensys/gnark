@@ -43,19 +43,20 @@ func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
 }
 
 // Solve solves one instance of a GKR circuit.
-// The first input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
+// The second input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
 func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
+	// ignore the first input.
 	instanceI := len(h.assignment[0])
-	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 > 0xffffffff {
-		return errors.New("first input must be a uint32 instance index")
-	} else if in0 != uint64(instanceI) || h.info.NbInstances != instanceI {
-		return errors.New("first input must equal the number of instances, and calls to Solve must be done in order of instance index")
+	if in1 := ins[1].Uint64(); !ins[1].IsUint64() || in1 > 0xffffffff {
+		return errors.New("second input must be a uint32 instance index")
+	} else if in1 != uint64(instanceI) || h.info.NbInstances != instanceI {
+		return errors.New("second input must equal the number of instances, and calls to Solve must be done in order of instance index")
 	}
 
 	api := gateAPI{mod}
 
-	inI := 1
+	inI := 2
 	outI := 0
 	for wI := range h.circuit {
 		w := &h.circuit[wI]
