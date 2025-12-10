@@ -122,11 +122,11 @@ func NewGkrCompressor(api frontend.API) *GkrCompressor {
 	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
 		panic("currently only BLS12-377 is supported")
 	}
-	gkrApi, in1, in2, out, err := defineCircuitBls12377()
+	gkrApi, in1, in2, out, err := defineCircuitBls12377(api)
 	if err != nil {
 		panic(fmt.Sprintf("failed to define GKR circuit: %v", err))
 	}
-	gkrCircuit, err := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {
 		panic(fmt.Sprintf("failed to compile GKR circuit: %v", err))
 	}
@@ -151,7 +151,7 @@ func (p *GkrCompressor) Compress(a, b frontend.Variable) frontend.Variable {
 // defineCircuitBls12377 defines the GKR circuit for the Poseidon2 permutation over BLS12-377
 // insLeft and insRight are the inputs to the permutation
 // they must be padded to a power of 2
-func defineCircuitBls12377() (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, err error) {
+func defineCircuitBls12377(api frontend.API) (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, err error) {
 	// variable indexes
 	const (
 		xI = iota
@@ -168,7 +168,7 @@ func defineCircuitBls12377() (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, er
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi = gkrapi.New()
+	gkrApi = gkrapi.New(api)
 
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
