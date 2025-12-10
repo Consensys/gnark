@@ -443,6 +443,11 @@ func (z *SmallRational) SetBytes(b []byte) {
 	z.UpdateText()
 }
 
+func (z *SmallRational) SetBytesCanonical(bytes []byte) error {
+	z.SetBytes(bytes)
+	return nil
+}
+
 func One() SmallRational {
 	res := SmallRational{
 		text: "1",
