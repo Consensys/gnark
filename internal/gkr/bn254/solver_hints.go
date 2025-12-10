@@ -159,21 +159,22 @@ func ProveHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
-		data := &data[ins[0].Uint64()]
+		data := data[ins[0].Uint64()]
 		hashName := data.hashName
+		ins = ins[1:]
 
 		data.assignment.repeatUntilEnd(data.nbInstances)
 
 		// The second input is dummy, just to ensure the solver's work is done before the prover is called.
 		// The rest constitute the initial fiat shamir challenge
-		insBytes := algo_utils.Map(ins[2:], func(i *big.Int) []byte {
+		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte {
 
 			b := make([]byte, fr.Bytes)
 			i.FillBytes(b)
 			return b[:]
 		})
 
-		hsh := hash.NewHash(hashName + "_BW6_633")
+		hsh := hash.NewHash(hashName + "_BN254")
 
 		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
 		if err != nil {

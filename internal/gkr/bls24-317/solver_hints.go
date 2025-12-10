@@ -174,7 +174,7 @@ func ProveHint(data []SolvingData) hint.Hint {
 			return b[:]
 		})
 
-		hsh := hash.NewHash(hashName + "_BW6_633")
+		hsh := hash.NewHash(hashName + "_BLS24_317")
 
 		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
 		if err != nil {

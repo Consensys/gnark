@@ -537,9 +537,9 @@ func getFirstChallengeNames(logNbInstances int, prefix string) []string {
 func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]small_rational.SmallRational, error) {
 	res := make([]small_rational.SmallRational, len(names))
 	for i, name := range names {
-		if bytes, err := transcript.ComputeChallenge(name); err == nil {
-			res[i].SetBytes(bytes)
-		} else {
+		if bytes, err := transcript.ComputeChallenge(name); err != nil {
+			return nil, err
+		} else if err = res[i].SetBytesCanonical(bytes); err != nil {
 			return nil, err
 		}
 	}
