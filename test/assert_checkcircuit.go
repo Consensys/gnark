@@ -36,7 +36,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
-		curve := curve
 
 		// run in sub-test to contextualize with curve
 		assert.Run(func(assert *Assert) {
@@ -67,7 +66,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 			// for each backend; compile, prove/verify or solve, check serialization if needed.
 			for _, b := range opt.backends {
-				b := b
 
 				// run in sub-test to contextualize with backend
 				assert.Run(func(assert *Assert) {
@@ -82,7 +80,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// we need to run the solver on the constraint system only
 					if !opt.checkProver {
 						for _, w := range invalidWitnesses {
-							w := w
 							assert.Run(func(assert *Assert) {
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.error(curve.ScalarField(), err, &w)
@@ -90,7 +87,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						}
 
 						for _, w := range validWitnesses {
-							w := w
 							assert.Run(func(assert *Assert) {
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.noError(curve.ScalarField(), err, &w)
@@ -122,7 +118,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					// for each valid witness, run the prover and verifier
 					for _, w := range validWitnesses {
-						w := w
 						assert.Run(func(assert *Assert) {
 							checkSolidity := opt.checkSolidity && curve == ecc.BN254
 							proverOpts := opt.proverOpts
@@ -161,7 +156,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					// for each invalid witness, run the prover only, it should fail.
 					for _, w := range invalidWitnesses {
-						w := w
 						assert.Run(func(assert *Assert) {
 							_, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.error(curve.ScalarField(), err, &w)
