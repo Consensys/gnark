@@ -230,11 +230,12 @@ func (v *gateVerifier) isVarSolvable(f gkr.GateFunction, claimedSolvableVar, nbI
 
 func (v *gateVerifier) VerifyDegree(g *gkrtypes.Gate) error {
 	if err := v.verifyDegree(g.Evaluate, g.Degree(), g.NbIn()); err != nil {
-		deg, errFind := v.findDegree(g.Evaluate, g.Degree(), g.NbIn())
+		const maxAutoDegreeBound = 32
+		deg, errFind := v.findDegree(g.Evaluate, maxAutoDegreeBound, g.NbIn())
 		if errFind != nil {
-			return fmt.Errorf("could not find gate degree: %w\n\tdegree verification error: %w", errFind, errFind)
+			return fmt.Errorf("could not find gate degree: %w\n\tdegree verification error: %w", errFind, err)
 		}
-		return fmt.Errorf("detected degree %d\n\tdegree verification error: %w", deg, errFind)
+		return fmt.Errorf("detected degree %d\n\tdegree verification error: %w", deg, err)
 	}
 	return nil
 }
