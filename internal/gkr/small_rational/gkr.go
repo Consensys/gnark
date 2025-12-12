@@ -105,7 +105,8 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.S
 			inputEvaluations[i] = &uniqueInputEvaluations[uniqueI]
 		}
 
-		gateEvaluation.Set(wire.Gate.Evaluate(api, inputEvaluations...).(*small_rational.SmallRational))
+		var api gateAPI
+		gateEvaluation.Set(wire.Gate.Evaluate(&api, inputEvaluations...).(*small_rational.SmallRational))
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -236,7 +237,10 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	gJ := make([]small_rational.SmallRational, degGJ)
 	var mu sync.Mutex
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
-		var step small_rational.SmallRational
+		var (
+			step small_rational.SmallRational
+			api  gateAPI
+		)
 
 		res := make([]small_rational.SmallRational, degGJ)
 
@@ -266,10 +270,11 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 				for i := range gateInput {
 					gateInput[i] = &mlEvals[eIndex+1+i]
 				}
-				summand := wire.Gate.Evaluate(api, gateInput...).(*small_rational.SmallRational)
+				summand := wire.Gate.Evaluate(&api, gateInput...).(*small_rational.SmallRational)
 				summand.Mul(summand, &mlEvals[eIndex])
 				res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
+				api.freeElements()
 			}
 		}
 		mu.Lock()
@@ -668,6 +673,7 @@ func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 		}
 	}
 
+	var api gateAPI
 	ins := make([]small_rational.SmallRational, maxNbIns)
 	for i := range nbInstances {
 		for wI, w := range wires {
@@ -724,70 +730,72 @@ func frToBigInts(dst []*big.Int, src []small_rational.SmallRational) {
 }
 
 // gateAPI implements gkr.GateAPI.
-type gateAPI struct{}
+// It uses a synchronous memory pool underneath to minimize heap allocations.
+type gateAPI struct {
+	allocated []*small_rational.SmallRational
+	nbUsed    int
+}
 
-var api gateAPI
-
-func (gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	var res small_rational.SmallRational // TODO Heap allocated. Keep an eye on perf
-	res.Add(cast(i1), cast(i2))
+func (api *gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	res := api.newElement()
+	res.Add(api.cast(i1), api.cast(i2))
 	for _, v := range in {
-		res.Add(&res, cast(v))
+		res.Add(res, api.cast(v))
 	}
-	return &res
+	return res
 }
 
-func (gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
-	var prod small_rational.SmallRational
-	prod.Add(cast(b), cast(c))
-	res := cast(a)
-	res.Add(res, &prod)
-	return &res
+func (api *gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	prod := api.newElement()
+	prod.Mul(api.cast(b), api.cast(c))
+	res := api.cast(a)
+	res.Add(res, prod)
+	return res
 }
 
-func (gateAPI) Neg(i1 frontend.Variable) frontend.Variable {
-	var res small_rational.SmallRational
-	res.Neg(cast(i1))
-	return &res
+func (api *gateAPI) Neg(i1 frontend.Variable) frontend.Variable {
+	res := api.newElement()
+	res.Neg(api.cast(i1))
+	return res
 }
 
-func (gateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	var res small_rational.SmallRational
-	res.Sub(cast(i1), cast(i2))
+func (api *gateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	res := api.newElement()
+	res.Sub(api.cast(i1), api.cast(i2))
 	for _, v := range in {
-		res.Sub(&res, cast(v))
+		res.Sub(res, api.cast(v))
 	}
-	return &res
+	return res
 }
 
-func (gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	var res small_rational.SmallRational
-	res.Mul(cast(i1), cast(i2))
+func (api *gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	res := api.newElement()
+	res.Mul(api.cast(i1), api.cast(i2))
 	for _, v := range in {
-		res.Mul(&res, cast(v))
+		res.Mul(res, api.cast(v))
 	}
-	return &res
+	return res
 }
 
-func (gateAPI) Println(a ...frontend.Variable) {
+func (api *gateAPI) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
 	var x small_rational.SmallRational
 
 	for i, v := range a {
 		if _, err := x.SetInterface(v); err != nil {
-			toPrint[i] = x.String()
-		} else {
 			if s, ok := v.(string); ok {
 				toPrint[i] = s
 				continue
 			}
 			panic(fmt.Errorf("not numeric or string: %w", err))
+		} else {
+			toPrint[i] = x.String()
 		}
 	}
 	fmt.Println(toPrint...)
 }
 
-func (api gateAPI) evaluate(f gkr.GateFunction, in ...small_rational.SmallRational) *small_rational.SmallRational {
+func (api *gateAPI) evaluate(f gkr.GateFunction, in ...small_rational.SmallRational) *small_rational.SmallRational {
 	inVar := make([]frontend.Variable, len(in))
 	for i := range in {
 		inVar[i] = &in[i]
@@ -795,22 +803,35 @@ func (api gateAPI) evaluate(f gkr.GateFunction, in ...small_rational.SmallRation
 	return f(api, inVar...).(*small_rational.SmallRational)
 }
 
+// Put all elements back in the pool.
+func (api *gateAPI) freeElements() {
+	api.nbUsed = 0
+}
+
+func (api *gateAPI) newElement() *small_rational.SmallRational {
+	api.nbUsed++
+	if api.nbUsed >= len(api.allocated) {
+		api.allocated = append(api.allocated, new(small_rational.SmallRational))
+	}
+	return api.allocated[api.nbUsed-1]
+}
+
 type gateFunctionFr func(...small_rational.SmallRational) *small_rational.SmallRational
 
 // convertFunc turns f into a function that accepts and returns small_rational.SmallRational.
-func (api gateAPI) convertFunc(f gkr.GateFunction) gateFunctionFr {
+func (api *gateAPI) convertFunc(f gkr.GateFunction) gateFunctionFr {
 	return func(in ...small_rational.SmallRational) *small_rational.SmallRational {
 		return api.evaluate(f, in...)
 	}
 }
 
-func cast(v frontend.Variable) *small_rational.SmallRational {
+func (api *gateAPI) cast(v frontend.Variable) *small_rational.SmallRational {
 	if x, ok := v.(*small_rational.SmallRational); ok { // fast path, no extra heap allocation
 		return x
 	}
-	var x small_rational.SmallRational
+	x := api.newElement()
 	if _, err := x.SetInterface(v); err != nil {
 		panic(err)
 	}
-	return &x
+	return x
 }
