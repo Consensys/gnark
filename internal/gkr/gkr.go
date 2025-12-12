@@ -341,7 +341,10 @@ func (p Proof) Serialize() []frontend.Variable {
 	return res
 }
 
-func computeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
+// ComputeLogNbInstances derives n such that the number of instances is 2ⁿ
+// from the size of the proof and the circuit structure.
+// It is used in proof deserialization.
+func ComputeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.NoProof() {
@@ -366,7 +369,7 @@ func (r *variablesReader) hasNextN(n int) bool {
 
 func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variable) (Proof, error) {
 	proof := make(Proof, len(sorted))
-	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
+	logNbInstances := ComputeLogNbInstances(sorted, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {

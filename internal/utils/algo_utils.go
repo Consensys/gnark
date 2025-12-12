@@ -24,47 +24,13 @@ func Permute[T any](slice []T, permutation []int) {
 	}
 }
 
+// Map returns [f(in[0]), f(in[1]), ..., f(in[len(in)-1])]
 func Map[T, S any](in []T, f func(T) S) []S {
 	out := make([]S, len(in))
 	for i, t := range in {
 		out[i] = f(t)
 	}
 	return out
-}
-
-func MapRange[S any](begin, end int, f func(int) S) []S {
-	out := make([]S, end-begin)
-	for i := begin; i < end; i++ {
-		out[i] = f(i)
-	}
-	return out
-}
-
-func SliceAt[T any](slice []T) func(int) T {
-	return func(i int) T {
-		return slice[i]
-	}
-}
-
-func SlicePtrAt[T any](slice []T) func(int) *T {
-	return func(i int) *T {
-		return &slice[i]
-	}
-}
-
-func MapAt[K comparable, V any](mp map[K]V) func(K) V {
-	return func(k K) V {
-		return mp[k]
-	}
-}
-
-// InvertPermutation input permutation must contain exactly 0, ..., len(permutation)-1
-func InvertPermutation(permutation []int) []int {
-	res := make([]int, len(permutation))
-	for i := range permutation {
-		res[permutation[i]] = i
-	}
-	return res
 }
 
 // TODO: Move this to gnark-crypto and use it for gkr there as well
@@ -143,33 +109,11 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
-// BinarySearch looks for toFind in a sorted slice, and returns the index at which it either is or would be were it to be inserted.
-func BinarySearch(slice []int, toFind int) int {
-	var start int
-	for end := len(slice); start != end; {
-		mid := (start + end) / 2
-		if toFind >= slice[mid] {
-			start = mid
-		}
-		if toFind <= slice[mid] {
-			end = mid
-		}
+// SliceOfRefs returns [&slice[0], &slice[1], ..., &slice[len(slice)-1]]
+func SliceOfRefs[T any](slice []T) []*T {
+	res := make([]*T, len(slice))
+	for i := range slice {
+		res[i] = &slice[i]
 	}
-	return start
-}
-
-// BinarySearchFunc looks for toFind in an increasing function of domain 0 ... (end-1), and returns the index at which it either is or would be were it to be inserted.
-func BinarySearchFunc(eval func(int) int, end int, toFind int) int {
-	var start int
-	for start != end {
-		mid := (start + end) / 2
-		val := eval(mid)
-		if toFind >= val {
-			start = mid
-		}
-		if toFind <= val {
-			end = mid
-		}
-	}
-	return start
+	return res
 }
