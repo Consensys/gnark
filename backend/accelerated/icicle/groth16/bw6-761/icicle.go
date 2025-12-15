@@ -9,11 +9,16 @@ package bw6761
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
 	"os"
+	"runtime"
 	"slices"
+	"strconv"
+	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
@@ -43,9 +48,26 @@ import (
 )
 
 var isProfileMode bool
+var isDebugMode bool
+
+var (
+	nttDomainMu          sync.Mutex
+	nttDomainMaxByDevice = make(map[int32]uint64)
+)
+
+var (
+	msmChunkCapOnce sync.Once
+	msmChunkCap     int
+)
+
+var (
+	msmMaxWindowOnce sync.Once
+	msmMaxWindow     int
+)
 
 func init() {
 	_, isProfileMode = os.LookupEnv("ICICLE_STEP_PROFILE")
+	_, isDebugMode = os.LookupEnv("ICICLE_DEBUG")
 }
 
 func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
@@ -90,6 +112,28 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	copy(pk.CosetGenerator[:], limbs[:fr.Limbs*2])
 	var rouIcicle icicle_bw6761.ScalarField
 	rouIcicle.FromLimbs(limbs)
+
+	requestedDomainSize := uint64(pk.Domain.Cardinality)
+	needDomainRelease := false
+
+	nttDomainMu.Lock()
+	currentMax := nttDomainMaxByDevice[device.Id]
+	if requestedDomainSize > currentMax {
+		needDomainRelease = currentMax != 0
+		nttDomainMaxByDevice[device.Id] = requestedDomainSize
+	}
+	nttDomainMu.Unlock()
+
+	if needDomainRelease {
+		releaseDomain := make(chan struct{})
+		icicle_runtime.RunOnDevice(device, func(args ...any) {
+			if err := icicle_ntt.ReleaseDomain(); err != icicle_runtime.Success && err != icicle_runtime.ApiNotImplemented {
+				panic(fmt.Sprintf("release ntt domain: %s", err.AsString()))
+			}
+			close(releaseDomain)
+		})
+		<-releaseDomain
+	}
 
 	initDomain := make(chan struct{})
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
@@ -224,6 +268,428 @@ func g2ProjectiveToG2Jac(p *icicle_g2.G2Projective) curve.G2Jac {
 	}
 }
 
+// msmChunkedG1 runs an MSM in progressively smaller chunks until it fits in GPU memory, accumulating the result.
+func msmChunkedG1(scalars icicle_core.DeviceSlice, bases icicle_core.DeviceSlice, cfg icicle_core.MSMConfig) (curve.G1Jac, int, error) {
+	size := scalars.Len()
+	if size == 0 {
+		return curve.G1Jac{}, 0, nil
+	}
+
+	chunks := configureMSM(
+		&cfg,
+		size,
+		scalars,
+		bases,
+		fr.Bits,
+		int(unsafe.Sizeof(fr.Element{})),
+		int(unsafe.Sizeof(icicle_bw6761.Affine{})),
+		int(unsafe.Sizeof(icicle_bw6761.Projective{})),
+	)
+
+	// Force C++ to NOT chunk internally, as we handle it here
+	cfg.Ext = nil
+
+	var totalG1 curve.G1Jac
+	chunkSize := (size + chunks - 1) / chunks
+
+	for i := 0; i < chunks; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > size {
+			end = size
+		}
+
+		// Create views for the current chunk
+		subScalars := scalars.Range(start, end, false)
+		subBases := bases.Range(start, end, false)
+
+		res := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
+		err := icicle_msm.Msm(subScalars, subBases, &cfg, res)
+		if err != icicle_runtime.Success {
+			return curve.G1Jac{}, chunks, fmt.Errorf("icicle MSM chunk %d/%d: %s", i, chunks, err.AsString())
+		}
+
+		var chunkRes curve.G1Jac
+		chunkRes = g1ProjectiveToG1Jac(res[0])
+
+		if i == 0 {
+			totalG1 = chunkRes
+		} else {
+			totalG1.AddAssign(&chunkRes)
+		}
+	}
+
+	return totalG1, chunks, nil
+}
+
+// msmChunkedG2 mirrors msmChunkedG1 for G2 MSMs, preventing GPU OOM while preserving the final accumulator.
+func msmChunkedG2(scalars icicle_core.DeviceSlice, bases icicle_core.DeviceSlice, cfg icicle_core.MSMConfig) (curve.G2Jac, int, error) {
+	size := scalars.Len()
+	if size == 0 {
+		return curve.G2Jac{}, 0, nil
+	}
+
+	chunks := configureMSM(
+		&cfg,
+		size,
+		scalars,
+		bases,
+		fr.Bits,
+		int(unsafe.Sizeof(fr.Element{})),
+		int(unsafe.Sizeof(icicle_g2.G2Affine{})),
+		int(unsafe.Sizeof(icicle_g2.G2Projective{})),
+	)
+
+	// Force C++ to NOT chunk internally, as we handle it here
+	cfg.Ext = nil
+
+	var totalG2 curve.G2Jac
+	chunkSize := (size + chunks - 1) / chunks
+
+	for i := 0; i < chunks; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > size {
+			end = size
+		}
+
+		// Create views for the current chunk
+		subScalars := scalars.Range(start, end, false)
+		subBases := bases.Range(start, end, false)
+
+		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
+		err := icicle_g2.G2Msm(subScalars, subBases, &cfg, res)
+		if err != icicle_runtime.Success {
+			return curve.G2Jac{}, chunks, fmt.Errorf("icicle G2 MSM chunk %d/%d: %s", i, chunks, err.AsString())
+		}
+
+		var chunkRes curve.G2Jac
+		chunkRes = g2ProjectiveToG2Jac(&res[0])
+
+		if i == 0 {
+			totalG2 = chunkRes
+		} else {
+			totalG2.AddAssign(&chunkRes)
+		}
+	}
+
+	return totalG2, chunks, nil
+}
+
+func configureMSM(cfg *icicle_core.MSMConfig, msmSize int, scalars, bases icicle_core.DeviceSlice, bitsize int, scalarFallback, affineFallback, projectiveBytes int) int {
+	if msmSize <= 0 {
+		return 1
+	}
+
+	freeMem := 0.0
+	if mem, err := icicle_runtime.GetAvailableMemory(); err == icicle_runtime.Success && mem != nil {
+		freeMem = float64(mem.Free)
+	}
+
+	maxWindow := getConfiguredMSMMaxWindow()
+	selectedC := int(cfg.C)
+	if selectedC <= 0 || selectedC > maxWindow {
+		selectedC = maxWindow
+	}
+	if cfg.Bitsize > 0 && int(cfg.Bitsize) < bitsize {
+		bitsize = int(cfg.Bitsize)
+	}
+	if selectedC > bitsize {
+		selectedC = bitsize
+	}
+	if selectedC < 4 {
+		selectedC = 4
+	}
+
+	scalarBytes := scalarFallback
+	if l := scalars.Len(); l > 0 {
+		if sz := scalars.SizeOfElement(); sz > 0 {
+			scalarBytes = sz
+		}
+	}
+	affineBytes := affineFallback
+	if l := bases.Len(); l > 0 {
+		if sz := bases.SizeOfElement(); sz > 0 {
+			affineBytes = sz
+		}
+	}
+
+	precompute := int(cfg.PrecomputeFactor)
+	if precompute <= 0 {
+		precompute = 1
+	}
+	batchSize := int(cfg.BatchSize)
+	if batchSize <= 0 {
+		batchSize = 1
+	}
+
+	scalarsOnDevice := scalars.Len() > 0
+	basesOnDevice := bases.Len() > 0
+
+	minChunks, tunedC, tunedBatch := computeMinMSMChunks(
+		msmSize,
+		bitsize,
+		selectedC,
+		precompute,
+		batchSize,
+		cfg.ArePointsSharedInBatch,
+		scalarBytes,
+		affineBytes,
+		projectiveBytes,
+		freeMem,
+		scalarsOnDevice,
+		basesOnDevice,
+	)
+
+	cfg.C = int32(tunedC)
+	cfg.BatchSize = int32(tunedBatch)
+
+	chunkCount := minChunks
+	if chunkCount <= 1 && (!scalarsOnDevice || !basesOnDevice) {
+		chunkCount = 4
+	}
+	if chunkCount < 1 {
+		chunkCount = 1
+	}
+
+	capChunks := chunkCountFromCap(msmSize, scalarBytes, affineBytes, freeMem)
+	if capChunks > chunkCount {
+		chunkCount = capChunks
+	}
+	if chunkCount > msmSize {
+		chunkCount = msmSize
+	}
+	return chunkCount
+}
+
+func chunkCountFromCap(size int, scalarBytes, baseBytes int, freeMem float64) int {
+	cap := getConfiguredMSMChunkCap()
+	if cap <= 0 {
+		return 1
+	}
+	if size <= cap {
+		return 1
+	}
+
+	perElem := scalarBytes + baseBytes + 128
+	if perElem > 0 && freeMem > 0 {
+		capByMem := int((freeMem * 0.7) / float64(perElem))
+		if capByMem > 0 && capByMem < cap {
+			cap = capByMem
+		}
+	}
+	if cap < 1 {
+		return size
+	}
+	return (size + cap - 1) / cap
+}
+
+func getConfiguredMSMChunkCap() int {
+	msmChunkCapOnce.Do(func() {
+		// Hardcoded safe upper bound for MSM chunk size to prevent backend crashes on large curves (e.g. BLS12-377 G2)
+		// This value (2^18) is empirically verified to be stable.
+		msmChunkCap = 1 << 18
+	})
+	return msmChunkCap
+}
+
+func getConfiguredMSMMaxWindow() int {
+	msmMaxWindowOnce.Do(func() {
+		const defaultWindow = 16
+		maxWindow := defaultWindow
+		if val := os.Getenv("ICICLE_MSM_MAX_WINDOW"); val != "" {
+			if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 && parsed < 30 {
+				maxWindow = parsed
+			}
+		}
+		msmMaxWindow = maxWindow
+	})
+	return msmMaxWindow
+}
+
+func computeMinMSMChunks(msmSize, bitsize, initialC, precompute, batchSize int, sharedPoints bool, scalarBytes, affineBytes, projectiveBytes int, freeMem float64, scalarsOnDevice, basesOnDevice bool) (int, int, int) {
+	if msmSize <= 0 {
+		return 1, initialC, batchSize
+	}
+	currentC := initialC
+	if currentC < 4 {
+		currentC = 4
+	}
+	if currentC > bitsize {
+		currentC = bitsize
+	}
+
+	effectiveBatch := batchSize
+	if effectiveBatch < 1 {
+		effectiveBatch = 1
+	}
+	if precompute < 1 {
+		precompute = 1
+	}
+
+	for {
+		nofBmsAfter, scalarsMem, indicesMem, pointsMem, bucketsMem, reduced := computeRequiredMSMMemory(
+			msmSize,
+			currentC,
+			effectiveBatch,
+			bitsize,
+			precompute,
+			sharedPoints,
+			scalarBytes,
+			affineBytes,
+			projectiveBytes,
+			freeMem,
+			scalarsOnDevice,
+			basesOnDevice,
+		)
+
+		minChunks := 1
+
+		if effectiveBatch > 1 {
+			var lowerBound float64
+			if sharedPoints {
+				if pointsMem*2 > reduced {
+					minChunks = 0
+				} else {
+					denom := reduced - 2*pointsMem
+					if denom <= 0 {
+						minChunks = 0
+					} else {
+						lowerBound = (2*(scalarsMem+indicesMem) + bucketsMem) / denom
+						minChunks = int(math.Floor(lowerBound)) + 1
+					}
+				}
+			} else {
+				if reduced <= 0 {
+					minChunks = 0
+				} else {
+					lowerBound = (2*(scalarsMem+pointsMem+indicesMem) + bucketsMem) / reduced
+					minChunks = int(math.Floor(lowerBound)) + 1
+				}
+			}
+			if minChunks == 0 || minChunks > effectiveBatch {
+				effectiveBatch = 1
+				continue
+			}
+		}
+
+		if effectiveBatch < 2 {
+			for bucketsMem > reduced && currentC > 4 {
+				if isDebugMode {
+					fmt.Printf("DEBUG: computeMinMSMChunks loop: bucketsMem=%.0f reduced=%.0f currentC=%d\n", bucketsMem, reduced, currentC)
+				}
+				denom := float64(3) * float64(projectiveBytes) * float64(nofBmsAfter)
+				if denom <= 0 || reduced <= 0 {
+					currentC = 4
+					break
+				}
+				nextC := int(math.Floor(math.Log2(reduced / denom)))
+				if nextC < 4 {
+					nextC = 4
+				}
+				if nextC >= currentC {
+					nextC = currentC - 1
+				}
+				if nextC < 4 {
+					nextC = 4
+				}
+				if nextC == currentC {
+					break
+				}
+				currentC = nextC
+				nofBmsAfter, scalarsMem, indicesMem, pointsMem, bucketsMem, reduced = computeRequiredMSMMemory(
+					msmSize,
+					currentC,
+					1,
+					bitsize,
+					precompute,
+					sharedPoints,
+					scalarBytes,
+					affineBytes,
+					projectiveBytes,
+					freeMem,
+					scalarsOnDevice,
+					basesOnDevice,
+				)
+			}
+			denom := reduced - bucketsMem
+			if denom <= 0 {
+				minChunks = msmSize
+			} else {
+				lowerBound := (2 * (scalarsMem + pointsMem + indicesMem)) / denom
+				minChunks = int(math.Floor(lowerBound)) + 1
+				if minChunks < 1 {
+					minChunks = 1
+				}
+			}
+		}
+
+		if minChunks > msmSize {
+			minChunks = msmSize
+		}
+		if currentC > bitsize {
+			currentC = bitsize
+		}
+		if currentC < 4 {
+			currentC = 4
+		}
+
+		return minChunks, currentC, effectiveBatch
+	}
+}
+
+func computeRequiredMSMMemory(
+	msmSize,
+	c,
+	batchSize,
+	bitsize,
+	precompute int,
+	sharedPoints bool,
+	scalarBytes,
+	affineBytes,
+	projectiveBytes int,
+	freeMem float64,
+	scalarsOnDevice,
+	basesOnDevice bool,
+) (int, float64, float64, float64, float64, float64) {
+	if msmSize <= 0 {
+		return 1, 0, 0, 0, 0, freeMem
+	}
+
+	nofBms := (bitsize + c - 1) / c
+	if nofBms < 1 {
+		nofBms = 1
+	}
+	nofBmsAfter := (nofBms + precompute - 1) / precompute
+	if nofBmsAfter < 1 {
+		nofBmsAfter = 1
+	}
+
+	scalarsMem := float64(scalarBytes) * float64(msmSize*batchSize)
+	indicesMem := float64(4*unsafe.Sizeof(uint32(0))) * float64(msmSize*batchSize*nofBms)
+	pointsMem := float64(affineBytes) * float64(msmSize*precompute)
+	if !sharedPoints {
+		pointsMem *= float64(batchSize)
+	}
+
+	var bucketFactor float64 = 4
+	bucketsMem := bucketFactor * float64(projectiveBytes) * float64(uint64(1)<<uint(c)) * float64(batchSize*nofBmsAfter)
+
+	available := freeMem
+	if freeMem <= 0 {
+		available = 0
+	}
+	if basesOnDevice {
+		available += pointsMem
+	}
+	if scalarsOnDevice {
+		available += scalarsMem
+	}
+
+	reduced := available * 0.7
+	return nofBmsAfter, scalarsMem, indicesMem, pointsMem, bucketsMem, reduced
+}
+
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icicle.Config) (*groth16_bw6761.Proof, error) {
 	opt, err := backend.NewProverConfig(cfg.ProverOpts...)
@@ -266,21 +732,25 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 			privateCommittedValues[i][j].SetBigInt(inJ)
 		}
 
-		proofCommitmentIcicle := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
 		ckBasisMsmDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
+			defer close(ckBasisMsmDone)
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
 			privateCommittedValuesHost := icicle_core.HostSliceFromElements(privateCommittedValues[i])
 			privateCommittedValuesHost.CopyToDevice(&privateCommittedValuesDevice[i], true)
-			if err := icicle_msm.Msm(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.Basis[i], &cfg, proofCommitmentIcicle); err != icicle_runtime.Success {
-				panic(fmt.Sprintf("commitment: %s", err.AsString()))
+
+			jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.Basis[i], cfg)
+			if err != nil {
+				panic(fmt.Sprintf("commitment: %v", err))
 			}
-			close(ckBasisMsmDone)
+			var aff curve.G1Affine
+			aff.FromJacobian(&jac)
+			proof.Commitments[i] = aff
 		})
 		<-ckBasisMsmDone
-		proof.Commitments[i] = *projectiveToGnarkAffine(proofCommitmentIcicle[0])
+		runtime.KeepAlive(privateCommittedValues[i]) // host slices must survive until CUDA finishes copying
 
 		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
 		hashBts := opt.HashToFieldFn.Sum(nil)
@@ -310,25 +780,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	// if there are CommitmentKeys, run a batch MSM for pederson Proof of Knowledge
 	if numCommitmentKeys > 0 {
 		startPoKBatch := time.Now()
-		poksIcicle := make([]icicle_core.HostSlice[icicle_bw6761.Projective], numCommitmentKeys)
-		for i := range poksIcicle {
-			poksIcicle[i] = make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
-		}
 		ckBasisExpSigmaMsmBatchDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
 			for i := range pk.CommitmentKeysDevice.BasisExpSigma {
-				if err := icicle_msm.Msm(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.BasisExpSigma[i], &cfg, poksIcicle[i]); err != icicle_runtime.Success {
-					panic(fmt.Sprintf("commitment POK: %s", err.AsString()))
+				size := privateCommittedValuesDevice[i].Len()
+				if size == 0 {
+					continue
 				}
+
+				jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.BasisExpSigma[i], cfg)
+				if err != nil {
+					panic(fmt.Sprintf("commitment POK: %v", err))
+				}
+				poks[i].FromJacobian(&jac)
 			}
 			close(ckBasisExpSigmaMsmBatchDone)
 		})
 		<-ckBasisExpSigmaMsmBatchDone
-		for i := range pk.CommitmentKeys {
-			poks[i] = *projectiveToGnarkAffine(poksIcicle[i][0])
+		for i := range privateCommittedValues {
+			runtime.KeepAlive(privateCommittedValues[i]) // prevent GC while chunked MSM streams consume scalars
 		}
 		if isProfileMode {
 			log.Debug().Dur("took", time.Since(startPoKBatch)).Msg("ICICLE Batch Proof of Knowledge")
@@ -421,22 +894,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	var bs1, ar curve.G1Jac
-	chArDone, chBs1Done := make(chan struct{}), make(chan struct{})
+	chArDone, chBs1Done, chBs2Done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 
 	computeBS1 := func() error {
 		<-chWireValuesB
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		res := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
 		start := time.Now()
-		if err := icicle_msm.Msm(wireValuesBDevice, pk.G1Device.B, &cfg, res); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("msm Bs1: %s", err.AsString()))
+
+		jac, chunks, err := msmChunkedG1(wireValuesBDevice, pk.G1Device.B, cfg)
+		if err != nil {
+			return fmt.Errorf("msm Bs1: %w", err)
 		}
+		bs1 = jac
 
 		if isProfileMode {
-			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
+			evt := log.Debug().Dur("took", time.Since(start))
+			if chunks > 1 {
+				evt = evt.Int("chunks", chunks)
+			}
+			evt.Msg("MSM Bs1")
 		}
-		bs1 = g1ProjectiveToG1Jac(res[0])
 
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
@@ -449,15 +927,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		<-chWireValuesA
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		res := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
 		start := time.Now()
-		if err := icicle_msm.Msm(wireValuesADevice, pk.G1Device.A, &cfg, res); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("msm Ar1: %s", err.AsString()))
+
+		jac, chunks, err := msmChunkedG1(wireValuesADevice, pk.G1Device.A, cfg)
+		if err != nil {
+			return fmt.Errorf("msm Ar1: %w", err)
 		}
+		ar = jac
+
 		if isProfileMode {
-			log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
+			evt := log.Debug().Dur("took", time.Since(start))
+			if chunks > 1 {
+				evt = evt.Int("chunks", chunks)
+			}
+			evt.Msg("MSM Ar1")
 		}
-		ar = g1ProjectiveToG1Jac(res[0])
 
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
@@ -472,15 +956,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		sizeH := int(pk.Domain.Cardinality - 1)
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		resKrs2 := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
 		start := time.Now()
-		if err := icicle_msm.Msm(h.RangeTo(sizeH, false), pk.G1Device.Z, &cfg, resKrs2); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("msm Krs2: %s", err.AsString()))
+
+		jac, chunks, err := msmChunkedG1(h.RangeTo(sizeH, false), pk.G1Device.Z, cfg)
+		if err != nil {
+			return fmt.Errorf("msm Krs2: %w", err)
 		}
+		krs2 = jac
+
 		if isProfileMode {
-			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
+			evt := log.Debug().Dur("took", time.Since(start))
+			if chunks > 1 {
+				evt = evt.Int("chunks", chunks)
+			}
+			evt.Msg("MSM Krs2")
 		}
-		krs2 = g1ProjectiveToG1Jac(resKrs2[0])
 
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
@@ -488,16 +978,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), slices.Concat(toRemove...))
 		_wireValuesHost := (icicle_core.HostSlice[fr.Element])(_wireValues)
-		resKrs := make(icicle_core.HostSlice[icicle_bw6761.Projective], 1)
+
+		// Copy to device to allow Go-side chunking
+		var _wireValuesDevice icicle_core.DeviceSlice
+		_wireValuesHost.CopyToDevice(&_wireValuesDevice, true)
+		defer _wireValuesDevice.Free()
+
 		cfg.AreScalarsMontgomeryForm = true
 		start = time.Now()
-		if err := icicle_msm.Msm(_wireValuesHost, pk.G1Device.K, &cfg, resKrs); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("msm Krs: %s", err.AsString()))
+
+		jac, chunks, err = msmChunkedG1(_wireValuesDevice, pk.G1Device.K, cfg)
+		if err != nil {
+			return fmt.Errorf("msm Krs: %w", err)
 		}
+		krs = jac
+
 		if isProfileMode {
-			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
+			evt := log.Debug().Dur("took", time.Since(start))
+			if chunks > 1 {
+				evt = evt.Int("chunks", chunks)
+			}
+			evt.Msg("MSM Krs")
 		}
-		krs = g1ProjectiveToG1Jac(resKrs[0])
 
 		krs.AddMixed(&deltas[2])
 
@@ -524,15 +1026,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		<-chWireValuesB
 
 		cfg := icicle_g2.G2GetDefaultMSMConfig()
-		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
 		start := time.Now()
-		if err := icicle_g2.G2Msm(wireValuesBDevice, pk.G2Device.B, &cfg, res); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("msm Bs2: %s", err.AsString()))
+
+		jac, chunks, err := msmChunkedG2(wireValuesBDevice, pk.G2Device.B, cfg)
+		if err != nil {
+			return fmt.Errorf("msm Bs2: %w", err)
 		}
+		Bs = jac
+
 		if isProfileMode {
-			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
+			evt := log.Debug().Dur("took", time.Since(start))
+			if chunks > 1 {
+				evt = evt.Int("chunks", chunks)
+			}
+			evt.Msg("MSM Bs2 G2")
 		}
-		Bs = g2ProjectiveToG2Jac(&res[0])
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -540,6 +1048,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		Bs.AddMixed(&pk.G2.Beta)
 
 		proof.Bs.FromJacobian(&Bs)
+		close(chBs2Done)
 		return nil
 	}
 
@@ -573,6 +1082,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		close(computeKrsDone)
 	})
 	<-computeKrsDone
+	<-chBs2Done
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
@@ -664,6 +1174,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Devic
 			log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
 		}
 		channel <- scalarsDevice
+		runtime.KeepAlive(scalars) // keep host buffer alive until the async copy/NTT completes
 		close(channel)
 	}
 
