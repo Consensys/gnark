@@ -894,11 +894,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	var bs1, ar curve.G1Jac
-	chArDone, chBs1Done, chBs2Done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 
 	computeBS1 := func() error {
-		<-chWireValuesB
-
 		cfg := icicle_msm.GetDefaultMSMConfig()
 		start := time.Now()
 
@@ -919,13 +916,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 
-		close(chBs1Done)
 		return nil
 	}
 
 	computeAR1 := func() error {
-		<-chWireValuesA
-
 		cfg := icicle_msm.GetDefaultMSMConfig()
 		start := time.Now()
 
@@ -947,7 +941,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
 
-		close(chArDone)
 		return nil
 	}
 
@@ -1005,9 +998,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 
 		krs.AddAssign(&krs2)
 
-		<-chArDone
-		<-chBs1Done
-
 		p1.ScalarMultiplication(&ar, &s)
 		krs.AddAssign(&p1)
 
@@ -1022,8 +1012,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	computeBS2 := func() error {
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
-
-		<-chWireValuesB
 
 		cfg := icicle_g2.G2GetDefaultMSMConfig()
 		start := time.Now()
@@ -1048,41 +1036,34 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		Bs.AddMixed(&pk.G2.Beta)
 
 		proof.Bs.FromJacobian(&Bs)
-		close(chBs2Done)
 		return nil
 	}
 
 	// schedule our proof part computations
+	computeKrsDone := make(chan struct{})
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
+		// wait for FFT to end
+		<-chHDone
+
+		// wait for inputs
+		<-chWireValuesA
+		<-chWireValuesB
+
 		if err := computeAR1(); err != nil {
 			panic(fmt.Sprintf("compute AR1: %v", err))
 		}
-	})
-
-	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		if err := computeBS1(); err != nil {
 			panic(fmt.Sprintf("compute BS1: %v", err))
 		}
-	})
-
-	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		if err := computeBS2(); err != nil {
 			panic(fmt.Sprintf("compute BS2: %v", err))
 		}
-	})
-
-	// wait for FFT to end
-	<-chHDone
-
-	computeKrsDone := make(chan struct{})
-	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		if err := computeKRS(); err != nil {
 			panic(fmt.Sprintf("compute KRS: %v", err))
 		}
 		close(computeKrsDone)
 	})
 	<-computeKrsDone
-	<-chBs2Done
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
