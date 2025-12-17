@@ -144,86 +144,15 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	})
 
 	/*************************  End Init Domain Device  ***************************/
-	/*************************  Start G1 Device Setup  ***************************/
-	/*************************     A      ***************************/
-	copyADone := make(chan struct{})
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
-		g1AHost.CopyToDevice(&pk.G1Device.A, true)
-		if err := icicle_bls12381.AffineFromMontgomery(pk.G1Device.A); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("copy A to device: %s", err.AsString()))
-		}
-		close(copyADone)
-	})
-	/*************************     B      ***************************/
-	copyBDone := make(chan struct{})
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
-		g1BHost.CopyToDevice(&pk.G1Device.B, true)
-		if err := icicle_bls12381.AffineFromMontgomery(pk.G1Device.B); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("copy B to device: %s", err.AsString()))
-		}
-		close(copyBDone)
-	})
-	/*************************     K      ***************************/
-	copyKDone := make(chan struct{})
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
-		g1KHost.CopyToDevice(&pk.G1Device.K, true)
-		if err := icicle_bls12381.AffineFromMontgomery(pk.G1Device.K); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("copy K to device: %s", err.AsString()))
-		}
-		close(copyKDone)
-	})
-	/*************************     Z      ***************************/
-	copyZDone := make(chan struct{})
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
-		g1ZHost.CopyToDevice(&pk.G1Device.Z, true)
-		err := icicle_bls12381.AffineFromMontgomery(pk.G1Device.Z)
-		if err != icicle_runtime.Success {
-			panic(fmt.Sprintf("copy Z to device: %s", err.AsString()))
-		}
-		close(copyZDone)
-	})
-	/*************************  End G1 Device Setup  ***************************/
-	/*************************  Start G2 Device Setup  ***************************/
-	copyG2BDone := make(chan struct{})
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
-		g2BHost.CopyToDevice(&pk.G2Device.B, true)
-		if err := icicle_g2.G2AffineFromMontgomery(pk.G2Device.B); err != icicle_runtime.Success {
-			panic(fmt.Sprintf("copy G2 B to device: %s", err.AsString()))
-		}
-		close(copyG2BDone)
-	})
-	/*************************  End G2 Device Setup  ***************************/
 
-	/*************************  Commitment Keys Device Setup  ***************************/
+	// NOTE: On-demand loading strategy - we do NOT pre-load large proving key vectors
+	// (G1.A, G1.B, G1.K, G1.Z, G2.B, CommitmentKeys) to GPU at initialization.
+	// These will be loaded from host memory only when needed during Prove() execution
+	// and freed immediately after use, drastically reducing GPU memory footprint.
 
-	commitmentKeysDeviceDone := make(chan struct{})
-	pk.CommitmentKeysDevice.Basis = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
-	pk.CommitmentKeysDevice.BasisExpSigma = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
-	icicle_runtime.RunOnDevice(device, func(args ...any) {
-		for i := range pk.CommitmentKeys {
-			commitmentKeyBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
-			commitmentKeyBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
-			commitmentKeyBasisHost.CopyToDevice(&pk.CommitmentKeysDevice.Basis[i], true)
-			commitmentKeyBasisExpSigmaHost.CopyToDevice(&pk.CommitmentKeysDevice.BasisExpSigma[i], true)
-		}
-		close(commitmentKeysDeviceDone)
-	})
-	/*************************  End Commitment Keys Device Setup  ***************************/
-
-	/*************************  Wait for all data transfers  ***************************/
+	/*************************  Wait for domain initialization  ***************************/
 	<-initDomain
 	<-copyDenDone
-	<-copyADone
-	<-copyBDone
-	<-copyKDone
-	<-copyZDone
-	<-copyG2BDone
-	<-commitmentKeysDeviceDone
 
 	return nil
 }
@@ -277,6 +206,48 @@ func g2ProjectiveToG2Jac(p *icicle_g2.G2Projective) curve.G2Jac {
 		Y: Y,
 		Z: z,
 	}
+}
+
+// loadG1 loads a G1 vector from host to device with Montgomery→Standard conversion.
+// Used for: A, B, K, Z vectors (MSM config has AreBasesMontgomeryForm=false)
+func loadG1(hostSlice icicle_core.HostSlice[curve.G1Affine]) (icicle_core.DeviceSlice, error) {
+	var deviceSlice icicle_core.DeviceSlice
+	hostSlice.CopyToDevice(&deviceSlice, true)
+	if err := icicle_bls12381.AffineFromMontgomery(deviceSlice); err != icicle_runtime.Success {
+		return deviceSlice, fmt.Errorf("convert from Montgomery: %s", err.AsString())
+	}
+	if isDebugMode {
+		log := logger.Logger()
+		log.Debug().Int("size", deviceSlice.Len()).Msg("Loaded G1 vector (with Montgomery conversion)")
+	}
+	return deviceSlice, nil
+}
+
+// loadG1Raw loads a G1 vector from host to device WITHOUT conversion (preserves Montgomery form).
+// Used for: Commitment Keys (MSM config has AreBasesMontgomeryForm=true)
+func loadG1Raw(hostSlice icicle_core.HostSlice[curve.G1Affine]) (icicle_core.DeviceSlice, error) {
+	var deviceSlice icicle_core.DeviceSlice
+	hostSlice.CopyToDevice(&deviceSlice, true)
+	// NO conversion - keep Montgomery form for commitment keys
+	if isDebugMode {
+		log := logger.Logger()
+		log.Debug().Int("size", deviceSlice.Len()).Msg("Loaded G1 vector (raw, Montgomery preserved)")
+	}
+	return deviceSlice, nil
+}
+
+// loadG2 loads a G2 vector from host to device with Montgomery→Standard conversion.
+func loadG2(hostSlice icicle_core.HostSlice[curve.G2Affine]) (icicle_core.DeviceSlice, error) {
+	var deviceSlice icicle_core.DeviceSlice
+	hostSlice.CopyToDevice(&deviceSlice, true)
+	if err := icicle_g2.G2AffineFromMontgomery(deviceSlice); err != icicle_runtime.Success {
+		return deviceSlice, fmt.Errorf("convert from Montgomery: %s", err.AsString())
+	}
+	if isDebugMode {
+		log := logger.Logger()
+		log.Debug().Int("size", deviceSlice.Len()).Msg("Loaded G2 vector (with Montgomery conversion)")
+	}
+	return deviceSlice, nil
 }
 
 // msmChunkedG1 runs an MSM in progressively smaller chunks until it fits in GPU memory, accumulating the result.
@@ -746,13 +717,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		ckBasisMsmDone := make(chan struct{})
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			defer close(ckBasisMsmDone)
+
+			log.Debug().Int("commitment", i).Msg("Loading commitment key basis for MSM")
+			ckBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
+			ckBasisDevice, err := loadG1Raw(ckBasisHost)
+			if err != nil {
+				panic(fmt.Sprintf("load commitment basis: %v", err))
+			}
+			defer func() {
+				if ckBasisDevice.AsUnsafePointer() != nil {
+					ckBasisDevice.Free()
+				}
+				log.Debug().Int("commitment", i).Msg("Freed commitment key basis")
+			}()
+
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
 			privateCommittedValuesHost := icicle_core.HostSliceFromElements(privateCommittedValues[i])
 			privateCommittedValuesHost.CopyToDevice(&privateCommittedValuesDevice[i], true)
 
-			jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.Basis[i], cfg)
+			jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], ckBasisDevice, cfg)
 			if err != nil {
 				panic(fmt.Sprintf("commitment: %v", err))
 			}
@@ -796,17 +781,29 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 			cfg := icicle_msm.GetDefaultMSMConfig()
 			cfg.AreBasesMontgomeryForm = true
 			cfg.AreScalarsMontgomeryForm = true
-			for i := range pk.CommitmentKeysDevice.BasisExpSigma {
+			for i := range pk.CommitmentKeys {
 				size := privateCommittedValuesDevice[i].Len()
 				if size == 0 {
 					continue
 				}
 
-				jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], pk.CommitmentKeysDevice.BasisExpSigma[i], cfg)
+				log.Debug().Int("commitment", i).Msg("Loading commitment key BasisExpSigma for POK MSM")
+				ckBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
+				ckBasisExpSigmaDevice, err := loadG1Raw(ckBasisExpSigmaHost)
+				if err != nil {
+					panic(fmt.Sprintf("load commitment BasisExpSigma: %v", err))
+				}
+
+				jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], ckBasisExpSigmaDevice, cfg)
 				if err != nil {
 					panic(fmt.Sprintf("commitment POK: %v", err))
 				}
 				poks[i].FromJacobian(&jac)
+
+				if ckBasisExpSigmaDevice.AsUnsafePointer() != nil {
+					ckBasisExpSigmaDevice.Free()
+				}
+				log.Debug().Int("commitment", i).Msg("Freed commitment key BasisExpSigma")
 			}
 			close(ckBasisExpSigmaMsmBatchDone)
 		})
@@ -814,6 +811,17 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		for i := range privateCommittedValues {
 			runtime.KeepAlive(privateCommittedValues[i]) // prevent GC while chunked MSM streams consume scalars
 		}
+
+		// Free privateCommittedValuesDevice after POK computation (MEMORY LEAK FIX)
+		icicle_runtime.RunOnDevice(&device, func(args ...any) {
+			for i := range privateCommittedValuesDevice {
+				if privateCommittedValuesDevice[i].AsUnsafePointer() != nil {
+					privateCommittedValuesDevice[i].Free()
+				}
+			}
+			log.Debug().Msg("Freed all privateCommittedValuesDevice after POK")
+		})
+
 		if isProfileMode {
 			log.Debug().Dur("took", time.Since(startPoKBatch)).Msg("ICICLE Batch Proof of Knowledge")
 		}
@@ -907,10 +915,23 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	var bs1, ar curve.G1Jac
 
 	computeBS1 := func() error {
+		log.Debug().Msg("Loading G1.B for BS1 MSM")
+		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
+		g1BDevice, err := loadG1(g1BHost)
+		if err != nil {
+			return fmt.Errorf("load G1.B: %w", err)
+		}
+		defer func() {
+			if g1BDevice.AsUnsafePointer() != nil {
+				g1BDevice.Free()
+			}
+			log.Debug().Msg("Freed G1.B after BS1 MSM")
+		}()
+
 		cfg := icicle_msm.GetDefaultMSMConfig()
 		start := time.Now()
 
-		jac, chunks, err := msmChunkedG1(wireValuesBDevice, pk.G1Device.B, cfg)
+		jac, chunks, err := msmChunkedG1(wireValuesBDevice, g1BDevice, cfg)
 		if err != nil {
 			return fmt.Errorf("msm Bs1: %w", err)
 		}
@@ -931,10 +952,23 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeAR1 := func() error {
+		log.Debug().Msg("Loading G1.A for AR1 MSM")
+		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
+		g1ADevice, err := loadG1(g1AHost)
+		if err != nil {
+			return fmt.Errorf("load G1.A: %w", err)
+		}
+		defer func() {
+			if g1ADevice.AsUnsafePointer() != nil {
+				g1ADevice.Free()
+			}
+			log.Debug().Msg("Freed G1.A after AR1 MSM")
+		}()
+
 		cfg := icicle_msm.GetDefaultMSMConfig()
 		start := time.Now()
 
-		jac, chunks, err := msmChunkedG1(wireValuesADevice, pk.G1Device.A, cfg)
+		jac, chunks, err := msmChunkedG1(wireValuesADevice, g1ADevice, cfg)
 		if err != nil {
 			return fmt.Errorf("msm Ar1: %w", err)
 		}
@@ -956,13 +990,26 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeKRS := func() error {
+		log.Debug().Msg("Loading G1.Z for KRS MSM")
+		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
+		g1ZDevice, err := loadG1(g1ZHost)
+		if err != nil {
+			return fmt.Errorf("load G1.Z: %w", err)
+		}
+		defer func() {
+			if g1ZDevice.AsUnsafePointer() != nil {
+				g1ZDevice.Free()
+			}
+			log.Debug().Msg("Freed G1.Z after KRS MSM")
+		}()
+
 		var krs, krs2, p1 curve.G1Jac
 		sizeH := int(pk.Domain.Cardinality - 1)
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
 		start := time.Now()
 
-		jac, chunks, err := msmChunkedG1(h.RangeTo(sizeH, false), pk.G1Device.Z, cfg)
+		jac, chunks, err := msmChunkedG1(h.RangeTo(sizeH, false), g1ZDevice, cfg)
 		if err != nil {
 			return fmt.Errorf("msm Krs2: %w", err)
 		}
@@ -975,6 +1022,19 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 			}
 			evt.Msg("MSM Krs2")
 		}
+
+		log.Debug().Msg("Loading G1.K for KRS MSM")
+		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
+		g1KDevice, err := loadG1(g1KHost)
+		if err != nil {
+			return fmt.Errorf("load G1.K: %w", err)
+		}
+		defer func() {
+			if g1KDevice.AsUnsafePointer() != nil {
+				g1KDevice.Free()
+			}
+			log.Debug().Msg("Freed G1.K after KRS MSM")
+		}()
 
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
@@ -991,7 +1051,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		cfg.AreScalarsMontgomeryForm = true
 		start = time.Now()
 
-		jac, chunks, err = msmChunkedG1(_wireValuesDevice, pk.G1Device.K, cfg)
+		jac, chunks, err = msmChunkedG1(_wireValuesDevice, g1KDevice, cfg)
 		if err != nil {
 			return fmt.Errorf("msm Krs: %w", err)
 		}
@@ -1021,13 +1081,26 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeBS2 := func() error {
+		log.Debug().Msg("Loading G2.B for BS2 MSM")
+		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
+		g2BDevice, err := loadG2(g2BHost)
+		if err != nil {
+			return fmt.Errorf("load G2.B: %w", err)
+		}
+		defer func() {
+			if g2BDevice.AsUnsafePointer() != nil {
+				g2BDevice.Free()
+			}
+			log.Debug().Msg("Freed G2.B after BS2 MSM")
+		}()
+
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 
 		cfg := icicle_g2.G2GetDefaultMSMConfig()
 		start := time.Now()
 
-		jac, chunks, err := msmChunkedG2(wireValuesBDevice, pk.G2Device.B, cfg)
+		jac, chunks, err := msmChunkedG2(wireValuesBDevice, g2BDevice, cfg)
 		if err != nil {
 			return fmt.Errorf("msm Bs2: %w", err)
 		}
