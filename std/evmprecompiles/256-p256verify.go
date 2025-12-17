@@ -43,9 +43,8 @@ func P256Verify(api frontend.API,
 		panic(err)
 	}
 	// we don't perform range checks on r and s as they are done by the arithmetization
-	sinv := scalarApi.Inverse(s)
-	msInv := scalarApi.Mul(msgHash, sinv)
-	rsInv := scalarApi.Mul(r, sinv)
+	msInv := scalarApi.Div(msgHash, s)
+	rsInv := scalarApi.Div(r, s)
 	PK := sw_emulated.AffinePoint[emulated.P256Fp]{X: *qx, Y: *qy}
 	Rprime := curve.JointScalarMulBase(&PK, rsInv, msInv, algopts.WithCompleteArithmetic())
 

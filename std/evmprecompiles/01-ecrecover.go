@@ -29,8 +29,8 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// the field implementations are cached. So it is safe to initialize
 	// them at every call to ECRecover. This allows to simplify the
 	// interface of ECRecover.
-	var emfp emulated.Secp256k1Fp
 	var emfr emulated.Secp256k1Fr
+	nbFpLimbs, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fp](api.Compiler().Field())
 	fpField, err := emulated.NewField[emulated.Secp256k1Fp](api)
 	if err != nil {
 		panic(fmt.Sprintf("new field: %v", err))
@@ -65,17 +65,17 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 
 	// compute P, the public key
 	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
-	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(emfp.NbLimbs())+1, recoverPublicKeyHintArgs(msg, v, r, s)...)
+	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(nbFpLimbs)+1, recoverPublicKeyHintArgs(msg, v, r, s)...)
 	if err != nil {
 		panic(fmt.Sprintf("point hint: %v", err))
 	}
 	P := sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
-		X: *fpField.NewElement(Plimbs[0:emfp.NbLimbs()]),
-		Y: *fpField.NewElement(Plimbs[emfp.NbLimbs() : 2*emfp.NbLimbs()]),
+		X: *fpField.NewElement(Plimbs[0:nbFpLimbs]),
+		Y: *fpField.NewElement(Plimbs[nbFpLimbs : 2*nbFpLimbs]),
 	}
 	// we also get a flag from the hint if the returned public key is zero. This
 	// is only set when we have no QNR failure.
-	pIsZero := Plimbs[2*emfp.NbLimbs()]
+	pIsZero := Plimbs[2*nbFpLimbs]
 	api.AssertIsBoolean(pIsZero)
 
 	// the failure can be either that we have quadratic non residue or that the
