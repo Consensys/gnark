@@ -844,7 +844,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	if len(witness.Public) > 0 {
 		wPowI := one
 		xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
-		pi = v.scalarApi.Add(pi, xiLi)
+		pi = xiLi
 		if len(witness.Public) != 1 {
 			lagrange = v.scalarApi.Mul(lagrange, &vk.Generator)
 			lagrange = v.scalarApi.Mul(lagrange, denom)
