@@ -58,9 +58,7 @@ func TestShortHash(t *testing.T) {
 	assert := test.NewAssert(t)
 	nbInputs := 19
 	for _, outer := range outerCurves {
-		outer := outer
 		for _, inner := range innerCurves {
-			inner := inner
 			assert.Run(func(assert *test.Assert) {
 				circuit := &shortHashCircuit{Input: make([]frontend.Variable, nbInputs), inner: inner}
 				h, err := recursion.NewShort(outer.ScalarField(), inner.ScalarField())

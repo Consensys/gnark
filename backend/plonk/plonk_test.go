@@ -72,7 +72,6 @@ func TestCustomHashToField(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignment := &commitmentCircuit{X: 1}
 	for _, curve := range getCurves() {
-		curve := curve
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &commitmentCircuit{})
 			assert.NoError(err)
@@ -112,7 +111,6 @@ func TestCustomChallengeHash(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignment := &smallCircuit{X: 1}
 	for _, curve := range getCurves() {
-		curve := curve
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
@@ -155,7 +153,6 @@ func TestCustomKZGFoldingHash(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignment := &smallCircuit{X: 1}
 	for _, curve := range getCurves() {
-		curve := curve
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
