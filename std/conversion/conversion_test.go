@@ -331,10 +331,10 @@ func TestAssertBytesLeq(t *testing.T) {
 	// all in MSB order, how big.Int is represented in bytes (most significant byte first)
 	assert := test.NewAssert(t)
 
-	tc := func(assert *test.Assert, bound []byte, val []byte, isSuccess bool) {
+	tc := func(assert *test.Assert, bound []byte, val []byte, disallowEquality bool, isSuccess bool) {
 		assert.Run(func(assert *test.Assert) {
 			boundInt := new(big.Int).SetBytes(bound)
-			circuit := &AssertBytesLeq{In: make([]uints.U8, len(val)), bound: boundInt}
+			circuit := &AssertBytesLeq{In: make([]uints.U8, len(val)), bound: boundInt, disallowEquality: disallowEquality}
 			witness := &AssertBytesLeq{In: uints.NewU8Array(val)}
 			var opts []test.TestingOption
 			if isSuccess {
@@ -347,7 +347,11 @@ func TestAssertBytesLeq(t *testing.T) {
 				// sanity check that actual big ints compare the same way. We do it in a separate test to avoid
 				// shadowing the circuit check test failure.
 				valInt := new(big.Int).SetBytes(val)
-				if boundInt.Cmp(valInt) >= 0 != isSuccess {
+				if disallowEquality && boundInt.Cmp(valInt) > 0 != isSuccess {
+					fmt.Println("boundInt:", boundInt, "valInt:", valInt, "expected:", isSuccess)
+					assert.Fail("disallow equality: boundInt > valInt != expected")
+				}
+				if !disallowEquality && boundInt.Cmp(valInt) >= 0 != isSuccess {
 					fmt.Println("boundInt:", boundInt, "valInt:", valInt, "expected:", isSuccess)
 					assert.Fail("boundInt.Cmp(valInt) >= 0 != expected")
 				}
@@ -357,56 +361,57 @@ func TestAssertBytesLeq(t *testing.T) {
 
 	//  -- first byte is smaller than the bound
 	//  - second byte is smaller than the bound
-	tc(assert, []byte{253, 253}, []byte{252, 252}, true)
-	tc(assert, []byte{253, 253}, []byte{0, 252, 252}, true)
-	tc(assert, []byte{253, 253}, []byte{1, 252, 252}, false)
+	tc(assert, []byte{253, 253}, []byte{252, 252}, false, true)
+	tc(assert, []byte{253, 253}, []byte{0, 252, 252}, false, true)
+	tc(assert, []byte{253, 253}, []byte{1, 252, 252}, false, false)
 	//  - second byte is equal to the bound
-	tc(assert, []byte{253, 253}, []byte{252, 253}, true)
-	tc(assert, []byte{253, 253}, []byte{0, 252, 253}, true)
-	tc(assert, []byte{253, 253}, []byte{1, 252, 253}, false)
+	tc(assert, []byte{253, 253}, []byte{252, 253}, false, true)
+	tc(assert, []byte{253, 253}, []byte{0, 252, 253}, false, true)
+	tc(assert, []byte{253, 253}, []byte{1, 252, 253}, false, false)
 	//  - second byte is bigger than the bound
-	tc(assert, []byte{253, 253}, []byte{252, 254}, true)
-	tc(assert, []byte{253, 253}, []byte{0, 252, 254}, true)
-	tc(assert, []byte{253, 253}, []byte{1, 252, 254}, false)
+	tc(assert, []byte{253, 253}, []byte{252, 254}, false, true)
+	tc(assert, []byte{253, 253}, []byte{0, 252, 254}, false, true)
+	tc(assert, []byte{253, 253}, []byte{1, 252, 254}, false, false)
 
 	// -- first byte is equal to the bound
 	//  - second byte is smaller than the bound
-	tc(assert, []byte{253, 253}, []byte{253, 252}, true)
-	tc(assert, []byte{253, 253}, []byte{0, 253, 252}, true)
-	tc(assert, []byte{253, 253}, []byte{1, 253, 252}, false)
+	tc(assert, []byte{253, 253}, []byte{253, 252}, false, true)
+	tc(assert, []byte{253, 253}, []byte{0, 253, 252}, false, true)
+	tc(assert, []byte{253, 253}, []byte{1, 253, 252}, false, false)
 	//  - second byte is equal to the bound
-	tc(assert, []byte{253, 253}, []byte{253, 253}, true)
-	tc(assert, []byte{253, 253}, []byte{0, 253, 253}, true)
-	tc(assert, []byte{253, 253}, []byte{1, 253, 253}, false)
+	tc(assert, []byte{253, 253}, []byte{253, 253}, false, true)
+	tc(assert, []byte{253, 253}, []byte{0, 253, 253}, true, false) // disallow equality
+	tc(assert, []byte{253, 253}, []byte{0, 253, 253}, false, true) // allow equality
+	tc(assert, []byte{253, 253}, []byte{1, 253, 253}, false, false)
 	//  - second byte is bigger than the bound
-	tc(assert, []byte{253, 253}, []byte{253, 254}, false)
-	tc(assert, []byte{253, 253}, []byte{0, 253, 254}, false)
-	tc(assert, []byte{253, 253}, []byte{1, 253, 254}, false)
+	tc(assert, []byte{253, 253}, []byte{253, 254}, false, false)
+	tc(assert, []byte{253, 253}, []byte{0, 253, 254}, false, false)
+	tc(assert, []byte{253, 253}, []byte{1, 253, 254}, false, false)
 
 	// -- first byte is bigger than the bound
 	//  - second byte is smaller than the bound
-	tc(assert, []byte{253, 253}, []byte{254, 252}, false)
-	tc(assert, []byte{253, 253}, []byte{0, 254, 252}, false)
-	tc(assert, []byte{253, 253}, []byte{1, 254, 252}, false)
+	tc(assert, []byte{253, 253}, []byte{254, 252}, false, false)
+	tc(assert, []byte{253, 253}, []byte{0, 254, 252}, false, false)
+	tc(assert, []byte{253, 253}, []byte{1, 254, 252}, false, false)
 	//  - second byte is equal to the bound
-	tc(assert, []byte{253, 253}, []byte{254, 253}, false)
-	tc(assert, []byte{253, 253}, []byte{0, 254, 253}, false)
-	tc(assert, []byte{253, 253}, []byte{1, 254, 253}, false)
+	tc(assert, []byte{253, 253}, []byte{254, 253}, false, false)
+	tc(assert, []byte{253, 253}, []byte{0, 254, 253}, false, false)
+	tc(assert, []byte{253, 253}, []byte{1, 254, 253}, false, false)
 	//  - second byte is bigger than the bound
-	tc(assert, []byte{253, 253}, []byte{254, 254}, false)
-	tc(assert, []byte{253, 253}, []byte{0, 254, 254}, false)
-	tc(assert, []byte{253, 253}, []byte{1, 254, 254}, false)
+	tc(assert, []byte{253, 253}, []byte{254, 254}, false, false)
+	tc(assert, []byte{253, 253}, []byte{0, 254, 254}, false, false)
+	tc(assert, []byte{253, 253}, []byte{1, 254, 254}, false, false)
 
 	// -- bound longer than the value
 	//  - first byte is smaller than the bound
-	tc(assert, []byte{253, 253, 253}, []byte{252, 252}, true)
-	tc(assert, []byte{253, 253, 253}, []byte{0, 252, 252}, true)
+	tc(assert, []byte{253, 253, 253}, []byte{252, 252}, false, true)
+	tc(assert, []byte{253, 253, 253}, []byte{0, 252, 252}, false, true)
 	//  - first byte is equal to the bound
-	tc(assert, []byte{253, 253, 253}, []byte{253, 252}, true)
-	tc(assert, []byte{253, 253, 253}, []byte{0, 253, 252}, true)
+	tc(assert, []byte{253, 253, 253}, []byte{253, 252}, false, true)
+	tc(assert, []byte{253, 253, 253}, []byte{0, 253, 252}, false, true)
 	//  - first byte is bigger than the bound
-	tc(assert, []byte{253, 253, 253}, []byte{254, 252}, true)
-	tc(assert, []byte{253, 253, 253}, []byte{0, 254, 252}, true)
+	tc(assert, []byte{253, 253, 253}, []byte{254, 252}, false, true)
+	tc(assert, []byte{253, 253, 253}, []byte{0, 254, 252}, false, true)
 }
 
 func TestBytesToNative_EqualModulus(t *testing.T) {
