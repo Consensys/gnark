@@ -94,7 +94,7 @@ func (f gateFunctionFr) fitPoly(nbIn int, degreeBound uint64) polynomial.Polynom
 
 	// obtain p's coefficients
 	domain.FFTInverse(p, fft.DIF)
-	fft.BitReverse(p)
+	fft.BitReverse(p) //nolint:staticcheck // method is backwards compatible
 
 	// check if p is equal to f. This not being the case means that f is of a degree higher than degreeBound
 	fIn[0].MustSetRandom()
