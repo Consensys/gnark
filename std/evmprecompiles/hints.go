@@ -30,34 +30,34 @@ func recoverPublicKeyHintArgs(msg emulated.Element[emulated.Secp256k1Fr],
 	return args
 }
 
-func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func recoverPublicKeyHint(nativeMod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	// message -nb limbs
 	// then v - 1
 	// r -- nb limbs
 	// s -- nb limbs
 	// return 2x nb limbs
-	var emfr emulated.Secp256k1Fr
-	var emfp emulated.Secp256k1Fp
-	if len(inputs) != int(emfr.NbLimbs())*3+1 {
-		return fmt.Errorf("expected %d limbs got %d", emfr.NbLimbs()*3+1, len(inputs))
+	nbFrLimbs, nbFrBitsPerLimb := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fr](nativeMod)
+	nbFpLimbs, nbFpBitsPerLimb := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fp](nativeMod)
+	if len(inputs) != int(nbFrLimbs)*3+1 {
+		return fmt.Errorf("expected %d limbs got %d", nbFrLimbs*3+1, len(inputs))
 	}
-	if !inputs[emfr.NbLimbs()].IsInt64() {
+	if !inputs[nbFrLimbs].IsInt64() {
 		return fmt.Errorf("second input must be in [0,3]")
 	}
-	if len(outputs) != 2*int(emfp.NbLimbs())+1 {
-		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
+	if len(outputs) != 2*int(nbFpLimbs)+1 {
+		return fmt.Errorf("expected output %d limbs got %d", 2*nbFpLimbs, len(outputs))
 	}
 	msg, r, s := new(big.Int), new(big.Int), new(big.Int)
-	err := limbs.Recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb(), msg)
+	err := limbs.Recompose(inputs[:nbFrLimbs], nbFrBitsPerLimb, msg)
 	if err != nil {
 		return fmt.Errorf("recompose message: %w", err)
 	}
-	v := inputs[emfr.NbLimbs()].Uint64()
-	err = limbs.Recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb(), r)
+	v := inputs[nbFrLimbs].Uint64()
+	err = limbs.Recompose(inputs[nbFrLimbs+1:2*nbFrLimbs+1], nbFrBitsPerLimb, r)
 	if err != nil {
 		return fmt.Errorf("recompose r: %w", err)
 	}
-	err = limbs.Recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb(), s)
+	err = limbs.Recompose(inputs[2*nbFrLimbs+1:3*nbFrLimbs+1], nbFrBitsPerLimb, s)
 	if err != nil {
 		return fmt.Errorf("recompose s: %w", err)
 	}
@@ -73,10 +73,10 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	}
 	Px := pk.A.X.BigInt(new(big.Int))
 	Py := pk.A.Y.BigInt(new(big.Int))
-	if err := limbs.Decompose(Px, emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Px, nbFpBitsPerLimb, outputs[0:nbFpLimbs]); err != nil {
 		return fmt.Errorf("decompose x: %w", err)
 	}
-	if err := limbs.Decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Py, nbFpBitsPerLimb, outputs[nbFpLimbs:2*nbFpLimbs]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
 	}
 	// we also return a flag that indicates if the public key is zero but only
@@ -85,6 +85,6 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	xIsZero := 1 - Px.Cmp(zero)
 	yIsZero := 1 - Py.Cmp(zero)
 	isZero := (1 - isQNRFailure) * xIsZero * yIsZero
-	outputs[2*emfp.NbLimbs()].SetInt64(int64(isZero))
+	outputs[2*nbFpLimbs].SetInt64(int64(isZero))
 	return nil
 }

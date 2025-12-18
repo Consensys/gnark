@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -301,4 +302,11 @@ func TestLargeV(t *testing.T) {
 		err := test.IsSolved(&circuit, &witness, ecc.BLS12_377.ScalarField())
 		assert.Error(err)
 	}
+}
+
+func TestOverKoalabear(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit, witness := testRoutineECRecover(t, false)
+	err := test.IsSolved(circuit, witness, koalabear.Modulus())
+	assert.NoError(err)
 }
