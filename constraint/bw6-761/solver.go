@@ -64,6 +64,8 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 		// not replaced, then we still keep using the big-int based hints on the
 		// GKR test engine.
 		var gkrHints *gkrhints.TestEngineHints
+		// Replace the hint calls with actual references to GKR assignment
+		// getter, solver, and prover based on the defined circuits.
 		opts = append(opts,
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
 			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),

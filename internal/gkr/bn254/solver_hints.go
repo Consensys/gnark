@@ -14,7 +14,6 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	algo_utils "github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -117,31 +116,47 @@ func GetAssignmentHint(data []SolvingData) hint.Hint {
 // It is intended for use in gkrapi.API.AddInstance.
 func SolveHint(data []SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
+		// the input format is:
+		// - first input: circuit index
+		// - second input: instance index of the circuit to solve
+		// - rest: values for input wires
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
 		data := data[ins[0].Uint64()]
-
 		instanceI := ins[1].Uint64()
 
+		// create buffer for every gate input. It will be reused for every evaluation.
 		gateIns := make([]frontend.Variable, data.maxNbIn)
+
+		// indices for reading inputs and outputs
 		outsI := 0
 		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
+
+		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
+		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
 		for wI := range data.circuit {
 			w := &data.circuit[wI]
-			if w.IsInput() { // read from provided input
+			if w.IsInput() {
+				// read from provided input
+				// there is no gate to compute for input wires. We only need to set them in the assignment.
 				data.assignment[wI][instanceI].SetBigInt(ins[insI])
 				insI++
 			} else {
-
 				// assemble input for gate
 				for i, inWI := range w.Inputs {
 					gateIns[i] = &data.assignment[inWI][instanceI]
 				}
-
-				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element))
+				// evaluate the gate on the inputs
+				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element)
+				// store the result in the assignment (for the following gates to use)
+				data.assignment[wI][instanceI].Set(eval)
 			}
 			if w.IsOutput() {
+				// write to provided output.
+				// NB! even if it is output wire, then it was already computed
+				// above. So the current condition is not exclusive with the
+				// previous one.
 				data.assignment[wI][instanceI].BigInt(outs[outsI])
 				outsI++
 			}
@@ -156,23 +171,27 @@ func SolveHint(data []SolvingData) hint.Hint {
 func ProveHint(data []SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
+		// the input format is:
+		// - first input: circuit index
+		// - second input: dummy, just to ensure the solver's work is done before the prover is called.
+		// - rest: initial Fiat-Shamir challenge (provided by the caller, typically a commitment to all inputs and outputs)
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
 		data := data[ins[0].Uint64()]
 		hashName := data.hashName
+		// drop the first input which indicates the current circuit index
 		ins = ins[1:]
 
 		data.assignment.repeatUntilEnd(data.nbInstances)
 
 		// The second input is dummy, just to ensure the solver's work is done before the prover is called.
 		// The rest constitute the initial fiat shamir challenge
-		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte {
-
-			b := make([]byte, fr.Bytes)
-			i.FillBytes(b)
-			return b[:]
-		})
+		insBytes := make([][]byte, len(ins)-1)
+		for i := 1; i < len(ins); i++ {
+			insBytes[i-1] = make([]byte, fr.Bytes)
+			ins[i].FillBytes(insBytes[i-1])
+		}
 
 		hsh := hash.NewHash(hashName + "_BN254")
 
