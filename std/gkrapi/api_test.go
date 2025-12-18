@@ -36,7 +36,10 @@ type doubleNoDependencyCircuit struct {
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
 
@@ -85,7 +88,10 @@ type sqNoDependencyCircuit struct {
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
 
@@ -133,7 +139,10 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
@@ -193,7 +202,10 @@ type mulWithDependencyCircuit struct {
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 
 	x := gkrApi.NewInput() // x is the state variable
 	y := gkrApi.NewInput()
@@ -291,7 +303,10 @@ type benchMiMCMerkleTreeCircuit struct {
 func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
 	// define the circuit
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Gate(mimcGate, x, y)
@@ -418,7 +433,10 @@ type mimcNoDepCircuit struct {
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// define the circuit
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 
@@ -610,7 +628,10 @@ type pow4Circuit struct {
 }
 
 func (c *pow4Circuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	x2 := gkrApi.Mul(x, x)   // x²
 	x4 := gkrApi.Mul(x2, x2) // x⁴
@@ -695,13 +716,15 @@ type testNoInstanceCircuit struct {
 }
 
 func (c *testNoInstanceCircuit) Define(api frontend.API) error {
-	gkrApi := New(api)
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.Mul(x, x)
 	gkrApi.Mul(x, y)
 
-	_, err := gkrApi.Compile("MIMC")
-
+	_, err = gkrApi.Compile("MIMC")
 	return err
 }
 
@@ -711,8 +734,14 @@ type testMultiCircuit struct {
 }
 
 func (c *testMultiCircuit) Define(api frontend.API) error {
-	api1 := New(api)
-	api2 := New(api)
+	api1, err := New(api)
+	if err != nil {
+		return err
+	}
+	api2, err := New(api)
+	if err != nil {
+		return err
+	}
 
 	x1 := api1.NewInput()
 	y1 := api1.NewInput()

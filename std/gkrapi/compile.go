@@ -39,13 +39,17 @@ type Circuit struct {
 }
 
 // New creates a new GKR API
-func New(api frontend.API) *API {
-	toStore, index := api.(gkrinfo.ConstraintSystem).NewGkr()
+func New(api frontend.API) (*API, error) {
+	gkrer, ok := api.(gkrinfo.ConstraintSystem)
+	if !ok {
+		return nil, errors.New("provided api does not support GKR")
+	}
+	toStore, index := gkrer.NewGkr()
 	return &API{
 		toStore:   toStore,
 		index:     index,
 		parentApi: api,
-	}
+	}, nil
 }
 
 // NewInput creates a new input variable.

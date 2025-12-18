@@ -168,7 +168,10 @@ func defineCircuitBls12377(api frontend.API) (gkrApi *gkrapi.API, in1, in2, out 
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi = gkrapi.New(api)
+	gkrApi, err = gkrapi.New(api)
+	if err != nil {
+		return
+	}
 
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()

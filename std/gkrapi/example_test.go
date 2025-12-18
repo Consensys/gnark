@@ -85,7 +85,10 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkrapi.New(api)
+	gkrApi, err := gkrapi.New(api)
+	if err != nil {
+		return err
+	}
 
 	// create the GKR circuit
 	X := gkrApi.NewInput()
