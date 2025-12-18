@@ -317,31 +317,6 @@ func (v *gateVerifier) isVarSolvable(f gkr.GateFunction, claimedSolvableVar, nbI
 	return v.isAdditive(f, claimedSolvableVar, nbIn)
 }
 
-// verifyDegree checks that the declared total degree of the gate polynomial
-// is correct.
-func (v *gateVerifier) verifyDegree(g *gkrtypes.Gate) error {
-	if err := v.verifyGateFunctionDegree(g.Evaluate, g.Degree(), g.NbIn()); err != nil {
-		deg, errFind := v.findDegree(g.Evaluate, g.Degree(), g.NbIn())
-		if errFind != nil {
-			return fmt.Errorf("could not find gate degree: %w\n\tdegree verification error: %w", errFind, errFind)
-		}
-		return fmt.Errorf("detected degree %d\n\tdegree verification error: %w", deg, errFind)
-	}
-	return nil
-}
-
-// verifySolvability checks that the variable declared as "solvable"
-// in fact occurs with degree exactly 1.
-func (v *gateVerifier) verifySolvability(g *gkrtypes.Gate) error {
-	if g.SolvableVar() == -1 {
-		return nil
-	}
-	if !v.isVarSolvable(g.Evaluate, g.SolvableVar(), g.NbIn()) {
-		return fmt.Errorf("cannot verify the solvability of variable %d", g.SolvableVar())
-	}
-	return nil
-}
-
 func init() {
 	// register some basic gates
 	gatesLock.Lock()

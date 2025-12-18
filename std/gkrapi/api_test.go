@@ -21,7 +21,6 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -544,13 +543,6 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 		mimcDepth: mimcDepth,
 	}
 	return
-}
-
-func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
-	assert.Equal(t, len(expected), len(seen))
-	for i := range seen {
-		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
-	}
 }
 
 var mimcSnarkTotalCalls = 0
