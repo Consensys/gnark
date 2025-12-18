@@ -317,12 +317,13 @@ func TestEmulatedToBytes(t *testing.T) {
 }
 
 type AssertBytesLeq struct {
-	In    []uints.U8
-	bound *big.Int
+	In               []uints.U8
+	bound            *big.Int
+	disallowEquality bool
 }
 
 func (c *AssertBytesLeq) Define(api frontend.API) error {
-	assertBytesLeq(api, c.In, c.bound)
+	assertBytesLeq(api, c.In, c.bound, c.disallowEquality)
 	return nil
 }
 
