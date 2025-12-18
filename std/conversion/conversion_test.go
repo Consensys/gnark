@@ -190,6 +190,28 @@ func TestBytesToNative(t *testing.T) {
 			test.WithCurves(ecc.BN254),
 		)
 	}, "length=overflow-allow")
+	// case where everything is good, but the bytes represent element equal to the modulus
+	assert.Run(func(assert *test.Assert) {
+		m := fr_bn254.Modulus()
+		sbytes := m.Bytes()
+		// Expect invalid since strict < modulus must hold
+		assert.CheckCircuit(
+			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
+			test.WithInvalidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: big.NewInt(0)}),
+			test.WithCurves(ecc.BN254),
+		)
+	}, "case=equal-modulus/no-overflow")
+
+	// case where everything is good, but the bytes represent element equal to the modulus, and we allow overflow
+	assert.Run(func(assert *test.Assert) {
+		m := fr_bn254.Modulus()
+		sbytes := m.Bytes()
+		assert.CheckCircuit(
+			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes)), allowOverflow: true},
+			test.WithValidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: big.NewInt(0)}),
+			test.WithCurves(ecc.BN254),
+		)
+	}, "case=equal-modulus/allow-overflow")
 }
 
 type NativeToBytesCircuit struct {
@@ -412,18 +434,4 @@ func TestAssertBytesLeq(t *testing.T) {
 	//  - first byte is bigger than the bound
 	tc(assert, []byte{253, 253, 253}, []byte{254, 252}, false, true)
 	tc(assert, []byte{253, 253, 253}, []byte{0, 254, 252}, false, true)
-}
-
-func TestBytesToNative_EqualModulus(t *testing.T) {
-	assert := test.NewAssert(t)
-	assert.Run(func(assert *test.Assert) {
-		m := fr_bn254.Modulus()
-		sbytes := m.Bytes()
-		// Expect invalid since strict < modulus must hold
-		assert.CheckCircuit(
-			&BytesToNativeCircuit{In: make([]uints.U8, len(sbytes))},
-			test.WithInvalidAssignment(&BytesToNativeCircuit{In: uints.NewU8Array(sbytes), Expected: big.NewInt(0)}),
-			test.WithCurves(ecc.BN254),
-		)
-	}, "equal-modulus")
 }
