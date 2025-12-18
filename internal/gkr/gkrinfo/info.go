@@ -39,7 +39,13 @@ func (d *StoringInfo) NewInputVariable() int {
 	return i
 }
 
-// A ConstraintSystem that supports GKR
+// A ConstraintSystem that supports GKR. If a constraint system implements this
+// interface, then it stores and proves GKR sub-circuits automatically at circuit
+// solving time.
 type ConstraintSystem interface {
+	// NewGkr registers a GKR sub-circuit, returning a reference to an object
+	// where serializable data about the sub-circuit is to be stored, and an
+	// index as a reference to the GKR sub-circuit. The index is the first
+	// argument to all GKR-related hints.
 	NewGkr() (*StoringInfo, int)
 }
