@@ -801,3 +801,66 @@ func TestAggregationDiff(t *testing.T) {
 	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }
+
+// -----------------------------------------------------------------
+// Zero public inputs
+
+type InnerCircuitZeroPublic struct {
+	A, B frontend.Variable
+}
+
+func (c *InnerCircuitZeroPublic) Define(api frontend.API) error {
+	api.AssertIsEqual(api.Mul(c.A, c.B), 6)
+	return nil
+}
+
+func getInnerZeroPublic(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
+	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitZeroPublic{})
+	assert.NoError(err)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
+	assert.NoError(err)
+
+	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
+	assert.NoError(err)
+
+	// inner proof
+	innerAssignment := &InnerCircuitZeroPublic{A: 2, B: 3}
+	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	assert.NoError(err)
+	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
+	assert.NoError(err)
+	innerPubWitness, err := innerWitness.Public()
+	assert.NoError(err)
+	// ensure zero public inputs indeed
+	assert.Equal(0, innerCcs.GetNbPublicVariables())
+	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
+	assert.NoError(err)
+	return innerCcs, innerVK, innerPubWitness, innerProof
+}
+
+func TestZeroPublicInputsBW6InBN254(t *testing.T) {
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := getInnerZeroPublic(assert, ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
+
+	// outer proof (recursive verification)
+	circuitVk, err := ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
+	assert.NoError(err)
+	// sanity: witness.Public should be empty after conversion
+	assert.Equal(0, len(circuitWitness.Public))
+	circuitProof, err := ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
+		Proof:        PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
+	}
+	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
