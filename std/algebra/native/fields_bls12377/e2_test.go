@@ -39,7 +39,7 @@ func TestAddFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Add{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Add{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -98,7 +98,7 @@ func TestMulFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Mul{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Mul{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -128,7 +128,7 @@ func TestDivFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e2Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e2Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -227,4 +227,36 @@ func TestInverseFp2(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
+}
+
+type fp2IsEqual struct {
+	A      E2
+	B      E2                `gnark:",public"`
+	Result frontend.Variable `gnark:",public"`
+}
+
+func (c *fp2IsEqual) Define(api frontend.API) error {
+	res := c.A.IsEqual(api, c.B)
+	api.AssertIsEqual(res, c.Result)
+	return nil
+}
+
+func TestIsEqualFp2(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var circuit, validWitness, validWitness2 fp2IsEqual
+	var a bls12377.E2
+	var b bls12377.E2
+	a.SetRandom()
+	b.SetRandom()
+
+	validWitness.A.Assign(&a)
+	validWitness.B.Assign(&a)
+	validWitness.Result = 1
+
+	validWitness2.A.Assign(&a)
+	validWitness2.B.Assign(&b)
+	validWitness2.Result = 0
+
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&validWitness), test.WithValidAssignment(&validWitness2), test.WithCurves(ecc.BW6_761))
 }

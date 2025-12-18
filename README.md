@@ -171,20 +171,11 @@ The following schemes and curves support experimental use of Ingonyama's ICICLE 
 instantiated with the following curve(s)
 
 - [x] BN254
+- [x] BLS12-377
+- [x] BLS12-381
+- [x] BW6-761
 
-To use GPUs, add the `icicle` buildtag to your build/run commands, e.g. `go run -tags=icicle main.go`.
-
-You can then toggle on or off icicle acceleration by providing the `WithIcicleAcceleration` backend ProverOption:
-
-```go
-    // toggle on
-    proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
-    
-    // toggle off
-    proof, err := groth16.Prove(ccs, pk, secretWitness)
-```
-
-For more information about prerequisites see the [ICICLE repo](https://github.com/ingonyama-zk/icicle-gnark).
+For usage instructions see [accelerated backend documentation](backend/accelerated/icicle/doc.go) and [ICICLE repo](https://github.com/ingonyama-zk/icicle-gnark).
 
 ## Citing
 

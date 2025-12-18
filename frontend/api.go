@@ -150,6 +150,11 @@ type BatchInverter interface {
 	BatchInvert(i1 []Variable) []Variable
 }
 
+// PlonkAPI represents specific methods implemented by PLONK (sparse-R1CS)
+// constraint system builders. These methods are not part of the generic [API]
+// and [Builder] interfaces to ensure circuit compatibility with different
+// frontends (R1CS etc.). Any user using this interface should have a fallback
+// if the underlying builder does not implement it.
 type PlonkAPI interface {
 	// EvaluatePlonkExpression returns res = qL.a + qR.b + qM.ab + qC
 	EvaluatePlonkExpression(a, b Variable, qL, qR, qM, qC int) Variable

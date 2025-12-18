@@ -16,6 +16,7 @@ type Groth16Commitment struct {
 type PlonkCommitment struct {
 	Committed       []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
 	CommitmentIndex int   // CommitmentIndex index of the constraint defining the commitment
+	Width           int   // width of the commitment (number of field elements). Should be 1 in case of large field, but can be larger in case of small field.
 }
 
 type Commitment interface{}

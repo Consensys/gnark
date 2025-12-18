@@ -580,6 +580,56 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 	return builder
 }
 
+// AddPlonkCommitmentInputs registers variables to be committed to. The method
+// iterates over the variables and adds constraints to indicate they are to be
+// committed to. The method returns the list of constraint indexes corresponding
+// to each input variable. Does not perform any deduplication or constant
+// filtering.
+//
+// NB! This method does not create the commitment itself. The user must call the
+// hint for computing the commitment value, registering the commitment output
+// using [AddPlonkCommitmentOutputs]. Note: [AddPlonkCommitmentOutputs] already
+// handles adding the commitment to the constraint system, so the user does not
+// need to call [constraint.System.AddCommitment] separately.
+//
+// This method is not exposed in standard APIs - it is meant to be used
+// externally for implementing wide commitments. We also use it internally in
+// the [Commit] method.
+func (builder *builder[E]) AddPlonkCommitmentInputs(inputs []frontend.Variable) []int {
+	committed := make([]int, len(inputs))
+	for i, vI := range inputs { // TODO @Tabaie Perf; If public, just hash it
+		vINeg := builder.Neg(vI).(expr.Term[E])
+		committed[i] = builder.cs.GetNbConstraints()
+		// a constraint to enforce consistency between the commitment and committed value
+		// - v + comm(n) = 0
+		builder.addPlonkConstraint(sparseR1C[E]{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
+	}
+	return committed
+}
+
+// AddPlonkCommitmentOutputs registers the outputs of a commitment. The method
+// adds constraints to the constraint system to indicate that the outputs of a
+// commitment will be provided at proof time. The method takes as input the list
+// of constraint indexes corresponding to the committed variables and the list
+// of output variables.
+//
+// This method is not exposed in standard APIs - it is meant to be used
+// externally for implementing wide commitments. We also use it internally in
+// the [Commit] method.
+func (builder *builder[E]) AddPlonkCommitmentOutputs(committed []int, outs []frontend.Variable) error {
+	commitmentConstraintIndex := builder.cs.GetNbConstraints()
+	for _, out := range outs {
+		outNeg := builder.Neg(out).(expr.Term[E])
+		// RHS will be provided by both prover and verifier independently, as for a public wire
+		builder.addPlonkConstraint(sparseR1C[E]{xa: outNeg.VID, qL: outNeg.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
+	}
+	return builder.cs.AddCommitment(constraint.PlonkCommitment{
+		CommitmentIndex: commitmentConstraintIndex,
+		Committed:       committed,
+		Width:           len(outs),
+	})
+}
+
 func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	if smallfields.IsSmallField(builder.Field()) {
 		return nil, fmt.Errorf("commitment not supported for small field %s", builder.Field())
@@ -588,15 +638,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 	v = filterConstants[E](v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 
-	committed := make([]int, len(v))
-
-	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
-		vINeg := builder.Neg(vI).(expr.Term[E])
-		committed[i] = builder.cs.GetNbConstraints()
-		// a constraint to enforce consistency between the commitment and committed value
-		// - v + comm(n) = 0
-		builder.addPlonkConstraint(sparseR1C[E]{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
-	}
+	committed := builder.AddPlonkCommitmentInputs(v)
 
 	inputs := make([]frontend.Variable, len(v)+1)
 	inputs[0] = len(commitments) // commitment depth
@@ -605,16 +647,8 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	if err != nil {
 		return nil, err
 	}
-
-	commitmentVar := builder.Neg(outs[0]).(expr.Term[E])
-	commitmentConstraintIndex := builder.cs.GetNbConstraints()
-	// RHS will be provided by both prover and verifier independently, as for a public wire
-	builder.addPlonkConstraint(sparseR1C[E]{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
-
-	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
-		CommitmentIndex: commitmentConstraintIndex,
-		Committed:       committed,
-	})
+	outs = outs[:1]
+	return outs[0], builder.AddPlonkCommitmentOutputs(committed, outs)
 }
 
 // EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
