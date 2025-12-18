@@ -52,7 +52,7 @@ type solver struct {
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// add GKR options to overwrite placeholder hints
 	if len(cs.GkrInfo) != 0 {
-		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		solvingInfo, err := gkrtypes.NewSolvingInfo(cs.GkrInfo, gkrgates.Get)
 		if err != nil {
 			return nil, err
 		}

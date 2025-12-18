@@ -179,7 +179,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
-		circuit, err := gkrtypes.CircuitInfoToCircuit(c.toStore.Circuit, gkrgates.Get)
+		circuit, err := gkrtypes.NewCircuit(c.toStore.Circuit, gkrgates.Get)
 		if err != nil {
 			return fmt.Errorf("failed to convert GKR info to circuit: %w", err)
 		}
@@ -261,7 +261,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 }
 
 func newCircuitDataForSnark(curve ecc.ID, info *gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
-	circuit, err := gkrtypes.CircuitInfoToCircuit(info.Circuit, gkrgates.Get)
+	circuit, err := gkrtypes.NewCircuit(info.Circuit, gkrgates.Get)
 	if err != nil {
 		return circuitDataForSnark{}, fmt.Errorf("failed to convert GKR info to circuit: %w", err)
 	}

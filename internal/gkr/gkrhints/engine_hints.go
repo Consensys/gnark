@@ -28,7 +28,7 @@ type TestEngineHints struct {
 }
 
 func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
-	circuit, err := gkrtypes.CircuitInfoToCircuit(info.Circuit, gkrgates.Get)
+	circuit, err := gkrtypes.NewCircuit(info.Circuit, gkrgates.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 
 func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 
-	infos, err := gkrtypes.StoringToSolvingInfo([]*gkrinfo.StoringInfo{h.info}, gkrgates.Get)
+	infos, err := gkrtypes.NewSolvingInfo([]*gkrinfo.StoringInfo{h.info}, gkrgates.Get)
 	if err != nil {
 		return fmt.Errorf("failed to convert storing info to solving info: %w", err)
 	}
