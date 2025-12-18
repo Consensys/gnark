@@ -471,11 +471,10 @@ func putBuffer(buf *[]uint32) {
 	bufPool.Put(buf)
 }
 
-// NewGkr registers a GKR sub-circuit, returning
-// a reference to an object where serializable data
-// about the sub-circuit is to be stored, and an index
-// as a reference to the GKR sub-circuit. The index is the
-// first argument to all GKR-related hints.
+// NewGkr registers a GKR sub-circuit, returning a reference to an object where
+// serializable data about the sub-circuit is to be stored, and an index as a
+// reference to the GKR sub-circuit. The index is the first argument to all
+// GKR-related hints.
 func (system *System) NewGkr() (*gkrinfo.StoringInfo, int) {
 	i := len(system.GkrInfo)
 	system.GkrInfo = append(system.GkrInfo, new(gkrinfo.StoringInfo))

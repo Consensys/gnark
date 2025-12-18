@@ -67,11 +67,10 @@ type ConstraintSystemGeneric[E Element] interface {
 	AddCommitment(c Commitment) error
 	GetCommitments() Commitments
 
-	// NewGkr registers a GKR sub-circuit, returning
-	// a reference to an object where serializable data
-	// about the sub-circuit is to be stored, and an index
-	// as a reference to the GKR sub-circuit. The index is the
-	// first argument to all GKR-related hints.
+	// NewGkr registers a GKR sub-circuit, returning a reference to an object
+	// where serializable data about the sub-circuit is to be stored, and an
+	// index as a reference to the GKR sub-circuit. The index is the first
+	// argument to all GKR-related hints.
 	NewGkr() (*gkrinfo.StoringInfo, int)
 
 	AddLog(l LogEntry)
