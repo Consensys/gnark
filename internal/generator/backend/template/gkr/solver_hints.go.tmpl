@@ -141,7 +141,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 					gateIns[i] = &data.assignment[inWI][instanceI]
 				}
 				// evaluate the gate on the inputs
-				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element)
+				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*{{ .ElementType }})
 				// store the result in the assignment (for the following gates to use)
 				data.assignment[wI][instanceI].Set(eval)
 			}
