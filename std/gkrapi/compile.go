@@ -156,9 +156,6 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 
 // finalize encodes the verification circuitry for the GKR circuit.
 func (c *Circuit) finalize(api frontend.API) error {
-	if api != c.api {
-		panic("api mismatch")
-	}
 
 	// if the circuit is empty or with no instances, there is nothing to do.
 	if len(c.outs) == 0 || len(c.assignments[0]) == 0 { // wire 0 is always an input wire
