@@ -17,12 +17,15 @@ import (
 
 type deviceInfo struct {
 	CosetGenerator [fr.Limbs * 2]uint32
-	G1Device       struct {
+
+	// Pinned (persistent) vectors - only populated if PinToGPU is true
+	PinnedG1Device struct {
 		A, B, K, Z icicle_core.DeviceSlice
 	}
-	G2Device struct {
+	PinnedG2Device struct {
 		B icicle_core.DeviceSlice
 	}
+
 	DenDevice icicle_core.DeviceSlice
 
 	CommitmentKeysDevice struct {
@@ -34,5 +37,6 @@ type deviceInfo struct {
 type ProvingKey struct {
 	groth16_bw6761.ProvingKey
 	*deviceInfo
-	setupMu sync.Mutex // Protects concurrent deviceInfo initialization
+	setupMu  sync.Mutex // Protects concurrent deviceInfo initialization
+	PinToGPU bool       // If true, pre-load and keep all vectors in GPU memory (default: false)
 }

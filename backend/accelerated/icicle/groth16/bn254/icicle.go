@@ -176,6 +176,62 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	<-initDomain
 	<-copyDenDone
 
+	/*************************  Pin vectors to GPU if requested  ***************************/
+	if pk.PinToGPU {
+		log := logger.Logger()
+		log.Info().Msg("PinToGPU enabled - pre-loading all vectors to GPU memory")
+
+		pinVectorsDone := make(chan struct{})
+		icicle_runtime.RunOnDevice(device, func(args ...any) {
+			defer close(pinVectorsDone)
+
+			var err error
+
+			// Pin G1.A
+			log.Debug().Msg("Pinning G1.A to GPU")
+			g1AHost := icicle_core.HostSliceFromElements(pk.G1.A)
+			pk.PinnedG1Device.A, err = loadG1(g1AHost)
+			if err != nil {
+				panic(fmt.Sprintf("pin G1.A: %v", err))
+			}
+
+			// Pin G1.B
+			log.Debug().Msg("Pinning G1.B to GPU")
+			g1BHost := icicle_core.HostSliceFromElements(pk.G1.B)
+			pk.PinnedG1Device.B, err = loadG1(g1BHost)
+			if err != nil {
+				panic(fmt.Sprintf("pin G1.B: %v", err))
+			}
+
+			// Pin G1.K
+			log.Debug().Msg("Pinning G1.K to GPU")
+			g1KHost := icicle_core.HostSliceFromElements(pk.G1.K)
+			pk.PinnedG1Device.K, err = loadG1(g1KHost)
+			if err != nil {
+				panic(fmt.Sprintf("pin G1.K: %v", err))
+			}
+
+			// Pin G1.Z
+			log.Debug().Msg("Pinning G1.Z to GPU")
+			g1ZHost := icicle_core.HostSliceFromElements(pk.G1.Z)
+			pk.PinnedG1Device.Z, err = loadG1(g1ZHost)
+			if err != nil {
+				panic(fmt.Sprintf("pin G1.Z: %v", err))
+			}
+
+			// Pin G2.B
+			log.Debug().Msg("Pinning G2.B to GPU")
+			g2BHost := icicle_core.HostSliceFromElements(pk.G2.B)
+			pk.PinnedG2Device.B, err = loadG2(g2BHost)
+			if err != nil {
+				panic(fmt.Sprintf("pin G2.B: %v", err))
+			}
+
+			log.Info().Msg("All vectors pinned to GPU successfully")
+		})
+		<-pinVectorsDone
+	}
+
 	return nil
 }
 
@@ -944,17 +1000,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	var bs1, ar curve.G1Jac
 
 	computeBS1 := func() error {
-		log.Debug().Msg("Loading G1.B for BS1 MSM")
-		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
-		g1BDevice, err := loadG1(g1BHost)
-		if err != nil {
-			return fmt.Errorf("load G1.B: %w", err)
+		var g1BDevice icicle_core.DeviceSlice
+		var shouldFree bool
+
+		if pk.PinToGPU && pk.PinnedG1Device.B.AsUnsafePointer() != nil {
+			log.Debug().Msg("Using pinned G1.B from GPU")
+			g1BDevice = pk.PinnedG1Device.B
+			shouldFree = false
+		} else {
+			log.Debug().Msg("Loading G1.B for BS1 MSM")
+			g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
+			var err error
+			g1BDevice, err = loadG1(g1BHost)
+			if err != nil {
+				return fmt.Errorf("load G1.B: %w", err)
+			}
+			shouldFree = true
 		}
 		defer func() {
-			if g1BDevice.AsUnsafePointer() != nil {
+			if shouldFree && g1BDevice.AsUnsafePointer() != nil {
 				g1BDevice.Free()
+				log.Debug().Msg("Freed G1.B after BS1 MSM")
 			}
-			log.Debug().Msg("Freed G1.B after BS1 MSM")
 		}()
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
@@ -981,17 +1048,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeAR1 := func() error {
-		log.Debug().Msg("Loading G1.A for AR1 MSM")
-		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
-		g1ADevice, err := loadG1(g1AHost)
-		if err != nil {
-			return fmt.Errorf("load G1.A: %w", err)
+		var g1ADevice icicle_core.DeviceSlice
+		var shouldFree bool
+
+		if pk.PinToGPU && pk.PinnedG1Device.A.AsUnsafePointer() != nil {
+			log.Debug().Msg("Using pinned G1.A from GPU")
+			g1ADevice = pk.PinnedG1Device.A
+			shouldFree = false
+		} else {
+			log.Debug().Msg("Loading G1.A for AR1 MSM")
+			g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
+			var err error
+			g1ADevice, err = loadG1(g1AHost)
+			if err != nil {
+				return fmt.Errorf("load G1.A: %w", err)
+			}
+			shouldFree = true
 		}
 		defer func() {
-			if g1ADevice.AsUnsafePointer() != nil {
+			if shouldFree && g1ADevice.AsUnsafePointer() != nil {
 				g1ADevice.Free()
+				log.Debug().Msg("Freed G1.A after AR1 MSM")
 			}
-			log.Debug().Msg("Freed G1.A after AR1 MSM")
 		}()
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
@@ -1019,17 +1097,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeKRS := func() error {
-		log.Debug().Msg("Loading G1.Z for KRS MSM")
-		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
-		g1ZDevice, err := loadG1(g1ZHost)
-		if err != nil {
-			return fmt.Errorf("load G1.Z: %w", err)
+		var g1ZDevice icicle_core.DeviceSlice
+		var shouldFreeZ bool
+
+		if pk.PinToGPU && pk.PinnedG1Device.Z.AsUnsafePointer() != nil {
+			log.Debug().Msg("Using pinned G1.Z from GPU")
+			g1ZDevice = pk.PinnedG1Device.Z
+			shouldFreeZ = false
+		} else {
+			log.Debug().Msg("Loading G1.Z for KRS MSM")
+			g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
+			var err error
+			g1ZDevice, err = loadG1(g1ZHost)
+			if err != nil {
+				return fmt.Errorf("load G1.Z: %w", err)
+			}
+			shouldFreeZ = true
 		}
 		defer func() {
-			if g1ZDevice.AsUnsafePointer() != nil {
+			if shouldFreeZ && g1ZDevice.AsUnsafePointer() != nil {
 				g1ZDevice.Free()
+				log.Debug().Msg("Freed G1.Z after KRS MSM")
 			}
-			log.Debug().Msg("Freed G1.Z after KRS MSM")
 		}()
 
 		var krs, krs2, p1 curve.G1Jac
@@ -1052,17 +1141,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 			evt.Msg("MSM Krs2")
 		}
 
-		log.Debug().Msg("Loading G1.K for KRS MSM")
-		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
-		g1KDevice, err := loadG1(g1KHost)
-		if err != nil {
-			return fmt.Errorf("load G1.K: %w", err)
+		var g1KDevice icicle_core.DeviceSlice
+		var shouldFreeK bool
+
+		if pk.PinToGPU && pk.PinnedG1Device.K.AsUnsafePointer() != nil {
+			log.Debug().Msg("Using pinned G1.K from GPU")
+			g1KDevice = pk.PinnedG1Device.K
+			shouldFreeK = false
+		} else {
+			log.Debug().Msg("Loading G1.K for KRS MSM")
+			g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
+			var err error
+			g1KDevice, err = loadG1(g1KHost)
+			if err != nil {
+				return fmt.Errorf("load G1.K: %w", err)
+			}
+			shouldFreeK = true
 		}
 		defer func() {
-			if g1KDevice.AsUnsafePointer() != nil {
+			if shouldFreeK && g1KDevice.AsUnsafePointer() != nil {
 				g1KDevice.Free()
+				log.Debug().Msg("Freed G1.K after KRS MSM")
 			}
-			log.Debug().Msg("Freed G1.K after KRS MSM")
 		}()
 
 		// filter the wire values if needed
@@ -1110,17 +1210,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	}
 
 	computeBS2 := func() error {
-		log.Debug().Msg("Loading G2.B for BS2 MSM")
-		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
-		g2BDevice, err := loadG2(g2BHost)
-		if err != nil {
-			return fmt.Errorf("load G2.B: %w", err)
+		var g2BDevice icicle_core.DeviceSlice
+		var shouldFree bool
+
+		if pk.PinToGPU && pk.PinnedG2Device.B.AsUnsafePointer() != nil {
+			log.Debug().Msg("Using pinned G2.B from GPU")
+			g2BDevice = pk.PinnedG2Device.B
+			shouldFree = false
+		} else {
+			log.Debug().Msg("Loading G2.B for BS2 MSM")
+			g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
+			var err error
+			g2BDevice, err = loadG2(g2BHost)
+			if err != nil {
+				return fmt.Errorf("load G2.B: %w", err)
+			}
+			shouldFree = true
 		}
 		defer func() {
-			if g2BDevice.AsUnsafePointer() != nil {
+			if shouldFree && g2BDevice.AsUnsafePointer() != nil {
 				g2BDevice.Free()
+				log.Debug().Msg("Freed G2.B after BS2 MSM")
 			}
-			log.Debug().Msg("Freed G2.B after BS2 MSM")
 		}()
 
 		// Bs2 (1 multi exp G2 - size = len(wires))
@@ -1322,4 +1433,50 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Devic
 		log.Debug().Dur("took", time.Since(startTotal)).Msg("computeH: Total")
 	}
 	return aDevice
+}
+
+// FreeGPUResources releases all pinned GPU memory and other device resources.
+// This should be called when the ProvingKey is no longer needed, especially if PinToGPU was enabled.
+// It is safe to call this multiple times.
+func (pk *ProvingKey) FreeGPUResources() {
+	if pk.deviceInfo == nil {
+		return
+	}
+
+	pk.setupMu.Lock()
+	defer pk.setupMu.Unlock()
+
+	log := logger.Logger()
+
+	// Free pinned G1 vectors
+	if pk.PinnedG1Device.A.AsUnsafePointer() != nil {
+		pk.PinnedG1Device.A.Free()
+		log.Debug().Msg("Freed pinned G1.A")
+	}
+	if pk.PinnedG1Device.B.AsUnsafePointer() != nil {
+		pk.PinnedG1Device.B.Free()
+		log.Debug().Msg("Freed pinned G1.B")
+	}
+	if pk.PinnedG1Device.K.AsUnsafePointer() != nil {
+		pk.PinnedG1Device.K.Free()
+		log.Debug().Msg("Freed pinned G1.K")
+	}
+	if pk.PinnedG1Device.Z.AsUnsafePointer() != nil {
+		pk.PinnedG1Device.Z.Free()
+		log.Debug().Msg("Freed pinned G1.Z")
+	}
+
+	// Free pinned G2 vectors
+	if pk.PinnedG2Device.B.AsUnsafePointer() != nil {
+		pk.PinnedG2Device.B.Free()
+		log.Debug().Msg("Freed pinned G2.B")
+	}
+
+	// Free DenDevice
+	if pk.DenDevice.AsUnsafePointer() != nil {
+		pk.DenDevice.Free()
+		log.Debug().Msg("Freed DenDevice")
+	}
+
+	log.Info().Msg("All GPU resources freed")
 }
