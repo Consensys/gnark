@@ -27,6 +27,13 @@ type newSolvingDataSettings struct {
 type NewSolvingDataOption func(*newSolvingDataSettings)
 
 // WithAssignments re-use already computed wire assignments.
+// If set, the number of assignments must be equal to the
+// number of SolvingInfo objects fed to NewSolvingData.
+// However, the caller can still choose to provide values for certain
+// circuits only. For example:
+// 		WithAssignments(assignment1, nil, assignment3)
+// is a valid option for three circuits. In this case, the assignments for
+// the second circuit will be computed from scratch.
 func WithAssignments(assignments ...gkrtypes.WireAssignment) NewSolvingDataOption {
 	return func(s *newSolvingDataSettings) {
 		s.assignments = assignments
@@ -37,6 +44,7 @@ func WithAssignments(assignments ...gkrtypes.WireAssignment) NewSolvingDataOptio
 // - The gates are loaded in accordance with their names.
 // - The instances/assignments are padded into a power of 2, suitable for the multilinear extensions used
 // in the GKR prover.
+// Optionally, the caller can provide pre-computed assignments for each circuit using WithAssignments.
 func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption) []SolvingData {
 	var s newSolvingDataSettings
 	for _, opt := range options {
