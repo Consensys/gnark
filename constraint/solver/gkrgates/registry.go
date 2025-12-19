@@ -123,8 +123,8 @@ func WithName(name gkr.GateName) RegisterOption {
 	}
 }
 
-// WithCurves determines which curves the gate is validated on.
-// The default is to validate on BN254.
+// WithCurves determines on which curves the gate is validated and allowed to be used.
+// By default, the gate can be used on any curve, and is only validated on BN254.
 // This works for most gates, unless the leading coefficient is divided by
 // the curve's order, in which case the degree will be computed incorrectly.
 func WithCurves(curves ...ecc.ID) RegisterOption {
