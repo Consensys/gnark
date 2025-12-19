@@ -178,8 +178,11 @@ func ProveHint(data []SolvingData) hint.Hint {
 
 		data.assignment.repeatUntilEnd(data.nbInstances)
 
-		// The second input is dummy, just to ensure the solver's work is done before the prover is called.
-		// The rest constitute the initial fiat shamir challenge
+		// The second input (the dummy) is an output from the last call to AddInstance.
+		// We need to ensure that the circuit has been completely solved for all instances of all wires.
+		// By feeding one of the output of the last call to AddInstance, we ensure that the gnark solver
+		// schedules proof generation after all solving is done.
+		// The rest constitute the initial fiat shamir challenge.
 		insBytes := make([][]byte, len(ins)-1)
 		for i := 1; i < len(ins); i++ {
 			insBytes[i-1] = make([]byte, fr.Bytes)

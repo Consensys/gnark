@@ -24,6 +24,8 @@ type circuitDataForSnark struct {
 	assignments gkrtypes.WireAssignment
 }
 
+// The InitialChallengeGetter provides a one-time initial Fiat-Shamir challenge for the GKR prover.
+// Normally, these should include a unique circuit identifier and all input-output pairs.
 type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
