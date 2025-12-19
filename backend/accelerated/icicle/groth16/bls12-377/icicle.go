@@ -53,8 +53,10 @@ var isDebugMode bool
 var (
 	nttDomainMu          sync.Mutex
 	nttDomainMaxByDevice = make(map[int32]uint64)
-	nttDomainRWByDevice  = make(map[int32]*sync.RWMutex)
-	nttDomainRWMapMu     sync.Mutex
+	// Per-device mutex to serialize ALL GPU operations on that device
+	// This prevents concurrent NTT domain access which causes witness corruption
+	deviceProveMu     = make(map[int32]*sync.Mutex)
+	deviceProveMuLock sync.Mutex
 )
 
 var (
@@ -72,15 +74,15 @@ func init() {
 	_, isDebugMode = os.LookupEnv("ICICLE_DEBUG")
 }
 
-// getNTTDomainRWMutex returns the per-device RWMutex for NTT domain protection.
-// This allows multiple concurrent Prove() calls (readers) while serializing domain modifications (writers).
-func getNTTDomainRWMutex(deviceID int32) *sync.RWMutex {
-	nttDomainRWMapMu.Lock()
-	defer nttDomainRWMapMu.Unlock()
-	if _, exists := nttDomainRWByDevice[deviceID]; !exists {
-		nttDomainRWByDevice[deviceID] = &sync.RWMutex{}
+// getDeviceProveMutex returns the per-device exclusive mutex for GPU operations.
+// This serializes ALL GPU operations on a device to prevent concurrent NTT domain access.
+func getDeviceProveMutex(deviceID int32) *sync.Mutex {
+	deviceProveMuLock.Lock()
+	defer deviceProveMuLock.Unlock()
+	if _, exists := deviceProveMu[deviceID]; !exists {
+		deviceProveMu[deviceID] = &sync.Mutex{}
 	}
-	return nttDomainRWByDevice[deviceID]
+	return deviceProveMu[deviceID]
 }
 
 func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
@@ -140,11 +142,6 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		needDomainRelease = currentMax != 0
 		nttDomainMaxByDevice[device.Id] = requestedDomainSize
 	}
-
-	// Acquire write lock to protect domain modification from concurrent NTT operations
-	domainRWMu := getNTTDomainRWMutex(device.Id)
-	domainRWMu.Lock()
-	defer domainRWMu.Unlock()
 
 	if needDomainRelease {
 		releaseDomain := make(chan struct{})
@@ -784,6 +781,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 
 	// override hints
 	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
+	// Acquire exclusive lock to serialize ALL GPU operations on this device
+	// This prevents concurrent NTT domain access which causes witness corruption
+	// CRITICAL: Must be acquired BEFORE solver phase to protect commitment MSMs
+	proveMu := getDeviceProveMutex(device.Id)
+	proveMu.Lock()
+	defer proveMu.Unlock()
+
 	solverOpts = append(solverOpts, solver.OverrideHint(bsb22ID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 		i := int(in[0].Int64())
 		in = in[1:]
@@ -918,10 +922,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
 		return nil, err
 	}
-	// Acquire read lock to protect NTT domain from concurrent modification
-	domainRWMu := getNTTDomainRWMutex(device.Id)
-	domainRWMu.RLock()
-	defer domainRWMu.RUnlock()
 
 	// H (witness reduction / FFT part)
 	var h icicle_core.DeviceSlice
