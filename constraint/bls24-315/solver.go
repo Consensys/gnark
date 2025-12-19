@@ -59,7 +59,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 
 		gkrData := gkr.NewSolvingData(solvingInfo)
 		// we need to get the current hint ID for each of the GKR hints.
-		// Currently the hints are are defined on gkrhints.TestEngineHints, so
+		// Currently the hints are defined on gkrhints.TestEngineHints, so
 		// we create a temporary instance for hint retrieval. In case this is
 		// not replaced, then we still keep using the big-int based hints on the
 		// GKR test engine.

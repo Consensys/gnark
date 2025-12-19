@@ -21,15 +21,15 @@ type SolvingData struct {
 }
 
 type newSolvingDataSettings struct {
-	assignment gkrtypes.WireAssignment
+	assignments []gkrtypes.WireAssignment
 }
 
 type NewSolvingDataOption func(*newSolvingDataSettings)
 
-// WithAssignment re-use already computed wire assignments.
-func WithAssignment(assignment gkrtypes.WireAssignment) NewSolvingDataOption {
+// WithAssignments re-use already computed wire assignments.
+func WithAssignments(assignments ...gkrtypes.WireAssignment) NewSolvingDataOption {
 	return func(s *newSolvingDataSettings) {
-		s.assignment = assignment
+		s.assignments = assignments
 	}
 }
 
@@ -41,6 +41,11 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 	var s newSolvingDataSettings
 	for _, opt := range options {
 		opt(&s)
+	}
+	if len(s.assignments) == 0 {
+		s.assignments = make([]gkrtypes.WireAssignment, len(info))
+	} else if len(s.assignments) != len(info) {
+		panic(fmt.Sprintf("expected %d assignments (one for each circuit), got %d", len(info), len(s.assignments)))
 	}
 
 	d := make([]SolvingData, len(info))
@@ -59,21 +64,21 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 			d[k].assignment[i] = make([]{{ .ElementType }}, nbPaddedInstances)
 		}
 
-		if s.assignment != nil {
-			if len(s.assignment) != len(d[k].assignment) {
-				panic(fmt.Sprintf("provided assignment has %d wires, expected %d", len(s.assignment), len(d[k].assignment)))
+		if s.assignments[k] != nil {
+			if len(s.assignments[k]) != len(d[k].assignment) {
+				panic(fmt.Sprintf("provided assignment has %d wires, expected %d", len(s.assignments[k]), len(d[k].assignment)))
 			}
 			for i := range d[k].assignment {
-				if len(s.assignment[i]) != info[k].NbInstances {
-					panic(fmt.Sprintf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignment[i]), info[k].NbInstances))
+				if len(s.assignments[k][i]) != info[k].NbInstances {
+					panic(fmt.Sprintf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignments[k][i]), info[k].NbInstances))
 				}
-				for j := range s.assignment[i] {
-					if _, err := d[k].assignment[i][j].SetInterface(s.assignment[i][j]); err != nil {
+				for j := range s.assignments[k][i] {
+					if _, err := d[k].assignment[i][j].SetInterface(s.assignments[k][i][j]); err != nil {
 						panic(fmt.Sprintf("provided assignment for wire %d instance %d is not a valid field element: %v", i, j, err))
 					}
 				}
 				// inline equivalent of repeatUntilEnd
-				for j := len(s.assignment[i]); j < nbPaddedInstances; j++ {
+				for j := len(s.assignments[k][i]); j < nbPaddedInstances; j++ {
 					d[k].assignment[i][j] = d[k].assignment[i][j-1] // pad with the last value
 				}
 			}
