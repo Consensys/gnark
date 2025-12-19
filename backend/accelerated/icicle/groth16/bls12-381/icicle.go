@@ -53,6 +53,8 @@ var isDebugMode bool
 var (
 	nttDomainMu          sync.Mutex
 	nttDomainMaxByDevice = make(map[int32]uint64)
+	nttDomainRWByDevice  = make(map[int32]*sync.RWMutex)
+	nttDomainRWMapMu     sync.Mutex
 )
 
 var (
@@ -68,6 +70,17 @@ var (
 func init() {
 	_, isProfileMode = os.LookupEnv("ICICLE_STEP_PROFILE")
 	_, isDebugMode = os.LookupEnv("ICICLE_DEBUG")
+}
+
+// getNTTDomainRWMutex returns the per-device RWMutex for NTT domain protection.
+// This allows multiple concurrent Prove() calls (readers) while serializing domain modifications (writers).
+func getNTTDomainRWMutex(deviceID int32) *sync.RWMutex {
+	nttDomainRWMapMu.Lock()
+	defer nttDomainRWMapMu.Unlock()
+	if _, exists := nttDomainRWByDevice[deviceID]; !exists {
+		nttDomainRWByDevice[deviceID] = &sync.RWMutex{}
+	}
+	return nttDomainRWByDevice[deviceID]
 }
 
 func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
@@ -127,6 +140,11 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		needDomainRelease = currentMax != 0
 		nttDomainMaxByDevice[device.Id] = requestedDomainSize
 	}
+
+	// Acquire write lock to protect domain modification from concurrent NTT operations
+	domainRWMu := getNTTDomainRWMutex(device.Id)
+	domainRWMu.Lock()
+	defer domainRWMu.Unlock()
 
 	if needDomainRelease {
 		releaseDomain := make(chan struct{})
@@ -218,7 +236,8 @@ func loadG1(hostSlice icicle_core.HostSlice[curve.G1Affine]) (icicle_core.Device
 	var deviceSlice icicle_core.DeviceSlice
 	hostSlice.CopyToDevice(&deviceSlice, true)
 	if err := icicle_bls12381.AffineFromMontgomery(deviceSlice); err != icicle_runtime.Success {
-		return deviceSlice, fmt.Errorf("convert from Montgomery: %s", err.AsString())
+		deviceSlice.Free() // Free GPU memory before returning error
+		return icicle_core.DeviceSlice{}, fmt.Errorf("convert from Montgomery: %s", err.AsString())
 	}
 	if isDebugMode {
 		log := logger.Logger()
@@ -245,7 +264,8 @@ func loadG2(hostSlice icicle_core.HostSlice[curve.G2Affine]) (icicle_core.Device
 	var deviceSlice icicle_core.DeviceSlice
 	hostSlice.CopyToDevice(&deviceSlice, true)
 	if err := icicle_g2.G2AffineFromMontgomery(deviceSlice); err != icicle_runtime.Success {
-		return deviceSlice, fmt.Errorf("convert from Montgomery: %s", err.AsString())
+		deviceSlice.Free() // Free GPU memory before returning error
+		return icicle_core.DeviceSlice{}, fmt.Errorf("convert from Montgomery: %s", err.AsString())
 	}
 	if isDebugMode {
 		log := logger.Logger()
@@ -842,6 +862,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
 		return nil, err
 	}
+	// Acquire read lock to protect NTT domain from concurrent modification
+	domainRWMu := getNTTDomainRWMutex(device.Id)
+	domainRWMu.RLock()
+	defer domainRWMu.RUnlock()
+
 	// H (witness reduction / FFT part)
 	var h icicle_core.DeviceSlice
 	chHDone := make(chan struct{})
