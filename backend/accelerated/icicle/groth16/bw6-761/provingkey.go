@@ -8,6 +8,8 @@
 package bw6761
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	groth16_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 	icicle_core "github.com/ingonyama-zk/icicle-gnark/v3/wrappers/golang/core"
@@ -32,4 +34,5 @@ type deviceInfo struct {
 type ProvingKey struct {
 	groth16_bw6761.ProvingKey
 	*deviceInfo
+	setupMu sync.Mutex // Protects concurrent deviceInfo initialization
 }

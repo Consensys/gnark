@@ -71,6 +71,9 @@ func init() {
 }
 
 func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
+	pk.setupMu.Lock()
+	defer pk.setupMu.Unlock()
+
 	if pk.deviceInfo != nil {
 		return nil
 	}
@@ -117,12 +120,13 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	needDomainRelease := false
 
 	nttDomainMu.Lock()
+	defer nttDomainMu.Unlock()
+
 	currentMax := nttDomainMaxByDevice[device.Id]
 	if requestedDomainSize > currentMax {
 		needDomainRelease = currentMax != 0
 		nttDomainMaxByDevice[device.Id] = requestedDomainSize
 	}
-	nttDomainMu.Unlock()
 
 	if needDomainRelease {
 		releaseDomain := make(chan struct{})

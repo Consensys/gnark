@@ -8,6 +8,8 @@
 package bls12381
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	groth16_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
 	icicle_core "github.com/ingonyama-zk/icicle-gnark/v3/wrappers/golang/core"
@@ -32,4 +34,5 @@ type deviceInfo struct {
 type ProvingKey struct {
 	groth16_bls12381.ProvingKey
 	*deviceInfo
+	setupMu sync.Mutex // Protects concurrent deviceInfo initialization
 }

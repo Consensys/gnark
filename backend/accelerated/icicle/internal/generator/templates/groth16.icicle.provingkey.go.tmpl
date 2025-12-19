@@ -1,6 +1,8 @@
 //go:build icicle
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr"
 	groth16_{{ .CurvePkg }} "github.com/consensys/gnark/backend/groth16/{{ toLower .Curve }}"
 	icicle_core "github.com/ingonyama-zk/icicle-gnark/v3/wrappers/golang/core"
@@ -25,4 +27,5 @@ type deviceInfo struct {
 type ProvingKey struct {
 	groth16_{{ .CurvePkg }}.ProvingKey
 	*deviceInfo
+	setupMu sync.Mutex // Protects concurrent deviceInfo initialization
 }
