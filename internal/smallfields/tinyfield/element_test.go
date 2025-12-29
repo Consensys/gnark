@@ -398,6 +398,19 @@ func TestElementBytes(t *testing.T) {
 		genA,
 	))
 
+	properties.Property("SetBytesCanonical(Bytes()) should stay constant", prop.ForAll(
+		func(a testPairElement) bool {
+			var b Element
+			bytes := a.element.Bytes()
+			if err := b.SetBytesCanonical(bytes[:]); err != nil {
+				t.Error(err)
+				return false
+			}
+			return a.element.Equal(&b)
+		},
+		genA,
+	))
+
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 

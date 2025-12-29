@@ -7,7 +7,7 @@
 //
 // The API is similar to math/big (big.Int), but the operations are significantly faster (up to 20x).
 //
-// Additionally tinyfield.Vector offers an API to manipulate []Element using AVX512/NEON instructions if available.
+// Additionally tinyfield.Vector offers an API to manipulate []Element.
 //
 // The modulus is hardcoded in all the operations.
 //
