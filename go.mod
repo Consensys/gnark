@@ -5,9 +5,9 @@ go 1.24.9
 require (
 	github.com/bits-and-blooms/bitset v1.24.4
 	github.com/blang/semver/v4 v4.0.0
-	github.com/consensys/bavard v0.2.2-0.20251229022303-cb07a0e310c0
+	github.com/consensys/bavard v0.2.2-0.20260105201452-c69d26cc6346
 	github.com/consensys/compress v0.3.0
-	github.com/consensys/gnark-crypto v0.19.3-0.20251229022530-6f31bf032330
+	github.com/consensys/gnark-crypto v0.19.3-0.20260105204507-a918ce1daf68
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/pprof v0.0.0-20251213031049-b05bdaca462f
