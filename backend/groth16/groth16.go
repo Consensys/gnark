@@ -13,6 +13,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/snarkjs"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -55,6 +56,9 @@ type Proof interface {
 	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
 	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
+
+	// Methods required to generate a proof JSON file compatible with snarkjs
+	snarkjs.Proof
 }
 
 // ProvingKey represents a Groth16 ProvingKey
@@ -106,6 +110,9 @@ type VerifyingKey interface {
 	// verifier contract from the VerifyingKey. This will return an error if not
 	// supported on the CurveID().
 	solidity.VerifyingKey
+
+	// Methods required to generate a verification key JSON file compatible with snarkjs
+	snarkjs.VerifyingKey
 
 	// NbPublicWitness returns number of elements expected in the public witness
 	NbPublicWitness() int
