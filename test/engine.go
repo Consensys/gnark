@@ -110,7 +110,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v\n%s", r, debug.Stack())
+			err = fmt.Errorf("%v\n%s", r, string(debug.Stack()))
 		}
 	}()
 
