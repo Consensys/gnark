@@ -636,14 +636,29 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	}
 
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
-	v = filterConstants[E](v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 
-	committed := builder.AddPlonkCommitmentInputs(v)
+	// we deduplicate the inputs. As we add a copy constraint for every committed value, then a duplicated
+	// value would lead to excessive constraints (in total of duplicated constraints).
+	dedup := make([]frontend.Variable, 1, len(v)+1)
+	isCommitted := make(map[int]struct{})
+	for _, vi := range v {
+		viTerm, ok := vi.(expr.Term[E])
+		if !ok {
+			// should not happen as we filtered constants above. But it means it is a constant
+			continue
+		}
+		if _, found := isCommitted[viTerm.VID]; found {
+			// skip duplicated committed value
+			continue
+		}
+		isCommitted[viTerm.VID] = struct{}{}
+		dedup = append(dedup, vi)
+	}
 
-	inputs := make([]frontend.Variable, len(v)+1)
-	inputs[0] = len(commitments) // commitment depth
-	copy(inputs[1:], v)
-	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
+	committed := builder.AddPlonkCommitmentInputs(dedup[1:])
+
+	dedup[0] = len(commitments) // commitment depth
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, dedup...)
 	if err != nil {
 		return nil, err
 	}
@@ -707,16 +722,6 @@ func (builder *builder[E]) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR,
 		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term[E]).Coeff, b.(expr.Term[E]).Coeff)),
 		qC: builder.cs.FromInterface(qC),
 	})
-}
-
-func filterConstants[E constraint.Element](v []frontend.Variable) []frontend.Variable {
-	res := make([]frontend.Variable, 0, len(v))
-	for _, vI := range v {
-		if _, ok := vI.(expr.Term[E]); ok {
-			res = append(res, vI)
-		}
-	}
-	return res
 }
 
 func (*builder[E]) FrontendType() frontendtype.Type {
