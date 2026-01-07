@@ -218,18 +218,65 @@ func (bf *BinaryField[T]) Not(a T) T {
 }
 
 func (bf *BinaryField[T]) Add(a ...T) T {
+	switch len(a) {
+	case 0:
+		var zero T
+		return zero
+	case 1:
+		return a[0]
+	}
 	tLen := bf.lenBts() * 8
 	inLen := len(a)
-	va := make([]frontend.Variable, inLen)
-	for i := range a {
-		va[i] = bf.ToValue(a[i])
-	}
-	vres := bf.api.Add(va[0], va[1], va[2:]...)
 	maxBitlen := bits.Len(uint(inLen)) + tLen
-	// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
-	vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
-	res := bf.ValueOf(vreslow)
-	return res
+	// when we use large fields where maxBitLen < field size, then we can just
+	// add all the values directly and then partition.
+	// However, when maxBitlen >= field size, then we need to make sure that
+	// we never have an addition which overflows the field. So we do the
+	// additions step by step, partitioning after every addition to ensure that
+	// the intermediate results never overflow the field.
+	if maxBitlen < bf.api.Compiler().FieldBitLen() {
+		// handle the easy case
+		va := make([]frontend.Variable, inLen)
+		for i := range a {
+			va[i] = bf.ToValue(a[i])
+		}
+		vres := bf.api.Add(va[0], va[1], va[2:]...)
+		// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
+		vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+		res := bf.ValueOf(vreslow)
+		return res
+	} else {
+		// we don't fit into the native field. We operate bytewise. Update the
+		// bitlen for partitioning the carry
+		maxBitlen = bits.Len(uint(inLen)) + 8
+		// handle the more complex case where we need to partition after every addition
+		var carry frontend.Variable = 0
+		var res T
+		// inputs are provided as {[a0b0 a1b0 ... anb0], [a0b1 a1b1 ... anb1],
+		// ...}, but we want to perform addition per byte, so we transpose the
+		// inputs first
+		ai := bf.reslice(a) // [lenBts][len(a)]U8
+		aij := make([]frontend.Variable, inLen)
+		for i := range bf.lenBts() {
+			for j := range a {
+				// obtain the values -- we don't access directly as we want to
+				// ensure range checking conditions
+				aij[j] = bf.Value(ai[i][j])
+			}
+			// bytewise addition with carry
+			var vres frontend.Variable
+			if i > 0 {
+				vres = bf.api.Add(carry, aij[0], aij[1:]...)
+			} else {
+				vres = bf.api.Add(aij[0], aij[1], aij[2:]...)
+			}
+			vreslow, vreshigh := bitslice.Partition(bf.api, vres, 8, bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+			// store the result byte
+			res[i] = bf.ByteValueOf(vreslow)
+			carry = vreshigh // we omit the last carry as performing addition modulo 2^(lenBts*8)
+		}
+		return res
+	}
 }
 
 func (bf *BinaryField[T]) Lrot(a T, c int) T {
