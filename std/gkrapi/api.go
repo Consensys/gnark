@@ -30,7 +30,7 @@ func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
 }
 
 func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
-	if _, err := gkrgates.Register(gate, len(in)); err != nil {
+	if err := gkrgates.Register(gate, len(in)); err != nil {
 		panic(err)
 	}
 	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)
