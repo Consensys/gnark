@@ -52,7 +52,10 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 		return nil, fmt.Errorf("cached value is of type %T, not a compressor", cached)
 	}
 
-	gkrApi := gkrapi.New()
+	gkrApi, err := gkrapi.New(api)
+	if err != nil {
+		return nil, err
+	}
 
 	in0 := gkrApi.NewInput()
 	in1 := gkrApi.NewInput()
@@ -75,9 +78,14 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 
 	y = gkrApi.NamedGate(gateNamer.round(len(params)-1), in0, y, in1)
 
+	gkrCircuit, err := gkrApi.Compile("POSEIDON2")
+	if err != nil {
+		return nil, err
+	}
+
 	res :=
 		&compressor{
-			gkrCircuit: gkrApi.Compile(api, "POSEIDON2"),
+			gkrCircuit: gkrCircuit,
 			in0:        in0,
 			in1:        in1,
 			out:        y,
@@ -110,12 +118,12 @@ func RegisterGates(curves ...ecc.ID) error {
 		}
 
 		for i := range len(constants) - 1 {
-			if _, err = gkrgates.Register(nonLastLayerSBox(&constants[i]), 2, gkrgates.WithName(gateNamer.round(i)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
+			if err = gkrgates.Register(nonLastLayerSBox(&constants[i]), 2, gkrgates.WithName(gateNamer.round(i)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
 				return fmt.Errorf("failed to register keyed GKR gate for round %d of MiMC on curve %s: %w", i, curve, err)
 			}
 		}
 
-		if _, err = gkrgates.Register(lastLayerSBox(&constants[len(constants)-1]), 3, gkrgates.WithName(gateNamer.round(len(constants)-1)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
+		if err = gkrgates.Register(lastLayerSBox(&constants[len(constants)-1]), 3, gkrgates.WithName(gateNamer.round(len(constants)-1)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
 			return fmt.Errorf("failed to register keyed GKR gate for round %d of MiMC on curve %s: %w", len(constants)-1, curve, err)
 		}
 	}
