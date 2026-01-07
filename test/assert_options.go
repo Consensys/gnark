@@ -195,7 +195,7 @@ func WithSolidityExportOptions(solidityOpts ...solidity.ExportOption) TestingOpt
 
 // WithSmallfieldCheck is a testing option which enforces checking circuit
 // compilation and solving in a small field. If not set then the small field
-// checks are skipped. We can always enforce small field checks always by using the
+// checks are skipped. We can enforce small field checks by using the
 // "smallfield_checks" build tag.
 func WithSmallfieldCheck() TestingOption {
 	return func(tc *testingConfig) error {
