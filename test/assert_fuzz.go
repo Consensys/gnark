@@ -150,7 +150,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 				// this puts the compiled circuit in the cache
 				// we do this here in case our fuzzWitness method mutates some references in the circuit
 				// (like []frontend.Variable) before cleaning up
-				_, err := assert.compile(circuit, curve, b, opt.compileOpts)
+				_, err := assert.compile(circuit, curve.ScalarField(), b, opt.compileOpts)
 				assert.NoError(err)
 				valid := 0
 				// "fuzz" with zeros
@@ -208,12 +208,12 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 
 func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	w := assert.parseAssignment(circuit, validAssignment, curve, opt.checkSerialization)
+	w := assert.parseAssignment(circuit, validAssignment, curve.ScalarField(), curve.String(), opt.checkSerialization)
 
 	checkError := func(err error) { assert.noError(curve.ScalarField(), err, &w) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
+	ccs, err := assert.compile(circuit, curve.ScalarField(), b, opt.compileOpts)
 	checkError(err)
 
 	// must not error with big int test engine
@@ -227,13 +227,13 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	w := assert.parseAssignment(circuit, invalidAssignment, curve, opt.checkSerialization)
+	w := assert.parseAssignment(circuit, invalidAssignment, curve.ScalarField(), curve.String(), opt.checkSerialization)
 
 	checkError := func(err error) { assert.noError(curve.ScalarField(), err, &w) }
 	mustError := func(err error) { assert.error(curve.ScalarField(), err, &w) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
+	ccs, err := assert.compile(circuit, curve.ScalarField(), b, opt.compileOpts)
 	checkError(err)
 
 	// must error with big int test engine

@@ -187,3 +187,12 @@ func WithSolidityExportOptions(solidityOpts ...solidity.ExportOption) TestingOpt
 		return nil
 	}
 }
+
+// WithSkipSmallfieldCheck is a testing option which disables smallfield checks. If not set,
+// then we always test that circuit can be compiled and solved in small fields (koalabear).
+func WithSkipSmallfieldCheck() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.skipCheckSmallfield = true
+		return nil
+	}
+}
