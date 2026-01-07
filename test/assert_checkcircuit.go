@@ -210,7 +210,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 			}
 			// test that the circuit compiles and is deterministic
 			ccs, err := assert.compileU32(circuit, smf, opt.compileOpts)
-			assert.NoError(err, "compile in smallfield")
+			assert.NoError(err, "compile in small field")
 
 			for _, w := range invalidWitnesses {
 				w := w
