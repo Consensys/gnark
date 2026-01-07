@@ -14,12 +14,12 @@ type profile struct {
 	backends []backend.ID
 	curves   []ecc.ID
 
-	checkSerialization  bool
-	checkSolidity       bool
-	checkProver         bool
-	fuzzing             bool
-	skipTestEngine      bool
-	skipCheckSmallfield bool
+	checkSerialization bool
+	checkSolidity      bool
+	checkProver        bool
+	fuzzing            bool
+	skipTestEngine     bool
+	checkSmallField    bool
 }
 
 var testEngineChecks = profile{

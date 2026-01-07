@@ -182,7 +182,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 		}, curve.String())
 	}
-	if !opt.skipCheckSmallfield {
+	if opt.checkSmallField {
 		smf := koalabear.Modulus()
 		smfName := "koalabear"
 		assert.Run(func(assert *Assert) {
@@ -209,7 +209,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 				}
 			}
 			// test that the circuit compiles and is deterministic
-			ccs, err := assert.compileU32(circuit, koalabear.Modulus(), opt.compileOpts)
+			ccs, err := assert.compileU32(circuit, smf, opt.compileOpts)
 			assert.NoError(err, "compile in smallfield")
 
 			for _, w := range invalidWitnesses {

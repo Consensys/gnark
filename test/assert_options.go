@@ -36,6 +36,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	// go test 							--> constraintOnlyProfile
 	// go test -tags=prover_checks 		--> proverOnlyProfile
 	// go test -tags=release_checks 	--> releaseProfile
+	// go test -tags=...,smallfield_checks --> append smallfield checks to the above profiles
 
 	if releaseTestFlag {
 		opt.profile = releaseChecks
@@ -45,6 +46,10 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 		opt.profile = testEngineChecks
 	} else {
 		opt.profile = constraintSolverChecks
+	}
+	// independent option -- if the tag is set then append the smallfield checks
+	if smallfieldTestFlag {
+		opt.checkSmallField = true
 	}
 
 	// apply user provided options.
@@ -188,11 +193,13 @@ func WithSolidityExportOptions(solidityOpts ...solidity.ExportOption) TestingOpt
 	}
 }
 
-// WithSkipSmallfieldCheck is a testing option which disables smallfield checks. If not set,
-// then we always test that circuit can be compiled and solved in small fields (koalabear).
-func WithSkipSmallfieldCheck() TestingOption {
+// WithSmallfieldCheck is a testing option which enforces checking circuit
+// compilation and solving in a small field. If not set then the small field
+// checks are skipped. We can always enforce small field checks always by using the
+// "smallfield_checks" build tag.
+func WithSmallfieldCheck() TestingOption {
 	return func(tc *testingConfig) error {
-		tc.skipCheckSmallfield = true
+		tc.checkSmallField = true
 		return nil
 	}
 }
