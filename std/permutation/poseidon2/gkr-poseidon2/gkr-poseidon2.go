@@ -140,7 +140,7 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 		if compressor, ok := cached.(*compressor); ok {
 			return compressor, nil
 		}
-		return nil, fmt.Errorf("cached value is of type %T, not a mimcCompressor", cached)
+		return nil, fmt.Errorf("cached value is of type %T, not a gkr-poseidon2.Compressor", cached)
 	}
 
 	gkrCircuit, in1, in2, out, err := defineCircuit(api)
