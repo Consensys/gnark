@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -35,10 +36,10 @@ func NewCache() *Cache {
 		res = api.Mul(res, sum)            // sum^7
 
 		return res
-	}, 2, 7, -1)
+	}, 2, 7, -1, gnark.Curves())
 	gates["select-input-3"] = gkrtypes.NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, 3, 1, 0)
+	}, 3, 1, 0, gnark.Curves())
 
 	return &Cache{
 		circuits: make(map[string]gkrtypes.Circuit),
@@ -64,7 +65,7 @@ func (c *Cache) GetCircuit(path string) (circuit gkrtypes.Circuit) {
 	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
 		panic(err)
 	}
-	if circuit, err = gkrtypes.CircuitInfoToCircuit(circuitInfo, c.GetGate); err != nil {
+	if circuit, err = gkrtypes.NewCircuit(circuitInfo, c.GetGate); err != nil {
 		panic(err)
 	}
 	c.circuits[path] = circuit
