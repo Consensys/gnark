@@ -21,7 +21,6 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,11 +35,17 @@ type doubleNoDependencyCircuit struct {
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	z := gkrApi.Add(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -82,11 +87,17 @@ type sqNoDependencyCircuit struct {
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	z := gkrApi.Mul(x, x)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -127,12 +138,18 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -184,13 +201,19 @@ type mulWithDependencyCircuit struct {
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 
 	x := gkrApi.NewInput() // x is the state variable
 	y := gkrApi.NewInput()
 	z := gkrApi.Mul(x, y)
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
 
 	state := c.XFirst
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
@@ -218,14 +241,6 @@ func TestSolveMulWithDependency(t *testing.T) {
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
-}
-
-func TestApiMul(t *testing.T) {
-	api := New()
-	x := api.NewInput()
-	y := api.NewInput()
-	z := api.Mul(x, y)
-	assertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
@@ -287,12 +302,18 @@ type benchMiMCMerkleTreeCircuit struct {
 func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
 	// define the circuit
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 	z := gkrApi.Gate(mimcGate, x, y)
 
-	gkrCircuit := gkrApi.Compile(api, "-20")
+	gkrCircuit, err := gkrApi.Compile("-20")
+	if err != nil {
+		return err
+	}
 
 	// prepare input
 	curLayer := make([]frontend.Variable, 1<<c.depth)
@@ -411,7 +432,10 @@ type mimcNoDepCircuit struct {
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	// define the circuit
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
 
@@ -424,7 +448,10 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		z = gkrApi.Gate(mimcGate, x, z)
 	}
 
-	gkrCircuit := gkrApi.Compile(api, c.hashName)
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
 
 	instanceIn := make(map[gkr.Variable]frontend.Variable)
 	for i := range c.X {
@@ -518,13 +545,6 @@ func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 	return
 }
 
-func assertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
-	assert.Equal(t, len(expected), len(seen))
-	for i := range seen {
-		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
-	}
-}
-
 var mimcSnarkTotalCalls = 0
 
 type MiMCCipherGate struct {
@@ -600,12 +620,18 @@ type pow4Circuit struct {
 }
 
 func (c *pow4Circuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	x2 := gkrApi.Mul(x, x)   // x²
 	x4 := gkrApi.Mul(x2, x2) // x⁴
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile("MIMC")
+	if err != nil {
+		return err
+	}
 
 	for i := range c.X {
 		instanceIn := make(map[gkr.Variable]frontend.Variable)
@@ -682,12 +708,73 @@ type testNoInstanceCircuit struct {
 }
 
 func (c *testNoInstanceCircuit) Define(api frontend.API) error {
-	gkrApi := New()
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
 	x := gkrApi.NewInput()
 	y := gkrApi.Mul(x, x)
 	gkrApi.Mul(x, y)
 
-	gkrApi.Compile(api, "MIMC")
+	_, err = gkrApi.Compile("MIMC")
+	return err
+}
+
+type testMultiCircuit struct {
+	X [2]frontend.Variable
+	Y [2]frontend.Variable
+}
+
+func (c *testMultiCircuit) Define(api frontend.API) error {
+	api1, err := New(api)
+	if err != nil {
+		return err
+	}
+	api2, err := New(api)
+	if err != nil {
+		return err
+	}
+
+	x1 := api1.NewInput()
+	y1 := api1.NewInput()
+	z1 := api1.Add(x1, y1)
+
+	x2 := api2.NewInput()
+	y2 := api2.NewInput()
+	z2 := api2.Mul(x2, y2)
+
+	circuit2, err := api2.Compile("MIMC")
+	if err != nil {
+		return err
+	}
+
+	circuit1, err := api1.Compile("-1")
+	if err != nil {
+		return err
+	}
+
+	for i := range c.X {
+		out, err := circuit1.AddInstance(map[gkr.Variable]frontend.Variable{x1: c.X[i], y1: c.Y[i]})
+		if err != nil {
+			return err
+		}
+		api.AssertIsEqual(out[z1], api.Add(c.X[i], c.Y[i]))
+
+		out, err = circuit2.AddInstance(map[gkr.Variable]frontend.Variable{x2: c.X[i], y2: c.Y[i]})
+		if err != nil {
+			return err
+		}
+		api.AssertIsEqual(out[z2], api.Mul(c.X[i], c.Y[i]))
+	}
 
 	return nil
+}
+
+func TestMulti(t *testing.T) {
+	assignment := testMultiCircuit{
+		X: [2]frontend.Variable{2, 3},
+		Y: [2]frontend.Variable{4, 5},
+	}
+
+	test.NewAssert(t).CheckCircuit(new(testMultiCircuit), test.WithValidAssignment(&assignment))
 }

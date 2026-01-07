@@ -10,7 +10,6 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/field/generator"
-	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
 const copyrightHolder = "Consensys Software Inc."
@@ -122,13 +121,20 @@ func main() {
 			defer wg.Done()
 			// auto-generate small fields
 			if d.AutoGenerateField != "" {
-				conf, err := config.NewFieldConfig(d.Curve, "Element", d.AutoGenerateField, false)
-				if err != nil {
+				packageName := d.Curve
+				elementName := "Element"
+				modulus := d.AutoGenerateField
+				outputDir := d.RootPath
+				if err := generator.Generate(packageName, elementName, modulus, outputDir); err != nil {
 					panic(err)
 				}
-				if err := generator.GenerateFF(conf, d.RootPath, generator.WithASM(nil)); err != nil {
-					panic(err)
-				}
+				// conf, err := config.NewFieldConfig(d.Curve, "Element", d.AutoGenerateField, false)
+				// if err != nil {
+				// 	panic(err)
+				// }
+				// if err := generator.GenerateFF(conf, d.RootPath, generator.WithASM(nil)); err != nil {
+				// 	panic(err)
+				// }
 			}
 
 			var (
@@ -155,14 +161,12 @@ func main() {
 				curvePackageName := strings.ToLower(d.Curve)
 
 				cfg := gkrConfig{
-					FieldDependency: config.FieldDependency{
-						ElementType:      "fr.Element",
-						FieldPackageName: "fr",
-						FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
-					},
-					FieldID:        d.CurveID,
-					GkrPackageName: curvePackageName,
-					CanUseFFT:      true,
+					ElementType:      "fr.Element",
+					FieldPackageName: "fr",
+					FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
+					FieldID:          d.CurveID,
+					GkrPackageName:   curvePackageName,
+					CanUseFFT:        true,
 				}
 
 				assertNoError(generateGkrBackend(cfg))
@@ -241,11 +245,9 @@ func main() {
 	go func() {
 		// generate gkr and sumcheck for small-rational
 		cfg := gkrConfig{
-			FieldDependency: config.FieldDependency{
-				ElementType:      "small_rational.SmallRational",
-				FieldPackagePath: "github.com/consensys/gnark/internal/small_rational",
-				FieldPackageName: "small_rational",
-			},
+			ElementType:         "small_rational.SmallRational",
+			FieldPackagePath:    "github.com/consensys/gnark/internal/small_rational",
+			FieldPackageName:    "small_rational",
 			GkrPackageName:      "small_rational",
 			CanUseFFT:           false,
 			NoGkrTests:          true,
@@ -299,7 +301,6 @@ func generateGkrBackend(cfg gkrConfig) error {
 	// gkr backend
 	entries := []bavard.Entry{
 		{File: filepath.Join(packageDir, "gkr.go"), Templates: []string{"gkr.go.tmpl"}},
-		{File: filepath.Join(packageDir, "gate_testing.go"), Templates: []string{"gate_testing.go.tmpl"}},
 		{File: filepath.Join(packageDir, "sumcheck.go"), Templates: []string{"sumcheck.go.tmpl"}},
 		{File: filepath.Join(packageDir, "sumcheck_test.go"), Templates: []string{"sumcheck.test.go.tmpl", "sumcheck.test.defs.go.tmpl"}},
 		{File: filepath.Join(packageDir, testVectorUtilsFileName), Templates: []string{"test_vector_utils.go.tmpl"}},
@@ -317,9 +318,10 @@ func generateGkrBackend(cfg gkrConfig) error {
 			{File: filepath.Join(packageDir, "sumcheck_test_vector_gen.go"), Templates: []string{"sumcheck.test.vectors.gen.go.tmpl", "sumcheck.test.defs.go.tmpl"}},
 		}...)
 	} else {
-		entries = append(entries, bavard.Entry{
-			File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"},
-		})
+		entries = append(entries, []bavard.Entry{
+			{File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"}},
+			{File: filepath.Join(packageDir, "gate_testing.go"), Templates: []string{"gate_testing.go.tmpl"}},
+		}...)
 	}
 
 	if err := bgen.Generate(cfg, "gkr", "./template/gkr/", entries...); err != nil {
@@ -330,7 +332,9 @@ func generateGkrBackend(cfg gkrConfig) error {
 }
 
 type gkrConfig struct {
-	config.FieldDependency
+	ElementType         string
+	FieldPackagePath    string
+	FieldPackageName    string
 	GkrPackageName      string // the GKR package, relative to the repo root
 	FieldID             string // e.g. BLS12_377, BABYBEAR, etc.
 	CanUseFFT           bool

@@ -2,6 +2,7 @@ package gkrapi
 
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -9,8 +10,10 @@ import (
 )
 
 type API struct {
-	toStore     gkrinfo.StoringInfo
+	toStore     *gkrinfo.StoringInfo
+	index       int
 	assignments gkrtypes.WireAssignment
+	parentApi   frontend.API
 }
 
 func frontendVarToInt(a gkr.Variable) int {

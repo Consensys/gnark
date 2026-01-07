@@ -16,8 +16,8 @@ import (
 
 func Example() {
 	// This example computes the double of multiple BLS12-377 G1 points, which can be computed natively over BW6-761.
-	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
-	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
+	// The two curves form a "cycle", meaning the scalar field of one is the base field of the other.
+	// The implementation is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
 
 	// register the gates: Doing so is not needed here because
@@ -25,16 +25,11 @@ func Example() {
 	// SNARK circuit being compiled.
 	// But in production applications it would be necessary.
 
-	_, err := gkrgates.Register(squareGate, 1)
-	assertNoError(err)
-	_, err = gkrgates.Register(sGate, 4)
-	assertNoError(err)
-	_, err = gkrgates.Register(zGate, 4)
-	assertNoError(err)
-	_, err = gkrgates.Register(xGate, 2)
-	assertNoError(err)
-	_, err = gkrgates.Register(yGate, 4)
-	assertNoError(err)
+	assertNoError(gkrgates.Register(squareGate, 1))
+	assertNoError(gkrgates.Register(sGate, 4))
+	assertNoError(gkrgates.Register(zGate, 4))
+	assertNoError(gkrgates.Register(xGate, 2))
+	assertNoError(gkrgates.Register(yGate, 4))
 
 	const nbInstances = 2
 	// create instances
@@ -90,7 +85,10 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkrapi.New()
+	gkrApi, err := gkrapi.New(api)
+	if err != nil {
+		return err
+	}
 
 	// create the GKR circuit
 	X := gkrApi.NewInput()
@@ -114,7 +112,10 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
 	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
 
-	gkrCircuit := gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err := gkrApi.Compile("MIMC")
+	if err != nil {
+		return err
+	}
 
 	// add input and check output for correctness
 	instanceIn := make(map[gkr.Variable]frontend.Variable)

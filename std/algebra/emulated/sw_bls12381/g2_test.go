@@ -51,8 +51,9 @@ func TestScalarMulG2TestSolve(t *testing.T) {
 }
 
 type addG2Circuit struct {
-	In1, In2 G2Affine
-	Res      G2Affine
+	In1, In2   G2Affine
+	Res        G2Affine
+	unifiedAdd bool // if true, use the unified addition method
 }
 
 func (c *addG2Circuit) Define(api frontend.API) error {
@@ -60,7 +61,12 @@ func (c *addG2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new G2 struct: %w", err)
 	}
-	res := g2.add(&c.In1, &c.In2)
+	var res *G2Affine
+	if c.unifiedAdd {
+		res = g2.AddUnified(&c.In1, &c.In2)
+	} else {
+		res = g2.add(&c.In1, &c.In2)
+	}
 	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }
@@ -76,8 +82,116 @@ func TestAddG2TestSolve(t *testing.T) {
 		In2: NewG2Affine(in2),
 		Res: NewG2Affine(res),
 	}
-	err := test.IsSolved(&addG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&addG2Circuit{unifiedAdd: false}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err, "expected success for random inputs")
+}
+
+func TestAddG2FailureCaseTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Double(&in1)
+	witness := addG2Circuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in1),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2Circuit{unifiedAdd: false}, &witness, ecc.BN254.ScalarField())
+	// the add() function cannot handle identical inputs
+	assert.Error(err, "expected solver error for identical inputs")
+}
+
+func TestAddG2UnifiedTestSolveAdd(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	_, in2 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Add(&in1, &in2)
+	witness := addG2Circuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in2),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+func TestAddG2UnifiedTestSolveDbl(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Double(&in1)
+	witness := addG2Circuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in1),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestAddG2UnifiedTestSolveEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, p := randomG1G2Affines()
+	var np, zero bls12381.G2Affine
+	np.Neg(&p)
+	zero.Sub(&p, &p)
+
+	assert.Run(func(assert *test.Assert) {
+		// p + (-p) == (0, 0)
+		witness := addG2Circuit{
+			In1: NewG2Affine(p),
+			In2: NewG2Affine(np),
+			Res: NewG2Affine(zero),
+		}
+		err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=inverse")
+
+	assert.Run(func(assert *test.Assert) {
+		// (-p) + p == (0, 0)
+		witness2 := addG2Circuit{
+			In1: NewG2Affine(np),
+			In2: NewG2Affine(p),
+			Res: NewG2Affine(zero),
+		}
+		err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness2, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=inverse2")
+
+	assert.Run(func(assert *test.Assert) {
+		// p + (0, 0) == p
+		witness3 := addG2Circuit{
+			In1: NewG2Affine(p),
+			In2: NewG2Affine(zero),
+			Res: NewG2Affine(p),
+		}
+		err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness3, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=zero")
+
+	assert.Run(func(assert *test.Assert) {
+		// (0, 0) + p == p
+		witness4 := addG2Circuit{
+			In1: NewG2Affine(zero),
+			In2: NewG2Affine(p),
+			Res: NewG2Affine(p),
+		}
+		err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness4, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=zero2")
+
+	assert.Run(func(assert *test.Assert) {
+		// (0, 0) + (0, 0) == (0, 0)
+		witness5 := addG2Circuit{
+			In1: NewG2Affine(zero),
+			In2: NewG2Affine(zero),
+			Res: NewG2Affine(zero),
+		}
+		err5 := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness5, ecc.BN254.ScalarField())
+		assert.NoError(err5)
+	}, "case=zero3")
+
 }
 
 type doubleG2Circuit struct {

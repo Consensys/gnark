@@ -6,7 +6,7 @@ package logger
 import (
 	"io"
 	"os"
-	"strings"
+	"testing"
 
 	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
@@ -18,7 +18,7 @@ func init() {
 	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}
 	logger = zerolog.New(output).With().Timestamp().Logger()
 
-	if !debug.Debug && strings.HasSuffix(os.Args[0], ".test") {
+	if !debug.Debug && testing.Testing() {
 		logger = zerolog.Nop()
 	}
 

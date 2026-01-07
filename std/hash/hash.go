@@ -54,6 +54,10 @@ type BinaryHasher interface {
 	// Size returns the number of bytes this hash function returns in a call to
 	// [BinaryHasher.Sum].
 	Size() int
+
+	// BlockSize returns the internal block size of the hash function. NB! This
+	// is different from [BinaryHasher.Size] which indicates the output size.
+	BlockSize() int
 }
 
 // BinaryFixedLengthHasher is like [BinaryHasher], but assumes the length of the

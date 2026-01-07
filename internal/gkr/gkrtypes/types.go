@@ -3,6 +3,7 @@ package gkrtypes
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -22,6 +23,12 @@ type Gate struct {
 	curves      []ecc.ID         // curves that the gate is allowed to be used over
 }
 
+// NewGate creates a new gate function the given parameters:
+// - f: the polynomial function defining the gate
+// - nbIn: number of inputs to the gate
+// - degree: total degree of the polynomial. In case of multivariate polynomials, it is the maximum degree over all terms.
+// - solvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+// - curves: curves that the gate is allowed to be used over
 func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
 
 	return &Gate{
@@ -33,15 +40,13 @@ func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves [
 	}
 }
 
+// SupportsCurve returns whether the gate can be used over the given curve.
 func (g *Gate) SupportsCurve(curve ecc.ID) bool {
-	for _, c := range g.curves {
-		if c == curve {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(g.curves, curve)
 }
 
+// Evaluate evaluates the gate on the given inputs. The number of inputs must
+// match the gate's fan-in. If not, then it panics.
 func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 	return g.evaluate(api, in...)
 }
@@ -51,7 +56,8 @@ func (g *Gate) Degree() int {
 	return g.degree
 }
 
-// SolvableVar returns the index of a variable of degree 1 in the gate's polynomial. If there is no such variable, it returns -1.
+// SolvableVar returns the index of a variable of degree 1 in the gate's
+// polynomial. If there is no such variable, it returns -1.
 func (g *Gate) SolvableVar() int {
 	return g.solvableVar
 }
@@ -61,20 +67,28 @@ func (g *Gate) NbIn() int {
 	return g.nbIn
 }
 
+// Wire represents a wire in the GKR circuit. A wire is defined through its gate
+// and its inputs.
 type Wire struct {
 	Gate            *Gate
 	Inputs          []int
 	NbUniqueOutputs int
 }
 
+// IsInput returns whether the wire is an input wire.
 func (w Wire) IsInput() bool {
 	return len(w.Inputs) == 0
 }
 
+// IsOutput returns whether the wire is an output wire. A wire is an output wire
+// it it is not input to any other wire.
 func (w Wire) IsOutput() bool {
 	return w.NbUniqueOutputs == 0
 }
 
+// NbClaims returns the number of claims to be proven about this wire. The number
+// of claims is the number of Wires it is input to. For output wires, there is always
+// one claim to be made.
 func (w Wire) NbClaims() int {
 	if w.IsOutput() {
 		return 1
@@ -82,10 +96,13 @@ func (w Wire) NbClaims() int {
 	return w.NbUniqueOutputs
 }
 
+// NoProof returns whether no proof is needed for this wire. This corresponds
+// to input wires without any claims to be made about them.
 func (w Wire) NoProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
+// NbUniqueInputs returns the number of unique input wires to this wire.
 func (w Wire) NbUniqueInputs() int {
 	set := make(map[int]struct{}, len(w.Inputs))
 	for _, in := range w.Inputs {
@@ -94,10 +111,38 @@ func (w Wire) NbUniqueInputs() int {
 	return len(set)
 }
 
-type (
-	Circuit []Wire
-	Wires   []*Wire
-)
+// Circuit is a GKR circuit: a list of wires. The wires are expected to be
+// topologically sorted.
+//
+// Use [NewCircuit] to convert from [gkrinfo.Circuit] to this type.
+type Circuit []Wire
+
+// NewCircuit converts gkrinfo.Circuit into a concrete Circuit object:
+// - The gates are loaded in accordance with their names.
+// - It also sets the NbUniqueOutputs fields.
+//
+// The gateGetter function is used to retrieve gate definitions by name. It is provided for avoiding
+// import cycles and should typically be gkrgates.Get.
+func NewCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *Gate) (Circuit, error) {
+	resCircuit := make(Circuit, len(info))
+	for i := range info {
+		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
+			resCircuit[i].Gate = Identity() // input wire
+			continue
+		}
+		resCircuit[i].Inputs = info[i].Inputs
+		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
+		if resCircuit[i].Gate == nil {
+			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
+		}
+	}
+	resCircuit.setNbUniqueOutputs()
+	return resCircuit, nil
+}
+
+// Wires is a slice of pointers to Wire. It is used for propagating claim
+// information through the circuit.
+type Wires []*Wire
 
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
@@ -144,12 +189,6 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 	}
 
 	return res
-}
-
-type SolvingInfo struct {
-	Circuit     Circuit
-	NbInstances int
-	HashName    string
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
@@ -206,6 +245,7 @@ func (c Circuit) setNbUniqueOutputs() {
 	}
 }
 
+// Inputs returns the list of input wire indices.
 func (c Circuit) Inputs() []int {
 	res := make([]int, 0, len(c))
 	for i := range c {
@@ -216,6 +256,7 @@ func (c Circuit) Inputs() []int {
 	return res
 }
 
+// MaxGateNbIn returns the maximum number of inputs of any gate in the circuit.
 func (c Circuit) MaxGateNbIn() int {
 	res := 0
 	for i := range c {
@@ -224,30 +265,37 @@ func (c Circuit) MaxGateNbIn() int {
 	return res
 }
 
-func CircuitInfoToCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *Gate) (Circuit, error) {
-	resCircuit := make(Circuit, len(info))
-	for i := range info {
-		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
-			resCircuit[i].Gate = Identity() // input wire
-			continue
-		}
-		resCircuit[i].Inputs = info[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
-		if resCircuit[i].Gate == nil {
-			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
-		}
-	}
-	resCircuit.setNbUniqueOutputs()
-	return resCircuit, nil
+// SolvingInfo is a GKR circuit along with the number of instances to be solved
+// and the used hash function for challenge computation. It is used during GKR
+// circuit solving and proving.
+//
+// Use [NewSolvingInfo] to convert from [gkrinfo.StoringInfo] to this type.
+type SolvingInfo struct {
+	Circuit     Circuit
+	NbInstances int
+	HashName    string
 }
 
-func StoringToSolvingInfo(info gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) (SolvingInfo, error) {
-	circuit, err := CircuitInfoToCircuit(info.Circuit, gateGetter)
-	return SolvingInfo{
-		Circuit:     circuit,
-		NbInstances: info.NbInstances,
-		HashName:    info.HashName,
-	}, err
+// NewSolvingInfo converts []gkrinfo.StoringInfo into concrete SolvingInfo objects:
+// - The gates are loaded in accordance with their names.
+// - The instances/assignments are padded into a power of 2, as needed for creating multilinear extensions.
+//
+// The gateGetter function is used to retrieve gate definitions by name. It is provided for avoiding
+// import cycles and should typically be gkrgates.Get.
+func NewSolvingInfo(info []*gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) ([]SolvingInfo, error) {
+	res := make([]SolvingInfo, len(info))
+	for i := range info {
+		circuit, err := NewCircuit(info[i].Circuit, gateGetter)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = SolvingInfo{
+			Circuit:     circuit,
+			NbInstances: info[i].NbInstances,
+			HashName:    info[i].HashName,
+		}
+	}
+	return res, nil
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit

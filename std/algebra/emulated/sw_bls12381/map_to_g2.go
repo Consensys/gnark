@@ -7,6 +7,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
+	"github.com/consensys/gnark/std/hash/expand"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 func (g2 *G2) evalFixedPolynomial(monic bool, coefficients []bls12381.E2, x *fields_bls12381.E2) *fields_bls12381.E2 {
@@ -61,13 +63,13 @@ func (g2 *G2) sgn0(x *fields_bls12381.E2) frontend.Variable {
 func (g2 *G2) sqrtRatio(u, v *fields_bls12381.E2) (frontend.Variable, *fields_bls12381.E2, error) {
 	// Steps
 	// 1. extract the base values of u, v, then compute G2SqrtRatio with gnark-crypto
-	x, err := g2.fp.NewHint(g2SqrtRatioHint, 3, &u.A0, &u.A1, &v.A0, &v.A1)
+	hintN, hintEm, err := g2.fp.NewHintGeneric(g2SqrtRatioHint, 1, 2, nil, []*baseEl{&u.A0, &u.A1, &v.A0, &v.A1})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to calculate sqrtRatio with gnark-crypto: %w", err)
 	}
 
-	b := g2.fp.IsZero(x[0])
-	y := fields_bls12381.E2{A0: *x[1], A1: *x[2]}
+	b := g2.api.Sub(1, hintN[0]) // isQR
+	y := fields_bls12381.E2{A0: *hintEm[0], A1: *hintEm[1]}
 
 	// 2. apply constraints
 	// b1 := {b = True AND y^2 * v = u}
@@ -192,4 +194,90 @@ func (g2 *G2) MapToG2(u *fields_bls12381.E2) (*G2Affine, error) {
 	z := g2.isogeny(res)
 	z = g2.ClearCofactor(z)
 	return z, nil
+}
+
+// EncodeToG2 hashes a message to a point on the G2 curve using the SSWU map as
+// defined in [RFC9380]. It is faster than [G2.HashToG2], but the result is not
+// uniformly distributed. Unsuitable as a random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function
+//
+// // This method corresponds to the [bls12381.EncodeToG2] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g2 *G2) EncodeToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
+	const L = 64
+	els := make([]*baseEl, 2)
+	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*L)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+
+	for i := range els {
+		els[i], err = secureBytesToElement(g2.api, g2.fp, uniformBytes[i*L:(i+1)*L])
+		if err != nil {
+			return nil, fmt.Errorf("convert bytes to emulated element: %w", err)
+		}
+	}
+	R, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve: %w", err)
+	}
+	Q := g2.isogeny(R)
+	return g2.ClearCofactor(Q), nil
+}
+
+// secureBaseElementLen is the length of bytes for sampling uniform element from
+// the base field. We use 64 bytes per base element, this is 48 bytes for the
+// base field and 16 bytes for security parameter. Copied from gnark-crypto
+const secureBaseElementLen = 64
+
+// HashToG2 hashes a message to a point on the G2 curve using the SSWU map as
+// defined in [RFC9380]. It is slower than [G2.EncodeToG2], but usable as a
+// random oracle.
+//
+// dst stands for "domain separation tag", a string unique to the construction
+// using the hash function.
+//
+// This method corresponds to the [bls12381.HashToG2] method in gnark-crypto.
+//
+// [RFC9380]: https://www.rfc-editor.org/rfc/rfc9380.html#roadmap
+func (g2 *G2) HashToG2(msg []uints.U8, dst []byte) (*G2Affine, error) {
+	// Steps:
+	// 1. u = hash_to_field(msg, 4)
+	// 2. Q0 = map_to_curve({u[0], u[1]})
+	// 3. Q1 = map_to_curve({u[2], u[3]})
+	// 4. R = Q0 + Q1              # Point addition
+	// 5. P = clear_cofactor(R)
+	// 6. return P
+
+	// corresponds to fp.Hash method which we don't explicitly have in gnark
+	els := make([]*baseEl, 4)
+	uniformBytes, err := expand.ExpandMsgXmd(g2.api, msg, dst, len(els)*secureBaseElementLen)
+	if err != nil {
+		return nil, fmt.Errorf("expand msg: %w", err)
+	}
+	for i := range els {
+		els[i], err = secureBytesToElement(g2.api, g2.fp, uniformBytes[i*secureBaseElementLen:(i+1)*secureBaseElementLen])
+		if err != nil {
+			return nil, fmt.Errorf("convert bytes to emulated element: %w", err)
+		}
+	}
+
+	// we will still do iso_map before point addition, as we do not have point addition in E' (yet)
+	Q0, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[0], A1: *els[1]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q0: %w", err)
+	}
+	Q1, err := g2.MapToCurve2(&fields_bls12381.E2{A0: *els[2], A1: *els[3]})
+	if err != nil {
+		return nil, fmt.Errorf("map to curve Q1: %w", err)
+	}
+	Q0 = g2.isogeny(Q0)
+	Q1 = g2.isogeny(Q1)
+
+	R := g2.AddUnified(Q0, Q1)
+
+	return g2.ClearCofactor(R), nil
 }
