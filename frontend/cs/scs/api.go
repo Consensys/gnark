@@ -644,7 +644,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	for _, vi := range v {
 		viTerm, ok := vi.(expr.Term[E])
 		if !ok {
-			// should not happen as we filtered constants above. But it means it is a constant
+			// constants (or other non-term variables) are not committed, so we skip them here
 			continue
 		}
 		if _, found := isCommitted[viTerm.VID]; found {
