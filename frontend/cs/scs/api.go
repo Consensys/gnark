@@ -638,7 +638,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 
 	// we deduplicate the inputs. As we add a copy constraint for every committed value, then a duplicated
-	// value would lead to excessive constraints (in total of duplicated constraints).
+	// value would lead to excessive constraints (resulting in duplicated constraints).
 	dedup := make([]frontend.Variable, 1, len(v)+1)
 	isCommitted := make(map[int]struct{})
 	for _, vi := range v {
