@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestGkrMiMC(t *testing.T) {
 		vals[i] = i + 1
 	}
 
-	for _, length := range lengths[1:2] {
+	for _, length := range lengths {
 		circuit := &testGkrMiMCCircuit{
 			In: make([]frontend.Variable, length*2),
 		}
@@ -116,23 +117,29 @@ func (c hashTreeCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func loadCs(t require.TestingT, filename string, circuit frontend.Circuit) constraint.ConstraintSystem {
-	f, err := os.Open(filename)
+func loadCs(t require.TestingT, fileTitle string, circuit frontend.Circuit) constraint.ConstraintSystem {
+	filename := filepath.Join(os.TempDir(), fileTitle)
+	_, err := os.Stat(filename)
 
 	if os.IsNotExist(err) {
 		// actually compile
 		cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
 		require.NoError(t, err)
-		f, err = os.Create(filename)
+		f, err := os.Create(filename)
 		require.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			require.NoError(t, f.Close())
+		}()
 		_, err = cs.WriteTo(f)
 		require.NoError(t, err)
 		return cs
 	}
 
-	defer f.Close()
+	f, err := os.Open(filename)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
 
 	cs := plonk.NewCS(ecc.BLS12_377)
 
