@@ -217,3 +217,13 @@ func WithSkipSmallfieldCheck() TestingOption {
 		return nil
 	}
 }
+
+// WithNoCurves is a testing option which disables all curve checks. This method
+// can be used if we only want to test over small fields. It overrides the build
+// tag settings and any curve-related options.
+func WithNoCurves() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.curves = nil
+		return nil
+	}
+}
