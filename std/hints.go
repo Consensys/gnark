@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/consensys/gnark/std/selector"
@@ -66,6 +67,8 @@ func registerHints() {
 	// native curves
 	solver.RegisterHint(sw_bls12377.GetHints()...)
 	solver.RegisterHint(sw_bls24315.GetHints()...)
+	// field extensions
+	solver.RegisterHint(fieldextension.GetHints()...)
 }
 
 func init() {

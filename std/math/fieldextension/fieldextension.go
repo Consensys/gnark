@@ -15,6 +15,8 @@ import (
 	"math/big"
 	"strconv"
 
+	"github.com/consensys/gnark-crypto/field/koalabear"
+	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -70,6 +72,8 @@ type Field interface {
 	AsExtensionVariable(a frontend.Variable) Element
 	// Degree returns the degree of the extension field.
 	Degree() int
+	// Inverse returns the multiplicative inverse of an extension field element.
+	Inverse(a Element) Element
 }
 
 // NewExtension returns a new extension field object.
@@ -97,6 +101,10 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	}
 
 	// extension is not provided, we try to find a stored one
+	// - if native is Koalabear and degree is not set or 4, then use the dedicated Koalabear extension
+	if api.Compiler().Field().Cmp(koalabear.Modulus()) == 0 && (cfg.degree == -1 || cfg.degree == defaultExtensionDegrees[koalabear.Modulus().String()]) {
+		return newKoalabearExt4(api), nil
+	}
 
 	// if the degree is not set, then we take the default extension for the given field
 	degree := "default"
