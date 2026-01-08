@@ -598,7 +598,13 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 func (builder *builder[E]) AddPlonkCommitmentInputs(inputs []frontend.Variable) []int {
 	committed := make([]int, len(inputs))
 	for i, vI := range inputs { // TODO @Tabaie Perf; If public, just hash it
-		vINeg := builder.Neg(vI).(expr.Term[E])
+		vINeg, ok := builder.Neg(vI).(expr.Term[E])
+		if !ok {
+			// in Commit method we already ensure that we only commit to
+			// variables. If given input is not a variable, then it means there
+			// is a bug.
+			panic("only variables can be committed to")
+		}
 		committed[i] = builder.cs.GetNbConstraints()
 		// a constraint to enforce consistency between the commitment and committed value
 		// - v + comm(n) = 0
@@ -619,7 +625,12 @@ func (builder *builder[E]) AddPlonkCommitmentInputs(inputs []frontend.Variable) 
 func (builder *builder[E]) AddPlonkCommitmentOutputs(committed []int, outs []frontend.Variable) error {
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
 	for _, out := range outs {
-		outNeg := builder.Neg(out).(expr.Term[E])
+		outNeg, ok := builder.Neg(out).(expr.Term[E])
+		if !ok {
+			// the outputs come from a hint, so they must be variables. If not,
+			// then it means there is a bug.
+			panic("only variables can be commitment outputs")
+		}
 		// RHS will be provided by both prover and verifier independently, as for a public wire
 		builder.addPlonkConstraint(sparseR1C[E]{xa: outNeg.VID, qL: outNeg.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 	}
@@ -637,8 +648,9 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 
 	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 
-	// we deduplicate the inputs. As we add a copy constraint for every committed value, then a duplicated
-	// value would lead to excessive constraints (resulting in duplicated constraints).
+	// we deduplicate the inputs. As we add a copy constraint for every
+	// committed value, then a duplicated value would lead to excessive
+	// constraints (resulting in duplicated constraints).
 	dedup := make([]frontend.Variable, 1, len(v)+1)
 	isCommitted := make(map[int]struct{})
 	for _, vi := range v {
@@ -651,6 +663,10 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 			// skip duplicated committed value
 			continue
 		}
+		// we base the deduplication only on the variable ID ignoring the
+		// coefficient. Indeed, committing to 2*x and x is the same as
+		// committing to x only as it doesn't give prover any extra power in
+		// predicting the commitment value.
 		isCommitted[viTerm.VID] = struct{}{}
 		dedup = append(dedup, vi)
 	}
