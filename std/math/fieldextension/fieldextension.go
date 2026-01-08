@@ -130,6 +130,36 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 // Element is the extension field element.
 type Element []frontend.Variable
 
+// Initialize initializes the extension field element when using with default
+// field extension constructor. Otherwise, when using a custom extension, the
+// user should use [AllocateElement] function.
+func (e *Element) Initialize(field *big.Int) {
+	if len(*e) != 0 {
+		return // already initialized
+	}
+	// we try to find the default degree for the given field
+	if deg, ok := defaultExtensionDegrees[field.String()]; ok {
+		*e = make([]frontend.Variable, deg)
+		return
+	}
+	// no default degree found. The user should initialize the element explicitly.
+	panic("no default extension degree for the given field, cannot initialize element")
+}
+
+// ValueOf converts a value of type any to an extension field element. If the
+// type is not supported, it panics.
+//
+// Currently supported types are:
+//   - [github.com/consensys/gnark-crypto/field/koalabear/extensions.E4]
+func ValueOf(a any) Element {
+	switch v := a.(type) {
+	case extensions.E4:
+		return Element{v.B0.A0, v.B0.A1, v.B1.A0, v.B1.A1}
+	default:
+		panic("cannot convert to extension element")
+	}
+}
+
 func (e *ext) Reduce(a Element) Element {
 	if e.extensionType == generic {
 		// TODO: implement later
