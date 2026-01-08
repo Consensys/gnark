@@ -16,10 +16,9 @@ import (
 
 func Example() {
 	// This example computes the double of multiple BLS12-377 G1 points, which can be computed natively over BW6-761.
-	// This means that the imported fr and fp packages are the same, being from BW6-761 and BLS12-377 respectively. TODO @Tabaie delete if no longer have fp imported
-	// It is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
+	// The two curves form a "cycle", meaning the scalar field of one is the base field of the other.
+	// The implementation is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
-	const fsHashName = "MIMC"
 
 	// register the gates: Doing so is not needed here because
 	// the proof is being computed in the same session as the
@@ -63,13 +62,12 @@ func Example() {
 	}
 
 	circuit := exampleCircuit{
-		X:          make([]frontend.Variable, nbInstances),
-		Y:          make([]frontend.Variable, nbInstances),
-		Z:          make([]frontend.Variable, nbInstances),
-		XOut:       make([]frontend.Variable, nbInstances),
-		YOut:       make([]frontend.Variable, nbInstances),
-		ZOut:       make([]frontend.Variable, nbInstances),
-		fsHashName: fsHashName,
+		X:    make([]frontend.Variable, nbInstances),
+		Y:    make([]frontend.Variable, nbInstances),
+		Z:    make([]frontend.Variable, nbInstances),
+		XOut: make([]frontend.Variable, nbInstances),
+		YOut: make([]frontend.Variable, nbInstances),
+		ZOut: make([]frontend.Variable, nbInstances),
 	}
 
 	assertNoError(test.IsSolved(&circuit, &assignment, ecc.BW6_761.ScalarField()))
@@ -80,7 +78,6 @@ func Example() {
 type exampleCircuit struct {
 	X, Y, Z          []frontend.Variable // Jacobian coordinates for each point (input)
 	XOut, YOut, ZOut []frontend.Variable // Jacobian coordinates for the double of each point (expected output)
-	fsHashName       string              // name of the hash function used for Fiat-Shamir in the GKR verifier
 }
 
 func (c *exampleCircuit) Define(api frontend.API) error {
@@ -88,23 +85,15 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 		return errors.New("all inputs/outputs must have the same length (i.e. the number of instances)")
 	}
 
-	gkrApi := gkrapi.New()
-
-	// create GKR circuit variables based on the given assignments
-	X, err := gkrApi.Import(c.X)
+	gkrApi, err := gkrapi.New(api)
 	if err != nil {
 		return err
 	}
 
-	Y, err := gkrApi.Import(c.Y)
-	if err != nil {
-		return err
-	}
-
-	Z, err := gkrApi.Import(c.Z)
-	if err != nil {
-		return err
-	}
+	// create the GKR circuit
+	X := gkrApi.NewInput()
+	Y := gkrApi.NewInput()
+	Z := gkrApi.NewInput()
 
 	XX := gkrApi.Gate(squareGate, X)    // 405: XX.Square(&p.X)
 	YY := gkrApi.Gate(squareGate, Y)    // 406: YY.Square(&p.Y)
@@ -116,45 +105,34 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	// 414: M.Double(&XX).Add(&M, &XX)
 	// Note (but don't explicitly compute) that M = 3XX
 
-	Z = gkrApi.Gate(zGate, Z, Y, YY, ZZ)   // 415 - 418
-	X = gkrApi.Gate(xGate, XX, S)          // 419-422
-	Y = gkrApi.Gate(yGate, S, X, XX, YYYY) // 423 - 426
+	ZOut := gkrApi.Gate(zGate, Z, Y, YY, ZZ)      // 415 - 418
+	XOut := gkrApi.Gate(xGate, XX, S)             // 419-422
+	YOut := gkrApi.Gate(yGate, S, XOut, XX, YYYY) // 423 - 426
 
-	// have to duplicate X for it to be considered an output variable
-	X = gkrApi.NamedGate(gkr.Identity, X)
+	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
+	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
 
-	// solve and prove the circuit
-	solution, err := gkrApi.Solve(api)
+	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {
 		return err
 	}
 
-	// check the output
+	// add input and check output for correctness
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+	for i := range c.X {
+		instanceIn[X] = c.X[i]
+		instanceIn[Y] = c.Y[i]
+		instanceIn[Z] = c.Z[i]
 
-	XOut := solution.Export(X)
-	YOut := solution.Export(Y)
-	ZOut := solution.Export(Z)
-	for i := range XOut {
-		api.AssertIsEqual(XOut[i], c.XOut[i])
-		api.AssertIsEqual(YOut[i], c.YOut[i])
-		api.AssertIsEqual(ZOut[i], c.ZOut[i])
+		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
+		if err != nil {
+			return err
+		}
+		api.AssertIsEqual(instanceOut[XOut], c.XOut[i])
+		api.AssertIsEqual(instanceOut[YOut], c.YOut[i])
+		api.AssertIsEqual(instanceOut[ZOut], c.ZOut[i])
 	}
-
-	challenges := make([]frontend.Variable, 0, len(c.X)*6)
-	challenges = append(challenges, XOut...)
-	challenges = append(challenges, YOut...)
-	challenges = append(challenges, ZOut...)
-	challenges = append(challenges, c.X...)
-	challenges = append(challenges, c.Y...)
-	challenges = append(challenges, c.Z...)
-
-	challenge, err := api.(frontend.Committer).Commit(challenges...)
-	if err != nil {
-		return err
-	}
-
-	// verify the proof
-	return solution.Verify(c.fsHashName, challenge)
+	return nil
 }
 
 // custom gates
