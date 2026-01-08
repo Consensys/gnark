@@ -45,6 +45,8 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	"github.com/consensys/gnark/std/internal/mimc"
 	"github.com/consensys/gnark/std/multicommit"
 )
@@ -115,35 +117,70 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 	toCommit = append(toCommit, exps...)
 
-	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
-		var lp frontend.Variable = 0
-		for i := range table {
-			tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
-			lp = api.Add(lp, tmp)
-		}
-		var rp frontend.Variable = 0
-
-		toInvert := make([]frontend.Variable, len(queries))
-		for i := range queries {
-			toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
-		}
-
-		if bapi, ok := api.(frontend.BatchInverter); ok {
-			toInvert = bapi.BatchInvert(toInvert)
-		} else {
-			for i := range toInvert {
-				toInvert[i] = api.Inverse(toInvert[i])
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		// handle the commitment over large fields directly
+		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+			rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
+			var lp frontend.Variable = 0
+			for i := range table {
+				tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
+				lp = api.Add(lp, tmp)
 			}
-		}
+			var rp frontend.Variable = 0
 
-		for i := range queries {
-			// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
-			rp = api.Add(rp, toInvert[i])
+			toInvert := make([]frontend.Variable, len(queries))
+			for i := range queries {
+				toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
+			}
+
+			if bapi, ok := api.(frontend.BatchInverter); ok {
+				toInvert = bapi.BatchInvert(toInvert)
+			} else {
+				for i := range toInvert {
+					toInvert[i] = api.Inverse(toInvert[i])
+				}
+			}
+
+			for i := range queries {
+				// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
+				rp = api.Add(rp, toInvert[i])
+			}
+			api.AssertIsEqual(lp, rp)
+			return nil
+		}, toCommit...)
+	} else {
+		// when the native field is small field, then we need to use WithWideCommitment
+		extapi, err := fieldextension.NewExtension(api)
+		if err != nil {
+			return fmt.Errorf("create field extension: %w", err)
 		}
-		api.AssertIsEqual(lp, rp)
-		return nil
-	}, toCommit...)
+		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+			if nbRow != 1 {
+				return errors.New("not implemented for multi-column tables over small fields")
+			}
+			var lp fieldextension.Element
+			challengeExt := fieldextension.Element(commitment)
+			for i := range table {
+				tableEntryExt := extapi.AsExtensionVariable(table[i][0])
+				denom := extapi.Sub(challengeExt, tableEntryExt)
+				denom = extapi.Inverse(denom)
+				expEntryExt := extapi.AsExtensionVariable(exps[i])
+				term := extapi.Mul(expEntryExt, denom)
+				lp = extapi.Add(lp, term)
+			}
+
+			var rp fieldextension.Element
+			for i := range queries {
+				queryEntryExt := extapi.AsExtensionVariable(queries[i][0])
+				denom := extapi.Sub(challengeExt, queryEntryExt)
+				denom = extapi.Inverse(denom)
+				rp = extapi.Add(rp, denom)
+			}
+			extapi.AssertIsEqual(lp, rp)
+			return nil
+		}, extapi.Degree(), toCommit...)
+	}
+
 	return nil
 }
 

@@ -23,14 +23,7 @@ func New(api frontend.API) frontend.Rangechecker {
 		return newCommitRangechecker(api)
 	}
 	if _, ok := api.(frontend.WideCommitter); ok {
-		// native field extension package does not support inversion for now which is required
-		// for the logderivate argument. However, we use wide committer only for small fields
-		// where the backend already knows how to range check (and should implement Rangechecker interface).
-		// So we can just panic here to detect the case when the backend does not implement
-		// the range checker interface.
-		//
-		// See https://github.com/Consensys/gnark/pull/1493
-		panic("wide committer does not support operations for range checking")
+		return newCommitRangechecker(api)
 	}
 	return plainChecker{api: api}
 }
