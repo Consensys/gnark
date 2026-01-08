@@ -5,6 +5,10 @@
 // to achieve the required soundness level. This package provides some
 // primitives to perform such operations.
 //
+// NB! This is not a general purpose field extension package. It is designed to
+// help in specific use-cases inside the field emulation, range checking and
+// log-derivative packages when operating over small fields.
+//
 // NB! This is an experimental package. The API is not stable and may change in
 // backwards incompatible way. We also may change the extension construction for
 // better performance.
@@ -45,8 +49,11 @@ type Field interface {
 	Reduce(a Element) Element
 	// Mul multiplies two extension field elements and reduces the result.
 	Mul(a, b Element) Element
-	// MulNoReduce multiplies two extension field elements without reducing the result.
-	// The degree of the result is the sum of the degrees of the two operands.
+	// MulNoReduce multiplies two extension field elements without reducing the
+	// result. The degree of the result is the sum of the degrees of the two
+	// operands.
+	//
+	// This method may be no-op if using extension using towers.
 	MulNoReduce(a, b Element) Element
 	// Add adds two extension field elements. The result is not reduced. The
 	// degree of the result is the max of the degrees of the two operands.
