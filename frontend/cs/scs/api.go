@@ -671,6 +671,11 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 		dedup = append(dedup, vi)
 	}
 
+	if len(dedup) == 1 {
+		// nothing to commit to
+		return nil, fmt.Errorf("Commit called with no non-constant variables commit to")
+	}
+
 	committed := builder.AddPlonkCommitmentInputs(dedup[1:])
 
 	dedup[0] = len(commitments) // commitment depth
