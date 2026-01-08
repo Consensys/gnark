@@ -1,6 +1,7 @@
 package gkr_mimc
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -96,6 +97,9 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 }
 
 func RegisterGates(curves ...ecc.ID) error {
+	if len(curves) == 0 {
+		return errors.New("expected at least one curve")
+	}
 	for _, curve := range curves {
 		constants, deg, err := getParams(curve)
 		if err != nil {
