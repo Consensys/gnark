@@ -203,3 +203,17 @@ func WithSmallfieldCheck() TestingOption {
 		return nil
 	}
 }
+
+// WithSkipSmallfieldCheck is a testing option which disables checking circuit
+// compilation and solving in a small field. This overrides the
+// "smallfield_checks" build tag.
+//
+// The option is useful for tests that specifically want to skip small field
+// checks. For example, when we test hash functions (MiMC/Poseidon2) which are
+// not defined over small fields.
+func WithSkipSmallfieldCheck() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.checkSmallField = false
+		return nil
+	}
+}
