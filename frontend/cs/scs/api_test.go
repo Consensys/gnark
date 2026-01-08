@@ -1,6 +1,7 @@
 package scs_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -289,4 +290,37 @@ func TestRegressionOr(t *testing.T) {
 			t.Error("solve", err)
 		}
 	}
+}
+
+type deduplicateCommitmentsCircuit struct {
+	repetitions int
+	A           frontend.Variable
+}
+
+func (c *deduplicateCommitmentsCircuit) Define(api frontend.API) error {
+	toCommit := make([]frontend.Variable, c.repetitions)
+	x := api.Mul(c.A, c.A)
+	for i := 0; i < c.repetitions; i++ {
+		toCommit[i] = x
+	}
+	cmter, ok := api.(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("expected Committer interface")
+	}
+	res, err := cmter.Commit(toCommit...)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(res, 0)
+	return nil
+}
+
+func TestDeduplicateCommitments(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccsCmts1, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &deduplicateCommitmentsCircuit{repetitions: 1})
+	assert.NoError(err)
+	ccsCmts5, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &deduplicateCommitmentsCircuit{repetitions: 5})
+	assert.NoError(err)
+
+	assert.Equal(ccsCmts1.GetNbConstraints(), ccsCmts5.GetNbConstraints(), "expected same number of constraints")
 }
