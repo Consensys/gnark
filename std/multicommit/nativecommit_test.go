@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/widecommitter"
-	"github.com/consensys/gnark/std/math/fieldextension"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	"github.com/consensys/gnark/test"
 )
 
