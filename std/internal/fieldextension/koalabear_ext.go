@@ -172,10 +172,11 @@ func (ext4 *koalabearExt4) MulByElement(a Element, b frontend.Variable) Element 
 }
 
 func (ext4 *koalabearExt4) AssertIsEqual(a Element, b Element) {
-	ext4.api.AssertIsEqual(a[0], b[0])
-	ext4.api.AssertIsEqual(a[1], b[1])
-	ext4.api.AssertIsEqual(a[2], b[2])
-	ext4.api.AssertIsEqual(a[3], b[3])
+	ma, mb := unflattenE4(a), unflattenE4(b)
+	ext4.api.AssertIsEqual(ma.B0.A0, mb.B0.A0)
+	ext4.api.AssertIsEqual(ma.B0.A1, mb.B0.A1)
+	ext4.api.AssertIsEqual(ma.B1.A0, mb.B1.A0)
+	ext4.api.AssertIsEqual(ma.B1.A1, mb.B1.A1)
 }
 
 func (ext4 *koalabearExt4) Zero() Element {
@@ -211,9 +212,6 @@ func (ext4 *koalabearExt4) Inverse(a Element) Element {
 		},
 	}
 	prod := ext4.Mul(a, flattenE4(resE4))
-	ext4.api.AssertIsEqual(prod[0], 1)
-	ext4.api.AssertIsEqual(prod[1], 0)
-	ext4.api.AssertIsEqual(prod[2], 0)
-	ext4.api.AssertIsEqual(prod[3], 0)
+	ext4.AssertIsEqual(prod, ext4.One())
 	return flattenE4(resE4)
 }
