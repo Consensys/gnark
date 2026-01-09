@@ -793,12 +793,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 
 	device := icicle_runtime.CreateDevice(cfg.Backend.String(), cfg.DeviceID)
 
-	if pk.deviceInfo == nil {
+	pk.setupMu.Lock()
+	needsSetup := pk.deviceInfo == nil
+	pk.setupMu.Unlock()
+	if needsSetup {
 		log.Debug().Msg("precomputing proving key in GPU")
-
-		if err := pk.setupDevicePointers(&device); err != nil {
-			return nil, fmt.Errorf("setup device pointers: %w", err)
-		}
+	}
+	if err := pk.setupDevicePointers(&device); err != nil {
+		return nil, fmt.Errorf("setup device pointers: %w", err)
 	}
 
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
@@ -1488,10 +1490,6 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, device *icicle_runtime.Devic
 // This should be called when the ProvingKey is no longer needed, especially if PinToGPU was enabled.
 // It is safe to call this multiple times.
 func (pk *ProvingKey) FreeGPUResources() {
-	if pk.deviceInfo == nil {
-		return
-	}
-
 	pk.setupMu.Lock()
 	defer pk.setupMu.Unlock()
 
