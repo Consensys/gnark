@@ -241,13 +241,17 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 	inLen := len(a)
 	maxBitlen := bits.Len(uint(inLen)) + tLen
 	// when we use large fields where maxBitLen < field size, then we can just
-	// add all the values directly and then partition.
-	// However, when maxBitlen >= field size, then we need to make sure that
-	// we never have an addition which overflows the field. So we do the
-	// additions step by step, partitioning after every addition to ensure that
-	// the intermediate results never overflow the field.
+	// add all the values directly and then partition. However, when
+	//    maxBitlen >= field size
+	// then we need to make sure that we never have an addition which overflows
+	// the field. So we do the additions step by step, partitioning after every
+	// addition to ensure that the intermediate results never overflow the
+	// field.
 	if maxBitlen < bf.api.Compiler().FieldBitLen() {
-		// handle the easy case
+		// handle the easy case. For this, we just compose the bytes into a
+		// native frontend.Variable, perform the addition natively drop the the
+		// carry bit and then re-split into bytes.
+
 		va := make([]frontend.Variable, inLen)
 		for i := range a {
 			va[i] = bf.ToValue(a[i])
@@ -258,15 +262,23 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 		res := bf.ValueOf(vreslow)
 		return res
 	} else {
+		// however, if the result when combining the bytes doesn't fit into the
+		// native field (i.e. we work over Koalabear), then we cannot use the
+		// same approach. Instead, we perform bytewise addition. For every byte
+		// addition we result in the result byte and a carry. The carry will be
+		// added to the next byte addition. And we can omit the last carry as we
+		// perform addition modulo 2^T.
+
 		// we don't fit into the native field. We operate bytewise. Update the
 		// bitlen for partitioning the carry
 		maxBitlen = bits.Len(uint(inLen)) + 8
 		// handle the more complex case where we need to partition after every addition
 		var carry frontend.Variable = 0
 		var res T
-		// inputs are provided as {[a0b0 a1b0 ... anb0], [a0b1 a1b1 ... anb1],
-		// ...}, but we want to perform addition per byte, so we transpose the
-		// inputs first
+
+		// inputs are provided as {[a00 a01 ... a0n], [a10 a11 ... a1n], ...} (i.e. a_{inputindex,byteindex}).
+		// but we want to perform additions per byte, so we need to transpose the inputs first.
+		// we can use the reslice method for this.
 		ai := bf.reslice(a) // [lenBts][len(a)]U8
 		aij := make([]frontend.Variable, inLen)
 		for i := range bf.lenBts() {
