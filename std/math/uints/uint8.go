@@ -130,6 +130,14 @@ func NewU64Array(v []uint64) []U64 {
 	return ret
 }
 
+func (bf *BinaryField[T]) zero() T {
+	var res T
+	for i := range bf.lenBts() {
+		res[i] = NewU8(0)
+	}
+	return res
+}
+
 // ByteValueOf converts a frontend.Variable into a single byte. If the input
 // doesn't fit into a byte then solver fails.
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
@@ -217,11 +225,15 @@ func (bf *BinaryField[T]) Not(a T) T {
 	return r
 }
 
+// Add performs addition of all inputs a modulo T. It returns the result of adding all
+// inputs together. The number of inputs must be at least one.
+//
+// For example if T is U32, then addition is performed modulo 2^32. This means that the
+// carry bit is omitted.
 func (bf *BinaryField[T]) Add(a ...T) T {
 	switch len(a) {
 	case 0:
-		var zero T
-		return zero
+		return bf.zero()
 	case 1:
 		return a[0]
 	}
