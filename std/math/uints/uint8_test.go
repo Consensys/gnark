@@ -251,3 +251,32 @@ func TestValueInCircuit(t *testing.T) {
 	assert.CheckCircuit(&ValueInCircuitCircuit{}, test.WithValidAssignment(&ValueInCircuitCircuit{In: 0x12, Expected: 0x12}))
 	assert.CheckCircuit(&ValueInCircuitCircuit{}, test.WithInvalidAssignment(&ValueInCircuitCircuit{In: 0x1234, Expected: 0x1234}))
 }
+
+type packCircuit struct {
+	In           [4]U8
+	ExpectedMSB  U32
+	ExtpectedLSB U32
+}
+
+func (c *packCircuit) Define(api frontend.API) error {
+	uapi, err := New[U32](api)
+	if err != nil {
+		return fmt.Errorf("New: %w", err)
+	}
+	msb := uapi.PackMSB(c.In[0], c.In[1], c.In[2], c.In[3])
+	uapi.AssertEq(msb, c.ExpectedMSB)
+	lsb := uapi.PackLSB(c.In[0], c.In[1], c.In[2], c.In[3])
+	uapi.AssertEq(lsb, c.ExtpectedLSB)
+	return nil
+}
+
+func TestPack(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&packCircuit{},
+		test.WithValidAssignment(&packCircuit{
+			In:           [4]U8{NewU8(0x12), NewU8(0x34), NewU8(0x56), NewU8(0x78)},
+			ExpectedMSB:  NewU32(0x12345678),
+			ExtpectedLSB: NewU32(0x78563412),
+		}),
+	)
+}
