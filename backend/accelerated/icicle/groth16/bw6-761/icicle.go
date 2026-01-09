@@ -1484,6 +1484,10 @@ func (pk *ProvingKey) FreeGPUResources() {
 	pk.setupMu.Lock()
 	defer pk.setupMu.Unlock()
 
+	if pk.deviceInfo == nil {
+		return
+	}
+
 	log := logger.Logger()
 
 	// Free pinned G1 vectors
@@ -1531,4 +1535,5 @@ func (pk *ProvingKey) FreeGPUResources() {
 	}
 
 	log.Info().Msg("All GPU resources freed")
+	pk.deviceInfo = nil
 }
