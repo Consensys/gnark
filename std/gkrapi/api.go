@@ -2,6 +2,7 @@ package gkrapi
 
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -9,8 +10,10 @@ import (
 )
 
 type API struct {
-	toStore     gkrinfo.StoringInfo
+	toStore     *gkrinfo.StoringInfo
+	index       int
 	assignments gkrtypes.WireAssignment
+	parentApi   frontend.API
 }
 
 func frontendVarToInt(a gkr.Variable) int {
@@ -27,7 +30,7 @@ func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
 }
 
 func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
-	if _, err := gkrgates.Register(gate, len(in)); err != nil {
+	if err := gkrgates.Register(gate, len(in)); err != nil {
 		panic(err)
 	}
 	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)

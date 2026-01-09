@@ -350,7 +350,7 @@ func TestDivFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&e12Div{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FixedExpo struct {
@@ -426,4 +426,35 @@ func TestFp12MulBy034(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
+}
+
+type fp12IsEqual struct {
+	A, B E12
+	Eq   frontend.Variable `gnark:",public"`
+}
+
+func (circuit *fp12IsEqual) Define(api frontend.API) error {
+	isEqual := circuit.A.IsEqual(api, circuit.B)
+	api.AssertIsEqual(isEqual, circuit.Eq)
+	return nil
+}
+
+func TestE12IsEqual(t *testing.T) {
+
+	// witness values
+	var a, b bls12377.E12
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+
+	var witness, witness2 fp12IsEqual
+	witness.A.Assign(&a)
+	witness.B.Assign(&a)
+	witness.Eq = 1
+
+	witness2.A.Assign(&a)
+	witness2.B.Assign(&b)
+	witness2.Eq = 0
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&fp12IsEqual{}, test.WithValidAssignment(&witness), test.WithValidAssignment(&witness2), test.WithCurves(ecc.BW6_761))
 }

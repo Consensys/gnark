@@ -1,7 +1,6 @@
 package gkrgates
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
@@ -16,33 +15,32 @@ func TestRegister(t *testing.T) {
 		t.Run(string(name), func(t *testing.T) {
 			name = name + "-register-gate-test"
 
-			added, err := Register(f, nbIn, WithDegree(degree), WithName(name+"_given"))
-			assert.NoError(t, err, "given degree must be accepted")
-			assert.True(t, added, "registration must succeed for given degree")
+			assert.NoError(t,
+				Register(f, nbIn, WithDegree(degree), WithName(name+"_given")),
+				"given degree must be accepted",
+			)
 
-			registered, err := Register(f, nbIn, WithDegree(degree-1), WithName(name+"_lower"))
-			assert.Error(t, err, "error must be returned for lower degree")
-			assert.False(t, registered, "registration must fail for lower degree")
+			assert.Error(t,
+				Register(f, nbIn, WithDegree(degree-1), WithName(name+"_lower")),
+				"error must be returned for lower degree",
+			)
 
-			registered, err = Register(f, nbIn, WithDegree(degree+1), WithName(name+"_higher"))
-			assert.Error(t, err, "error must be returned for higher degree")
-			assert.False(t, registered, "registration must fail for higher degree")
+			assert.Error(t,
+				Register(f, nbIn, WithDegree(degree+1), WithName(name+"_higher")),
+				"error must be returned for higher degree",
+			)
 
-			registered, err = Register(f, nbIn, WithName(name+"_no_degree"))
-			assert.NoError(t, err, "no error must be returned when no degree is specified")
-			assert.True(t, registered, "registration must succeed when no degree is specified")
+			assert.NoError(t,
+				Register(f, nbIn, WithName(name+"_no_degree")),
+				"no error must be returned when no degree is specified",
+			)
 
 			assert.Equal(t, degree, Get(name+"_no_degree").Degree(), "degree must be detected correctly")
 
-			added, err = Register(f, nbIn, WithDegree(degree), WithName(name+"_given"))
-			assert.NoError(t, err, "given degree must be accepted")
-			assert.False(t, added, "gate must not be re-registered")
-
-			added, err = Register(func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+			err := Register(func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 				return api.Add(f(api, x...), 1)
 			}, nbIn, WithDegree(degree), WithName(name+"_given"))
 			assert.Error(t, err, "registering another function under the same name must fail")
-			assert.False(t, added, "gate must not be re-registered")
 		})
 	}
 
@@ -67,21 +65,20 @@ func TestRegister(t *testing.T) {
 
 	t.Run("zero", func(t *testing.T) {
 		const gateName gkr.GateName = "zero-register-gate-test"
-		expectedError := fmt.Errorf("for gate \"%s\": %v", gateName, gkrtypes.ErrZeroFunction).Error()
 		zeroGate := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 			return api.Sub(x[0], x[0])
 		}
 
 		// Attempt to register the zero gate without specifying a degree
-		registered, err := Register(zeroGate, 1, WithName(gateName))
-		assert.Error(t, err, "error must be returned for zero polynomial")
-		assert.EqualError(t, err, expectedError, "error message must match expected error")
-		assert.False(t, registered, "registration must fail for zero polynomial")
+		assert.Error(t,
+			Register(zeroGate, 1, WithName(gateName)),
+			"error must be returned for zero polynomial",
+		)
 
 		// Attempt to register the zero gate with a specified degree
-		registered, err = Register(zeroGate, 1, WithName(gateName), WithDegree(2))
-		assert.Error(t, err, "error must be returned for zero polynomial with degree")
-		assert.EqualError(t, err, expectedError, "error message must match expected error")
-		assert.False(t, registered, "registration must fail for zero polynomial with degree")
+		assert.Error(t,
+			Register(zeroGate, 1, WithName(gateName), WithDegree(2)),
+			"error must be returned for zero polynomial with degree",
+		)
 	})
 }

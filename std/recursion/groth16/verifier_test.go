@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -595,4 +596,109 @@ func TestBLS12InBW6Multi(t *testing.T) {
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+}
+
+type OuterCircuitIsValid[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Proof        Proof[G1El, G2El]
+	VerifyingKey VerifyingKey[G1El, G2El, GtEl]
+	InnerWitness Witness[FR]
+	Res          frontend.Variable `gnark:",public"`
+}
+
+func (c *OuterCircuitIsValid[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	res, err := verifier.IsValidProof(c.VerifyingKey, c.Proof, c.InnerWitness)
+	if err != nil {
+		return fmt.Errorf("proof check: %w", err)
+	}
+	api.AssertIsEqual(res, c.Res)
+	return nil
+}
+
+func TestBLS12InBW6InvalidProof(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	assert.Equal(len(innerCcs.GetCommitments().CommitmentIndexes()), 1)
+
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuitIsValid[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Proof:        PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
+	}
+
+	assert.Run(func(assert *test.Assert) {
+		outerAssignment := &OuterCircuitIsValid[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			InnerWitness: circuitWitness,
+			Proof:        circuitProof,
+			VerifyingKey: circuitVk,
+			Res:          1,
+		}
+		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+		assert.NoError(err)
+	}, "valid")
+
+	assert.Run(func(assert *test.Assert) {
+		invalidCircuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+		assert.NoError(err)
+		var randg1 bls12377.G1Affine
+		var randg1s fr_bls12377.Element
+		randg1s.SetRandom()
+		randg1.ScalarMultiplicationBase(randg1s.BigInt(new(big.Int)))
+		invalidCircuitVk.G1.K[0] = sw_bls12377.NewG1Affine(randg1)
+
+		outerAssignment := &OuterCircuitIsValid[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			InnerWitness: circuitWitness,
+			Proof:        circuitProof,
+			VerifyingKey: invalidCircuitVk,
+			Res:          0,
+		}
+		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+		assert.NoError(err)
+	}, "invalid=vk")
+
+	assert.Run(func(assert *test.Assert) {
+		invalidCircuitProof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+		assert.NoError(err)
+		var randg1 bls12377.G1Affine
+		var randg1s fr_bls12377.Element
+		randg1s.SetRandom()
+		randg1.ScalarMultiplicationBase(randg1s.BigInt(new(big.Int)))
+		invalidCircuitProof.Ar = sw_bls12377.NewG1Affine(randg1)
+
+		outerAssignment := &OuterCircuitIsValid[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			InnerWitness: circuitWitness,
+			Proof:        invalidCircuitProof,
+			VerifyingKey: circuitVk,
+			Res:          0,
+		}
+		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+		assert.NoError(err)
+	}, "invalid=proof")
+
+	assert.Run(func(assert *test.Assert) {
+		invalidCircuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+		assert.NoError(err)
+		invalidCircuitWitness.Public[0] = emulated.ValueOf[sw_bls12377.ScalarField](123)
+
+		outerAssignment := &OuterCircuitIsValid[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			InnerWitness: invalidCircuitWitness,
+			Proof:        circuitProof,
+			VerifyingKey: circuitVk,
+			Res:          0,
+		}
+		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+		assert.NoError(err)
+	}, "invalid=witness")
 }

@@ -6,3 +6,4 @@
 * [Reclaim protocol](https://reclaimprotocol.org/) - Migrated circuits from snarkjs to gnark for mobile-proof generation efficiency; open‑sourced their symmetric‑crypto circuits.
 * [AlgoPlonk](https://github.com/giuliop/AlgoPlonk) - Go toolkit that turns any gnark-defined PLONK circuit into an Algorand smart contract verifier.
 * [Celer Network](https://celer.network/) – Leveraging gnark for zero-knowledge proof generation within cross-chain messaging and state verification mechanisms.
+* [zkBTC](https://www.zkbtc.money) by the [Lightec Labs](https://www.lightec.xyz) team - A decentralized bridge from Bitcoin to Ethereum. gnark is used for proving deposit and redeem transactions.

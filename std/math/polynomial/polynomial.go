@@ -93,6 +93,9 @@ func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 // EvalUnivariate evaluates univariate polynomial at a point at. It returns the
 // evaluation. The method does not mutate the inputs.
 func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[FR]) *emulated.Element[FR] {
+	if len(P) == 0 {
+		return p.f.Zero()
+	}
 	res := p.f.Zero()
 	for i := len(P) - 1; i > 0; i-- {
 		res = p.f.Add(res, &P[i])
@@ -118,6 +121,9 @@ func (p *Polynomial[FR]) EvalMultilinear(at []*emulated.Element[FR], M Multiline
 // The method allows to share computations of computing the coefficients of the
 // multilinear polynomials at the given evaluation points.
 func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Multilinear[FR]) ([]*emulated.Element[FR], error) {
+	if len(M) == 0 {
+		return nil, errors.New("no multilinear polynomials to evaluate")
+	}
 	lenM := len(M[0])
 	for i := range M {
 		if len(M[i]) != lenM {

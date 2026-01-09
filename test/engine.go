@@ -110,7 +110,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v\n%s", r, debug.Stack())
+			err = fmt.Errorf("%v\n%s", r, string(debug.Stack()))
 		}
 	}()
 
@@ -782,8 +782,8 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) SetGkrInfo(gkrinfo.StoringInfo) error {
-	return nil
+func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
+	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

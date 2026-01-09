@@ -1,4 +1,4 @@
-package gkr
+package gkrhints
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ type TestEngineHints struct {
 }
 
 func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
-	circuit, err := gkrtypes.CircuitInfoToCircuit(info.Circuit, gkrgates.Get)
+	circuit, err := gkrtypes.NewCircuit(info.Circuit, gkrgates.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -43,19 +43,20 @@ func NewTestEngineHints(info *gkrinfo.StoringInfo) (*TestEngineHints, error) {
 }
 
 // Solve solves one instance of a GKR circuit.
-// The first input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
+// The second input is the index of the instance. The rest are the inputs of the circuit, in their nominal order.
 func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 
+	// ignore the first input.
 	instanceI := len(h.assignment[0])
-	if in0 := ins[0].Uint64(); !ins[0].IsUint64() || in0 > 0xffffffff {
-		return errors.New("first input must be a uint32 instance index")
-	} else if in0 != uint64(instanceI) || h.info.NbInstances != instanceI {
-		return errors.New("first input must equal the number of instances, and calls to Solve must be done in order of instance index")
+	if in1 := ins[1].Uint64(); !ins[1].IsUint64() || in1 > 0xffffffff {
+		return errors.New("second input must be a uint32 instance index")
+	} else if in1 != uint64(instanceI) || h.info.NbInstances != instanceI {
+		return errors.New("second input must equal the number of instances, and calls to Solve must be done in order of instance index")
 	}
 
 	api := gateAPI{mod}
 
-	inI := 1
+	inI := 2
 	outI := 0
 	for wI := range h.circuit {
 		w := &h.circuit[wI]
@@ -80,39 +81,39 @@ func (h *TestEngineHints) Solve(mod *big.Int, ins []*big.Int, outs []*big.Int) e
 
 func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 
-	info, err := gkrtypes.StoringToSolvingInfo(*h.info, gkrgates.Get)
+	infos, err := gkrtypes.NewSolvingInfo([]*gkrinfo.StoringInfo{h.info}, gkrgates.Get)
 	if err != nil {
 		return fmt.Errorf("failed to convert storing info to solving info: %w", err)
 	}
+	ins[0].SetUint64(0)
 
-	// TODO @Tabaie autogenerate this or decide not to
 	if mod.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-		data := bls12377.NewSolvingData(info, bls12377.WithAssignment(h.assignment))
-		return bls12377.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bls12377.NewSolvingData(infos, bls12377.WithAssignments(h.assignment))
+		return bls12377.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-		data := bls12381.NewSolvingData(info, bls12381.WithAssignment(h.assignment))
-		return bls12381.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bls12381.NewSolvingData(infos, bls12381.WithAssignments(h.assignment))
+		return bls12381.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-		data := bls24315.NewSolvingData(info, bls24315.WithAssignment(h.assignment))
-		return bls24315.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bls24315.NewSolvingData(infos, bls24315.WithAssignments(h.assignment))
+		return bls24315.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-		data := bls24317.NewSolvingData(info, bls24317.WithAssignment(h.assignment))
-		return bls24317.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bls24317.NewSolvingData(infos, bls24317.WithAssignments(h.assignment))
+		return bls24317.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
-		data := bn254.NewSolvingData(info, bn254.WithAssignment(h.assignment))
-		return bn254.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bn254.NewSolvingData(infos, bn254.WithAssignments(h.assignment))
+		return bn254.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-		data := bw6633.NewSolvingData(info, bw6633.WithAssignment(h.assignment))
-		return bw6633.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bw6633.NewSolvingData(infos, bw6633.WithAssignments(h.assignment))
+		return bw6633.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-		data := bw6761.NewSolvingData(info, bw6761.WithAssignment(h.assignment))
-		return bw6761.ProveHint(info.HashName, data)(mod, ins, outs)
+		data := bw6761.NewSolvingData(infos, bw6761.WithAssignments(h.assignment))
+		return bw6761.ProveHint(data)(mod, ins, outs)
 	}
 
 	return errors.New("unsupported modulus")
@@ -120,13 +121,13 @@ func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 
 // GetAssignment returns the assignment for a particular wire and instance.
 func (h *TestEngineHints) GetAssignment(_ *big.Int, ins []*big.Int, outs []*big.Int) error {
-	if len(ins) != 3 || !ins[0].IsUint64() || !ins[1].IsUint64() {
-		return errors.New("expected 3 inputs: wire index, instance index, and dummy output from the same instance")
+	if len(ins) != 4 || !ins[0].IsUint64() || !ins[1].IsUint64() || !ins[2].IsUint64() {
+		return errors.New("expected 3 inputs: circuit index, wire index, instance index, and dummy output from the same instance")
 	}
 	if len(outs) != 1 {
 		return errors.New("expected 1 output: the value of the wire at the given instance")
 	}
-	*outs[0] = utils.FromInterface(h.assignment[ins[0].Uint64()][ins[1].Uint64()])
+	*outs[0] = utils.FromInterface(h.assignment[ins[1].Uint64()][ins[2].Uint64()])
 	return nil
 }
 
@@ -198,7 +199,7 @@ func (g gateAPI) Println(a ...frontend.Variable) {
 	for i := range a {
 		if s, ok := a[i].(fmt.Stringer); ok {
 			strings[i] = s.String()
-		} else if strings[i], ok = a[i].(string); !ok {
+		} else {
 			bigInt := utils.FromInterface(a[i])
 			strings[i] = bigInt.String()
 		}

@@ -65,7 +65,7 @@ func (c *Cache) GetCircuit(path string) (circuit gkrtypes.Circuit) {
 	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
 		panic(err)
 	}
-	if circuit, err = gkrtypes.CircuitInfoToCircuit(circuitInfo, c.GetGate); err != nil {
+	if circuit, err = gkrtypes.NewCircuit(circuitInfo, c.GetGate); err != nil {
 		panic(err)
 	}
 	c.circuits[path] = circuit

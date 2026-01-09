@@ -1,10 +1,6 @@
 // Package gkrinfo contains serializable information capable of being saved in a SNARK circuit CS object.
 package gkrinfo
 
-import (
-	"github.com/consensys/gnark/constraint/solver"
-)
-
 type (
 	InputDependency struct {
 		OutputWire     int
@@ -20,12 +16,9 @@ type (
 	Circuit []Wire
 
 	StoringInfo struct {
-		Circuit             Circuit
-		NbInstances         int
-		HashName            string
-		GetAssignmentHintID solver.HintID
-		SolveHintID         solver.HintID
-		ProveHintID         solver.HintID
+		Circuit     Circuit
+		NbInstances int
+		HashName    string
 	}
 
 	Permutations struct {
@@ -46,11 +39,13 @@ func (d *StoringInfo) NewInputVariable() int {
 	return i
 }
 
-func (d *StoringInfo) Is() bool {
-	return d.Circuit != nil
-}
-
-// A ConstraintSystem that supports GKR
+// A ConstraintSystem that supports GKR. If a constraint system implements this
+// interface, then it stores and proves GKR sub-circuits automatically at circuit
+// solving time.
 type ConstraintSystem interface {
-	SetGkrInfo(info StoringInfo) error
+	// NewGkr registers a GKR sub-circuit, returning a reference to an object
+	// where serializable data about the sub-circuit is to be stored, and an
+	// index as a reference to the GKR sub-circuit. The index is the first
+	// argument to all GKR-related hints.
+	NewGkr() (*StoringInfo, int)
 }

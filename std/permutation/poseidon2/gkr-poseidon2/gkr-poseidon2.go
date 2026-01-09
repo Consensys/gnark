@@ -140,7 +140,7 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 		if compressor, ok := cached.(*compressor); ok {
 			return compressor, nil
 		}
-		return nil, fmt.Errorf("cached value is of type %T, not a mimcCompressor", cached)
+		return nil, fmt.Errorf("cached value is of type %T, not a gkr-poseidon2.Compressor", cached)
 	}
 
 	gkrCircuit, in1, in2, out, err := defineCircuit(api)
@@ -188,7 +188,10 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 		return
 	}
 
-	gkrApi := gkrapi.New()
+	gkrApi, err := gkrapi.New(api)
+	if err != nil {
+		return
+	}
 
 	x := gkrApi.NewInput()
 	y := gkrApi.NewInput()
@@ -281,7 +284,7 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	// apply the external matrix one last time to obtain the final value of y
 	out = gkrApi.Gate(extAddGate, y, x, in2)
 
-	gkrCircuit = gkrApi.Compile(api, "MIMC")
+	gkrCircuit, err = gkrApi.Compile("MIMC")
 
 	return
 }
@@ -313,13 +316,11 @@ func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
 	halfRf := p.NbFullRounds / 2
 
 	extKeySBox := func(round int, varIndex int) error {
-		_, err := gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(curve))
-		return err
+		return gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(curve))
 	}
 
 	intKeySBox2 := func(round int) error {
-		_, err := gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
-		return err
+		return gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
 	}
 
 	fullRound := func(i int) error {
