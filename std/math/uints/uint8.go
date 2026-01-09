@@ -172,6 +172,10 @@ func (bf *BinaryField[T]) ToValue(a T) frontend.Variable {
 	return vv
 }
 
+// PackMSB packs bytes into a long integer T assuming most significant byte
+// first order.
+// For example, PackMSB(0x12, 0x34, 0x56, 0x78) = 0x12345678
+// The number of bytes provided must match the size of T.
 func (bf *BinaryField[T]) PackMSB(a ...U8) T {
 	var ret T
 	for i := range a {
@@ -180,6 +184,10 @@ func (bf *BinaryField[T]) PackMSB(a ...U8) T {
 	return ret
 }
 
+// PackLSB packs bytes into a long integer T assuming least significant byte
+// first order.
+// For example, PackLSB(0x12, 0x34, 0x56, 0x78) = 0x78563412
+// The number of bytes provided must match the size of T.
 func (bf *BinaryField[T]) PackLSB(a ...U8) T {
 	var ret T
 	for i := range a {
@@ -188,6 +196,10 @@ func (bf *BinaryField[T]) PackLSB(a ...U8) T {
 	return ret
 }
 
+// UnpackMSB unpacks a long integer T into bytes assuming most significant
+// byte first order.
+// For example, UnpackMSB(0x12345678) = (0x12, 0x34, 0x56, 0x78)
+// The number of bytes returned matches the size of T.
 func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 	ret := make([]U8, bf.lenBts())
 	for i := range ret {
@@ -196,6 +208,10 @@ func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 	return ret
 }
 
+// UnpackLSB unpacks a long integer T into bytes assuming least significant
+// byte first order.
+// For example, UnpackLSB(0x78563412) = (0x12, 0x34, 0x56, 0x78)
+// The number of bytes returned matches the size of T.
 func (bf *BinaryField[T]) UnpackLSB(a T) []U8 {
 	// cannot deduce that a can be cast to []U8
 	ret := make([]U8, bf.lenBts())
@@ -213,10 +229,19 @@ func (bf *BinaryField[T]) twoArgWideFn(tbl *logderivprecomp.Precomputed, a ...T)
 	return r
 }
 
+// And performs bitwise AND operation on all inputs a. It returns the result of
+// ANDing all inputs together. The number of inputs must be at least one.
 func (bf *BinaryField[T]) And(a ...T) T { return bf.twoArgWideFn(bf.andT, a...) }
-func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
-func (bf *BinaryField[T]) Or(a ...T) T  { return bf.twoArgWideFn(bf.orT, a...) }
 
+// Xor performs bitwise XOR operation on all inputs a. It returns the result of
+// XORing all inputs together. The number of inputs must be at least one.
+func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
+
+// Or performs bitwise OR operation on all inputs a. It returns the result of
+// ORing all inputs together. The number of inputs must be at least one.
+func (bf *BinaryField[T]) Or(a ...T) T { return bf.twoArgWideFn(bf.orT, a...) }
+
+// Not performs bitwise NOT operation on input a.
 func (bf *BinaryField[T]) Not(a T) T {
 	var r T
 	for i := 0; i < bf.lenBts(); i++ {
@@ -303,6 +328,8 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 	}
 }
 
+// Lrot performs left rotation of a by c bits.
+// For example, if T is U32, then Lrot(0x12345678, 8) = 0x34567812
 func (bf *BinaryField[T]) Lrot(a T, c int) T {
 	l := bf.lenBts()
 	if c < 0 {
@@ -331,6 +358,8 @@ func (bf *BinaryField[T]) Lrot(a T, c int) T {
 	return ret
 }
 
+// Rshift performs right shift of a by c bits.
+// For example, if T is U32, then Rshift(0x12345678, 8) = 0x00123456
 func (bf *BinaryField[T]) Rshift(a T, c int) T {
 	lenB := bf.lenBts()
 	shiftBl := c / 8
@@ -356,10 +385,12 @@ func (bf *BinaryField[T]) Rshift(a T, c int) T {
 	return ret
 }
 
+// ByteAssertEq asserts that two bytes are equal.
 func (bf *BinaryField[T]) ByteAssertEq(a, b U8) {
 	bf.Bytes.AssertIsEqual(a, b)
 }
 
+// AssertEq asserts that two long integers are equal.
 func (bf *BinaryField[T]) AssertEq(a, b T) {
 	for i := 0; i < bf.lenBts(); i++ {
 		bf.ByteAssertEq(a[i], b[i])
