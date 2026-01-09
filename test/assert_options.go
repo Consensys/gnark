@@ -36,6 +36,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	// go test 							--> constraintOnlyProfile
 	// go test -tags=prover_checks 		--> proverOnlyProfile
 	// go test -tags=release_checks 	--> releaseProfile
+	// go test -tags=...,smallfield_checks --> append smallfield checks to the above profiles
 
 	if releaseTestFlag {
 		opt.profile = releaseChecks
@@ -45,6 +46,10 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 		opt.profile = testEngineChecks
 	} else {
 		opt.profile = constraintSolverChecks
+	}
+	// independent option -- if the tag is set then append the smallfield checks
+	if smallfieldTestFlag {
+		opt.checkSmallField = true
 	}
 
 	// apply user provided options.
@@ -184,6 +189,41 @@ func WithVerifierOpts(verifierOpts ...backend.VerifierOption) TestingOption {
 func WithSolidityExportOptions(solidityOpts ...solidity.ExportOption) TestingOption {
 	return func(tc *testingConfig) error {
 		tc.solidityOpts = solidityOpts
+		return nil
+	}
+}
+
+// WithSmallfieldCheck is a testing option which enforces checking circuit
+// compilation and solving in a small field. If not set then the small field
+// checks are skipped. We can enforce small field checks by using the
+// "smallfield_checks" build tag.
+func WithSmallfieldCheck() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.checkSmallField = true
+		return nil
+	}
+}
+
+// WithoutSmallfieldCheck is a testing option which disables checking circuit
+// compilation and solving in a small field. This overrides the
+// "smallfield_checks" build tag.
+//
+// The option is useful for tests that specifically want to skip small field
+// checks. For example, when we test hash functions (MiMC/Poseidon2) which are
+// not defined over small fields.
+func WithoutSmallfieldCheck() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.checkSmallField = false
+		return nil
+	}
+}
+
+// WithoutCurveChecks is a testing option which disables all curve checks. This method
+// can be used if we only want to test over small fields. It overrides the build
+// tag settings and any curve-related options.
+func WithoutCurveChecks() TestingOption {
+	return func(tc *testingConfig) error {
+		tc.curves = nil
 		return nil
 	}
 }
