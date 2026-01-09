@@ -163,7 +163,8 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 	/*************************  End Init Domain Device  ***************************/
 	
 	// NOTE: On-demand loading strategy - we do NOT pre-load large proving key vectors
-	// (G1.A, G1.B, G1.K, G1.Z, G2.B, CommitmentKeys) to GPU at initialization.
+	// (G1.A, G1.B, G1.K, G1.Z, G2.B, CommitmentKeys) to GPU at initialization,
+	// unless PinToGPU is enabled.
 	// These will be loaded from host memory only when needed during Prove() execution
 	// and freed immediately after use, drastically reducing GPU memory footprint.
 
@@ -222,6 +223,29 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 			pk.PinnedG2Device.B, err = loadG2(g2BHost)
 			if err != nil {
 				panic(fmt.Sprintf("pin G2.B: %v", err))
+			}
+
+			if len(pk.CommitmentKeys) > 0 {
+				pk.CommitmentKeysDevice.Basis = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
+				pk.CommitmentKeysDevice.BasisExpSigma = make([]icicle_core.DeviceSlice, len(pk.CommitmentKeys))
+				for i := range pk.CommitmentKeys {
+					if len(pk.CommitmentKeys[i].Basis) > 0 {
+						log.Debug().Int("commitment", i).Msg("Pinning commitment key basis to GPU")
+						ckBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
+						pk.CommitmentKeysDevice.Basis[i], err = loadG1Raw(ckBasisHost)
+						if err != nil {
+							panic(fmt.Sprintf("pin commitment basis: %v", err))
+						}
+					}
+					if len(pk.CommitmentKeys[i].BasisExpSigma) > 0 {
+						log.Debug().Int("commitment", i).Msg("Pinning commitment key BasisExpSigma to GPU")
+						ckBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
+						pk.CommitmentKeysDevice.BasisExpSigma[i], err = loadG1Raw(ckBasisExpSigmaHost)
+						if err != nil {
+							panic(fmt.Sprintf("pin commitment BasisExpSigma: %v", err))
+						}
+					}
+				}
 			}
 			
 			log.Info().Msg("All vectors pinned to GPU successfully")
@@ -823,17 +847,26 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		icicle_runtime.RunOnDevice(&device, func(args ...any) {
 			defer close(ckBasisMsmDone)
 			
-			log.Debug().Int("commitment", i).Msg("Loading commitment key basis for MSM")
-			ckBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
-			ckBasisDevice, err := loadG1Raw(ckBasisHost)
-			if err != nil {
-				panic(fmt.Sprintf("load commitment basis: %v", err))
+			var ckBasisDevice icicle_core.DeviceSlice
+			shouldFree := false
+			if pk.PinToGPU && i < len(pk.CommitmentKeysDevice.Basis) && pk.CommitmentKeysDevice.Basis[i].AsUnsafePointer() != nil {
+				log.Debug().Int("commitment", i).Msg("Using pinned commitment key basis for MSM")
+				ckBasisDevice = pk.CommitmentKeysDevice.Basis[i]
+			} else {
+				log.Debug().Int("commitment", i).Msg("Loading commitment key basis for MSM")
+				ckBasisHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].Basis)
+				var err error
+				ckBasisDevice, err = loadG1Raw(ckBasisHost)
+				if err != nil {
+					panic(fmt.Sprintf("load commitment basis: %v", err))
+				}
+				shouldFree = true
 			}
 			defer func() {
-				if ckBasisDevice.AsUnsafePointer() != nil {
+				if shouldFree && ckBasisDevice.AsUnsafePointer() != nil {
 					ckBasisDevice.Free()
+					log.Debug().Int("commitment", i).Msg("Freed commitment key basis")
 				}
-				log.Debug().Int("commitment", i).Msg("Freed commitment key basis")
 			}()
 			
 			cfg := icicle_msm.GetDefaultMSMConfig()
@@ -892,11 +925,20 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 					continue
 				}
 
-				log.Debug().Int("commitment", i).Msg("Loading commitment key BasisExpSigma for POK MSM")
-				ckBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
-				ckBasisExpSigmaDevice, err := loadG1Raw(ckBasisExpSigmaHost)
-				if err != nil {
-					panic(fmt.Sprintf("load commitment BasisExpSigma: %v", err))
+				var ckBasisExpSigmaDevice icicle_core.DeviceSlice
+				shouldFree := false
+				if pk.PinToGPU && i < len(pk.CommitmentKeysDevice.BasisExpSigma) && pk.CommitmentKeysDevice.BasisExpSigma[i].AsUnsafePointer() != nil {
+					log.Debug().Int("commitment", i).Msg("Using pinned commitment key BasisExpSigma for POK MSM")
+					ckBasisExpSigmaDevice = pk.CommitmentKeysDevice.BasisExpSigma[i]
+				} else {
+					log.Debug().Int("commitment", i).Msg("Loading commitment key BasisExpSigma for POK MSM")
+					ckBasisExpSigmaHost := icicle_core.HostSliceFromElements(pk.CommitmentKeys[i].BasisExpSigma)
+					var err error
+					ckBasisExpSigmaDevice, err = loadG1Raw(ckBasisExpSigmaHost)
+					if err != nil {
+						panic(fmt.Sprintf("load commitment BasisExpSigma: %v", err))
+					}
+					shouldFree = true
 				}
 
 				jac, _, err := msmChunkedG1(privateCommittedValuesDevice[i], ckBasisExpSigmaDevice, cfg)
@@ -905,10 +947,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 				}
 				poks[i].FromJacobian(&jac)
 
-				if ckBasisExpSigmaDevice.AsUnsafePointer() != nil {
+				if shouldFree && ckBasisExpSigmaDevice.AsUnsafePointer() != nil {
 					ckBasisExpSigmaDevice.Free()
+					log.Debug().Int("commitment", i).Msg("Freed commitment key BasisExpSigma")
 				}
-				log.Debug().Int("commitment", i).Msg("Freed commitment key BasisExpSigma")
 			}
 			close(ckBasisExpSigmaMsmBatchDone)
 		})
@@ -1497,6 +1539,20 @@ func (pk *ProvingKey) FreeGPUResources() {
 	if pk.DenDevice.AsUnsafePointer() != nil {
 		pk.DenDevice.Free()
 		log.Debug().Msg("Freed DenDevice")
+	}
+
+	// Free pinned commitment keys
+	for i := range pk.CommitmentKeysDevice.Basis {
+		if pk.CommitmentKeysDevice.Basis[i].AsUnsafePointer() != nil {
+			pk.CommitmentKeysDevice.Basis[i].Free()
+			log.Debug().Int("commitment", i).Msg("Freed pinned commitment key basis")
+		}
+	}
+	for i := range pk.CommitmentKeysDevice.BasisExpSigma {
+		if pk.CommitmentKeysDevice.BasisExpSigma[i].AsUnsafePointer() != nil {
+			pk.CommitmentKeysDevice.BasisExpSigma[i].Free()
+			log.Debug().Int("commitment", i).Msg("Freed pinned commitment key BasisExpSigma")
+		}
 	}
 	
 	log.Info().Msg("All GPU resources freed")
