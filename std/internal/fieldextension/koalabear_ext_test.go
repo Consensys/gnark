@@ -26,12 +26,8 @@ func (c *kbE2AddTestCircuit) Define(api frontend.API) error {
 func TestKoalabearExt2Add(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, b, c extensions.E2
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
+	b.MustSetRandom()
 	c.Add(&a, &b)
 
 	assert.CheckCircuit(
@@ -62,12 +58,8 @@ func (c *kbE2SubTestCircuit) Define(api frontend.API) error {
 func TestKoalabearExt2Sub(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, b, c extensions.E2
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
+	b.MustSetRandom()
 	c.Sub(&a, &b)
 
 	assert.CheckCircuit(
@@ -98,12 +90,8 @@ func (c *kbE2MulTestCircuit) Define(api frontend.API) error {
 func TestKoalabearExt2Mul(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, b, c extensions.E2
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
+	b.MustSetRandom()
 	c.Mul(&a, &b)
 
 	assert.CheckCircuit(
@@ -137,12 +125,8 @@ func TestKoalabearExt2MulByElement(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, c extensions.E2
 	var b fr.Element
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
+	b.MustSetRandom()
 	c.MulByElement(&a, &b)
 
 	assert.CheckCircuit(
@@ -173,9 +157,7 @@ func (c *kbE2MulByNonResidueTestCircuit) Define(api frontend.API) error {
 func TestKoalabearExt2MulByNonResidue(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, c extensions.E2
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
 	c.MulByNonResidue(&a)
 
 	assert.CheckCircuit(
@@ -204,9 +186,7 @@ func (c *kbE2InverseTestCircuit) Define(api frontend.API) error {
 func TestKoalabearExt2Inverse(t *testing.T) {
 	assert := test.NewAssert(t)
 	var a, aInv extensions.E2
-	if _, err := a.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	a.MustSetRandom()
 	if a.IsZero() {
 		a.SetOne()
 	}
@@ -296,9 +276,7 @@ func TestKoalabearExt4MulByElement(t *testing.T) {
 	var a, c extensions.E4
 	var b fr.Element
 	a.MustSetRandom()
-	if _, err := b.SetRandom(); err != nil {
-		t.Fatal(err)
-	}
+	b.MustSetRandom()
 	c.MulByElement(&a, &b)
 
 	assert.CheckCircuit(
