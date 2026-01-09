@@ -111,6 +111,7 @@ func TestAdd(t *testing.T) {
 		assert.CheckCircuit(
 			&addCircuit{In: make([]U32, 0)},
 			test.WithValidAssignment(&addCircuit{In: make([]U32, 0), Expected: NewU32(0)}),
+			test.WithSmallfieldCheck(),
 		)
 	}, "no-inputs")
 
@@ -119,6 +120,7 @@ func TestAdd(t *testing.T) {
 		assert.CheckCircuit(
 			&addCircuit{In: make([]U32, 1)},
 			test.WithValidAssignment(&addCircuit{In: []U32{NewU32(0x12345678)}, Expected: NewU32(0x12345678)}),
+			test.WithSmallfieldCheck(),
 		)
 	}, "one-input")
 
@@ -127,6 +129,7 @@ func TestAdd(t *testing.T) {
 		assert.CheckCircuit(
 			&addCircuit{In: make([]U32, 2)},
 			test.WithValidAssignment(&addCircuit{In: []U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}),
+			test.WithSmallfieldCheck(),
 		)
 	}, "two-inputs")
 
@@ -139,6 +142,7 @@ func TestAdd(t *testing.T) {
 				In:       []U32{NewU32(0xffffffff), NewU32(0xfffffffd), NewU32(0xfffffffc), NewU32(0xfffffffb)},
 				Expected: NewU32(0xfffffff3),
 			}),
+			test.WithSmallfieldCheck(),
 		)
 	}, "many-inputs")
 }
