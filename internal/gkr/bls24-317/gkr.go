@@ -537,9 +537,9 @@ func getFirstChallengeNames(logNbInstances int, prefix string) []string {
 func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Element, error) {
 	res := make([]fr.Element, len(names))
 	for i, name := range names {
-		if bytes, err := transcript.ComputeChallenge(name); err == nil {
-			res[i].SetBytes(bytes)
-		} else {
+		if bytes, err := transcript.ComputeChallenge(name); err != nil {
+			return nil, err
+		} else if err = res[i].SetBytesCanonical(bytes); err != nil {
 			return nil, err
 		}
 	}
@@ -739,7 +739,7 @@ func (gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.V
 
 func (gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	var prod fr.Element
-	prod.Add(cast(b), cast(c))
+	prod.Mul(cast(b), cast(c))
 	res := cast(a)
 	res.Add(res, &prod)
 	return &res

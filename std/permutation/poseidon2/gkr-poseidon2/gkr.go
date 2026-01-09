@@ -1,23 +1,16 @@
 package gkr_poseidon2
 
 import (
-	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-	"github.com/consensys/gnark/std/hash"
-	_ "github.com/consensys/gnark/std/hash/mimc" // to ensure mimc is registered
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frBls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	poseidon2Bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
+	"github.com/consensys/gnark/frontend"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -45,7 +38,7 @@ func pow4Gate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 // pow4TimesGate computes a, b -> a⁴ * b
 func pow4TimesGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 2 {
-		panic("expected 1 input")
+		panic("expected 2 input")
 	}
 	y := api.Mul(x[0], x[0])
 	y = api.Mul(y, y)
@@ -99,14 +92,6 @@ func intGate2(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Add(api.Mul(x[1], 3), x[0])
 }
 
-// extGate applies the first row of the external matrix
-func extGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("expected 2 inputs")
-	}
-	return api.Add(api.Mul(x[0], 2), x[1])
-}
-
 // extAddGate applies the first row of the external matrix to the first two elements and adds the third
 func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 3 {
@@ -115,45 +100,59 @@ func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Add(api.Mul(x[0], 2), x[1], x[2])
 }
 
-type GkrCompressions struct {
-	api  frontend.API
-	ins1 []frontend.Variable
-	ins2 []frontend.Variable
-	outs []frontend.Variable
+type GkrCompressor struct {
+	api           frontend.API
+	gkrCircuit    *gkrapi.Circuit
+	in1, in2, out gkr.Variable
 }
 
-// NewGkrCompressions returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
+// NewGkrCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proven using GKR.
-// Note that the solver will need the function RegisterGkrSolverOptions to be called with the desired curves
-func NewGkrCompressions(api frontend.API) *GkrCompressions {
-	res := GkrCompressions{
-		api: api,
+// Note that the solver will need the function RegisterGkrGates to be called with the desired curves
+func NewGkrCompressor(api frontend.API) *GkrCompressor {
+	if api.Compiler().Field().Cmp(ecc.BLS12_377.ScalarField()) != 0 {
+		panic("currently only BLS12-377 is supported")
 	}
-	api.Compiler().Defer(res.finalize)
-	return &res
+	gkrApi, in1, in2, out, err := defineCircuitBls12377(api)
+	if err != nil {
+		panic(fmt.Sprintf("failed to define GKR circuit: %v", err))
+	}
+	gkrCircuit, err := gkrApi.Compile("MIMC")
+	if err != nil {
+		panic(fmt.Sprintf("failed to compile GKR circuit: %v", err))
+	}
+	return &GkrCompressor{
+		api:        api,
+		gkrCircuit: gkrCircuit,
+		in1:        in1,
+		in2:        in2,
+		out:        out,
+	}
 }
 
-func (p *GkrCompressions) Compress(a, b frontend.Variable) frontend.Variable {
-	s, err := p.api.Compiler().NewHint(permuteHint, 1, a, b)
+func (p *GkrCompressor) Compress(a, b frontend.Variable) frontend.Variable {
+	outs, err := p.gkrCircuit.AddInstance(map[gkr.Variable]frontend.Variable{p.in1: a, p.in2: b})
 	if err != nil {
 		panic(err)
 	}
-	p.ins1 = append(p.ins1, a)
-	p.ins2 = append(p.ins2, b)
-	p.outs = append(p.outs, s[0])
-	return s[0]
+
+	return outs[p.out]
 }
 
-// defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377
+// defineCircuitBls12377 defines the GKR circuit for the Poseidon2 permutation over BLS12-377
 // insLeft and insRight are the inputs to the permutation
 // they must be padded to a power of 2
-func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Variable, error) {
+func defineCircuitBls12377(api frontend.API) (gkrApi *gkrapi.API, in1, in2, out gkr.Variable, err error) {
 	// variable indexes
 	const (
 		xI = iota
 		yI
 	)
+
+	if err = registerGatesBls12377(); err != nil {
+		return
+	}
 
 	// poseidon2 parameters
 	gateNamer := newRoundGateNamer(poseidon2Bls12377.GetDefaultParameters())
@@ -161,17 +160,15 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 	rP := poseidon2Bls12377.GetDefaultParameters().NbPartialRounds
 	halfRf := rF / 2
 
-	gkrApi := gkrapi.New()
+	gkrApi, err = gkrapi.New(api)
+	if err != nil {
+		return
+	}
 
-	x, err := gkrApi.Import(insLeft)
-	if err != nil {
-		return nil, -1, err
-	}
-	y, err := gkrApi.Import(insRight)
-	y0 := y // save to feed forward at the end
-	if err != nil {
-		return nil, -1, err
-	}
+	x := gkrApi.NewInput()
+	y := gkrApi.NewInput()
+
+	in1, in2 = x, y // save to feed forward at the end
 
 	// *** helper functions to register and apply gates ***
 
@@ -240,80 +237,9 @@ func defineCircuit(insLeft, insRight []frontend.Variable) (*gkrapi.API, gkr.Vari
 	}
 
 	// apply the external matrix one last time to obtain the final value of y
-	y = gkrApi.NamedGate(gateNamer.linear(yI, rP+rF), y, x, y0)
+	out = gkrApi.NamedGate(gateNamer.linear(yI, rP+rF), y, x, in2)
 
-	return gkrApi, y, nil
-}
-
-func (p *GkrCompressions) finalize(api frontend.API) error {
-	if p.api != api {
-		panic("unexpected API")
-	}
-
-	// register gates
-	registerGkrSolverOptions(api)
-
-	// pad instances into a power of 2
-	// TODO @Tabaie the GKR API to do this automatically?
-	ins1Padded := make([]frontend.Variable, ecc.NextPowerOfTwo(uint64(len(p.ins1))))
-	ins2Padded := make([]frontend.Variable, len(ins1Padded))
-	copy(ins1Padded, p.ins1)
-	copy(ins2Padded, p.ins2)
-	for i := len(p.ins1); i < len(ins1Padded); i++ {
-		ins1Padded[i] = 0
-		ins2Padded[i] = 0
-	}
-
-	gkrApi, y, err := defineCircuit(ins1Padded, ins2Padded)
-	if err != nil {
-		return err
-	}
-
-	// connect to output
-	// TODO can we save 1 constraint per instance by giving the desired outputs to the gkr api?
-	solution, err := gkrApi.Solve(api)
-	if err != nil {
-		return err
-	}
-	yVals := solution.Export(y)
-	for i := range p.outs {
-		api.AssertIsEqual(yVals[i], p.outs[i])
-	}
-
-	// verify GKR proof
-	allVals := make([]frontend.Variable, 0, 3*len(p.ins1))
-	allVals = append(allVals, p.ins1...)
-	allVals = append(allVals, p.ins2...)
-	allVals = append(allVals, p.outs...)
-	challenge, err := p.api.(frontend.Committer).Commit(allVals...)
-	if err != nil {
-		return err
-	}
-	return solution.Verify(hash.MIMC.String(), challenge)
-}
-
-// registerGkrSolverOptions is a wrapper for RegisterGkrSolverOptions
-// that performs the registration for the curve associated with api.
-func registerGkrSolverOptions(api frontend.API) {
-	RegisterGkrSolverOptions(utils.FieldToCurve(api.Compiler().Field()))
-}
-
-func permuteHint(m *big.Int, ins, outs []*big.Int) error {
-	if m.Cmp(ecc.BLS12_377.ScalarField()) != 0 {
-		return errors.New("only bls12-377 supported")
-	}
-	if len(ins) != 2 || len(outs) != 1 {
-		return errors.New("expected 2 inputs and 1 output")
-	}
-	var x [2]frBls12377.Element
-	x[0].SetBigInt(ins[0])
-	x[1].SetBigInt(ins[1])
-	y0 := x[1]
-
-	err := bls12377Permutation().Permutation(x[:])
-	x[1].Add(&x[1], &y0) // feed forward
-	x[1].BigInt(outs[0])
-	return err
+	return
 }
 
 var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
@@ -321,16 +247,15 @@ var bls12377Permutation = sync.OnceValue(func() *poseidon2Bls12377.Permutation {
 	return poseidon2Bls12377.NewPermutation(2, params.NbFullRounds, params.NbPartialRounds) // TODO @Tabaie add NewDefaultPermutation to gnark-crypto
 })
 
-// RegisterGkrSolverOptions registers the GKR gates corresponding to the given curves for the solver
-func RegisterGkrSolverOptions(curves ...ecc.ID) {
+// RegisterGkrGates registers the GKR gates corresponding to the given curves for the solver
+func RegisterGkrGates(curves ...ecc.ID) {
 	if len(curves) == 0 {
 		panic("expected at least one curve")
 	}
-	solver.RegisterHint(permuteHint)
 	for _, curve := range curves {
 		switch curve {
 		case ecc.BLS12_377:
-			if err := registerGkrGatesBls12377(); err != nil {
+			if err := registerGatesBls12377(); err != nil {
 				panic(err)
 			}
 		default:
@@ -339,7 +264,7 @@ func RegisterGkrSolverOptions(curves ...ecc.ID) {
 	}
 }
 
-func registerGkrGatesBls12377() error {
+func registerGatesBls12377() error {
 	const (
 		x = iota
 		y
@@ -349,29 +274,31 @@ func registerGkrGatesBls12377() error {
 	halfRf := p.NbFullRounds / 2
 	gateNames := newRoundGateNamer(p)
 
-	if err := gkrgates.Register(pow2Gate, 1, gkrgates.WithUnverifiedDegree(2), gkrgates.WithNoSolvableVar()); err != nil {
+	if err := gkrgates.Register(pow2Gate, 1, gkrgates.WithUnverifiedDegree(2), gkrgates.WithNoSolvableVar(), gkrgates.WithCurves(ecc.BLS12_377)); err != nil {
 		return err
 	}
-	if err := gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4), gkrgates.WithNoSolvableVar()); err != nil {
+	if err := gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4), gkrgates.WithNoSolvableVar(), gkrgates.WithCurves(ecc.BLS12_377)); err != nil {
 		return err
 	}
-	if err := gkrgates.Register(pow2TimesGate, 2, gkrgates.WithUnverifiedDegree(3), gkrgates.WithNoSolvableVar()); err != nil {
+	if err := gkrgates.Register(pow2TimesGate, 2, gkrgates.WithUnverifiedDegree(3), gkrgates.WithNoSolvableVar(), gkrgates.WithCurves(ecc.BLS12_377)); err != nil {
 		return err
 	}
-	if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithNoSolvableVar()); err != nil {
+	if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithNoSolvableVar(), gkrgates.WithCurves(ecc.BLS12_377)); err != nil {
 		return err
 	}
 
-	if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0)); err != nil {
+	if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithCurves(ecc.BLS12_377)); err != nil {
 		return err
 	}
 
 	extKeySBox := func(round int, varIndex int) error {
-		return gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)))
+		err := gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(ecc.BLS12_377))
+		return err
 	}
 
 	intKeySBox2 := func(round int) error {
-		return gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)))
+		err := gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(ecc.BLS12_377))
+		return err
 	}
 
 	fullRound := func(i int) error {
@@ -415,7 +342,8 @@ func registerGkrGatesBls12377() error {
 		}
 	}
 
-	return gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, p.NbPartialRounds+p.NbFullRounds)))
+	err := gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, p.NbPartialRounds+p.NbFullRounds)), gkrgates.WithCurves(ecc.BLS12_377))
+	return err
 }
 
 type roundGateNamer string
@@ -428,9 +356,4 @@ func newRoundGateNamer(p fmt.Stringer) roundGateNamer {
 // linear is the name of a gate where a polynomial of total degree 1 is applied to the input
 func (n roundGateNamer) linear(varIndex, round int) gkr.GateName {
 	return gkr.GateName(fmt.Sprintf("x%d-l-op-round=%d;%s", varIndex, round, n))
-}
-
-// integrated is the name of a gate where a polynomial of total degree 1 is applied to the input, followed by an S-box
-func (n roundGateNamer) integrated(varIndex, round int) gkr.GateName {
-	return gkr.GateName(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
 }

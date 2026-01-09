@@ -9,138 +9,226 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/utils"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	algo_utils "github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 type SolvingData struct {
-	assignment WireAssignment
-	circuit    gkrtypes.Circuit
-	workers    *utils.WorkerPool
+	assignment  WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
+	circuit     gkrtypes.Circuit
+	maxNbIn     int // maximum number of inputs for a gate in the circuit
+	nbInstances int
+	hashName    string
 }
 
-func (d *SolvingData) init(info gkrtypes.SolvingInfo) {
-	d.workers = utils.NewWorkerPool()
-	d.circuit = info.Circuit
-	d.circuit.SetNbUniqueOutputs()
+type newSolvingDataSettings struct {
+	assignments []gkrtypes.WireAssignment
+}
 
-	d.assignment = make(WireAssignment, len(d.circuit))
-	for i := range d.assignment {
-		d.assignment[i] = make([]fr.Element, info.NbInstances)
+type NewSolvingDataOption func(*newSolvingDataSettings)
+
+// WithAssignments re-use already computed wire assignments.
+// If set, the number of assignments must be equal to the
+// number of SolvingInfo objects fed to NewSolvingData.
+// However, the caller can still choose to provide values for certain
+// circuits only. For example:
+//
+//	WithAssignments(assignment1, nil, assignment3)
+//
+// is a valid option for three circuits. In this case, the assignments for
+// the second circuit will be computed from scratch.
+func WithAssignments(assignments ...gkrtypes.WireAssignment) NewSolvingDataOption {
+	return func(s *newSolvingDataSettings) {
+		s.assignments = assignments
 	}
+}
+
+// NewSolvingData converts []gkrtypes.SolvingInfo into concrete SolvingData objects:
+// - The gates are loaded in accordance with their names.
+// - The instances/assignments are padded into a power of 2, suitable for the multilinear extensions used
+// in the GKR prover.
+// Optionally, the caller can provide pre-computed assignments for each circuit using WithAssignments.
+func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption) []SolvingData {
+	var s newSolvingDataSettings
+	for _, opt := range options {
+		opt(&s)
+	}
+	if len(s.assignments) == 0 {
+		s.assignments = make([]gkrtypes.WireAssignment, len(info))
+	} else if len(s.assignments) != len(info) {
+		panic(fmt.Sprintf("expected %d assignments (one for each circuit), got %d", len(info), len(s.assignments)))
+	}
+
+	d := make([]SolvingData, len(info))
+
+	for k := range info {
+
+		d[k].circuit = info[k].Circuit
+		d[k].assignment = make(WireAssignment, len(info[k].Circuit))
+		d[k].nbInstances = info[k].NbInstances
+		d[k].hashName = info[k].HashName
+
+		d[k].maxNbIn = d[k].circuit.MaxGateNbIn()
+
+		nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(info[k].NbInstances)))
+		for i := range d[k].assignment {
+			d[k].assignment[i] = make([]fr.Element, nbPaddedInstances)
+		}
+
+		if s.assignments[k] != nil {
+			if len(s.assignments[k]) != len(d[k].assignment) {
+				panic(fmt.Sprintf("provided assignment has %d wires, expected %d", len(s.assignments[k]), len(d[k].assignment)))
+			}
+			for i := range d[k].assignment {
+				if len(s.assignments[k][i]) != info[k].NbInstances {
+					panic(fmt.Sprintf("provided assignment for wire %d has %d instances, expected %d", i, len(s.assignments[k][i]), info[k].NbInstances))
+				}
+				for j := range s.assignments[k][i] {
+					if _, err := d[k].assignment[i][j].SetInterface(s.assignments[k][i][j]); err != nil {
+						panic(fmt.Sprintf("provided assignment for wire %d instance %d is not a valid field element: %v", i, j, err))
+					}
+				}
+				// inline equivalent of repeatUntilEnd
+				for j := len(s.assignments[k][i]); j < nbPaddedInstances; j++ {
+					d[k].assignment[i][j] = d[k].assignment[i][j-1] // pad with the last value
+				}
+			}
+		}
+	}
+
+	return d
 }
 
 // this module assumes that wire and instance indexes respect dependencies
 
-func setOuts(a WireAssignment, circuit gkrtypes.Circuit, outs []*big.Int) {
-	outsI := 0
-	for i := range circuit {
-		if circuit[i].IsOutput() {
-			for j := range a[i] {
-				a[i][j].BigInt(outs[outsI])
-				outsI++
-			}
-		}
-	}
-	// Check if outsI == len(outs)?
-}
-
-func SolveHint(info gkrtypes.SolvingInfo, data *SolvingData) hint.Hint {
+// GetAssignmentHint generates a hint that returns the value of a wire of a circuit at an instance.
+// It is intended for use in the debugging function gkrapi.API.GetValue.
+func GetAssignmentHint(data []SolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		// assumes assignmentVector is arranged wire first, instance second in order of solution
-		offsets := info.AssignmentOffsets()
-		data.init(info)
-		maxNIn := data.circuit.MaxGateNbIn()
-
-		chunks := info.Chunks()
-
-		solveTask := func(chunkOffset int) utils.Task {
-			return func(startInChunk, endInChunk int) {
-				start := startInChunk + chunkOffset
-				end := endInChunk + chunkOffset
-				inputs := make([]frontend.Variable, maxNIn)
-				dependencyHeads := make([]int, len(data.circuit)) // for each wire, which of its dependencies we would look at next
-				for wI := range data.circuit {                    // skip instances that are not relevant (related to instances before the current task)
-					deps := info.Dependencies[wI]
-					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
-						return deps[i].InputInstance
-					}, len(deps), start)
-				}
-
-				for instanceI := start; instanceI < end; instanceI++ {
-					for wireI := range data.circuit {
-						wire := &data.circuit[wireI]
-						deps := info.Dependencies[wireI]
-						if wire.IsInput() {
-							if dependencyHeads[wireI] < len(deps) && instanceI == deps[dependencyHeads[wireI]].InputInstance {
-								dep := deps[dependencyHeads[wireI]]
-								data.assignment[wireI][instanceI].Set(&data.assignment[dep.OutputWire][dep.OutputInstance])
-								dependencyHeads[wireI]++
-							} else {
-								data.assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
-							}
-						} else {
-							// assemble the inputs
-							inputIndexes := info.Circuit[wireI].Inputs
-							for i, inputI := range inputIndexes {
-								inputs[i] = &data.assignment[inputI][instanceI]
-							}
-							gate := data.circuit[wireI].Gate
-							data.assignment[wireI][instanceI].Set(gate.Evaluate(api, inputs[:len(inputIndexes)]...).(*fr.Element))
-						}
-					}
-				}
-			}
+		if len(ins) != 4 {
+			return fmt.Errorf("GetAssignmentHint expects 3 inputs: GKR sub-circuit index, wire index, instance index, and dummy dependency enforcer")
 		}
-
-		start := 0
-		for _, end := range chunks {
-			data.workers.Submit(end-start, solveTask(start), 1024).Wait()
-			start = end
+		if !ins[0].IsUint64() || !ins[1].IsUint64() || !ins[2].IsUint64() {
+			return fmt.Errorf("all 3 non-dummy input to GetAssignmentHint must fit in uint64")
 		}
+		data := data[ins[0].Uint64()]
+		wireI := ins[1].Uint64()
+		instanceI := ins[2].Uint64()
 
-		for _, p := range info.Prints {
-			serializable := make([]any, len(p.Values))
-			for i, v := range p.Values {
-				if p.IsGkrVar[i] { // serializer stores uint32 in slices as uint64
-					serializable[i] = data.assignment[algo_utils.ForceUint32(v)][p.Instance].String()
-				} else {
-					serializable[i] = v
-				}
-			}
-			fmt.Println(serializable...)
-		}
-
-		setOuts(data.assignment, info.Circuit, outs)
+		data.assignment[wireI][instanceI].BigInt(outs[0])
 
 		return nil
 	}
 }
 
-func ProveHint(hashName string, data *SolvingData) hint.Hint {
+// SolveHint generate a hint that computes the assignments for all wires in a circuit instance.
+// It is intended for use in gkrapi.API.AddInstance.
+func SolveHint(data []SolvingData) hint.Hint {
+	return func(_ *big.Int, ins, outs []*big.Int) error {
+		// the input format is:
+		// - first input: circuit index
+		// - second input: instance index of the circuit to solve
+		// - rest: values for input wires
+		if !ins[0].IsUint64() {
+			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
+		}
+		data := data[ins[0].Uint64()]
+		instanceI := ins[1].Uint64()
+
+		// create buffer for every gate input. It will be reused for every evaluation.
+		gateIns := make([]frontend.Variable, data.maxNbIn)
+
+		// indices for reading inputs and outputs
+		outsI := 0
+		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
+
+		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
+		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
+		for wI := range data.circuit {
+			w := &data.circuit[wI]
+			if w.IsInput() {
+				// read from provided input
+				// there is no gate to compute for input wires. We only need to set them in the assignment.
+				data.assignment[wI][instanceI].SetBigInt(ins[insI])
+				insI++
+			} else {
+				// assemble input for gate
+				for i, inWI := range w.Inputs {
+					gateIns[i] = &data.assignment[inWI][instanceI]
+				}
+				// evaluate the gate on the inputs
+				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element)
+				// store the result in the assignment (for the following gates to use)
+				data.assignment[wI][instanceI].Set(eval)
+			}
+			if w.IsOutput() {
+				// write to provided output.
+				// NB! even if it is output wire, then it was already computed
+				// above. So the current condition is not exclusive with the
+				// previous one.
+				data.assignment[wI][instanceI].BigInt(outs[outsI])
+				outsI++
+			}
+		}
+
+		return nil
+	}
+}
+
+// ProveHint generates a hint that produces the GKR proof using the computed assignments contained in data.
+// It is meant for use in gkrapi.Circuit.finalize.
+func ProveHint(data []SolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
-			b := make([]byte, fr.Bytes)
-			i.FillBytes(b)
-			return b[:]
-		})
+		// the input format is:
+		// - first input: circuit index
+		// - second input: dummy, just to ensure the solver's work is done before the prover is called.
+		// - rest: initial Fiat-Shamir challenge (provided by the caller, typically a commitment to all inputs and outputs)
+		if !ins[0].IsUint64() {
+			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
+		}
+		data := data[ins[0].Uint64()]
+		hashName := data.hashName
+		// drop the first input which indicates the current circuit index
+		ins = ins[1:]
+
+		data.assignment.repeatUntilEnd(data.nbInstances)
+
+		// The second input (the dummy) is an output from the last call to AddInstance.
+		// We need to ensure that the circuit has been completely solved for all instances of all wires.
+		// By feeding one of the output of the last call to AddInstance, we ensure that the gnark solver
+		// schedules proof generation after all solving is done.
+		// The rest constitute the initial fiat shamir challenge.
+		insBytes := make([][]byte, len(ins)-1)
+		for i := 1; i < len(ins); i++ {
+			insBytes[i-1] = make([]byte, fr.Bytes)
+			ins[i].FillBytes(insBytes[i-1])
+		}
 
 		hsh := hash.NewHash(hashName + "_BW6_761")
 
-		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...), WithWorkers(data.workers))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
 		if err != nil {
 			return err
 		}
 
 		return proof.SerializeToBigInts(outs)
 
+	}
+}
+
+// repeatUntilEnd for each wire, sets all the values starting from n > 0 to its predecessor.
+// e.g. {{1, 2, 3}, {4, 5, 6}}.repeatUntilEnd(2) -> {{1, 2, 2}, {4, 5, 5}}
+func (a WireAssignment) repeatUntilEnd(n int) {
+	for i := range a {
+		for j := n; j < len(a[i]); j++ {
+			a[i][j] = a[i][j-1]
+		}
 	}
 }

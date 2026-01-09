@@ -204,24 +204,24 @@ func WithSmallfieldCheck() TestingOption {
 	}
 }
 
-// WithSkipSmallfieldCheck is a testing option which disables checking circuit
+// WithoutSmallfieldCheck is a testing option which disables checking circuit
 // compilation and solving in a small field. This overrides the
 // "smallfield_checks" build tag.
 //
 // The option is useful for tests that specifically want to skip small field
 // checks. For example, when we test hash functions (MiMC/Poseidon2) which are
 // not defined over small fields.
-func WithSkipSmallfieldCheck() TestingOption {
+func WithoutSmallfieldCheck() TestingOption {
 	return func(tc *testingConfig) error {
 		tc.checkSmallField = false
 		return nil
 	}
 }
 
-// WithNoCurves is a testing option which disables all curve checks. This method
+// WithoutCurveChecks is a testing option which disables all curve checks. This method
 // can be used if we only want to test over small fields. It overrides the build
 // tag settings and any curve-related options.
-func WithNoCurves() TestingOption {
+func WithoutCurveChecks() TestingOption {
 	return func(tc *testingConfig) error {
 		tc.curves = nil
 		return nil
