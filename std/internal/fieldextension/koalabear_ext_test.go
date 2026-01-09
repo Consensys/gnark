@@ -37,7 +37,7 @@ func TestKoalabearExt2Add(t *testing.T) {
 			B: e2{A0: b.A0, A1: b.A1},
 			C: e2{A0: c.A0, A1: c.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -69,7 +69,7 @@ func TestKoalabearExt2Sub(t *testing.T) {
 			B: e2{A0: b.A0, A1: b.A1},
 			C: e2{A0: c.A0, A1: c.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -101,7 +101,7 @@ func TestKoalabearExt2Mul(t *testing.T) {
 			B: e2{A0: b.A0, A1: b.A1},
 			C: e2{A0: c.A0, A1: c.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -136,7 +136,7 @@ func TestKoalabearExt2MulByElement(t *testing.T) {
 			B: b,
 			C: e2{A0: c.A0, A1: c.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -166,7 +166,7 @@ func TestKoalabearExt2MulByNonResidue(t *testing.T) {
 			A: e2{A0: a.A0, A1: a.A1},
 			C: e2{A0: c.A0, A1: c.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -198,7 +198,7 @@ func TestKoalabearExt2Inverse(t *testing.T) {
 			A:    e2{A0: a.A0, A1: a.A1},
 			AInv: e2{A0: aInv.A0, A1: aInv.A1},
 		}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -225,7 +225,7 @@ func TestKoalabearExt4Add(t *testing.T) {
 	assert.CheckCircuit(
 		&kbExt4AddTestCircuit{},
 		test.WithValidAssignment(&kbExt4AddTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -252,7 +252,7 @@ func TestKoalabearExt4Sub(t *testing.T) {
 	assert.CheckCircuit(
 		&kbExt4SubTestCircuit{},
 		test.WithValidAssignment(&kbExt4SubTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -282,7 +282,7 @@ func TestKoalabearExt4MulByElement(t *testing.T) {
 	assert.CheckCircuit(
 		&kbExt4MulByElementTestCircuit{},
 		test.WithValidAssignment(&kbExt4MulByElementTestCircuit{A: ValueOf(a), B: b, C: ValueOf(c)}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -309,7 +309,7 @@ func TestKoalabearExt4Mul(t *testing.T) {
 	assert.CheckCircuit(
 		&kbMulTestCircuit{},
 		test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
 
@@ -336,6 +336,6 @@ func TestKoalabearExt4Inverse(t *testing.T) {
 	assert.CheckCircuit(
 		&kbInverseTestCircuit{},
 		test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
-		test.WithNoCurves(),
+		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
