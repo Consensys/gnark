@@ -19,6 +19,7 @@ type profile struct {
 	checkProver        bool
 	fuzzing            bool
 	skipTestEngine     bool
+	checkSmallField    bool
 }
 
 var testEngineChecks = profile{
