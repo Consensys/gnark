@@ -155,14 +155,15 @@ func Build(api frontend.API, table Table, queries Table) error {
 			return fmt.Errorf("create field extension: %w", err)
 		}
 		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
-			if nbRow != 1 {
-				return errors.New("not implemented for multi-column tables over small fields")
-			}
+			rowCoeffs, challenge := randLinearCofficientsExt(extapi, nbRow, fieldextension.Element(commitment))
 			var lp fieldextension.Element
-			challengeExt := fieldextension.Element(commitment)
+			tableEntriesExts := make([]fieldextension.Element, nbRow)
 			for i := range table {
-				tableEntryExt := extapi.AsExtensionVariable(table[i][0])
-				denom := extapi.Sub(challengeExt, tableEntryExt)
+				for j := range tableEntriesExts {
+					tableEntriesExts[j] = extapi.AsExtensionVariable(table[i][j])
+				}
+				tableComb := randLinearCombinationExt(extapi, rowCoeffs, tableEntriesExts)
+				denom := extapi.Sub(challenge, tableComb)
 				denom = extapi.Inverse(denom)
 				expEntryExt := extapi.AsExtensionVariable(exps[i])
 				term := extapi.Mul(expEntryExt, denom)
@@ -170,9 +171,13 @@ func Build(api frontend.API, table Table, queries Table) error {
 			}
 
 			var rp fieldextension.Element
+			queryEntryExts := make([]fieldextension.Element, nbRow)
 			for i := range queries {
-				queryEntryExt := extapi.AsExtensionVariable(queries[i][0])
-				denom := extapi.Sub(challengeExt, queryEntryExt)
+				for j := range queryEntryExts {
+					queryEntryExts[j] = extapi.AsExtensionVariable(queries[i][j])
+				}
+				queryEntryExt := randLinearCombinationExt(extapi, rowCoeffs, queryEntryExts)
+				denom := extapi.Sub(challenge, queryEntryExt)
 				denom = extapi.Inverse(denom)
 				rp = extapi.Add(rp, denom)
 			}
@@ -203,6 +208,20 @@ func randLinearCoefficients(api frontend.API, nbRow int, commitment frontend.Var
 	return rowCoeffs, commitment
 }
 
+func randLinearCofficientsExt(extapi fieldextension.Field, nbRow int, commitment fieldextension.Element) (rowCoeffs []fieldextension.Element, challenge fieldextension.Element) {
+	if nbRow == 1 {
+		// to avoid initializing the hasher.
+		return []fieldextension.Element{extapi.One()}, commitment
+	}
+	// we don't have a hash function over extensions yet. So we use 1, ch, ch^2, ...
+	rowCoeffs = make([]fieldextension.Element, nbRow)
+	rowCoeffs[0] = extapi.One()
+	for i := 1; i < nbRow; i++ {
+		rowCoeffs[i] = extapi.Mul(rowCoeffs[i-1], commitment)
+	}
+	return rowCoeffs, commitment
+}
+
 func randLinearCombination(api frontend.API, rowCoeffs []frontend.Variable, row []frontend.Variable) frontend.Variable {
 	if len(rowCoeffs) != len(row) {
 		panic("coefficient count mismatch")
@@ -210,6 +229,18 @@ func randLinearCombination(api frontend.API, rowCoeffs []frontend.Variable, row 
 	var res frontend.Variable = 0
 	for i := range rowCoeffs {
 		res = api.Add(res, api.Mul(rowCoeffs[i], row[i]))
+	}
+	return res
+}
+
+func randLinearCombinationExt(extapi fieldextension.Field, rowCoeffs []fieldextension.Element, row []fieldextension.Element) fieldextension.Element {
+	if len(rowCoeffs) != len(row) {
+		panic("coefficient count mismatch")
+	}
+	res := extapi.Zero()
+	for i := range rowCoeffs {
+		term := extapi.Mul(rowCoeffs[i], row[i])
+		res = extapi.Add(res, term)
 	}
 	return res
 }

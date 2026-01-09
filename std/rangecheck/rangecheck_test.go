@@ -42,7 +42,7 @@ func TestCheck(t *testing.T) {
 	witness := CheckCircuit{Vals: vals}
 	invalidWitness := CheckCircuit{Vals: invalidVals}
 	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithSkipSmallfieldCheck())
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithoutSmallfieldCheck())
 }
 
 func TestCheckSmallField(t *testing.T) {
@@ -66,5 +66,5 @@ func TestCheckSmallField(t *testing.T) {
 	witness := CheckCircuit{Vals: vals}
 	invalidWitness := CheckCircuit{Vals: invalidVals}
 	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithNoCurves(), test.WithSmallfieldCheck())
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }
