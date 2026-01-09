@@ -87,7 +87,7 @@ func TestValueOf(t *testing.T) {
 }
 
 type addCircuit struct {
-	In       [2]U32
+	In       []U32
 	Expected U32
 }
 
@@ -96,14 +96,51 @@ func (c *addCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := uapi.Add(c.In[0], c.In[1])
+
+	res := uapi.Add(c.In...)
+
 	uapi.AssertEq(res, c.Expected)
 	return nil
 }
 
 func TestAdd(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&addCircuit{}, test.WithValidAssignment(&addCircuit{In: [2]U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}))
+
+	assert.Run(func(assert *test.Assert) {
+		// no inputs
+		assert.CheckCircuit(
+			&addCircuit{In: make([]U32, 0)},
+			test.WithValidAssignment(&addCircuit{In: make([]U32, 0), Expected: NewU32(0)}),
+		)
+	}, "no-inputs")
+
+	assert.Run(func(assert *test.Assert) {
+		// one input
+		assert.CheckCircuit(
+			&addCircuit{In: make([]U32, 1)},
+			test.WithValidAssignment(&addCircuit{In: []U32{NewU32(0x12345678)}, Expected: NewU32(0x12345678)}),
+		)
+	}, "one-input")
+
+	assert.Run(func(assert *test.Assert) {
+		// two inputs (existing overflow-style test)
+		assert.CheckCircuit(
+			&addCircuit{In: make([]U32, 2)},
+			test.WithValidAssignment(&addCircuit{In: []U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}),
+		)
+	}, "two-inputs")
+
+	assert.Run(func(assert *test.Assert) {
+		// more than 2 inputs (overflow)
+		assert.CheckCircuit(
+			&addCircuit{In: make([]U32, 4)},
+			test.WithValidAssignment(&addCircuit{
+				// (^uint32(0) + ^uint32(2) + ^uint32(3) + ^uint32(4)) mod 2^32 = ^uint32(12)
+				In:       []U32{NewU32(0xffffffff), NewU32(0xfffffffd), NewU32(0xfffffffc), NewU32(0xfffffffb)},
+				Expected: NewU32(0xfffffff3),
+			}),
+		)
+	}, "many-inputs")
 }
 
 // Add tests where we try to initialize unconstrained U8
