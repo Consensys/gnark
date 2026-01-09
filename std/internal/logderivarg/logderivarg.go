@@ -237,7 +237,7 @@ func randLinearCombinationExt(extapi fieldextension.Field, rowCoeffs []fieldexte
 	if len(rowCoeffs) != len(row) {
 		panic("coefficient count mismatch")
 	}
-	var res fieldextension.Element = extapi.Zero()
+	res := extapi.Zero()
 	for i := range rowCoeffs {
 		term := extapi.Mul(rowCoeffs[i], row[i])
 		res = extapi.Add(res, term)
