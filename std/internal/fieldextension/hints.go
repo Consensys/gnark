@@ -1,6 +1,7 @@
 package fieldextension
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
@@ -22,6 +23,12 @@ func GetHints() []solver.Hint {
 }
 
 func inverseE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	if len(inputs) != 2 {
+		return fmt.Errorf("inverseE2Hint: expected 2 inputs, got %d", len(inputs))
+	}
+	if len(res) != 2 {
+		return fmt.Errorf("inverseE2Hint: expected 2 outputs, got %d", len(res))
+	}
 	var a, c extensions.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -36,6 +43,12 @@ func inverseE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 }
 
 func inverseE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	if len(inputs) != 4 {
+		return fmt.Errorf("inverseE4Hint: expected 4 inputs, got %d", len(inputs))
+	}
+	if len(res) != 4 {
+		return fmt.Errorf("inverseE4Hint: expected 4 outputs, got %d", len(res))
+	}
 	var a, c extensions.E4
 
 	a.B0.A0.SetBigInt(inputs[0])
