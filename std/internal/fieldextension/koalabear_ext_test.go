@@ -301,16 +301,62 @@ func (c *kbMulTestCircuit) Define(api frontend.API) error {
 
 func TestKoalabearExt4Mul(t *testing.T) {
 	assert := test.NewAssert(t)
-	var a, b, c extensions.E4
-	a.MustSetRandom()
-	b.MustSetRandom()
-	c.Mul(&a, &b)
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.MustSetRandom()
+		b.MustSetRandom()
+		c.Mul(&a, &b)
 
-	assert.CheckCircuit(
-		&kbMulTestCircuit{},
-		test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
-		test.WithoutCurveChecks(),
-		test.WithSmallfieldCheck())
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "random")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.SetOne()
+		b.SetOne()
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "one")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.SetZero()
+		b.SetZero()
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "zero")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.B0.A0.SetInt64(-1)
+		a.B0.A1.SetInt64(-1)
+		a.B1.A0.SetInt64(-1)
+		a.B1.A1.SetInt64(-1)
+
+		b.B0.A0.SetInt64(-1)
+		b.B0.A1.SetInt64(-1)
+		b.B1.A0.SetInt64(-1)
+		b.B0.A0.SetInt64(-1)
+
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "-1")
 }
 
 type kbInverseTestCircuit struct {
@@ -326,18 +372,58 @@ func (c *kbInverseTestCircuit) Define(api frontend.API) error {
 }
 func TestKoalabearExt4Inverse(t *testing.T) {
 	assert := test.NewAssert(t)
-	var a, aInv extensions.E4
-	a.MustSetRandom()
-	if a.IsZero() {
-		a.SetOne()
-	}
-	aInv.Inverse(&a)
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.MustSetRandom()
+		if a.IsZero() {
+			a.SetOne()
+		}
+		aInv.Inverse(&a)
 
-	assert.CheckCircuit(
-		&kbInverseTestCircuit{},
-		test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
-		test.WithoutCurveChecks(),
-		test.WithSmallfieldCheck())
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "random")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.SetOne()
+		aInv.Inverse(&a)
+
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "one")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.SetZero()
+		aInv.SetZero()
+
+		// should fail
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithInvalidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "zero")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.B0.A0.SetInt64(-1)
+		a.B0.A1.SetInt64(-1)
+		a.B1.A0.SetInt64(-1)
+		a.B1.A1.SetInt64(-1)
+		aInv.Inverse(&a)
+
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "-1")
+
 }
 
 type kbFlattenConsistencyCircut struct {
