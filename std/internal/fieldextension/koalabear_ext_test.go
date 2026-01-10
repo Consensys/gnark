@@ -339,3 +339,80 @@ func TestKoalabearExt4Inverse(t *testing.T) {
 		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
+
+type kbFlattenConsistencyCircut struct {
+	A e4
+
+	B Element
+}
+
+func (c *kbFlattenConsistencyCircut) Define(api frontend.API) error {
+	flattenA := flattenE4(c.A)
+	for i := 0; i < 4; i++ {
+		api.AssertIsEqual(flattenA[i], c.B[i])
+	}
+
+	// case 0
+	unflattenBc0 := unflattenE4(c.B[:0])
+	roundtripc0 := flattenE4(unflattenBc0)
+	for i := range roundtripc0 {
+		api.AssertIsEqual(roundtripc0[i], 0)
+	}
+	// case 1
+	unflattenBc1 := unflattenE4(c.B[:1])
+	roundtripc1 := flattenE4(unflattenBc1)
+	api.AssertIsEqual(roundtripc1[0], c.B[0])
+	for i := 1; i < 4; i++ {
+		api.AssertIsEqual(roundtripc1[i], 0)
+	}
+	// case 2
+	unflattenBc2 := unflattenE4(c.B[:2])
+	roundtripc2 := flattenE4(unflattenBc2)
+	for i := range 2 {
+		api.AssertIsEqual(roundtripc2[i], c.B[i])
+	}
+	for i := 2; i < 4; i++ {
+		api.AssertIsEqual(roundtripc2[i], 0)
+	}
+	// case 3
+	unflattenBc3 := unflattenE4(c.B[:3])
+	roundtripc3 := flattenE4(unflattenBc3)
+	for i := range 3 {
+		api.AssertIsEqual(roundtripc3[i], c.B[i])
+	}
+	for i := 3; i < 4; i++ {
+		api.AssertIsEqual(roundtripc3[i], 0)
+	}
+	// case 4
+	unflattenBc4 := unflattenE4(c.B[:4])
+	roundtripc4 := flattenE4(unflattenBc4)
+	for i := 0; i < 4; i++ {
+		api.AssertIsEqual(roundtripc4[i], c.B[i])
+	}
+
+	return nil
+}
+
+func TestKoalabearExt4FlattenUnflattenConsistency(t *testing.T) {
+	assert := test.NewAssert(t)
+	var a extensions.E4
+	a.MustSetRandom()
+
+	assert.CheckCircuit(
+		&kbFlattenConsistencyCircut{},
+		test.WithValidAssignment(&kbFlattenConsistencyCircut{
+			A: e4{
+				B0: e2{
+					A0: a.B0.A0,
+					A1: a.B0.A1,
+				},
+				B1: e2{
+					A0: a.B1.A0,
+					A1: a.B1.A1,
+				},
+			},
+			B: ValueOf(a),
+		}),
+		test.WithoutCurveChecks(),
+		test.WithSmallfieldCheck())
+}
