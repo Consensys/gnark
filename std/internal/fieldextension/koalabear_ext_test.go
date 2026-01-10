@@ -347,7 +347,7 @@ func TestKoalabearExt4Mul(t *testing.T) {
 		b.B0.A0.SetInt64(-1)
 		b.B0.A1.SetInt64(-1)
 		b.B1.A0.SetInt64(-1)
-		b.B0.A0.SetInt64(-1)
+		b.B1.A1.SetInt64(-1)
 
 		c.Mul(&a, &b)
 
