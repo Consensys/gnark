@@ -416,3 +416,95 @@ func TestKoalabearExt4FlattenUnflattenConsistency(t *testing.T) {
 		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
 }
+
+type kbValueOfTestCircuit struct {
+	A        Element
+	Expected e4
+}
+
+func (c *kbValueOfTestCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.A[0], c.Expected.B0.A0)
+	api.AssertIsEqual(c.A[1], c.Expected.B0.A1)
+	api.AssertIsEqual(c.A[2], c.Expected.B1.A0)
+	api.AssertIsEqual(c.A[3], c.Expected.B1.A1)
+	return nil
+}
+
+func TestValueOf(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.Run(func(assert *test.Assert) {
+		var a fr.Element
+		assert.Run(func(assert *test.Assert) {
+			a.MustSetRandom()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "random")
+		assert.Run(func(assert *test.Assert) {
+			a.SetZero()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "zero")
+		assert.Run(func(assert *test.Assert) {
+			a.SetOne()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "one")
+		assert.Run(func(assert *test.Assert) {
+			a.SetInt64(-1)
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "-1")
+	}, "koalabear.Element")
+
+	assert.Run(func(assert *test.Assert) {
+		var a extensions.E4
+		a.MustSetRandom()
+
+		assert.CheckCircuit(
+			&kbValueOfTestCircuit{},
+			test.WithValidAssignment(&kbValueOfTestCircuit{
+				A: ValueOf(a),
+				Expected: e4{
+					B0: e2{
+						A0: a.B0.A0,
+						A1: a.B0.A1,
+					},
+					B1: e2{
+						A0: a.B1.A0,
+						A1: a.B1.A1,
+					},
+				},
+			}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "extensions.E4")
+}
