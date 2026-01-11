@@ -5,9 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -28,19 +26,45 @@ func TestCheck(t *testing.T) {
 	assert := test.NewAssert(t)
 	var err error
 	bits := 64
-	nbVals := 100000
+	nbVals := 100
 	bound := new(big.Int).Lsh(big.NewInt(1), uint(bits))
 	vals := make([]frontend.Variable, nbVals)
 	for i := range vals {
 		vals[i], err = rand.Int(rand.Reader, bound)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(err)
 	}
-	witness := CheckCircuit{Vals: vals, bits: bits}
+	invalidVals := make([]frontend.Variable, nbVals)
+	for i := range invalidVals {
+		invalidVals[i], err = rand.Int(rand.Reader, bound)
+		assert.NoError(err)
+		invalidVals[i] = new(big.Int).Add(invalidVals[i].(*big.Int), bound)
+	}
+	witness := CheckCircuit{Vals: vals}
+	invalidWitness := CheckCircuit{Vals: invalidVals}
 	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
-	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	_, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithCompressThreshold(100))
-	assert.NoError(err)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithoutSmallfieldCheck())
+}
+
+func TestCheckSmallField(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var err error
+	bits := 20
+	nbVals := 100
+	bound := new(big.Int).Lsh(big.NewInt(1), uint(bits))
+	vals := make([]frontend.Variable, nbVals)
+	for i := range vals {
+		vals[i], err = rand.Int(rand.Reader, bound)
+		assert.NoError(err)
+	}
+	invalidVals := make([]frontend.Variable, nbVals)
+	for i := range invalidVals {
+		invalidVals[i], err = rand.Int(rand.Reader, bound)
+		assert.NoError(err)
+		invalidVals[i] = new(big.Int).Add(invalidVals[i].(*big.Int), bound)
+	}
+	witness := CheckCircuit{Vals: vals}
+	invalidWitness := CheckCircuit{Vals: invalidVals}
+	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }

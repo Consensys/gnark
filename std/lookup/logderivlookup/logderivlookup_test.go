@@ -47,7 +47,7 @@ func TestLookup(t *testing.T) {
 		witness.Expected[i] = new(big.Int).Set(witness.Entries[q.Int64()].(*big.Int))
 	}
 
-	assert.CheckCircuit(&LookupCircuit{}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&LookupCircuit{}, test.WithValidAssignment(&witness), test.WithSmallfieldCheck())
 }
 
 type LookupCircuitLarge struct {

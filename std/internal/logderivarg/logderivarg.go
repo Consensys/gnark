@@ -45,6 +45,8 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	"github.com/consensys/gnark/std/internal/mimc"
 	"github.com/consensys/gnark/std/multicommit"
 )
@@ -115,35 +117,75 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 	toCommit = append(toCommit, exps...)
 
-	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
-		var lp frontend.Variable = 0
-		for i := range table {
-			tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
-			lp = api.Add(lp, tmp)
-		}
-		var rp frontend.Variable = 0
-
-		toInvert := make([]frontend.Variable, len(queries))
-		for i := range queries {
-			toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
-		}
-
-		if bapi, ok := api.(frontend.BatchInverter); ok {
-			toInvert = bapi.BatchInvert(toInvert)
-		} else {
-			for i := range toInvert {
-				toInvert[i] = api.Inverse(toInvert[i])
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		// handle the commitment over large fields directly
+		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+			rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
+			var lp frontend.Variable = 0
+			for i := range table {
+				tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
+				lp = api.Add(lp, tmp)
 			}
-		}
+			var rp frontend.Variable = 0
 
-		for i := range queries {
-			// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
-			rp = api.Add(rp, toInvert[i])
+			toInvert := make([]frontend.Variable, len(queries))
+			for i := range queries {
+				toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
+			}
+
+			if bapi, ok := api.(frontend.BatchInverter); ok {
+				toInvert = bapi.BatchInvert(toInvert)
+			} else {
+				for i := range toInvert {
+					toInvert[i] = api.Inverse(toInvert[i])
+				}
+			}
+
+			for i := range queries {
+				// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
+				rp = api.Add(rp, toInvert[i])
+			}
+			api.AssertIsEqual(lp, rp)
+			return nil
+		}, toCommit...)
+	} else {
+		// when the native field is small field, then we need to use WithWideCommitment
+		extapi, err := fieldextension.NewExtension(api)
+		if err != nil {
+			return fmt.Errorf("create field extension: %w", err)
 		}
-		api.AssertIsEqual(lp, rp)
-		return nil
-	}, toCommit...)
+		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+			rowCoeffs, challenge := randLinearCofficientsExt(extapi, nbRow, fieldextension.Element(commitment))
+			var lp fieldextension.Element
+			tableEntriesExts := make([]fieldextension.Element, nbRow)
+			for i := range table {
+				for j := range tableEntriesExts {
+					tableEntriesExts[j] = extapi.AsExtensionVariable(table[i][j])
+				}
+				tableComb := randLinearCombinationExt(extapi, rowCoeffs, tableEntriesExts)
+				denom := extapi.Sub(challenge, tableComb)
+				denom = extapi.Inverse(denom)
+				expEntryExt := extapi.AsExtensionVariable(exps[i])
+				term := extapi.Mul(expEntryExt, denom)
+				lp = extapi.Add(lp, term)
+			}
+
+			var rp fieldextension.Element
+			queryEntryExts := make([]fieldextension.Element, nbRow)
+			for i := range queries {
+				for j := range queryEntryExts {
+					queryEntryExts[j] = extapi.AsExtensionVariable(queries[i][j])
+				}
+				queryEntryExt := randLinearCombinationExt(extapi, rowCoeffs, queryEntryExts)
+				denom := extapi.Sub(challenge, queryEntryExt)
+				denom = extapi.Inverse(denom)
+				rp = extapi.Add(rp, denom)
+			}
+			extapi.AssertIsEqual(lp, rp)
+			return nil
+		}, extapi.Degree(), toCommit...)
+	}
+
 	return nil
 }
 
@@ -166,6 +208,20 @@ func randLinearCoefficients(api frontend.API, nbRow int, commitment frontend.Var
 	return rowCoeffs, commitment
 }
 
+func randLinearCofficientsExt(extapi fieldextension.Field, nbRow int, commitment fieldextension.Element) (rowCoeffs []fieldextension.Element, challenge fieldextension.Element) {
+	if nbRow == 1 {
+		// to avoid initializing the hasher.
+		return []fieldextension.Element{extapi.One()}, commitment
+	}
+	// we don't have a hash function over extensions yet. So we use 1, ch, ch^2, ...
+	rowCoeffs = make([]fieldextension.Element, nbRow)
+	rowCoeffs[0] = extapi.One()
+	for i := 1; i < nbRow; i++ {
+		rowCoeffs[i] = extapi.Mul(rowCoeffs[i-1], commitment)
+	}
+	return rowCoeffs, commitment
+}
+
 func randLinearCombination(api frontend.API, rowCoeffs []frontend.Variable, row []frontend.Variable) frontend.Variable {
 	if len(rowCoeffs) != len(row) {
 		panic("coefficient count mismatch")
@@ -173,6 +229,18 @@ func randLinearCombination(api frontend.API, rowCoeffs []frontend.Variable, row 
 	var res frontend.Variable = 0
 	for i := range rowCoeffs {
 		res = api.Add(res, api.Mul(rowCoeffs[i], row[i]))
+	}
+	return res
+}
+
+func randLinearCombinationExt(extapi fieldextension.Field, rowCoeffs []fieldextension.Element, row []fieldextension.Element) fieldextension.Element {
+	if len(rowCoeffs) != len(row) {
+		panic("coefficient count mismatch")
+	}
+	res := extapi.Zero()
+	for i := range rowCoeffs {
+		term := extapi.Mul(rowCoeffs[i], row[i])
+		res = extapi.Add(res, term)
 	}
 	return res
 }
