@@ -14,7 +14,11 @@ const solidityTemplate = `
 {{- $numWitness := sub $numPublic $numCommitments }}
 {{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
-
+{{- if .Cfg.SortedImports }}
+{{ range $imp := .Cfg.SortedImports }}
+{{ $imp }}
+{{- end }}
+{{ end }}
 pragma solidity {{ .Cfg.PragmaVersion }};
 
 /// @title Groth16 verifier template.
@@ -23,7 +27,7 @@ pragma solidity {{ .Cfg.PragmaVersion }};
 /// (256 bytes) and compressed (128 bytes) format. A view function is provided
 /// to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
-contract Verifier {
+contract Verifier{{ .Cfg.InterfaceDeclaration }} {
 
     /// Some of the provided public input values are larger than the field modulus.
     /// @dev Public input elements are not automatically reduced, as this is can be
@@ -121,6 +125,14 @@ contract Verifier {
     uint256 constant PUB_{{sub $i 1}}_Y = {{ (fpstr $ki.Y) }};
         {{- end }}
     {{- end }}
+{{- if .Cfg.Constants }}
+
+{{ .Cfg.Constants }}
+{{- end }}
+{{- if .Cfg.Constructor }}
+
+{{ .Cfg.Constructor }}
+{{- end }}
 
     /// Negation in Fp.
     /// @notice Returns a number x such that a + x = 0 in Fp.
@@ -799,6 +811,10 @@ contract Verifier {
             revert ProofInvalid();
         }
     }
+{{- if .Cfg.Functions }}
+
+{{ .Cfg.Functions }}
+{{- end }}
 }
 `
 
