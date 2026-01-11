@@ -146,7 +146,8 @@ func SolveHint(data []SolvingData) hint.Hint {
 
 		// indices for reading inputs and outputs
 		outsI := 0
-		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
+		insI := 2       // skip the first two input, which are the circuit and instance indices, respectively.
+		var api gateAPI // since the api is synchronous, we can't share it across Solve Hint invocations.
 
 		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
 		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
@@ -162,10 +163,10 @@ func SolveHint(data []SolvingData) hint.Hint {
 				for i, inWI := range w.Inputs {
 					gateIns[i] = &data.assignment[inWI][instanceI]
 				}
-				// evaluate the gate on the inputs
-				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element)
-				// store the result in the assignment (for the following gates to use)
-				data.assignment[wI][instanceI].Set(eval)
+
+				// evaluate the gate on the inputs and store the result in the assignment (for the following gates to use)
+				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(&api, gateIns[:len(w.Inputs)]...).(*fr.Element))
+				api.freeElements()
 			}
 			if w.IsOutput() {
 				// write to provided output.
