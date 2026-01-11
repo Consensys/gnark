@@ -150,9 +150,12 @@ func (e *Element) Initialize(field *big.Int) {
 // type is not supported, it panics.
 //
 // Currently supported types are:
-//   - [github.com/consensys/gnark-crypto/field/koalabear/extensions.E4]
+//   - [github.com/consensys/gnark-crypto/field/koalabear.Element] -- returns extension field element with only one coefficient
+//   - [github.com/consensys/gnark-crypto/field/koalabear/extensions.E4] -- returns extension field element with four coefficients
 func ValueOf(a any) Element {
 	switch v := a.(type) {
+	case koalabear.Element:
+		return Element{v, 0, 0, 0}
 	case extensions.E4:
 		return Element{v.B0.A0, v.B0.A1, v.B1.A0, v.B1.A1}
 	default:

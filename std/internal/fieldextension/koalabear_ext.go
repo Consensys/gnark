@@ -22,6 +22,9 @@ func flattenE4(e e4) []frontend.Variable {
 }
 
 func unflattenE4(vars []frontend.Variable) e4 {
+	if len(vars) > 4 {
+		panic("unflattenE4: expected at most 4 variables")
+	}
 	// we init as constant values
 	var b0a0, b0a1, b1a0, b1a1 frontend.Variable = 0, 0, 0, 0
 	switch len(vars) {
