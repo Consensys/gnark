@@ -17,7 +17,7 @@ type Option func(*config) error
 // choose the degree which provides soundness over the native field.
 //
 // This option is a no-op when the extension is provided with the
-// [WithExtension] option.
+// [WithDirectExtension] option.
 func WithDegree(degree int) Option {
 	return func(c *config) error {
 		if degree < 0 {
@@ -28,7 +28,7 @@ func WithDegree(degree int) Option {
 	}
 }
 
-// WithExtension sets the extension of the field. The input should be a slice of
+// WithDirectExtension sets the extension of the field. The input should be a slice of
 // the polynomial coefficients defining the extension in LSB order. The
 // coefficient of the highest degree must be 1.
 //
@@ -37,7 +37,7 @@ func WithDegree(degree int) Option {
 //	[1, 3, 2, 1].
 //
 // This option overrides the [WithDegree] option.
-func WithExtension(extension []*big.Int) Option {
+func WithDirectExtension(extension []*big.Int) Option {
 	return func(c *config) error {
 		if len(extension) == 0 {
 			return fmt.Errorf("extension must be non-empty")
