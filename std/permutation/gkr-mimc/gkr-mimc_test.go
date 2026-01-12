@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type merkleTreeCircuit struct {
+type hashTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c merkleTreeCircuit) Define(api frontend.API) error {
+func (c hashTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
@@ -43,7 +43,7 @@ func (c merkleTreeCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func BenchmarkMerkleTree(b *testing.B) {
+func BenchmarkGkrPermutations(b *testing.B) {
 	circuit, assignment := hashTreeCircuits(50000)
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
@@ -56,15 +56,15 @@ func BenchmarkMerkleTree(b *testing.B) {
 	require.NoError(b, err)
 }
 
-func hashTreeCircuits(n int) (circuit, assignment merkleTreeCircuit) {
+func hashTreeCircuits(n int) (circuit, assignment hashTreeCircuit) {
 	leaves := make([]frontend.Variable, n)
 	for i := range n {
 		leaves[i] = i
 	}
 
-	return merkleTreeCircuit{
+	return hashTreeCircuit{
 			Leaves: make([]frontend.Variable, len(leaves)),
-		}, merkleTreeCircuit{
+		}, hashTreeCircuit{
 			Leaves: leaves,
 		}
 }

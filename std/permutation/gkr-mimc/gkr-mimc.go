@@ -3,21 +3,15 @@ package gkr_mimc
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
-	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
-	frbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
-	frbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
-	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	frbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
-	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
@@ -112,7 +106,7 @@ func RegisterGates(curves ...ecc.ID) error {
 			return err
 		}
 		gateNamer := newGateNamer(curve)
-		var lastLayerSBox, nonLastLayerSBox func(frontend.Variable) gkr.GateFunction
+		var lastLayerSBox, nonLastLayerSBox func(*big.Int) gkr.GateFunction
 		switch deg {
 		case 5:
 			lastLayerSBox = addPow5Add
@@ -141,65 +135,23 @@ func RegisterGates(curves ...ecc.ID) error {
 }
 
 // getParams returns the parameters for the MiMC encryption function for the given curve.
-// It also returns the degree of the s-Box.
-func getParams(curve ecc.ID) ([]frontend.Variable, int, error) {
+// It also returns the degree of the s-Box
+func getParams(curve ecc.ID) ([]big.Int, int, error) {
 	switch curve {
 	case ecc.BN254:
-		c := bn254.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbn254.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 5, nil
+		return bn254.GetConstants(), 5, nil
 	case ecc.BLS12_381:
-		c := bls12381.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbls12381.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 5, nil
+		return bls12381.GetConstants(), 5, nil
 	case ecc.BLS12_377:
-		c := bls12377.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbls12377.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 17, nil
+		return bls12377.GetConstants(), 17, nil
 	case ecc.BLS24_315:
-		c := bls24315.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbls24315.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 5, nil
+		return bls24315.GetConstants(), 5, nil
 	case ecc.BLS24_317:
-		c := bls24317.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbls24317.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 7, nil
+		return bls24317.GetConstants(), 7, nil
 	case ecc.BW6_633:
-		c := bw6633.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbw6633.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 5, nil
+		return bw6633.GetConstants(), 5, nil
 	case ecc.BW6_761:
-		c := bw6761.GetConstants()
-		res := make([]frontend.Variable, len(c))
-		for i := range res {
-			var v frbw6761.Element
-			res[i] = v.SetBigInt(&c[i])
-		}
-		return res, 5, nil
+		return bw6761.GetConstants(), 5, nil
 	default:
 		return nil, -1, fmt.Errorf("unsupported curve ID: %s", curve)
 	}
@@ -214,7 +166,7 @@ func (n gateNamer) round(i int) gkr.GateName {
 	return gkr.GateName(fmt.Sprintf("%s%d", string(n), i))
 }
 
-func addPow5(key frontend.Variable) gkr.GateFunction {
+func addPow5(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 2 {
 			panic("expected two input")
@@ -226,7 +178,7 @@ func addPow5(key frontend.Variable) gkr.GateFunction {
 }
 
 // addPow5Add: (in[0]+in[1]+key)⁵ + 2*in[0] + in[2]
-func addPow5Add(key frontend.Variable) gkr.GateFunction {
+func addPow5Add(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 3 {
 			panic("expected three input")
@@ -239,7 +191,7 @@ func addPow5Add(key frontend.Variable) gkr.GateFunction {
 	}
 }
 
-func addPow7(key frontend.Variable) gkr.GateFunction {
+func addPow7(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 2 {
 			panic("expected two input")
@@ -251,7 +203,7 @@ func addPow7(key frontend.Variable) gkr.GateFunction {
 }
 
 // addPow7Add: (in[0]+in[1]+key)⁷ + 2*in[0] + in[2]
-func addPow7Add(key frontend.Variable) gkr.GateFunction {
+func addPow7Add(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 3 {
 			panic("expected three input")
@@ -263,17 +215,22 @@ func addPow7Add(key frontend.Variable) gkr.GateFunction {
 }
 
 // addPow17: (in[0]+in[1]+key)¹⁷
-func addPow17(key frontend.Variable) gkr.GateFunction {
+func addPow17(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 2 {
 			panic("expected two input")
 		}
-		return api.SumExp17(in[0], in[1], key)
+		s := api.Add(in[0], in[1], key)
+		t := api.Mul(s, s)   // s²
+		t = api.Mul(t, t)    // s⁴
+		t = api.Mul(t, t)    // s⁸
+		t = api.Mul(t, t)    // s¹⁶
+		return api.Mul(t, s) // s¹⁶ × s
 	}
 }
 
 // addPow17Add: (in[0]+in[1]+key)¹⁷ + in[0] + in[2]
-func addPow17Add(key frontend.Variable) gkr.GateFunction {
+func addPow17Add(key *big.Int) gkr.GateFunction {
 	return func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		if len(in) != 3 {
 			panic("expected three input")
