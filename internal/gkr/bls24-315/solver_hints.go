@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
 	hint "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -141,13 +140,13 @@ func SolveHint(data []SolvingData) hint.Hint {
 		data := data[ins[0].Uint64()]
 		instanceI := ins[1].Uint64()
 
-		// create buffer for every gate input. It will be reused for every evaluation.
-		gateIns := make([]frontend.Variable, data.maxNbIn)
-
 		// indices for reading inputs and outputs
 		outsI := 0
-		insI := 2       // skip the first two input, which are the circuit and instance indices, respectively.
-		var api gateAPI // since the api is synchronous, we can't share it across Solve Hint invocations.
+		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
+
+		// Track current gate evaluator to reuse across wires with the same gate
+		var currentEvaluator *gateEvaluator
+		var currentCompiled *gkrtypes.CompiledGate
 
 		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
 		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
@@ -159,14 +158,22 @@ func SolveHint(data []SolvingData) hint.Hint {
 				data.assignment[wI][instanceI].SetBigInt(ins[insI])
 				insI++
 			} else {
-				// assemble input for gate
-				for i, inWI := range w.Inputs {
-					gateIns[i] = &data.assignment[inWI][instanceI]
+				compiled := w.Gate.Compiled()
+
+				// Create new evaluator if this is a different gate
+				if compiled != currentCompiled {
+					currentEvaluator = newGateEvaluator(compiled)
+					currentCompiled = compiled
 				}
 
-				// evaluate the gate on the inputs and store the result in the assignment (for the following gates to use)
-				data.assignment[wI][instanceI].Set(w.Gate.Evaluate(&api, gateIns[:len(w.Inputs)]...).(*fr.Element))
-				api.freeElements()
+				// Push gate inputs
+				for _, inWI := range w.Inputs {
+					currentEvaluator.pushInput(&data.assignment[inWI][instanceI])
+				}
+
+				// Evaluate the gate
+				result := currentEvaluator.evaluate()
+				data.assignment[wI][instanceI].Set(result)
 			}
 			if w.IsOutput() {
 				// write to provided output.

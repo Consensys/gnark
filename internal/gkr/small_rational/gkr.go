@@ -18,7 +18,6 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
@@ -100,12 +99,14 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.S
 			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
 		}
 
-		inputEvaluations := make([]frontend.Variable, len(wire.Inputs))
+		inputEvaluations := make([]*small_rational.SmallRational, len(wire.Inputs))
 		for i, uniqueI := range injectionLeftInv { // map from all to unique
 			inputEvaluations[i] = &uniqueInputEvaluations[uniqueI]
 		}
-		var api gateAPI
-		gateEvaluation.Set(wire.Gate.Evaluate(&api, inputEvaluations...).(*small_rational.SmallRational))
+		var stack elementStack
+		compiled := wire.Gate.Compiled()
+		stack.preloadConstants(compiled)
+		gateEvaluation.Set(executeCompiledGate(compiled, &stack, inputEvaluations))
 	}
 
 	evaluation.Mul(&evaluation, &gateEvaluation)
@@ -236,10 +237,11 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	gJ := make([]small_rational.SmallRational, degGJ)
 	var mu sync.Mutex
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
-		var (
-			step small_rational.SmallRational
-			api  gateAPI
-		)
+		var step small_rational.SmallRational
+
+		// Create gate evaluator once per thread
+		compiled := wire.Gate.Compiled()
+		evaluator := newGateEvaluator(compiled)
 
 		res := make([]small_rational.SmallRational, degGJ)
 
@@ -249,7 +251,6 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 		// ...
 		// ml[0](degGJ, h...), ml[2](degGJ, h...), ..., ml[len(ml)-1](degGJ, h...)
 		mlEvals := make([]small_rational.SmallRational, degGJ*len(ml))
-		gateInput := make([]frontend.Variable, nbGateIn)
 
 		for h := start; h < end; h++ { // h counts across instances
 
@@ -266,14 +267,14 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 			eIndex := 0 // index for where the current eq term is
 			nextEIndex := len(ml)
 			for d := range degGJ {
-				for i := range gateInput {
-					gateInput[i] = &mlEvals[eIndex+1+i]
+				// Push gate inputs
+				for i := 0; i < nbGateIn; i++ {
+					evaluator.pushInput(&mlEvals[eIndex+1+i])
 				}
-				summand := wire.Gate.Evaluate(&api, gateInput...).(*small_rational.SmallRational)
+				summand := evaluator.evaluate()
 				summand.Mul(summand, &mlEvals[eIndex])
 				res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
-				api.freeElements()
 			}
 		}
 		mu.Lock()
@@ -672,15 +673,35 @@ func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 		}
 	}
 
-	var api gateAPI
+	var stack elementStack
 	ins := make([]small_rational.SmallRational, maxNbIns)
+	insPtr := make([]*small_rational.SmallRational, maxNbIns)
+
+	// Track current gate to know when to reload constants
+	var currentCompiled *gkrtypes.CompiledGate
+	var nbConsts int
+
 	for i := range nbInstances {
 		for wI, w := range wires {
 			if !w.IsInput() {
+				compiled := w.Gate.Compiled()
+
+				// Preload constants if this is a new gate
+				if compiled != currentCompiled {
+					stack.freeElements()
+					stack.preloadConstants(compiled)
+					currentCompiled = compiled
+					nbConsts = compiled.NbConstants()
+				}
+
 				for inI, in := range w.Inputs {
 					ins[inI] = a[in][i]
+					insPtr[inI] = &ins[inI]
 				}
-				a[wI][i].Set(api.evaluate(w.Gate.Evaluate, ins[:len(w.Inputs)]...))
+				a[wI][i].Set(executeCompiledGate(compiled, &stack, insPtr[:len(w.Inputs)]))
+
+				// Shrink stack back to just constants for reuse
+				stack.shrinkToConstants(nbConsts)
 			}
 		}
 	}
@@ -728,70 +749,96 @@ func frToBigInts(dst []*big.Int, src []small_rational.SmallRational) {
 	}
 }
 
-// gateAPI implements gkr.GateAPI.
-// It uses a synchronous memory pool underneath to minimize heap allocations.
-type gateAPI struct {
+// elementStack implements a synchronous memory pool underneath to minimize heap allocations.
+type elementStack struct {
 	allocated []*small_rational.SmallRational
 	nbUsed    int
 }
 
-func (api *gateAPI) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	res := api.newElement()
-	res.Add(api.cast(i1), api.cast(i2))
-	for _, v := range in {
-		res.Add(res, api.cast(v))
+// preloadConstants loads gate constants into the stack at indices [0, nbConsts).
+// This should be called once per gate to prepare the stack for repeated use.
+func (stack *elementStack) preloadConstants(gate *gkrtypes.CompiledGate) {
+	for _, constVal := range gate.Constants {
+		elem := stack.newElement()
+		elem.SetBigInt(constVal)
+	}
+}
+
+// shrinkToConstants resets the stack to contain only constants, ready for next invocation.
+func (stack *elementStack) truncate(n int) {
+	stack.nbUsed = n
+}
+
+func (stack *elementStack) newElement() *small_rational.SmallRational {
+	stack.nbUsed++
+	if stack.nbUsed >= len(stack.allocated) {
+		stack.allocated = append(stack.allocated, new(small_rational.SmallRational))
+	}
+	return stack.allocated[api.nbUsed-1]
+}
+
+func (stack *elementStack) push(x *small_rational.SmallRational) {
+	stack.newElement().Set(x)
+}
+
+func opAdd(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	res := stack.newElement()
+	res.Add(x[0], x[1])
+	for i := 2; i < len(x); i++ {
+		res.Add(res, x[i])
 	}
 	return res
 }
 
-func (api *gateAPI) MulAcc(a, b, c frontend.Variable) frontend.Variable {
-	prod := api.newElement()
-	prod.Mul(api.cast(b), api.cast(c))
-	res := api.cast(a)
-	res.Add(res, prod)
+func opMulAcc(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	// result = x[0] + (x[1] * x[2])
+	prod := stack.newElement()
+	prod.Mul(x[1], x[2])
+	res := stack.newElement()
+	res.Add(x[0], prod)
 	return res
 }
 
-func (api *gateAPI) Neg(i1 frontend.Variable) frontend.Variable {
-	res := api.newElement()
-	res.Neg(api.cast(i1))
+func opNeg(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	res := stack.newElement()
+	res.Neg(x[0])
 	return res
 }
 
-func (api *gateAPI) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	res := api.newElement()
-	res.Sub(api.cast(i1), api.cast(i2))
-	for _, v := range in {
-		res.Sub(res, api.cast(v))
+func opSub(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	res := stack.newElement()
+	res.Sub(x[0], x[1])
+	for i := 2; i < len(x); i++ {
+		res.Sub(res, x[i])
 	}
 	return res
 }
 
-func (api *gateAPI) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	res := api.newElement()
-	res.Mul(api.cast(i1), api.cast(i2))
-	for _, v := range in {
-		res.Mul(res, api.cast(v))
+func opMul(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	res := stack.newElement()
+	res.Mul(x[0], x[1])
+	for i := 2; i < len(x); i++ {
+		res.Mul(res, x[i])
 	}
 	return res
 }
 
-func (api *gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
-	var x small_rational.SmallRational
+func opSumExp17(stack *elementStack, x []*small_rational.SmallRational) *small_rational.SmallRational {
+	// result = (x[0] + x[1] + x[2])^17
+	sum := stack.newElement()
+	sum.Add(x[0], x[1])
+	sum.Add(sum, x[2])
 
-	x.Add(api.cast(a), api.cast(b))
-	x.Add(&x, api.cast(c))
-
-	res := api.newElement()
-
-	res.Mul(&x, &x)         // x²
-	res.Mul(res, res)       // x⁴
-	res.Mul(res, res)       // x⁸
-	res.Mul(res, res)       // x¹⁶
-	return res.Mul(res, &x) // x¹⁷
+	res := stack.newElement()
+	res.Mul(sum, sum) // sum²
+	res.Mul(res, res) // sum⁴
+	res.Mul(res, res) // sum⁸
+	res.Mul(res, res) // sum¹⁶
+	res.Mul(res, sum) // sum¹⁷
+	return res
 }
 
-func (api *gateAPI) Println(a ...frontend.Variable) {
+func (api *elementStack) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
 	var x small_rational.SmallRational
 
@@ -809,43 +856,103 @@ func (api *gateAPI) Println(a ...frontend.Variable) {
 	fmt.Println(toPrint...)
 }
 
-func (api *gateAPI) evaluate(f gkr.GateFunction, in ...small_rational.SmallRational) *small_rational.SmallRational {
-	inVar := make([]frontend.Variable, len(in))
-	for i := range in {
-		inVar[i] = &in[i]
+// executeCompiledGate executes a compiled gate using curve-specific field operations.
+// The stack is expected to already contain constants at indices [0, nbConsts).
+// Inputs are appended at [nbConsts, nbConsts+nbInputs), and results follow.
+// After execution, the stack can be shrunk back to nbConsts for reuse.
+func executeCompiledGate(gate *gkrtypes.CompiledGate, stack *elementStack, inputs []*small_rational.SmallRational) *small_rational.SmallRational {
+
+	// Instruction executor functions
+	executors := [...]func(*elementStack, []*small_rational.SmallRational) *small_rational.SmallRational{
+		gkrtypes.OpAdd:      opAdd,
+		gkrtypes.OpSub:      opSub,
+		gkrtypes.OpMul:      opMul,
+		gkrtypes.OpNeg:      opNeg,
+		gkrtypes.OpMulAcc:   opMulAcc,
+		gkrtypes.OpSumExp17: opSumExp17,
 	}
-	return f(api, inVar...).(*small_rational.SmallRational)
+
+	nbConsts := gate.NbConstants()
+
+	// If no instructions, this is an identity-like gate; return first input
+	if len(gate.Instructions) == 0 {
+		if gate.NbInputs == 0 {
+			panic("gate has no inputs and no instructions")
+		}
+		return inputs[0]
+	}
+
+	// Append inputs to stack after constants
+	// The stack now contains: [constants | inputs]
+	for _, input := range inputs {
+		ptr := stack.newElement()
+		ptr.Set(input)
+	}
+
+	// Execute instructions, appending results to stack
+	// The stack grows to: [constants | inputs | results]
+	for i := range gate.Instructions {
+		inst := &gate.Instructions[i]
+		executor := executors[inst.Op]
+		if executor == nil {
+			panic(fmt.Sprintf("unknown gate operation: %d", inst.Op))
+		}
+
+		// Resolve operands from stack using instruction indices
+		operands := make([]*small_rational.SmallRational, len(inst.Inputs))
+		for j, idx := range inst.Inputs {
+			operands[j] = stack.allocated[idx]
+		}
+
+		_ = executor(stack, operands)
+		// Result is automatically appended to stack by executor
+	}
+
+	// Last value in stack is the result
+	resultIdx := nbConsts + gate.NbInputs + len(gate.Instructions) - 1
+	return stack.allocated[resultIdx]
 }
 
-// Put all elements back in the pool.
-func (api *gateAPI) freeElements() {
-	api.nbUsed = 0
+// gateEvaluator provides a high-level API for evaluating compiled gates efficiently.
+// It manages the stack internally and handles input buffering, making it easy to
+// evaluate the same gate multiple times with different inputs.
+type gateEvaluator struct {
+	gate     *gkrtypes.CompiledGate
+	stack    elementStack
+	nbConsts int
 }
 
-func (api *gateAPI) newElement() *small_rational.SmallRational {
-	api.nbUsed++
-	if api.nbUsed >= len(api.allocated) {
-		api.allocated = append(api.allocated, new(small_rational.SmallRational))
+// newGateEvaluator creates an evaluator for the given compiled gate.
+// The stack is preloaded with constants and ready for evaluation.
+func newGateEvaluator(gate *gkrtypes.CompiledGate) *gateEvaluator {
+	eval := &gateEvaluator{
+		gate:     gate,
+		nbConsts: gate.NbConstants(),
+		inputs:   make([]*small_rational.SmallRational, 0, gate.NbInputs),
 	}
-	return api.allocated[api.nbUsed-1]
+	eval.stack.preloadConstants(gate)
+	return eval
 }
 
-type gateFunctionFr func(...small_rational.SmallRational) *small_rational.SmallRational
-
-// convertFunc turns f into a function that accepts and returns small_rational.SmallRational.
-func (api *gateAPI) convertFunc(f gkr.GateFunction) gateFunctionFr {
-	return func(in ...small_rational.SmallRational) *small_rational.SmallRational {
-		return api.evaluate(f, in...)
-	}
+// pushInput adds an input to the evaluator's input buffer.
+// Inputs must be added in order and the number of inputs must match the gate's NbInputs.
+func (e *gateEvaluator) pushInput(input *small_rational.SmallRational) {
+	e.inputs = append(e.inputs, input)
 }
 
-func (api *gateAPI) cast(v frontend.Variable) *small_rational.SmallRational {
-	if x, ok := v.(*small_rational.SmallRational); ok { // fast path, no extra heap allocation
-		return x
+// evaluate executes the gate with the current inputs and returns the result.
+// The stack and input buffer are automatically reset after evaluation,
+// making the evaluator ready for the next evaluation.
+func (e *gateEvaluator) evaluate() *small_rational.SmallRational {
+	if len(e.inputs) != e.gate.NbInputs {
+		panic(fmt.Sprintf("expected %d inputs, got %d", e.gate.NbInputs, len(e.inputs)))
 	}
-	x := api.newElement()
-	if _, err := x.SetInterface(v); err != nil {
-		panic(err)
-	}
-	return x
+
+	result := executeCompiledGate(e.gate, &e.stack, e.inputs)
+
+	// Reset for next evaluation
+	e.stack.shrinkToConstants(e.nbConsts)
+	e.inputs = e.inputs[:0] // Clear input buffer
+
+	return result
 }

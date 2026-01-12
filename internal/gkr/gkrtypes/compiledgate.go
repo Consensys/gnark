@@ -1,0 +1,307 @@
+package gkrtypes
+
+import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
+)
+
+// GateOp represents an arithmetic operation in a compiled gate.
+type GateOp uint8
+
+const (
+	OpAdd      GateOp = iota // result = src1 + src2 + ... (variadic)
+	OpSub                    // result = src1 - src2 - ...
+	OpMul                    // result = src1 * src2 * ...
+	OpNeg                    // result = -src1
+	OpMulAcc                 // result = src1 + (src2 * src3)
+	OpSumExp17               // result = (src1 + src2 + src3)^17
+)
+
+// GateInstruction represents a single operation in a compiled gate.
+// Each instruction produces a new variable (no explicit dst field).
+// Index space layout:
+//   - [0, nbConsts): constant values (from CompiledGate.Constants)
+//   - [nbConsts, nbConsts+nbInputs): gate inputs
+//   - [nbConsts+nbInputs, ...): instruction results
+type GateInstruction struct {
+	Op     GateOp
+	Inputs []uint16 // indices into the unified value space
+}
+
+// CompiledGate represents a gate function compiled into a sequence of instructions.
+// The compiled form is independent of curve-specific types and can be serialized.
+// The index space is unified: constants (0..nbConsts-1), inputs (nbConsts..nbConsts+nbInputs-1),
+// then instruction results.
+type CompiledGate struct {
+	Instructions []GateInstruction // sequence of operations
+	Constants    []*big.Int        // constant values at indices [0, nbConsts)
+	NbInputs     int               // number of gate inputs
+	Degree       int               // total degree of the polynomial
+	SolvableVar  int               // if there is a solvable variable, its index, -1 otherwise
+	Curves       []ecc.ID          // curves that the gate is allowed to be used over
+}
+
+// NbConstants returns the number of constants in the gate
+func (g *CompiledGate) NbConstants() int {
+	return len(g.Constants)
+}
+
+// String returns a human-readable representation of the operation
+func (op GateOp) String() string {
+	switch op {
+	case OpAdd:
+		return "add"
+	case OpSub:
+		return "sub"
+	case OpMul:
+		return "mul"
+	case OpNeg:
+		return "neg"
+	case OpMulAcc:
+		return "mulacc"
+	case OpSumExp17:
+		return "sumexp17"
+	default:
+		return "unknown"
+	}
+}
+
+// gateCompiler is an implementation of gkr.GateAPI that records operations
+// instead of executing them. This is used to compile gate functions into
+// instruction sequences. During compilation, temporary indices are used:
+//   - Constants: high indices (starting at 0x8000)
+//   - Inputs: 0..nbInputs-1
+//   - Results: nbInputs onwards
+//
+// After compilation, indices are remapped to: constants, inputs, results.
+type gateCompiler struct {
+	instructions  []GateInstruction
+	constants     []*big.Int        // constant values pool
+	constantIndex map[string]uint16 // map from constant value to its temp index (0x8000+)
+	nbInputs      int
+	nextVarID     uint16 // next variable ID to assign (for inputs and results)
+	nextConstID   uint16 // next constant ID to assign (starts at 0x8000)
+}
+
+// newGateCompiler creates a new recording API with the given number of inputs.
+// Input variables are assigned temporary IDs 0 to nbInputs-1.
+// Constants are assigned temporary IDs starting at 0x8000.
+func newGateCompiler(nbInputs int) *gateCompiler {
+	return &gateCompiler{
+		instructions:  make([]GateInstruction, 0),
+		constants:     make([]*big.Int, 0),
+		constantIndex: make(map[string]uint16),
+		nbInputs:      nbInputs,
+		nextVarID:     uint16(nbInputs), // start after input variables
+		nextConstID:   0x8000,           // constants use high temp indices
+	}
+}
+
+// compilationVar represents a variable during gate compilation.
+type compilationVar struct {
+	id uint16
+}
+
+// Add records an addition operation.
+func (gc *gateCompiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	inputs := make([]uint16, 0, 2+len(in))
+	inputs = append(inputs, gc.getVarID(i1))
+	inputs = append(inputs, gc.getVarID(i2))
+	for _, v := range in {
+		inputs = append(inputs, gc.getVarID(v))
+	}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpAdd,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// MulAcc records a multiply-accumulate operation: a + (b * c)
+func (gc *gateCompiler) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	inputs := []uint16{
+		gc.getVarID(a),
+		gc.getVarID(b),
+		gc.getVarID(c),
+	}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpMulAcc,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// Neg records a negation operation
+func (gc *gateCompiler) Neg(i1 frontend.Variable) frontend.Variable {
+	inputs := []uint16{gc.getVarID(i1)}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpNeg,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// Sub records a subtraction operation
+func (gc *gateCompiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	inputs := make([]uint16, 0, 2+len(in))
+	inputs = append(inputs, gc.getVarID(i1))
+	inputs = append(inputs, gc.getVarID(i2))
+	for _, v := range in {
+		inputs = append(inputs, gc.getVarID(v))
+	}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpSub,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// Mul records a multiplication operation
+func (gc *gateCompiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	inputs := make([]uint16, 0, 2+len(in))
+	inputs = append(inputs, gc.getVarID(i1))
+	inputs = append(inputs, gc.getVarID(i2))
+	for _, v := range in {
+		inputs = append(inputs, gc.getVarID(v))
+	}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpMul,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// Println is a no-op during recording
+func (gc *gateCompiler) Println(a ...frontend.Variable) {
+	// No-op: we don't need to record print statements
+}
+
+// SumExp17 records (a + b + c)^17 as a single instruction
+func (gc *gateCompiler) SumExp17(a, b, c frontend.Variable) frontend.Variable {
+	inputs := []uint16{
+		gc.getVarID(a),
+		gc.getVarID(b),
+		gc.getVarID(c),
+	}
+
+	gc.instructions = append(gc.instructions, GateInstruction{
+		Op:     OpSumExp17,
+		Inputs: inputs,
+	})
+
+	result := &compilationVar{id: gc.nextVarID}
+	gc.nextVarID++
+	return result
+}
+
+// getVarID extracts or creates a temporary index from a value.
+// Returns a temporary index: inputs at 0..nbInputs-1, constants at 0x8000+, results at nbInputs+.
+func (gc *gateCompiler) getVarID(v frontend.Variable) uint16 {
+	if rv, ok := v.(*compilationVar); ok {
+		return rv.id
+	}
+	// If it's an integer in the valid input range, treat it as an input variable index
+	if idx, ok := v.(int); ok {
+		if idx >= 0 && idx < gc.nbInputs {
+			return uint16(idx)
+		}
+		// Integer outside input range - treat as constant
+	}
+
+	// Otherwise, it must be a constant value
+	// Convert to big.Int for curve-agnostic storage
+	val := utils.FromInterface(v)
+
+	// Check if we've seen this constant before
+	key := val.String()
+	if idx, exists := gc.constantIndex[key]; exists {
+		return idx
+	}
+
+	// Add new constant to the pool with temp index 0x8000+
+	tempIdx := gc.nextConstID
+	gc.nextConstID++
+	gc.constants = append(gc.constants, new(big.Int).Set(&val))
+	gc.constantIndex[key] = tempIdx
+	return tempIdx
+}
+
+// GetInstructions returns the recorded instructions
+func (gc *gateCompiler) GetInstructions() []GateInstruction {
+	return gc.instructions
+}
+
+// GetNbInputs returns the number of inputs
+func (gc *gateCompiler) GetNbInputs() int {
+	return gc.nbInputs
+}
+
+// remapIndices transforms temporary indices to final layout: constants, inputs, results.
+func (gc *gateCompiler) remapIndices() {
+	nbConsts := uint16(len(gc.constants))
+
+	// Remap all instruction inputs
+	for i := range gc.instructions {
+		for j := range gc.instructions[i].Inputs {
+			if gc.instructions[i].Inputs[j]&0x8000 != 0 {
+				// constant
+				gc.instructions[i].Inputs[j] &= 0x7fff
+			} else {
+				// variable
+				gc.instructions[i].Inputs[j] += nbConsts
+			}
+		}
+	}
+}
+
+// CompileGateFunction compiles a gate function into a CompiledGate.
+// The gate function should be of type gkr.GateFunction.
+func CompileGateFunction(f gkr.GateFunction, nbInputs int, degree int, solvableVar int, curves []ecc.ID) *CompiledGate {
+	// Create recording API
+	compiler := newGateCompiler(nbInputs)
+
+	// Create input variables as integers 0, 1, 2, ...
+	inputs := make([]frontend.Variable, nbInputs)
+	for i := range nbInputs {
+		inputs[i] = i
+	}
+
+	// Execute the gate function to record operations
+	f(compiler, inputs...)
+
+	// Remap indices from temporary layout to final layout
+	compiler.remapIndices()
+
+	return &CompiledGate{
+		Instructions: compiler.GetInstructions(),
+		Constants:    compiler.constants,
+		NbInputs:     nbInputs,
+		Degree:       degree,
+		SolvableVar:  solvableVar,
+		Curves:       curves,
+	}
+}

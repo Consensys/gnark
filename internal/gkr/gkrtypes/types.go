@@ -16,11 +16,11 @@ import (
 
 // A Gate is a low-degree multivariate polynomial
 type Gate struct {
-	evaluate    gkr.GateFunction // Evaluate the polynomial function defining the gate
-	nbIn        int              // number of inputs
-	degree      int              // total degree of the polynomial
-	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-	curves      []ecc.ID         // curves that the gate is allowed to be used over
+	compiled    *CompiledGate // Compiled form of the gate
+	nbIn        int           // number of inputs
+	degree      int           // total degree of the polynomial
+	solvableVar int           // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+	curves      []ecc.ID      // curves that the gate is allowed to be used over
 }
 
 // NewGate creates a new gate function the given parameters:
@@ -30,9 +30,11 @@ type Gate struct {
 // - solvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 // - curves: curves that the gate is allowed to be used over
 func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
+	// Compile the gate function immediately
+	compiled := CompileGateFunction(f, nbIn, degree, solvableVar, curves)
 
 	return &Gate{
-		evaluate:    f,
+		compiled:    compiled,
 		nbIn:        nbIn,
 		degree:      degree,
 		solvableVar: solvableVar,
@@ -45,10 +47,71 @@ func (g *Gate) SupportsCurve(curve ecc.ID) bool {
 	return slices.Contains(g.curves, curve)
 }
 
-// Evaluate evaluates the gate on the given inputs. The number of inputs must
-// match the gate's fan-in. If not, then it panics.
+// Evaluate evaluates the gate on the given inputs by interpreting the compiled
+// instruction sequence using the provided API. The number of inputs must match
+// the gate's fan-in. If not, then it panics.
 func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-	return g.evaluate(api, in...)
+	if len(in) != g.compiled.NbInputs {
+		panic("number of inputs does not match gate's NbInputs")
+	}
+
+	nbConsts := g.compiled.NbConstants()
+	// Variables array: constants [0..nbConsts), inputs [nbConsts..nbConsts+nbInputs), results after
+	vars := make([]frontend.Variable, nbConsts+g.compiled.NbInputs+len(g.compiled.Instructions))
+
+	// Populate constants
+	for i, c := range g.compiled.Constants {
+		vars[i] = c
+	}
+
+	// Populate inputs starting at nbConsts
+	copy(vars[nbConsts:], in)
+
+	// Execute instructions sequentially
+	for i, inst := range g.compiled.Instructions {
+		resultIdx := nbConsts + g.compiled.NbInputs + i
+
+		// Get input variables/constants for this instruction
+		inputs := make([]frontend.Variable, len(inst.Inputs))
+		for j, idx := range inst.Inputs {
+			inputs[j] = vars[idx]
+		}
+
+		// Execute the operation
+		switch inst.Op {
+		case OpAdd:
+			result := inputs[0]
+			for j := 1; j < len(inputs); j++ {
+				result = api.Add(result, inputs[j])
+			}
+			vars[resultIdx] = result
+		case OpSub:
+			result := inputs[0]
+			for j := 1; j < len(inputs); j++ {
+				result = api.Sub(result, inputs[j])
+			}
+			vars[resultIdx] = result
+		case OpMul:
+			result := inputs[0]
+			for j := 1; j < len(inputs); j++ {
+				result = api.Mul(result, inputs[j])
+			}
+			vars[resultIdx] = result
+		case OpNeg:
+			vars[resultIdx] = api.Neg(inputs[0])
+		case OpMulAcc:
+			// result = inputs[0] + (inputs[1] * inputs[2])
+			vars[resultIdx] = api.MulAcc(inputs[0], inputs[1], inputs[2])
+		case OpSumExp17:
+			// result = (inputs[0] + inputs[1] + inputs[2])^17
+			vars[resultIdx] = api.SumExp17(inputs[0], inputs[1], inputs[2])
+		default:
+			panic("unknown operation")
+		}
+	}
+
+	// The last computed value is the result
+	return vars[len(vars)-1]
 }
 
 // Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
@@ -65,6 +128,17 @@ func (g *Gate) SolvableVar() int {
 // NbIn returns the number of inputs to the gate (its fan-in)
 func (g *Gate) NbIn() int {
 	return g.nbIn
+}
+
+// Compiled returns the compiled form of the gate.
+func (g *Gate) Compiled() *CompiledGate {
+	return g.compiled
+}
+
+// SetCompiled sets the compiled form of the gate. This is used when loading
+// a pre-compiled gate.
+func (g *Gate) SetCompiled(compiled *CompiledGate) {
+	g.compiled = compiled
 }
 
 // Wire represents a wire in the GKR circuit. A wire is defined through its gate
