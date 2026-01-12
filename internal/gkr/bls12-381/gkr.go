@@ -775,13 +775,13 @@ func (gateAPI) Println(a ...frontend.Variable) {
 
 	for i, v := range a {
 		if _, err := x.SetInterface(v); err != nil {
-			toPrint[i] = x.String()
-		} else {
 			if s, ok := v.(string); ok {
 				toPrint[i] = s
 				continue
 			}
 			panic(fmt.Errorf("not numeric or string: %w", err))
+		} else {
+			toPrint[i] = x.String()
 		}
 	}
 	fmt.Println(toPrint...)

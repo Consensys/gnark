@@ -301,16 +301,62 @@ func (c *kbMulTestCircuit) Define(api frontend.API) error {
 
 func TestKoalabearExt4Mul(t *testing.T) {
 	assert := test.NewAssert(t)
-	var a, b, c extensions.E4
-	a.MustSetRandom()
-	b.MustSetRandom()
-	c.Mul(&a, &b)
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.MustSetRandom()
+		b.MustSetRandom()
+		c.Mul(&a, &b)
 
-	assert.CheckCircuit(
-		&kbMulTestCircuit{},
-		test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
-		test.WithoutCurveChecks(),
-		test.WithSmallfieldCheck())
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "random")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.SetOne()
+		b.SetOne()
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "one")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.SetZero()
+		b.SetZero()
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "zero")
+	assert.Run(func(assert *test.Assert) {
+		var a, b, c extensions.E4
+		a.B0.A0.SetInt64(-1)
+		a.B0.A1.SetInt64(-1)
+		a.B1.A0.SetInt64(-1)
+		a.B1.A1.SetInt64(-1)
+
+		b.B0.A0.SetInt64(-1)
+		b.B0.A1.SetInt64(-1)
+		b.B1.A0.SetInt64(-1)
+		b.B1.A1.SetInt64(-1)
+
+		c.Mul(&a, &b)
+
+		assert.CheckCircuit(
+			&kbMulTestCircuit{},
+			test.WithValidAssignment(&kbMulTestCircuit{A: ValueOf(a), B: ValueOf(b), C: ValueOf(c)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "-1")
 }
 
 type kbInverseTestCircuit struct {
@@ -326,16 +372,225 @@ func (c *kbInverseTestCircuit) Define(api frontend.API) error {
 }
 func TestKoalabearExt4Inverse(t *testing.T) {
 	assert := test.NewAssert(t)
-	var a, aInv extensions.E4
-	a.MustSetRandom()
-	if a.IsZero() {
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.MustSetRandom()
+		if a.IsZero() {
+			a.SetOne()
+		}
+		aInv.Inverse(&a)
+
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "random")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
 		a.SetOne()
+		aInv.Inverse(&a)
+
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "one")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.SetZero()
+		aInv.SetZero()
+
+		// should fail
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithInvalidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "zero")
+	assert.Run(func(assert *test.Assert) {
+		var a, aInv extensions.E4
+		a.B0.A0.SetInt64(-1)
+		a.B0.A1.SetInt64(-1)
+		a.B1.A0.SetInt64(-1)
+		a.B1.A1.SetInt64(-1)
+		aInv.Inverse(&a)
+
+		assert.CheckCircuit(
+			&kbInverseTestCircuit{},
+			test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "-1")
+
+}
+
+type kbFlattenConsistencyCircut struct {
+	A e4
+
+	B Element
+}
+
+func (c *kbFlattenConsistencyCircut) Define(api frontend.API) error {
+	flattenA := flattenE4(c.A)
+	for i := 0; i < 4; i++ {
+		api.AssertIsEqual(flattenA[i], c.B[i])
 	}
-	aInv.Inverse(&a)
+
+	// case 0
+	unflattenBc0 := unflattenE4(c.B[:0])
+	roundtripc0 := flattenE4(unflattenBc0)
+	for i := range roundtripc0 {
+		api.AssertIsEqual(roundtripc0[i], 0)
+	}
+	// case 1
+	unflattenBc1 := unflattenE4(c.B[:1])
+	roundtripc1 := flattenE4(unflattenBc1)
+	api.AssertIsEqual(roundtripc1[0], c.B[0])
+	for i := 1; i < 4; i++ {
+		api.AssertIsEqual(roundtripc1[i], 0)
+	}
+	// case 2
+	unflattenBc2 := unflattenE4(c.B[:2])
+	roundtripc2 := flattenE4(unflattenBc2)
+	for i := range 2 {
+		api.AssertIsEqual(roundtripc2[i], c.B[i])
+	}
+	for i := 2; i < 4; i++ {
+		api.AssertIsEqual(roundtripc2[i], 0)
+	}
+	// case 3
+	unflattenBc3 := unflattenE4(c.B[:3])
+	roundtripc3 := flattenE4(unflattenBc3)
+	for i := range 3 {
+		api.AssertIsEqual(roundtripc3[i], c.B[i])
+	}
+	for i := 3; i < 4; i++ {
+		api.AssertIsEqual(roundtripc3[i], 0)
+	}
+	// case 4
+	unflattenBc4 := unflattenE4(c.B[:4])
+	roundtripc4 := flattenE4(unflattenBc4)
+	for i := 0; i < 4; i++ {
+		api.AssertIsEqual(roundtripc4[i], c.B[i])
+	}
+
+	return nil
+}
+
+func TestKoalabearExt4FlattenUnflattenConsistency(t *testing.T) {
+	assert := test.NewAssert(t)
+	var a extensions.E4
+	a.MustSetRandom()
 
 	assert.CheckCircuit(
-		&kbInverseTestCircuit{},
-		test.WithValidAssignment(&kbInverseTestCircuit{A: ValueOf(a), AInv: ValueOf(aInv)}),
+		&kbFlattenConsistencyCircut{},
+		test.WithValidAssignment(&kbFlattenConsistencyCircut{
+			A: e4{
+				B0: e2{
+					A0: a.B0.A0,
+					A1: a.B0.A1,
+				},
+				B1: e2{
+					A0: a.B1.A0,
+					A1: a.B1.A1,
+				},
+			},
+			B: ValueOf(a),
+		}),
 		test.WithoutCurveChecks(),
 		test.WithSmallfieldCheck())
+}
+
+type kbValueOfTestCircuit struct {
+	A        Element
+	Expected e4
+}
+
+func (c *kbValueOfTestCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.A[0], c.Expected.B0.A0)
+	api.AssertIsEqual(c.A[1], c.Expected.B0.A1)
+	api.AssertIsEqual(c.A[2], c.Expected.B1.A0)
+	api.AssertIsEqual(c.A[3], c.Expected.B1.A1)
+	return nil
+}
+
+func TestValueOf(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.Run(func(assert *test.Assert) {
+		var a fr.Element
+		assert.Run(func(assert *test.Assert) {
+			a.MustSetRandom()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "random")
+		assert.Run(func(assert *test.Assert) {
+			a.SetZero()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "zero")
+		assert.Run(func(assert *test.Assert) {
+			a.SetOne()
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "one")
+		assert.Run(func(assert *test.Assert) {
+			a.SetInt64(-1)
+
+			assert.CheckCircuit(
+				&kbValueOfTestCircuit{},
+				test.WithValidAssignment(&kbValueOfTestCircuit{
+					A:        ValueOf(a),
+					Expected: e4{B0: e2{A0: a, A1: 0}, B1: e2{A0: 0, A1: 0}},
+				}),
+				test.WithoutCurveChecks(),
+				test.WithSmallfieldCheck())
+		}, "-1")
+	}, "koalabear.Element")
+
+	assert.Run(func(assert *test.Assert) {
+		var a extensions.E4
+		a.MustSetRandom()
+
+		assert.CheckCircuit(
+			&kbValueOfTestCircuit{},
+			test.WithValidAssignment(&kbValueOfTestCircuit{
+				A: ValueOf(a),
+				Expected: e4{
+					B0: e2{
+						A0: a.B0.A0,
+						A1: a.B0.A1,
+					},
+					B1: e2{
+						A0: a.B1.A0,
+						A1: a.B1.A1,
+					},
+				},
+			}),
+			test.WithoutCurveChecks(),
+			test.WithSmallfieldCheck())
+	}, "extensions.E4")
 }
