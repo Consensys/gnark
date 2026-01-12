@@ -235,20 +235,15 @@ func Get(name gkr.GateName) *gkrtypes.Gate {
 	panic(fmt.Sprintf("gate \"%s\" not found", name))
 }
 
-// gateVerifier handles finding/verifying of gate degrees .
-// Some of the work is done on a per-curve basis.
-type gateVerifier struct {
-	isAdditive               func(f gkr.GateFunction, i int, nbIn int) bool
-	findDegree               func(f gkr.GateFunction, max, nbIn int) (int, error)
-	verifyGateFunctionDegree func(f gkr.GateFunction, claimedDegree, nbIn int) error
-	equal                    func(f1, f2 gkr.GateFunction, nbIn int) bool
+type gateTester interface {
+	IsAdditive(varIndex int) bool
+	FindDegree(max int) int
+	VerifyDegree(claimedDegree int)
+	Equal(other gkr.GateFunction) bool
 }
 
-func newGateVerifier(curve ecc.ID) (*gateVerifier, error) {
-	var (
-		o   gateVerifier
-		err error
-	)
+func newGateTester(curve ecc.ID) (gateTester, error) {
+
 	switch curve {
 	case ecc.BLS12_377:
 		o.isAdditive = bls12377.IsGateFunctionAdditive
@@ -271,6 +266,7 @@ func newGateVerifier(curve ecc.ID) (*gateVerifier, error) {
 		o.verifyGateFunctionDegree = bls24317.VerifyGateFunctionDegree
 		o.equal = bls24317.EqualGateFunction
 	case ecc.BN254:
+		return bn254.NewGateTester()
 		o.isAdditive = bn254.IsGateFunctionAdditive
 		o.findDegree = bn254.FindGateFunctionDegree
 		o.verifyGateFunctionDegree = bn254.VerifyGateFunctionDegree

@@ -19,73 +19,45 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
-// compiledGateTester wraps a compiled gate with an arena for efficient repeated evaluation.
-// The arena is pre-loaded with constants and reused across all evaluations.
-type compiledGateTester struct {
-	compiled *gkrtypes.CompiledGate
-	arena    elementArena
-	nbConsts int
-	inputBuf []*fr.Element // reusable buffer for input pointers
+type gengateTester interface {
+	IsAdditive() bool
+	FindDegree() int
+	VerifyDegree(degree int)
+	Equal(other gkr.GateFunction) bool
 }
 
-// newCompiledGateTester compiles a gate function and prepares it for testing.
-func newCompiledGateTester(f gkr.GateFunction, nbIn int) *compiledGateTester {
-	compiled := gkrtypes.CompileGateFunction(f, nbIn, -1, -1, []ecc.ID{})
+type GateTester struct {
+	evaluator gateEvaluator
+	nbIn      int
+}
 
-	tester := &compiledGateTester{
-		compiled: compiled,
-		nbConsts: compiled.NbConstants(),
-		inputBuf: make([]*fr.Element, nbIn),
+func NewGateTester(g *gkrtypes.CompiledGate, nbIn int) *GateTester {
+	return &GateTester{
+		evaluator: newGateEvaluator(g),
+		nbIn:      nbIn,
 	}
-
-	// Preload constants into arena once
-	tester.arena.preloadConstants(compiled)
-
-	return tester
 }
 
-// eval evaluates the gate on the given inputs.
-// The arena is automatically reset after each call.
-// Returns a copy of the result to avoid arena aliasing issues.
-func (t *compiledGateTester) eval(in ...fr.Element) fr.Element {
-	// Use input buffer to avoid allocation
-	for i := range in {
-		t.inputBuf[i] = &in[i]
-	}
-
-	resultPtr := executeCompiledGate(t.compiled, &t.arena, t.inputBuf)
-
-	// Make a copy before resetting the arena
-	var result fr.Element
-	result.Set(resultPtr)
-
-	// Reset arena to just constants for next invocation
-	t.arena.shrinkToConstants(t.nbConsts)
-
-	return result
-}
-
-// IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in f
-func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
-	tester := newCompiledGateTester(f, nbIn)
+// IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in e
+func (t *GateTester) IsGateFunctionAdditive(e gateEvaluator, i int) bool {
 
 	// fix all variables except the i-th one at random points
 	// pick random value x1 for the i-th variable
 	// check if f(-, 0, -) + f(-, 2*x1, -) = 2*f(-, x1, -)
-	x := make(fr.Vector, nbIn)
+	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
 	x0 := x[i]
 	x[i].SetZero()
 	in := slices.Clone(x)
-	y0 := tester.eval(in...)
+	y0 := *e.evaluate(in...)
 
 	x[i] = x0
 	copy(in, x)
-	y1 := tester.eval(in...)
+	y1 := *e.evaluate(in...)
 
 	x[i].Double(&x[i])
 	copy(in, x)
-	y2 := tester.eval(in...)
+	y2 := *e.evaluate(in...)
 
 	y2.Sub(&y2, &y1)
 	y1.Sub(&y1, &y0)
@@ -103,11 +75,11 @@ func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
 	x.MustSetRandom()
 	x[i].SetZero()
 	copy(in, x)
-	y0 = tester.eval(in...)
+	y0 = *e.evaluate(in...)
 
 	x[i] = x0
 	copy(in, x)
-	y1 = tester.eval(in...)
+	y1 = *e.evaluate(in...)
 
 	y1.Sub(&y1, &y0)
 
@@ -117,13 +89,12 @@ func IsGateFunctionAdditive(f gkr.GateFunction, i, nbIn int) bool {
 // fitPoly tries to fit a polynomial of degree less than degreeBound to the gate.
 // degreeBound must be a power of 2.
 // It returns the polynomial if successful, nil otherwise
-func (t *compiledGateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
-	nbIn := t.compiled.NbInputs
+func (t *GateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 
 	// turn f univariate by defining p(x) as f(x, rx, ..., sx)
 	// where r, s, ... are random constants
-	fIn := make([]fr.Element, nbIn)
-	consts := make(fr.Vector, nbIn-1)
+	fIn := make([]fr.Element, t.nbIn)
+	consts := make(fr.Vector, t.nbIn-1)
 	consts.MustSetRandom()
 
 	p := make(polynomial.Polynomial, degreeBound)
@@ -135,8 +106,7 @@ func (t *compiledGateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 		for j := range consts {
 			fIn[j+1].Mul(&x, &consts[j])
 		}
-		result := t.eval(fIn...)
-		p[i].Set(&result)
+		p[i].Set(t.evaluator.evaluate(fIn...))
 
 		x.Mul(&x, &domain.Generator)
 	}
@@ -151,7 +121,7 @@ func (t *compiledGateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 		fIn[i+1].Mul(&fIn[0], &consts[i])
 	}
 	pAt := p.Eval(&fIn[0])
-	fAt := t.eval(fIn...)
+	fAt := *t.evaluator.evaluate(fIn...)
 	if !pAt.Equal(&fAt) {
 		return nil
 	}
@@ -164,13 +134,12 @@ func (t *compiledGateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 	return p[:lastNonZero+1]
 }
 
-// FindGateFunctionDegree returns the degree of the gate function, or -1 if it fails.
+// FindDegree returns the degree of the gate function, or -1 if it fails.
 // Failure could be due to the degree being higher than max or the function not being a polynomial at all.
-func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
-	tester := newCompiledGateTester(f, nbIn)
+func (t *GateTester) FindDegree(max int) (int, error) {
 	bound := uint64(max) + 1
 	for degreeBound := uint64(4); degreeBound <= bound; degreeBound *= 8 {
-		if p := tester.fitPoly(degreeBound); p != nil {
+		if p := t.fitPoly(degreeBound); p != nil {
 			if len(p) == 0 {
 				return -1, gkrtypes.ErrZeroFunction
 			}
@@ -180,9 +149,8 @@ func FindGateFunctionDegree(f gkr.GateFunction, max, nbIn int) (int, error) {
 	return -1, fmt.Errorf("could not find a degree: tried up to %d", max)
 }
 
-func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error {
-	tester := newCompiledGateTester(f, nbIn)
-	if p := tester.fitPoly(ecc.NextPowerOfTwo(uint64(claimedDegree) + 1)); p == nil {
+func (t *GateTester) VerifyDegree(claimedDegree int) error {
+	if p := t.fitPoly(ecc.NextPowerOfTwo(uint64(claimedDegree) + 1)); p == nil {
 		return fmt.Errorf("detected a higher degree than %d", claimedDegree)
 	} else if len(p) == 0 {
 		return gkrtypes.ErrZeroFunction
@@ -192,13 +160,12 @@ func VerifyGateFunctionDegree(f gkr.GateFunction, claimedDegree, nbIn int) error
 	return nil
 }
 
-// EqualGateFunction checks if two gate functions are equal, by testing the same at a random point.
-func EqualGateFunction(f gkr.GateFunction, g gkr.GateFunction, nbIn int) bool {
-	x := make(fr.Vector, nbIn)
+// Equal checks if two gate functions are equal, by testing the same at a random point.
+func (t *GateTester) Equal(g gkr.GateFunction) bool {
+	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
-	fTester := newCompiledGateTester(f, nbIn)
-	gTester := newCompiledGateTester(g, nbIn)
-	fAt := fTester.eval(x...)
-	gAt := gTester.eval(x...)
-	return fAt.Equal(&gAt)
+	fAt := t.evaluator.evaluate(x...)
+	gEval := newGateEvaluator(gkrtypes.CompileGateFunction(g, t.nbIn, -1, -1, []ecc.ID{})) // TODO empty params concerning
+	gAt := gEval.evaluate(x...)
+	return fAt.Equal(gAt)
 }
