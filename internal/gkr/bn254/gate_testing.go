@@ -19,13 +19,6 @@ import (
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
-type gengateTester interface {
-	IsAdditive() bool
-	FindDegree() int
-	VerifyDegree(degree int)
-	Equal(other gkr.GateFunction) bool
-}
-
 type GateTester struct {
 	evaluator gateEvaluator
 	nbIn      int
@@ -38,8 +31,8 @@ func NewGateTester(g *gkrtypes.CompiledGate, nbIn int) *GateTester {
 	}
 }
 
-// IsGateFunctionAdditive returns whether x_i occurs only in a monomial of total degree 1 in e
-func (t *GateTester) IsGateFunctionAdditive(e gateEvaluator, i int) bool {
+// IsAdditive returns whether xᵢ occurs only in a monomial of total degree 1 in e
+func (t *GateTester) IsAdditive(i int) bool {
 
 	// fix all variables except the i-th one at random points
 	// pick random value x1 for the i-th variable
@@ -49,15 +42,15 @@ func (t *GateTester) IsGateFunctionAdditive(e gateEvaluator, i int) bool {
 	x0 := x[i]
 	x[i].SetZero()
 	in := slices.Clone(x)
-	y0 := *e.evaluate(in...)
+	y0 := *t.evaluator.evaluate(in...)
 
 	x[i] = x0
 	copy(in, x)
-	y1 := *e.evaluate(in...)
+	y1 := *t.evaluator.evaluate(in...)
 
 	x[i].Double(&x[i])
 	copy(in, x)
-	y2 := *e.evaluate(in...)
+	y2 := *t.evaluator.evaluate(in...)
 
 	y2.Sub(&y2, &y1)
 	y1.Sub(&y1, &y0)
@@ -75,12 +68,11 @@ func (t *GateTester) IsGateFunctionAdditive(e gateEvaluator, i int) bool {
 	x.MustSetRandom()
 	x[i].SetZero()
 	copy(in, x)
-	y0 = *e.evaluate(in...)
+	y0 = *t.evaluator.evaluate(in...)
 
 	x[i] = x0
 	copy(in, x)
-	y1 = *e.evaluate(in...)
-
+	y1 = *t.evaluator.evaluate(in...)
 	y1.Sub(&y1, &y0)
 
 	return y1.Equal(&y2)
