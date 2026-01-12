@@ -79,13 +79,13 @@ func (op GateOp) String() string {
 //
 // After compilation, indices are remapped to: constants, inputs, results.
 type gateCompiler struct {
-	instructions  []GateInstruction
+	instructions  []GateInstruction // each instruction defines exactly one output variable
 	constants     []*big.Int        // constant values pool
 	constantIndex map[string]uint16 // map from constant value to its temp index (0x8000+)
 	nbInputs      int
-	nextVarID     uint16 // next variable ID to assign (for inputs and results)
-	nextConstID   uint16 // next constant ID to assign (starts at 0x8000)
 }
+
+const constMarker = 0x8000
 
 // newGateCompiler creates a new recording API with the given number of inputs.
 // Input variables are assigned temporary IDs 0 to nbInputs-1.
@@ -96,8 +96,6 @@ func newGateCompiler(nbInputs int) *gateCompiler {
 		constants:     make([]*big.Int, 0),
 		constantIndex: make(map[string]uint16),
 		nbInputs:      nbInputs,
-		nextVarID:     uint16(nbInputs), // start after input variables
-		nextConstID:   0x8000,           // constants use high temp indices
 	}
 }
 
@@ -106,93 +104,53 @@ type compilationVar struct {
 	id uint16
 }
 
-// Add records an addition operation.
-func (gc *gateCompiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	inputs := make([]uint16, 0, 2+len(in))
-	inputs = append(inputs, gc.getVarID(i1))
-	inputs = append(inputs, gc.getVarID(i2))
-	for _, v := range in {
-		inputs = append(inputs, gc.getVarID(v))
+func (gc *gateCompiler) addInstruction(op GateOp, inputs ...frontend.Variable) compilationVar {
+	ins := make([]uint16, len(inputs))
+	for i := range ins {
+		ins[i] = gc.getVarID(inputs[i])
 	}
 
+	result := compilationVar{id: uint16(len(gc.instructions) + gc.nbInputs)}
+
 	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpAdd,
-		Inputs: inputs,
+		Op:     op,
+		Inputs: ins,
 	})
 
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
 	return result
+}
+
+func (gc *gateCompiler) addInstruction2Plus(op GateOp, i1, i2 frontend.Variable, in ...frontend.Variable) compilationVar {
+	ins := make([]frontend.Variable, len(in)+2)
+	ins[0] = i1
+	ins[1] = i2
+	copy(ins[2:], in)
+	return gc.addInstruction(op, ins...)
+}
+
+// Add records an addition operation.
+func (gc *gateCompiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	return gc.addInstruction2Plus(OpAdd, i1, i2, in...)
 }
 
 // MulAcc records a multiply-accumulate operation: a + (b * c)
 func (gc *gateCompiler) MulAcc(a, b, c frontend.Variable) frontend.Variable {
-	inputs := []uint16{
-		gc.getVarID(a),
-		gc.getVarID(b),
-		gc.getVarID(c),
-	}
-
-	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpMulAcc,
-		Inputs: inputs,
-	})
-
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
-	return result
+	return gc.addInstruction(OpMulAcc, a, b, c)
 }
 
 // Neg records a negation operation
 func (gc *gateCompiler) Neg(i1 frontend.Variable) frontend.Variable {
-	inputs := []uint16{gc.getVarID(i1)}
-
-	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpNeg,
-		Inputs: inputs,
-	})
-
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
-	return result
+	return gc.addInstruction(OpNeg, i1)
 }
 
 // Sub records a subtraction operation
 func (gc *gateCompiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	inputs := make([]uint16, 0, 2+len(in))
-	inputs = append(inputs, gc.getVarID(i1))
-	inputs = append(inputs, gc.getVarID(i2))
-	for _, v := range in {
-		inputs = append(inputs, gc.getVarID(v))
-	}
-
-	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpSub,
-		Inputs: inputs,
-	})
-
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
-	return result
+	return gc.addInstruction2Plus(OpSub, i1, i2, in...)
 }
 
 // Mul records a multiplication operation
 func (gc *gateCompiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	inputs := make([]uint16, 0, 2+len(in))
-	inputs = append(inputs, gc.getVarID(i1))
-	inputs = append(inputs, gc.getVarID(i2))
-	for _, v := range in {
-		inputs = append(inputs, gc.getVarID(v))
-	}
-
-	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpMul,
-		Inputs: inputs,
-	})
-
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
-	return result
+	return gc.addInstruction2Plus(OpMul, i1, i2, in...)
 }
 
 // Println is a no-op during recording
@@ -202,20 +160,7 @@ func (gc *gateCompiler) Println(a ...frontend.Variable) {
 
 // SumExp17 records (a + b + c)^17 as a single instruction
 func (gc *gateCompiler) SumExp17(a, b, c frontend.Variable) frontend.Variable {
-	inputs := []uint16{
-		gc.getVarID(a),
-		gc.getVarID(b),
-		gc.getVarID(c),
-	}
-
-	gc.instructions = append(gc.instructions, GateInstruction{
-		Op:     OpSumExp17,
-		Inputs: inputs,
-	})
-
-	result := &compilationVar{id: gc.nextVarID}
-	gc.nextVarID++
-	return result
+	return gc.addInstruction(OpSumExp17, a, b, c)
 }
 
 // getVarID extracts or creates a temporary index from a value.
@@ -243,8 +188,7 @@ func (gc *gateCompiler) getVarID(v frontend.Variable) uint16 {
 	}
 
 	// Add new constant to the pool with temp index 0x8000+
-	tempIdx := gc.nextConstID
-	gc.nextConstID++
+	tempIdx := uint16(len(gc.constants)) | constMarker
 	gc.constants = append(gc.constants, new(big.Int).Set(&val))
 	gc.constantIndex[key] = tempIdx
 	return tempIdx
@@ -267,9 +211,9 @@ func (gc *gateCompiler) remapIndices() {
 	// Remap all instruction inputs
 	for i := range gc.instructions {
 		for j := range gc.instructions[i].Inputs {
-			if gc.instructions[i].Inputs[j]&0x8000 != 0 {
+			if gc.instructions[i].Inputs[j]&constMarker != 0 {
 				// constant
-				gc.instructions[i].Inputs[j] &= 0x7fff
+				gc.instructions[i].Inputs[j] &= ^uint16(constMarker)
 			} else {
 				// variable
 				gc.instructions[i].Inputs[j] += nbConsts
@@ -291,7 +235,12 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int, degree int, solvableV
 	}
 
 	// Execute the gate function to record operations
-	f(compiler, inputs...)
+	out := f(compiler, inputs...)
+
+	// All instructions after the output are no-ops. Prune them and the corresponding variables.
+	// Henceforth we guarantee that the variable with the highest index is the gate output.
+	lastEffectiveInstructionIndex := int(out.(compilationVar).id) - compiler.nbInputs
+	compiler.instructions = compiler.instructions[:lastEffectiveInstructionIndex+1]
 
 	// Remap indices from temporary layout to final layout
 	compiler.remapIndices()
