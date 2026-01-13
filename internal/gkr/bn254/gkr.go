@@ -806,9 +806,10 @@ type gateEvaluator struct {
 // The stack is preloaded with constants and ready for evaluation.
 func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int) gateEvaluator {
 	e := gateEvaluator{
-		gate: gate,
-		nbIn: nbIn,
-		vars: make([]fr.Element, gate.NbConstants()+nbIn+len(gate.Instructions)),
+		gate:      gate,
+		nbIn:      nbIn,
+		vars:      make([]fr.Element, gate.NbConstants()+nbIn+len(gate.Instructions)),
+		frameSize: gate.NbConstants(),
 	}
 	for i, constVal := range gate.Constants {
 		e.vars[i].SetBigInt(constVal)

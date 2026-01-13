@@ -804,6 +804,7 @@ func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int) gateEvaluator {
 		gate: gate,
 		nbIn: nbIn,
 		vars: make([]{{ .ElementType }}, gate.NbConstants()+nbIn+len(gate.Instructions)),
+		frameSize: gate.NbConstants(),
 	}
 	for i, constVal := range gate.Constants {
 		e.vars[i].SetBigInt(constVal)
