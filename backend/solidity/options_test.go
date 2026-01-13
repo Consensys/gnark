@@ -1,10 +1,17 @@
 package solidity_test
 
 import (
+	"bytes"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/solidity"
+	"github.com/consensys/gnark/test"
+	"golang.org/x/crypto/sha3"
 )
 
 func TestSortedImports(t *testing.T) {
@@ -133,4 +140,87 @@ func TestEmptyConfig(t *testing.T) {
 	if cfg.Functions != "" {
 		t.Error("expected empty functions")
 	}
+}
+
+func newGroth16Options() []solidity.ExportOption {
+	return []solidity.ExportOption{
+		solidity.WithHashToFieldFunction(sha3.NewLegacyKeccak256()),
+		solidity.WithImport(strings.NewReader(`import { B } from "b.sol";`)),
+		solidity.WithImport(strings.NewReader(`import { A } from "a.sol";`)),
+		solidity.WithInterface(strings.NewReader("IVerifier")),
+		solidity.WithConstants(strings.NewReader("	bytes32 private immutable CHAIN_CONFIG;")),
+		solidity.WithConstructor(strings.NewReader(`	constructor(bytes32 config) {
+		CHAIN_CONFIG = config;
+  }`)),
+		solidity.WithFunctions(strings.NewReader(`	function getConfig() external view returns (bytes32) {
+		return CHAIN_CONFIG;
+  }`)),
+	}
+}
+
+func newPlonkOptions() []solidity.ExportOption {
+	return []solidity.ExportOption{
+		solidity.WithImport(strings.NewReader(`import { B } from "b.sol";`)),
+		solidity.WithImport(strings.NewReader(`import { A } from "a.sol";`)),
+		solidity.WithInterface(strings.NewReader("IVerifier")),
+		solidity.WithConstants(strings.NewReader("	bytes32 private immutable CHAIN_CONFIG;")),
+		solidity.WithConstructor(strings.NewReader(`	constructor(bytes32 config) {
+		CHAIN_CONFIG = config;
+  }`)),
+		solidity.WithFunctions(strings.NewReader(`	function getConfig() external view returns (bytes32) {
+		return CHAIN_CONFIG;
+  }`)),
+	}
+}
+
+func TestWriteContractsGroth16Options(t *testing.T) {
+	t.Skip("temporary test to write out existing contracts")
+	assert := test.NewAssert(t)
+	// temporary test to write out existing contracts
+	// groth16 no commitment
+	vk := groth16.NewVerifyingKey(ecc.BN254)
+	vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
+	_, err = vk.ReadFrom(vkf)
+	assert.NoError(err)
+	solf, err := os.Create("testdata/alloptions_groth16_nocommit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf, newGroth16Options()...)
+	assert.NoError(err)
+	// groth16 single commitment
+	vk = groth16.NewVerifyingKey(ecc.BN254)
+	vkf, err = os.Open("testdata/blank_groth16_commit.vk")
+	_, err = vk.ReadFrom(vkf)
+	assert.NoError(err)
+	solf, err = os.Create("testdata/alloptions_groth16_commit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf, newGroth16Options()...)
+	assert.NoError(err)
+}
+
+func TestWriteContractsPlonkOptions(t *testing.T) {
+	t.Skip("temporary test to write out existing contracts")
+	assert := test.NewAssert(t)
+	// temporary test to write out existing contracts
+	// plonk no commitment
+	vk := plonk.NewVerifyingKey(ecc.BN254)
+	vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
+	_, err = vk.ReadFrom(vkf)
+	assert.NoError(err)
+	solf, err := os.Create("testdata/alloptions_plonk_nocommit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf, newPlonkOptions()...)
+	assert.NoError(err)
+	// plonk single commitment
+	vk = plonk.NewVerifyingKey(ecc.BN254)
+	vkf, err = os.Open("testdata/blank_plonk_commit.vk")
+	_, err = vk.ReadFrom(vkf)
+	assert.NoError(err)
+	solf, err = os.Create("testdata/alloptions_plonk_commit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf, newPlonkOptions()...)
+	assert.NoError(err)
 }
