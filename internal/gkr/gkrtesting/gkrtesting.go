@@ -37,7 +37,10 @@ func NewCache() *Cache {
 
 		return res
 	}
-	mimcCompiled := gkrtypes.CompileGateFunction(mimcF, 2)
+	mimcCompiled, err := gkrtypes.CompileGateFunction(mimcF, 2)
+	if err != nil {
+		panic(err)
+	}
 	gates["mimc"] = gkrtypes.NewGate(mimcF, mimcCompiled, 2, 7, -1, gnark.Curves())
 	gates["select-input-3"] = gkrtypes.NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]

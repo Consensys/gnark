@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/stretchr/testify/require"
 )
 
 // TestCompiledGateWithConstants tests that gates can use constant values
@@ -18,7 +19,8 @@ func TestCompiledGateWithConstants(t *testing.T) {
 
 	const nbIn = 1
 	// Compile the gate
-	compiled := CompileGateFunction(addConstantGate, nbIn)
+	compiled, err := CompileGateFunction(addConstantGate, nbIn)
+	require.NoError(t, err)
 
 	// Verify the gate has constants
 	if len(compiled.Constants) == 0 {
@@ -79,7 +81,8 @@ func TestCompiledGateWithMultipleConstants(t *testing.T) {
 
 	// Compile the gate
 	const nbIn = 1
-	compiled := CompileGateFunction(complexGate, nbIn)
+	compiled, err := CompileGateFunction(complexGate, nbIn)
+	require.NoError(t, err)
 
 	// Verify we have two constants
 	if len(compiled.Constants) != 2 {
@@ -113,7 +116,8 @@ func TestConstantDeduplication(t *testing.T) {
 
 	const nbIn = 2
 	// Compile the gate
-	compiled := CompileGateFunction(gateWithDuplicates, nbIn)
+	compiled, err := CompileGateFunction(gateWithDuplicates, nbIn)
+	require.NoError(t, err)
 
 	// Verify only one constant is stored (deduplication)
 	if len(compiled.Constants) != 1 {

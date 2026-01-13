@@ -44,10 +44,6 @@ func TestRegister(t *testing.T) {
 		})
 	}
 
-	testGate("select", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return x[0]
-	}, 3, 1)
-
 	testGate("add3", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Add(x[0], x[1], x[2])
 	}, 3, 1)

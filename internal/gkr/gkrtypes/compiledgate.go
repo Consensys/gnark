@@ -1,6 +1,7 @@
 package gkrtypes
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
@@ -200,7 +201,7 @@ func (gc *gateCompiler) remapIndices() {
 
 // CompileGateFunction compiles a gate function into a CompiledGate.
 // The gate function should be of type gkr.GateFunction.
-func CompileGateFunction(f gkr.GateFunction, nbInputs int) *CompiledGate {
+func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*CompiledGate, error) {
 	// Create compiling API
 	compiler := gateCompiler{
 		constantIndex: make(map[string]uint16),
@@ -215,6 +216,9 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) *CompiledGate {
 
 	// Execute the gate function to record operations
 	out := f(&compiler, inputs...)
+	if len(compiler.instructions) == 0 {
+		return nil, errors.New("every gate must perform a non-trivial operation")
+	}
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
 	// Henceforth we guarantee that the variable with the highest index is the gate output.
@@ -227,5 +231,5 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) *CompiledGate {
 	return &CompiledGate{
 		Instructions: compiler.GetInstructions(),
 		Constants:    compiler.constants,
-	}
+	}, nil
 }

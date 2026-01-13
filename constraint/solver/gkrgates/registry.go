@@ -162,7 +162,10 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 		allowedCurves = gnark.Curves()
 	}
 
-	compiled := gkrtypes.CompileGateFunction(f, nbIn)
+	compiled, err := gkrtypes.CompileGateFunction(f, nbIn)
+	if err != nil {
+		return err
+	}
 
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
