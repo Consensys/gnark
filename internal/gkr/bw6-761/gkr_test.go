@@ -273,13 +273,16 @@ func TestIsAdditive(t *testing.T) {
 		return api.Add(x[0], x[0])
 	}
 
-	assert.False(t, IsGateFunctionAdditive(f, 1, 2))
-	assert.False(t, IsGateFunctionAdditive(f, 0, 2))
+	tester := NewGateTester(gkrtypes.CompileGateFunction(f, 2), 2)
+	assert.False(t, tester.IsAdditive(1))
+	assert.False(t, tester.IsAdditive(0))
 
-	assert.False(t, IsGateFunctionAdditive(g, 0, 2))
-	assert.True(t, IsGateFunctionAdditive(g, 1, 2))
+	tester = NewGateTester(gkrtypes.CompileGateFunction(g, 2), 2)
+	assert.False(t, tester.IsAdditive(0))
+	assert.True(t, tester.IsAdditive(1))
 
-	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
+	tester = NewGateTester(gkrtypes.CompileGateFunction(h, 1), 1)
+	assert.True(t, tester.IsAdditive(0))
 }
 
 func generateTestProver(path string) func(t *testing.T) {
