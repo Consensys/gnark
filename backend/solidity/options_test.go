@@ -180,6 +180,8 @@ func TestWriteContractsGroth16Options(t *testing.T) {
 	// groth16 no commitment
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
 	_, err = vk.ReadFrom(vkf)
 	assert.NoError(err)
 	solf, err := os.Create("testdata/alloptions_groth16_nocommit.sol")
@@ -189,13 +191,15 @@ func TestWriteContractsGroth16Options(t *testing.T) {
 	assert.NoError(err)
 	// groth16 single commitment
 	vk = groth16.NewVerifyingKey(ecc.BN254)
-	vkf, err = os.Open("testdata/blank_groth16_commit.vk")
-	_, err = vk.ReadFrom(vkf)
+	vkf2, err := os.Open("testdata/blank_groth16_commit.vk")
 	assert.NoError(err)
-	solf, err = os.Create("testdata/alloptions_groth16_commit.sol")
+	defer vkf2.Close()
+	_, err = vk.ReadFrom(vkf2)
 	assert.NoError(err)
-	defer solf.Close()
-	err = vk.ExportSolidity(solf, newGroth16Options()...)
+	solf2, err := os.Create("testdata/alloptions_groth16_commit.sol")
+	assert.NoError(err)
+	defer solf2.Close()
+	err = vk.ExportSolidity(solf2, newGroth16Options()...)
 	assert.NoError(err)
 }
 
@@ -206,6 +210,8 @@ func TestWriteContractsPlonkOptions(t *testing.T) {
 	// plonk no commitment
 	vk := plonk.NewVerifyingKey(ecc.BN254)
 	vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
 	_, err = vk.ReadFrom(vkf)
 	assert.NoError(err)
 	solf, err := os.Create("testdata/alloptions_plonk_nocommit.sol")
@@ -215,13 +221,15 @@ func TestWriteContractsPlonkOptions(t *testing.T) {
 	assert.NoError(err)
 	// plonk single commitment
 	vk = plonk.NewVerifyingKey(ecc.BN254)
-	vkf, err = os.Open("testdata/blank_plonk_commit.vk")
-	_, err = vk.ReadFrom(vkf)
+	vkf2, err := os.Open("testdata/blank_plonk_commit.vk")
 	assert.NoError(err)
-	solf, err = os.Create("testdata/alloptions_plonk_commit.sol")
+	defer vkf2.Close()
+	_, err = vk.ReadFrom(vkf2)
 	assert.NoError(err)
-	defer solf.Close()
-	err = vk.ExportSolidity(solf, newPlonkOptions()...)
+	solf2, err := os.Create("testdata/alloptions_plonk_commit.sol")
+	assert.NoError(err)
+	defer solf2.Close()
+	err = vk.ExportSolidity(solf2, newPlonkOptions()...)
 	assert.NoError(err)
 }
 
@@ -235,9 +243,10 @@ func TestOutput(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			vk := groth16.NewVerifyingKey(ecc.BN254)
 			vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
-			_, err = vk.ReadFrom(vkf)
 			assert.NoError(err)
 			defer vkf.Close()
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
 				existing, err := os.ReadFile("testdata/blank_groth16_nocommit.sol")
 				assert.NoError(err)
@@ -258,9 +267,10 @@ func TestOutput(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			vk := groth16.NewVerifyingKey(ecc.BN254)
 			vkf, err := os.Open("testdata/blank_groth16_commit.vk")
-			_, err = vk.ReadFrom(vkf)
 			assert.NoError(err)
 			defer vkf.Close()
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
 				existing, err := os.ReadFile("testdata/blank_groth16_commit.sol")
 				assert.NoError(err)
@@ -283,9 +293,10 @@ func TestOutput(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			vk := plonk.NewVerifyingKey(ecc.BN254)
 			vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
-			_, err = vk.ReadFrom(vkf)
 			assert.NoError(err)
 			defer vkf.Close()
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
 				existing, err := os.ReadFile("testdata/blank_plonk_nocommit.sol")
 				assert.NoError(err)
@@ -306,9 +317,10 @@ func TestOutput(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			vk := plonk.NewVerifyingKey(ecc.BN254)
 			vkf, err := os.Open("testdata/blank_plonk_commit.vk")
-			_, err = vk.ReadFrom(vkf)
 			assert.NoError(err)
 			defer vkf.Close()
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
 				existing, err := os.ReadFile("testdata/blank_plonk_commit.sol")
 				assert.NoError(err)
