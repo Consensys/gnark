@@ -14,13 +14,13 @@ const solidityTemplate = `
 {{- $numWitness := sub $numPublic $numCommitments }}
 {{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
+
+pragma solidity {{ .Cfg.PragmaVersion }};
 {{- if .Cfg.SortedImports }}
 {{ range $imp := .Cfg.SortedImports }}
 {{ $imp }}
 {{- end }}
 {{- end }}
-
-pragma solidity {{ .Cfg.PragmaVersion }};
 
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen

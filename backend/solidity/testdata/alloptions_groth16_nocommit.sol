@@ -1,10 +1,10 @@
 
 // SPDX-License-Identifier: MIT
 
+pragma solidity ^0.8.0;
+
 import { A } from "a.sol";
 import { B } from "b.sol";
-
-pragma solidity ^0.8.0;
 
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
