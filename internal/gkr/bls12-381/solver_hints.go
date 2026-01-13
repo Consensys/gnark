@@ -139,7 +139,7 @@ func GetAssignmentHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() || !ins[1].IsUint64() || !ins[2].IsUint64() {
 			return fmt.Errorf("all 3 non-dummy input to GetAssignmentHint must fit in uint64")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		wireI := ins[1].Uint64()
 		instanceI := ins[2].Uint64()
 
@@ -160,7 +160,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		instanceI := ins[1].Uint64()
 
 		// indices for reading inputs and outputs
@@ -219,7 +219,7 @@ func ProveHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		hashName := data.hashName
 		// drop the first input which indicates the current circuit index
 		ins = ins[1:]
