@@ -35,6 +35,12 @@ type Field[T FieldParams] struct {
 	maxOf     uint
 	maxOfOnce sync.Once
 
+	// smallFieldMode indicates if we can use optimized scalar operations
+	// instead of polynomial checks. This is true when the emulated field
+	// fits in a single native limb with room for products.
+	smallFieldMode     bool
+	smallFieldModeOnce sync.Once
+
 	// constants for often used elements n, 0 and 1. Allocated only once
 	nConstOnce     sync.Once
 	nConst         *Element[T]

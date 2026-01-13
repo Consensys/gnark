@@ -592,11 +592,23 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 //
 // For multiplying by a constant, use [Field[T].MulConst] method which is more
 // efficient.
+//
+// For small field emulation (single limb fields like KoalaBear on BLS12-377),
+// this method automatically uses optimized batched verification which reduces
+// constraint count by ~10-20%.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	// fast path - if one of the inputs is on zero limbs (it is zero), then the result is also zero
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
+
+	// Use optimized path for small field emulation
+	if f.useSmallFieldOptimization() {
+		f.enforceWidthConditional(a)
+		f.enforceWidthConditional(b)
+		return f.mulModSmall(a, b)
+	}
+
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
@@ -609,6 +621,14 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
+
+	// Use optimized path for small field emulation
+	if f.useSmallFieldOptimization() {
+		f.enforceWidthConditional(a)
+		f.enforceWidthConditional(b)
+		return f.mulModSmall(a, b)
+	}
+
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
