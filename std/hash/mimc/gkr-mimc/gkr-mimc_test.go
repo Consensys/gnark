@@ -5,9 +5,14 @@ import (
 	"slices"
 	"testing"
 
+	"slices"
+	"testing"
+
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -22,7 +27,7 @@ func TestGkrMiMC(t *testing.T) {
 		vals[i] = i + 1
 	}
 
-	for _, length := range lengths[1:2] {
+	for _, length := range lengths {
 		circuit := &testGkrMiMCCircuit{
 			In: make([]frontend.Variable, length*2),
 		}

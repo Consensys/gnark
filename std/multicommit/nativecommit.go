@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/smallfields"
-	"github.com/consensys/gnark/std/math/fieldextension"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 )
 
 type multicommitter struct {

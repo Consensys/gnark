@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/evmprecompiles"
 	"github.com/consensys/gnark/std/hash/sha3"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/bitslice"
@@ -66,6 +67,8 @@ func registerHints() {
 	// native curves
 	solver.RegisterHint(sw_bls12377.GetHints()...)
 	solver.RegisterHint(sw_bls24315.GetHints()...)
+	// field extensions
+	solver.RegisterHint(fieldextension.GetHints()...)
 }
 
 func init() {
