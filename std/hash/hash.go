@@ -27,6 +27,13 @@ type FieldHasher interface {
 	Reset()
 }
 
+// DynamicLengthFieldHasher can compute hashes of lengths unkown at compile time.
+type DynamicLengthFieldHasher interface {
+	FieldHasher
+	// SumWithLength computes the hash of the first l inputs written into the hash.
+	SumWithLength(l frontend.Variable) frontend.Variable
+}
+
 // StateStorer allows to store and retrieve the state of a hash function.
 type StateStorer interface {
 	FieldHasher

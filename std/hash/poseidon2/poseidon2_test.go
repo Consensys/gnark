@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/poseidon2"
 	gkr_poseidon2 "github.com/consensys/gnark/std/hash/poseidon2/gkr-poseidon2"
-	permutation "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2"
 	"github.com/consensys/gnark/test"
 )
 
@@ -28,8 +27,9 @@ func (c *poseidon2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
+	varlen := hsh.(hash.DynamicLengthFieldHasher)
 
-	compressor, err := permutation.NewCompressor(api)
+	hsh, err = poseidon2.New(api)
 	if err != nil {
 		return err
 	}
@@ -39,12 +39,14 @@ func (c *poseidon2Circuit) Define(api frontend.API) error {
 		return err
 	}
 
+	varlen.Write(c.Input...)
+
 	for i := range c.Input {
 		hsh.Write(c.Input[i])
 		api.AssertIsEqual(c.Expected[i], hsh.Sum())
 		gkr.Write(c.Input[i])
 		api.AssertIsEqual(c.Expected[i], gkr.Sum())
-		api.AssertIsEqual(c.Expected[i], hash.SumMerkleDamgardDynamicLength(api, compressor, 0, i+1, c.Input))
+		api.AssertIsEqual(c.Expected[i], varlen.SumWithLength(i+1))
 	}
 	return nil
 }
