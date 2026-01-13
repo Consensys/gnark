@@ -82,18 +82,6 @@ type gateCompiler struct {
 
 const constMarker = 0x8000
 
-// newGateCompiler creates a new recording API with the given number of inputs.
-// Input variables are assigned temporary IDs 0 to nbInputs-1.
-// Constants are assigned temporary IDs starting at 0x8000.
-func newGateCompiler(nbInputs int) *gateCompiler {
-	return &gateCompiler{
-		instructions:  make([]GateInstruction, 0),
-		constants:     make([]*big.Int, 0),
-		constantIndex: make(map[string]uint16),
-		nbInputs:      nbInputs,
-	}
-}
-
 // compilationVar represents a variable during gate compilation.
 type compilationVar struct {
 	id uint16
@@ -161,15 +149,8 @@ func (gc *gateCompiler) SumExp17(a, b, c frontend.Variable) frontend.Variable {
 // getVarID extracts or creates a temporary index from a value.
 // Returns a temporary index: inputs at 0..nbInputs-1, constants at 0x8000+, results at nbInputs+.
 func (gc *gateCompiler) getVarID(v frontend.Variable) uint16 {
-	if rv, ok := v.(*compilationVar); ok {
+	if rv, ok := v.(compilationVar); ok {
 		return rv.id
-	}
-	// If it's an integer in the valid input range, treat it as an input variable index
-	if idx, ok := v.(int); ok {
-		if idx >= 0 && idx < gc.nbInputs {
-			return uint16(idx)
-		}
-		// Integer outside input range - treat as constant
 	}
 
 	// Otherwise, it must be a constant value
@@ -220,17 +201,20 @@ func (gc *gateCompiler) remapIndices() {
 // CompileGateFunction compiles a gate function into a CompiledGate.
 // The gate function should be of type gkr.GateFunction.
 func CompileGateFunction(f gkr.GateFunction, nbInputs int) *CompiledGate {
-	// Create recording API
-	compiler := newGateCompiler(nbInputs)
+	// Create compiling API
+	compiler := gateCompiler{
+		constantIndex: make(map[string]uint16),
+		nbInputs:      nbInputs,
+	}
 
-	// Create input variables as integers 0, 1, 2, ...
+	// Create input variables
 	inputs := make([]frontend.Variable, nbInputs)
-	for i := range inputs {
-		inputs[i] = i
+	for i := range uint16(nbInputs) {
+		inputs[i] = compilationVar{i}
 	}
 
 	// Execute the gate function to record operations
-	out := f(compiler, inputs...)
+	out := f(&compiler, inputs...)
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
 	// Henceforth we guarantee that the variable with the highest index is the gate output.
