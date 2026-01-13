@@ -16,7 +16,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 type GateTester struct {
@@ -153,11 +152,11 @@ func (t *GateTester) VerifyDegree(claimedDegree int) error {
 }
 
 // Equal checks if two gate functions are equal, by testing the same at a random point.
-func (t *GateTester) Equal(g gkr.GateFunction) bool {
+func (t *GateTester) Equal(g *gkrtypes.CompiledGate) bool {
 	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
 	fAt := t.evaluator.evaluate(x...)
-	gEval := newGateEvaluator(gkrtypes.CompileGateFunction(g, t.nbIn, -1, -1, []ecc.ID{})) // TODO empty params concerning
+	gEval := newGateEvaluator(g)
 	gAt := gEval.evaluate(x...)
 	return fAt.Equal(gAt)
 }

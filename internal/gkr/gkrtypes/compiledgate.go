@@ -3,7 +3,6 @@ package gkrtypes
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -39,10 +38,6 @@ type GateInstruction struct {
 type CompiledGate struct {
 	Instructions []GateInstruction // sequence of operations
 	Constants    []*big.Int        // constant values at indices [0, nbConsts)
-	NbInputs     int               // number of gate inputs
-	Degree       int               // total degree of the polynomial
-	SolvableVar  int               // if there is a solvable variable, its index, -1 otherwise
-	Curves       []ecc.ID          // curves that the gate is allowed to be used over
 }
 
 // NbConstants returns the number of constants in the gate
@@ -224,13 +219,13 @@ func (gc *gateCompiler) remapIndices() {
 
 // CompileGateFunction compiles a gate function into a CompiledGate.
 // The gate function should be of type gkr.GateFunction.
-func CompileGateFunction(f gkr.GateFunction, nbInputs int, degree int, solvableVar int, curves []ecc.ID) *CompiledGate {
+func CompileGateFunction(f gkr.GateFunction, nbInputs int) *CompiledGate {
 	// Create recording API
 	compiler := newGateCompiler(nbInputs)
 
 	// Create input variables as integers 0, 1, 2, ...
 	inputs := make([]frontend.Variable, nbInputs)
-	for i := range nbInputs {
+	for i := range inputs {
 		inputs[i] = i
 	}
 
@@ -248,9 +243,5 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int, degree int, solvableV
 	return &CompiledGate{
 		Instructions: compiler.GetInstructions(),
 		Constants:    compiler.constants,
-		NbInputs:     nbInputs,
-		Degree:       degree,
-		SolvableVar:  solvableVar,
-		Curves:       curves,
 	}
 }
