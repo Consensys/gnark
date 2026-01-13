@@ -27,7 +27,7 @@ type FieldHasher interface {
 	Reset()
 }
 
-// DynamicLengthFieldHasher can compute hashes of lengths unkown at compile time.
+// DynamicLengthFieldHasher can compute hashes of lengths unknown at compile time.
 type DynamicLengthFieldHasher interface {
 	FieldHasher
 	// SumWithLength computes the hash of the first l inputs written into the hash.
