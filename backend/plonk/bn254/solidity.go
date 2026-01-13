@@ -21,7 +21,8 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 {{ range $imp := .Cfg.SortedImports }}
 {{ $imp }}
 {{- end }}
-{{ end }}
+{{- end }}
+
 pragma solidity {{ .Cfg.PragmaVersion }};
 
 contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {

@@ -18,7 +18,8 @@ const solidityTemplate = `
 {{ range $imp := .Cfg.SortedImports }}
 {{ $imp }}
 {{- end }}
-{{ end }}
+{{- end }}
+
 pragma solidity {{ .Cfg.PragmaVersion }};
 
 /// @title Groth16 verifier template.
