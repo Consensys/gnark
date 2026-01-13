@@ -8,8 +8,8 @@ import (
 	"slices"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
-	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/std/multicommit"
 )
 

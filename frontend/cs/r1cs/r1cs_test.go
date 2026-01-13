@@ -171,3 +171,36 @@ func TestSubSameNoConstraint(t *testing.T) {
 		t.Fatal("expected 0 constraints")
 	}
 }
+
+type overwriteZeroConstCircuit struct {
+	X frontend.Variable
+	Y frontend.Variable
+}
+
+func (c *overwriteZeroConstCircuit) Define(api frontend.API) error {
+	constVar := api.Mul(0, c.X)               // this create a zero constant
+	constVar = api.MulAcc(constVar, c.X, c.Y) // due to bug the zero constant is overwritten
+	_ = constVar
+	constVar2 := api.Mul(0, c.Y) // this create another zero constant
+	api.AssertIsEqual(constVar2, 0)
+
+	return nil
+}
+
+func TestOverrideZeroConstant(t *testing.T) {
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, &overwriteZeroConstCircuit{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wit, err := frontend.NewWitness(&overwriteZeroConstCircuit{
+		X: 5,
+		Y: 10,
+	}, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ccs.Solve(wit)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

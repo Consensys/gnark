@@ -895,7 +895,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	scalingVector := cosetTable
 	scalingVectorRev := make([]fr.Element, len(cosetTable))
 	copy(scalingVectorRev, cosetTable)
-	fft.BitReverse(scalingVectorRev)
+	fft.BitReverse(scalingVectorRev) //nolint:staticcheck // method is backwards compatible
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
@@ -936,7 +936,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 			// reuse memory
 			copy(scalingVectorRev, scalingVector)
-			fft.BitReverse(scalingVectorRev)
+			fft.BitReverse(scalingVectorRev) //nolint:staticcheck // method is backwards compatible
 		}
 
 		// we do **a lot** of FFT here, but on the small domain.
