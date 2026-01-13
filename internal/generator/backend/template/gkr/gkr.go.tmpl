@@ -661,7 +661,9 @@ func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 		if len(a[i]) != nbInstances {
 			a[i] = make([]{{ .ElementType }}, nbInstances)
 		}
-		evaluators[i] = newGateEvaluator(wires[i].Gate.Compiled(), len(wires[i].Inputs))
+		if !wires[i].IsInput() {
+			evaluators[i] = newGateEvaluator(wires[i].Gate.Compiled(), len(wires[i].Inputs))
+		}
 	}
 
 	for i := range nbInstances {
