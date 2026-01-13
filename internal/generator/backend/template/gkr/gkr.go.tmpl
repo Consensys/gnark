@@ -819,6 +819,15 @@ func (e *gateEvaluator) pushInput(input *{{ .ElementType }}) {
 	e.frameSize++
 }
 
+var gateExecutors = [...]gateOp{
+		gkrtypes.OpAdd:      opAdd,
+		gkrtypes.OpSub:      opSub,
+		gkrtypes.OpMul:      opMul,
+		gkrtypes.OpNeg:      opNeg,
+		gkrtypes.OpMulAcc:   opMulAcc,
+		gkrtypes.OpSumExp17: opSumExp17,
+}
+
 // evaluate adds top to the top of the stack, executes the gate on it and returns the result.
 // The stack is automatically reset after evaluation,
 // making the evaluator ready for the next evaluation.
@@ -832,20 +841,10 @@ func (e *gateEvaluator) evaluate(top ...{{ .ElementType }}) *{{ .ElementType }} 
 		panic(fmt.Sprintf("expected a stack size of %d representing %d constants and %d inputs, got %d", e.nbIn+e.gate.NbConstants(), e.gate.NbConstants(), e.nbIn, e.frameSize))
 	}
 
-	// Instruction executor functions
-	executors := [...]gateOp{
-		gkrtypes.OpAdd:      opAdd,
-		gkrtypes.OpSub:      opSub,
-		gkrtypes.OpMul:      opMul,
-		gkrtypes.OpNeg:      opNeg,
-		gkrtypes.OpMulAcc:   opMulAcc,
-		gkrtypes.OpSumExp17: opSumExp17,
-	}
-
 	// Execute instructions, appending results to stack
 	// The stack grows to: [constants | inputs | results]
 	for i := range e.gate.Instructions {
-		executors[e.gate.Instructions[i].Op](&e.vars[i+e.frameSize], e.vars, e.gate.Instructions[i].Inputs)
+		gateExecutors[e.gate.Instructions[i].Op](&e.vars[i+e.frameSize], e.vars, e.gate.Instructions[i].Inputs)
 	}
 
 	res := &e.vars[e.frameSize+len(e.gate.Instructions)-1]
