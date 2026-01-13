@@ -224,3 +224,108 @@ func TestWriteContractsPlonkOptions(t *testing.T) {
 	err = vk.ExportSolidity(solf, newPlonkOptions()...)
 	assert.NoError(err)
 }
+
+func TestOutput(t *testing.T) {
+	assert := test.NewAssert(t)
+	// this test ensures that exporting a Solidity contract with and without options does
+	// not change the existing contract output (snapshot test).
+
+	// we read everything in memory as the contracts are not large (50 KB)
+	assert.Run(func(assert *test.Assert) {
+		assert.Run(func(assert *test.Assert) {
+			vk := groth16.NewVerifyingKey(ecc.BN254)
+			vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
+			defer vkf.Close()
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/blank_groth16_nocommit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "blank")
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/alloptions_groth16_nocommit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b, newGroth16Options()...)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "options")
+		}, "nocommit")
+		assert.Run(func(assert *test.Assert) {
+			vk := groth16.NewVerifyingKey(ecc.BN254)
+			vkf, err := os.Open("testdata/blank_groth16_commit.vk")
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
+			defer vkf.Close()
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/blank_groth16_commit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "blank")
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/alloptions_groth16_commit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b, newGroth16Options()...)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "options")
+		}, "commit")
+	}, "groth16")
+	assert.Run(func(assert *test.Assert) {
+		assert.Run(func(assert *test.Assert) {
+			vk := plonk.NewVerifyingKey(ecc.BN254)
+			vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
+			defer vkf.Close()
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/blank_plonk_nocommit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "blank")
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/alloptions_plonk_nocommit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b, newPlonkOptions()...)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "options")
+		}, "nocommit")
+		assert.Run(func(assert *test.Assert) {
+			vk := plonk.NewVerifyingKey(ecc.BN254)
+			vkf, err := os.Open("testdata/blank_plonk_commit.vk")
+			_, err = vk.ReadFrom(vkf)
+			assert.NoError(err)
+			defer vkf.Close()
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/blank_plonk_commit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "blank")
+			assert.Run(func(assert *test.Assert) {
+				existing, err := os.ReadFile("testdata/alloptions_plonk_commit.sol")
+				assert.NoError(err)
+				var b bytes.Buffer
+				err = vk.ExportSolidity(&b, newPlonkOptions()...)
+				assert.NoError(err)
+				assert.Equal(existing, b.Bytes())
+			}, "options")
+		}, "commit")
+	}, "plonk")
+
+}
