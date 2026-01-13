@@ -173,6 +173,9 @@ func (h *merkleDamgardHasher) State() []frontend.Variable {
 
 func (h *merkleDamgardHasher) SetState(state []frontend.Variable) error {
 	if len(state) != 1 {
+		return fmt.Errorf("expected one state variable, got %d", len(state))
+	}
+	if len(h.state) != 1 {
 		return fmt.Errorf("the hasher is not in an initial state; reset before attempting to set the state")
 	}
 	h.state = append(h.state, state[0])
