@@ -98,7 +98,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
 		}
 
-		evaluator := newGateEvaluator(wire.Gate.Compiled())
+		evaluator := newGateEvaluator(wire.Gate.Compiled(), len(wire.Inputs))
 		for _, uniqueI := range injectionLeftInv { // map from all to unique
 			evaluator.pushInput(&uniqueInputEvaluations[uniqueI])
 		}
@@ -237,8 +237,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 		var step fr.Element
 
 		// Create gate evaluator once per thread
-		compiled := wire.Gate.Compiled()
-		evaluator := newGateEvaluator(compiled)
+		evaluator := newGateEvaluator(wire.Gate.Compiled(), nbGateIn)
 
 		res := make([]fr.Element, degGJ)
 
@@ -265,7 +264,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 			nextEIndex := len(ml)
 			for d := range degGJ {
 				// Push gate inputs
-				for i := 0; i < nbGateIn; i++ {
+				for i := range nbGateIn {
 					evaluator.pushInput(&mlEvals[eIndex+1+i])
 				}
 				summand := evaluator.evaluate()
@@ -300,13 +299,13 @@ func (c *eqTimesGateEvalSumcheckClaims) next(challenge fr.Element) polynomial.Po
 	n := len(c.eq) / 2
 	if n < minBlockSize {
 		// no parallelization
-		for i := 0; i < len(c.input); i++ {
+		for i := range c.input {
 			c.input[i].Fold(challenge)
 		}
 		c.eq.Fold(challenge)
 	} else {
 		wgs := make([]*sync.WaitGroup, len(c.input))
-		for i := 0; i < len(c.input); i++ {
+		for i := range c.input {
 			wgs[i] = c.manager.workers.Submit(n, c.input[i].FoldParallel(challenge), minBlockSize)
 		}
 		c.manager.workers.Submit(n, c.eq.FoldParallel(challenge), minBlockSize).Wait()
@@ -661,15 +660,13 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 
 	nbInstances := a.NumInstances()
-	maxNbIns := 0
 	evaluators := make([]gateEvaluator, len(wires))
 
-	for i, w := range wires {
-		maxNbIns = max(maxNbIns, len(w.Inputs))
+	for i := range wires {
 		if len(a[i]) != nbInstances {
 			a[i] = make([]fr.Element, nbInstances)
 		}
-		evaluators[i] = newGateEvaluator(wires[i].Gate.Compiled())
+		evaluators[i] = newGateEvaluator(wires[i].Gate.Compiled(), len(wires[i].Inputs))
 	}
 
 	for i := range nbInstances {
@@ -800,14 +797,16 @@ type gateEvaluator struct {
 	gate      *gkrtypes.CompiledGate
 	vars      []fr.Element
 	frameSize int // number of constants plus currently pushed inputs
+	nbIn      int // number of inputs expected
 }
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate *gkrtypes.CompiledGate) gateEvaluator {
+func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int) gateEvaluator {
 	e := gateEvaluator{
 		gate: gate,
-		vars: make([]fr.Element, gate.NbConstants()+gate.NbInputs+len(gate.Instructions)),
+		nbIn: nbIn,
+		vars: make([]fr.Element, gate.NbConstants()+nbIn+len(gate.Instructions)),
 	}
 	for i, constVal := range gate.Constants {
 		e.vars[i].SetBigInt(constVal)
@@ -831,8 +830,8 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 		e.pushInput(&top[i])
 	}
 
-	if e.frameSize != e.gate.NbInputs+e.gate.NbConstants() {
-		panic(fmt.Sprintf("expected a stack size of %d representing %d constants and %d inputs, got %d", e.gate.NbInputs+e.gate.NbConstants(), e.gate.NbConstants(), e.gate.NbInputs, e.frameSize))
+	if e.frameSize != e.nbIn+e.gate.NbConstants() {
+		panic(fmt.Sprintf("expected a stack size of %d representing %d constants and %d inputs, got %d", e.nbIn+e.gate.NbConstants(), e.gate.NbConstants(), e.nbIn, e.frameSize))
 	}
 
 	// Instruction executor functions

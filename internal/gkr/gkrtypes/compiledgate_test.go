@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
@@ -17,8 +16,9 @@ func TestCompiledGateWithConstants(t *testing.T) {
 		return api.Add(in[0], five)
 	}
 
+	const nbIn = 1
 	// Compile the gate
-	compiled := CompileGateFunction(addConstantGate, 1, 1, -1, []ecc.ID{ecc.BN254})
+	compiled := CompileGateFunction(addConstantGate, nbIn)
 
 	// Verify the gate has constants
 	if len(compiled.Constants) == 0 {
@@ -50,7 +50,7 @@ func TestCompiledGateWithConstants(t *testing.T) {
 			if idx != 0 {
 				t.Errorf("Expected constant index 0, got %d", idx)
 			}
-		} else if idx >= uint16(nbConsts) && idx < uint16(nbConsts+compiled.NbInputs) {
+		} else if idx >= uint16(nbConsts) && idx < uint16(nbConsts+nbIn) {
 			hasInput = true
 			inputIdx := idx - uint16(nbConsts)
 			if inputIdx != 0 {
@@ -65,11 +65,6 @@ func TestCompiledGateWithConstants(t *testing.T) {
 	if !hasInput {
 		t.Error("Expected instruction to reference an input")
 	}
-
-	t.Logf("Successfully compiled gate with %d constants and %d instructions",
-		len(compiled.Constants), len(compiled.Instructions))
-	t.Logf("Index layout: constants [0,%d), inputs [%d,%d)",
-		nbConsts, nbConsts, nbConsts+compiled.NbInputs)
 }
 
 // TestCompiledGateWithMultipleConstants tests gates with multiple different constants
@@ -83,7 +78,8 @@ func TestCompiledGateWithMultipleConstants(t *testing.T) {
 	}
 
 	// Compile the gate
-	compiled := CompileGateFunction(complexGate, 1, 2, -1, []ecc.ID{ecc.BN254})
+	const nbIn = 1
+	compiled := CompileGateFunction(complexGate, nbIn)
 
 	// Verify we have two constants
 	if len(compiled.Constants) != 2 {
@@ -115,8 +111,9 @@ func TestConstantDeduplication(t *testing.T) {
 		return api.Add(sum1, sum2)
 	}
 
+	const nbIn = 2
 	// Compile the gate
-	compiled := CompileGateFunction(gateWithDuplicates, 2, 1, -1, []ecc.ID{ecc.BN254})
+	compiled := CompileGateFunction(gateWithDuplicates, nbIn)
 
 	// Verify only one constant is stored (deduplication)
 	if len(compiled.Constants) != 1 {

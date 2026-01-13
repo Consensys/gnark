@@ -16,11 +16,12 @@ import (
 
 // A Gate is a low-degree multivariate polynomial
 type Gate struct {
-	compiled    *CompiledGate // Compiled form of the gate
-	nbIn        int           // number of inputs
-	degree      int           // total degree of the polynomial
-	solvableVar int           // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-	curves      []ecc.ID      // curves that the gate is allowed to be used over
+	Evaluate    gkr.GateFunction // Evaluate the polynomial function defining the gate
+	compiled    *CompiledGate    // Compiled form of the gate function (used in native prover)
+	nbIn        int              // number of inputs
+	degree      int              // total degree of the polynomial
+	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+	curves      []ecc.ID         // curves that the gate is allowed to be used over
 }
 
 // NewGate creates a new gate function with the given parameters:
@@ -33,6 +34,7 @@ type Gate struct {
 func NewGate(f gkr.GateFunction, compiled *CompiledGate, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
 
 	return &Gate{
+		Evaluate:    f,
 		compiled:    compiled,
 		nbIn:        nbIn,
 		degree:      degree,

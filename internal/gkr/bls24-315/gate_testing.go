@@ -25,7 +25,7 @@ type GateTester struct {
 
 func NewGateTester(g *gkrtypes.CompiledGate, nbIn int) *GateTester {
 	return &GateTester{
-		evaluator: newGateEvaluator(g),
+		evaluator: newGateEvaluator(g, nbIn),
 		nbIn:      nbIn,
 	}
 }
@@ -156,7 +156,7 @@ func (t *GateTester) Equal(g *gkrtypes.CompiledGate) bool {
 	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
 	fAt := t.evaluator.evaluate(x...)
-	gEval := newGateEvaluator(g)
+	gEval := newGateEvaluator(g, t.nbIn)
 	gAt := gEval.evaluate(x...)
 	return fAt.Equal(gAt)
 }
