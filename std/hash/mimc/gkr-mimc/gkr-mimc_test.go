@@ -3,16 +3,13 @@ package gkr_mimc
 import (
 	"errors"
 	"slices"
-	"testing"
 
-	"slices"
 	"testing"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"

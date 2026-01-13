@@ -18,15 +18,8 @@ import (
 	frbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
 	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
-	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
-	bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
-	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
+
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
