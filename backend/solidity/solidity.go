@@ -156,7 +156,7 @@ func WithFunctions(r io.Reader) ExportOption {
 }
 
 // SortedImports returns the imports sorted alphabetically for deterministic output.
-func (cfg *ExportConfig) SortedImports() []string {
+func (cfg ExportConfig) SortedImports() []string {
 	if len(cfg.Imports) == 0 {
 		return nil
 	}
@@ -170,7 +170,8 @@ func (cfg *ExportConfig) SortedImports() []string {
 
 // InterfaceDeclaration returns the interface declaration string for the contract.
 // Returns empty string if no interfaces are defined.
-func (cfg *ExportConfig) InterfaceDeclaration() string {
+func (cfg ExportConfig) InterfaceDeclaration() string {
+	// we use value receiver to be able to call the method inside templates
 	if len(cfg.Interfaces) == 0 {
 		return ""
 	}
