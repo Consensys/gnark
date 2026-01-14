@@ -106,7 +106,7 @@ func newMimcBW633(api frontend.API) MiMC {
 }
 
 // -------------------------------------------------------------------------------------------------
-// encryptions functions
+// encryption functions
 
 func pow5(api frontend.API, x frontend.Variable) frontend.Variable {
 	r := api.Mul(x, x)
