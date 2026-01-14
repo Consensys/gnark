@@ -731,54 +731,6 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-// A gateOp performs an operation on (vars[in[0]], vars[in[1]], ...) and stores the
-// result in dst. In practice, dst will be one of the vars but this is not required.
-type gateOp func(dst *fr.Element, vars []fr.Element, in []uint16)
-
-func opAdd(dst *fr.Element, vars []fr.Element, in []uint16) {
-	dst.Add(&vars[in[0]], &vars[in[1]])
-	for i := 2; i < len(in); i++ {
-		dst.Add(dst, &vars[in[i]])
-	}
-}
-
-func opMulAcc(dst *fr.Element, vars []fr.Element, in []uint16) {
-	var prod fr.Element
-	prod.Mul(&vars[in[1]], &vars[in[2]])
-	dst.Add(&vars[in[0]], &prod)
-}
-
-func opNeg(dst *fr.Element, vars []fr.Element, in []uint16) {
-	dst.Neg(&vars[in[0]])
-}
-
-func opSub(dst *fr.Element, vars []fr.Element, in []uint16) {
-	dst.Sub(&vars[in[0]], &vars[in[1]])
-	for i := 2; i < len(in); i++ {
-		dst.Sub(dst, &vars[in[i]])
-	}
-}
-
-func opMul(dst *fr.Element, vars []fr.Element, in []uint16) {
-	dst.Mul(&vars[in[0]], &vars[in[1]])
-	for i := 2; i < len(in); i++ {
-		dst.Mul(dst, &vars[in[i]])
-	}
-}
-
-func opSumExp17(dst *fr.Element, vars []fr.Element, in []uint16) {
-	// result = (x[0] + x[1] + x[2])^17
-	var sum fr.Element
-	sum.Add(&vars[in[0]], &vars[in[1]])
-	sum.Add(&sum, &vars[in[2]])
-
-	dst.Mul(&sum, &sum) // sum²
-	dst.Mul(dst, dst)   // sum⁴
-	dst.Mul(dst, dst)   // sum⁸
-	dst.Mul(dst, dst)   // sum¹⁶
-	dst.Mul(dst, &sum)  // sum¹⁷
-}
-
 /*
 func (stack *elementStack) Println(a ...frontend.Variable) {
 	toPrint := make([]any, len(a))
@@ -834,15 +786,6 @@ func (e *gateEvaluator) pushInput(input *fr.Element) {
 	e.frameSize++
 }
 
-var gateExecutors = [...]gateOp{
-	gkrtypes.OpAdd:      opAdd,
-	gkrtypes.OpSub:      opSub,
-	gkrtypes.OpMul:      opMul,
-	gkrtypes.OpNeg:      opNeg,
-	gkrtypes.OpMulAcc:   opMulAcc,
-	gkrtypes.OpSumExp17: opSumExp17,
-}
-
 // evaluate adds top to the top of the stack, executes the gate on it and returns the result.
 // The stack is automatically reset after evaluation,
 // making the evaluator ready for the next evaluation.
@@ -859,7 +802,45 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 	// Execute instructions, appending results to stack
 	// The stack grows to: [constants | inputs | results]
 	for i := range e.gate.Instructions {
-		gateExecutors[e.gate.Instructions[i].Op](&e.vars[i+e.frameSize], e.vars, e.gate.Instructions[i].Inputs)
+		inst := &e.gate.Instructions[i]
+		dst := &e.vars[i+e.frameSize]
+
+		// Use switch instead of function pointer for better inlining
+		switch inst.Op {
+		case gkrtypes.OpAdd:
+			dst.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
+			for j := 2; j < len(inst.Inputs); j++ {
+				dst.Add(dst, &e.vars[inst.Inputs[j]])
+			}
+		case gkrtypes.OpMul:
+			dst.Mul(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
+			for j := 2; j < len(inst.Inputs); j++ {
+				dst.Mul(dst, &e.vars[inst.Inputs[j]])
+			}
+		case gkrtypes.OpSub:
+			dst.Sub(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
+			for j := 2; j < len(inst.Inputs); j++ {
+				dst.Sub(dst, &e.vars[inst.Inputs[j]])
+			}
+		case gkrtypes.OpNeg:
+			dst.Neg(&e.vars[inst.Inputs[0]])
+		case gkrtypes.OpMulAcc:
+			var prod fr.Element
+			prod.Mul(&e.vars[inst.Inputs[1]], &e.vars[inst.Inputs[2]])
+			dst.Add(&e.vars[inst.Inputs[0]], &prod)
+		case gkrtypes.OpSumExp17:
+			// result = (x[0] + x[1] + x[2])^17
+			var sum fr.Element
+			sum.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
+			sum.Add(&sum, &e.vars[inst.Inputs[2]])
+			dst.Mul(&sum, &sum) // x²
+			dst.Mul(dst, dst)   // x⁴
+			dst.Mul(dst, dst)   // x⁸
+			dst.Mul(dst, dst)   // x¹⁶
+			dst.Mul(dst, &sum)  // x¹⁷
+		default:
+			panic(fmt.Sprintf("unknown operation: %d", inst.Op))
+		}
 	}
 
 	res := &e.vars[e.frameSize+len(e.gate.Instructions)-1]
