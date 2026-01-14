@@ -238,8 +238,8 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
 		var step small_rational.SmallRational
 
-		evaluator := c.gateEvaluatorPool.Get()
-		defer c.gateEvaluatorPool.Put(evaluator)
+		evaluator := c.gateEvaluatorPool.get()
+		defer c.gateEvaluatorPool.put(evaluator)
 
 		res := make([]small_rational.SmallRational, degGJ)
 
@@ -341,7 +341,7 @@ func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []small_rational.SmallR
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
-	c.gateEvaluatorPool.DumpAll()
+	c.gateEvaluatorPool.dumpAll()
 
 	return evaluations
 }
@@ -852,7 +852,7 @@ func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, frPool *polynom
 	return gep
 }
 
-func (gep *gateEvaluatorPool) Get() *gateEvaluator {
+func (gep *gateEvaluatorPool) get() *gateEvaluator {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
 
@@ -867,7 +867,7 @@ func (gep *gateEvaluatorPool) Get() *gateEvaluator {
 	return &e
 }
 
-func (gep *gateEvaluatorPool) Put(e *gateEvaluator) {
+func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
 
@@ -878,8 +878,9 @@ func (gep *gateEvaluatorPool) Put(e *gateEvaluator) {
 	gep.available[e] = struct{}{}
 }
 
-// DumpAll dumps all evaluator vars slices back to the polynomial pool and clears the pool
-func (gep *gateEvaluatorPool) DumpAll() {
+// dumpAll dumps all available evaluator vars slices back to the polynomial pool and clears the pool.
+// NB! User must ensure all evaluators have been put back in the pool to prevent memory leaks.
+func (gep *gateEvaluatorPool) dumpAll() {
 	for e := range gep.available {
 		gep.frPool.Dump(e.vars)
 	}
