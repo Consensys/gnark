@@ -137,11 +137,6 @@ func (gc *gateCompiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	return gc.addInstruction2Plus(OpMul, i1, i2, in...)
 }
 
-// Println is a no-op during recording
-func (gc *gateCompiler) Println(a ...frontend.Variable) {
-	// No-op: we don't need to record print statements
-}
-
 // SumExp17 records (a + b + c)^17 as a single instruction
 func (gc *gateCompiler) SumExp17(a, b, c frontend.Variable) frontend.Variable {
 	return gc.addInstruction(OpSumExp17, a, b, c)

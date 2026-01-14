@@ -193,15 +193,3 @@ func (g gateAPI) SumExp17(a, b, c frontend.Variable) frontend.Variable {
 	res.Exp(&x, big.NewInt(17), g.mod)
 	return &res
 }
-
-func (g gateAPI) Println(a ...frontend.Variable) {
-	strings := make([]string, len(a))
-	for i := range a {
-		if s, ok := a[i].(fmt.Stringer); ok {
-			strings[i] = s.String()
-		} else {
-			bigInt := utils.FromInterface(a[i])
-			strings[i] = bigInt.String()
-		}
-	}
-}

@@ -731,25 +731,6 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-/*
-func (stack *elementStack) Println(a ...frontend.Variable) {
-	toPrint := make([]any, len(a))
-	var x fr.Element
-
-	for i, v := range a {
-		if _, err := x.SetInterface(v); err != nil {
-			if s, ok := v.(string); ok {
-				toPrint[i] = s
-				continue
-			}
-			panic(fmt.Errorf("not numeric or string: %w", err))
-		} else {
-			toPrint[i] = x.String()
-		}
-	}
-	fmt.Println(toPrint...)
-}*/
-
 // gateEvaluator provides a high-level API for evaluating compiled gates efficiently.
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
