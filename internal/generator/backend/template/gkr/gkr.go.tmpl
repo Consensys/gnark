@@ -834,14 +834,14 @@ type gateEvaluatorPool struct {
 	nbIn      int
 	lock      sync.Mutex
 	available map[*gateEvaluator]struct{}
-	frPool    *polynomial.Pool // shared element pool
+	elementPool    *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, frPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
 		gate:      gate,
 		nbIn:      nbIn,
-		frPool:    frPool,
+		elementPool:    elementPool,
 		available: make(map[*gateEvaluator]struct{}),
 	}
 	return gep
@@ -856,8 +856,7 @@ func (gep *gateEvaluatorPool) get() *gateEvaluator {
 		return e
 	}
 
-	// No available evaluator, create a new one
-	e := newGateEvaluator(gep.gate, gep.nbIn, gep.frPool)
+	e := newGateEvaluator(gep.gate, gep.nbIn, gep.elementPool)
 
 	return &e
 }
@@ -877,6 +876,6 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 // NB! User must ensure all evaluators have been put back in the pool to prevent memory leaks.
 func (gep *gateEvaluatorPool) dumpAll() {
 	for e := range gep.available {
-		gep.frPool.Dump(e.vars)
+		gep.elementPool.Dump(e.vars)
 	}
 }

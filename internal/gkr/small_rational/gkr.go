@@ -835,19 +835,19 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
 // All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
-	gate      *gkrtypes.CompiledGate
-	nbIn      int
-	lock      sync.Mutex
-	available map[*gateEvaluator]struct{}
-	frPool    *polynomial.Pool // shared element pool
+	gate        *gkrtypes.CompiledGate
+	nbIn        int
+	lock        sync.Mutex
+	available   map[*gateEvaluator]struct{}
+	elementPool *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, frPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
-		gate:      gate,
-		nbIn:      nbIn,
-		frPool:    frPool,
-		available: make(map[*gateEvaluator]struct{}),
+		gate:        gate,
+		nbIn:        nbIn,
+		elementPool: elementPool,
+		available:   make(map[*gateEvaluator]struct{}),
 	}
 	return gep
 }
@@ -861,8 +861,7 @@ func (gep *gateEvaluatorPool) get() *gateEvaluator {
 		return e
 	}
 
-	// No available evaluator, create a new one
-	e := newGateEvaluator(gep.gate, gep.nbIn, gep.frPool)
+	e := newGateEvaluator(gep.gate, gep.nbIn, gep.elementPool)
 
 	return &e
 }
@@ -882,6 +881,6 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 // NB! User must ensure all evaluators have been put back in the pool to prevent memory leaks.
 func (gep *gateEvaluatorPool) dumpAll() {
 	for e := range gep.available {
-		gep.frPool.Dump(e.vars)
+		gep.elementPool.Dump(e.vars)
 	}
 }

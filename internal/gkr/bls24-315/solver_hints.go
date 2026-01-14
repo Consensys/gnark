@@ -204,8 +204,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 				}
 
 				// Evaluate the gate
-				result := evaluator.evaluate()
-				data.assignment[wI][instanceI].Set(result)
+				data.assignment[wI][instanceI].Set(evaluator.evaluate())
 			}
 			if w.IsOutput() {
 				// write to provided output.

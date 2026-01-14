@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,24 +24,16 @@ func TestCompiledGateWithConstants(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the gate has constants
-	if len(compiled.Constants) == 0 {
-		t.Fatal("Expected compiled gate to have constants")
-	}
+	assert.NotEmpty(t, compiled.Constants, "Expected compiled gate to have constants")
 
 	// Verify the constant value
-	if compiled.Constants[0].Cmp(big.NewInt(5)) != 0 {
-		t.Errorf("Expected constant to be 5, got %s", compiled.Constants[0].String())
-	}
+	assert.Equal(t, 0, compiled.Constants[0].Cmp(big.NewInt(5)), "Expected constant to be 5, got %s", compiled.Constants[0].String())
 
 	// Verify instructions reference the constant
-	if len(compiled.Instructions) == 0 {
-		t.Fatal("Expected compiled gate to have instructions")
-	}
+	assert.NotEmpty(t, compiled.Instructions, "Expected compiled gate to have instructions")
 
 	inst := compiled.Instructions[0]
-	if inst.Op != OpAdd {
-		t.Errorf("Expected OpAdd, got %v", inst.Op)
-	}
+	assert.Equal(t, OpAdd, inst.Op, "Expected OpAdd, got %v", inst.Op)
 
 	// Verify index layout: constants at [0, nbConsts), inputs at [nbConsts, nbConsts+nbInputs)
 	nbConsts := len(compiled.Constants)
@@ -49,24 +42,16 @@ func TestCompiledGateWithConstants(t *testing.T) {
 	for _, idx := range inst.Inputs {
 		if idx < uint16(nbConsts) {
 			hasConstant = true
-			if idx != 0 {
-				t.Errorf("Expected constant index 0, got %d", idx)
-			}
+			assert.Equal(t, uint16(0), idx, "Expected constant index 0, got %d", idx)
 		} else if idx >= uint16(nbConsts) && idx < uint16(nbConsts+nbIn) {
 			hasInput = true
 			inputIdx := idx - uint16(nbConsts)
-			if inputIdx != 0 {
-				t.Errorf("Expected input index 0 (remapped to %d), got %d", nbConsts, idx)
-			}
+			assert.Equal(t, uint16(0), inputIdx, "Expected input index 0 (remapped to %d), got %d", nbConsts, idx)
 		}
 	}
 
-	if !hasConstant {
-		t.Error("Expected instruction to reference a constant")
-	}
-	if !hasInput {
-		t.Error("Expected instruction to reference an input")
-	}
+	assert.True(t, hasConstant, "Expected instruction to reference a constant")
+	assert.True(t, hasInput, "Expected instruction to reference an input")
 }
 
 // TestCompiledGateWithMultipleConstants tests gates with multiple different constants
@@ -85,9 +70,7 @@ func TestCompiledGateWithMultipleConstants(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify we have two constants
-	if len(compiled.Constants) != 2 {
-		t.Errorf("Expected 2 constants, got %d", len(compiled.Constants))
-	}
+	assert.Equal(t, 2, len(compiled.Constants), "Expected 2 constants, got %d", len(compiled.Constants))
 
 	// Verify the constants are 3 and 7
 	constantValues := make(map[int64]bool)
@@ -95,9 +78,7 @@ func TestCompiledGateWithMultipleConstants(t *testing.T) {
 		constantValues[c.Int64()] = true
 	}
 
-	if !constantValues[3] || !constantValues[7] {
-		t.Error("Expected constants to be 3 and 7")
-	}
+	assert.True(t, constantValues[3] && constantValues[7], "Expected constants to be 3 and 7")
 
 	t.Logf("Successfully compiled gate with %d constants: %v",
 		len(compiled.Constants), compiled.Constants)
@@ -120,13 +101,9 @@ func TestConstantDeduplication(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify only one constant is stored (deduplication)
-	if len(compiled.Constants) != 1 {
-		t.Errorf("Expected 1 deduplicated constant, got %d", len(compiled.Constants))
-	}
+	assert.Equal(t, 1, len(compiled.Constants), "Expected 1 deduplicated constant, got %d", len(compiled.Constants))
 
-	if compiled.Constants[0].Cmp(big.NewInt(5)) != 0 {
-		t.Errorf("Expected constant to be 5, got %s", compiled.Constants[0].String())
-	}
+	assert.Equal(t, 0, compiled.Constants[0].Cmp(big.NewInt(5)), "Expected constant to be 5, got %s", compiled.Constants[0].String())
 
 	t.Logf("Successfully deduplicated constants: %d unique constant(s)",
 		len(compiled.Constants))
