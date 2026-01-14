@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
@@ -106,8 +107,21 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 			}
 		}
 
+		// Initialize polynomial pool for elements
+		// Size the pool for the worst case: max gate size across all wires
+		maxGateStackSize := 0
+		for _, w := range d[k].circuit {
+			if !w.IsInput() {
+				stackSize := w.Gate.Compiled().NbConstants() + len(w.Inputs) + len(w.Gate.Compiled().Instructions)
+				if stackSize > maxGateStackSize {
+					maxGateStackSize = stackSize
+				}
+			}
+		}
+
 		// Initialize circuit evaluator pool
-		circuit := d[k].circuit // capture for closure
+		circuit := d[k].circuit
+		elementPool := polynomial.NewPool(maxGateStackSize)
 		d[k].evaluatorPool = sync.Pool{
 			New: func() interface{} {
 				ce := &circuitEvaluator{
@@ -116,7 +130,7 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 				for wI := range circuit {
 					w := &circuit[wI]
 					if !w.IsInput() { // input wires don't need evaluators
-						ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs))
+						ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs), &elementPool)
 					}
 				}
 				return ce

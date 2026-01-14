@@ -238,7 +238,6 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
 		var step fr.Element
 
-		// Get gate evaluator from pool (one per thread)
 		evaluator := c.gateEvaluatorPool.Get()
 		defer c.gateEvaluatorPool.Put(evaluator)
 
@@ -342,8 +341,6 @@ func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Elem
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
-
-	// Retire the gate evaluator pool for this layer
 	c.gateEvaluatorPool.DumpAll()
 
 	return evaluations
@@ -874,13 +871,13 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 }
 
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
-// All evaluators share the same underlying polynomial.Pool for fr.Element slices
+// All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
 	gate      *gkrtypes.CompiledGate
 	nbIn      int
 	lock      sync.Mutex
 	available map[*gateEvaluator]struct{}
-	frPool    *polynomial.Pool // shared fr.Element pool
+	frPool    *polynomial.Pool // shared element pool
 }
 
 func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, frPool *polynomial.Pool) *gateEvaluatorPool {

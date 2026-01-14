@@ -126,6 +126,8 @@ type eqTimesGateEvalSumcheckClaims struct {
 	input []polynomial.MultiLin // input[i](h₁, ..., hₘ₋ⱼ) = wᵢ(r₁, r₂, ..., rⱼ₋₁, h₁, ..., hₘ₋ⱼ)
 
 	eq polynomial.MultiLin // E := ∑ᵢ cⁱ eq(xᵢ, -)
+
+	gateEvaluatorPool *gateEvaluatorPool
 }
 
 func (c *eqTimesGateEvalSumcheckClaims) getWire() *gkrtypes.Wire {
@@ -236,8 +238,8 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 	computeAll := func(start, end int) { // compute method to allow parallelization across instances
 		var step small_rational.SmallRational
 
-		// Create gate evaluator once per thread
-		evaluator := newGateEvaluator(wire.Gate.Compiled(), nbGateIn)
+		evaluator := c.gateEvaluatorPool.Get()
+		defer c.gateEvaluatorPool.Put(evaluator)
 
 		res := make([]small_rational.SmallRational, degGJ)
 
@@ -339,6 +341,7 @@ func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []small_rational.SmallR
 	}
 
 	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
+	c.gateEvaluatorPool.DumpAll()
 
 	return evaluations
 }
@@ -400,6 +403,9 @@ func (m *claimsManager) getClaim(wireI int) *eqTimesGateEvalSumcheckClaims {
 			res.input[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
 		}
 	}
+
+	res.gateEvaluatorPool = newGateEvaluatorPool(wire.Gate.Compiled(), len(res.input), m.memPool)
+
 	return res
 }
 
@@ -804,12 +810,16 @@ type gateEvaluator struct {
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int) gateEvaluator {
+func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
 		gate:      gate,
 		nbIn:      nbIn,
-		vars:      make([]small_rational.SmallRational, gate.NbConstants()+nbIn+len(gate.Instructions)),
 		frameSize: gate.NbConstants(),
+	}
+	if len(elementPool) > 0 {
+		e.vars = elementPool[0].Make(gate.NbConstants() + nbIn + len(gate.Instructions))
+	} else {
+		e.vars = make([]small_rational.SmallRational, gate.NbConstants()+nbIn+len(gate.Instructions))
 	}
 	for i, constVal := range gate.Constants {
 		e.vars[i].SetBigInt(constVal)
@@ -858,4 +868,57 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 	e.frameSize = e.gate.NbConstants()
 
 	return res
+}
+
+// gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
+// All evaluators share the same underlying polynomial.Pool for element slices
+type gateEvaluatorPool struct {
+	gate      *gkrtypes.CompiledGate
+	nbIn      int
+	lock      sync.Mutex
+	available map[*gateEvaluator]struct{}
+	frPool    *polynomial.Pool // shared element pool
+}
+
+func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, frPool *polynomial.Pool) *gateEvaluatorPool {
+	gep := &gateEvaluatorPool{
+		gate:      gate,
+		nbIn:      nbIn,
+		frPool:    frPool,
+		available: make(map[*gateEvaluator]struct{}),
+	}
+	return gep
+}
+
+func (gep *gateEvaluatorPool) Get() *gateEvaluator {
+	gep.lock.Lock()
+	defer gep.lock.Unlock()
+
+	for e := range gep.available {
+		delete(gep.available, e)
+		return e
+	}
+
+	// No available evaluator, create a new one
+	e := newGateEvaluator(gep.gate, gep.nbIn, gep.frPool)
+
+	return &e
+}
+
+func (gep *gateEvaluatorPool) Put(e *gateEvaluator) {
+	gep.lock.Lock()
+	defer gep.lock.Unlock()
+
+	// Reset evaluator state (but keep the vars slice for reuse)
+	e.frameSize = gep.gate.NbConstants()
+
+	// Return evaluator to pool (it keeps its vars slice from polynomial pool)
+	gep.available[e] = struct{}{}
+}
+
+// DumpAll dumps all evaluator vars slices back to the polynomial pool and clears the pool
+func (gep *gateEvaluatorPool) DumpAll() {
+	for e := range gep.available {
+		gep.frPool.Dump(e.vars)
+	}
 }

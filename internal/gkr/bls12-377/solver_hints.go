@@ -107,7 +107,7 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 			}
 		}
 
-		// Initialize polynomial pool for fr.Elements
+		// Initialize polynomial pool for elements
 		// Size the pool for the worst case: max gate size across all wires
 		maxGateStackSize := 0
 		for _, w := range d[k].circuit {
@@ -120,8 +120,8 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 		}
 
 		// Initialize circuit evaluator pool
-		circuit := d[k].circuit                             // capture for closure
-		elementPool := polynomial.NewPool(maxGateStackSize) // capture pool reference
+		circuit := d[k].circuit
+		elementPool := polynomial.NewPool(maxGateStackSize)
 		d[k].evaluatorPool = sync.Pool{
 			New: func() interface{} {
 				ce := &circuitEvaluator{
@@ -183,9 +183,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 
 		// Get a circuit evaluator from the pool
 		ce := data.evaluatorPool.Get().(*circuitEvaluator)
-		defer func() {
-			data.evaluatorPool.Put(ce)
-		}()
+		defer data.evaluatorPool.Put(ce)
 
 		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
 		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
