@@ -877,9 +877,11 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.available[e] = struct{}{}
 }
 
-// dumpAll dumps all available evaluator vars slices back to the polynomial pool and clears the pool.
+// dumpAll dumps all available evaluator vars slices back to the polynomial pool. It is not to be used after that.
 // NB! User must ensure all evaluators have been put back in the pool to prevent memory leaks.
 func (gep *gateEvaluatorPool) dumpAll() {
+	gep.lock.Lock()
+	defer gep.lock.Unlock()
 	for e := range gep.available {
 		gep.elementPool.Dump(e.vars)
 	}
