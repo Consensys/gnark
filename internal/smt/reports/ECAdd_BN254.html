@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMT Soundness Analysis - ECAdd_BN254</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent-red: #e94560;
+            --accent-yellow: #f4d160;
+            --accent-green: #4ade80;
+            --accent-blue: #60a5fa;
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a78bfa;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-purple);
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--accent-cyan);
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .info-item .value {
+            font-size: 1.2rem;
+            color: var(--accent-cyan);
+        }
+
+        .summary-badges {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .badge.critical { background: rgba(233, 69, 96, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .badge.warning { background: rgba(244, 209, 96, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+        .badge.info { background: rgba(96, 165, 250, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+        .badge.passed { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+
+        .result-banner {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .result-banner.critical { background: rgba(233, 69, 96, 0.3); color: var(--accent-red); }
+        .result-banner.warning { background: rgba(244, 209, 96, 0.3); color: var(--accent-yellow); }
+        .result-banner.passed { background: rgba(74, 222, 128, 0.3); color: var(--accent-green); }
+
+        .issue {
+            background: var(--bg-card);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 4px solid;
+        }
+
+        .issue.critical { border-color: var(--accent-red); }
+        .issue.warning { border-color: var(--accent-yellow); }
+        .issue.info { border-color: var(--accent-blue); }
+
+        .issue-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .issue-type {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .issue.critical .issue-type { color: var(--accent-red); }
+        .issue.warning .issue-type { color: var(--accent-yellow); }
+        .issue.info .issue-type { color: var(--accent-blue); }
+
+        .issue-description { margin-bottom: 0.5rem; }
+
+        .issue-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .issue-meta span {
+            display: inline-block;
+            margin-right: 1rem;
+        }
+
+        .issue-meta .variable { color: var(--accent-cyan); }
+        .issue-meta .location { color: var(--accent-purple); }
+
+        .issue-details {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--bg-primary);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .patterns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .pattern {
+            background: var(--bg-card);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .passed-list {
+            list-style: none;
+        }
+
+        .passed-list li {
+            padding: 0.25rem 0;
+            color: var(--accent-green);
+        }
+
+        .passed-list li::before {
+            content: "✓ ";
+        }
+
+        .collapsible {
+            cursor: pointer;
+        }
+
+        .collapsible:hover {
+            opacity: 0.9;
+        }
+
+        .collapsed-content {
+            display: none;
+        }
+
+        .collapsed-content.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SMT Soundness Analysis</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Circuit: <strong style="color: var(--accent-cyan);">ECAdd_BN254</strong></p>
+
+        <div class="card">
+            <h2>Circuit Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Public Variables</label>
+                    <div class="value">0</div>
+                </div>
+                <div class="info-item">
+                    <label>Secret Variables</label>
+                    <div class="value">24</div>
+                </div>
+                <div class="info-item">
+                    <label>Internal Variables</label>
+                    <div class="value">5334</div>
+                </div>
+                <div class="info-item">
+                    <label>Constraints</label>
+                    <div class="value">5477</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Constraint Patterns</h2>
+            <div class="patterns"><span class="pattern">Linear constraints: 4187</span><span class="pattern">Multiplication constraints: 792</span><span class="pattern">Mixed constraints: 498</span><span class="pattern">Decomposition constraints (a + k*b = c): 1893</span><span class="pattern">Inverse check constraints (a*b = 1): 767</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Analysis Summary</h2>
+            <div class="summary-badges"><span class="badge critical">12 Critical</span><span class="badge warning">37 Warnings</span><span class="badge info">26 Info</span><span class="badge passed">767 Passed</span>
+            </div>
+            <div class="result-banner critical">CRITICAL ISSUES FOUND</div>
+        </div>
+        <div class="card">
+            <h2>Passed Checks</h2>
+            <ul class="passed-list"><li>Constraint 3619: multiplication with non-zero constant (safe)</li><li>Constraint 3620: multiplication with non-zero constant (safe)</li><li>Constraint 3621: multiplication with non-zero constant (safe)</li><li>Constraint 3622: multiplication with non-zero constant (safe)</li><li>Constraint 3623: multiplication with non-zero constant (safe)</li><li>Constraint 3624: multiplication with non-zero constant (safe)</li><li>Constraint 3625: multiplication with non-zero constant (safe)</li><li>Constraint 3626: multiplication with non-zero constant (safe)</li><li>Constraint 3627: multiplication with non-zero constant (safe)</li><li>Constraint 3628: multiplication with non-zero constant (safe)</li><li>Constraint 3629: multiplication with non-zero constant (safe)</li><li>Constraint 3630: multiplication with non-zero constant (safe)</li><li>Constraint 3631: multiplication with non-zero constant (safe)</li><li>Constraint 3632: multiplication with non-zero constant (safe)</li><li>Constraint 3633: multiplication with non-zero constant (safe)</li><li>Constraint 3634: multiplication with non-zero constant (safe)</li><li>Constraint 3635: multiplication with non-zero constant (safe)</li><li>Constraint 3636: multiplication with non-zero constant (safe)</li><li>Constraint 3637: multiplication with non-zero constant (safe)</li><li>Constraint 3638: multiplication with non-zero constant (safe)</li><li>Constraint 3639: multiplication with non-zero constant (safe)</li><li>Constraint 3640: multiplication with non-zero constant (safe)</li><li>Constraint 3641: multiplication with non-zero constant (safe)</li><li>Constraint 3642: multiplication with non-zero constant (safe)</li><li>Constraint 3643: multiplication with non-zero constant (safe)</li><li>Constraint 3644: multiplication with non-zero constant (safe)</li><li>Constraint 3645: multiplication with non-zero constant (safe)</li><li>Constraint 3646: multiplication with non-zero constant (safe)</li><li>Constraint 3647: multiplication with non-zero constant (safe)</li><li>Constraint 3648: multiplication with non-zero constant (safe)</li><li>Constraint 3649: multiplication with non-zero constant (safe)</li><li>Constraint 3650: multiplication with non-zero constant (safe)</li><li>Constraint 3651: multiplication with non-zero constant (safe)</li><li>Constraint 3652: multiplication with non-zero constant (safe)</li><li>Constraint 3653: multiplication with non-zero constant (safe)</li><li>Constraint 3654: multiplication with non-zero constant (safe)</li><li>Constraint 3655: multiplication with non-zero constant (safe)</li><li>Constraint 3656: multiplication with non-zero constant (safe)</li><li>Constraint 3657: multiplication with non-zero constant (safe)</li><li>Constraint 3658: multiplication with non-zero constant (safe)</li><li>Constraint 3659: multiplication with non-zero constant (safe)</li><li>Constraint 3660: multiplication with non-zero constant (safe)</li><li>Constraint 3661: multiplication with non-zero constant (safe)</li><li>Constraint 3662: multiplication with non-zero constant (safe)</li><li>Constraint 3663: multiplication with non-zero constant (safe)</li><li>Constraint 3664: multiplication with non-zero constant (safe)</li><li>Constraint 3665: multiplication with non-zero constant (safe)</li><li>Constraint 3666: multiplication with non-zero constant (safe)</li><li>Constraint 3667: multiplication with non-zero constant (safe)</li><li>Constraint 3668: multiplication with non-zero constant (safe)</li><li>Constraint 3669: multiplication with non-zero constant (safe)</li><li>Constraint 3670: multiplication with non-zero constant (safe)</li><li>Constraint 3671: multiplication with non-zero constant (safe)</li><li>Constraint 3672: multiplication with non-zero constant (safe)</li><li>Constraint 3673: multiplication with non-zero constant (safe)</li><li>Constraint 3674: multiplication with non-zero constant (safe)</li><li>Constraint 3675: multiplication with non-zero constant (safe)</li><li>Constraint 3676: multiplication with non-zero constant (safe)</li><li>Constraint 3677: multiplication with non-zero constant (safe)</li><li>Constraint 3678: multiplication with non-zero constant (safe)</li><li>Constraint 3679: multiplication with non-zero constant (safe)</li><li>Constraint 3680: multiplication with non-zero constant (safe)</li><li>Constraint 3681: multiplication with non-zero constant (safe)</li><li>Constraint 3682: multiplication with non-zero constant (safe)</li><li>Constraint 3683: multiplication with non-zero constant (safe)</li><li>Constraint 3684: multiplication with non-zero constant (safe)</li><li>Constraint 3685: multiplication with non-zero constant (safe)</li><li>Constraint 3686: multiplication with non-zero constant (safe)</li><li>Constraint 3687: multiplication with non-zero constant (safe)</li><li>Constraint 3688: multiplication with non-zero constant (safe)</li><li>Constraint 3689: multiplication with non-zero constant (safe)</li><li>Constraint 3690: multiplication with non-zero constant (safe)</li><li>Constraint 3691: multiplication with non-zero constant (safe)</li><li>Constraint 3692: multiplication with non-zero constant (safe)</li><li>Constraint 3693: multiplication with non-zero constant (safe)</li><li>Constraint 3694: multiplication with non-zero constant (safe)</li><li>Constraint 3695: multiplication with non-zero constant (safe)</li><li>Constraint 3696: multiplication with non-zero constant (safe)</li><li>Constraint 3697: multiplication with non-zero constant (safe)</li><li>Constraint 3698: multiplication with non-zero constant (safe)</li><li>Constraint 3699: multiplication with non-zero constant (safe)</li><li>Constraint 3700: multiplication with non-zero constant (safe)</li><li>Constraint 3701: multiplication with non-zero constant (safe)</li><li>Constraint 3702: multiplication with non-zero constant (safe)</li><li>Constraint 3703: multiplication with non-zero constant (safe)</li><li>Constraint 3704: multiplication with non-zero constant (safe)</li><li>Constraint 3705: multiplication with non-zero constant (safe)</li><li>Constraint 3706: multiplication with non-zero constant (safe)</li><li>Constraint 3707: multiplication with non-zero constant (safe)</li><li>Constraint 3708: multiplication with non-zero constant (safe)</li><li>Constraint 3709: multiplication with non-zero constant (safe)</li><li>Constraint 3710: multiplication with non-zero constant (safe)</li><li>Constraint 3711: multiplication with non-zero constant (safe)</li><li>Constraint 3712: multiplication with non-zero constant (safe)</li><li>Constraint 3713: multiplication with non-zero constant (safe)</li><li>Constraint 3714: multiplication with non-zero constant (safe)</li><li>Constraint 3715: multiplication with non-zero constant (safe)</li><li>Constraint 3716: multiplication with non-zero constant (safe)</li><li>Constraint 3717: multiplication with non-zero constant (safe)</li><li>Constraint 3718: multiplication with non-zero constant (safe)</li><li>Constraint 3719: multiplication with non-zero constant (safe)</li><li>Constraint 3720: multiplication with non-zero constant (safe)</li><li>Constraint 3721: multiplication with non-zero constant (safe)</li><li>Constraint 3722: multiplication with non-zero constant (safe)</li><li>Constraint 3723: multiplication with non-zero constant (safe)</li><li>Constraint 3724: multiplication with non-zero constant (safe)</li><li>Constraint 3725: multiplication with non-zero constant (safe)</li><li>Constraint 3726: multiplication with non-zero constant (safe)</li><li>Constraint 3727: multiplication with non-zero constant (safe)</li><li>Constraint 3728: multiplication with non-zero constant (safe)</li><li>Constraint 3729: multiplication with non-zero constant (safe)</li><li>Constraint 3730: multiplication with non-zero constant (safe)</li><li>Constraint 3731: multiplication with non-zero constant (safe)</li><li>Constraint 3732: multiplication with non-zero constant (safe)</li><li>Constraint 3733: multiplication with non-zero constant (safe)</li><li>Constraint 3734: multiplication with non-zero constant (safe)</li><li>Constraint 3735: multiplication with non-zero constant (safe)</li><li>Constraint 3736: multiplication with non-zero constant (safe)</li><li>Constraint 3737: multiplication with non-zero constant (safe)</li><li>Constraint 3738: multiplication with non-zero constant (safe)</li><li>Constraint 3739: multiplication with non-zero constant (safe)</li><li>Constraint 3740: multiplication with non-zero constant (safe)</li><li>Constraint 3741: multiplication with non-zero constant (safe)</li><li>Constraint 3742: multiplication with non-zero constant (safe)</li><li>Constraint 3743: multiplication with non-zero constant (safe)</li><li>Constraint 3744: multiplication with non-zero constant (safe)</li><li>Constraint 3745: multiplication with non-zero constant (safe)</li><li>Constraint 3746: multiplication with non-zero constant (safe)</li><li>Constraint 3747: multiplication with non-zero constant (safe)</li><li>Constraint 3748: multiplication with non-zero constant (safe)</li><li>Constraint 3749: multiplication with non-zero constant (safe)</li><li>Constraint 3750: multiplication with non-zero constant (safe)</li><li>Constraint 3751: multiplication with non-zero constant (safe)</li><li>Constraint 3752: multiplication with non-zero constant (safe)</li><li>Constraint 3753: multiplication with non-zero constant (safe)</li><li>Constraint 3754: multiplication with non-zero constant (safe)</li><li>Constraint 3755: multiplication with non-zero constant (safe)</li><li>Constraint 3756: multiplication with non-zero constant (safe)</li><li>Constraint 3757: multiplication with non-zero constant (safe)</li><li>Constraint 3758: multiplication with non-zero constant (safe)</li><li>Constraint 3759: multiplication with non-zero constant (safe)</li><li>Constraint 3760: multiplication with non-zero constant (safe)</li><li>Constraint 3761: multiplication with non-zero constant (safe)</li><li>Constraint 3762: multiplication with non-zero constant (safe)</li><li>Constraint 3763: multiplication with non-zero constant (safe)</li><li>Constraint 3764: multiplication with non-zero constant (safe)</li><li>Constraint 3765: multiplication with non-zero constant (safe)</li><li>Constraint 3766: multiplication with non-zero constant (safe)</li><li>Constraint 3767: multiplication with non-zero constant (safe)</li><li>Constraint 3768: multiplication with non-zero constant (safe)</li><li>Constraint 3769: multiplication with non-zero constant (safe)</li><li>Constraint 3770: multiplication with non-zero constant (safe)</li><li>Constraint 3771: multiplication with non-zero constant (safe)</li><li>Constraint 3772: multiplication with non-zero constant (safe)</li><li>Constraint 3773: multiplication with non-zero constant (safe)</li><li>Constraint 3774: multiplication with non-zero constant (safe)</li><li>Constraint 3775: multiplication with non-zero constant (safe)</li><li>Constraint 3776: multiplication with non-zero constant (safe)</li><li>Constraint 3777: multiplication with non-zero constant (safe)</li><li>Constraint 3778: multiplication with non-zero constant (safe)</li><li>Constraint 3779: multiplication with non-zero constant (safe)</li><li>Constraint 3780: multiplication with non-zero constant (safe)</li><li>Constraint 3781: multiplication with non-zero constant (safe)</li><li>Constraint 3782: multiplication with non-zero constant (safe)</li><li>Constraint 3783: multiplication with non-zero constant (safe)</li><li>Constraint 3784: multiplication with non-zero constant (safe)</li><li>Constraint 3785: multiplication with non-zero constant (safe)</li><li>Constraint 3786: multiplication with non-zero constant (safe)</li><li>Constraint 3787: multiplication with non-zero constant (safe)</li><li>Constraint 3788: multiplication with non-zero constant (safe)</li><li>Constraint 3789: multiplication with non-zero constant (safe)</li><li>Constraint 3790: multiplication with non-zero constant (safe)</li><li>Constraint 3791: multiplication with non-zero constant (safe)</li><li>Constraint 3792: multiplication with non-zero constant (safe)</li><li>Constraint 3793: multiplication with non-zero constant (safe)</li><li>Constraint 3794: multiplication with non-zero constant (safe)</li><li>Constraint 3795: multiplication with non-zero constant (safe)</li><li>Constraint 3796: multiplication with non-zero constant (safe)</li><li>Constraint 3797: multiplication with non-zero constant (safe)</li><li>Constraint 3798: multiplication with non-zero constant (safe)</li><li>Constraint 3799: multiplication with non-zero constant (safe)</li><li>Constraint 3800: multiplication with non-zero constant (safe)</li><li>Constraint 3801: multiplication with non-zero constant (safe)</li><li>Constraint 3802: multiplication with non-zero constant (safe)</li><li>Constraint 3803: multiplication with non-zero constant (safe)</li><li>Constraint 3804: multiplication with non-zero constant (safe)</li><li>Constraint 3805: multiplication with non-zero constant (safe)</li><li>Constraint 3806: multiplication with non-zero constant (safe)</li><li>Constraint 3807: multiplication with non-zero constant (safe)</li><li>Constraint 3808: multiplication with non-zero constant (safe)</li><li>Constraint 3809: multiplication with non-zero constant (safe)</li><li>Constraint 3810: multiplication with non-zero constant (safe)</li><li>Constraint 3811: multiplication with non-zero constant (safe)</li><li>Constraint 3812: multiplication with non-zero constant (safe)</li><li>Constraint 3813: multiplication with non-zero constant (safe)</li><li>Constraint 3814: multiplication with non-zero constant (safe)</li><li>Constraint 3815: multiplication with non-zero constant (safe)</li><li>Constraint 3816: multiplication with non-zero constant (safe)</li><li>Constraint 3817: multiplication with non-zero constant (safe)</li><li>Constraint 3818: multiplication with non-zero constant (safe)</li><li>Constraint 3819: multiplication with non-zero constant (safe)</li><li>Constraint 3820: multiplication with non-zero constant (safe)</li><li>Constraint 3821: multiplication with non-zero constant (safe)</li><li>Constraint 3822: multiplication with non-zero constant (safe)</li><li>Constraint 3823: multiplication with non-zero constant (safe)</li><li>Constraint 3824: multiplication with non-zero constant (safe)</li><li>Constraint 3825: multiplication with non-zero constant (safe)</li><li>Constraint 3826: multiplication with non-zero constant (safe)</li><li>Constraint 3827: multiplication with non-zero constant (safe)</li><li>Constraint 3828: multiplication with non-zero constant (safe)</li><li>Constraint 3829: multiplication with non-zero constant (safe)</li><li>Constraint 3830: multiplication with non-zero constant (safe)</li><li>Constraint 3831: multiplication with non-zero constant (safe)</li><li>Constraint 3832: multiplication with non-zero constant (safe)</li><li>Constraint 3833: multiplication with non-zero constant (safe)</li><li>Constraint 3834: multiplication with non-zero constant (safe)</li><li>Constraint 3835: multiplication with non-zero constant (safe)</li><li>Constraint 3836: multiplication with non-zero constant (safe)</li><li>Constraint 3837: multiplication with non-zero constant (safe)</li><li>Constraint 3838: multiplication with non-zero constant (safe)</li><li>Constraint 3839: multiplication with non-zero constant (safe)</li><li>Constraint 3840: multiplication with non-zero constant (safe)</li><li>Constraint 3841: multiplication with non-zero constant (safe)</li><li>Constraint 3842: multiplication with non-zero constant (safe)</li><li>Constraint 3843: multiplication with non-zero constant (safe)</li><li>Constraint 3844: multiplication with non-zero constant (safe)</li><li>Constraint 3845: multiplication with non-zero constant (safe)</li><li>Constraint 3846: multiplication with non-zero constant (safe)</li><li>Constraint 3847: multiplication with non-zero constant (safe)</li><li>Constraint 3848: multiplication with non-zero constant (safe)</li><li>Constraint 3849: multiplication with non-zero constant (safe)</li><li>Constraint 3850: multiplication with non-zero constant (safe)</li><li>Constraint 3851: multiplication with non-zero constant (safe)</li><li>Constraint 3852: multiplication with non-zero constant (safe)</li><li>Constraint 3853: multiplication with non-zero constant (safe)</li><li>Constraint 3854: multiplication with non-zero constant (safe)</li><li>Constraint 3855: multiplication with non-zero constant (safe)</li><li>Constraint 3856: multiplication with non-zero constant (safe)</li><li>Constraint 3857: multiplication with non-zero constant (safe)</li><li>Constraint 3858: multiplication with non-zero constant (safe)</li><li>Constraint 3859: multiplication with non-zero constant (safe)</li><li>Constraint 3860: multiplication with non-zero constant (safe)</li><li>Constraint 3861: multiplication with non-zero constant (safe)</li><li>Constraint 3862: multiplication with non-zero constant (safe)</li><li>Constraint 3863: multiplication with non-zero constant (safe)</li><li>Constraint 3864: multiplication with non-zero constant (safe)</li><li>Constraint 3865: multiplication with non-zero constant (safe)</li><li>Constraint 3866: multiplication with non-zero constant (safe)</li><li>Constraint 3867: multiplication with non-zero constant (safe)</li><li>Constraint 3868: multiplication with non-zero constant (safe)</li><li>Constraint 3869: multiplication with non-zero constant (safe)</li><li>Constraint 3870: multiplication with non-zero constant (safe)</li><li>Constraint 3871: multiplication with non-zero constant (safe)</li><li>Constraint 3872: multiplication with non-zero constant (safe)</li><li>Constraint 3873: multiplication with non-zero constant (safe)</li><li>Constraint 3874: multiplication with non-zero constant (safe)</li><li>Constraint 3875: multiplication with non-zero constant (safe)</li><li>Constraint 3876: multiplication with non-zero constant (safe)</li><li>Constraint 3877: multiplication with non-zero constant (safe)</li><li>Constraint 3878: multiplication with non-zero constant (safe)</li><li>Constraint 3879: multiplication with non-zero constant (safe)</li><li>Constraint 3880: multiplication with non-zero constant (safe)</li><li>Constraint 3881: multiplication with non-zero constant (safe)</li><li>Constraint 3882: multiplication with non-zero constant (safe)</li><li>Constraint 3883: multiplication with non-zero constant (safe)</li><li>Constraint 3884: multiplication with non-zero constant (safe)</li><li>Constraint 3885: multiplication with non-zero constant (safe)</li><li>Constraint 3886: multiplication with non-zero constant (safe)</li><li>Constraint 3887: multiplication with non-zero constant (safe)</li><li>Constraint 3888: multiplication with non-zero constant (safe)</li><li>Constraint 3889: multiplication with non-zero constant (safe)</li><li>Constraint 3890: multiplication with non-zero constant (safe)</li><li>Constraint 3891: multiplication with non-zero constant (safe)</li><li>Constraint 3892: multiplication with non-zero constant (safe)</li><li>Constraint 3893: multiplication with non-zero constant (safe)</li><li>Constraint 3894: multiplication with non-zero constant (safe)</li><li>Constraint 3895: multiplication with non-zero constant (safe)</li><li>Constraint 3896: multiplication with non-zero constant (safe)</li><li>Constraint 3897: multiplication with non-zero constant (safe)</li><li>Constraint 3898: multiplication with non-zero constant (safe)</li><li>Constraint 3899: multiplication with non-zero constant (safe)</li><li>Constraint 3900: multiplication with non-zero constant (safe)</li><li>Constraint 3901: multiplication with non-zero constant (safe)</li><li>Constraint 3902: multiplication with non-zero constant (safe)</li><li>Constraint 3903: multiplication with non-zero constant (safe)</li><li>Constraint 3904: multiplication with non-zero constant (safe)</li><li>Constraint 3905: multiplication with non-zero constant (safe)</li><li>Constraint 3906: multiplication with non-zero constant (safe)</li><li>Constraint 3907: multiplication with non-zero constant (safe)</li><li>Constraint 3908: multiplication with non-zero constant (safe)</li><li>Constraint 3909: multiplication with non-zero constant (safe)</li><li>Constraint 3910: multiplication with non-zero constant (safe)</li><li>Constraint 3911: multiplication with non-zero constant (safe)</li><li>Constraint 3912: multiplication with non-zero constant (safe)</li><li>Constraint 3913: multiplication with non-zero constant (safe)</li><li>Constraint 3914: multiplication with non-zero constant (safe)</li><li>Constraint 3915: multiplication with non-zero constant (safe)</li><li>Constraint 3916: multiplication with non-zero constant (safe)</li><li>Constraint 3917: multiplication with non-zero constant (safe)</li><li>Constraint 3918: multiplication with non-zero constant (safe)</li><li>Constraint 3919: multiplication with non-zero constant (safe)</li><li>Constraint 3920: multiplication with non-zero constant (safe)</li><li>Constraint 3921: multiplication with non-zero constant (safe)</li><li>Constraint 3922: multiplication with non-zero constant (safe)</li><li>Constraint 3923: multiplication with non-zero constant (safe)</li><li>Constraint 3924: multiplication with non-zero constant (safe)</li><li>Constraint 3925: multiplication with non-zero constant (safe)</li><li>Constraint 3926: multiplication with non-zero constant (safe)</li><li>Constraint 3927: multiplication with non-zero constant (safe)</li><li>Constraint 3928: multiplication with non-zero constant (safe)</li><li>Constraint 3929: multiplication with non-zero constant (safe)</li><li>Constraint 3930: multiplication with non-zero constant (safe)</li><li>Constraint 3931: multiplication with non-zero constant (safe)</li><li>Constraint 3932: multiplication with non-zero constant (safe)</li><li>Constraint 3933: multiplication with non-zero constant (safe)</li><li>Constraint 3934: multiplication with non-zero constant (safe)</li><li>Constraint 3935: multiplication with non-zero constant (safe)</li><li>Constraint 3936: multiplication with non-zero constant (safe)</li><li>Constraint 3937: multiplication with non-zero constant (safe)</li><li>Constraint 3938: multiplication with non-zero constant (safe)</li><li>Constraint 3939: multiplication with non-zero constant (safe)</li><li>Constraint 3940: multiplication with non-zero constant (safe)</li><li>Constraint 3941: multiplication with non-zero constant (safe)</li><li>Constraint 3942: multiplication with non-zero constant (safe)</li><li>Constraint 3943: multiplication with non-zero constant (safe)</li><li>Constraint 3944: multiplication with non-zero constant (safe)</li><li>Constraint 3945: multiplication with non-zero constant (safe)</li><li>Constraint 3946: multiplication with non-zero constant (safe)</li><li>Constraint 3947: multiplication with non-zero constant (safe)</li><li>Constraint 3948: multiplication with non-zero constant (safe)</li><li>Constraint 3949: multiplication with non-zero constant (safe)</li><li>Constraint 3950: multiplication with non-zero constant (safe)</li><li>Constraint 3951: multiplication with non-zero constant (safe)</li><li>Constraint 3952: multiplication with non-zero constant (safe)</li><li>Constraint 3953: multiplication with non-zero constant (safe)</li><li>Constraint 3954: multiplication with non-zero constant (safe)</li><li>Constraint 3955: multiplication with non-zero constant (safe)</li><li>Constraint 3956: multiplication with non-zero constant (safe)</li><li>Constraint 3957: multiplication with non-zero constant (safe)</li><li>Constraint 3958: multiplication with non-zero constant (safe)</li><li>Constraint 3959: multiplication with non-zero constant (safe)</li><li>Constraint 3960: multiplication with non-zero constant (safe)</li><li>Constraint 3961: multiplication with non-zero constant (safe)</li><li>Constraint 3962: multiplication with non-zero constant (safe)</li><li>Constraint 3963: multiplication with non-zero constant (safe)</li><li>Constraint 3964: multiplication with non-zero constant (safe)</li><li>Constraint 3965: multiplication with non-zero constant (safe)</li><li>Constraint 3966: multiplication with non-zero constant (safe)</li><li>Constraint 3967: multiplication with non-zero constant (safe)</li><li>Constraint 3968: multiplication with non-zero constant (safe)</li><li>Constraint 3969: multiplication with non-zero constant (safe)</li><li>Constraint 3970: multiplication with non-zero constant (safe)</li><li>Constraint 3971: multiplication with non-zero constant (safe)</li><li>Constraint 3972: multiplication with non-zero constant (safe)</li><li>Constraint 3973: multiplication with non-zero constant (safe)</li><li>Constraint 3974: multiplication with non-zero constant (safe)</li><li>Constraint 3975: multiplication with non-zero constant (safe)</li><li>Constraint 3976: multiplication with non-zero constant (safe)</li><li>Constraint 3977: multiplication with non-zero constant (safe)</li><li>Constraint 3978: multiplication with non-zero constant (safe)</li><li>Constraint 3979: multiplication with non-zero constant (safe)</li><li>Constraint 3980: multiplication with non-zero constant (safe)</li><li>Constraint 3981: multiplication with non-zero constant (safe)</li><li>Constraint 3982: multiplication with non-zero constant (safe)</li><li>Constraint 3983: multiplication with non-zero constant (safe)</li><li>Constraint 3984: multiplication with non-zero constant (safe)</li><li>Constraint 3985: multiplication with non-zero constant (safe)</li><li>Constraint 3986: multiplication with non-zero constant (safe)</li><li>Constraint 3987: multiplication with non-zero constant (safe)</li><li>Constraint 3988: multiplication with non-zero constant (safe)</li><li>Constraint 3989: multiplication with non-zero constant (safe)</li><li>Constraint 3990: multiplication with non-zero constant (safe)</li><li>Constraint 3991: multiplication with non-zero constant (safe)</li><li>Constraint 3992: multiplication with non-zero constant (safe)</li><li>Constraint 3993: multiplication with non-zero constant (safe)</li><li>Constraint 3994: multiplication with non-zero constant (safe)</li><li>Constraint 3995: multiplication with non-zero constant (safe)</li><li>Constraint 3996: multiplication with non-zero constant (safe)</li><li>Constraint 3997: multiplication with non-zero constant (safe)</li><li>Constraint 3998: multiplication with non-zero constant (safe)</li><li>Constraint 3999: multiplication with non-zero constant (safe)</li><li>Constraint 4000: multiplication with non-zero constant (safe)</li><li>Constraint 4001: multiplication with non-zero constant (safe)</li><li>Constraint 4002: multiplication with non-zero constant (safe)</li><li>Constraint 4003: multiplication with non-zero constant (safe)</li><li>Constraint 4004: multiplication with non-zero constant (safe)</li><li>Constraint 4005: multiplication with non-zero constant (safe)</li><li>Constraint 4006: multiplication with non-zero constant (safe)</li><li>Constraint 4007: multiplication with non-zero constant (safe)</li><li>Constraint 4008: multiplication with non-zero constant (safe)</li><li>Constraint 4009: multiplication with non-zero constant (safe)</li><li>Constraint 4010: multiplication with non-zero constant (safe)</li><li>Constraint 4011: multiplication with non-zero constant (safe)</li><li>Constraint 4012: multiplication with non-zero constant (safe)</li><li>Constraint 4013: multiplication with non-zero constant (safe)</li><li>Constraint 4014: multiplication with non-zero constant (safe)</li><li>Constraint 4015: multiplication with non-zero constant (safe)</li><li>Constraint 4016: multiplication with non-zero constant (safe)</li><li>Constraint 4017: multiplication with non-zero constant (safe)</li><li>Constraint 4018: multiplication with non-zero constant (safe)</li><li>Constraint 4019: multiplication with non-zero constant (safe)</li><li>Constraint 4020: multiplication with non-zero constant (safe)</li><li>Constraint 4021: multiplication with non-zero constant (safe)</li><li>Constraint 4022: multiplication with non-zero constant (safe)</li><li>Constraint 4023: multiplication with non-zero constant (safe)</li><li>Constraint 4024: multiplication with non-zero constant (safe)</li><li>Constraint 4025: multiplication with non-zero constant (safe)</li><li>Constraint 4026: multiplication with non-zero constant (safe)</li><li>Constraint 4027: multiplication with non-zero constant (safe)</li><li>Constraint 4028: multiplication with non-zero constant (safe)</li><li>Constraint 4029: multiplication with non-zero constant (safe)</li><li>Constraint 4030: multiplication with non-zero constant (safe)</li><li>Constraint 4031: multiplication with non-zero constant (safe)</li><li>Constraint 4032: multiplication with non-zero constant (safe)</li><li>Constraint 4033: multiplication with non-zero constant (safe)</li><li>Constraint 4034: multiplication with non-zero constant (safe)</li><li>Constraint 4035: multiplication with non-zero constant (safe)</li><li>Constraint 4036: multiplication with non-zero constant (safe)</li><li>Constraint 4037: multiplication with non-zero constant (safe)</li><li>Constraint 4038: multiplication with non-zero constant (safe)</li><li>Constraint 4039: multiplication with non-zero constant (safe)</li><li>Constraint 4040: multiplication with non-zero constant (safe)</li><li>Constraint 4041: multiplication with non-zero constant (safe)</li><li>Constraint 4042: multiplication with non-zero constant (safe)</li><li>Constraint 4043: multiplication with non-zero constant (safe)</li><li>Constraint 4044: multiplication with non-zero constant (safe)</li><li>Constraint 4045: multiplication with non-zero constant (safe)</li><li>Constraint 4046: multiplication with non-zero constant (safe)</li><li>Constraint 4047: multiplication with non-zero constant (safe)</li><li>Constraint 4048: multiplication with non-zero constant (safe)</li><li>Constraint 4049: multiplication with non-zero constant (safe)</li><li>Constraint 4050: multiplication with non-zero constant (safe)</li><li>Constraint 4051: multiplication with non-zero constant (safe)</li><li>Constraint 4052: multiplication with non-zero constant (safe)</li><li>Constraint 4053: multiplication with non-zero constant (safe)</li><li>Constraint 4054: multiplication with non-zero constant (safe)</li><li>Constraint 4055: multiplication with non-zero constant (safe)</li><li>Constraint 4056: multiplication with non-zero constant (safe)</li><li>Constraint 4057: multiplication with non-zero constant (safe)</li><li>Constraint 4058: multiplication with non-zero constant (safe)</li><li>Constraint 4059: multiplication with non-zero constant (safe)</li><li>Constraint 4060: multiplication with non-zero constant (safe)</li><li>Constraint 4061: multiplication with non-zero constant (safe)</li><li>Constraint 4062: multiplication with non-zero constant (safe)</li><li>Constraint 4063: multiplication with non-zero constant (safe)</li><li>Constraint 4064: multiplication with non-zero constant (safe)</li><li>Constraint 4065: multiplication with non-zero constant (safe)</li><li>Constraint 4066: multiplication with non-zero constant (safe)</li><li>Constraint 4067: multiplication with non-zero constant (safe)</li><li>Constraint 4068: multiplication with non-zero constant (safe)</li><li>Constraint 4069: multiplication with non-zero constant (safe)</li><li>Constraint 4070: multiplication with non-zero constant (safe)</li><li>Constraint 4071: multiplication with non-zero constant (safe)</li><li>Constraint 4072: multiplication with non-zero constant (safe)</li><li>Constraint 4073: multiplication with non-zero constant (safe)</li><li>Constraint 4074: multiplication with non-zero constant (safe)</li><li>Constraint 4075: multiplication with non-zero constant (safe)</li><li>Constraint 4076: multiplication with non-zero constant (safe)</li><li>Constraint 4077: multiplication with non-zero constant (safe)</li><li>Constraint 4078: multiplication with non-zero constant (safe)</li><li>Constraint 4079: multiplication with non-zero constant (safe)</li><li>Constraint 4080: multiplication with non-zero constant (safe)</li><li>Constraint 4081: multiplication with non-zero constant (safe)</li><li>Constraint 4082: multiplication with non-zero constant (safe)</li><li>Constraint 4083: multiplication with non-zero constant (safe)</li><li>Constraint 4084: multiplication with non-zero constant (safe)</li><li>Constraint 4085: multiplication with non-zero constant (safe)</li><li>Constraint 4086: multiplication with non-zero constant (safe)</li><li>Constraint 4087: multiplication with non-zero constant (safe)</li><li>Constraint 4088: multiplication with non-zero constant (safe)</li><li>Constraint 4089: multiplication with non-zero constant (safe)</li><li>Constraint 4090: multiplication with non-zero constant (safe)</li><li>Constraint 4091: multiplication with non-zero constant (safe)</li><li>Constraint 4092: multiplication with non-zero constant (safe)</li><li>Constraint 4093: multiplication with non-zero constant (safe)</li><li>Constraint 4094: multiplication with non-zero constant (safe)</li><li>Constraint 4095: multiplication with non-zero constant (safe)</li><li>Constraint 4096: multiplication with non-zero constant (safe)</li><li>Constraint 4097: multiplication with non-zero constant (safe)</li><li>Constraint 4098: multiplication with non-zero constant (safe)</li><li>Constraint 4099: multiplication with non-zero constant (safe)</li><li>Constraint 4100: multiplication with non-zero constant (safe)</li><li>Constraint 4101: multiplication with non-zero constant (safe)</li><li>Constraint 4102: multiplication with non-zero constant (safe)</li><li>Constraint 4103: multiplication with non-zero constant (safe)</li><li>Constraint 4104: multiplication with non-zero constant (safe)</li><li>Constraint 4105: multiplication with non-zero constant (safe)</li><li>Constraint 4106: multiplication with non-zero constant (safe)</li><li>Constraint 4107: multiplication with non-zero constant (safe)</li><li>Constraint 4108: multiplication with non-zero constant (safe)</li><li>Constraint 4109: multiplication with non-zero constant (safe)</li><li>Constraint 4110: multiplication with non-zero constant (safe)</li><li>Constraint 4111: multiplication with non-zero constant (safe)</li><li>Constraint 4112: multiplication with non-zero constant (safe)</li><li>Constraint 4113: multiplication with non-zero constant (safe)</li><li>Constraint 4114: multiplication with non-zero constant (safe)</li><li>Constraint 4115: multiplication with non-zero constant (safe)</li><li>Constraint 4116: multiplication with non-zero constant (safe)</li><li>Constraint 4117: multiplication with non-zero constant (safe)</li><li>Constraint 4118: multiplication with non-zero constant (safe)</li><li>Constraint 4119: multiplication with non-zero constant (safe)</li><li>Constraint 4120: multiplication with non-zero constant (safe)</li><li>Constraint 4121: multiplication with non-zero constant (safe)</li><li>Constraint 4122: multiplication with non-zero constant (safe)</li><li>Constraint 4123: multiplication with non-zero constant (safe)</li><li>Constraint 4124: multiplication with non-zero constant (safe)</li><li>Constraint 4125: multiplication with non-zero constant (safe)</li><li>Constraint 4126: multiplication with non-zero constant (safe)</li><li>Constraint 4127: multiplication with non-zero constant (safe)</li><li>Constraint 4128: multiplication with non-zero constant (safe)</li><li>Constraint 4129: multiplication with non-zero constant (safe)</li><li>Constraint 4130: multiplication with non-zero constant (safe)</li><li>Constraint 4131: multiplication with non-zero constant (safe)</li><li>Constraint 4132: multiplication with non-zero constant (safe)</li><li>Constraint 4133: multiplication with non-zero constant (safe)</li><li>Constraint 4134: multiplication with non-zero constant (safe)</li><li>Constraint 4135: multiplication with non-zero constant (safe)</li><li>Constraint 4136: multiplication with non-zero constant (safe)</li><li>Constraint 4137: multiplication with non-zero constant (safe)</li><li>Constraint 4138: multiplication with non-zero constant (safe)</li><li>Constraint 4139: multiplication with non-zero constant (safe)</li><li>Constraint 4140: multiplication with non-zero constant (safe)</li><li>Constraint 4141: multiplication with non-zero constant (safe)</li><li>Constraint 4142: multiplication with non-zero constant (safe)</li><li>Constraint 4143: multiplication with non-zero constant (safe)</li><li>Constraint 4144: multiplication with non-zero constant (safe)</li><li>Constraint 4145: multiplication with non-zero constant (safe)</li><li>Constraint 4146: multiplication with non-zero constant (safe)</li><li>Constraint 4147: multiplication with non-zero constant (safe)</li><li>Constraint 4148: multiplication with non-zero constant (safe)</li><li>Constraint 4149: multiplication with non-zero constant (safe)</li><li>Constraint 4150: multiplication with non-zero constant (safe)</li><li>Constraint 4151: multiplication with non-zero constant (safe)</li><li>Constraint 4152: multiplication with non-zero constant (safe)</li><li>Constraint 4153: multiplication with non-zero constant (safe)</li><li>Constraint 4154: multiplication with non-zero constant (safe)</li><li>Constraint 4155: multiplication with non-zero constant (safe)</li><li>Constraint 4156: multiplication with non-zero constant (safe)</li><li>Constraint 4157: multiplication with non-zero constant (safe)</li><li>Constraint 4158: multiplication with non-zero constant (safe)</li><li>Constraint 4159: multiplication with non-zero constant (safe)</li><li>Constraint 4160: multiplication with non-zero constant (safe)</li><li>Constraint 4161: multiplication with non-zero constant (safe)</li><li>Constraint 4162: multiplication with non-zero constant (safe)</li><li>Constraint 4163: multiplication with non-zero constant (safe)</li><li>Constraint 4164: multiplication with non-zero constant (safe)</li><li>Constraint 4165: multiplication with non-zero constant (safe)</li><li>Constraint 4166: multiplication with non-zero constant (safe)</li><li>Constraint 4167: multiplication with non-zero constant (safe)</li><li>Constraint 4168: multiplication with non-zero constant (safe)</li><li>Constraint 4169: multiplication with non-zero constant (safe)</li><li>Constraint 4170: multiplication with non-zero constant (safe)</li><li>Constraint 4171: multiplication with non-zero constant (safe)</li><li>Constraint 4172: multiplication with non-zero constant (safe)</li><li>Constraint 4173: multiplication with non-zero constant (safe)</li><li>Constraint 4174: multiplication with non-zero constant (safe)</li><li>Constraint 4175: multiplication with non-zero constant (safe)</li><li>Constraint 4176: multiplication with non-zero constant (safe)</li><li>Constraint 4177: multiplication with non-zero constant (safe)</li><li>Constraint 4178: multiplication with non-zero constant (safe)</li><li>Constraint 4179: multiplication with non-zero constant (safe)</li><li>Constraint 4180: multiplication with non-zero constant (safe)</li><li>Constraint 4181: multiplication with non-zero constant (safe)</li><li>Constraint 4182: multiplication with non-zero constant (safe)</li><li>Constraint 4183: multiplication with non-zero constant (safe)</li><li>Constraint 4184: multiplication with non-zero constant (safe)</li><li>Constraint 4185: multiplication with non-zero constant (safe)</li><li>Constraint 4186: multiplication with non-zero constant (safe)</li><li>Constraint 4187: multiplication with non-zero constant (safe)</li><li>Constraint 4188: multiplication with non-zero constant (safe)</li><li>Constraint 4189: multiplication with non-zero constant (safe)</li><li>Constraint 4190: multiplication with non-zero constant (safe)</li><li>Constraint 4191: multiplication with non-zero constant (safe)</li><li>Constraint 4192: multiplication with non-zero constant (safe)</li><li>Constraint 4193: multiplication with non-zero constant (safe)</li><li>Constraint 4194: multiplication with non-zero constant (safe)</li><li>Constraint 4195: multiplication with non-zero constant (safe)</li><li>Constraint 4196: multiplication with non-zero constant (safe)</li><li>Constraint 4197: multiplication with non-zero constant (safe)</li><li>Constraint 4198: multiplication with non-zero constant (safe)</li><li>Constraint 4199: multiplication with non-zero constant (safe)</li><li>Constraint 4200: multiplication with non-zero constant (safe)</li><li>Constraint 4201: multiplication with non-zero constant (safe)</li><li>Constraint 4202: multiplication with non-zero constant (safe)</li><li>Constraint 4203: multiplication with non-zero constant (safe)</li><li>Constraint 4204: multiplication with non-zero constant (safe)</li><li>Constraint 4205: multiplication with non-zero constant (safe)</li><li>Constraint 4206: multiplication with non-zero constant (safe)</li><li>Constraint 4207: multiplication with non-zero constant (safe)</li><li>Constraint 4208: multiplication with non-zero constant (safe)</li><li>Constraint 4209: multiplication with non-zero constant (safe)</li><li>Constraint 4210: multiplication with non-zero constant (safe)</li><li>Constraint 4211: multiplication with non-zero constant (safe)</li><li>Constraint 4212: multiplication with non-zero constant (safe)</li><li>Constraint 4213: multiplication with non-zero constant (safe)</li><li>Constraint 4214: multiplication with non-zero constant (safe)</li><li>Constraint 4215: multiplication with non-zero constant (safe)</li><li>Constraint 4216: multiplication with non-zero constant (safe)</li><li>Constraint 4217: multiplication with non-zero constant (safe)</li><li>Constraint 4218: multiplication with non-zero constant (safe)</li><li>Constraint 4219: multiplication with non-zero constant (safe)</li><li>Constraint 4220: multiplication with non-zero constant (safe)</li><li>Constraint 4221: multiplication with non-zero constant (safe)</li><li>Constraint 4222: multiplication with non-zero constant (safe)</li><li>Constraint 4223: multiplication with non-zero constant (safe)</li><li>Constraint 4224: multiplication with non-zero constant (safe)</li><li>Constraint 4225: multiplication with non-zero constant (safe)</li><li>Constraint 4226: multiplication with non-zero constant (safe)</li><li>Constraint 4227: multiplication with non-zero constant (safe)</li><li>Constraint 4228: multiplication with non-zero constant (safe)</li><li>Constraint 4229: multiplication with non-zero constant (safe)</li><li>Constraint 4230: multiplication with non-zero constant (safe)</li><li>Constraint 4231: multiplication with non-zero constant (safe)</li><li>Constraint 4232: multiplication with non-zero constant (safe)</li><li>Constraint 4233: multiplication with non-zero constant (safe)</li><li>Constraint 4234: multiplication with non-zero constant (safe)</li><li>Constraint 4235: multiplication with non-zero constant (safe)</li><li>Constraint 4236: multiplication with non-zero constant (safe)</li><li>Constraint 4237: multiplication with non-zero constant (safe)</li><li>Constraint 4238: multiplication with non-zero constant (safe)</li><li>Constraint 4239: multiplication with non-zero constant (safe)</li><li>Constraint 4240: multiplication with non-zero constant (safe)</li><li>Constraint 4241: multiplication with non-zero constant (safe)</li><li>Constraint 4242: multiplication with non-zero constant (safe)</li><li>Constraint 4243: multiplication with non-zero constant (safe)</li><li>Constraint 4244: multiplication with non-zero constant (safe)</li><li>Constraint 4245: multiplication with non-zero constant (safe)</li><li>Constraint 4246: multiplication with non-zero constant (safe)</li><li>Constraint 4247: multiplication with non-zero constant (safe)</li><li>Constraint 4248: multiplication with non-zero constant (safe)</li><li>Constraint 4249: multiplication with non-zero constant (safe)</li><li>Constraint 4250: multiplication with non-zero constant (safe)</li><li>Constraint 4251: multiplication with non-zero constant (safe)</li><li>Constraint 4252: multiplication with non-zero constant (safe)</li><li>Constraint 4253: multiplication with non-zero constant (safe)</li><li>Constraint 4254: multiplication with non-zero constant (safe)</li><li>Constraint 4255: multiplication with non-zero constant (safe)</li><li>Constraint 4256: multiplication with non-zero constant (safe)</li><li>Constraint 4257: multiplication with non-zero constant (safe)</li><li>Constraint 4258: multiplication with non-zero constant (safe)</li><li>Constraint 4259: multiplication with non-zero constant (safe)</li><li>Constraint 4260: multiplication with non-zero constant (safe)</li><li>Constraint 4261: multiplication with non-zero constant (safe)</li><li>Constraint 4262: multiplication with non-zero constant (safe)</li><li>Constraint 4263: multiplication with non-zero constant (safe)</li><li>Constraint 4264: multiplication with non-zero constant (safe)</li><li>Constraint 4265: multiplication with non-zero constant (safe)</li><li>Constraint 4266: multiplication with non-zero constant (safe)</li><li>Constraint 4267: multiplication with non-zero constant (safe)</li><li>Constraint 4268: multiplication with non-zero constant (safe)</li><li>Constraint 4269: multiplication with non-zero constant (safe)</li><li>Constraint 4270: multiplication with non-zero constant (safe)</li><li>Constraint 4271: multiplication with non-zero constant (safe)</li><li>Constraint 4272: multiplication with non-zero constant (safe)</li><li>Constraint 4273: multiplication with non-zero constant (safe)</li><li>Constraint 4274: multiplication with non-zero constant (safe)</li><li>Constraint 4275: multiplication with non-zero constant (safe)</li><li>Constraint 4276: multiplication with non-zero constant (safe)</li><li>Constraint 4277: multiplication with non-zero constant (safe)</li><li>Constraint 4278: multiplication with non-zero constant (safe)</li><li>Constraint 4279: multiplication with non-zero constant (safe)</li><li>Constraint 4280: multiplication with non-zero constant (safe)</li><li>Constraint 4281: multiplication with non-zero constant (safe)</li><li>Constraint 4282: multiplication with non-zero constant (safe)</li><li>Constraint 4283: multiplication with non-zero constant (safe)</li><li>Constraint 4284: multiplication with non-zero constant (safe)</li><li>Constraint 4285: multiplication with non-zero constant (safe)</li><li>Constraint 4286: multiplication with non-zero constant (safe)</li><li>Constraint 4287: multiplication with non-zero constant (safe)</li><li>Constraint 4288: multiplication with non-zero constant (safe)</li><li>Constraint 4289: multiplication with non-zero constant (safe)</li><li>Constraint 4290: multiplication with non-zero constant (safe)</li><li>Constraint 4291: multiplication with non-zero constant (safe)</li><li>Constraint 4292: multiplication with non-zero constant (safe)</li><li>Constraint 4293: multiplication with non-zero constant (safe)</li><li>Constraint 4294: multiplication with non-zero constant (safe)</li><li>Constraint 4295: multiplication with non-zero constant (safe)</li><li>Constraint 4296: multiplication with non-zero constant (safe)</li><li>Constraint 4297: multiplication with non-zero constant (safe)</li><li>Constraint 4298: multiplication with non-zero constant (safe)</li><li>Constraint 4299: multiplication with non-zero constant (safe)</li><li>Constraint 4300: multiplication with non-zero constant (safe)</li><li>Constraint 4301: multiplication with non-zero constant (safe)</li><li>Constraint 4302: multiplication with non-zero constant (safe)</li><li>Constraint 4303: multiplication with non-zero constant (safe)</li><li>Constraint 4304: multiplication with non-zero constant (safe)</li><li>Constraint 4305: multiplication with non-zero constant (safe)</li><li>Constraint 4306: multiplication with non-zero constant (safe)</li><li>Constraint 4307: multiplication with non-zero constant (safe)</li><li>Constraint 4308: multiplication with non-zero constant (safe)</li><li>Constraint 4309: multiplication with non-zero constant (safe)</li><li>Constraint 4310: multiplication with non-zero constant (safe)</li><li>Constraint 4311: multiplication with non-zero constant (safe)</li><li>Constraint 4312: multiplication with non-zero constant (safe)</li><li>Constraint 4313: multiplication with non-zero constant (safe)</li><li>Constraint 4314: multiplication with non-zero constant (safe)</li><li>Constraint 4315: multiplication with non-zero constant (safe)</li><li>Constraint 4316: multiplication with non-zero constant (safe)</li><li>Constraint 4317: multiplication with non-zero constant (safe)</li><li>Constraint 4318: multiplication with non-zero constant (safe)</li><li>Constraint 4319: multiplication with non-zero constant (safe)</li><li>Constraint 4320: multiplication with non-zero constant (safe)</li><li>Constraint 4321: multiplication with non-zero constant (safe)</li><li>Constraint 4322: multiplication with non-zero constant (safe)</li><li>Constraint 4323: multiplication with non-zero constant (safe)</li><li>Constraint 4324: multiplication with non-zero constant (safe)</li><li>Constraint 4325: multiplication with non-zero constant (safe)</li><li>Constraint 4326: multiplication with non-zero constant (safe)</li><li>Constraint 4327: multiplication with non-zero constant (safe)</li><li>Constraint 4328: multiplication with non-zero constant (safe)</li><li>Constraint 4329: multiplication with non-zero constant (safe)</li><li>Constraint 4330: multiplication with non-zero constant (safe)</li><li>Constraint 4331: multiplication with non-zero constant (safe)</li><li>Constraint 4332: multiplication with non-zero constant (safe)</li><li>Constraint 4333: multiplication with non-zero constant (safe)</li><li>Constraint 4334: multiplication with non-zero constant (safe)</li><li>Constraint 4335: multiplication with non-zero constant (safe)</li><li>Constraint 4336: multiplication with non-zero constant (safe)</li><li>Constraint 4337: multiplication with non-zero constant (safe)</li><li>Constraint 4338: multiplication with non-zero constant (safe)</li><li>Constraint 4339: multiplication with non-zero constant (safe)</li><li>Constraint 4340: multiplication with non-zero constant (safe)</li><li>Constraint 4341: multiplication with non-zero constant (safe)</li><li>Constraint 4342: multiplication with non-zero constant (safe)</li><li>Constraint 4343: multiplication with non-zero constant (safe)</li><li>Constraint 4344: multiplication with non-zero constant (safe)</li><li>Constraint 4345: multiplication with non-zero constant (safe)</li><li>Constraint 4346: multiplication with non-zero constant (safe)</li><li>Constraint 4347: multiplication with non-zero constant (safe)</li><li>Constraint 4348: multiplication with non-zero constant (safe)</li><li>Constraint 4349: multiplication with non-zero constant (safe)</li><li>Constraint 4350: multiplication with non-zero constant (safe)</li><li>Constraint 4351: multiplication with non-zero constant (safe)</li><li>Constraint 4352: multiplication with non-zero constant (safe)</li><li>Constraint 4353: multiplication with non-zero constant (safe)</li><li>Constraint 4354: multiplication with non-zero constant (safe)</li><li>Constraint 4355: multiplication with non-zero constant (safe)</li><li>Constraint 4356: multiplication with non-zero constant (safe)</li><li>Constraint 4357: multiplication with non-zero constant (safe)</li><li>Constraint 4358: multiplication with non-zero constant (safe)</li><li>Constraint 4359: multiplication with non-zero constant (safe)</li><li>Constraint 4360: multiplication with non-zero constant (safe)</li><li>Constraint 4361: multiplication with non-zero constant (safe)</li><li>Constraint 4362: multiplication with non-zero constant (safe)</li><li>Constraint 4363: multiplication with non-zero constant (safe)</li><li>Constraint 4364: multiplication with non-zero constant (safe)</li><li>Constraint 4365: multiplication with non-zero constant (safe)</li><li>Constraint 4366: multiplication with non-zero constant (safe)</li><li>Constraint 4367: multiplication with non-zero constant (safe)</li><li>Constraint 4368: multiplication with non-zero constant (safe)</li><li>Constraint 4369: multiplication with non-zero constant (safe)</li><li>Constraint 4370: multiplication with non-zero constant (safe)</li><li>Constraint 4371: multiplication with non-zero constant (safe)</li><li>Constraint 4372: multiplication with non-zero constant (safe)</li><li>Constraint 4373: multiplication with non-zero constant (safe)</li><li>Constraint 4374: multiplication with non-zero constant (safe)</li><li>Constraint 4375: multiplication with non-zero constant (safe)</li><li>Constraint 4376: multiplication with non-zero constant (safe)</li><li>Constraint 4377: multiplication with non-zero constant (safe)</li><li>Constraint 4378: multiplication with non-zero constant (safe)</li><li>Constraint 4379: multiplication with non-zero constant (safe)</li><li>Constraint 4380: multiplication with non-zero constant (safe)</li><li>Constraint 4381: multiplication with non-zero constant (safe)</li><li>Constraint 4382: multiplication with non-zero constant (safe)</li><li>Constraint 4383: multiplication with non-zero constant (safe)</li><li>Constraint 4384: multiplication with non-zero constant (safe)</li><li>Constraint 4385: multiplication with non-zero constant (safe)</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h2>Issues Found</h2>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v203&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v203</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v378&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v378</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v204&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v204</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v205&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v205</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v206&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v206</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v359&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v359</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v360&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v360</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v361&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v361</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v362&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v362</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v375&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v375</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v376&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v376</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v377&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v377</span></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v14&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v14</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v78&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v78</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v377&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v377</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v376&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v376</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v375&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v375</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v362&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v362</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v203&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v203</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v361&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v361</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v360&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v360</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v359&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v359</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v206&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v206</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v205&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v205</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v204&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v204</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v158&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v158</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v50&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v50</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v154&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v154</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v151&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v151</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v148&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v148</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v82&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v82</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v378&#39; never appears in any constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v378</span></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v74&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v74</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v71&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v71</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v68&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v68</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v61&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v61</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v57&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v57</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v53&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v53</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v4&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v4</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v7&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v7</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v10&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v10</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v162&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v162</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v18&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v18</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v25&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v25</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v28&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v28</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v31&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v31</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v35&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v35</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v39&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v39</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v47&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v47</span></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v61&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v61</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v47&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v47</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v158&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v158</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v31&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v31</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v10&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v10</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v4&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v4</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v25&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v25</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v50&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v50</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v68&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v68</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v71&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v71</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v162&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v162</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v14&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v14</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v154&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v154</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v53&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v53</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v18&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v18</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v5027&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v5027</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v78&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v78</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v57&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v57</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v148&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v148</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v151&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v151</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v7&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v7</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v82&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v82</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v28&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v28</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v74&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v74</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v35&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v35</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v39&#39; appears in only one constraint</div>
+                <div class="issue-meta"><span class="variable">Variable: v39</span></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+        </div>
+    </div>
+
+    <script>
+        // Make passed checks collapsible if there are many
+        document.querySelectorAll('.collapsible').forEach(el => {
+            el.addEventListener('click', () => {
+                const content = el.nextElementSibling;
+                content.classList.toggle('show');
+            });
+        });
+    </script>
+</body>
+</html>

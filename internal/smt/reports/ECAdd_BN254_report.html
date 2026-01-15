@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMT Soundness Analysis - ECAdd_BN254</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent-red: #e94560;
+            --accent-yellow: #f4d160;
+            --accent-green: #4ade80;
+            --accent-blue: #60a5fa;
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a78bfa;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-purple);
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--accent-cyan);
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .info-item .value {
+            font-size: 1.2rem;
+            color: var(--accent-cyan);
+        }
+
+        .summary-badges {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .badge.critical { background: rgba(233, 69, 96, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .badge.warning { background: rgba(244, 209, 96, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+        .badge.info { background: rgba(96, 165, 250, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+        .badge.passed { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+
+        .result-banner {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .result-banner.critical { background: rgba(233, 69, 96, 0.3); color: var(--accent-red); }
+        .result-banner.warning { background: rgba(244, 209, 96, 0.3); color: var(--accent-yellow); }
+        .result-banner.passed { background: rgba(74, 222, 128, 0.3); color: var(--accent-green); }
+
+        .issue {
+            background: var(--bg-card);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 4px solid;
+        }
+
+        .issue.critical { border-color: var(--accent-red); }
+        .issue.warning { border-color: var(--accent-yellow); }
+        .issue.info { border-color: var(--accent-blue); }
+
+        .issue-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .issue-type {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .issue.critical .issue-type { color: var(--accent-red); }
+        .issue.warning .issue-type { color: var(--accent-yellow); }
+        .issue.info .issue-type { color: var(--accent-blue); }
+
+        .issue-description { margin-bottom: 0.5rem; }
+
+        .issue-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .issue-meta span {
+            display: inline-block;
+            margin-right: 1rem;
+        }
+
+        .issue-meta .variable { color: var(--accent-cyan); }
+        .issue-meta .location { color: var(--accent-purple); }
+
+        .issue-details {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--bg-primary);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .patterns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .pattern {
+            background: var(--bg-card);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .passed-list {
+            list-style: none;
+        }
+
+        .passed-list li {
+            padding: 0.25rem 0;
+            color: var(--accent-green);
+        }
+
+        .passed-list li::before {
+            content: "✓ ";
+        }
+
+        .collapsible {
+            cursor: pointer;
+        }
+
+        .collapsible:hover {
+            opacity: 0.9;
+        }
+
+        .collapsed-content {
+            display: none;
+        }
+
+        .collapsed-content.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SMT Soundness Analysis</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Circuit: <strong style="color: var(--accent-cyan);">ECAdd_BN254</strong></p>
+
+        <div class="card">
+            <h2>Circuit Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Public Variables</label>
+                    <div class="value">0</div>
+                </div>
+                <div class="info-item">
+                    <label>Secret Variables</label>
+                    <div class="value">24</div>
+                </div>
+                <div class="info-item">
+                    <label>Internal Variables</label>
+                    <div class="value">5334</div>
+                </div>
+                <div class="info-item">
+                    <label>Constraints</label>
+                    <div class="value">5477</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Constraint Patterns</h2>
+            <div class="patterns"><span class="pattern">Linear constraints: 4187</span><span class="pattern">Multiplication constraints: 792</span><span class="pattern">Mixed constraints: 498</span><span class="pattern">Decomposition constraints (a + k*b = c): 1893</span><span class="pattern">Inverse check constraints (a*b = 1): 767</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Analysis Summary</h2>
+            <div class="summary-badges"><span class="badge critical">12 Critical</span><span class="badge warning">37 Warnings</span><span class="badge info">26 Info</span>
+            </div>
+            <div class="result-banner critical">CRITICAL ISSUES FOUND</div>
+        </div>
+        <div class="card">
+            <h2>Issues Found</h2>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v203&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v378&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v204&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v205&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v206&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v359&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v360&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v361&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v362&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v375&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v376&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue critical">
+                <div class="issue-header">
+                    <span class="issue-type">[CRITICAL] unconstrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v377&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs must be constrained. A malicious prover can set this to any value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v14&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v78&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v377&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v376&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v375&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v362&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v203&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v361&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v360&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v359&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v206&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v205&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v204&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v158&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v50&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v154&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v151&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v148&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v82&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] unused-variable</span>
+                </div>
+                <div class="issue-description">Variable &#39;v378&#39; never appears in any constraint</div>
+                <div class="issue-meta"></div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v74&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v71&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v68&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v61&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v57&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v53&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v4&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v7&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v10&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v162&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v18&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v25&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v28&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v31&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v35&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v39&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue warning">
+                <div class="issue-header">
+                    <span class="issue-type">[WARNING] weakly-constrained-hint-output</span>
+                </div>
+                <div class="issue-description">Hint output &#39;v47&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">Hint outputs appearing only once may be under-constrained. Verify the constraint uniquely determines this value.</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v47&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v74&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v68&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v25&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v39&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v18&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v53&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v35&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v151&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v158&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v14&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v148&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v10&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v50&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v5027&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v162&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v31&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v82&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v61&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v4&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v7&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v154&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v28&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v78&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v57&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+            <div class="issue info">
+                <div class="issue-header">
+                    <span class="issue-type">[INFO] single-appearance</span>
+                </div>
+                <div class="issue-description">Internal variable &#39;v71&#39; appears in only one constraint</div>
+                <div class="issue-meta"></div><div class="issue-details">May be under-constrained if not uniquely determined by that constraint</div></div>
+        </div>
+    </div>
+
+    <script>
+        // Make passed checks collapsible if there are many
+        document.querySelectorAll('.collapsible').forEach(el => {
+            el.addEventListener('click', () => {
+                const content = el.nextElementSibling;
+                content.classList.toggle('show');
+            });
+        });
+    </script>
+</body>
+</html>
