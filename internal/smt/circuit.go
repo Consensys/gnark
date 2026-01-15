@@ -13,6 +13,7 @@ import (
 	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 )
 
 // CompileAndExport compiles a circuit to SCS and exports it to the specified format.
@@ -33,15 +34,18 @@ type CompileOptions struct {
 	TestName string
 	// Config for export
 	Config ExportConfig
+	// WithProfiling enables constraint profiling to capture source locations
+	WithProfiling bool
 }
 
 // DefaultCompileOptions returns default compilation options.
 func DefaultCompileOptions() CompileOptions {
 	return CompileOptions{
-		Curve:    ecc.BN254,
-		Format:   FormatCpp,
-		TestName: "Circuit",
-		Config:   DefaultConfig(),
+		Curve:         ecc.BN254,
+		Format:        FormatCpp,
+		TestName:      "Circuit",
+		Config:        DefaultConfig(),
+		WithProfiling: true, // Enable by default for source locations
 	}
 }
 
@@ -60,8 +64,31 @@ type CompileResult struct {
 // CompileCircuit compiles a gnark circuit and extracts SMT data.
 // This is the main entry point for testing circuit snippets with SMT solvers.
 func CompileCircuit(circuit frontend.Circuit, opts CompileOptions) (*CompileResult, error) {
+	// Create temp file for profile if profiling is enabled
+	var profilePath string
+	if opts.WithProfiling {
+		tmpFile, err := os.CreateTemp("", "gnark-smt-profile-*.pprof")
+		if err == nil {
+			profilePath = tmpFile.Name()
+			tmpFile.Close()
+			defer os.Remove(profilePath) // Clean up after extraction
+		}
+	}
+
+	// Start profiling if enabled (captures constraint source locations)
+	var prof *profile.Profile
+	if profilePath != "" {
+		prof = profile.Start(profile.WithPath(profilePath))
+	}
+
 	// Compile the circuit to SCS
 	ccs, err := frontend.Compile(opts.Curve.ScalarField(), scs.NewBuilder, circuit)
+
+	// Stop profiling before checking error (this writes the profile to disk)
+	if prof != nil {
+		prof.Stop()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile circuit: %w", err)
 	}
@@ -70,11 +97,11 @@ func CompileCircuit(circuit frontend.Circuit, opts CompileOptions) (*CompileResu
 	var exporter ConstraintExporter
 	switch opts.Curve {
 	case ecc.BN254:
-		scs, ok := ccs.(*cs_bn254.SparseR1CS)
+		scsCS, ok := ccs.(*cs_bn254.SparseR1CS)
 		if !ok {
 			return nil, fmt.Errorf("expected *cs_bn254.SparseR1CS, got %T", ccs)
 		}
-		exporter = scs
+		exporter = scsCS
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", opts.Curve.String())
 	}
@@ -82,11 +109,9 @@ func CompileCircuit(circuit frontend.Circuit, opts CompileOptions) (*CompileResu
 	// Extract the constraint system
 	extracted := Extract(exporter)
 
-	// Extract debug info if available
-	var debugInfo *ExtractedDebugInfo
-	if debugExp, ok := exporter.(DebugExporter); ok {
-		debugInfo = ExtractDebugInfo(debugExp)
-	}
+	// Extract debug info from profile data
+	// The profile provides source locations for each constraint
+	debugInfo := ExtractDebugInfoFromProfile(profilePath)
 
 	// Generate output based on format
 	var buf bytes.Buffer

@@ -58,10 +58,11 @@ type ReportIssue struct {
 	Details     string `json:"details,omitempty"`
 
 	// Location information
-	ConstraintIndex int    `json:"constraint_index,omitempty"`
-	VariableIndex   int    `json:"variable_index,omitempty"`
-	VariableName    string `json:"variable_name,omitempty"`
-	SourceLocation  string `json:"source_location,omitempty"`
+	ConstraintIndex int              `json:"constraint_index,omitempty"`
+	VariableIndex   int              `json:"variable_index,omitempty"`
+	VariableName    string           `json:"variable_name,omitempty"`
+	SourceLocation  string           `json:"source_location,omitempty"`
+	Stack           []SourceLocation `json:"stack,omitempty"`
 }
 
 // NewReport creates a new report from analysis results.
@@ -95,12 +96,30 @@ func NewReport(ext *ExtractedSystem, analysis *AnalysisResult, debugInfo *Extrac
 			ri.VariableName = ext.VariableNames[issue.VariableIndex]
 		}
 
-		// Add source location if available
+		// Add source location and stack if available
 		if debugInfo != nil {
 			if issue.ConstraintIndex >= 0 {
 				ri.SourceLocation = debugInfo.GetConstraintLocation(issue.ConstraintIndex)
+				ri.Stack = debugInfo.GetConstraintStack(issue.ConstraintIndex)
 			} else if issue.VariableIndex >= 0 {
-				ri.SourceLocation = debugInfo.GetVariableLocation(issue.VariableIndex, ext.Constraints)
+				// For variable issues, find the constraint that defines the variable
+				for i, c := range ext.Constraints {
+					if int(c.XC) == issue.VariableIndex && c.QO.Sign() != 0 {
+						ri.SourceLocation = debugInfo.GetConstraintLocation(i)
+						ri.Stack = debugInfo.GetConstraintStack(i)
+						break
+					}
+				}
+				// Fall back to first constraint where variable appears
+				if ri.SourceLocation == "" {
+					for i, c := range ext.Constraints {
+						if int(c.XA) == issue.VariableIndex || int(c.XB) == issue.VariableIndex || int(c.XC) == issue.VariableIndex {
+							ri.SourceLocation = debugInfo.GetConstraintLocation(i)
+							ri.Stack = debugInfo.GetConstraintStack(i)
+							break
+						}
+					}
+				}
 			}
 		}
 
@@ -270,6 +289,18 @@ func (r *Report) writeText(w io.Writer, useColors bool) error {
 
 				if issue.SourceLocation != "" {
 					fmt.Fprintf(w, "     Location: %s\n", color(colorMagenta, issue.SourceLocation))
+				}
+
+				// Show stack trace if available
+				if len(issue.Stack) > 1 {
+					fmt.Fprintf(w, "     %s\n", color(colorDim, "Stack trace:"))
+					for j, loc := range issue.Stack {
+						indent := "       "
+						if j == 0 {
+							indent = "     → "
+						}
+						fmt.Fprintf(w, "%s%s\n", indent, color(colorDim, loc.String()))
+					}
 				}
 
 				if issue.Details != "" {
@@ -638,6 +669,24 @@ func (r *Report) writeHTML(w io.Writer) error {
 			}
 
 			fmt.Fprint(w, `</div>`)
+
+			// Show stack trace if available
+			if len(issue.Stack) > 0 {
+				fmt.Fprint(w, `<div class="stack-trace">
+                    <details>
+                        <summary style="cursor: pointer; color: var(--accent-purple); font-size: 0.85rem; margin-top: 0.5rem;">📚 Show stack trace</summary>
+                        <pre style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg-primary); border-radius: 4px; font-size: 0.8rem; overflow-x: auto;">`)
+				for i, loc := range issue.Stack {
+					arrow := "  "
+					if i == 0 {
+						arrow = "→ "
+					}
+					fmt.Fprintf(w, "%s%s\n", arrow, html.EscapeString(loc.String()))
+				}
+				fmt.Fprint(w, `</pre>
+                    </details>
+                </div>`)
+			}
 
 			if issue.Details != "" {
 				fmt.Fprintf(w, `<div class="issue-details">%s</div>`, html.EscapeString(issue.Details))
