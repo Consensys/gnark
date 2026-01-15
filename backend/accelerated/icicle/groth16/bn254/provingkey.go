@@ -8,6 +8,8 @@
 package bn254
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	icicle_core "github.com/ingonyama-zk/icicle-gnark/v3/wrappers/golang/core"
@@ -15,12 +17,15 @@ import (
 
 type deviceInfo struct {
 	CosetGenerator [fr.Limbs * 2]uint32
-	G1Device       struct {
+
+	// Pinned (persistent) vectors - only populated if PinToGPU is true
+	PinnedG1Device struct {
 		A, B, K, Z icicle_core.DeviceSlice
 	}
-	G2Device struct {
+	PinnedG2Device struct {
 		B icicle_core.DeviceSlice
 	}
+
 	DenDevice icicle_core.DeviceSlice
 
 	CommitmentKeysDevice struct {
@@ -32,4 +37,6 @@ type deviceInfo struct {
 type ProvingKey struct {
 	groth16_bn254.ProvingKey
 	*deviceInfo
+	setupMu  sync.Mutex // Protects concurrent deviceInfo initialization
+	PinToGPU bool       // If true, pre-load and keep all vectors in GPU memory (default: false)
 }
