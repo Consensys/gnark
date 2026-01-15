@@ -409,4 +409,3 @@ func (f *Field[T]) toSingleLimbElement(a *Element[T]) *Element[T] {
 	singleLimb := f.toSingleLimb(a)
 	return f.newInternalElement([]frontend.Variable{singleLimb}, a.overflow)
 }
-
