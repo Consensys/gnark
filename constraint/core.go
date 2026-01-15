@@ -345,7 +345,26 @@ func (system *System) VariableToString(vID int) string {
 }
 
 func (system *System) AddR1C(c R1C, bID BlueprintID) int {
-	profile.RecordConstraint()
+	// use callback-based recording to avoid slice allocation when not needed
+	profile.RecordConstraintR1C(func() []int {
+		vids := make([]int, 0, len(c.L)+len(c.R)+len(c.O))
+		for _, t := range c.L {
+			if !t.IsConstant() {
+				vids = append(vids, t.WireID())
+			}
+		}
+		for _, t := range c.R {
+			if !t.IsConstant() {
+				vids = append(vids, t.WireID())
+			}
+		}
+		for _, t := range c.O {
+			if !t.IsConstant() {
+				vids = append(vids, t.WireID())
+			}
+		}
+		return vids
+	})
 
 	blueprint := system.Blueprints[bID]
 
@@ -363,7 +382,12 @@ func (system *System) AddR1C(c R1C, bID BlueprintID) int {
 }
 
 func (system *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
-	profile.RecordConstraint()
+	// only collect variable IDs if profiling is active and we're in deferred phase
+	if profile.NbActiveSessions() > 0 && profile.InDeferredPhase() {
+		profile.RecordConstraintSparse(c.XA, c.XB, c.XC)
+	} else {
+		profile.RecordConstraint()
+	}
 
 	blueprint := system.Blueprints[bID]
 

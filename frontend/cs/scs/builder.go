@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile"
 
 	babybearr1cs "github.com/consensys/gnark/constraint/babybear"
 	bls12377r1cs "github.com/consensys/gnark/constraint/bls12-377"
@@ -237,6 +238,11 @@ func (builder *builder[E]) addPlonkConstraint(c sparseR1C[E], debugInfo ...const
 // the wire's id to the number of wires, and returns it
 func (builder *builder[E]) newInternalVariable() expr.Term[E] {
 	idx := builder.cs.AddInternalVariable()
+	// record the variable creation for profile attribution of deferred constraints
+	// only if profiling is active to avoid overhead during normal compilation
+	if profile.NbActiveSessions() > 0 {
+		profile.RecordVariable(idx)
+	}
 	return expr.NewTerm(idx, builder.tOne)
 }
 

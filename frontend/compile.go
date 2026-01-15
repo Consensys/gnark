@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile"
 )
 
 // Compile will generate a ConstraintSystem from the given circuit
@@ -164,6 +165,10 @@ func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (er
 }
 
 func callDeferred[E constraint.Element](builder Builder[E]) error {
+	// mark that we're entering the deferred phase for profile attribution
+	profile.SetDeferredPhase(true)
+	defer profile.SetDeferredPhase(false)
+
 	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
 		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
