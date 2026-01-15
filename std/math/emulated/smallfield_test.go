@@ -13,45 +13,6 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-// SmallFieldDetectionCircuit tests that small field optimization is enabled.
-type SmallFieldDetectionCircuit struct {
-	A, B   Element[emparams.KoalaBear]
-	Result Element[emparams.KoalaBear] `gnark:",public"`
-}
-
-func (c *SmallFieldDetectionCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	// The small field optimization is automatically used
-	result := f.Mul(&c.A, &c.B)
-	f.AssertIsEqual(result, &c.Result)
-	return nil
-}
-
-// TestSmallFieldOptimizationDetection tests that small field optimization works
-// for KoalaBear on BLS12-377.
-func TestSmallFieldOptimizationDetection(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	p := emparams.KoalaBear{}.Modulus()
-	a := big.NewInt(123)
-	b := big.NewInt(456)
-	c := new(big.Int).Mul(a, b)
-	c.Mod(c, p)
-
-	assignment := &SmallFieldDetectionCircuit{
-		A:      ValueOf[emparams.KoalaBear](a),
-		B:      ValueOf[emparams.KoalaBear](b),
-		Result: ValueOf[emparams.KoalaBear](c),
-	}
-
-	err := test.IsSolved(&SmallFieldDetectionCircuit{}, assignment, ecc.BLS12_377.ScalarField())
-	assert.NoError(err)
-}
-
 // SmallFieldMulCircuit is a basic circuit that tests multiplication.
 type SmallFieldMulCircuit struct {
 	A, B Element[emparams.KoalaBear]

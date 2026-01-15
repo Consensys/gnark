@@ -224,40 +224,40 @@ func (f *Field[T]) smallCheckZero(a *Element[T]) {
 
 	smc := f.getOrCreateSmallMulCheck()
 
-	// Call hint to get quotient (remainder should be 0)
-	q, r, err := f.callSmallCheckZeroHint(a.Limbs[0])
+	// Call hint to get quotient only
+	q, err := f.callSmallCheckZeroHint(a.Limbs[0])
 	if err != nil {
 		panic(fmt.Sprintf("small check zero hint: %v", err))
 	}
 
-	// Range check r (should be 0 but we range check anyway for safety)
-	modBits := f.fParams.Modulus().BitLen()
-	f.checker.Check(r, modBits)
-
-	// Add entry: a * 1 = q * p + r (expecting r = 0)
-	smc.addEntry(a.Limbs[0], 1, r, q)
+	// Add entry: a * 1 = q * p + 0
+	// We use 0 directly as the remainder (not from hint) to ensure soundness.
+	// The batch check will verify a = q * p, proving a ≡ 0 (mod p).
+	smc.addEntry(a.Limbs[0], 1, 0, q)
 }
 
-// callSmallCheckZeroHint computes q and r such that a = q * p + r.
-func (f *Field[T]) callSmallCheckZeroHint(a frontend.Variable) (q, r frontend.Variable, err error) {
+// callSmallCheckZeroHint computes q such that a = q * p (+ remainder).
+// We only need q; the remainder is not returned as we use 0 directly for soundness.
+func (f *Field[T]) callSmallCheckZeroHint(a frontend.Variable) (q frontend.Variable, err error) {
 	p := f.fParams.Modulus()
 	nbBits := f.fParams.BitsPerLimb()
 
-	ret, err := f.api.NewHint(smallCheckZeroHint, 2, nbBits, p, a)
+	ret, err := f.api.NewHint(smallCheckZeroHint, 1, nbBits, p, a)
 	if err != nil {
-		return nil, nil, fmt.Errorf("call hint: %w", err)
+		return nil, fmt.Errorf("call hint: %w", err)
 	}
 
-	return ret[0], ret[1], nil
+	return ret[0], nil
 }
 
-// smallCheckZeroHint computes q and r such that a = q * p + r.
+// smallCheckZeroHint computes q such that a = q * p + r.
+// Only returns q; the remainder r is not needed as we use 0 directly for soundness.
 func smallCheckZeroHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 3 {
 		return fmt.Errorf("expected 3 inputs, got %d", len(inputs))
 	}
-	if len(outputs) != 2 {
-		return fmt.Errorf("expected 2 outputs, got %d", len(outputs))
+	if len(outputs) != 1 {
+		return fmt.Errorf("expected 1 output, got %d", len(outputs))
 	}
 
 	// inputs[0] = nbBits (unused)
@@ -266,110 +266,14 @@ func smallCheckZeroHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	p := inputs[1]
 	a := inputs[2]
 
-	// Compute q and r such that a = q * p + r
+	// Compute q such that a = q * p + r
 	q := new(big.Int)
-	r := new(big.Int)
 	if p.Sign() != 0 {
-		q.QuoRem(a, p, r)
-	} else {
-		r.Set(a)
+		q.Quo(a, p)
 	}
 
 	outputs[0].Set(q)
-	outputs[1].Set(r)
 	return nil
-}
-
-// smallReduce reduces an element in small field mode.
-// For single-limb elements with overflow, we compute r = a mod p.
-func (f *Field[T]) smallReduce(a *Element[T]) *Element[T] {
-	if len(a.Limbs) != 1 {
-		panic("smallReduce requires single-limb element")
-	}
-
-	// If no overflow, return as-is
-	if a.overflow == 0 {
-		return a
-	}
-
-	// Use multiplication by 1 to reduce
-	return f.smallMulMod(a, f.One())
-}
-
-// smallAdd adds two elements in small field mode.
-// For single-limb elements, this is just native addition.
-func (f *Field[T]) smallAdd(a, b *Element[T]) *Element[T] {
-	if len(a.Limbs) == 0 {
-		return b
-	}
-	if len(b.Limbs) == 0 {
-		return a
-	}
-
-	// For small fields, both elements are single limb
-	var aLimb, bLimb frontend.Variable = 0, 0
-	if len(a.Limbs) > 0 {
-		aLimb = a.Limbs[0]
-	}
-	if len(b.Limbs) > 0 {
-		bLimb = b.Limbs[0]
-	}
-
-	sum := f.api.Add(aLimb, bLimb)
-	newOverflow := max(a.overflow, b.overflow) + 1
-	return f.newInternalElement([]frontend.Variable{sum}, newOverflow)
-}
-
-// smallSub subtracts b from a in small field mode.
-// We add padding multiples of p to ensure no underflow.
-func (f *Field[T]) smallSub(a, b *Element[T]) *Element[T] {
-	// For small field mode, we need to ensure a - b doesn't underflow.
-	// We add k*p to a where k is large enough that a + k*p - b >= 0.
-
-	// The padding needs to cover the maximum possible value of b.
-	// b < 2^(modBits + overflow) so we need k*p >= 2^(modBits + overflow)
-	// Since p ≈ 2^modBits, k ≈ 2^overflow suffices.
-
-	p := f.fParams.Modulus()
-	modBits := uint(p.BitLen())
-
-	// Compute padding: we need at least 2^(b.overflow) * p
-	var padding *big.Int
-	if b.overflow > 0 {
-		k := new(big.Int).Lsh(big.NewInt(1), b.overflow+1)
-		padding = new(big.Int).Mul(k, p)
-	} else {
-		padding = new(big.Int).Set(p)
-	}
-
-	var aLimb, bLimb frontend.Variable = 0, 0
-	if len(a.Limbs) > 0 {
-		aLimb = a.Limbs[0]
-	}
-	if len(b.Limbs) > 0 {
-		bLimb = b.Limbs[0]
-	}
-
-	// result = a + padding - b
-	result := f.api.Add(aLimb, padding)
-	result = f.api.Sub(result, bLimb)
-
-	// The overflow accounts for the padding
-	newOverflow := max(modBits+b.overflow+2, max(a.overflow, b.overflow)+1)
-	// Cap overflow at maxOverflow
-	if newOverflow > f.maxOverflow() {
-		// Need to reduce instead
-		return f.smallReduce(f.newInternalElement([]frontend.Variable{result}, newOverflow))
-	}
-
-	return f.newInternalElement([]frontend.Variable{result}, newOverflow)
-}
-
-// smallAssertIsEqual asserts a ≡ b (mod p) in small field mode.
-func (f *Field[T]) smallAssertIsEqual(a, b *Element[T]) {
-	// Compute diff = b - a and check that diff ≡ 0 (mod p)
-	diff := f.smallSub(b, a)
-	f.smallCheckZero(diff)
 }
 
 // toSingleLimb converts an Element to a single-limb representation if possible.
