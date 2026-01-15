@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
@@ -631,4 +632,26 @@ func TestConstraintCountReduction(t *testing.T) {
 	}
 
 	t.Logf("Small field optimization: %.2f constraints/mul for 100 muls", constraintsPerMul)
+}
+
+// BenchmarkSmallFieldR1CSvsPLONK compares constraint counts between R1CS and PLONK backends.
+func BenchmarkSmallFieldR1CSvsPLONK(b *testing.B) {
+	circuit := &SmallFieldLargeMulBenchCircuit{}
+
+	// Compile for R1CS
+	r1csCS, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// Compile for PLONK (SCS)
+	scsCS, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportMetric(float64(r1csCS.GetNbConstraints()), "R1CS_constraints")
+	b.ReportMetric(float64(scsCS.GetNbConstraints()), "PLONK_constraints")
+	b.ReportMetric(float64(r1csCS.GetNbConstraints())/100.0, "R1CS_per_mul")
+	b.ReportMetric(float64(scsCS.GetNbConstraints())/100.0, "PLONK_per_mul")
 }
