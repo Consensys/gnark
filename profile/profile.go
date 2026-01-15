@@ -21,6 +21,9 @@ import (
 var (
 	sessions       []*Profile // active sessions
 	activeSessions uint32
+
+	// inDeferredPhase indicates whether we are currently executing deferred callbacks
+	inDeferredPhase uint32
 )
 
 // Profile represents an active constraint system profiling session.
@@ -33,8 +36,27 @@ type Profile struct {
 	// details on pprof format: https://github.com/google/pprof/blob/main/proto/README.md
 	pprof profile.Profile
 
+	// deferredPprof holds constraints added during deferred phase
+	// this allows separating deferred constraints from regular ones
+	deferredPprof profile.Profile
+
 	functions map[string]*profile.Function
 	locations map[uint64]*profile.Location
+
+	// deferredFunctions and deferredLocations are for the deferred profile
+	deferredFunctions map[string]*profile.Function
+	deferredLocations map[uint64]*profile.Location
+
+	// variableOrigins maps variable IDs to their creation stack trace
+	// This allows attributing deferred constraints to their original source
+	variableOrigins map[int][]uintptr
+
+	// lastVariableOrigin stores the stack trace of the most recently created variable
+	// Used as fallback for constraints where we can't find a known VID origin
+	lastVariableOrigin []uintptr
+
+	// lastVariableVID is the ID of the most recently created variable
+	lastVariableVID int
 
 	onceSetName sync.Once
 
@@ -76,12 +98,19 @@ func Start(options ...Option) *Profile {
 	})
 
 	p := Profile{
-		functions: make(map[string]*profile.Function),
-		locations: make(map[uint64]*profile.Location),
-		filePath:  filepath.Join(".", "gnark.pprof"),
-		chDone:    make(chan struct{}),
+		functions:         make(map[string]*profile.Function),
+		locations:         make(map[uint64]*profile.Location),
+		deferredFunctions: make(map[string]*profile.Function),
+		deferredLocations: make(map[uint64]*profile.Location),
+		variableOrigins:   make(map[int][]uintptr),
+		filePath:          filepath.Join(".", "gnark.pprof"),
+		chDone:            make(chan struct{}),
 	}
 	p.pprof.SampleType = []*profile.ValueType{{
+		Type: "constraints",
+		Unit: "count",
+	}}
+	p.deferredPprof.SampleType = []*profile.ValueType{{
 		Type: "constraints",
 		Unit: "count",
 	}}
@@ -130,6 +159,23 @@ func (p *Profile) Stop() {
 		}
 		f.Close()
 		log.Info().Str("path", p.filePath).Msg("gnark profiling disabled")
+
+		// write the deferred profile if there are any samples
+		if len(p.deferredPprof.Sample) > 0 {
+			// generate deferred profile path by appending _deferred before extension
+			ext := filepath.Ext(p.filePath)
+			deferredPath := strings.TrimSuffix(p.filePath, ext) + "_deferred" + ext
+			df, err := os.Create(deferredPath)
+			if err != nil {
+				log.Error().Err(err).Msg("could not create deferred gnark profile")
+			} else {
+				if err := p.deferredPprof.Write(df); err != nil {
+					log.Error().Err(err).Msg("writing deferred profile")
+				}
+				df.Close()
+				log.Info().Str("path", deferredPath).Int("samples", len(p.deferredPprof.Sample)).Msg("deferred constraints profile written")
+			}
+		}
 	} else {
 		log.Warn().Msg("gnark profiling disabled [not writing to disk]")
 	}
@@ -156,6 +202,29 @@ func (p *Profile) Top() string {
 	return buf.String()
 }
 
+// TopDeferred returns a similar output to pprof top command but for deferred constraints
+func (p *Profile) TopDeferred() string {
+	if len(p.deferredPprof.Sample) == 0 {
+		return "No deferred constraints recorded"
+	}
+	r := report.NewDefault(&p.deferredPprof, report.Options{
+		OutputFormat:  report.Tree,
+		CompactLabels: true,
+		NodeFraction:  0.005,
+		EdgeFraction:  0.001,
+		SampleValue:   func(v []int64) int64 { return v[0] },
+		SampleUnit:    "count",
+	})
+	var buf bytes.Buffer
+	report.Generate(&buf, r)
+	return buf.String()
+}
+
+// NbDeferredConstraints returns the number of constraints recorded during deferred phase
+func (p *Profile) NbDeferredConstraints() int {
+	return len(p.deferredPprof.Sample)
+}
+
 // RecordConstraint add a sample (with count == 1) to all the active profiling sessions.
 func RecordConstraint() {
 	if n := atomic.LoadUint32(&activeSessions); n == 0 {
@@ -170,6 +239,89 @@ func RecordConstraint() {
 	}
 	pc = pc[:n]
 	chCommands <- command{pc: pc}
+}
+
+// RecordConstraintSparse records a constraint with up to 3 variable IDs (for SparseR1C).
+// This is used during deferred phase to attribute constraints to their original source.
+// Non-zero VIDs will be used for attribution lookup.
+func RecordConstraintSparse(xa, xb, xc uint32) {
+	if n := atomic.LoadUint32(&activeSessions); n == 0 {
+		return // do nothing, no active session.
+	}
+
+	// collect the stack and send it async to the worker
+	pc := make([]uintptr, 20)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		return
+	}
+	pc = pc[:n]
+	chCommands <- command{pc: pc, xa: xa, xb: xb, xc: xc, hasVids: true}
+}
+
+// RecordConstraintR1C records a constraint with variable IDs from R1C linear expressions.
+// The vidFunc is called only if profiling attribution is needed (deferred phase).
+// This avoids allocation overhead when attribution is not required.
+func RecordConstraintR1C(vidFunc func() []int) {
+	if n := atomic.LoadUint32(&activeSessions); n == 0 {
+		return // do nothing, no active session.
+	}
+
+	// collect the stack and send it async to the worker
+	pc := make([]uintptr, 20)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		return
+	}
+	pc = pc[:n]
+
+	// only call vidFunc if we're in deferred phase and need attribution
+	var vids []int
+	if atomic.LoadUint32(&inDeferredPhase) == 1 {
+		vids = vidFunc()
+	}
+	chCommands <- command{pc: pc, vids: vids}
+}
+
+// RecordVariable records the creation of a variable with the given ID.
+// This captures the current stack trace and associates it with the variable,
+// allowing deferred constraints that use this variable to be attributed
+// to the original code location where the variable was created.
+func RecordVariable(vid int) {
+	if n := atomic.LoadUint32(&activeSessions); n == 0 {
+		return // do nothing, no active session.
+	}
+
+	// collect the stack
+	pc := make([]uintptr, 20)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		return
+	}
+	pc = pc[:n]
+	chCommands <- command{recordVid: vid, pc: pc}
+}
+
+// SetDeferredPhase marks the beginning or end of the deferred execution phase.
+// When entering deferred phase, constraints will be attributed to the original
+// source location where the variables were created (if tracked).
+func SetDeferredPhase(deferred bool) {
+	if deferred {
+		atomic.StoreUint32(&inDeferredPhase, 1)
+	} else {
+		atomic.StoreUint32(&inDeferredPhase, 0)
+	}
+}
+
+// InDeferredPhase returns true if we are currently in the deferred execution phase.
+func InDeferredPhase() bool {
+	return atomic.LoadUint32(&inDeferredPhase) == 1
+}
+
+// NbActiveSessions returns the number of active profiling sessions.
+// This can be used to avoid overhead when no profiling is active.
+func NbActiveSessions() uint32 {
+	return atomic.LoadUint32(&activeSessions)
 }
 
 func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
@@ -197,6 +349,37 @@ func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
 		}
 		p.locations[uint64(frame.PC)] = l
 		p.pprof.Location = append(p.pprof.Location, l)
+	}
+
+	return l
+}
+
+// getDeferredLocation is like getLocation but for the deferred profile
+func (p *Profile) getDeferredLocation(frame *runtime.Frame) *profile.Location {
+	l, ok := p.deferredLocations[uint64(frame.PC)]
+	if !ok {
+		// first let's see if we have the function.
+		f, ok := p.deferredFunctions[frame.File+frame.Function]
+		if !ok {
+			fe := strings.Split(frame.Function, "/")
+			fName := fe[len(fe)-1]
+			f = &profile.Function{
+				ID:         uint64(len(p.deferredFunctions) + 1),
+				Name:       fName,
+				SystemName: frame.Function,
+				Filename:   frame.File,
+			}
+
+			p.deferredFunctions[frame.File+frame.Function] = f
+			p.deferredPprof.Function = append(p.deferredPprof.Function, f)
+		}
+
+		l = &profile.Location{
+			ID:   uint64(len(p.deferredLocations) + 1),
+			Line: []profile.Line{{Function: f, Line: int64(frame.Line)}},
+		}
+		p.deferredLocations[uint64(frame.PC)] = l
+		p.deferredPprof.Location = append(p.deferredPprof.Location, l)
 	}
 
 	return l

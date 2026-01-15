@@ -56,6 +56,13 @@
 // `ReadFrom` and `WriteTo` methods to read/write the proving keys in binary
 // format and use the same proving key for both backends.
 //
+// # GPU pinning
+//
+// For long-lived prover processes, you can set `PinToGPU` on the ICICLE proving
+// key to pre-load and keep all proving key vectors in GPU memory, including
+// commitment keys. This reduces per-proof transfers at the cost of higher
+// persistent GPU memory usage.
+//
 // # Non-free backends
 //
 // gnark by default depends on the MIT-licensed ICICLE backend library. However, ICICLE

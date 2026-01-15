@@ -3,6 +3,8 @@ package solidity
 import (
 	"fmt"
 	"hash"
+	"io"
+	"sort"
 
 	"github.com/consensys/gnark/backend"
 	"golang.org/x/crypto/sha3"
@@ -17,6 +19,17 @@ type ExportOption func(*ExportConfig) error
 type ExportConfig struct {
 	PragmaVersion string
 	HashToFieldFn hash.Hash
+	// Imports contains additional import statements to include in the generated contract.
+	// Each key is an import statement (without semicolon), sorted by key for deterministic output.
+	Imports map[string]struct{}
+	// Interfaces contains the interface names that the contract implements.
+	Interfaces []string
+	// Constants contains additional constant declarations to include in the contract.
+	Constants string
+	// Constructor contains the constructor code to include in the contract.
+	Constructor string
+	// Functions contains additional functions to include in the contract.
+	Functions string
 }
 
 // NewExportConfig returns a default ExportConfig with given export options opts
@@ -51,6 +64,125 @@ func WithHashToFieldFunction(hFunc hash.Hash) ExportOption {
 		cfg.HashToFieldFn = hFunc
 		return nil
 	}
+}
+
+// WithImport adds an import statement to the generated Solidity contract. Can
+// be called multiple times to add multiple imports. The imports are sorted
+// alphabetically for deterministic output.
+//
+// Example:
+//
+//	solidity.WithImport(strings.NewReader(`import { Mimc } from "../../../libraries/Mimc.sol";`))
+func WithImport(r io.Reader) ExportOption {
+	return func(cfg *ExportConfig) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("read import: %w", err)
+		}
+		if cfg.Imports == nil {
+			cfg.Imports = make(map[string]struct{})
+		}
+		cfg.Imports[string(b)] = struct{}{}
+		return nil
+	}
+}
+
+// WithInterface adds an interface name that the contract implements. Can be
+// called multiple times to add multiple interfaces.
+//
+// Example:
+//
+//	solidity.WithInterface(strings.NewReader("IPlonkVerifier"))
+func WithInterface(r io.Reader) ExportOption {
+	return func(cfg *ExportConfig) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("read interface: %w", err)
+		}
+		cfg.Interfaces = append(cfg.Interfaces, string(b))
+		return nil
+	}
+}
+
+// WithConstants adds additional constant declarations to the generated Solidity
+// contract. The constants are inserted after the existing constants in the
+// template.
+//
+// Example:
+//
+//	solidity.WithConstants(strings.NewReader("bytes32 private immutable CHAIN_CONFIGURATION;"))
+func WithConstants(r io.Reader) ExportOption {
+	return func(cfg *ExportConfig) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("read constants: %w", err)
+		}
+		cfg.Constants = string(b)
+		return nil
+	}
+}
+
+// WithConstructor adds a constructor to the generated Solidity contract.
+//
+// Example:
+//
+//	solidity.WithConstructor(strings.NewReader("constructor() { }"))
+func WithConstructor(r io.Reader) ExportOption {
+	return func(cfg *ExportConfig) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("read constructor: %w", err)
+		}
+		cfg.Constructor = string(b)
+		return nil
+	}
+}
+
+// WithFunctions adds additional functions to the generated Solidity contract.
+// The functions are inserted before the closing brace of the contract.
+//
+// Example:
+//
+//	solidity.WithFunctions(strings.NewReader("function foo() public { }"))
+func WithFunctions(r io.Reader) ExportOption {
+	return func(cfg *ExportConfig) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("read functions: %w", err)
+		}
+		cfg.Functions = string(b)
+		return nil
+	}
+}
+
+// SortedImports returns the imports sorted alphabetically for deterministic output.
+func (cfg ExportConfig) SortedImports() []string {
+	if len(cfg.Imports) == 0 {
+		return nil
+	}
+	imports := make([]string, 0, len(cfg.Imports))
+	for imp := range cfg.Imports {
+		imports = append(imports, imp)
+	}
+	sort.Strings(imports)
+	return imports
+}
+
+// InterfaceDeclaration returns the interface declaration string for the contract.
+// Returns empty string if no interfaces are defined.
+func (cfg ExportConfig) InterfaceDeclaration() string {
+	// we use value receiver to be able to call the method inside templates
+	if len(cfg.Interfaces) == 0 {
+		return ""
+	}
+	result := " is "
+	for i, iface := range cfg.Interfaces {
+		if i > 0 {
+			result += ", "
+		}
+		result += iface
+	}
+	return result
 }
 
 // WithProverTargetSolidityVerifier returns a prover option that sets all the

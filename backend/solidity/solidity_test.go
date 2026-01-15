@@ -4,13 +4,19 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
+	"os"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -173,4 +179,79 @@ func TestTwoCommitments(t *testing.T) {
 	circuit := &twoCommitCircuit{}
 	assignment := &twoCommitCircuit{A: 2, B: 3, Out: 6}
 	assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK))
+}
+
+func TestWriteContractsGroth16(t *testing.T) {
+	t.Skip("temporary test to write out existing contracts")
+	assert := test.NewAssert(t)
+	// temporary test to write out existing contracts
+	// groth16 no commitment
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &noCommitCircuit{})
+	assert.NoError(err)
+	_, vk, err := groth16.Setup(ccs)
+	assert.NoError(err)
+	solf, err := os.Create("testdata/blank_groth16_nocommit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf)
+	assert.NoError(err)
+	vkf, err := os.Create("testdata/blank_groth16_nocommit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
+	_, err = vk.WriteTo(vkf)
+	assert.NoError(err)
+	// groth16 single commitment
+	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &commitCircuit{})
+	assert.NoError(err)
+	_, vk, err = groth16.Setup(ccs)
+	assert.NoError(err)
+	solf, err = os.Create("testdata/blank_groth16_commit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf, solidity.WithHashToFieldFunction(sha3.NewLegacyKeccak256()))
+	assert.NoError(err)
+	vkf, err = os.Create("testdata/blank_groth16_commit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
+	_, err = vk.WriteTo(vkf)
+	assert.NoError(err)
+}
+
+func TestWriteContractsPlonk(t *testing.T) {
+	t.Skip("temporary test to write out existing contracts")
+	assert := test.NewAssert(t)
+	// plonk no commitment
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &noCommitCircuit{})
+	assert.NoError(err)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
+	assert.NoError(err)
+	_, vk, err := plonk.Setup(ccs, srs, srsLagrange)
+	assert.NoError(err)
+	solf, err := os.Create("testdata/blank_plonk_nocommit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf)
+	assert.NoError(err)
+	vkf, err := os.Create("testdata/blank_plonk_nocommit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
+	_, err = vk.WriteTo(vkf)
+	assert.NoError(err)
+	// plonk single commitment
+	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &commitCircuit{})
+	assert.NoError(err)
+	srs, srsLagrange, err = unsafekzg.NewSRS(ccs)
+	assert.NoError(err)
+	_, vk, err = plonk.Setup(ccs, srs, srsLagrange)
+	assert.NoError(err)
+	solf, err = os.Create("testdata/blank_plonk_commit.sol")
+	assert.NoError(err)
+	defer solf.Close()
+	err = vk.ExportSolidity(solf)
+	assert.NoError(err)
+	vkf, err = os.Create("testdata/blank_plonk_commit.vk")
+	assert.NoError(err)
+	defer vkf.Close()
+	_, err = vk.WriteTo(vkf)
+	assert.NoError(err)
 }

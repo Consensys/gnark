@@ -12,6 +12,7 @@ type Config struct {
 	Backend     Backend
 	BackendLibs string
 	ProverOpts  []backend.ProverOption
+	PinToGPU    bool // If true, pre-load and keep all vectors in GPU memory (default: false)
 }
 
 // NewConfig creates a new IcicleConfig with the given options. If no options
@@ -107,6 +108,17 @@ func WithBackendLibrary(libs string) Option {
 			return fmt.Errorf("no backend libs provided")
 		}
 		c.BackendLibs = libs
+		return nil
+	}
+}
+
+// WithPinKeysToGPU sets whether to pin the proving key vectors to GPU memory.
+// This reduces per-proof transfers at the cost of higher persistent GPU memory
+// usage. By default, this is false (i.e. we free the GPU memory after each
+// proof).
+func WithPinKeysToGPU(pin bool) Option {
+	return func(c *Config) error {
+		c.PinToGPU = pin
 		return nil
 	}
 }
