@@ -55,4 +55,7 @@ gnarkd/circuits/**
 go.work
 go.work.sum
 
+# AI settings
+.claude/
+
 examples/gbotrel/**
