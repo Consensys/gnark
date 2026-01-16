@@ -268,18 +268,26 @@ func TestIsAdditive(t *testing.T) {
 	}
 
 	// h: x -> 2x
-	// but it edits it input
 	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Add(x[0], x[0])
 	}
 
-	assert.False(t, IsGateFunctionAdditive(f, 1, 2))
-	assert.False(t, IsGateFunctionAdditive(f, 0, 2))
+	newTester := func(f gkr.GateFunction, nbIn int) *GateTester {
+		cg, err := gkrtypes.CompileGateFunction(f, nbIn)
+		assert.NoError(t, err)
+		return NewGateTester(cg, nbIn)
+	}
 
-	assert.False(t, IsGateFunctionAdditive(g, 0, 2))
-	assert.True(t, IsGateFunctionAdditive(g, 1, 2))
+	tester := newTester(f, 2)
+	assert.False(t, tester.IsAdditive(1))
+	assert.False(t, tester.IsAdditive(0))
 
-	assert.True(t, IsGateFunctionAdditive(h, 0, 1))
+	tester = newTester(g, 2)
+	assert.False(t, tester.IsAdditive(0))
+	assert.True(t, tester.IsAdditive(1))
+
+	tester = newTester(h, 1)
+	assert.True(t, tester.IsAdditive(0))
 }
 
 func generateTestProver(path string) func(t *testing.T) {

@@ -263,6 +263,14 @@ func (z *SmallRational) SetInt64(i int64) *SmallRational {
 	return z
 }
 
+// SetBigInt sets z to the integer value i (denominator = 1).
+func (z *SmallRational) SetBigInt(i *big.Int) *SmallRational {
+	z.numerator.Set(i)
+	z.denominator.SetInt64(1)
+	z.text = i.String()
+	return z
+}
+
 func (z *SmallRational) SetRandom() (*SmallRational, error) {
 
 	bytes := make([]byte, 1)

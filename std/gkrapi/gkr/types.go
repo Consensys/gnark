@@ -35,9 +35,7 @@ type GateAPI interface {
 	// Mul returns res = i1 * i2 * ... in
 	Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable
 
-	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
-	// whose value will be resolved at runtime when computed by the solver
-	Println(a ...frontend.Variable)
+	SumExp17(a, b, c frontend.Variable) frontend.Variable
 }
 
 // GateFunction is a function that evaluates a polynomial over its inputs
