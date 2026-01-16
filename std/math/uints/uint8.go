@@ -130,6 +130,14 @@ func NewU64Array(v []uint64) []U64 {
 	return ret
 }
 
+func (bf *BinaryField[T]) zero() T {
+	var res T
+	for i := range bf.lenBts() {
+		res[i] = NewU8(0)
+	}
+	return res
+}
+
 // ByteValueOf converts a frontend.Variable into a single byte. If the input
 // doesn't fit into a byte then solver fails.
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
@@ -164,6 +172,10 @@ func (bf *BinaryField[T]) ToValue(a T) frontend.Variable {
 	return vv
 }
 
+// PackMSB packs bytes into a long integer T assuming most significant byte
+// first order.
+// For example, PackMSB(0x12, 0x34, 0x56, 0x78) = 0x12345678
+// The number of bytes provided must match the size of T.
 func (bf *BinaryField[T]) PackMSB(a ...U8) T {
 	var ret T
 	for i := range a {
@@ -172,6 +184,10 @@ func (bf *BinaryField[T]) PackMSB(a ...U8) T {
 	return ret
 }
 
+// PackLSB packs bytes into a long integer T assuming least significant byte
+// first order.
+// For example, PackLSB(0x12, 0x34, 0x56, 0x78) = 0x78563412
+// The number of bytes provided must match the size of T.
 func (bf *BinaryField[T]) PackLSB(a ...U8) T {
 	var ret T
 	for i := range a {
@@ -180,6 +196,10 @@ func (bf *BinaryField[T]) PackLSB(a ...U8) T {
 	return ret
 }
 
+// UnpackMSB unpacks a long integer T into bytes assuming most significant
+// byte first order.
+// For example, UnpackMSB(0x12345678) = (0x12, 0x34, 0x56, 0x78)
+// The number of bytes returned matches the size of T.
 func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 	ret := make([]U8, bf.lenBts())
 	for i := range ret {
@@ -188,6 +208,10 @@ func (bf *BinaryField[T]) UnpackMSB(a T) []U8 {
 	return ret
 }
 
+// UnpackLSB unpacks a long integer T into bytes assuming least significant
+// byte first order.
+// For example, UnpackLSB(0x78563412) = (0x12, 0x34, 0x56, 0x78)
+// The number of bytes returned matches the size of T.
 func (bf *BinaryField[T]) UnpackLSB(a T) []U8 {
 	// cannot deduce that a can be cast to []U8
 	ret := make([]U8, bf.lenBts())
@@ -205,10 +229,19 @@ func (bf *BinaryField[T]) twoArgWideFn(tbl *logderivprecomp.Precomputed, a ...T)
 	return r
 }
 
+// And performs bitwise AND operation on all inputs a. It returns the result of
+// ANDing all inputs together. The number of inputs must be at least one.
 func (bf *BinaryField[T]) And(a ...T) T { return bf.twoArgWideFn(bf.andT, a...) }
-func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
-func (bf *BinaryField[T]) Or(a ...T) T  { return bf.twoArgWideFn(bf.orT, a...) }
 
+// Xor performs bitwise XOR operation on all inputs a. It returns the result of
+// XORing all inputs together. The number of inputs must be at least one.
+func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
+
+// Or performs bitwise OR operation on all inputs a. It returns the result of
+// ORing all inputs together. The number of inputs must be at least one.
+func (bf *BinaryField[T]) Or(a ...T) T { return bf.twoArgWideFn(bf.orT, a...) }
+
+// Not performs bitwise NOT operation on input a.
 func (bf *BinaryField[T]) Not(a T) T {
 	var r T
 	for i := 0; i < bf.lenBts(); i++ {
@@ -217,21 +250,86 @@ func (bf *BinaryField[T]) Not(a T) T {
 	return r
 }
 
+// Add performs addition of all inputs a modulo T. It returns the result of adding all
+// inputs together. The number of inputs must be at least one.
+//
+// For example if T is U32, then addition is performed modulo 2^32. This means that the
+// carry bit is omitted.
 func (bf *BinaryField[T]) Add(a ...T) T {
+	switch len(a) {
+	case 0:
+		return bf.zero()
+	case 1:
+		return a[0]
+	}
 	tLen := bf.lenBts() * 8
 	inLen := len(a)
-	va := make([]frontend.Variable, inLen)
-	for i := range a {
-		va[i] = bf.ToValue(a[i])
-	}
-	vres := bf.api.Add(va[0], va[1], va[2:]...)
 	maxBitlen := bits.Len(uint(inLen)) + tLen
-	// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
-	vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
-	res := bf.ValueOf(vreslow)
-	return res
+	// when we use large fields where maxBitLen < field size, then we can just
+	// add all the values directly and then partition. However, when
+	//    maxBitlen >= field size
+	// then we need to make sure that we never have an addition which overflows
+	// the field. So we do the additions step by step, partitioning after every
+	// addition to ensure that the intermediate results never overflow the
+	// field.
+	if maxBitlen < bf.api.Compiler().FieldBitLen() {
+		// handle the easy case. For this, we just compose the bytes into a
+		// native frontend.Variable, perform the addition natively drop the the
+		// carry bit and then re-split into bytes.
+
+		va := make([]frontend.Variable, inLen)
+		for i := range a {
+			va[i] = bf.ToValue(a[i])
+		}
+		vres := bf.api.Add(va[0], va[1], va[2:]...)
+		// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
+		vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+		res := bf.ValueOf(vreslow)
+		return res
+	} else {
+		// however, if the result when combining the bytes doesn't fit into the
+		// native field (i.e. we work over Koalabear), then we cannot use the
+		// same approach. Instead, we perform bytewise addition. For every byte
+		// addition we result in the result byte and a carry. The carry will be
+		// added to the next byte addition. And we can omit the last carry as we
+		// perform addition modulo 2^T.
+
+		// we don't fit into the native field. We operate bytewise. Update the
+		// bitlen for partitioning the carry
+		maxBitlen = bits.Len(uint(inLen)) + 8
+		// handle the more complex case where we need to partition after every addition
+		var carry frontend.Variable = 0
+		var res T
+
+		// inputs are provided as {[a00 a01 ... a0n], [a10 a11 ... a1n], ...} (i.e. a_{inputindex,byteindex}).
+		// but we want to perform additions per byte, so we need to transpose the inputs first.
+		// we can use the reslice method for this.
+		ai := bf.reslice(a) // [lenBts][len(a)]U8
+		aij := make([]frontend.Variable, inLen)
+		for i := range bf.lenBts() {
+			for j := range a {
+				// obtain the values -- we don't access directly as we want to
+				// ensure range checking conditions
+				aij[j] = bf.Value(ai[i][j])
+			}
+			// bytewise addition with carry
+			var vres frontend.Variable
+			if i > 0 {
+				vres = bf.api.Add(carry, aij[0], aij[1:]...)
+			} else {
+				vres = bf.api.Add(aij[0], aij[1], aij[2:]...)
+			}
+			vreslow, vreshigh := bitslice.Partition(bf.api, vres, 8, bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+			// store the result byte
+			res[i] = bf.ByteValueOf(vreslow)
+			carry = vreshigh // we omit the last carry as performing addition modulo 2^(lenBts*8)
+		}
+		return res
+	}
 }
 
+// Lrot performs left rotation of a by c bits.
+// For example, if T is U32, then Lrot(0x12345678, 8) = 0x34567812
 func (bf *BinaryField[T]) Lrot(a T, c int) T {
 	l := bf.lenBts()
 	if c < 0 {
@@ -260,6 +358,8 @@ func (bf *BinaryField[T]) Lrot(a T, c int) T {
 	return ret
 }
 
+// Rshift performs right shift of a by c bits.
+// For example, if T is U32, then Rshift(0x12345678, 8) = 0x00123456
 func (bf *BinaryField[T]) Rshift(a T, c int) T {
 	lenB := bf.lenBts()
 	shiftBl := c / 8
@@ -285,10 +385,12 @@ func (bf *BinaryField[T]) Rshift(a T, c int) T {
 	return ret
 }
 
+// ByteAssertEq asserts that two bytes are equal.
 func (bf *BinaryField[T]) ByteAssertEq(a, b U8) {
 	bf.Bytes.AssertIsEqual(a, b)
 }
 
+// AssertEq asserts that two long integers are equal.
 func (bf *BinaryField[T]) AssertEq(a, b T) {
 	for i := 0; i < bf.lenBts(); i++ {
 		bf.ByteAssertEq(a[i], b[i])
