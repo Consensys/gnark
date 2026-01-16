@@ -1,26 +1,10 @@
-package groth16
 
-import (
-	"bytes"
-
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-)
-
-// solidityTemplate
-// this is an experimental feature and gnark solidity generator as not been thoroughly tested
-const solidityTemplate = `
-{{- $numPublic := sub (len .Vk.G1.K) 1 }}
-{{- $numCommitments := len .Vk.PublicAndCommitmentCommitted }}
-{{- $numWitness := sub $numPublic $numCommitments }}
-{{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
 
-pragma solidity {{ .Cfg.PragmaVersion }};
-{{- if .Cfg.SortedImports }}
-{{ range $imp := .Cfg.SortedImports }}
-{{ $imp }}
-{{- end }}
-{{- end }}
+pragma solidity ^0.8.0;
+
+import { A } from "a.sol";
+import { B } from "b.sol";
 
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
@@ -28,7 +12,7 @@ pragma solidity {{ .Cfg.PragmaVersion }};
 /// (256 bytes) and compressed (128 bytes) format. A view function is provided
 /// to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
-contract Verifier{{ .Cfg.InterfaceDeclaration }} {
+contract Verifier is IVerifier {
 
     /// Some of the provided public input values are larger than the field modulus.
     /// @dev Public input elements are not automatically reduced, as this is can be
@@ -40,14 +24,6 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// curves, that pairing equation fails, or that the proof is not for the
     /// provided public input.
     error ProofInvalid();
-
-    {{- if gt $numCommitments 0 }}
-    /// The commitment is invalid
-    /// @dev This can mean that provided commitment points and/or proof of knowledge are not on their
-    /// curves, that pairing equation fails, or that the commitment and/or proof of knowledge is not for the
-    /// commitment key.
-    error CommitmentInvalid();
-    {{- end }}
 
     // Addresses of precompiles
     uint256 constant PRECOMPILE_MODEXP = 0x05;
@@ -80,60 +56,42 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     uint256 constant EXP_SQRT_FP = 0xC19139CB84C680A6E14116DA060561765E05AA45A1C72A34F082305B61F3F52; // (P + 1) / 4;
 
     // Groth16 alpha point in G1
-    uint256 constant ALPHA_X = {{ (fpstr .Vk.G1.Alpha.X) }};
-    uint256 constant ALPHA_Y = {{ (fpstr .Vk.G1.Alpha.Y) }};
+    uint256 constant ALPHA_X = 15275138465222268075688167023256986621143795978980984973528354613794178277552;
+    uint256 constant ALPHA_Y = 4256178492919615555831689546236043579358329306076277614215811428074744755299;
 
     // Groth16 beta point in G2 in powers of i
-    uint256 constant BETA_NEG_X_0 = {{ (fpstr .Vk.G2.Beta.X.A0) }};
-    uint256 constant BETA_NEG_X_1 = {{ (fpstr .Vk.G2.Beta.X.A1) }};
-    uint256 constant BETA_NEG_Y_0 = {{ (fpstr .Vk.G2.Beta.Y.A0) }};
-    uint256 constant BETA_NEG_Y_1 = {{ (fpstr .Vk.G2.Beta.Y.A1) }};
+    uint256 constant BETA_NEG_X_0 = 1263968980062400593261648229004557971887738225571621134367455459491228678284;
+    uint256 constant BETA_NEG_X_1 = 13017293726012653666231735700816227377700488663068027867506700543963126530739;
+    uint256 constant BETA_NEG_Y_0 = 463539242419840207397911122385016180701735732628451181160363407439515466810;
+    uint256 constant BETA_NEG_Y_1 = 14078050393361600965169705090105052448741284397579038544184640600674965922681;
 
     // Groth16 gamma point in G2 in powers of i
-    uint256 constant GAMMA_NEG_X_0 = {{ (fpstr .Vk.G2.Gamma.X.A0) }};
-    uint256 constant GAMMA_NEG_X_1 = {{ (fpstr .Vk.G2.Gamma.X.A1) }};
-    uint256 constant GAMMA_NEG_Y_0 = {{ (fpstr .Vk.G2.Gamma.Y.A0) }};
-    uint256 constant GAMMA_NEG_Y_1 = {{ (fpstr .Vk.G2.Gamma.Y.A1) }};
+    uint256 constant GAMMA_NEG_X_0 = 4192492175063876753008763534121827656978349907119722965541672409634844710582;
+    uint256 constant GAMMA_NEG_X_1 = 11093144019532515445779296452732154142824133322812911415156390407781888451557;
+    uint256 constant GAMMA_NEG_Y_0 = 17411712677845408440788592061743959365092989741439027343206284997785288033237;
+    uint256 constant GAMMA_NEG_Y_1 = 9260893730434736049074127584749460669716977307801664536904273131058936352244;
 
     // Groth16 delta point in G2 in powers of i
-    uint256 constant DELTA_NEG_X_0 = {{ (fpstr .Vk.G2.Delta.X.A0) }};
-    uint256 constant DELTA_NEG_X_1 = {{ (fpstr .Vk.G2.Delta.X.A1) }};
-    uint256 constant DELTA_NEG_Y_0 = {{ (fpstr .Vk.G2.Delta.Y.A0) }};
-    uint256 constant DELTA_NEG_Y_1 = {{ (fpstr .Vk.G2.Delta.Y.A1) }};
-
-    {{- if gt $numCommitments 0 }}
-    // Pedersen G point in G2 in powers of i
-    {{- $cmtVk0 := index .Vk.CommitmentKeys 0 }}
-    uint256 constant PEDERSEN_G_X_0 = {{ (fpstr $cmtVk0.G.X.A0) }};
-    uint256 constant PEDERSEN_G_X_1 = {{ (fpstr $cmtVk0.G.X.A1) }};
-    uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr $cmtVk0.G.Y.A0) }};
-    uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr $cmtVk0.G.Y.A1) }};
-
-    // Pedersen GSigmaNeg point in G2 in powers of i
-    uint256 constant PEDERSEN_GSIGMANEG_X_0 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A0) }};
-    uint256 constant PEDERSEN_GSIGMANEG_X_1 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A1) }};
-    uint256 constant PEDERSEN_GSIGMANEG_Y_0 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A0) }};
-    uint256 constant PEDERSEN_GSIGMANEG_Y_1 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A1) }};
-    {{- end }}
+    uint256 constant DELTA_NEG_X_0 = 19701361679588962813404603786625210698229184359823816133013890146003877850911;
+    uint256 constant DELTA_NEG_X_1 = 8610605697496790254073037669885257085251676297861691882661279963113598445778;
+    uint256 constant DELTA_NEG_Y_0 = 8238948094095111020558383386154480006889441547265951725331970613733801765972;
+    uint256 constant DELTA_NEG_Y_1 = 6724220789440547186657079876966090827814650711348900419509822137359728565844;
 
     // Constant and public input points
-    {{- $k0 := index .Vk.G1.K 0}}
-    uint256 constant CONSTANT_X = {{ (fpstr $k0.X) }};
-    uint256 constant CONSTANT_Y = {{ (fpstr $k0.Y) }};
-    {{- range $i, $ki := .Vk.G1.K }}
-        {{- if gt $i 0 }}
-    uint256 constant PUB_{{sub $i 1}}_X = {{ (fpstr $ki.X) }};
-    uint256 constant PUB_{{sub $i 1}}_Y = {{ (fpstr $ki.Y) }};
-        {{- end }}
-    {{- end }}
-{{- if .Cfg.Constants }}
+    uint256 constant CONSTANT_X = 7429130152180629240426301649629313466013567950287125629095765510207179998940;
+    uint256 constant CONSTANT_Y = 3733277600023707941578749672331256573081492669083426945263136487798543806894;
+    uint256 constant PUB_0_X = 13458802420957674336569187726799627041673649107596888420476085154855733653944;
+    uint256 constant PUB_0_Y = 21467066256484667342862470576518259533146650576371356605342062991720970330065;
+    uint256 constant PUB_1_X = 10834652275482411277958761939954701094796036566520748144399540871990098808314;
+    uint256 constant PUB_1_Y = 687002451258774021381811802418530120135896919990173366661928006331204037575;
+    uint256 constant PUB_2_X = 238451497374524437861713847406560379659184404276257977234734727204672461768;
+    uint256 constant PUB_2_Y = 3720089603828145656901780258756276990624925199990344107236088469401522242243;
 
-{{ .Cfg.Constants }}
-{{- end }}
-{{- if .Cfg.Constructor }}
+	bytes32 private immutable CHAIN_CONFIG;
 
-{{ .Cfg.Constructor }}
-{{- end }}
+	constructor(bytes32 config) {
+		CHAIN_CONFIG = config;
+  }
 
     /// Negation in Fp.
     /// @notice Returns a number x such that a + x = 0 in Fp.
@@ -408,21 +366,9 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// @notice Computes the multi-scalar-multiplication of the public input
     /// elements and the verification key including the constant term.
     /// @param input The public inputs. These are elements of the scalar field Fr.
-    {{- if gt $numCommitments 0 }}
-    /// @param publicCommitments public inputs generated from pedersen commitments.
-    /// @param commitments The Pedersen commitments from the proof.
-    {{- end }}
     /// @return x The X coordinate of the resulting G1 point.
     /// @return y The Y coordinate of the resulting G1 point.
-    {{- if eq $numCommitments 0 }}
-    function publicInputMSM(uint256[{{$numWitness}}] calldata input)
-    {{- else }}
-    function publicInputMSM(
-        uint256[{{$numWitness}}] calldata input,
-        uint256[{{$numCommitments}}] memory publicCommitments,
-        uint256[{{mul 2 $numCommitments}}] memory commitments
-    )
-    {{- end }}
+    function publicInputMSM(uint256[3] calldata input)
     internal view returns (uint256 x, uint256 y) {
         // Note: The ECMUL precompile does not reject unreduced values, so we check this.
         // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
@@ -439,32 +385,27 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
             let s
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
-            {{- if gt $numCommitments 0 }}
-            {{- if eq $numCommitments 1 }}
-            mstore(g, mload(commitments))
-            mstore(add(g, 0x20), mload(add(commitments, 0x20)))
-            {{- else }}
-            success := and(success,  staticcall(gas(), PRECOMPILE_ADD, commitments, {{mul 0x40 $numCommitments}}, g, 0x40))
-            {{- end }}
-            success := and(success,  staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
-            {{- end }}
-            {{- range $i := intRange $numPublic }}
-            mstore(g, PUB_{{$i}}_X)
-            mstore(add(g, 0x20), PUB_{{$i}}_Y)
-            {{- if eq $i 0 }}
+            mstore(g, PUB_0_X)
+            mstore(add(g, 0x20), PUB_0_Y)
             s :=  calldataload(input)
-            {{- else if lt $i $numWitness }}
-            s :=  calldataload(add(input, {{mul $i 0x20}}))
-            {{- else if eq $i $numWitness }}
-            s := mload(publicCommitments)
-            {{- else}}
-            s := mload(add(publicCommitments, {{mul 0x20 (sub $i $numWitness)}}))
-            {{- end }}
             mstore(add(g, 0x40), s)
             success := and(success, lt(s, R))
             success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
             success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
-            {{- end }}
+            mstore(g, PUB_1_X)
+            mstore(add(g, 0x20), PUB_1_Y)
+            s :=  calldataload(add(input, 32))
+            mstore(add(g, 0x40), s)
+            success := and(success, lt(s, R))
+            success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
+            success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
+            mstore(g, PUB_2_X)
+            mstore(add(g, 0x20), PUB_2_Y)
+            s :=  calldataload(add(input, 64))
+            mstore(add(g, 0x40), s)
+            success := and(success, lt(s, R))
+            success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
+            success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
 
             x := mload(f)
             y := mload(add(f, 0x20))
@@ -481,40 +422,13 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// but does not verify the proof itself.
     /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
     /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
-    {{- if gt $numCommitments 0 }}
-    /// @param commitments Pedersen commitments from the proof.
-    /// @param commitmentPok proof of knowledge for the Pedersen commitments.
-    {{- end }}
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
-    {{- if gt $numCommitments 0 }}
-    /// @return compressedCommitments compressed Pedersen commitments from the proof.
-    /// @return compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
-    {{- end }}
-    {{- if eq $numCommitments 0 }}
     function compressProof(uint256[8] calldata proof)
     public view returns (uint256[4] memory compressed) {
-    {{- else }}
-    function compressProof(
-        uint256[8] calldata proof,
-        uint256[{{mul 2 $numCommitments}}] calldata commitments,
-        uint256[2] calldata commitmentPok
-    )
-    public view returns (
-        uint256[4] memory compressed,
-        uint256[{{$numCommitments}}] memory compressedCommitments,
-        uint256 compressedCommitmentPok
-    ) {
-    {{- end }}
         compressed[0] = compress_g1(proof[0], proof[1]);
         (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
         compressed[3] = compress_g1(proof[6], proof[7]);
-        {{- if gt $numCommitments 0 }}
-        {{- range $i := intRange $numCommitments }}
-        compressedCommitments[{{$i}}] = compress_g1(commitments[{{mul 2 $i}}], commitments[{{sum (mul 2 $i) 1}}]);
-        {{- end }}
-        compressedCommitmentPok = compress_g1(commitmentPok[0], commitmentPok[1]);
-        {{- end }}
     }
 
     /// Verify a Groth16 proof with compressed points.
@@ -524,112 +438,19 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// proof was successfully verified.
     /// @param compressedProof the points (A, B, C) in compressed format
     /// matching the output of compressProof.
-    {{- if gt $numCommitments 0 }}
-    /// @param compressedCommitments compressed Pedersen commitments from the proof.
-    /// @param compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
-    {{- end }}
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
-        {{- if gt $numCommitments 0}}
-        uint256[{{$numCommitments}}] calldata compressedCommitments,
-        uint256 compressedCommitmentPok,
-        {{- end }}
-        uint256[{{$numWitness}}] calldata input
+        uint256[3] calldata input
     ) public view {
-        {{- if gt $numCommitments 0 }}
-        uint256[{{$numCommitments}}] memory publicCommitments;
-        uint256[{{mul 2 $numCommitments}}] memory commitments;
-        {{- end }}
         uint256[24] memory pairings;
-
-        {{- if gt $numCommitments 0 }}
-        {
-            {{- if eq $numCommitments 1 }}
-            (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
-            {{- else }}
-            // TODO: We can fold commitments into a single point for more efficient verification (https://github.com/Consensys/gnark/issues/1095)
-            for (uint256 i = 0; i < {{$numCommitments}}; i++) {
-                (commitments[2*i], commitments[2*i+1]) = decompress_g1(compressedCommitments[i]);
-            }
-            {{- end}}
-            (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
-
-            uint256[] memory publicAndCommitmentCommitted;
-            {{- range $i := intRange $numCommitments }}
-            {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-            {{- if gt (len $pcIndex) 0 }}
-            publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-            assembly ("memory-safe") {
-                let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-                {{- $segment_start := index $pcIndex 0 }}
-                {{- $segment_end := index $pcIndex 0 }}
-                {{- $l := 0 }}
-                {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                    {{- $next := index $pcIndex (sum $k 1) }}
-                    {{- if ne $next (sum $segment_end 1) }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                        {{- $segment_start = $next }}
-                        {{- $l = (sum $k 1) }}
-                    {{- end }}
-                    {{- $segment_end = $next }}
-                {{- end }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-            }
-            {{- end }}
-
-            publicCommitments[{{$i}}] = uint256(
-                {{ hashFnName }}(
-                    abi.encodePacked(
-                        commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}],
-                        publicAndCommitmentCommitted
-                    )
-                )
-            ) % R;
-            {{- end }}
-            // Commitments
-            pairings[ 0] = commitments[0];
-            pairings[ 1] = commitments[1];
-            pairings[ 2] = PEDERSEN_GSIGMANEG_X_1;
-            pairings[ 3] = PEDERSEN_GSIGMANEG_X_0;
-            pairings[ 4] = PEDERSEN_GSIGMANEG_Y_1;
-            pairings[ 5] = PEDERSEN_GSIGMANEG_Y_0;
-            pairings[ 6] = Px;
-            pairings[ 7] = Py;
-            pairings[ 8] = PEDERSEN_G_X_1;
-            pairings[ 9] = PEDERSEN_G_X_0;
-            pairings[10] = PEDERSEN_G_Y_1;
-            pairings[11] = PEDERSEN_G_Y_0;
-
-            // Verify pedersen commitments
-            bool success;
-            assembly ("memory-safe") {
-                let f := mload(0x40)
-
-                success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x180, f, 0x20)
-                success := and(success, mload(f))
-            }
-            if (!success) {
-                revert CommitmentInvalid();
-            }
-        }
-        {{- end }}
 
         {
             (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
             (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(compressedProof[2], compressedProof[1]);
             (uint256 Cx, uint256 Cy) = decompress_g1(compressedProof[3]);
-            {{- if eq $numCommitments 0 }}
             (uint256 Lx, uint256 Ly) = publicInputMSM(input);
-            {{- else }}
-            (uint256 Lx, uint256 Ly) = publicInputMSM(
-                input,
-                publicCommitments,
-                commitments
-            );
-            {{- end}}
 
             // Verify the pairing
             // Note: The precompile expects the F2 coefficients in big-endian order.
@@ -684,95 +505,17 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// proof was successfully verified.
     /// @param proof the points (A, B, C) in EIP-197 format matching the output
     /// of compressProof.
-    {{- if gt $numCommitments 0 }}
-    /// @param commitments the Pedersen commitments from the proof.
-    /// @param commitmentPok the proof of knowledge for the Pedersen commitments.
-    {{- end }}
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
         uint256[8] calldata proof,
-        {{- if gt $numCommitments 0}}
-        uint256[{{mul 2 $numCommitments}}] calldata commitments,
-        uint256[2] calldata commitmentPok,
-        {{- end }}
-        uint256[{{$numWitness}}] calldata input
+        uint256[3] calldata input
     ) public view {
-        {{- if eq $numCommitments 0 }}
         (uint256 x, uint256 y) = publicInputMSM(input);
-        {{- else }}
-        // HashToField
-        uint256[{{$numCommitments}}] memory publicCommitments;
-        uint256[] memory publicAndCommitmentCommitted;
-        {{- range $i := intRange $numCommitments }}
-        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-        {{- if gt (len $pcIndex) 0 }}
-        publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-        assembly ("memory-safe") {
-            let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-            {{- $segment_start := index $pcIndex 0 }}
-            {{- $segment_end := index $pcIndex 0 }}
-            {{- $l := 0 }}
-            {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                {{- $next := index $pcIndex (sum $k 1) }}
-                {{- if ne $next (sum $segment_end 1) }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                    {{- $segment_start = $next }}
-                    {{- $l = (sum $k 1) }}
-                {{- end }}
-                {{- $segment_end = $next }}
-            {{- end }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-        }
-        {{- end }}
-
-            publicCommitments[{{$i}}] = uint256(
-                {{ hashFnName }}(
-                    abi.encodePacked(
-                        commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}],
-                        publicAndCommitmentCommitted
-                    )
-                )
-            ) % R;
-        {{- end }}
-
-        // Verify pedersen commitments
-        bool success;
-        assembly ("memory-safe") {
-            let f := mload(0x40)
-
-            calldatacopy(f, commitments, 0x40) // Copy Commitments
-            mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
-            mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
-            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
-            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
-            calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
-            mstore(add(f, 0x100), PEDERSEN_G_X_1)
-            mstore(add(f, 0x120), PEDERSEN_G_X_0)
-            mstore(add(f, 0x140), PEDERSEN_G_Y_1)
-            mstore(add(f, 0x160), PEDERSEN_G_Y_0)
-
-            success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x180, f, 0x20)
-            success := and(success, mload(f))
-        }
-        if (!success) {
-            revert CommitmentInvalid();
-        }
-
-        (uint256 x, uint256 y) = publicInputMSM(
-            input,
-            publicCommitments,
-            commitments
-        );
-        {{- end }}
 
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-
-        {{- if eq $numCommitments 0 }}
         bool success;
-        {{- end }}
         assembly ("memory-safe") {
             let f := mload(0x40) // Free memory pointer.
 
@@ -812,26 +555,8 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
             revert ProofInvalid();
         }
     }
-{{- if .Cfg.Functions }}
 
-{{ .Cfg.Functions }}
-{{- end }}
-}
-`
-
-// MarshalSolidity converts a proof to a byte array that can be used in a
-// Solidity contract.
-func (proof *Proof) MarshalSolidity() []byte {
-	var buf bytes.Buffer
-	_, err := proof.WriteRawTo(&buf)
-	if err != nil {
-		panic(err)
-	}
-
-	// If there are no commitments, we can return only Ar | Bs | Krs
-	if len(proof.Commitments) > 0 {
-		return buf.Bytes()
-	} else {
-		return buf.Bytes()[:8*fr.Bytes]
-	}
+	function getConfig() external view returns (bytes32) {
+		return CHAIN_CONFIG;
+  }
 }
