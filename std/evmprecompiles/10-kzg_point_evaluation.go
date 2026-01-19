@@ -110,6 +110,12 @@ var (
 		"0x0000",
 		"0x0001",
 	}
+	// evmBlobSize16 is the expected blob size (4096) encoded as 16 2-byte parts.
+	// 4096 = 0x1000, so it's 14 zero limbs followed by 0x0000 and 0x1000 (big-endian).
+	evmBlobSize16 = [16]int{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, evmBlockSize,
+	}
 )
 
 // KzgPointEvaluation implements the [KZG_POINT_EVALUATION] precompile at
@@ -144,7 +150,7 @@ func KzgPointEvaluation(
 	// check expected modulus against 128-bit format
 	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
 	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
-	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize, 16)
+	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 16)
 }
 
 // KzgPointEvaluation16 implements the [KZG_POINT_EVALUATION] precompile at
@@ -173,14 +179,14 @@ func KzgPointEvaluation16(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed [24]frontend.Variable, // commitment is a 48 byte compressed point. Arithmetization uses 2-byte words, so we use a 24-element array.
 	proofCompressed [24]frontend.Variable, // proof is a 48 byte compressed point. Arithmetization uses 2-byte words, so we use a 24-element array.
-	expectedBlobSize [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
+	expectedBlobSize [16]frontend.Variable, // arithmetization uses 16-element array (2-byte words). It is constant for all purposes, but we check it anyway.
 	expectedBlsModulus [16]frontend.Variable, // arithmetization uses 16-element array. It is constant for all purposes, but we check it anyway.
 ) error {
 	// check expected modulus against 16-bit format
 	for i := range evmBlsModulus16 {
 		api.AssertIsEqual(expectedBlsModulus[i], evmBlsModulus16[i])
 	}
-	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize, 2)
+	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 2)
 }
 
 // kzgPointEvaluation is the generic implementation of KZG point evaluation.
@@ -192,7 +198,7 @@ func kzgPointEvaluation(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed []frontend.Variable,
 	proofCompressed []frontend.Variable,
-	expectedBlobSize [2]frontend.Variable,
+	expectedBlobSize []frontend.Variable,
 	bytesPerLimb int,
 ) error {
 	// -- perform conversion from limbs to 1-byte words
@@ -276,8 +282,11 @@ func kzgPointEvaluation(
 	}
 
 	// -- check expected values. These are constant values, so we just check that they match the expected values.
-	api.AssertIsEqual(expectedBlobSize[0], 0)
-	api.AssertIsEqual(expectedBlobSize[1], evmBlockSize)
+	// For both 128-bit and 16-bit formats, all limbs except the last should be 0, and the last should be evmBlockSize.
+	for i := 0; i < len(expectedBlobSize)-1; i++ {
+		api.AssertIsEqual(expectedBlobSize[i], 0)
+	}
+	api.AssertIsEqual(expectedBlobSize[len(expectedBlobSize)-1], evmBlockSize)
 
 	return nil
 }
@@ -317,7 +326,7 @@ func KzgPointEvaluationFailure(
 	expectedBlobSize [2]frontend.Variable,
 	expectedBlsModulus [2]frontend.Variable,
 ) error {
-	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize, expectedBlsModulus[:], 16)
+	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
 }
 
 // KzgPointEvaluationFailure16 checks a failing case of KZG point evaluation precompile
@@ -352,10 +361,10 @@ func KzgPointEvaluationFailure16(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed [24]frontend.Variable,
 	proofCompressed [24]frontend.Variable,
-	expectedBlobSize [2]frontend.Variable,
+	expectedBlobSize [16]frontend.Variable,
 	expectedBlsModulus [16]frontend.Variable,
 ) error {
-	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize, expectedBlsModulus[:], 2)
+	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
 }
 
 // kzgPointEvaluationFailure is the generic implementation of KZG point evaluation failure.
@@ -367,7 +376,7 @@ func kzgPointEvaluationFailure(
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
 	commitmentCompressed []frontend.Variable,
 	proofCompressed []frontend.Variable,
-	expectedBlobSize [2]frontend.Variable,
+	expectedBlobSize []frontend.Variable,
 	expectedBlsModulus []frontend.Variable,
 	bytesPerLimb int,
 ) error {
@@ -623,11 +632,12 @@ func kzgPointEvaluationFailure(
 		Y: *fp.Select(isCorrectHash, &proofUncompressed.Y, &dummyProof.Y),
 	}
 	// -- now check that the expected return values are correct
-	// - we check the KZG blob size.
-	isCorrectBlobSize := api.And(
-		api.IsZero(api.Sub(expectedBlobSize[0], 0)),
-		api.IsZero(api.Sub(expectedBlobSize[1], evmBlockSize)),
-	)
+	// - we check the KZG blob size. All limbs except the last should be 0, and the last should be evmBlockSize.
+	var isCorrectBlobSize frontend.Variable = 1
+	for i := 0; i < len(expectedBlobSize)-1; i++ {
+		isCorrectBlobSize = api.Mul(isCorrectBlobSize, api.IsZero(expectedBlobSize[i]))
+	}
+	isCorrectBlobSize = api.Mul(isCorrectBlobSize, api.IsZero(api.Sub(expectedBlobSize[len(expectedBlobSize)-1], evmBlockSize)))
 	// - check the BLS modulus based on the format
 	var isCorrectBlsModulus frontend.Variable = 1
 	if bytesPerLimb == 16 {

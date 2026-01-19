@@ -29,13 +29,18 @@ const (
 	locTrustedSetup = "kzg_trusted_setup.json"
 )
 
+var (
+	// evmBlobSize16Test is the expected blob size (4096) encoded as 16 2-byte parts for 16-bit format tests.
+	evmBlobSize16Test = []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, evmBlockSize}
+)
+
 type kzgPointEvalCircuit16 struct {
 	VersionedHash      [16]frontend.Variable
 	EvaluationPoint    emulated.Element[sw_bls12381.ScalarField]
 	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
 	Commitment         [24]frontend.Variable
 	Proof              [24]frontend.Variable
-	ExpectedBlobSize   [2]frontend.Variable
+	ExpectedBlobSize   [16]frontend.Variable
 	ExpectedBlsModulus [16]frontend.Variable
 }
 
@@ -107,9 +112,9 @@ func TestKzgPointEvaluationPrecompile16(t *testing.T) {
 	}
 
 	// prepare the constant return values
-	witnessBlobSize := [2]frontend.Variable{
-		0,
-		evmBlockSize,
+	witnessBlobSize := [16]frontend.Variable{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, evmBlockSize,
 	}
 	witnessBlsModulus := [16]frontend.Variable{
 		"0x73ed",
@@ -153,7 +158,7 @@ type kzgPointEvalFailureCircuit16 struct {
 	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
 	Commitment         [24]frontend.Variable
 	Proof              [24]frontend.Variable
-	ExpectedBlobSize   [2]frontend.Variable
+	ExpectedBlobSize   [16]frontend.Variable
 	ExpectedBlsModulus [16]frontend.Variable
 }
 
@@ -228,9 +233,9 @@ func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValu
 	}
 
 	// prepare the constant return values
-	witnessBlobSize := [2]frontend.Variable{
-		blobSize[0],
-		blobSize[1],
+	var witnessBlobSize [16]frontend.Variable
+	for i := range witnessBlobSize {
+		witnessBlobSize[i] = blobSize[i]
 	}
 	witnessBlsModulus := [16]frontend.Variable{
 		blsModulus[0],
@@ -304,7 +309,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.Error(err, "should fail on valid inputs")
@@ -326,7 +331,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			proofBytes,
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -344,7 +349,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			proofBytes,
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -368,7 +373,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -388,7 +393,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -408,7 +413,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofXBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -424,7 +429,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -443,7 +448,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofXBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -459,7 +464,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -475,7 +480,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -491,7 +496,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				proofBytes,
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -538,7 +543,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			proofXBytes,
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -558,7 +563,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				cmtXBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -574,7 +579,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				commitmentBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -593,7 +598,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				cmtXBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -609,7 +614,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -625,7 +630,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -641,7 +646,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSize},
+				evmBlobSize16Test,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -682,7 +687,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			cmtXBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -722,7 +727,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			cmtXBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -747,7 +752,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			hh[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -773,7 +778,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			hh[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -782,12 +787,14 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		// change expected blob size
 		assert.Run(func(assert *test.Assert) {
-			var evmBlockSizes [2]int
-			var buf [16]byte
+			// Generate random values for all 16 limbs
+			var evmBlockSizes [16]int
+			var buf [32]byte
 			_, err := rand.Reader.Read(buf[:])
 			assert.NoError(err, "rand")
-			evmBlockSizes[0] = int(binary.LittleEndian.Uint64(buf[0:8]))
-			evmBlockSizes[1] = int(binary.LittleEndian.Uint64(buf[8:16]))
+			for i := range evmBlockSizes {
+				evmBlockSizes[i] = int(binary.LittleEndian.Uint16(buf[i*2 : i*2+2]))
+			}
 			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
@@ -798,25 +805,27 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
-		}, "two-ints")
+		}, "all-ints")
 		assert.Run(func(assert *test.Assert) {
 			var evmBlockSizeNew int
 			for {
-				var buf [8]byte
+				var buf [2]byte
 				_, err := rand.Reader.Read(buf[:])
 				assert.NoError(err, "rand")
-				evmBlockSizeNew = int(binary.LittleEndian.Uint64(buf[:]))
+				evmBlockSizeNew = int(binary.LittleEndian.Uint16(buf[:]))
 				if evmBlockSizeNew != evmBlockSize {
 					break
 				}
 			}
+			// Create a 16-element slice with the wrong value in the last position
+			invalidBlobSize := []int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, evmBlockSizeNew}
 			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				kzgProof.H.Bytes(),
-				[]int{0, evmBlockSizeNew},
+				invalidBlobSize,
 				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
@@ -833,7 +842,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			encodeAll(buf[:]),
 		)
 		assert.NoError(err, "should pass")
@@ -848,7 +857,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
@@ -863,7 +872,7 @@ func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
-			[]int{0, evmBlockSize},
+			evmBlobSize16Test,
 			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
