@@ -125,6 +125,7 @@ func TestKzgPointEvaluationPrecompile16(t *testing.T) {
 		"0xd808",
 		"0x09a1",
 		"0xd805",
+		// "0x73eda753299d7d483339d80809a1d805",
 
 		"0x53bd",
 		"0xa402",
@@ -134,7 +135,6 @@ func TestKzgPointEvaluationPrecompile16(t *testing.T) {
 		"0xffff",
 		"0x0000",
 		"0x0001",
-		// "0x73eda753299d7d483339d80809a1d805",
 		// "0x53bda402fffe5bfeffffffff00000001",
 	}
 
@@ -178,58 +178,14 @@ func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValu
 	}
 
 	// - commitment into 3 limbs
-	witnessCommitment := [24]frontend.Variable{
-		encode(commitmentBytes[0:2]),
-		encode(commitmentBytes[2:4]),
-		encode(commitmentBytes[4:6]),
-		encode(commitmentBytes[6:8]),
-		encode(commitmentBytes[8:10]),
-		encode(commitmentBytes[10:12]),
-		encode(commitmentBytes[12:14]),
-		encode(commitmentBytes[14:16]),
-		encode(commitmentBytes[16:18]),
-		encode(commitmentBytes[18:20]),
-		encode(commitmentBytes[20:22]),
-		encode(commitmentBytes[22:24]),
-		encode(commitmentBytes[24:26]),
-		encode(commitmentBytes[26:28]),
-		encode(commitmentBytes[28:30]),
-		encode(commitmentBytes[30:32]),
-		encode(commitmentBytes[32:34]),
-		encode(commitmentBytes[34:36]),
-		encode(commitmentBytes[36:38]),
-		encode(commitmentBytes[38:40]),
-		encode(commitmentBytes[40:42]),
-		encode(commitmentBytes[42:44]),
-		encode(commitmentBytes[44:46]),
-		encode(commitmentBytes[46:48]),
+	var witnessCommitment [24]frontend.Variable
+	for i := range witnessCommitment {
+		witnessCommitment[i] = encode(commitmentBytes[2*i : 2*i+2])
 	}
 	// - proof into 3 limbs
-	witnessProof := [24]frontend.Variable{
-		encode(proofBytes[0:2]),
-		encode(proofBytes[2:4]),
-		encode(proofBytes[4:6]),
-		encode(proofBytes[6:8]),
-		encode(proofBytes[8:10]),
-		encode(proofBytes[10:12]),
-		encode(proofBytes[12:14]),
-		encode(proofBytes[14:16]),
-		encode(proofBytes[16:18]),
-		encode(proofBytes[18:20]),
-		encode(proofBytes[20:22]),
-		encode(proofBytes[22:24]),
-		encode(proofBytes[24:26]),
-		encode(proofBytes[26:28]),
-		encode(proofBytes[28:30]),
-		encode(proofBytes[30:32]),
-		encode(proofBytes[32:34]),
-		encode(proofBytes[34:36]),
-		encode(proofBytes[36:38]),
-		encode(proofBytes[38:40]),
-		encode(proofBytes[40:42]),
-		encode(proofBytes[42:44]),
-		encode(proofBytes[44:46]),
-		encode(proofBytes[46:48]),
+	var witnessProof [24]frontend.Variable
+	for i := range witnessProof {
+		witnessProof[i] = encode(proofBytes[2*i : 2*i+2])
 	}
 
 	// prepare the constant return values
@@ -237,23 +193,9 @@ func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValu
 	for i := range witnessBlobSize {
 		witnessBlobSize[i] = blobSize[i]
 	}
-	witnessBlsModulus := [16]frontend.Variable{
-		blsModulus[0],
-		blsModulus[1],
-		blsModulus[2],
-		blsModulus[3],
-		blsModulus[4],
-		blsModulus[5],
-		blsModulus[6],
-		blsModulus[7],
-		blsModulus[8],
-		blsModulus[9],
-		blsModulus[10],
-		blsModulus[11],
-		blsModulus[12],
-		blsModulus[13],
-		blsModulus[14],
-		blsModulus[15],
+	var witnessBlsModulus [16]frontend.Variable
+	for i := range witnessBlsModulus {
+		witnessBlsModulus[i] = blsModulus[i]
 	}
 
 	// prepare the full witness
