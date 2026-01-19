@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -29,25 +29,25 @@ const (
 	locTrustedSetup = "kzg_trusted_setup.json"
 )
 
-type kzgPointEvalCircuit struct {
-	VersionedHash      [2]frontend.Variable
+type kzgPointEvalCircuit16 struct {
+	VersionedHash      [16]frontend.Variable
 	EvaluationPoint    emulated.Element[sw_bls12381.ScalarField]
 	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
-	Commitment         [3]frontend.Variable
-	Proof              [3]frontend.Variable
+	Commitment         [24]frontend.Variable
+	Proof              [24]frontend.Variable
 	ExpectedBlobSize   [2]frontend.Variable
-	ExpectedBlsModulus [2]frontend.Variable
+	ExpectedBlsModulus [16]frontend.Variable
 }
 
-func (c *kzgPointEvalCircuit) Define(api frontend.API) error {
-	err := KzgPointEvaluation(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+func (c *kzgPointEvalCircuit16) Define(api frontend.API) error {
+	err := KzgPointEvaluation16(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
-		return fmt.Errorf("KzgPointEvaluation: %w", err)
+		return fmt.Errorf("KzgPointEvaluation16: %w", err)
 	}
 	return nil
 }
 
-func TestKzgPointEvaluationPrecompile(t *testing.T) {
+func TestKzgPointEvaluationPrecompile16(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	// setup loading
@@ -79,22 +79,31 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	h := sha256.Sum256(commitmentBytes[:])
 	h[0] = blobCommitmentVersionKZG
 
-	witnessHash := [2]frontend.Variable{
-		encode(h[0:16]),
-		encode(h[16:32]),
+	var witnessHash [16]frontend.Variable
+	if len(h) != 2*len(witnessHash) {
+		assert.Fail("prepare witness hash", "unexpected hash length: got %d, want %d", len(h), 2*len(witnessHash))
 	}
-	// - commitment into 3 limbs
-	witnessCommitment := [3]frontend.Variable{
-		encode(commitmentBytes[0:16]),
-		encode(commitmentBytes[16:32]),
-		encode(commitmentBytes[32:48]),
+	for i := range witnessHash {
+		witnessHash[i] = encode(h[2*i : 2*i+2])
 	}
-	// - proof into 3 limbs
+	// - commitment into 24 limbs
+	var witnessCommitment [24]frontend.Variable
+	encodedCommitmentBytes := encodeAll(commitmentBytes[:])
+	if len(encodedCommitmentBytes) != len(witnessCommitment) {
+		assert.Fail("encode witness commitment", "unexpected commitment length: got %d, want %d", len(encodedCommitmentBytes), len(witnessCommitment))
+	}
+	for i := range witnessCommitment {
+		witnessCommitment[i] = encodedCommitmentBytes[i]
+	}
+	// - proof into 24 limbs
 	proofUncompressed := kzgProof.H.Bytes()
-	witnessProof := [3]frontend.Variable{
-		encode(proofUncompressed[0:16]),
-		encode(proofUncompressed[16:32]),
-		encode(proofUncompressed[32:48]),
+	var witnessProof [24]frontend.Variable
+	encodedWitnessProof := encodeAll(proofUncompressed[:])
+	if len(encodedWitnessProof) != len(witnessProof) {
+		assert.Fail("encode witness proof", "unexpected proof length: got %d, want %d", len(encodedWitnessProof), len(witnessProof))
+	}
+	for i := range witnessProof {
+		witnessProof[i] = encodedWitnessProof[i]
 	}
 
 	// prepare the constant return values
@@ -102,13 +111,30 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 		0,
 		evmBlockSize,
 	}
-	witnessBlsModulus := [2]frontend.Variable{
-		"0x73eda753299d7d483339d80809a1d805",
-		"0x53bda402fffe5bfeffffffff00000001",
+	witnessBlsModulus := [16]frontend.Variable{
+		"0x73ed",
+		"0xa753",
+		"0x299d",
+		"0x7d48",
+		"0x3339",
+		"0xd808",
+		"0x09a1",
+		"0xd805",
+
+		"0x53bd",
+		"0xa402",
+		"0xfffe",
+		"0x5bfe",
+		"0xffff",
+		"0xffff",
+		"0x0000",
+		"0x0001",
+		// "0x73eda753299d7d483339d80809a1d805",
+		// "0x53bda402fffe5bfeffffffff00000001",
 	}
 
 	// prepare the full witness
-	witness := kzgPointEvalCircuit{
+	witness := kzgPointEvalCircuit16{
 		VersionedHash:      witnessHash,
 		EvaluationPoint:    emulated.ValueOf[sw_bls12381.ScalarField](evaluationPoint),
 		ClaimedValue:       emulated.ValueOf[sw_bls12381.ScalarField](kzgProof.ClaimedValue),
@@ -117,44 +143,88 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 		ExpectedBlobSize:   witnessBlobSize,
 		ExpectedBlsModulus: witnessBlsModulus,
 	}
-	err = test.IsSolved(&kzgPointEvalCircuit{}, &witness, ecc.BLS12_377.ScalarField())
+	err = test.IsSolved(&kzgPointEvalCircuit16{}, &witness, koalabear.Modulus())
 	assert.NoError(err, "test solver")
 }
 
-type kzgPointEvalFailureCircuit struct {
-	VersionedHash      [2]frontend.Variable
+type kzgPointEvalFailureCircuit16 struct {
+	VersionedHash      [16]frontend.Variable
 	EvaluationPoint    emulated.Element[sw_bls12381.ScalarField]
 	ClaimedValue       emulated.Element[sw_bls12381.ScalarField]
-	Commitment         [3]frontend.Variable
-	Proof              [3]frontend.Variable
+	Commitment         [24]frontend.Variable
+	Proof              [24]frontend.Variable
 	ExpectedBlobSize   [2]frontend.Variable
-	ExpectedBlsModulus [2]frontend.Variable
+	ExpectedBlsModulus [16]frontend.Variable
 }
 
-func (c *kzgPointEvalFailureCircuit) Define(api frontend.API) error {
-	err := KzgPointEvaluationFailure(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
+func (c *kzgPointEvalFailureCircuit16) Define(api frontend.API) error {
+	err := KzgPointEvaluationFailure16(api, c.VersionedHash, &c.EvaluationPoint, &c.ClaimedValue, c.Commitment, c.Proof, c.ExpectedBlobSize, c.ExpectedBlsModulus)
 	if err != nil {
-		return fmt.Errorf("KzgPointEvaluationFailure: %w", err)
+		return fmt.Errorf("KzgPointEvaluationFailure16: %w", err)
 	}
 	return nil
 }
 
-func runFailureCircuit(_ *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
-	witnessHash := [2]frontend.Variable{
-		encode(hashBytes[0:16]),
-		encode(hashBytes[16:32]),
+func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
+	var witnessHash [16]frontend.Variable
+	for i := range witnessHash {
+		// witnessHash[i] = hashBytesEncoded[i]
+		witnessHash[i] = encode(hashBytes[2*i : 2*i+2])
 	}
+
 	// - commitment into 3 limbs
-	witnessCommitment := [3]frontend.Variable{
-		encode(commitmentBytes[0:16]),
-		encode(commitmentBytes[16:32]),
-		encode(commitmentBytes[32:48]),
+	witnessCommitment := [24]frontend.Variable{
+		encode(commitmentBytes[0:2]),
+		encode(commitmentBytes[2:4]),
+		encode(commitmentBytes[4:6]),
+		encode(commitmentBytes[6:8]),
+		encode(commitmentBytes[8:10]),
+		encode(commitmentBytes[10:12]),
+		encode(commitmentBytes[12:14]),
+		encode(commitmentBytes[14:16]),
+		encode(commitmentBytes[16:18]),
+		encode(commitmentBytes[18:20]),
+		encode(commitmentBytes[20:22]),
+		encode(commitmentBytes[22:24]),
+		encode(commitmentBytes[24:26]),
+		encode(commitmentBytes[26:28]),
+		encode(commitmentBytes[28:30]),
+		encode(commitmentBytes[30:32]),
+		encode(commitmentBytes[32:34]),
+		encode(commitmentBytes[34:36]),
+		encode(commitmentBytes[36:38]),
+		encode(commitmentBytes[38:40]),
+		encode(commitmentBytes[40:42]),
+		encode(commitmentBytes[42:44]),
+		encode(commitmentBytes[44:46]),
+		encode(commitmentBytes[46:48]),
 	}
 	// - proof into 3 limbs
-	witnessProof := [3]frontend.Variable{
-		encode(proofBytes[0:16]),
-		encode(proofBytes[16:32]),
-		encode(proofBytes[32:48]),
+	witnessProof := [24]frontend.Variable{
+		encode(proofBytes[0:2]),
+		encode(proofBytes[2:4]),
+		encode(proofBytes[4:6]),
+		encode(proofBytes[6:8]),
+		encode(proofBytes[8:10]),
+		encode(proofBytes[10:12]),
+		encode(proofBytes[12:14]),
+		encode(proofBytes[14:16]),
+		encode(proofBytes[16:18]),
+		encode(proofBytes[18:20]),
+		encode(proofBytes[20:22]),
+		encode(proofBytes[22:24]),
+		encode(proofBytes[24:26]),
+		encode(proofBytes[26:28]),
+		encode(proofBytes[28:30]),
+		encode(proofBytes[30:32]),
+		encode(proofBytes[32:34]),
+		encode(proofBytes[34:36]),
+		encode(proofBytes[36:38]),
+		encode(proofBytes[38:40]),
+		encode(proofBytes[40:42]),
+		encode(proofBytes[42:44]),
+		encode(proofBytes[44:46]),
+		encode(proofBytes[46:48]),
 	}
 
 	// prepare the constant return values
@@ -162,13 +232,27 @@ func runFailureCircuit(_ *test.Assert, evaluationPoint fr.Element, claimedValue 
 		blobSize[0],
 		blobSize[1],
 	}
-	witnessBlsModulus := [2]frontend.Variable{
+	witnessBlsModulus := [16]frontend.Variable{
 		blsModulus[0],
 		blsModulus[1],
+		blsModulus[2],
+		blsModulus[3],
+		blsModulus[4],
+		blsModulus[5],
+		blsModulus[6],
+		blsModulus[7],
+		blsModulus[8],
+		blsModulus[9],
+		blsModulus[10],
+		blsModulus[11],
+		blsModulus[12],
+		blsModulus[13],
+		blsModulus[14],
+		blsModulus[15],
 	}
 
 	// prepare the full witness
-	witness := kzgPointEvalFailureCircuit{
+	witness := kzgPointEvalFailureCircuit16{
 		VersionedHash:      witnessHash,
 		EvaluationPoint:    emulated.ValueOf[sw_bls12381.ScalarField](evaluationPoint),
 		ClaimedValue:       emulated.ValueOf[sw_bls12381.ScalarField](claimedValue),
@@ -177,10 +261,10 @@ func runFailureCircuit(_ *test.Assert, evaluationPoint fr.Element, claimedValue 
 		ExpectedBlobSize:   witnessBlobSize,
 		ExpectedBlsModulus: witnessBlsModulus,
 	}
-	return test.IsSolved(&kzgPointEvalFailureCircuit{}, &witness, ecc.BLS12_377.ScalarField())
+	return test.IsSolved(&kzgPointEvalFailureCircuit16{}, &witness, koalabear.Modulus())
 }
 
-func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
+func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	// setup loading
@@ -214,14 +298,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 
 	// -- ensure that for valid inputs the circuit fails
 	assert.Run(func(assert *test.Assert) {
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.Error(err, "should fail on valid inputs")
 	}, "valid-inputs")
@@ -236,14 +320,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			}
 		}
 		proofBytes := proof.Bytes()
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			proofBytes,
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "proof-not-on-curve")
@@ -254,14 +338,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		proofJac := bls12381.GeneratePointNotInG1(r)
 		proof.FromJacobian(&proofJac)
 		proofBytes := proof.Bytes()
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			proofBytes,
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "proof-not-in-subgroup")
@@ -278,14 +362,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		commitmentBytes := commitment.Bytes()
 		h := sha256.Sum256(commitmentBytes[:])
 		h[0] = blobCommitmentVersionKZG
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "commitment-not-on-curve")
@@ -298,14 +382,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		commitmentBytes := commitment.Bytes()
 		h := sha256.Sum256(commitmentBytes[:])
 		h[0] = blobCommitmentVersionKZG
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "commitment-not-in-subgroup")
@@ -318,14 +402,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			var proofXBytes [bls12381.SizeOfG1AffineCompressed]byte
 			copy(proofXBytes[:], proofBytes[:])
 			assert.Equal(byte(0b000<<5), proofXBytes[0]&0xe0, "proof should be uncompressed")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofXBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b000")
@@ -334,14 +418,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			proofBytes := kzgProof.H.Bytes()
 			proofBytes[0] = (proofBytes[0] & 0x1f) | (0b001 << 5)
 			assert.Equal(byte(0b001<<5), proofBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b001")
@@ -353,14 +437,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			var proofXBytes [bls12381.SizeOfG1AffineCompressed]byte
 			copy(proofXBytes[:], proofBytes[:])
 			assert.Equal(byte(0b010<<5), proofXBytes[0]&0xe0, "proof should be uncompressed infinity")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofXBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b010")
@@ -369,14 +453,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			proofBytes := kzgProof.H.Bytes()
 			proofBytes[0] = (proofBytes[0] & 0x1f) | (0b011 << 5)
 			assert.Equal(byte(0b011<<5), proofBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b011")
@@ -385,14 +469,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			proofBytes := kzgProof.H.Bytes()
 			proofBytes[0] = (proofBytes[0] & 0x1f) | (0b111 << 5)
 			assert.Equal(byte(0b111<<5), proofBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b111")
@@ -401,14 +485,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			proofBytes := kzgProof.H.Bytes()
 			proofBytes[0] = (proofBytes[0] & 0x1f) | (0b110 << 5)
 			assert.Equal(byte(0b110<<5), proofBytes[0]&0xe0, "proof should be compressed infinity")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				proofBytes,
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b110")
@@ -448,14 +532,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		x.FillBytes(proofXBytes[:])
 		proofXBytes[0] |= proofBytes[0] & 0xe0
 		assert.Equal(proofBytes[0]&0xe0, proofXBytes[0]&0xe0, "proof prefix should be unchanged")
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			proofXBytes,
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "proof-x-coordinate-overflow")
@@ -468,14 +552,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			var cmtXBytes [bls12381.SizeOfG1AffineCompressed]byte
 			copy(cmtXBytes[:], commitmentBytes[:])
 			assert.Equal(byte(0b000<<5), cmtXBytes[0]&0xe0, "proof should be uncompressed")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				cmtXBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b000")
@@ -484,14 +568,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			commitmentBytes := kzgCommitment.Bytes()
 			commitmentBytes[0] = (commitmentBytes[0] & 0x1f) | (0b001 << 5)
 			assert.Equal(byte(0b001<<5), commitmentBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b001")
@@ -503,14 +587,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			var cmtXBytes [bls12381.SizeOfG1AffineCompressed]byte
 			copy(cmtXBytes[:], cmtBytes[:])
 			assert.Equal(byte(0b010<<5), cmtXBytes[0]&0xe0, "proof should be uncompressed infinity")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				cmtXBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b010")
@@ -519,14 +603,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			cmtBytes := kzgCommitment.Bytes()
 			cmtBytes[0] = (cmtBytes[0] & 0x1f) | (0b011 << 5)
 			assert.Equal(byte(0b011<<5), cmtBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b011")
@@ -535,14 +619,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			cmtBytes := kzgCommitment.Bytes()
 			cmtBytes[0] = (cmtBytes[0] & 0x1f) | (0b111 << 5)
 			assert.Equal(byte(0b111<<5), cmtBytes[0]&0xe0, "proof should be invalid")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b111")
@@ -551,14 +635,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			cmtBytes := kzgCommitment.Bytes()
 			cmtBytes[0] = (cmtBytes[0] & 0x1f) | (0b110 << 5)
 			assert.Equal(byte(0b110<<5), cmtBytes[0]&0xe0, "proof should be compressed infinity")
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				cmtBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSize},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "0b110")
@@ -592,14 +676,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		x.FillBytes(cmtXBytes[:])
 		cmtXBytes[0] |= commitmentBytes[0] & 0xe0
 		assert.Equal(commitmentBytes[0]&0xe0, cmtXBytes[0]&0xe0, "commitment prefix should be unchanged")
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			cmtXBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "commitment-x-coordinate-overflow-hashinitial")
@@ -632,14 +716,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		h = sha256.Sum256(cmtXBytes[:])
 		h[0] = blobCommitmentVersionKZG
 
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			cmtXBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "commitment-x-coordinate-overflow-hashnew")
@@ -657,14 +741,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		var hh [sha256.Size]byte
 		copy(hh[:], h[:])
 		hh[0] = b[0]
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			hh[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "hash-version-incorrect")
@@ -683,14 +767,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		var hh [sha256.Size]byte
 		copy(hh[:], h[:])
 		hh[loc] ^= b[1]
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			hh[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "hash-incorrect")
@@ -704,14 +788,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 			assert.NoError(err, "rand")
 			evmBlockSizes[0] = int(binary.LittleEndian.Uint64(buf[0:8]))
 			evmBlockSizes[1] = int(binary.LittleEndian.Uint64(buf[8:16]))
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				kzgProof.H.Bytes(),
 				evmBlockSizes[:],
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "two-ints")
@@ -726,14 +810,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 					break
 				}
 			}
-			err = runFailureCircuit(assert,
+			err = runFailureCircuit16(assert,
 				evaluationPoint,
 				kzgProof.ClaimedValue,
 				h[:],
 				commitmentBytes,
 				kzgProof.H.Bytes(),
 				[]int{0, evmBlockSizeNew},
-				[]string{evmBlsModulusHi, evmBlsModulusLo},
+				evmBlsModulus16[:],
 			)
 			assert.NoError(err, "should pass")
 		}, "one-int")
@@ -743,14 +827,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 		var buf [32]byte
 		_, err := rand.Reader.Read(buf[:])
 		assert.NoError(err, "rand")
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{encode(buf[16:32]), encode(buf[0:16])},
+			encodeAll(buf[:]),
 		)
 		assert.NoError(err, "should pass")
 	}, "expected-bls-modulus-invalid")
@@ -758,14 +842,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var claimedValue fr.Element
 		claimedValue.MustSetRandom()
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			claimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "claimed-value-invalid")
@@ -773,14 +857,14 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var evaluationPoint fr.Element
 		evaluationPoint.MustSetRandom()
-		err = runFailureCircuit(assert,
+		err = runFailureCircuit16(assert,
 			evaluationPoint,
 			kzgProof.ClaimedValue,
 			h[:],
 			commitmentBytes,
 			kzgProof.H.Bytes(),
 			[]int{0, evmBlockSize},
-			[]string{evmBlsModulusHi, evmBlsModulusLo},
+			evmBlsModulus16[:],
 		)
 		assert.NoError(err, "should pass")
 	}, "evaluation-point-invalid")
@@ -788,6 +872,15 @@ func TestKzgPointEvaluationPrecompileFailure(t *testing.T) {
 
 func encode(b []byte) string {
 	return "0x" + hex.EncodeToString(b)
+}
+
+func encodeAll(b []byte) []string {
+	n := len(b) / 2
+	encoded := make([]string, n)
+	for i := 0; i < n; i++ {
+		encoded[i] = encode(b[i*2 : i*2+2])
+	}
+	return encoded
 }
 
 // trustedSetupJSON represents the trusted setup for the KZG precompile. It is
