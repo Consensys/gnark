@@ -272,7 +272,7 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 	// the field. So we do the additions step by step, partitioning after every
 	// addition to ensure that the intermediate results never overflow the
 	// field.
-	if maxBitlen <= bf.api.Compiler().FieldBitLen() {
+	if maxBitlen < bf.api.Compiler().FieldBitLen() {
 		// handle the easy case. For this, we just compose the bytes into a
 		// native frontend.Variable, perform the addition natively drop the the
 		// carry bit and then re-split into bytes.
