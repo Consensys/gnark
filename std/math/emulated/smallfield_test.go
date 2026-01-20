@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
@@ -213,76 +214,6 @@ func TestSmallFieldManyMul(t *testing.T) {
 	assert.NoError(err)
 }
 
-// BenchmarkSmallFieldMul benchmarks the constraint count for small field multiplication.
-func BenchmarkSmallFieldMulConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-	a := big.NewInt(12345)
-	bVal := big.NewInt(67890)
-	c := new(big.Int).Mul(a, bVal)
-	c.Mod(c, p)
-
-	circuit := &SmallFieldMulCircuit{}
-	assignment := &SmallFieldMulCircuit{
-		A: ValueOf[emparams.KoalaBear](a),
-		B: ValueOf[emparams.KoalaBear](bVal),
-		C: ValueOf[emparams.KoalaBear](c),
-	}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ReportMetric(float64(cs.GetNbConstraints()), "constraints")
-	_ = assignment // use assignment to avoid unused warning
-}
-
-// SmallFieldLargeMulBenchCircuit is for benchmarking many multiplications.
-type SmallFieldLargeMulBenchCircuit struct {
-	A, B   [100]Element[emparams.KoalaBear]
-	Result [100]Element[emparams.KoalaBear]
-}
-
-func (c *SmallFieldLargeMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 100; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul100Constraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallFieldLargeMulBenchCircuit
-	for i := 0; i < 100; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallFieldLargeMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
 // TestSmallFieldMulWithZero tests multiplication by zero.
 func TestSmallFieldMulWithZero(t *testing.T) {
 	assert := test.NewAssert(t)
@@ -457,142 +388,58 @@ func TestSmallFieldGoldilocks(t *testing.T) {
 	assert.NoError(err)
 }
 
-// SmallField1KMulBenchCircuit is for benchmarking 1000 multiplications.
-type SmallField1KMulBenchCircuit struct {
-	A, B   [1000]Element[emparams.KoalaBear]
-	Result [1000]Element[emparams.KoalaBear]
+// SmallFieldMulBenchCircuit is for benchmarking many multiplications.
+type SmallFieldMulBenchCircuit struct {
+	A      []Element[emparams.KoalaBear]
+	Result Element[emparams.KoalaBear]
 }
 
-func (c *SmallField1KMulBenchCircuit) Define(api frontend.API) error {
+func (c *SmallFieldMulBenchCircuit) Define(api frontend.API) error {
 	f, err := NewField[emparams.KoalaBear](api)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < 1000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
+	result := &c.A[0]
+	for i := range c.A[1:] {
+		result = f.Mul(result, &c.A[i+1])
 	}
+	f.AssertIsEqual(result, &c.Result)
 	return nil
 }
 
-func BenchmarkSmallFieldMul1000Constraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField1KMulBenchCircuit
-	for i := 0; i < 1000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
+func BenchmarkSmallFieldMulConstraints(b *testing.B) {
+	benchmarkCases := []struct {
+		name   string
+		nbMuls int
+	}{
+		{"100", 100},
+		{"1K", 1000},
+		{"10K", 10000},
+		{"100K", 100000},
 	}
 
-	circuit := &SmallField1KMulBenchCircuit{}
+	for _, bc := range benchmarkCases {
+		b.Run(bc.name, func(b *testing.B) {
+			circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], bc.nbMuls)}
 
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
+			csr1, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
+			if err != nil {
+				b.Fatal(err)
+			}
+			css, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			constraintsR1CSPerMul := float64(csr1.GetNbConstraints()) / float64(bc.nbMuls)
+			b.ReportMetric(constraintsR1CSPerMul, "r1cs_constraints/mul")
+			b.ReportMetric(float64(csr1.GetNbConstraints()), "r1cs_total_constraints")
+			constraintsSCSPerMul := float64(css.GetNbConstraints()) / float64(bc.nbMuls)
+			b.ReportMetric(constraintsSCSPerMul, "scs_constraints/mul")
+			b.ReportMetric(float64(css.GetNbConstraints()), "scs_total_constraints")
+		})
 	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 1000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
-// SmallField10KMulBenchCircuit is for benchmarking 10000 multiplications.
-type SmallField10KMulBenchCircuit struct {
-	A, B   [10000]Element[emparams.KoalaBear]
-	Result [10000]Element[emparams.KoalaBear]
-}
-
-func (c *SmallField10KMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 10000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul10KConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField10KMulBenchCircuit
-	for i := 0; i < 10000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallField10KMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 10000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
-// SmallField100KMulBenchCircuit is for benchmarking 100000 multiplications.
-type SmallField100KMulBenchCircuit struct {
-	A, B   [100000]Element[emparams.KoalaBear]
-	Result [100000]Element[emparams.KoalaBear]
-}
-
-func (c *SmallField100KMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 100000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul100KConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField100KMulBenchCircuit
-	for i := 0; i < 100000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallField100KMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
 }
 
 // TestConstraintCountReduction verifies the constraint count is reduced.
@@ -601,28 +448,16 @@ func TestConstraintCountReduction(t *testing.T) {
 		t.Skip("skipping constraint count verification in short mode")
 	}
 
-	p := emparams.KoalaBear{}.Modulus()
+	const nbMuls = 100
 
-	var assignment SmallFieldLargeMulBenchCircuit
-	for i := 0; i < 100; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallFieldLargeMulBenchCircuit{}
+	circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], nbMuls)}
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100.0
+	constraintsPerMul := float64(cs.GetNbConstraints()) / nbMuls
 
 	// The small field optimization should give us less than 50 constraints per mul
 	// (compared to ~93 for the standard polynomial approach)
