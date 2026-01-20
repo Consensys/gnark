@@ -2,11 +2,13 @@ package emulated
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -466,4 +468,140 @@ func TestConstraintCountReduction(t *testing.T) {
 	}
 
 	t.Logf("Small field optimization: %.2f constraints/mul for 100 muls", constraintsPerMul)
+}
+
+// MaliciousMulCircuit is a circuit with 5 multiplications for testing the soundness fix.
+type MaliciousMulCircuit struct {
+	A, B, C, D, E, F Element[emparams.KoalaBear]
+	Result           Element[emparams.KoalaBear] `gnark:",public"`
+}
+
+func (c *MaliciousMulCircuit) Define(api frontend.API) error {
+	f, err := NewField[emparams.KoalaBear](api)
+	if err != nil {
+		return err
+	}
+
+	// 5 multiplications: ((A*B) * (C*D)) * (E*F)
+	ab := f.Mul(&c.A, &c.B)
+	cd := f.Mul(&c.C, &c.D)
+	ef := f.Mul(&c.E, &c.F)
+	abcd := f.Mul(ab, cd)
+	result := f.Mul(abcd, ef)
+	f.AssertIsEqual(result, &c.Result)
+	return nil
+}
+
+// maliciousSmallMulHint is a hint that returns an incorrect quotient.
+// It computes q = (a*b - r') * p^{-1} (mod native) where r' != a*b mod p.
+// This should cause the circuit to fail due to the sum-of-quotients range check.
+func maliciousSmallMulHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 4 {
+		return fmt.Errorf("expected 4 inputs, got %d", len(inputs))
+	}
+	if len(outputs) != 2 {
+		return fmt.Errorf("expected 2 outputs, got %d", len(outputs))
+	}
+
+	// inputs[0] = nbBits (unused here)
+	// inputs[1] = p (emulated modulus)
+	// inputs[2] = a
+	// inputs[3] = b
+	p := inputs[1]
+	a := inputs[2]
+	b := inputs[3]
+
+	// Compute a * b
+	ab := new(big.Int).Mul(a, b)
+
+	// Compute correct r = a*b mod p
+	correctR := new(big.Int).Mod(ab, p)
+
+	// Use a WRONG remainder: r' = (r + 1) mod p
+	// This is still in range [0, p) but is incorrect
+	wrongR := new(big.Int).Add(correctR, big.NewInt(1))
+	wrongR.Mod(wrongR, p)
+
+	// Compute q' = (a*b - r') * p^{-1} (mod native)
+	// This satisfies a*b ≡ q'*p + r' (mod native) but NOT over integers
+	diff := new(big.Int).Sub(ab, wrongR)
+	pInv := new(big.Int).ModInverse(p, nativeMod)
+	if pInv == nil {
+		// If p has no inverse, fall back to correct computation
+		q := new(big.Int)
+		r := new(big.Int)
+		q.QuoRem(ab, p, r)
+		outputs[0].Set(q)
+		outputs[1].Set(r)
+		return nil
+	}
+	wrongQ := new(big.Int).Mul(diff, pInv)
+	wrongQ.Mod(wrongQ, nativeMod)
+
+	outputs[0].Set(wrongQ)
+	outputs[1].Set(wrongR)
+	return nil
+}
+
+// TestSmallFieldMaliciousHintRejected verifies that a malicious prover cannot
+// use wrap-around in the native field to provide incorrect quotients.
+// This is a regression test for the soundness fix that adds a batched range check
+// on the sum of quotients.
+func TestSmallFieldMaliciousHintRejected(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	p := emparams.KoalaBear{}.Modulus()
+
+	// Create valid inputs and compute the correct result
+	a := big.NewInt(12345)
+	b := big.NewInt(67890)
+	c := big.NewInt(11111)
+	d := big.NewInt(22222)
+	e := big.NewInt(33333)
+	f := big.NewInt(44444)
+
+	// Compute ((a*b) * (c*d)) * (e*f) mod p
+	ab := new(big.Int).Mul(a, b)
+	ab.Mod(ab, p)
+	cd := new(big.Int).Mul(c, d)
+	cd.Mod(cd, p)
+	ef := new(big.Int).Mul(e, f)
+	ef.Mod(ef, p)
+	abcd := new(big.Int).Mul(ab, cd)
+	abcd.Mod(abcd, p)
+	result := new(big.Int).Mul(abcd, ef)
+	result.Mod(result, p)
+
+	assignment := &MaliciousMulCircuit{
+		A:      ValueOf[emparams.KoalaBear](a),
+		B:      ValueOf[emparams.KoalaBear](b),
+		C:      ValueOf[emparams.KoalaBear](c),
+		D:      ValueOf[emparams.KoalaBear](d),
+		E:      ValueOf[emparams.KoalaBear](e),
+		F:      ValueOf[emparams.KoalaBear](f),
+		Result: ValueOf[emparams.KoalaBear](result),
+	}
+
+	// First verify the circuit works with the correct hint
+	assert.CheckCircuit(
+		&MaliciousMulCircuit{},
+		test.WithValidAssignment(assignment),
+		test.WithCurves(ecc.BLS12_377),
+		test.WithBackends(backend.GROTH16),
+	)
+
+	// Now try with the malicious hint - this should fail due to the range check
+	// on the sum of quotients. The malicious hint produces q values that are
+	// much larger than expected (≈ native/p instead of < p), causing the sum
+	// to exceed the allowed range.
+	//
+	// But we have to run the full prover for testing as the solver doesn't check
+	assert.CheckCircuit(
+		&MaliciousMulCircuit{},
+		test.WithInvalidAssignment(assignment),
+		test.WithCurves(ecc.BLS12_377),
+		test.WithBackends(backend.GROTH16),
+		test.NoTestEngine(), // test engine doesn't replace hints
+		test.WithSolverOpts(solver.OverrideHint(solver.GetHintID(smallMulHint), maliciousSmallMulHint)), // replace with malicious hint
+	)
 }
