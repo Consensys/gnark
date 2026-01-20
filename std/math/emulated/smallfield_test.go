@@ -2,11 +2,13 @@ package emulated
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -214,76 +216,6 @@ func TestSmallFieldManyMul(t *testing.T) {
 	assert.NoError(err)
 }
 
-// BenchmarkSmallFieldMul benchmarks the constraint count for small field multiplication.
-func BenchmarkSmallFieldMulConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-	a := big.NewInt(12345)
-	bVal := big.NewInt(67890)
-	c := new(big.Int).Mul(a, bVal)
-	c.Mod(c, p)
-
-	circuit := &SmallFieldMulCircuit{}
-	assignment := &SmallFieldMulCircuit{
-		A: ValueOf[emparams.KoalaBear](a),
-		B: ValueOf[emparams.KoalaBear](bVal),
-		C: ValueOf[emparams.KoalaBear](c),
-	}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ReportMetric(float64(cs.GetNbConstraints()), "constraints")
-	_ = assignment // use assignment to avoid unused warning
-}
-
-// SmallFieldLargeMulBenchCircuit is for benchmarking many multiplications.
-type SmallFieldLargeMulBenchCircuit struct {
-	A, B   [100]Element[emparams.KoalaBear]
-	Result [100]Element[emparams.KoalaBear]
-}
-
-func (c *SmallFieldLargeMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 100; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul100Constraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallFieldLargeMulBenchCircuit
-	for i := 0; i < 100; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallFieldLargeMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
 // TestSmallFieldMulWithZero tests multiplication by zero.
 func TestSmallFieldMulWithZero(t *testing.T) {
 	assert := test.NewAssert(t)
@@ -458,142 +390,58 @@ func TestSmallFieldGoldilocks(t *testing.T) {
 	assert.NoError(err)
 }
 
-// SmallField1KMulBenchCircuit is for benchmarking 1000 multiplications.
-type SmallField1KMulBenchCircuit struct {
-	A, B   [1000]Element[emparams.KoalaBear]
-	Result [1000]Element[emparams.KoalaBear]
+// SmallFieldMulBenchCircuit is for benchmarking many multiplications.
+type SmallFieldMulBenchCircuit struct {
+	A      []Element[emparams.KoalaBear]
+	Result Element[emparams.KoalaBear]
 }
 
-func (c *SmallField1KMulBenchCircuit) Define(api frontend.API) error {
+func (c *SmallFieldMulBenchCircuit) Define(api frontend.API) error {
 	f, err := NewField[emparams.KoalaBear](api)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < 1000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
+	result := &c.A[0]
+	for i := range c.A[1:] {
+		result = f.Mul(result, &c.A[i+1])
 	}
+	f.AssertIsEqual(result, &c.Result)
 	return nil
 }
 
-func BenchmarkSmallFieldMul1000Constraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField1KMulBenchCircuit
-	for i := 0; i < 1000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
+func BenchmarkSmallFieldMulConstraints(b *testing.B) {
+	benchmarkCases := []struct {
+		name   string
+		nbMuls int
+	}{
+		{"100", 100},
+		{"1K", 1000},
+		{"10K", 10000},
+		{"100K", 100000},
 	}
 
-	circuit := &SmallField1KMulBenchCircuit{}
+	for _, bc := range benchmarkCases {
+		b.Run(bc.name, func(b *testing.B) {
+			circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], bc.nbMuls)}
 
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
+			csr1, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
+			if err != nil {
+				b.Fatal(err)
+			}
+			css, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			constraintsR1CSPerMul := float64(csr1.GetNbConstraints()) / float64(bc.nbMuls)
+			b.ReportMetric(constraintsR1CSPerMul, "r1cs_constraints/mul")
+			b.ReportMetric(float64(csr1.GetNbConstraints()), "r1cs_total_constraints")
+			constraintsSCSPerMul := float64(css.GetNbConstraints()) / float64(bc.nbMuls)
+			b.ReportMetric(constraintsSCSPerMul, "scs_constraints/mul")
+			b.ReportMetric(float64(css.GetNbConstraints()), "scs_total_constraints")
+		})
 	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 1000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
-// SmallField10KMulBenchCircuit is for benchmarking 10000 multiplications.
-type SmallField10KMulBenchCircuit struct {
-	A, B   [10000]Element[emparams.KoalaBear]
-	Result [10000]Element[emparams.KoalaBear]
-}
-
-func (c *SmallField10KMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 10000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul10KConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField10KMulBenchCircuit
-	for i := 0; i < 10000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallField10KMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 10000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
-}
-
-// SmallField100KMulBenchCircuit is for benchmarking 100000 multiplications.
-type SmallField100KMulBenchCircuit struct {
-	A, B   [100000]Element[emparams.KoalaBear]
-	Result [100000]Element[emparams.KoalaBear]
-}
-
-func (c *SmallField100KMulBenchCircuit) Define(api frontend.API) error {
-	f, err := NewField[emparams.KoalaBear](api)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 100000; i++ {
-		result := f.Mul(&c.A[i], &c.B[i])
-		f.AssertIsEqual(result, &c.Result[i])
-	}
-	return nil
-}
-
-func BenchmarkSmallFieldMul100KConstraints(b *testing.B) {
-	p := emparams.KoalaBear{}.Modulus()
-
-	var assignment SmallField100KMulBenchCircuit
-	for i := 0; i < 100000; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallField100KMulBenchCircuit{}
-
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100000.0
-	b.ReportMetric(constraintsPerMul, "constraints/mul")
-	b.ReportMetric(float64(cs.GetNbConstraints()), "total_constraints")
 }
 
 // TestConstraintCountReduction verifies the constraint count is reduced.
@@ -602,28 +450,16 @@ func TestConstraintCountReduction(t *testing.T) {
 		t.Skip("skipping constraint count verification in short mode")
 	}
 
-	p := emparams.KoalaBear{}.Modulus()
+	const nbMuls = 100
 
-	var assignment SmallFieldLargeMulBenchCircuit
-	for i := 0; i < 100; i++ {
-		aVal, _ := rand.Int(rand.Reader, p)
-		bVal, _ := rand.Int(rand.Reader, p)
-		cVal := new(big.Int).Mul(aVal, bVal)
-		cVal.Mod(cVal, p)
-
-		assignment.A[i] = ValueOf[emparams.KoalaBear](aVal)
-		assignment.B[i] = ValueOf[emparams.KoalaBear](bVal)
-		assignment.Result[i] = ValueOf[emparams.KoalaBear](cVal)
-	}
-
-	circuit := &SmallFieldLargeMulBenchCircuit{}
+	circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], nbMuls)}
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	constraintsPerMul := float64(cs.GetNbConstraints()) / 100.0
+	constraintsPerMul := float64(cs.GetNbConstraints()) / nbMuls
 
 	// The small field optimization should give us less than 50 constraints per mul
 	// (compared to ~93 for the standard polynomial approach)
@@ -634,24 +470,138 @@ func TestConstraintCountReduction(t *testing.T) {
 	t.Logf("Small field optimization: %.2f constraints/mul for 100 muls", constraintsPerMul)
 }
 
-// BenchmarkSmallFieldR1CSvsPLONK compares constraint counts between R1CS and PLONK backends.
-func BenchmarkSmallFieldR1CSvsPLONK(b *testing.B) {
-	circuit := &SmallFieldLargeMulBenchCircuit{}
+// MaliciousMulCircuit is a circuit with 5 multiplications for testing the soundness fix.
+type MaliciousMulCircuit struct {
+	A, B, C, D, E, F Element[emparams.KoalaBear]
+	Result           Element[emparams.KoalaBear] `gnark:",public"`
+}
 
-	// Compile for R1CS
-	r1csCS, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
+func (c *MaliciousMulCircuit) Define(api frontend.API) error {
+	f, err := NewField[emparams.KoalaBear](api)
 	if err != nil {
-		b.Fatal(err)
+		return err
 	}
 
-	// Compile for PLONK (SCS)
-	scsCS, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
-	if err != nil {
-		b.Fatal(err)
+	// 5 multiplications: ((A*B) * (C*D)) * (E*F)
+	ab := f.Mul(&c.A, &c.B)
+	cd := f.Mul(&c.C, &c.D)
+	ef := f.Mul(&c.E, &c.F)
+	abcd := f.Mul(ab, cd)
+	result := f.Mul(abcd, ef)
+	f.AssertIsEqual(result, &c.Result)
+	return nil
+}
+
+// maliciousSmallMulHint is a hint that returns an incorrect quotient.
+// It computes q = (a*b - r') * p^{-1} (mod native) where r' != a*b mod p.
+// This should cause the circuit to fail due to the sum-of-quotients range check.
+func maliciousSmallMulHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 4 {
+		return fmt.Errorf("expected 4 inputs, got %d", len(inputs))
+	}
+	if len(outputs) != 2 {
+		return fmt.Errorf("expected 2 outputs, got %d", len(outputs))
 	}
 
-	b.ReportMetric(float64(r1csCS.GetNbConstraints()), "R1CS_constraints")
-	b.ReportMetric(float64(scsCS.GetNbConstraints()), "PLONK_constraints")
-	b.ReportMetric(float64(r1csCS.GetNbConstraints())/100.0, "R1CS_per_mul")
-	b.ReportMetric(float64(scsCS.GetNbConstraints())/100.0, "PLONK_per_mul")
+	// inputs[0] = nbBits (unused here)
+	// inputs[1] = p (emulated modulus)
+	// inputs[2] = a
+	// inputs[3] = b
+	p := inputs[1]
+	a := inputs[2]
+	b := inputs[3]
+
+	// Compute a * b
+	ab := new(big.Int).Mul(a, b)
+
+	// Compute correct r = a*b mod p
+	correctR := new(big.Int).Mod(ab, p)
+
+	// Use a WRONG remainder: r' = (r + 1) mod p
+	// This is still in range [0, p) but is incorrect
+	wrongR := new(big.Int).Add(correctR, big.NewInt(1))
+	wrongR.Mod(wrongR, p)
+
+	// Compute q' = (a*b - r') * p^{-1} (mod native)
+	// This satisfies a*b ≡ q'*p + r' (mod native) but NOT over integers
+	diff := new(big.Int).Sub(ab, wrongR)
+	pInv := new(big.Int).ModInverse(p, nativeMod)
+	if pInv == nil {
+		// If p has no inverse, fall back to correct computation
+		q := new(big.Int)
+		r := new(big.Int)
+		q.QuoRem(ab, p, r)
+		outputs[0].Set(q)
+		outputs[1].Set(r)
+		return nil
+	}
+	wrongQ := new(big.Int).Mul(diff, pInv)
+	wrongQ.Mod(wrongQ, nativeMod)
+
+	outputs[0].Set(wrongQ)
+	outputs[1].Set(wrongR)
+	return nil
+}
+
+// TestSmallFieldMaliciousHintRejected verifies that a malicious prover cannot
+// use wrap-around in the native field to provide incorrect quotients.
+// This is a regression test for the soundness fix that adds a batched range check
+// on the sum of quotients.
+func TestSmallFieldMaliciousHintRejected(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	p := emparams.KoalaBear{}.Modulus()
+
+	// Create valid inputs and compute the correct result
+	a := big.NewInt(12345)
+	b := big.NewInt(67890)
+	c := big.NewInt(11111)
+	d := big.NewInt(22222)
+	e := big.NewInt(33333)
+	f := big.NewInt(44444)
+
+	// Compute ((a*b) * (c*d)) * (e*f) mod p
+	ab := new(big.Int).Mul(a, b)
+	ab.Mod(ab, p)
+	cd := new(big.Int).Mul(c, d)
+	cd.Mod(cd, p)
+	ef := new(big.Int).Mul(e, f)
+	ef.Mod(ef, p)
+	abcd := new(big.Int).Mul(ab, cd)
+	abcd.Mod(abcd, p)
+	result := new(big.Int).Mul(abcd, ef)
+	result.Mod(result, p)
+
+	assignment := &MaliciousMulCircuit{
+		A:      ValueOf[emparams.KoalaBear](a),
+		B:      ValueOf[emparams.KoalaBear](b),
+		C:      ValueOf[emparams.KoalaBear](c),
+		D:      ValueOf[emparams.KoalaBear](d),
+		E:      ValueOf[emparams.KoalaBear](e),
+		F:      ValueOf[emparams.KoalaBear](f),
+		Result: ValueOf[emparams.KoalaBear](result),
+	}
+
+	// First verify the circuit works with the correct hint
+	assert.CheckCircuit(
+		&MaliciousMulCircuit{},
+		test.WithValidAssignment(assignment),
+		test.WithCurves(ecc.BLS12_377),
+		test.WithBackends(backend.GROTH16),
+	)
+
+	// Now try with the malicious hint - this should fail due to the range check
+	// on the sum of quotients. The malicious hint produces q values that are
+	// much larger than expected (≈ native/p instead of < p), causing the sum
+	// to exceed the allowed range.
+	//
+	// But we have to run the full prover for testing as the solver doesn't check
+	assert.CheckCircuit(
+		&MaliciousMulCircuit{},
+		test.WithInvalidAssignment(assignment),
+		test.WithCurves(ecc.BLS12_377),
+		test.WithBackends(backend.GROTH16),
+		test.NoTestEngine(), // test engine doesn't replace hints
+		test.WithSolverOpts(solver.OverrideHint(solver.GetHintID(smallMulHint), maliciousSmallMulHint)), // replace with malicious hint
+	)
 }
