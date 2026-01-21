@@ -39,30 +39,6 @@ type wcbInfo struct {
 
 type ctxMulticommitterKey struct{}
 
-// Initialize creates a multicommitter in the cache and defers its finalization.
-// This can be useful in a context where `api.Defer` is already called and where
-// calls to `WithCommitment` are deferred. Panics if the multicommit is already
-// initialized.
-func Initialize(api frontend.API) {
-	kv, ok := api.(kvstore.Store)
-	if !ok {
-		// if the builder doesn't implement key-value store then cannot store
-		// multi-committer in cache.
-		panic("builder should implement key-value store")
-	}
-
-	// check if the multicommit is already initialized
-	mc := kv.GetKeyValue(ctxMulticommitterKey{})
-	if mc != nil {
-		panic("multicommit is already initialized")
-	}
-
-	// initialize the multicommit
-	mct := &multicommitter{}
-	kv.SetKeyValue(ctxMulticommitterKey{}, mct)
-	api.Compiler().Defer(mct.commitAndCall)
-}
-
 // getCached gets the cached committer from the key-value storage. If it is not
 // there then creates, stores and defers it, and then returns.
 func getCached(api frontend.API) *multicommitter {
