@@ -171,7 +171,7 @@ func callDeferred[E constraint.Element](builder Builder[E]) error {
 	// However, as an API to the callbacks we still pass in the initial builder
 	// as deferred methods may use wrapped methods (Commit, WideCommit).
 	compiler := builder.Compiler()
-	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
+	for i := 0; i < len(circuitdefer.GetAll[func(API) error](compiler)); i++ {
 		if err := circuitdefer.GetAll[func(API) error](compiler)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
