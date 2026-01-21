@@ -151,7 +151,7 @@ func DecomposeHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 func (c *commitChecker) getOptimalBasewidth(api frontend.API) int {
-	if ft, ok := api.(frontendtype.FrontendTyper); ok {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
 		switch ft.FrontendType() {
 		case frontendtype.R1CS:
 			return optimalWidth(nbR1CSConstraints, c.collected)

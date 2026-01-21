@@ -22,7 +22,7 @@ type Circuit[T comparable] struct {
 }
 
 func (c *Circuit[T]) Define(api frontend.API) error {
-	kv, ok := api.(kvstore.Store)
+	kv, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		panic("builder should implement key-value store")
 	}
