@@ -101,7 +101,7 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 		//  2. that there are no callbacks for single-element commitment (using [WithCommitment] method). If anythind has
 		//     called with this method then it expects a field element as a commitment. This means that it is not aware of
 		//     the possibility of handling field extension element.
-		committer, ok := api.Compiler().(frontend.WideCommitter)
+		committer, ok := api.(frontend.WideCommitter)
 		if !ok {
 			panic("compiler doesn't implement frontend.WideCommitter")
 		}
