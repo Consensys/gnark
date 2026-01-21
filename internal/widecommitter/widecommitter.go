@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/logger"
 	"golang.org/x/crypto/sha3"
 )
@@ -17,12 +16,7 @@ import (
 // and rangechecker capabilities. We don't have these in gnark yet, but we
 // in principle allow other backends to implement them.
 type wrappedBuilder struct {
-	requiredBuilderInterface
-}
-
-type requiredBuilderInterface interface {
 	frontend.Builder[constraint.U32]
-	kvstore.Store
 }
 
 // From creates a new builder that implements [frontend.WideCommitter] and [frontend.Rangechecker].
@@ -37,23 +31,15 @@ func From(newBuilder frontend.NewBuilderU32) frontend.NewBuilderU32 {
 		if err != nil {
 			return nil, err
 		}
-		bb, ok := b.(requiredBuilderInterface)
-		if !ok {
-			return nil, fmt.Errorf("builder does not implement required interface")
-		}
 		log := logger.Logger()
 		log.Warn().Msg("using fake wide committer, no checks will be performed. Use only for testing")
-		return &wrappedBuilder{bb}, nil
+		return &wrappedBuilder{b}, nil
 	}
 }
 
 func (w *wrappedBuilder) WideCommit(width int, toCommit ...frontend.Variable) (commitment []frontend.Variable, err error) {
 	res, err := w.NewHint(mockedWideCommitHint, width, toCommit...)
 	return res, err
-}
-
-func (w *wrappedBuilder) Compiler() frontend.Compiler {
-	return w
 }
 
 func (w *wrappedBuilder) Check(in frontend.Variable, width int) {
