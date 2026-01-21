@@ -341,7 +341,7 @@ func (c *InnerCircuitCommitment) Define(api frontend.API) error {
 	api.AssertIsEqual(res, c.N)
 
 	// commitment both to internal and public
-	commitment, err := api.Compiler().(frontend.Committer).Commit(res, c.N)
+	commitment, err := api.(frontend.Committer).Commit(res, c.N)
 	if err != nil {
 		return err
 	}
@@ -468,7 +468,7 @@ func (c *innerParametricCircuit) Define(api frontend.API) error {
 		res = api.Mul(res, c.SecretInput)
 	}
 	api.AssertIsEqual(c.PublicInputs, res)
-	commitment, err := api.Compiler().(frontend.Committer).Commit(res, c.PublicInputs)
+	commitment, err := api.(frontend.Committer).Commit(res, c.PublicInputs)
 	if err != nil {
 		return err
 	}

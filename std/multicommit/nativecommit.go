@@ -129,7 +129,7 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 		// we compile over a large field. In this case we can use the [frontend.Committer]
 		// interface. We also check that the there are no wide callbacks with [WithWideCommitment] method
 		// as the caller should be able to expand the commitment into multiple values themselves.
-		committer, ok := api.Compiler().(frontend.Committer)
+		committer, ok := api.(frontend.Committer)
 		if !ok {
 			panic("compiler doesn't implement frontend.Committer")
 		}
