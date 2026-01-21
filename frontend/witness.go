@@ -8,9 +8,19 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-// NewWitness build an ordered vector of field elements from the given assignment (Circuit)
-// if PublicOnly is specified, returns the public part of the witness only
-// else returns [public | secret]. The result can then be serialized to / from json & binary.
+// NewWitness build an ordered vector of field elements from the given
+// assignment from a type implementing [Circuit] interface.
+//
+// if [PublicOnly] is specified, returns the public part of the witness only
+// (`[public]`). Otherwise it returns both public and secret parts of the
+// witness (`[public | secret]`).
+//
+// For serialization, the returned witness implements different serialization
+// methods to allow serializing into binary and JSON formats.
+//
+// For deserializing purposes, use [witness.New] to create an empty witness and
+// then use [witness.Witness.Fill] or [witness.Witness.ReadBinary] to fill the
+// witness values.
 //
 // See ExampleWitness in witness package for usage.
 func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witness.Witness, error) {
