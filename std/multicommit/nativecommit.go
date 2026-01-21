@@ -66,7 +66,7 @@ func Initialize(api frontend.API) {
 // getCached gets the cached committer from the key-value storage. If it is not
 // there then creates, stores and defers it, and then returns.
 func getCached(api frontend.API) *multicommitter {
-	kv, ok := api.(kvstore.Store)
+	kv, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		// if the builder doesn't implement key-value store then cannot store
 		// multi-committer in cache.

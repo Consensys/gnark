@@ -130,7 +130,7 @@ type compressor struct {
 // The correctness of the compression functions is proven using GKR.
 // Note that the solver will need the function RegisterGates to be called with the desired curves
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
-	store, ok := api.(kvstore.Store)
+	store, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		return nil, fmt.Errorf("api of type %T does not implement kvstore.Store", api)
 	}

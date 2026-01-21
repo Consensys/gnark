@@ -61,11 +61,13 @@ func NewU8(v uint8) U8 {
 // for bitwise operations and it amortizes the cost of creating these lookup
 // tables.
 func NewBytes(api frontend.API) (*Bytes, error) {
-	if kv, ok := api.(kvstore.Store); ok {
+	if kv, ok := api.Compiler().(kvstore.Store); ok {
 		uapi := kv.GetKeyValue(ctxKey{})
 		if tuapi, ok := uapi.(*Bytes); ok {
 			return tuapi, nil
 		}
+	} else {
+		panic("compiler does not implement kvstore.Store")
 	}
 	xorT, err := logderivprecomp.New(api, xorHint, []uint{8})
 	if err != nil {
@@ -91,9 +93,9 @@ func NewBytes(api frontend.API) (*Bytes, error) {
 	}
 
 	// store the API in the key-value store so that can be easily reused
-	if kv, ok := api.(kvstore.Store); ok {
+	if kv, ok := api.Compiler().(kvstore.Store); ok {
 		kv.SetKeyValue(ctxKey{}, bf)
-	}
+	} // other case is already checked above
 	return bf, nil
 }
 

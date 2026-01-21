@@ -40,7 +40,7 @@ func (c *compressor) Compress(x frontend.Variable, y frontend.Variable) frontend
 
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
 
-	store, ok := api.(kvstore.Store)
+	store, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		return nil, fmt.Errorf("api of type %T does not implement kvstore.Store", api)
 	}
