@@ -19,6 +19,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -106,6 +107,34 @@ func TestShallowMimcTwoInstances(t *testing.T) {
 
 func TestMimc(t *testing.T) {
 	test(t, mimcCircuit(93))
+}
+
+func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
+	circuit := gkrtypes.Circuit{gkrtypes.Wire{
+		Gate:            gkrtypes.Identity(),
+		NbUniqueOutputs: 2,
+	}}
+
+	assignment := WireAssignment{[]fr.Element{two, three}}
+	var o settings
+	pool := polynomial.NewPool(256, 1<<11)
+	workers := gcUtils.NewWorkerPool()
+	o.pool = &pool
+	o.workers = workers
+
+	claimsManagerGen := func() *claimsManager {
+		manager := newClaimsManager(utils.References(circuit), assignment, o)
+		manager.add(0, []fr.Element{three}, five)
+		manager.add(0, []fr.Element{four}, six)
+		return &manager
+	}
+
+	transcriptGen := newMessageCounterGenerator(4, 1)
+
+	proof, err := sumcheckProve(claimsManagerGen().getClaim(0), fiatshamir.WithHash(transcriptGen(), nil))
+	assert.NoError(t, err)
+	err = sumcheckVerify(claimsManagerGen().getLazyClaim(0), proof, fiatshamir.WithHash(transcriptGen(), nil))
+	assert.NoError(t, err)
 }
 
 var one, two, three, four, five, six fr.Element
