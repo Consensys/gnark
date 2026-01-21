@@ -848,7 +848,3 @@ func (e *smallfieldEngine) Check(in frontend.Variable, width int) {
 		panic(fmt.Sprintf("range check failed: %s (bitLen == %d) with %d bits", bin.String(), bin.BitLen(), width))
 	}
 }
-
-func (e *smallfieldEngine) Compiler() frontend.Compiler {
-	return e
-}
