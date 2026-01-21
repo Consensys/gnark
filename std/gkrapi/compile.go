@@ -42,7 +42,7 @@ type Circuit struct {
 
 // New creates a new GKR API
 func New(api frontend.API) (*API, error) {
-	gkrer, ok := api.(gkrinfo.ConstraintSystem)
+	gkrer, ok := api.Compiler().(gkrinfo.ConstraintSystem)
 	if !ok {
 		return nil, errors.New("provided api does not support GKR")
 	}

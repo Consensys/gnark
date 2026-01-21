@@ -66,11 +66,13 @@ type ctxKey[T FieldParams] struct{}
 // arithmetic over the field defined by type parameter [FieldParams]. The
 // operations on this type are defined on [Element].
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
-	if storer, ok := native.(kvstore.Store); ok {
+	if storer, ok := native.Compiler().(kvstore.Store); ok {
 		ff := storer.GetKeyValue(ctxKey[T]{})
 		if ff, ok := ff.(*Field[T]); ok {
 			return ff, nil
 		}
+	} else {
+		panic("compiler does not implement kvstore.Store")
 	}
 	f := &Field[T]{
 		api:              native,
@@ -118,9 +120,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	}
 
 	native.Compiler().Defer(f.performDeferredChecks)
-	if storer, ok := native.(kvstore.Store); ok {
+	if storer, ok := native.Compiler().(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
-	}
+	} // other case is already checked above
 	return f, nil
 }
 

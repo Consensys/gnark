@@ -83,7 +83,24 @@ type Compiler interface {
 	ToCanonicalVariable(Variable) CanonicalVariable
 }
 
-// Builder represents a constraint system builder
+// Builder represents a constraint system builder.
+//
+// Usually a builder is constructed using a function of type [NewBuilder] or
+// [NewBuilderU32] (for small fields where coefficients fit into uint32). Such
+// builder constructors are provided by specific frontends, e.g., R1CS or SCS
+// (PLONKish).
+//
+// The builder interface embeds [API] which can be used to define constraints in
+// the circuit ([Circuit.Define] method). It also embeds [Compiler] which
+// provides accessing compiler access (e.g. finite field modulus).
+//
+// It is also possible to wrap an existing builder to provide additional
+// functionality. However, the wrapped builders should not overwrite methods in
+// [Builder] and embedded interfaces as it may lead to unexpected behavior.
+// Usually, the wrapped builders would want to implement additional interfaces
+// such as [Committer], [WideCommitter], or [Rangechecker].
+//
+// The default builders in r1cs and scs packages implement only [Committer] interface.
 type Builder[E constraint.Element] interface {
 	API
 	Compiler
@@ -102,6 +119,14 @@ type Builder[E constraint.Element] interface {
 
 // Committer allows to commit to the variables and returns the commitment. The
 // commitment can be used as a challenge using Fiat-Shamir heuristic.
+//
+// Depending on the proof system, the commitment computation and verification may
+// be expensive. Thus, this method should be used sparingly and possibly use
+// nativecommit gadget to batch multiple commitment calls to a single [Commit]
+// call.
+//
+// Custom builders can choose to implement this interface to override the default
+// commitment functionality in Groth16 and PLONKish backends.
 type Committer interface {
 	// Commit commits to the variables and returns the commitment.
 	Commit(toCommit ...Variable) (commitment Variable, err error)
@@ -117,6 +142,9 @@ type Committer interface {
 // pairing-based backends where the commitment is in a large field and is not
 // defined for such cases. Thus, the caller should check if this or [Committer]
 // interfaces is implemented and use the appropriate method.
+//
+// Custom builders can choose to implement this method to provide wide
+// commitment functionality.
 type WideCommitter interface {
 	// WideCommit commits to the variables and returns the commitments.
 	// This method is required when the circuit is defined over a small field
@@ -131,15 +159,20 @@ type WideCommitter interface {
 // specified width. Not all compilers implement this interface. Users should
 // instead use [github.com/consensys/gnark/std/rangecheck] package which
 // automatically chooses most optimal method for range checking the variables.
+//
+// The default builders in gnark do not implement this interface. Custom builders
+// can choose to implement this method to provide optimized range-checking
+// functionality.
 type Rangechecker interface {
 	// Check checks that the given variable v has bit-length bits.
 	Check(v Variable, bits int)
 }
 
 // CanonicalVariable represents a variable that's encoded in a constraint system specific way.
-// For example a R1CS builder may represent this as a constraint.LinearExpression,
-// a PLONK builder --> constraint.Term
-// and the test/Engine --> ~*big.Int.
+// For example:
+// - a R1CS builder may represent this as a constraint.LinearExpression (linear combination of [constraint.Term]),
+// - a PLONK builder as [constraint.Term]
+// - and the test/Engine as *big.Int.
 type CanonicalVariable interface {
 	constraint.Compressible
 }
