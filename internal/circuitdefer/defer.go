@@ -9,6 +9,8 @@ type deferKey struct{}
 // Put stores a deferred function cb into the key-value store for later
 // retrieval. The new function is appended to the list of deferred functions,
 // and later retrieved in same order as added (FIFO order).
+//
+// The method requires that the builder implements [kvstore.Store].
 func Put[T any](builder any, cb T) {
 	// we use generics for type safety but to avoid import cycles.
 	// TODO: compare with using any and type asserting at caller
@@ -39,6 +41,8 @@ func Put[T any](builder any, cb T) {
 // Deferred functions can defer other functions. So when iterating over all deferred
 // functions, it is better to use a loop calling [GetAll] at each iteration to
 // catch newly added deferred functions.
+//
+// The method requires that the builder implements [kvstore.Store].
 func GetAll[T any](builder any) []T {
 	kv, ok := builder.(kvstore.Store)
 	if !ok {
