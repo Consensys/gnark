@@ -12,8 +12,12 @@ type deferKey struct{}
 //
 // The method requires that the builder implements [kvstore.Store].
 func Put[T any](builder any, cb T) {
-	// we use generics for type safety but to avoid import cycles.
-	// TODO: compare with using any and type asserting at caller
+	// we use generics for type safety but to avoid import cycles. In practice
+	// the returned type T is always `func(frontend.API) error`.
+
+	// Everywhere where this method is called the caller provides the internal
+	// unwrapped builder. We don't explicitly assert to have `Compiler()` here
+	// to avoid import cycles
 	kv, ok := builder.(kvstore.Store)
 	if !ok {
 		panic("builder does not implement kvstore.Store")
@@ -44,6 +48,12 @@ func Put[T any](builder any, cb T) {
 //
 // The method requires that the builder implements [kvstore.Store].
 func GetAll[T any](builder any) []T {
+	// we use generics for type safety but to avoid import cycles. In practice
+	// the returned type T is always `func(frontend.API) error`.
+
+	// Everywhere where this method is called the caller provides the internal
+	// unwrapped builder. We don't explicitly assert to have `Compiler()` here
+	// to avoid import cycles
 	kv, ok := builder.(kvstore.Store)
 	if !ok {
 		panic("builder does not implement kvstore.Store")
