@@ -3,14 +3,10 @@ package gkr_mimc
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -83,11 +79,11 @@ func TestGkrMiMCCompiles(t *testing.T) {
 	fmt.Println(cs.GetNbConstraints(), "constraints")
 }
 
-type hashTreeCircuit struct {
+type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c hashTreeCircuit) Define(api frontend.API) error {
+func (c merkleTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
@@ -117,45 +113,13 @@ func (c hashTreeCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func loadCs(t require.TestingT, fileTitle string, circuit frontend.Circuit) constraint.ConstraintSystem {
-	filename := filepath.Join(os.TempDir(), fileTitle)
-	_, err := os.Stat(filename)
-
-	if os.IsNotExist(err) {
-		// actually compile
-		cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
-		require.NoError(t, err)
-		f, err := os.Create(filename)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, f.Close())
-		}()
-		_, err = cs.WriteTo(f)
-		require.NoError(t, err)
-		return cs
-	}
-
-	f, err := os.Open(filename)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, f.Close())
-	}()
-
-	cs := plonk.NewCS(ecc.BLS12_377)
-
-	_, err = cs.ReadFrom(f)
-	require.NoError(t, err)
-
-	return cs
-}
-
-func BenchmarkHashTree(b *testing.B) {
+func BenchmarkGkrMiMC(b *testing.B) {
 	const size = 1 << 15 // about 2 ^ 16 total hashes
 
-	circuit := hashTreeCircuit{
+	circuit := merkleTreeCircuit{
 		Leaves: make([]frontend.Variable, size),
 	}
-	assignment := hashTreeCircuit{
+	assignment := merkleTreeCircuit{
 		Leaves: make([]frontend.Variable, size),
 	}
 
@@ -163,10 +127,13 @@ func BenchmarkHashTree(b *testing.B) {
 		assignment.Leaves[i] = i
 	}
 
-	cs := loadCs(b, "gkrmimc_hashtree.cs", &circuit)
-
-	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
 	require.NoError(b, err)
 
-	require.NoError(b, cs.IsSolved(w))
+	for b.Loop() {
+		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		require.NoError(b, err)
+
+		require.NoError(b, cs.IsSolved(w))
+	}
 }
