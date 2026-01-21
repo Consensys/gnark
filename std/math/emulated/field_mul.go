@@ -233,6 +233,16 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	}
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
+
+	// Use small field optimization if available and no custom modulus
+	if p == nil && f.useSmallFieldOptimization() {
+		// For small field mode, ensure elements are single-limb
+		// If they have more limbs due to witness initialization, convert them
+		aLimb := f.toSingleLimbElement(a)
+		bLimb := f.toSingleLimbElement(b)
+		return f.smallMulMod(aLimb, bLimb)
+	}
+
 	f.enforceWidthConditional(p)
 	k, r, c, err := f.callMulHint(a, b, true, p)
 	if err != nil {
@@ -257,9 +267,18 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	if a.isStrictZero() {
 		return
 	}
+
+	f.enforceWidthConditional(a)
+
+	// Use small field optimization if available and no custom modulus
+	if p == nil && f.useSmallFieldOptimization() {
+		aLimb := f.toSingleLimbElement(a)
+		f.smallCheckZero(aLimb)
+		return
+	}
+
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
-	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(p)
 	b := f.One()
 	k, r, c, err := f.callMulHint(a, b, false, p)
