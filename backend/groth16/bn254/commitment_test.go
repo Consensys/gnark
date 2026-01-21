@@ -24,7 +24,7 @@ type singleSecretCommittedCircuit struct {
 
 func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.One, 1)
-	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	commitCompiler, ok := api.(frontend.Committer)
 	if !ok {
 		return fmt.Errorf("compiler does not commit")
 	}
@@ -114,7 +114,7 @@ type oneSecretOnePublicCommittedCircuit struct {
 }
 
 func (c *oneSecretOnePublicCommittedCircuit) Define(api frontend.API) error {
-	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	commitCompiler, ok := api.(frontend.Committer)
 	if !ok {
 		return fmt.Errorf("compiler does not commit")
 	}
@@ -144,7 +144,7 @@ type twoSecretCommitmentsCircuit struct {
 }
 
 func (c *twoSecretCommitmentsCircuit) Define(api frontend.API) error {
-	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	commitCompiler, ok := api.(frontend.Committer)
 	if !ok {
 		return fmt.Errorf("compiler does not commit")
 	}

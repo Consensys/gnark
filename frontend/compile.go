@@ -164,8 +164,15 @@ func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (er
 }
 
 func callDeferred[E constraint.Element](builder Builder[E]) error {
-	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
-		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
+	// we get the compiler from the builder in case builder is already wrapped
+	// and overwrites methods required in kvstore.Store (SetKeyValue and
+	// GetKeyValue).
+	//
+	// However, as an API to the callbacks we still pass in the initial builder
+	// as deferred methods may use wrapped methods (Commit, WideCommit).
+	compiler := builder.Compiler()
+	for i := 0; i < len(circuitdefer.GetAll[func(API) error](compiler)); i++ {
+		if err := circuitdefer.GetAll[func(API) error](compiler)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
 	}

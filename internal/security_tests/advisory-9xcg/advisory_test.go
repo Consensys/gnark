@@ -23,7 +23,7 @@ type Circuit struct {
 func (circuit *Circuit) Define(api frontend.API) error {
 	// the goal of the test is to show that we are able to predict the private
 	// input solely from the stored commitment.
-	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	commitCompiler, ok := api.(frontend.Committer)
 	if !ok {
 		return fmt.Errorf("compiler does not commit")
 	}
