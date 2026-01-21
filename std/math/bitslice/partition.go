@@ -78,7 +78,13 @@ func Partition(api frontend.API, v frontend.Variable, split uint, opts ...Option
 
 	m := big.NewInt(1)
 	m.Lsh(m, split)
-	composed := api.Add(lower, api.Mul(upper, m))
-	api.AssertIsEqual(composed, v)
+	// In PlonkAPI with split < 64, we can use AddPlonkConstraint to assert
+	// lower + upper*m - v = 0 in a single constraint (qL=1, qR=m, qO=-1)
+	if plonkAPI, ok := api.Compiler().(frontend.PlonkAPI); ok && split < 64 {
+		plonkAPI.AddPlonkConstraint(lower, upper, v, 1, int(1<<split), -1, 0, 0)
+	} else {
+		composed := api.Add(lower, api.Mul(upper, m))
+		api.AssertIsEqual(composed, v)
+	}
 	return
 }
