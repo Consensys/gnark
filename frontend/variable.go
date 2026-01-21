@@ -10,7 +10,7 @@ import (
 
 // Variable represents a variable in the circuit. Any integer type (e.g. int, *big.Int, fr.Element)
 // can be assigned to it. It is also allowed to set a base-10 encoded string representing an integer value.
-type Variable interface{}
+type Variable any
 
 // IsCanonical returns true if the Variable has been normalized in a (internal) LinearExpression
 // by one of the constraint system builders. In other words, if the Variable is a circuit input OR
