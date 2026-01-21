@@ -8,23 +8,29 @@ package gkr
 import (
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
 	hint "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
+type circuitEvaluator struct {
+	evaluators []gateEvaluator // one evaluator per wire
+}
+
 type SolvingData struct {
-	assignment  WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
-	circuit     gkrtypes.Circuit
-	maxNbIn     int // maximum number of inputs for a gate in the circuit
-	nbInstances int
-	hashName    string
+	assignment    WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
+	circuit       gkrtypes.Circuit
+	maxNbIn       int // maximum number of inputs for a gate in the circuit
+	nbInstances   int
+	hashName      string
+	evaluatorPool sync.Pool // pool of circuit evaluators for concurrent reuse
 }
 
 type newSolvingDataSettings struct {
@@ -100,6 +106,36 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 				}
 			}
 		}
+
+		// Initialize polynomial pool for elements
+		// Size the pool for the worst case: max gate size across all wires
+		maxGateStackSize := 0
+		for _, w := range d[k].circuit {
+			if !w.IsInput() {
+				stackSize := w.Gate.Compiled().NbConstants() + len(w.Inputs) + len(w.Gate.Compiled().Instructions)
+				if stackSize > maxGateStackSize {
+					maxGateStackSize = stackSize
+				}
+			}
+		}
+
+		// Initialize circuit evaluator pool
+		circuit := d[k].circuit
+		elementPool := polynomial.NewPool(maxGateStackSize)
+		d[k].evaluatorPool = sync.Pool{
+			New: func() interface{} {
+				ce := &circuitEvaluator{
+					evaluators: make([]gateEvaluator, len(circuit)),
+				}
+				for wI := range circuit {
+					w := &circuit[wI]
+					if !w.IsInput() { // input wires don't need evaluators
+						ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs), &elementPool)
+					}
+				}
+				return ce
+			},
+		}
 	}
 
 	return d
@@ -117,7 +153,7 @@ func GetAssignmentHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() || !ins[1].IsUint64() || !ins[2].IsUint64() {
 			return fmt.Errorf("all 3 non-dummy input to GetAssignmentHint must fit in uint64")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		wireI := ins[1].Uint64()
 		instanceI := ins[2].Uint64()
 
@@ -138,15 +174,16 @@ func SolveHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		instanceI := ins[1].Uint64()
-
-		// create buffer for every gate input. It will be reused for every evaluation.
-		gateIns := make([]frontend.Variable, data.maxNbIn)
 
 		// indices for reading inputs and outputs
 		outsI := 0
 		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
+
+		// Get a circuit evaluator from the pool
+		ce := data.evaluatorPool.Get().(*circuitEvaluator)
+		defer data.evaluatorPool.Put(ce)
 
 		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
 		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
@@ -158,14 +195,16 @@ func SolveHint(data []SolvingData) hint.Hint {
 				data.assignment[wI][instanceI].SetBigInt(ins[insI])
 				insI++
 			} else {
-				// assemble input for gate
-				for i, inWI := range w.Inputs {
-					gateIns[i] = &data.assignment[inWI][instanceI]
+				// Get evaluator for this wire from the circuit evaluator
+				evaluator := &ce.evaluators[wI]
+
+				// Push gate inputs
+				for _, inWI := range w.Inputs {
+					evaluator.pushInput(&data.assignment[inWI][instanceI])
 				}
-				// evaluate the gate on the inputs
-				eval := w.Gate.Evaluate(api, gateIns[:len(w.Inputs)]...).(*fr.Element)
-				// store the result in the assignment (for the following gates to use)
-				data.assignment[wI][instanceI].Set(eval)
+
+				// Evaluate the gate
+				data.assignment[wI][instanceI].Set(evaluator.evaluate())
 			}
 			if w.IsOutput() {
 				// write to provided output.
@@ -193,7 +232,7 @@ func ProveHint(data []SolvingData) hint.Hint {
 		if !ins[0].IsUint64() {
 			return fmt.Errorf("first input to GKR prove hint must be the sub-circuit index")
 		}
-		data := data[ins[0].Uint64()]
+		data := &data[ins[0].Uint64()]
 		hashName := data.hashName
 		// drop the first input which indicates the current circuit index
 		ins = ins[1:]

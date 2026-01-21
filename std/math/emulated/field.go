@@ -51,6 +51,13 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 
 	deferredChecks []deferredChecker
+
+	// smallFieldMode indicates that the emulated field is small enough that
+	// products fit in the native field and we can use scalar batched verification
+	// instead of polynomial identity testing. This provides significant constraint
+	// reduction for small field emulation (e.g., KoalaBear on BLS12-377).
+	smallFieldMode     bool
+	smallFieldModeOnce sync.Once
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -311,4 +318,47 @@ func sum[T constraints.Ordered](a ...T) T {
 		m += v
 	}
 	return m
+}
+
+// useSmallFieldOptimization returns true if we can use the small field
+// optimization for multiplication. The optimization is possible when:
+//   - NbLimbs == 1 (emulated field fits in a single native limb)
+//   - 2 * modBits + margin < nativeBits - 2 (products fit with margin for batching)
+//
+// When these conditions are met, we can use scalar batched verification instead
+// of polynomial identity testing, which significantly reduces constraint counts.
+func (f *Field[T]) useSmallFieldOptimization() bool {
+	f.smallFieldModeOnce.Do(func() {
+		// Small field optimization only works when NbLimbs == 1
+		if f.fParams.NbLimbs() != 1 {
+			f.smallFieldMode = false
+			return
+		}
+
+		// Small field optimization doesn't work when we're already using extension field
+		// for multiplication checks (native field is small)
+		if f.extensionApi != nil {
+			f.smallFieldMode = false
+			return
+		}
+
+		// Check that products fit in the native field with margin for batching.
+		// We need: 2 * modBits + batchingMargin < nativeBits - 2
+		// The margin accounts for:
+		// - γ^i scaling factors in the batched sum
+		// - Multiple terms being summed together
+		// We use 32 bits margin which allows for batching millions of operations.
+		modBits := uint(f.fParams.Modulus().BitLen())
+		nativeBits := uint(f.api.Compiler().FieldBitLen())
+		const batchingMargin = 32
+
+		f.smallFieldMode = 2*modBits+batchingMargin < nativeBits-2
+		if f.smallFieldMode {
+			f.log.Debug().
+				Uint("modBits", modBits).
+				Uint("nativeBits", nativeBits).
+				Msg("using small field optimization for emulated multiplication")
+		}
+	})
+	return f.smallFieldMode
 }
