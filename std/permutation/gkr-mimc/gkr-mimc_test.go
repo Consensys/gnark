@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type hashTreeCircuit struct {
+type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c hashTreeCircuit) Define(api frontend.API) error {
+func (c merkleTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
@@ -44,27 +44,31 @@ func (c hashTreeCircuit) Define(api frontend.API) error {
 }
 
 func BenchmarkGkrPermutations(b *testing.B) {
-	circuit, assignment := hashTreeCircuits(50000)
+	circuit, assignment := merkleTreeCircuits(50000)
 
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	require.NoError(b, err)
 
-	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
-	require.NoError(b, err)
+	b.ResetTimer()
 
-	_, err = cs.Solve(witness)
-	require.NoError(b, err)
+	for b.Loop() {
+		witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		require.NoError(b, err)
+
+		_, err = cs.Solve(witness)
+		require.NoError(b, err)
+	}
 }
 
-func hashTreeCircuits(n int) (circuit, assignment hashTreeCircuit) {
+func merkleTreeCircuits(n int) (circuit, assignment merkleTreeCircuit) {
 	leaves := make([]frontend.Variable, n)
 	for i := range n {
 		leaves[i] = i
 	}
 
-	return hashTreeCircuit{
+	return merkleTreeCircuit{
 			Leaves: make([]frontend.Variable, len(leaves)),
-		}, hashTreeCircuit{
+		}, merkleTreeCircuit{
 			Leaves: leaves,
 		}
 }

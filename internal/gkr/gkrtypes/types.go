@@ -16,23 +16,26 @@ import (
 
 // A Gate is a low-degree multivariate polynomial
 type Gate struct {
-	evaluate    gkr.GateFunction // Evaluate the polynomial function defining the gate
+	Evaluate    gkr.GateFunction // Evaluate the polynomial function defining the gate
+	compiled    *CompiledGate    // Compiled form of the gate function (used in native prover)
 	nbIn        int              // number of inputs
 	degree      int              // total degree of the polynomial
 	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 	curves      []ecc.ID         // curves that the gate is allowed to be used over
 }
 
-// NewGate creates a new gate function the given parameters:
+// NewGate creates a new gate function with the given parameters:
 // - f: the polynomial function defining the gate
+// - compiled: the compiled form of the gate function
 // - nbIn: number of inputs to the gate
 // - degree: total degree of the polynomial. In case of multivariate polynomials, it is the maximum degree over all terms.
 // - solvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 // - curves: curves that the gate is allowed to be used over
-func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
+func NewGate(f gkr.GateFunction, compiled *CompiledGate, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
 
 	return &Gate{
-		evaluate:    f,
+		Evaluate:    f,
+		compiled:    compiled,
 		nbIn:        nbIn,
 		degree:      degree,
 		solvableVar: solvableVar,
@@ -43,12 +46,6 @@ func NewGate(f gkr.GateFunction, nbIn int, degree int, solvableVar int, curves [
 // SupportsCurve returns whether the gate can be used over the given curve.
 func (g *Gate) SupportsCurve(curve ecc.ID) bool {
 	return slices.Contains(g.curves, curve)
-}
-
-// Evaluate evaluates the gate on the given inputs. The number of inputs must
-// match the gate's fan-in. If not, then it panics.
-func (g *Gate) Evaluate(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-	return g.evaluate(api, in...)
 }
 
 // Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
@@ -65,6 +62,11 @@ func (g *Gate) SolvableVar() int {
 // NbIn returns the number of inputs to the gate (its fan-in)
 func (g *Gate) NbIn() int {
 	return g.nbIn
+}
+
+// Compiled returns the compiled form of the gate.
+func (g *Gate) Compiled() *CompiledGate {
+	return g.compiled
 }
 
 // Wire represents a wire in the GKR circuit. A wire is defined through its gate
@@ -175,6 +177,21 @@ func (c Circuit) maxGateDegree() int {
 		}
 	}
 	return res
+}
+
+// MaxStackSize returns the maximum stack size needed by any gate evaluator in the circuit.
+// This is used to initialize universal gate evaluators that can handle any gate in the circuit.
+func (c Circuit) MaxStackSize() int {
+	maxSize := 0
+	for i := range c {
+		if !c[i].IsInput() {
+			gate := c[i].Gate.Compiled()
+			nbIn := len(c[i].Inputs)
+			stackSize := gate.NbConstants() + nbIn + len(gate.Instructions)
+			maxSize = max(maxSize, stackSize)
+		}
+	}
+	return maxSize
 }
 
 // MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
@@ -410,13 +427,18 @@ var ErrZeroFunction = errors.New("detected a zero function")
 func Identity() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[0]
-	}, 1, 1, 0, gnark.Curves())
+	}, &CompiledGate{}, 1, 1, 0, gnark.Curves())
 }
 
 // Add2 gate: (x, y) -> x + y
 func Add2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Add(in[0], in[1])
+	}, &CompiledGate{
+		Instructions: []GateInstruction{{
+			Op:     OpAdd,
+			Inputs: []uint16{0, 1},
+		}},
 	}, 2, 1, 0, gnark.Curves())
 }
 
@@ -424,6 +446,11 @@ func Add2() *Gate {
 func Sub2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Sub(in[0], in[1])
+	}, &CompiledGate{
+		Instructions: []GateInstruction{{
+			Op:     OpSub,
+			Inputs: []uint16{0, 1},
+		}},
 	}, 2, 1, 0, gnark.Curves())
 }
 
@@ -431,6 +458,11 @@ func Sub2() *Gate {
 func Neg() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Neg(in[0])
+	}, &CompiledGate{
+		Instructions: []GateInstruction{{
+			Op:     OpNeg,
+			Inputs: []uint16{0},
+		}},
 	}, 1, 1, 0, gnark.Curves())
 }
 
@@ -438,5 +470,10 @@ func Neg() *Gate {
 func Mul2() *Gate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Mul(in[0], in[1])
+	}, &CompiledGate{
+		Instructions: []GateInstruction{{
+			Op:     OpMul,
+			Inputs: []uint16{0, 1},
+		}},
 	}, 2, 2, -1, gnark.Curves())
 }
