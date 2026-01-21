@@ -24,8 +24,12 @@ type GateTester struct {
 }
 
 func NewGateTester(g *gkrtypes.CompiledGate, nbIn int) *GateTester {
+	// Compute stack size for this gate
+	stackSize := g.NbConstants() + nbIn + len(g.Instructions)
+	evaluator := newGateEvaluator(stackSize)
+	evaluator.setGate(g)
 	return &GateTester{
-		evaluator: newGateEvaluator(g, nbIn),
+		evaluator: evaluator,
 		nbIn:      nbIn,
 	}
 }
@@ -156,7 +160,9 @@ func (t *GateTester) Equal(g *gkrtypes.CompiledGate) bool {
 	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
 	fAt := t.evaluator.evaluate(x...)
-	gEval := newGateEvaluator(g, t.nbIn)
+	stackSize := g.NbConstants() + t.nbIn + len(g.Instructions)
+	gEval := newGateEvaluator(stackSize)
+	gEval.setGate(g)
 	gAt := gEval.evaluate(x...)
 	return fAt.Equal(gAt)
 }

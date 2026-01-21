@@ -8,7 +8,6 @@ package gkr
 import (
 	"fmt"
 	"math/big"
-	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
@@ -16,13 +15,8 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
-
-type circuitEvaluator struct {
-	evaluators []gateEvaluator // one evaluator per wire
-}
 
 type SolvingData struct {
 	assignment    WireAssignment // assignment is indexed wire-first, instance-second. The number of instances is padded to a power of 2.
@@ -30,7 +24,7 @@ type SolvingData struct {
 	maxNbIn       int // maximum number of inputs for a gate in the circuit
 	nbInstances   int
 	hashName      string
-	evaluatorPool sync.Pool // pool of circuit evaluators for concurrent reuse
+	evaluatorPool *gateEvaluatorPool // pool of circuit evaluators for concurrent reuse
 }
 
 type newSolvingDataSettings struct {
@@ -120,22 +114,7 @@ func NewSolvingData(info []gkrtypes.SolvingInfo, options ...NewSolvingDataOption
 		}
 
 		// Initialize circuit evaluator pool
-		circuit := d[k].circuit
-		elementPool := polynomial.NewPool(maxGateStackSize)
-		d[k].evaluatorPool = sync.Pool{
-			New: func() interface{} {
-				ce := &circuitEvaluator{
-					evaluators: make([]gateEvaluator, len(circuit)),
-				}
-				for wI := range circuit {
-					w := &circuit[wI]
-					if !w.IsInput() { // input wires don't need evaluators
-						ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs), &elementPool)
-					}
-				}
-				return ce
-			},
-		}
+		d[k].evaluatorPool = newGateEvaluatorPool(info[k].Circuit.MaxStackSize())
 	}
 
 	return d
@@ -181,9 +160,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 		outsI := 0
 		insI := 2 // skip the first two input, which are the circuit and instance indices, respectively.
 
-		// Get a circuit evaluator from the pool
-		ce := data.evaluatorPool.Get().(*circuitEvaluator)
-		defer data.evaluatorPool.Put(ce)
+		evaluator := data.evaluatorPool.get()
 
 		// we can now iterate over all the wires in the circuit. The wires are already topologically sorted,
 		// i.e. all inputs of a gate appear before the gate itself. So it is safe to iterate linearly.
@@ -196,7 +173,7 @@ func SolveHint(data []SolvingData) hint.Hint {
 				insI++
 			} else {
 				// Get evaluator for this wire from the circuit evaluator
-				evaluator := &ce.evaluators[wI]
+				evaluator.setGate(w.Gate.Compiled())
 
 				// Push gate inputs
 				for _, inWI := range w.Inputs {
@@ -252,7 +229,7 @@ func ProveHint(data []SolvingData) hint.Hint {
 
 		hsh := hash.NewHash(hashName + "_BLS12_377")
 
-		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...))
+		proof, err := Prove(data.circuit, data.assignment, fiatshamir.WithHash(hsh, insBytes...), WithGateEvaluatorPool(data.evaluatorPool))
 		if err != nil {
 			return err
 		}
