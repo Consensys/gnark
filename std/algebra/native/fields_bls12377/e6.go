@@ -88,7 +88,7 @@ func (e *E6) Neg(api frontend.API, e1 E6) *E6 {
 
 // Mul multiplies two E6 elmts
 func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
-	if ft, ok := api.(frontendtype.FrontendTyper); ok {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
 		switch ft.FrontendType() {
 		case frontendtype.R1CS:
 			return e.mulToom3OverKaratsuba(api, e1, e2)
