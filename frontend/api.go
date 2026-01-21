@@ -143,7 +143,12 @@ type API interface {
 }
 
 // BatchInverter returns a slice of variables containing the inverse of each element in i1.
-// This is a temporary API, do not use it in your circuit
+//
+// NB! This is a temporary API, do not use it in your circuit
+//
+// Wrapped builder may implement a more efficient version of this method. This
+// is not implemented for gnark builders. It is implemented for test engine for
+// efficiency purposes.
 type BatchInverter interface {
 	// BatchInvert returns a slice of variables containing the inverse of each element in i1.
 	// This is a temporary API, do not use it in your circuit
