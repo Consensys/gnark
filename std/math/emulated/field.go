@@ -136,7 +136,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 //   - if this methods interprets v as being the limbs (frontend.Variable or []frontend.Variable),
 //     it constructs a new Element[T] with v as limbs and constraints the limbs to the parameters
 //     of the Field[T].
-func (f *Field[T]) NewElement(v interface{}) *Element[T] {
+func (f *Field[T]) NewElement(v any) *Element[T] {
 	if e, ok := v.(Element[T]); ok {
 		return e.copy()
 	}
