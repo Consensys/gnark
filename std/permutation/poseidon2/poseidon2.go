@@ -406,8 +406,9 @@ func (h *Permutation) Permutation(input []frontend.Variable) error {
 		return ErrInvalidSizebuffer
 	}
 
+	// Use optimized implementation for width=2 (merges round key additions with matrix ops)
 	if h.params.Width == 2 {
-		return h.permutationW2(input)
+		return h.permutationWidth2(input)
 	}
 
 	// external matrix multiplication, cf https://eprint.iacr.org/2023/323.pdf page 14 (part 6)
@@ -441,151 +442,83 @@ func (h *Permutation) Permutation(input []frontend.Variable) error {
 	return nil
 }
 
-func (h *Permutation) permutationW2(input []frontend.Variable) error {
-	// TODO @gbotrel really what this does is inline the whole permutation for width=2
-	// and minimize constraints by packing additions together.
-	// should be generalized to other widths if needed.
-
-	// Optimized permutation for width=2
-	// This implementation inlines matrix operations and merges round key additions
-	// to minimize constraint count.
-	//
-	// Key insight: In PLONK, multiplication by constants is free, and adding multiple
-	// constants in one api.Add call uses a single constraint. We merge round key
-	// additions into the preceding matrix multiplication wherever possible.
-	//
-	// matMulExternalInPlace for width=2:
-	//   output[0] = 2*input[0] + input[1]
-	//   output[1] = input[0] + 2*input[1]
-	//
-	// matMulInternalInPlace for width=2:
-	//   output[0] = 2*input[0] + input[1]
-	//   output[1] = input[0] + 3*input[1]
-
+// permutationWidth2 is an optimized permutation for width=2.
+// It merges round key additions with matrix multiplications to minimize constraints.
+//
+// Matrix operations for width=2:
+//   - External: M_E * [a, b] = [2a + b, a + 2b]
+//   - Internal: M_I * [a, b] = [2a + b, a + 3b]
+//
+// Round keys are merged: instead of separate addRoundKey + matrix operations,
+// we compute (matrix * state + key) in one step, saving constraints.
+func (h *Permutation) permutationWidth2(input []frontend.Variable) error {
 	rf := h.params.NbFullRounds / 2
 	rp := h.params.NbPartialRounds
 
-	// Initial external matrix multiplication merged with first full round's keys
-	// matMulExternal + addRoundKey[0]:
-	// output[0] = 2*i0 + i1 + rk[0][0]
-	// output[1] = i0 + 2*i1 + rk[0][1]
-	{
-		i0 := input[0]
-		i1 := input[1]
-		input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[0][0])
-		input[1] = h.api.Add(i0, h.api.Mul(i1, 2), &h.params.RoundKeys[0][1])
+	// matMulExternal applies M_E and merges round keys k0, k1 (k1 may be nil for partial rounds)
+	matMulExternal := func(k0, k1 *big.Int) {
+		a, b := input[0], input[1]
+		if k1 != nil {
+			input[0] = h.api.Add(h.api.Mul(a, 2), b, k0)
+			input[1] = h.api.Add(a, h.api.Mul(b, 2), k1)
+		} else {
+			input[0] = h.api.Add(h.api.Mul(a, 2), b, k0)
+			input[1] = h.api.Add(a, h.api.Mul(b, 2))
+		}
 	}
 
-	// =========================================================================
-	// First half of full rounds
-	// =========================================================================
-	// Each round: sBox (keys already added) -> matMulExternal merged with next keys
+	// matMulInternal applies M_I and merges next round key k0 (only first element gets key)
+	matMulInternal := func(k0 *big.Int) {
+		a, b := input[0], input[1]
+		input[0] = h.api.Add(h.api.Mul(a, 2), b, k0)
+		input[1] = h.api.Add(a, h.api.Mul(b, 3))
+	}
 
+	// matMulInternalFull applies M_I and merges full round keys k0, k1
+	matMulInternalFull := func(k0, k1 *big.Int) {
+		a, b := input[0], input[1]
+		input[0] = h.api.Add(h.api.Mul(a, 2), b, k0)
+		input[1] = h.api.Add(a, h.api.Mul(b, 3), k1)
+	}
+
+	// Initial: M_E + round key 0
+	matMulExternal(&h.params.RoundKeys[0][0], &h.params.RoundKeys[0][1])
+
+	// First half full rounds (0 to rf-1)
 	for i := 0; i < rf-1; i++ {
-		// sBox on both elements (round keys already merged from previous step)
 		h.sBox(0, input)
 		h.sBox(1, input)
-
-		// matMulExternal merged with next full round's keys
-		// output[0] = 2*s0 + s1 + rk[i+1][0]
-		// output[1] = s0 + 2*s1 + rk[i+1][1]
-		s0 := input[0]
-		s1 := input[1]
-		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[i+1][0])
-		input[1] = h.api.Add(s0, h.api.Mul(s1, 2), &h.params.RoundKeys[i+1][1])
+		matMulExternal(&h.params.RoundKeys[i+1][0], &h.params.RoundKeys[i+1][1])
 	}
 
-	// Last full round of first half: merge with first partial round's key (only input[0])
-	{
+	// Transition: last full round of first half -> first partial round
+	h.sBox(0, input)
+	h.sBox(1, input)
+	matMulExternal(&h.params.RoundKeys[rf][0], nil)
+
+	// Partial rounds (rf to rf+rp-1): sBox only on first element, internal matrix
+	for i := rf; i < rf+rp-1; i++ {
+		h.sBox(0, input)
+		matMulInternal(&h.params.RoundKeys[i+1][0])
+	}
+
+	// Last partial round -> first full round of second half
+	h.sBox(0, input)
+	matMulInternalFull(&h.params.RoundKeys[rf+rp][0], &h.params.RoundKeys[rf+rp][1])
+
+	// Second half full rounds (rf+rp to 2*rf+rp-1)
+	for i := rf + rp; i < 2*rf+rp-1; i++ {
 		h.sBox(0, input)
 		h.sBox(1, input)
-
-		s0 := input[0]
-		s1 := input[1]
-		// matMulExternal merged with first partial round's key
-		// output[0] = 2*s0 + s1 + rk[rf][0]
-		// output[1] = s0 + 2*s1 (no key for input[1] in partial rounds)
-		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[rf][0])
-		input[1] = h.api.Add(s0, h.api.Mul(s1, 2))
+		matMulExternal(&h.params.RoundKeys[i+1][0], &h.params.RoundKeys[i+1][1])
 	}
 
-	// =========================================================================
-	// Partial rounds - optimized with merged round key additions
-	// =========================================================================
-	// In partial rounds, only input[0] gets a round key (keys have length 1).
-	// input[0] already has first partial round's key merged from above.
-
-	firstPartialRound := rf
-	lastPartialRound := rf + rp - 1
-	firstSecondHalfRound := rf + rp
-
-	if rp == 1 {
-		// Only one partial round: sBox + matMulInternal merged with second half's first round keys
-		h.sBox(0, input)
-		i0 := input[0]
-		i1 := input[1]
-		// output[0] = 2*i0 + i1 + rk[firstSecondHalfRound][0]
-		// output[1] = i0 + 3*i1 + rk[firstSecondHalfRound][1]
-		input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[firstSecondHalfRound][0])
-		input[1] = h.api.Add(i0, h.api.Mul(i1, 3), &h.params.RoundKeys[firstSecondHalfRound][1])
-	} else {
-		// First partial round: sBox + matMulInternal merged with second partial round's key
-		h.sBox(0, input)
-		{
-			s0 := input[0]
-			i1 := input[1]
-			input[0] = h.api.Add(h.api.Mul(s0, 2), i1, &h.params.RoundKeys[firstPartialRound+1][0])
-			input[1] = h.api.Add(s0, h.api.Mul(i1, 3))
-		}
-
-		// Middle partial rounds (not first, not last)
-		for i := firstPartialRound + 1; i < lastPartialRound; i++ {
-			h.sBox(0, input)
-			s0 := input[0]
-			i1 := input[1]
-			input[0] = h.api.Add(h.api.Mul(s0, 2), i1, &h.params.RoundKeys[i+1][0])
-			input[1] = h.api.Add(s0, h.api.Mul(i1, 3))
-		}
-
-		// Last partial round: sBox + matMulInternal merged with second half's first round keys
-		h.sBox(0, input)
-		{
-			i0 := input[0]
-			i1 := input[1]
-			// output[0] = 2*i0 + i1 + rk[firstSecondHalfRound][0]
-			// output[1] = i0 + 3*i1 + rk[firstSecondHalfRound][1]
-			input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[firstSecondHalfRound][0])
-			input[1] = h.api.Add(i0, h.api.Mul(i1, 3), &h.params.RoundKeys[firstSecondHalfRound][1])
-		}
-	}
-
-	// =========================================================================
-	// Second half of full rounds
-	// =========================================================================
-	// First round's keys already merged from partial rounds above.
-
-	for i := firstSecondHalfRound; i < firstSecondHalfRound+rf-1; i++ {
-		// sBox on both elements (round keys already merged)
-		h.sBox(0, input)
-		h.sBox(1, input)
-
-		// matMulExternal merged with next round's keys
-		s0 := input[0]
-		s1 := input[1]
-		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[i+1][0])
-		input[1] = h.api.Add(s0, h.api.Mul(s1, 2), &h.params.RoundKeys[i+1][1])
-	}
-
-	// Very last full round: no merge needed (nothing after)
-	{
-		h.sBox(0, input)
-		h.sBox(1, input)
-
-		i0 := input[0]
-		i1 := input[1]
-		input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
-		input[1] = h.api.Add(i0, h.api.Mul(i1, 2))
-	}
+	// Final round: no round key merge
+	h.sBox(0, input)
+	h.sBox(1, input)
+	a, b := input[0], input[1]
+	input[0] = h.api.Add(h.api.Mul(a, 2), b)
+	input[1] = h.api.Add(a, h.api.Mul(b, 2))
 
 	return nil
 }
