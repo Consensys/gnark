@@ -344,7 +344,11 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 	var err error
 	var target overflowError
 
+	var nbLoops int
 	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
+		if nbLoops++; nbLoops > 2 {
+			panic("internal error: too many reduction loops")
+		}
 		if !target.reduceRight {
 			a = f.Reduce(a)
 		} else {
