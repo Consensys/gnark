@@ -262,26 +262,29 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 // sBox applies the sBox on buffer[index]
 func (h *Permutation) sBox(index int, input []frontend.Variable) {
 	tmp := input[index]
-	if h.params.DegreeSBox == 3 {
+	switch h.params.DegreeSBox {
+	case 3:
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(tmp, input[index])
-	} else if h.params.DegreeSBox == 5 {
+	case 5:
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.DegreeSBox == 7 {
+	case 7:
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.DegreeSBox == 17 {
+	case 17:
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], input[index])
 		input[index] = h.api.Mul(input[index], tmp)
-	} else if h.params.DegreeSBox == -1 {
+	case -1:
 		input[index] = h.api.Inverse(input[index])
+	default:
+		panic("sbox degree not supported")
 	}
 }
 
@@ -323,19 +326,26 @@ func (h *Permutation) matMulM4InPlace(s []frontend.Variable) {
 // see https://eprint.iacr.org/2023/323.pdf
 func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 
-	if h.params.Width == 2 {
+	switch h.params.Width {
+	case 2:
+		// i0 := input[0]
+		// i1 := input[1]
+		// input[0] = 2*i0 + i1
+		// input[1] = i0 + 2*i1
+		// input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
+		// input[1] = h.api.Add(i0, h.api.Mul(i1, 2))
 		tmp := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(tmp, input[0])
 		input[1] = h.api.Add(tmp, input[1])
-	} else if h.params.Width == 3 {
+	case 3:
 		tmp := h.api.Add(input[0], input[1])
 		tmp = h.api.Add(tmp, input[2])
 		input[0] = h.api.Add(input[0], tmp)
 		input[1] = h.api.Add(input[1], tmp)
 		input[2] = h.api.Add(input[2], tmp)
-	} else if h.params.Width == 4 {
+	case 4:
 		h.matMulM4InPlace(input)
-	} else {
+	default:
 		// at this stage t is supposed to be a multiple of 4
 		// the MDS matrix is circ(2M4,M4,..,M4)
 		h.matMulM4InPlace(input)
@@ -358,33 +368,27 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 // when t=2,3 the matrix are respectively [[2,1][1,3]] and [[2,1,1][1,2,1][1,1,3]]
 // otherwise the matrix is filled with ones except on the diagonal,
 func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
-	if h.params.Width == 2 {
+	switch h.params.Width {
+	case 2:
+		// i0 := input[0]
+		// i1 := input[1]
+		// input[0] = 2*i0 + i1
+		// input[1] = i0 + 3*i1
+		// input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
+		// input[1] = h.api.Add(i0, h.api.Mul(i1, 3))
 		sum := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(input[0], sum)
 		input[1] = h.api.Mul(2, input[1])
 		input[1] = h.api.Add(input[1], sum)
-	} else if h.params.Width == 3 {
+	case 3:
 		sum := h.api.Add(input[0], input[1])
 		sum = h.api.Add(sum, input[2])
 		input[0] = h.api.Add(input[0], sum)
 		input[1] = h.api.Add(input[1], sum)
 		input[2] = h.api.Mul(input[2], 2)
 		input[2] = h.api.Add(input[2], sum)
-	} else {
+	default:
 		// TODO: we don't have general case implemented in gnark-crypto side.
-		// Currently we only have the hardcoded matrices for t=2,3. If we would
-		// use `h.params.diagInternalMatrices` we would need to set it, but
-		// currently they are nil.
-
-		// var sum frontend.Variable
-		// sum = input[0]
-		// for i := 1; i < h.params.Width; i++ {
-		// 	sum = api.Add(sum, input[i])
-		// }
-		// for i := 0; i < h.params.Width; i++ {
-		// 	input[i] = api.Mul(input[i], h.params.diagInternalMatrices[i])
-		// 	input[i] = api.Add(input[i], sum)
-		// }
 		panic("only T=2,3 is supported")
 	}
 }
@@ -400,6 +404,10 @@ func (h *Permutation) addRoundKeyInPlace(round int, input []frontend.Variable) {
 func (h *Permutation) Permutation(input []frontend.Variable) error {
 	if len(input) != h.params.Width {
 		return ErrInvalidSizebuffer
+	}
+
+	if h.params.Width == 2 {
+		return h.permutationW2(input)
 	}
 
 	// external matrix multiplication, cf https://eprint.iacr.org/2023/323.pdf page 14 (part 6)
@@ -428,6 +436,155 @@ func (h *Permutation) Permutation(input []frontend.Variable) error {
 			h.sBox(j, input)
 		}
 		h.matMulExternalInPlace(input)
+	}
+
+	return nil
+}
+
+func (h *Permutation) permutationW2(input []frontend.Variable) error {
+	// TODO @gbotrel really what this does is inline the whole permutation for width=2
+	// and minimize constraints by packing additions together.
+	// should be generalized to other widths if needed.
+
+	// Optimized permutation for width=2
+	// This implementation inlines matrix operations and merges round key additions
+	// to minimize constraint count.
+	//
+	// Key insight: In PLONK, multiplication by constants is free, and adding multiple
+	// constants in one api.Add call uses a single constraint. We merge round key
+	// additions into the preceding matrix multiplication wherever possible.
+	//
+	// matMulExternalInPlace for width=2:
+	//   output[0] = 2*input[0] + input[1]
+	//   output[1] = input[0] + 2*input[1]
+	//
+	// matMulInternalInPlace for width=2:
+	//   output[0] = 2*input[0] + input[1]
+	//   output[1] = input[0] + 3*input[1]
+
+	rf := h.params.NbFullRounds / 2
+	rp := h.params.NbPartialRounds
+
+	// Initial external matrix multiplication merged with first full round's keys
+	// matMulExternal + addRoundKey[0]:
+	// output[0] = 2*i0 + i1 + rk[0][0]
+	// output[1] = i0 + 2*i1 + rk[0][1]
+	{
+		i0 := input[0]
+		i1 := input[1]
+		input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[0][0])
+		input[1] = h.api.Add(i0, h.api.Mul(i1, 2), &h.params.RoundKeys[0][1])
+	}
+
+	// =========================================================================
+	// First half of full rounds
+	// =========================================================================
+	// Each round: sBox (keys already added) -> matMulExternal merged with next keys
+
+	for i := 0; i < rf-1; i++ {
+		// sBox on both elements (round keys already merged from previous step)
+		h.sBox(0, input)
+		h.sBox(1, input)
+
+		// matMulExternal merged with next full round's keys
+		// output[0] = 2*s0 + s1 + rk[i+1][0]
+		// output[1] = s0 + 2*s1 + rk[i+1][1]
+		s0 := input[0]
+		s1 := input[1]
+		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[i+1][0])
+		input[1] = h.api.Add(s0, h.api.Mul(s1, 2), &h.params.RoundKeys[i+1][1])
+	}
+
+	// Last full round of first half: merge with first partial round's key (only input[0])
+	{
+		h.sBox(0, input)
+		h.sBox(1, input)
+
+		s0 := input[0]
+		s1 := input[1]
+		// matMulExternal merged with first partial round's key
+		// output[0] = 2*s0 + s1 + rk[rf][0]
+		// output[1] = s0 + 2*s1 (no key for input[1] in partial rounds)
+		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[rf][0])
+		input[1] = h.api.Add(s0, h.api.Mul(s1, 2))
+	}
+
+	// =========================================================================
+	// Partial rounds - optimized with merged round key additions
+	// =========================================================================
+	// In partial rounds, only input[0] gets a round key (keys have length 1).
+	// input[0] already has first partial round's key merged from above.
+
+	firstPartialRound := rf
+	lastPartialRound := rf + rp - 1
+	firstSecondHalfRound := rf + rp
+
+	if rp == 1 {
+		// Only one partial round: sBox + matMulInternal merged with second half's first round keys
+		h.sBox(0, input)
+		i0 := input[0]
+		i1 := input[1]
+		// output[0] = 2*i0 + i1 + rk[firstSecondHalfRound][0]
+		// output[1] = i0 + 3*i1 + rk[firstSecondHalfRound][1]
+		input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[firstSecondHalfRound][0])
+		input[1] = h.api.Add(i0, h.api.Mul(i1, 3), &h.params.RoundKeys[firstSecondHalfRound][1])
+	} else {
+		// First partial round: sBox + matMulInternal merged with second partial round's key
+		h.sBox(0, input)
+		{
+			s0 := input[0]
+			i1 := input[1]
+			input[0] = h.api.Add(h.api.Mul(s0, 2), i1, &h.params.RoundKeys[firstPartialRound+1][0])
+			input[1] = h.api.Add(s0, h.api.Mul(i1, 3))
+		}
+
+		// Middle partial rounds (not first, not last)
+		for i := firstPartialRound + 1; i < lastPartialRound; i++ {
+			h.sBox(0, input)
+			s0 := input[0]
+			i1 := input[1]
+			input[0] = h.api.Add(h.api.Mul(s0, 2), i1, &h.params.RoundKeys[i+1][0])
+			input[1] = h.api.Add(s0, h.api.Mul(i1, 3))
+		}
+
+		// Last partial round: sBox + matMulInternal merged with second half's first round keys
+		h.sBox(0, input)
+		{
+			i0 := input[0]
+			i1 := input[1]
+			// output[0] = 2*i0 + i1 + rk[firstSecondHalfRound][0]
+			// output[1] = i0 + 3*i1 + rk[firstSecondHalfRound][1]
+			input[0] = h.api.Add(h.api.Mul(i0, 2), i1, &h.params.RoundKeys[firstSecondHalfRound][0])
+			input[1] = h.api.Add(i0, h.api.Mul(i1, 3), &h.params.RoundKeys[firstSecondHalfRound][1])
+		}
+	}
+
+	// =========================================================================
+	// Second half of full rounds
+	// =========================================================================
+	// First round's keys already merged from partial rounds above.
+
+	for i := firstSecondHalfRound; i < firstSecondHalfRound+rf-1; i++ {
+		// sBox on both elements (round keys already merged)
+		h.sBox(0, input)
+		h.sBox(1, input)
+
+		// matMulExternal merged with next round's keys
+		s0 := input[0]
+		s1 := input[1]
+		input[0] = h.api.Add(h.api.Mul(s0, 2), s1, &h.params.RoundKeys[i+1][0])
+		input[1] = h.api.Add(s0, h.api.Mul(s1, 2), &h.params.RoundKeys[i+1][1])
+	}
+
+	// Very last full round: no merge needed (nothing after)
+	{
+		h.sBox(0, input)
+		h.sBox(1, input)
+
+		i0 := input[0]
+		i1 := input[1]
+		input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
+		input[1] = h.api.Add(i0, h.api.Mul(i1, 2))
 	}
 
 	return nil
