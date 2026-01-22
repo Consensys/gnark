@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/babybear"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -27,45 +28,45 @@ func testComposition[T emulated.FieldParams](t *testing.T) {
 	var fp T
 
 	assert.Run(func(assert *test.Assert) {
+		nbLimbs, nbBits := emulated.GetEffectiveFieldParams[T](ecc.BN254.ScalarField())
 		n, err := rand.Int(rand.Reader, fp.Modulus())
 		if err != nil {
 			assert.FailNow("rand int", err)
 		}
-		res := make([]*big.Int, fp.NbLimbs())
+		res := make([]*big.Int, nbLimbs)
 		for i := range res {
 			res[i] = new(big.Int)
 		}
-		if err = limbs.Decompose(n, fp.BitsPerLimb(), res); err != nil {
+		if err = limbs.Decompose(n, nbBits, res); err != nil {
 			assert.FailNow("decompose", err)
 		}
 		n2 := new(big.Int)
-		if err = limbs.Recompose(res, fp.BitsPerLimb(), n2); err != nil {
+		if err = limbs.Recompose(res, nbBits, n2); err != nil {
 			assert.FailNow("recompose", err)
 		}
 		if n2.Cmp(n) != 0 {
 			assert.FailNow("unequal")
 		}
 	}, fmt.Sprintf("%s/limb=%d", reflect.TypeOf(fp).Name(), fp.BitsPerLimb()))
-	sfp, ok := any(fp).(emulated.DynamicFieldParams)
-	assert.True(ok, "field %T does not implement DynamicFieldParams", fp)
+	nbLimbs, nbBits := emulated.GetEffectiveFieldParams[T](babybear.Modulus())
 	assert.Run(func(assert *test.Assert) {
-		n, err := rand.Int(rand.Reader, sfp.Modulus())
+		n, err := rand.Int(rand.Reader, fp.Modulus())
 		if err != nil {
 			assert.FailNow("rand int", err)
 		}
-		res := make([]*big.Int, sfp.NbLimbsDynamic(babybear.Modulus()))
+		res := make([]*big.Int, nbLimbs)
 		for i := range res {
 			res[i] = new(big.Int)
 		}
-		if err = limbs.Decompose(n, sfp.BitsPerLimbDynamic(babybear.Modulus()), res); err != nil {
+		if err = limbs.Decompose(n, nbBits, res); err != nil {
 			assert.FailNow("decompose", err)
 		}
 		n2 := new(big.Int)
-		if err = limbs.Recompose(res, sfp.BitsPerLimbDynamic(babybear.Modulus()), n2); err != nil {
+		if err = limbs.Recompose(res, nbBits, n2); err != nil {
 			assert.FailNow("recompose", err)
 		}
 		if n2.Cmp(n) != 0 {
 			assert.FailNow("unequal")
 		}
-	}, fmt.Sprintf("smallfield/%s/limb=%d", reflect.TypeOf(fp).Name(), sfp.BitsPerLimbDynamic(babybear.Modulus())))
+	}, fmt.Sprintf("smallfield/%s/limb=%d", reflect.TypeOf(fp).Name(), nbBits))
 }
