@@ -347,6 +347,12 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 	var nbLoops int
 	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
 		if nbLoops++; nbLoops > 2 {
+			// we have tried reducing both sides and still the operation doesn't fit.
+			// this should never happen as after reducing both sides, the operation
+			// must fit.
+			//
+			// This is gnark-side error which needs to be fixed in the code, so we
+			// panic here.
 			panic("internal error: too many reduction loops")
 		}
 		if !target.reduceRight {
