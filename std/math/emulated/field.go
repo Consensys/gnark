@@ -311,7 +311,7 @@ func (f *Field[T]) maxOverflowReducedResult() uint {
 	// additionally shifted by BitsPerLimb, then we have additional BitsPerLimb
 	// bits of margin (relative to the native field width). Keep in mind that
 	// the `maxOf` constant is already BitsPerLimb less than the modulus width,
-	// then we can add again twice.
+	// then we can add BitsPerLimb again twice.
 	return f.maxOf + 2*f.fParams.BitsPerLimb()
 }
 
