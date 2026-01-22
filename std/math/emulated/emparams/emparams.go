@@ -44,13 +44,13 @@ func (fourLimbPrimeField) BitsPerLimb() uint { return 64 }
 func (fourLimbPrimeField) IsPrime() bool     { return true }
 func (f fourLimbPrimeField) NbLimbsDynamic(field *big.Int) uint {
 	if smallfields.IsSmallField(field) {
-		return 26
+		return 16
 	}
 	return f.NbLimbs()
 }
 func (f fourLimbPrimeField) BitsPerLimbDynamic(field *big.Int) uint {
 	if smallfields.IsSmallField(field) {
-		return 10
+		return 16
 	}
 	return f.BitsPerLimb()
 }
