@@ -306,7 +306,7 @@ func (f *Field[T]) maxOverflowReducedResult() uint {
 		// if we change this computation then also change maxOverflow
 		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
 	})
-	// when doing multiplication (or checkZero), then we hint always outputs
+	// when doing multiplication (or checkZero), the hint always outputs
 	// quotient and result limbs with width BitsPerLimb. As the carry limbs are
 	// additionally shifted by BitsPerLimb, then we have additional BitsPerLimb
 	// bits of margin (relative to the native field width). Keep in mind that
