@@ -58,7 +58,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 	// lambda as nonnative element
 	lambdaEmu := sapi.NewElement(cc.lambda)
 	// the scalar as nonnative element. We need to split at 64 bits.
-	nbLimbs, _ := emulated.GetEffectiveFieldParams[emparams.BLS24315Fr](api.Compiler().Field())
+	nbLimbs, _ := emulated.GetEffectiveFieldParams[emparams.GrumpkinFr](api.Compiler().Field())
 	limbs, err := api.NewHint(decompose, int(nbLimbs), s)
 	if err != nil {
 		panic(err)
@@ -82,7 +82,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 }
 
 func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
-	nbLimbs, nbBits := emulated.GetEffectiveFieldParams[emparams.BLS24315Fr](mod)
+	nbLimbs, nbBits := emulated.GetEffectiveFieldParams[emparams.GrumpkinFr](mod)
 	if uint(len(outputs)) != nbLimbs {
 		return errors.New("output length mismatch")
 	}
