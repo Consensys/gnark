@@ -328,12 +328,6 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 
 	switch h.params.Width {
 	case 2:
-		// i0 := input[0]
-		// i1 := input[1]
-		// input[0] = 2*i0 + i1
-		// input[1] = i0 + 2*i1
-		// input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
-		// input[1] = h.api.Add(i0, h.api.Mul(i1, 2))
 		tmp := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(tmp, input[0])
 		input[1] = h.api.Add(tmp, input[1])
@@ -370,12 +364,6 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 	switch h.params.Width {
 	case 2:
-		// i0 := input[0]
-		// i1 := input[1]
-		// input[0] = 2*i0 + i1
-		// input[1] = i0 + 3*i1
-		// input[0] = h.api.Add(h.api.Mul(i0, 2), i1)
-		// input[1] = h.api.Add(i0, h.api.Mul(i1, 3))
 		sum := h.api.Add(input[0], input[1])
 		input[0] = h.api.Add(input[0], sum)
 		input[1] = h.api.Mul(2, input[1])
