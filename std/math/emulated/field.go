@@ -115,7 +115,11 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return f, errors.New("missing api")
 	}
 
-	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
+	// to ensure that we can perform the operations, we have to consider the
+	// biggest overflow grow for elements we can have. Currently this is for
+	// subtraction which can have overflow up to 2 bits. We add one more bit of
+	// margin for safety.
+	if uint(f.api.Compiler().FieldBitLen()) < f.fParams.BitsPerLimb()+3 {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
