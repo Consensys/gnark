@@ -2,10 +2,17 @@ package smallfields
 
 import (
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
+)
+
+// cached supported fields - initialized once
+var (
+	supportedFields     []*big.Int
+	supportedFieldsOnce sync.Once
 )
 
 // IsSmallField returns true if the field is a small field. Small fields do not
@@ -24,10 +31,14 @@ func IsSmallField(field *big.Int) bool {
 // - babybear
 // - koalabear
 // - tinyfield -- experimental very small field for fuzzing purposes
+// The result is cached for performance.
 func Supported() []*big.Int {
-	return []*big.Int{
-		babybear.Modulus(),
-		koalabear.Modulus(),
-		tinyfield.Modulus(),
-	}
+	supportedFieldsOnce.Do(func() {
+		supportedFields = []*big.Int{
+			babybear.Modulus(),
+			koalabear.Modulus(),
+			tinyfield.Modulus(),
+		}
+	})
+	return supportedFields
 }
