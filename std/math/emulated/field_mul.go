@@ -463,7 +463,7 @@ func (f *Field[T]) performDeferredChecks(api frontend.API) error {
 func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Element[T]) (quo, rem, carries *Element[T], err error) {
 	// compute the expected overflow after the multiplication of a*b to be able
 	// to estimate the number of bits required to represent the result.
-	nextOverflow, _ := f.mulPreCond(a, b)
+	nextOverflow := f.mulResultOverflow(a, b)
 	// skip error handle - it happens when we are supposed to reduce. But we
 	// already check it as a precondition. We only need the overflow here.
 	if !isMulMod {
@@ -616,7 +616,7 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
-	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
+	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCondReduced, a, b)
 }
 
 // MulMod computes a*b and reduces it modulo the field order. The returned Element
@@ -628,7 +628,7 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
-	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
+	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCondReduced, a, b)
 }
 
 // MulConst multiplies a by a constant c and returns it. We assume that the
@@ -673,16 +673,42 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 	)
 }
 
-func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
-	reduceRight := a.overflow < b.overflow
+// mulResultOverflow computes the maximum overflow of the limbwise
+// multiplications of a*b. This is used to determine whether the multiplication
+// can be safely performed without exceeding the field limits.
+func (f *Field[T]) mulResultOverflow(a, b *Element[T]) (overflow uint) {
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
 	nbLimbsOverflow := uint(1)
 	if nbResLimbs > 0 {
 		nbLimbsOverflow = uint(bits.Len(uint(nbResLimbs)))
 	}
-	nextOverflow = f.fParams.BitsPerLimb() + nbLimbsOverflow + a.overflow + b.overflow
+	overflow = f.fParams.BitsPerLimb() + nbLimbsOverflow + a.overflow + b.overflow
+	return overflow
+}
+
+// mulPreCondReduced is a precondition to check if the multiplication a*b can be safely
+// checked, assuming the result will be reduced modulo the field order.
+//
+// As the result and quotient will be reduced (overflow=0), then this condition checks that
+// only the carries can fit into the native field.
+func (f *Field[T]) mulPreCondReduced(a, b *Element[T]) (nextOverflow uint, err error) {
+	reduceRight := a.overflow < b.overflow
+	nextOverflow = f.mulResultOverflow(a, b)
+	if nextOverflow > f.maxOverflowReducedResult() {
+		err = overflowError{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflowReducedResult(), reduceRight: reduceRight}
+	}
+	return
+}
+
+// mulPreCondNoReduce is a precondition to check if the multiplication a*b can be safely
+// checked, assuming the result will NOT be reduced modulo the field order.
+//
+// As the result will not be reduced, then we need to ensure that the full
+// multiplication result can fit into the native field.
+func (f *Field[T]) mulPreCondNoReduce(a, b *Element[T]) (nextOverflow uint, err error) {
+	nextOverflow = f.mulResultOverflow(a, b)
 	if nextOverflow > f.maxOverflow() {
-		err = overflowError{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
+		err = overflowError{op: "mulNoReduce", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow()}
 	}
 	return
 }
@@ -695,7 +721,7 @@ func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
-	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
+	return f.reduceAndOp(f.mulNoReduce, f.mulPreCondNoReduce, a, b)
 }
 
 func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] {

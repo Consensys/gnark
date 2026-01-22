@@ -289,9 +289,26 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 // then the limbs may overflow the native field.
 func (f *Field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
+		// if we change this computation then also change maxOverflowReducedResult
 		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
 	})
+	// when we perform non-reducing operations then we have to ensure that we are still
+	// able to reduce the result afterwards (i.e. when doing additions/subtractions).
 	return f.maxOf
+}
+
+func (f *Field[T]) maxOverflowReducedResult() uint {
+	f.maxOfOnce.Do(func() {
+		// if we change this computation then also change maxOverflow
+		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
+	})
+	// when doing multiplication (or checkZero), then we hint always outputs
+	// quotient and result limbs with width BitsPerLimb. As the carry limbs are
+	// additionally shifted by BitsPerLimb, then we have additional BitsPerLimb
+	// bits of margin (relative to the native field width). Keep in mind that
+	// the `maxOf` constant is already BitsPerLimb less than the modulus width,
+	// then we can add again twice.
+	return f.maxOf + 2*f.fParams.BitsPerLimb()
 }
 
 func max[T constraints.Ordered](a ...T) T {
