@@ -57,7 +57,7 @@ func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err erro
 	if err != nil {
 		return mulOf, err
 	}
-	// we didn't need to reduce a. Inside div the result a/b is already reduced,
+	// we didn't need to reduce a. Inside inverse the result 1/a is already reduced,
 	// so can use overflow 0
 	return 0, nil
 }
