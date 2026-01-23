@@ -29,7 +29,7 @@ type circuitEvaluator struct {
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
 	Circuit     gkrtypes.Circuit
-	NbInstances int
+	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
 	assignment    WireAssignment `cbor:"-"` // []polynomial.MultiLin
@@ -154,7 +154,7 @@ func (b *BlueprintSolve) Reset() {
 }
 
 // SetNbInstances sets the number of instances for the blueprint
-func (b *BlueprintSolve) SetNbInstances(nbInstances int) {
+func (b *BlueprintSolve) SetNbInstances(nbInstances uint32) {
 	b.NbInstances = nbInstances
 }
 
@@ -224,11 +224,6 @@ func (b *BlueprintSolve) GetAssignments() WireAssignment {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	return b.assignment
-}
-
-// GetNbInstances returns the number of instances (compile-time)
-func (b *BlueprintSolve) GetNbInstances() int {
-	return b.NbInstances
 }
 
 // BlueprintProve is a BW6_761-specific blueprint for generating GKR proofs.
@@ -317,15 +312,17 @@ func (b *BlueprintProve) NbConstraints() int {
 	return 0
 }
 
-// NbOutputs implements Blueprint
-func (b *BlueprintProve) NbOutputs(inst constraint.Instruction) int {
-	// Compute proof size from blueprint state
-	nbInstances := b.SolveBlueprint.GetNbInstances()
-	if nbInstances == 0 {
+func (b *BlueprintProve) proofSize() int {
+	if b.SolveBlueprint.NbInstances < 2 {
 		return 0
 	}
-	logNbInstances := bits.TrailingZeros(uint(nbInstances))
+	logNbInstances := bits.TrailingZeros32(b.SolveBlueprint.NbInstances)
 	return gadget.ProofSize(b.SolveBlueprint.Circuit, logNbInstances)
+}
+
+// NbOutputs implements Blueprint
+func (b *BlueprintProve) NbOutputs(inst constraint.Instruction) int {
+	return b.proofSize()
 }
 
 // UpdateInstructionTree implements Blueprint
@@ -352,10 +349,8 @@ func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree
 
 	outputLevel := maxLevel + 1
 	// Compute proof size from blueprint state
-	nbInstances := b.SolveBlueprint.GetNbInstances()
-	if nbInstances > 0 {
-		logNbInstances := bits.TrailingZeros(uint(nbInstances))
-		proofSize := gadget.ProofSize(b.SolveBlueprint.Circuit, logNbInstances)
+	if b.SolveBlueprint.NbInstances > 0 {
+		proofSize := b.proofSize()
 		for i := range proofSize {
 			tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
 		}
@@ -439,4 +434,33 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 	outputLevel := maxLevel + 1
 	tree.InsertWire(inst.WireOffset, outputLevel)
 	return outputLevel
+}
+
+// NewBlueprints creates and registers all GKR blueprints for BW6_761
+func NewBlueprints(circuit gkrtypes.Circuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+	// Create and register solve blueprint
+	solve := &BlueprintSolve{Circuit: circuit}
+	solveID := compiler.AddBlueprint(solve)
+
+	// Create and register prove blueprint
+	prove := &BlueprintProve{
+		SolveBlueprintID: solveID,
+		SolveBlueprint:   solve,
+		HashName:         hashName,
+	}
+	proveID := compiler.AddBlueprint(prove)
+
+	// Create and register GetAssignment blueprint
+	getAssignment := &BlueprintGetAssignment{
+		SolveBlueprintID: solveID,
+		SolveBlueprint:   solve,
+	}
+	getAssignmentID := compiler.AddBlueprint(getAssignment)
+
+	return gadget.Blueprints{
+		SolveID:         solveID,
+		Solve:           solve,
+		ProveID:         proveID,
+		GetAssignmentID: getAssignmentID,
+	}
 }

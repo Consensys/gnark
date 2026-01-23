@@ -5,11 +5,16 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
+	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
+	gkrbls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
+	gkrbls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
+	gkrbls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
 	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
+	gkrbw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
+	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -38,10 +43,7 @@ type Circuit struct {
 	api                  frontend.API // the parent API
 
 	// Blueprint-based fields
-	solveBlueprintID         constraint.BlueprintID
-	proveBlueprintID         constraint.BlueprintID
-	getAssignmentBlueprintID constraint.BlueprintID
-	solveBlueprint           gadget.BlueprintSolve
+	blueprints gadget.Blueprints
 
 	// Metadata
 	hashName    string
@@ -118,37 +120,36 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	return &res, nil
 }
 
-// createBlueprint creates and initializes the GKR solveBlueprint for this circuit
+// createBlueprint creates and initializes the GKR blueprint for this circuit
 func (c *Circuit) createBlueprint() error {
-	var blueprint gkrbn254.BlueprintSolve
-
-	// Convert circuit to typed circuit
+	// Convert circuit to typed circuit (common for all curves)
 	circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
 	if err != nil {
 		return fmt.Errorf("failed to convert circuit: %w", err)
 	}
 
-	blueprint.Circuit = circuit
-	// Note: metadata and evaluatorPool are initialized lazily on first Solve() call
+	// Dispatch to curve-specific factory
+	curveID := utils.FieldToCurve(c.api.Compiler().Field())
+	compiler := c.api.Compiler()
 
-	// Register solve solveBlueprint with compiler
-	c.solveBlueprintID = c.api.Compiler().AddBlueprint(&blueprint)
-	c.solveBlueprint = &blueprint
-
-	// Create and register prove solveBlueprint with reference to solve solveBlueprint
-	proveBlueprint := &gkrbn254.BlueprintProve{
-		SolveBlueprintID: c.solveBlueprintID,
-		SolveBlueprint:   &blueprint,
-		HashName:         c.hashName,
+	switch curveID {
+	case ecc.BN254:
+		c.blueprints = gkrbn254.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BLS12_377:
+		c.blueprints = gkrbls12377.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BLS12_381:
+		c.blueprints = gkrbls12381.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BLS24_315:
+		c.blueprints = gkrbls24315.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BLS24_317:
+		c.blueprints = gkrbls24317.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BW6_633:
+		c.blueprints = gkrbw6633.NewBlueprints(circuit, c.hashName, compiler)
+	case ecc.BW6_761:
+		c.blueprints = gkrbw6761.NewBlueprints(circuit, c.hashName, compiler)
+	default:
+		return fmt.Errorf("unsupported curve: %s", curveID)
 	}
-	c.proveBlueprintID = c.api.Compiler().AddBlueprint(proveBlueprint)
-
-	// Create and register GetAssignment solveBlueprint for debugging
-	getAssignmentBlueprint := &gkrbn254.BlueprintGetAssignment{
-		SolveBlueprintID: c.solveBlueprintID,
-		SolveBlueprint:   &blueprint,
-	}
-	c.getAssignmentBlueprintID = c.api.Compiler().AddBlueprint(getAssignmentBlueprint)
 
 	return nil
 }
@@ -187,7 +188,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 
 	// Execute solve solveBlueprint instruction
-	outputs := compiler.AddInstruction(c.solveBlueprintID, calldata)
+	outputs := compiler.AddInstruction(c.blueprints.SolveID, calldata)
 
 	// Track instance count
 	c.nbInstances++
@@ -224,7 +225,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	// Set NbInstances in the solve solveBlueprint (used for pre-allocation and proof size computation)
-	c.solveBlueprint.SetNbInstances(nbPaddedInstances)
+	c.blueprints.Solve.SetNbInstances(uint32(nbPaddedInstances))
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
@@ -289,7 +290,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	}
 
 	// Execute prove solveBlueprint instruction
-	proofOutputs := compiler.AddInstruction(c.proveBlueprintID, proveCalldata)
+	proofOutputs := compiler.AddInstruction(c.blueprints.ProveID, proveCalldata)
 
 	// Convert outputs to proof
 	proofSerialized := make([]frontend.Variable, len(proofOutputs))
@@ -350,6 +351,6 @@ func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
 	depVar := compiler.ToCanonicalVariable(dependencyWire)
 	depVar.Compress(&calldata)
 
-	outputs := compiler.AddInstruction(c.getAssignmentBlueprintID, calldata)
+	outputs := compiler.AddInstruction(c.blueprints.GetAssignmentID, calldata)
 	return compiler.InternalVariable(outputs[0])
 }
