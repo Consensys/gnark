@@ -24,8 +24,11 @@ import (
 // argument.
 var fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
 
+// fixedKzgSrsVk16 is the verifying key for the KZG precompile using 16-bit limbs.
+var fixedKzgSrsVk16 *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+
 func init() {
-	fixedKzgSrsVk = fixedVerificationKey() // initialize the fixed verifying key
+	fixedKzgSrsVk, fixedKzgSrsVk16 = fixedVerificationKey() // initialize the fixed verifying key
 }
 
 var (
@@ -52,7 +55,7 @@ var (
 	}
 )
 
-func fixedVerificationKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine] {
+func fixedVerificationKey() (*kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine], *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]) {
 	var vk kzg_bls12381.VerifyingKey
 	dec := bls12381.NewDecoder(bytes.NewBuffer(srs), bls12381.NoSubgroupChecks())
 	err := dec.Decode(&vk.G1)
@@ -73,7 +76,13 @@ func fixedVerificationKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.
 	if err != nil {
 		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
 	}
-	return &vkw
+	// as the constant values are decomposed automatically at circuit parsing time and this is
+	// a global variable, we need to create a separate instance for 16-bit limbs
+	vkw16, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
+	}
+	return &vkw, &vkw16
 }
 
 const (
@@ -150,7 +159,7 @@ func KzgPointEvaluation(
 	// check expected modulus against 128-bit format
 	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
 	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
-	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 16)
+	return kzgPointEvaluation(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 16)
 }
 
 // KzgPointEvaluation16 implements the [KZG_POINT_EVALUATION] precompile at
@@ -186,13 +195,14 @@ func KzgPointEvaluation16(
 	for i := range evmBlsModulus16 {
 		api.AssertIsEqual(expectedBlsModulus[i], evmBlsModulus16[i])
 	}
-	return kzgPointEvaluation(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 2)
+	return kzgPointEvaluation(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 2)
 }
 
 // kzgPointEvaluation is the generic implementation of KZG point evaluation.
 // bytesPerLimb specifies how many bytes each limb represents (16 for 128-bit, 2 for 16-bit).
 func kzgPointEvaluation(
 	api frontend.API,
+	fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine],
 	versionedHash []frontend.Variable,
 	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
@@ -326,7 +336,7 @@ func KzgPointEvaluationFailure(
 	expectedBlobSize [2]frontend.Variable,
 	expectedBlsModulus [2]frontend.Variable,
 ) error {
-	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
+	return kzgPointEvaluationFailure(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
 }
 
 // KzgPointEvaluationFailure16 checks a failing case of KZG point evaluation precompile
@@ -364,13 +374,14 @@ func KzgPointEvaluationFailure16(
 	expectedBlobSize [16]frontend.Variable,
 	expectedBlsModulus [16]frontend.Variable,
 ) error {
-	return kzgPointEvaluationFailure(api, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
+	return kzgPointEvaluationFailure(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
 }
 
 // kzgPointEvaluationFailure is the generic implementation of KZG point evaluation failure.
 // bytesPerLimb specifies how many bytes each limb represents (16 for 128-bit, 2 for 16-bit).
 func kzgPointEvaluationFailure(
 	api frontend.API,
+	fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine],
 	versionedHash []frontend.Variable,
 	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
 	claimedValue *emulated.Element[sw_bls12381.ScalarField],
