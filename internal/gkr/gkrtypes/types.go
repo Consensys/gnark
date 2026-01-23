@@ -236,6 +236,17 @@ func (c Circuit[GateExecutable]) Inputs() []int {
 	return res
 }
 
+// Outputs returns the list of output wire indices
+func (c Circuit[GateExecutable]) Outputs() []int {
+	res := make([]int, 0, len(c))
+	for i := range c {
+		if c[i].IsOutput() {
+			res = append(res, i)
+		}
+	}
+	return res
+}
+
 // MaxGateNbIn returns the maximum number of inputs of any gate in the circuit.
 func (c Circuit[GateExecutable]) MaxGateNbIn() int {
 	res := 0

@@ -90,9 +90,7 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	}
 
 	// Convert registered circuit to serializable circuit (bytecode only) for blueprints
-	serializableCircuit := gkrtypes.ConvertCircuit(api.circuit, func(e gkrtypes.BothExecutables) *gkrtypes.GateBytecode {
-		return e.Bytecode
-	})
+	serializableCircuit := gkrtypes.ToSerializable(api.circuit)
 
 	// Dispatch to curve-specific factory
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
@@ -121,24 +119,22 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		opt(&res)
 	}
 
-	notOut := make([]bool, len(res.circuit))
-	for i := range res.circuit {
-		if res.circuit[i].IsInput() {
-			res.ins = append(res.ins, gkr.Variable(i))
-		}
-		for _, inWI := range res.circuit[i].Inputs {
-			notOut[inWI] = true
-		}
-	}
+	// Use circuit helper methods for inputs and outputs
+	inputIndices := res.circuit.Inputs()
+	outputIndices := res.circuit.Outputs()
 
-	if len(res.ins) == len(res.circuit) {
+	if len(inputIndices) == len(res.circuit) {
 		return nil, errors.New("circuit has no non-input wires")
 	}
 
-	for i := range res.circuit {
-		if !notOut[i] {
-			res.outs = append(res.outs, gkr.Variable(i))
-		}
+	res.ins = make([]gkr.Variable, len(inputIndices))
+	for i, inI := range inputIndices {
+		res.ins[i] = gkr.Variable(inI)
+	}
+
+	res.outs = make([]gkr.Variable, len(outputIndices))
+	for i, outI := range outputIndices {
+		res.outs[i] = gkr.Variable(outI)
 	}
 
 	res.api.Compiler().Defer(res.finalize)
@@ -216,7 +212,6 @@ func (c *Circuit) finalize(api frontend.API) error {
 		}
 	}
 
-	// Set NbInstances in the solve solveBlueprint (used for pre-allocation and proof size computation)
 	c.blueprints.Solve.SetNbInstances(uint32(nbPaddedInstances))
 
 	curve := utils.FieldToCurve(api.Compiler().Field())
@@ -265,7 +260,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		return c.verify(api, nil, []frontend.Variable{commitment})
+		return c.verify(api, gadgetCircuit, []frontend.Variable{commitment})
 	}, insOuts...)
 
 	return nil
