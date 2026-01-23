@@ -28,9 +28,7 @@ type BlueprintSolve struct {
 	assignment    WireAssignment `cbor:"-"` // []polynomial.MultiLin
 	evaluatorPool sync.Pool      `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
 	nbInputs      int            `cbor:"-"`
-	inputWires    []int          `cbor:"-"`
 	outputWires   []int          `cbor:"-"`
-	maxNbIn       int            `cbor:"-"` // maximum number of inputs for any gate
 
 	lock sync.Mutex `cbor:"-"`
 }
@@ -51,15 +49,7 @@ func (b *BlueprintSolve) initialize() {
 	}
 
 	// Compute metadata from Circuit
-	for i := range b.Circuit {
-		if b.Circuit[i].IsInput() {
-			b.nbInputs++
-			b.inputWires = append(b.inputWires, i)
-		} else {
-			b.maxNbIn = max(b.maxNbIn, len(b.Circuit[i].Inputs))
-		}
-	}
-
+	b.Circuit.OutputsList() // for side effects
 	b.outputWires = b.Circuit.Outputs()
 
 	b.evaluatorPool.New = func() interface{} {
@@ -148,12 +138,12 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	return len(b.Circuit.Outputs())
+	b.initialize() // circuit metadata
+	return len(b.outputWires)
 }
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
-	b.initialize() // circuit metadata
 
 	maxLevel := constraint.LevelUnset
 

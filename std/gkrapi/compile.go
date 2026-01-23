@@ -175,7 +175,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		v.Compress(&calldata)
 	}
 
-	// Execute solve solveBlueprint instruction
+	// Execute solve blueprint instruction
 	outputs := compiler.AddInstruction(c.blueprints.SolveID, calldata)
 
 	// Track instance count
