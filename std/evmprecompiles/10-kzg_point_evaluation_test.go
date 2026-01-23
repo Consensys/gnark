@@ -172,12 +172,12 @@ func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValu
 		witnessHash[i] = encode(hashBytes[2*i : 2*i+2])
 	}
 
-	// - commitment into 3 limbs
+	// - commitment into 24 limbs (2 bytes each)
 	var witnessCommitment [24]frontend.Variable
 	for i := range witnessCommitment {
 		witnessCommitment[i] = encode(commitmentBytes[2*i : 2*i+2])
 	}
-	// - proof into 3 limbs
+	// - proof into 24 limbs (2 bytes each)
 	var witnessProof [24]frontend.Variable
 	for i := range witnessProof {
 		witnessProof[i] = encode(proofBytes[2*i : 2*i+2])
