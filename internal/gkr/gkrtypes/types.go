@@ -7,9 +7,7 @@ import (
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-	"github.com/consensys/gnark/std/polynomial"
 )
 
 type (
@@ -85,6 +83,10 @@ func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, s
 	}
 }
 
+func (be BothExecutables) getByteCode() *GateBytecode {
+	return be.Bytecode
+}
+
 // SupportsCurve returns whether the gate can be used over the given curve.
 func (g *Gate[GateExecutable]) SupportsCurve(curve ecc.ID) bool {
 	return slices.Contains(g.Curves, curve)
@@ -157,21 +159,6 @@ func (c Circuit[GateExecutable]) maxGateDegree() int {
 		}
 	}
 	return res
-}
-
-// MaxStackSize returns the maximum stack size needed by any gate evaluator in the circuit.
-// This is used to initialize universal gate evaluators that can handle any gate in the circuit.
-func MaxStackSize(c SerializableCircuit) int {
-	maxSize := 0
-	for i := range c {
-		if !c[i].IsInput() {
-			gate := c[i].Gate.Evaluate
-			nbIn := len(c[i].Inputs)
-			stackSize := gate.NbConstants() + nbIn + len(gate.Instructions)
-			maxSize = max(maxSize, stackSize)
-		}
-	}
-	return maxSize
 }
 
 // MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
@@ -391,18 +378,21 @@ func Mul2() *RegisteredGate {
 	}, 2, 2, -1, gnark.Curves())
 }
 
+func ConvertGate[GateExecutable, TargetGateExecutable any](g *Gate[GateExecutable], converter func(GateExecutable) TargetGateExecutable) *Gate[TargetGateExecutable] {
+	return &Gate[TargetGateExecutable]{
+		Evaluate:    converter(g.Evaluate),
+		NbIn:        g.NbIn,
+		Degree:      g.Degree,
+		SolvableVar: g.SolvableVar,
+		Curves:      g.Curves,
+	}
+}
+
 func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExecutable], gateConverter func(GateExecutable) TargetGateExecutable) Circuit[TargetGateExecutable] {
 	res := make(Circuit[TargetGateExecutable], len(c))
 	for i := range c {
 		res[i] = Wire[TargetGateExecutable]{
-			Gate: &Gate[TargetGateExecutable]{
-				Evaluate:    gateConverter(c[i].Gate.Evaluate),
-				NbIn:        c[i].Gate.NbIn,
-				Degree:      c[i].Gate.Degree,
-				SolvableVar: c[i].Gate.SolvableVar,
-				Curves:      c[i].Gate.Curves,
-			},
-
+			Gate:            ConvertGate(c[i].Gate, gateConverter),
 			Inputs:          c[i].Inputs,
 			NbUniqueOutputs: c[i].NbUniqueOutputs,
 		}
@@ -413,9 +403,11 @@ func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExec
 
 // ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
 func ToSerializable(c RegisteredCircuit) SerializableCircuit {
-	return ConvertCircuit(c, func(e BothExecutables) *GateBytecode {
-		return e.Bytecode
-	})
+	return ConvertCircuit(c, BothExecutables.getByteCode)
+}
+
+func ToSerializableGate(g *RegisteredGate) *Gate[*GateBytecode] {
+	return ConvertGate(g, BothExecutables.getByteCode)
 }
 
 // ToGadget converts a registered circuit (with both executables) to a gadget circuit (gate functions only, for in-circuit verification).

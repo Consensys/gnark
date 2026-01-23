@@ -191,7 +191,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			cse.Circuit = gkrtypes.ToGadget(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -304,12 +304,6 @@ func (m *MessageCounter) Reset() {
 func NewMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
 	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
 	return transcript
-}
-
-func NewMessageCounterGenerator(startState, step int) func(frontend.API) hash.FieldHasher {
-	return func(api frontend.API) hash.FieldHasher {
-		return NewMessageCounter(api, startState, step)
-	}
 }
 
 type constHashCircuit struct {
