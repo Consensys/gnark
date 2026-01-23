@@ -36,25 +36,26 @@ type BlueprintSolve struct {
 	MaxNbIn      int // maximum number of inputs for any gate
 
 	// Stateful data - stored as native fr.Element
+	// Not serialized - recreated lazily at solve time
 	nbInstances   int
 	assignment    WireAssignment // []polynomial.MultiLin
-	evaluatorPool sync.Pool      // pool of circuitEvaluator for reuse
+	evaluatorPool sync.Pool      // pool of circuitEvaluator, lazy-initialized
 
 	lock sync.Mutex
 }
 
-// InitializeEvaluatorPool initializes the evaluator pool for this blueprint
-func (b *BlueprintSolve) InitializeEvaluatorPool(circuit gkrtypes.Circuit, maxGateStackSize int) {
-	elementPool := polynomial.NewPool(maxGateStackSize)
+// initializeEvaluatorPool lazily initializes the evaluator pool on first solve
+func (b *BlueprintSolve) initializeEvaluatorPool() {
 	b.evaluatorPool = sync.Pool{
 		New: func() interface{} {
 			ce := &circuitEvaluator{
-				evaluators: make([]gateEvaluator, len(circuit)),
+				evaluators: make([]gateEvaluator, len(b.Circuit)),
 			}
-			for wI := range circuit {
-				w := &circuit[wI]
+			for wI := range b.Circuit {
+				w := &b.Circuit[wI]
 				if !w.IsInput() {
-					ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs), &elementPool)
+					// Each gate evaluator allocates its own appropriately-sized stack
+					ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs))
 				}
 			}
 			return ce
@@ -89,7 +90,12 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
-	// Read input values from instruction calldata (no metadata, just inputs)
+	// Lazy initialize evaluator pool on first use
+	if b.evaluatorPool.New == nil {
+		b.initializeEvaluatorPool()
+	}
+
+	// Read input values
 	offset := 1
 
 	// Get a circuit evaluator from the pool

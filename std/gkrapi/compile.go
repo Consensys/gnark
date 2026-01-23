@@ -155,21 +155,7 @@ func (c *Circuit) createBlueprint() error {
 		}
 	}
 
-	// Initialize evaluator pool (same as in NewSolvingData)
-	maxGateStackSize := 0
-	for _, w := range circuit {
-		if !w.IsInput() {
-			stackSize := w.Gate.Compiled().NbConstants() + len(w.Inputs) + len(w.Gate.Compiled().Instructions)
-			if stackSize > maxGateStackSize {
-				maxGateStackSize = stackSize
-			}
-		}
-	}
-
-	// Initialize evaluator pool - this creates the sync.Pool with a factory function
-	// that creates circuitEvaluators. The actual initialization happens inside the blueprint
-	// when InitializeEvaluatorPool is called.
-	blueprint.InitializeEvaluatorPool(circuit, maxGateStackSize)
+	// Note: evaluatorPool is initialized lazily on first Solve() call
 
 	// Register solve blueprint with compiler
 	c.solveBlueprintID = c.api.Compiler().AddBlueprint(blueprint)
