@@ -2,96 +2,108 @@ package gkrtypes
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
-// A Gate is a low-degree multivariate polynomial
-type Gate struct {
-	Evaluate    gkr.GateFunction // Evaluate the polynomial function defining the gate
-	compiled    *CompiledGate    // Compiled form of the gate function (used in native prover)
-	nbIn        int              // number of inputs
-	degree      int              // total degree of the polynomial
-	solvableVar int              // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-	curves      []ecc.ID         // curves that the gate is allowed to be used over
-}
+type (
+	InputDependency struct {
+		OutputWire     int
+		OutputInstance int
+		InputInstance  int
+	}
+
+	// A Gate is a low-degree multivariate polynomial
+	Gate[GateExecutable any] struct {
+		Executable  GateExecutable
+		NbIn        int      // number of inputs
+		Degree      int      // total Degree of the polynomial
+		SolvableVar int      // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+		Curves      []ecc.ID // Curves that the gate is allowed to be used over
+	}
+
+	Wire[GateExecutable any] struct {
+		Gate            *Gate[GateExecutable]
+		Inputs          []int
+		NbUniqueOutputs int
+	}
+
+	Circuit[GateExecutable any] []Wire[GateExecutable]
+
+	// Wires is a slice of pointers to Wire. It is used for propagating claim
+	// information through the circuit.
+	Wires[GateExecutable any] []*Wire[GateExecutable]
+
+	SerializableWire struct {
+		CompiledGate *GateBytecode // Compiled gate (serializable)
+		Inputs       []int
+	}
+
+	SerializableCircuit Circuit[*GateBytecode]
+
+	SerializableWires Wire[*GateBytecode]
+
+	Permutations struct {
+		SortedInstances      []int
+		SortedWires          []int
+		InstancesPermutation []int
+		WiresPermutation     []int
+	}
+
+	BothExecutables struct {
+		Bytecode      *GateBytecode
+		SnarkFriendly gkr.GateFunction
+	}
+	RegisteredGate Gate[BothExecutables]
+)
 
 // NewGate creates a new gate function with the given parameters:
 // - f: the polynomial function defining the gate
 // - compiled: the compiled form of the gate function
-// - nbIn: number of inputs to the gate
-// - degree: total degree of the polynomial. In case of multivariate polynomials, it is the maximum degree over all terms.
-// - solvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-// - curves: curves that the gate is allowed to be used over
-func NewGate(f gkr.GateFunction, compiled *CompiledGate, nbIn int, degree int, solvableVar int, curves []ecc.ID) *Gate {
+// - NbIn: number of inputs to the gate
+// - Degree: total Degree of the polynomial. In case of multivariate polynomials, it is the maximum Degree over all terms.
+// - SolvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
+// - Curves: Curves that the gate is allowed to be used over
+func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, solvableVar int, curves []ecc.ID) *RegisteredGate {
 
-	return &Gate{
-		Evaluate:    f,
-		compiled:    compiled,
-		nbIn:        nbIn,
-		degree:      degree,
-		solvableVar: solvableVar,
-		curves:      curves,
+	return &RegisteredGate{
+		Executable: BothExecutables{
+			Bytecode:      compiled,
+			SnarkFriendly: f,
+		},
+		NbIn:        nbIn,
+		Degree:      degree,
+		SolvableVar: solvableVar,
+		Curves:      curves,
 	}
 }
 
 // SupportsCurve returns whether the gate can be used over the given curve.
-func (g *Gate) SupportsCurve(curve ecc.ID) bool {
-	return slices.Contains(g.curves, curve)
-}
-
-// Degree returns the total degree of the gate's polynomial e.g. Degree(xy²) = 3
-func (g *Gate) Degree() int {
-	return g.degree
-}
-
-// SolvableVar returns the index of a variable of degree 1 in the gate's
-// polynomial. If there is no such variable, it returns -1.
-func (g *Gate) SolvableVar() int {
-	return g.solvableVar
-}
-
-// NbIn returns the number of inputs to the gate (its fan-in)
-func (g *Gate) NbIn() int {
-	return g.nbIn
-}
-
-// Compiled returns the compiled form of the gate.
-func (g *Gate) Compiled() *CompiledGate {
-	return g.compiled
-}
-
-// Wire represents a wire in the GKR circuit. A wire is defined through its gate
-// and its inputs.
-type Wire struct {
-	Gate            *Gate
-	Inputs          []int
-	NbUniqueOutputs int
+func (g *Gate[GateExecutable]) SupportsCurve(curve ecc.ID) bool {
+	return slices.Contains(g.Curves, curve)
 }
 
 // IsInput returns whether the wire is an input wire.
-func (w Wire) IsInput() bool {
+func (w Wire[GateExecutable]) IsInput() bool {
 	return len(w.Inputs) == 0
 }
 
 // IsOutput returns whether the wire is an output wire. A wire is an output wire
-// it it is not input to any other wire.
-func (w Wire) IsOutput() bool {
+// if it is not input to any other wire.
+func (w Wire[GateExecutable]) IsOutput() bool {
 	return w.NbUniqueOutputs == 0
 }
 
 // NbClaims returns the number of claims to be proven about this wire. The number
 // of claims is the number of Wires it is input to. For output wires, there is always
 // one claim to be made.
-func (w Wire) NbClaims() int {
+func (w Wire[GateExecutable]) NbClaims() int {
 	if w.IsOutput() {
 		return 1
 	}
@@ -100,12 +112,12 @@ func (w Wire) NbClaims() int {
 
 // NoProof returns whether no proof is needed for this wire. This corresponds
 // to input wires without any claims to be made about them.
-func (w Wire) NoProof() bool {
+func (w Wire[GateExecutable]) NoProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
 // NbUniqueInputs returns the number of unique input wires to this wire.
-func (w Wire) NbUniqueInputs() int {
+func (w Wire[GateExecutable]) NbUniqueInputs() int {
 	set := make(map[int]struct{}, len(w.Inputs))
 	for _, in := range w.Inputs {
 		set[in] = struct{}{}
@@ -113,46 +125,13 @@ func (w Wire) NbUniqueInputs() int {
 	return len(set)
 }
 
-// Circuit is a GKR circuit: a list of wires. The wires are expected to be
-// topologically sorted.
-//
-// Use [NewCircuit] to convert from [gkrinfo.Circuit] to this type.
-type Circuit []Wire
-
-// NewCircuit converts gkrinfo.Circuit into a concrete Circuit object:
-// - The gates are loaded in accordance with their names.
-// - It also sets the NbUniqueOutputs fields.
-//
-// The gateGetter function is used to retrieve gate definitions by name. It is provided for avoiding
-// import cycles and should typically be gkrgates.Get.
-func NewCircuit(info gkrinfo.Circuit, gateGetter func(name gkr.GateName) *Gate) (Circuit, error) {
-	resCircuit := make(Circuit, len(info))
-	for i := range info {
-		if info[i].Gate == "" && len(info[i].Inputs) == 0 {
-			resCircuit[i].Gate = Identity() // input wire
-			continue
-		}
-		resCircuit[i].Inputs = info[i].Inputs
-		resCircuit[i].Gate = gateGetter(gkr.GateName(info[i].Gate))
-		if resCircuit[i].Gate == nil {
-			return nil, fmt.Errorf("gate \"%s\" not found", info[i].Gate)
-		}
-	}
-	resCircuit.setNbUniqueOutputs()
-	return resCircuit, nil
-}
-
-// Wires is a slice of pointers to Wire. It is used for propagating claim
-// information through the circuit.
-type Wires []*Wire
-
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
 // the former a subsequence of the latter.
 // injection are the indices of the unique evaluations in the original evaluation list.
 // injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
 // There are no guarantees on the non-unique choice of the semi-inverse map.
-func (wires Wires) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
+func (wires Wires[GateExecutable]) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
 	w := wires[wireIndex]
 	indexInProof := makeNeg1Slice(len(wires)) // O(n); use a map instead if it caused performance issues
 	injection = make([]int, 0, len(w.Inputs))
@@ -169,11 +148,11 @@ func (wires Wires) ClaimPropagationInfo(wireIndex int) (injection, injectionLeft
 	return
 }
 
-func (c Circuit) maxGateDegree() int {
+func (c Circuit[GateExecutable]) maxGateDegree() int {
 	res := 1
 	for i := range c {
 		if !c[i].IsInput() {
-			res = max(res, c[i].Gate.Degree())
+			res = max(res, c[i].Gate.Degree)
 		}
 	}
 	return res
@@ -181,11 +160,11 @@ func (c Circuit) maxGateDegree() int {
 
 // MaxStackSize returns the maximum stack size needed by any gate evaluator in the circuit.
 // This is used to initialize universal gate evaluators that can handle any gate in the circuit.
-func (c Circuit) MaxStackSize() int {
+func (c SerializableCircuit) MaxStackSize() int {
 	maxSize := 0
 	for i := range c {
 		if !c[i].IsInput() {
-			gate := c[i].Gate.Compiled()
+			gate := c[i].Gate.Executable
 			nbIn := len(c[i].Inputs)
 			stackSize := gate.NbConstants() + nbIn + len(gate.Instructions)
 			maxSize = max(maxSize, stackSize)
@@ -195,7 +174,7 @@ func (c Circuit) MaxStackSize() int {
 }
 
 // MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
-func (c Circuit) MemoryRequirements(nbInstances int) []int {
+func (c Circuit[GateExecutable]) MemoryRequirements(nbInstances int) []int {
 	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
 
 	if res[0] > res[1] { // make sure it's sorted
@@ -210,14 +189,21 @@ func (c Circuit) MemoryRequirements(nbInstances int) []int {
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
 // It also sets the NbUniqueOutputs fields, and sets the wire metadata.
-func (c Circuit) OutputsList() [][]int {
+func (c Circuit[GateExecutable]) OutputsList() [][]int {
 	idGate := Identity()
+	var idGateTyped GateExecutable
+	switch idGateTyped.(type) {
+	case GateBytecode:
+		idGateTyped = idGate.Executable.Bytecode
+	case gkr.GateFunction:
+		idGateTyped = idGate.Executable.SnarkFriendly
+	}
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
 		c[i].NbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = idGate
+			c[i].Gate = idGateTyped
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -236,7 +222,7 @@ func (c Circuit) OutputsList() [][]int {
 	return res
 }
 
-func (c Circuit) setNbUniqueOutputs() {
+func (c Circuit[GateExecutable]) setNbUniqueOutputs() {
 
 	for i := range c {
 		c[i].NbUniqueOutputs = 0
@@ -263,7 +249,7 @@ func (c Circuit) setNbUniqueOutputs() {
 }
 
 // Inputs returns the list of input wire indices.
-func (c Circuit) Inputs() []int {
+func (c Circuit[GateExecutable]) Inputs() []int {
 	res := make([]int, 0, len(c))
 	for i := range c {
 		if c[i].IsInput() {
@@ -274,7 +260,7 @@ func (c Circuit) Inputs() []int {
 }
 
 // MaxGateNbIn returns the maximum number of inputs of any gate in the circuit.
-func (c Circuit) MaxGateNbIn() int {
+func (c Circuit[GateExecutable]) MaxGateNbIn() int {
 	res := 0
 	for i := range c {
 		res = max(res, len(c[i].Inputs))
@@ -282,21 +268,10 @@ func (c Circuit) MaxGateNbIn() int {
 	return res
 }
 
-// SolvingInfo is a GKR circuit along with the number of instances to be solved
-// and the used hash function for challenge computation. It is used during GKR
-// circuit solving and proving.
-//
-// Use [NewSolvingInfo] to convert from [gkrinfo.StoringInfo] to this type.
-type SolvingInfo struct {
-	Circuit     Circuit
-	NbInstances int
-	HashName    string
-}
-
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment []polynomial.MultiLin
 
-func (a WireAssignment) Permute(p gkrinfo.Permutations) {
+func (a WireAssignment) Permute(p Permutations) {
 	utils.Permute(a, p.WiresPermutation)
 	for i := range a {
 		if a[i] != nil {
@@ -324,13 +299,13 @@ func (a WireAssignment) NbVars() int {
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set.
-func (c Circuit) ProofSize(logNbInstances int) int {
+func (c Circuit[GateExecutable]) ProofSize(logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
 		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
 		if !c[i].NoProof() {
-			nbPartialEvalPolys += c[i].Gate.Degree() + 1
+			nbPartialEvalPolys += c[i].Gate.Degree + 1
 		}
 	}
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
@@ -367,7 +342,7 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
-func statusList(c Circuit) []int {
+func (c Circuit[GateExecutable]) statusList() []int {
 	res := make([]int, len(c))
 	for i := range c {
 		res[i] = len(c[i].Inputs)
@@ -380,11 +355,11 @@ func statusList(c Circuit) []int {
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
 // Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func (c Circuit) TopologicalSort() []*Wire {
+func (c Circuit[GateExecutable]) TopologicalSort() Wires[GateExecutable] {
 	var data topSortData
 	data.outputs = c.OutputsList()
-	data.status = statusList(c)
-	sorted := make([]*Wire, len(c))
+	data.status = c.statusList()
+	sorted := make(Wires[GateExecutable], len(c))
 
 	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
 	}
@@ -402,17 +377,17 @@ var ErrZeroFunction = errors.New("detected a zero function")
 // some sample gates
 
 // Identity gate: x -> x
-func Identity() *Gate {
+func Identity() *RegisteredGate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[0]
-	}, &CompiledGate{}, 1, 1, 0, gnark.Curves())
+	}, &GateBytecode{}, 1, 1, 0, gnark.Curves())
 }
 
 // Add2 gate: (x, y) -> x + y
-func Add2() *Gate {
+func Add2() *RegisteredGate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Add(in[0], in[1])
-	}, &CompiledGate{
+	}, &GateBytecode{
 		Instructions: []GateInstruction{{
 			Op:     OpAdd,
 			Inputs: []uint16{0, 1},
@@ -421,10 +396,10 @@ func Add2() *Gate {
 }
 
 // Sub2 gate: (x, y) -> x - y
-func Sub2() *Gate {
+func Sub2() *RegisteredGate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Sub(in[0], in[1])
-	}, &CompiledGate{
+	}, &GateBytecode{
 		Instructions: []GateInstruction{{
 			Op:     OpSub,
 			Inputs: []uint16{0, 1},
@@ -433,10 +408,10 @@ func Sub2() *Gate {
 }
 
 // Neg gate: x -> -x
-func Neg() *Gate {
+func Neg() *RegisteredGate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Neg(in[0])
-	}, &CompiledGate{
+	}, &GateBytecode{
 		Instructions: []GateInstruction{{
 			Op:     OpNeg,
 			Inputs: []uint16{0},
@@ -445,10 +420,10 @@ func Neg() *Gate {
 }
 
 // Mul2 gate: (x, y) -> x * y
-func Mul2() *Gate {
+func Mul2() *RegisteredGate {
 	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return api.Mul(in[0], in[1])
-	}, &CompiledGate{
+	}, &GateBytecode{
 		Instructions: []GateInstruction{{
 			Op:     OpMul,
 			Inputs: []uint16{0, 1},

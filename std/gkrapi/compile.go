@@ -86,9 +86,27 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		hashName:    fiatshamirHashName,
 	}
 
-	// Create and populate solveBlueprint
-	if err := res.createBlueprint(); err != nil {
-		return nil, fmt.Errorf("failed to create GKR solveBlueprint: %w", err)
+	// Dispatch to curve-specific factory
+	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
+	compiler := api.parentApi.Compiler()
+
+	switch curveID {
+	case ecc.BN254:
+		res.blueprints = gkrbn254.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BLS12_377:
+		res.blueprints = gkrbls12377.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BLS12_381:
+		res.blueprints = gkrbls12381.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BLS24_315:
+		res.blueprints = gkrbls24315.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BLS24_317:
+		res.blueprints = gkrbls24317.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BW6_633:
+		res.blueprints = gkrbw6633.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	case ecc.BW6_761:
+		res.blueprints = gkrbw6761.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+	default:
+		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
 
 	for _, opt := range options {
@@ -118,40 +136,6 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	res.api.Compiler().Defer(res.finalize)
 
 	return &res, nil
-}
-
-// createBlueprint creates and initializes the GKR blueprint for this circuit
-func (c *Circuit) createBlueprint() error {
-	// Convert circuit to typed circuit (common for all curves)
-	circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
-	if err != nil {
-		return fmt.Errorf("failed to convert circuit: %w", err)
-	}
-
-	// Dispatch to curve-specific factory
-	curveID := utils.FieldToCurve(c.api.Compiler().Field())
-	compiler := c.api.Compiler()
-
-	switch curveID {
-	case ecc.BN254:
-		c.blueprints = gkrbn254.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BLS12_377:
-		c.blueprints = gkrbls12377.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BLS12_381:
-		c.blueprints = gkrbls12381.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BLS24_315:
-		c.blueprints = gkrbls24315.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BLS24_317:
-		c.blueprints = gkrbls24317.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BW6_633:
-		c.blueprints = gkrbw6633.NewBlueprints(circuit, c.hashName, compiler)
-	case ecc.BW6_761:
-		c.blueprints = gkrbw6761.NewBlueprints(circuit, c.hashName, compiler)
-	default:
-		return fmt.Errorf("unsupported curve: %s", curveID)
-	}
-
-	return nil
 }
 
 // AddInstance adds a new instance to the GKR circuit, returning the values of output variables for the instance.

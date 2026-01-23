@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	gates     = make(map[gkr.GateName]*gkrtypes.Gate)
+	gates     = make(map[gkr.GateName]*gkrtypes.RegisteredGate)
 	gatesLock sync.Mutex
 )
 
@@ -172,17 +172,17 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 
 	if g, ok := gates[s.name]; ok {
 		// gate already registered
-		if g.NbIn() != nbIn {
-			return fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn(), nbIn)
+		if g.NbIn != nbIn {
+			return fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn, nbIn)
 		}
 
 		for _, curve := range curvesForTesting {
-			gateVer, err := newGateTester(g.Compiled(), g.NbIn(), curve)
+			gateVer, err := newGateTester(g.Executable.Bytecode, g.NbIn, curve)
 			if err != nil {
 				return err
 			}
 			if !gateVer.Equal(compiled) {
-				return fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree(), curve)
+				return fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree, curve)
 			}
 		}
 
@@ -231,7 +231,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 // Get returns a registered gate of the given name.
 // If not found, it will panic.
 // Gates can be added to the registry through Register.
-func Get(name gkr.GateName) *gkrtypes.Gate {
+func Get(name gkr.GateName) *gkrtypes.RegisteredGate {
 	gatesLock.Lock()
 	defer gatesLock.Unlock()
 	if gate, ok := gates[name]; ok {
@@ -244,10 +244,10 @@ type gateTester interface {
 	IsAdditive(varIndex int) bool
 	FindDegree(max int) (int, error)
 	VerifyDegree(claimedDegree int) error
-	Equal(other *gkrtypes.CompiledGate) bool
+	Equal(other *gkrtypes.GateBytecode) bool
 }
 
-func newGateTester(g *gkrtypes.CompiledGate, nbIn int, curve ecc.ID) (gateTester, error) {
+func newGateTester(g *gkrtypes.GateBytecode, nbIn int, curve ecc.ID) (gateTester, error) {
 
 	switch curve {
 	case ecc.BLS12_377:

@@ -37,14 +37,14 @@ func NewCache() *Cache {
 
 		return res
 	}
-	mimcCompiled, err := gkrtypes.CompileGateFunction(mimcF, 2)
+	mimcCompiled, err := gkrinfo.CompileGateFunction(mimcF, 2)
 	if err != nil {
 		panic(err)
 	}
 	gates["mimc"] = gkrtypes.NewGate(mimcF, mimcCompiled, 2, 7, -1, gnark.Curves())
 	gates["select-input-3"] = gkrtypes.NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, &gkrtypes.CompiledGate{}, 3, 1, 0, gnark.Curves())
+	}, &gkrinfo.CompiledGate{}, 3, 1, 0, gnark.Curves())
 
 	return &Cache{
 		circuits: make(map[string]gkrtypes.Circuit),
@@ -70,7 +70,23 @@ func (c *Cache) GetCircuit(path string) (circuit gkrtypes.Circuit) {
 	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
 		panic(err)
 	}
-	if circuit, err = gkrtypes.NewCircuit(circuitInfo, c.GetGate); err != nil {
+
+	// Build gate map from compiled gates to full gates
+	gateMap := make(map[*gkrinfo.CompiledGate]*gkrtypes.Gate)
+	for _, wire := range circuitInfo {
+		if wire.CompiledGate != nil {
+			// For each compiled gate, find the matching full gate from our cache
+			// This is a temporary solution - in practice, the circuit should store gate references
+			for _, gate := range c.gates {
+				if gate.Compiled() == wire.CompiledGate {
+					gateMap[wire.CompiledGate] = gate
+					break
+				}
+			}
+		}
+	}
+
+	if circuit, err = gkrtypes.NewCircuit(circuitInfo, gateMap); err != nil {
 		panic(err)
 	}
 	c.circuits[path] = circuit

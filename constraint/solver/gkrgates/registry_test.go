@@ -35,7 +35,7 @@ func TestRegister(t *testing.T) {
 				"no error must be returned when no degree is specified",
 			)
 
-			assert.Equal(t, degree, Get(name+"_no_degree").Degree(), "degree must be detected correctly")
+			assert.Equal(t, degree, Get(name+"_no_degree").Degree, "degree must be detected correctly")
 
 			err := Register(func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 				return api.Add(f(api, x...), 1)
@@ -48,9 +48,9 @@ func TestRegister(t *testing.T) {
 		return api.Add(x[0], x[1], x[2])
 	}, 3, 1)
 
-	testGate("mul2", gkrtypes.Mul2().Evaluate, 2, 2)
+	testGate("mul2", gkrtypes.Mul2().Executable.SnarkFriendly, 2, 2)
 
-	testGate("mimc", gkrtesting.NewCache().GetGate("mimc").Evaluate, 2, 7)
+	testGate("mimc", gkrtesting.NewCache().GetGate("mimc"), 2, 7)
 
 	testGate("sub2PlusOne", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(

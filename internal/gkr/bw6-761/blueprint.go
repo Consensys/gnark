@@ -17,7 +17,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 )
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
@@ -28,7 +28,7 @@ type circuitEvaluator struct {
 // BlueprintSolve is a BW6_761-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
-	Circuit     gkrtypes.Circuit
+	Circuit     gkrinfo.Circuit
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
@@ -59,11 +59,12 @@ func (b *BlueprintSolve) initialize() {
 	}
 
 	// Compute metadata from Circuit
-	b.maxNbIn = b.Circuit.MaxGateNbIn()
 	for i := range b.Circuit {
 		if b.Circuit[i].IsInput() {
 			b.nbInputs++
 			b.inputWires = append(b.inputWires, i)
+		} else {
+			b.maxNbIn = max(b.maxNbIn, len(b.Circuit[i].Inputs))
 		}
 	}
 
@@ -91,7 +92,7 @@ func (b *BlueprintSolve) initialize() {
 		for wI := range b.Circuit {
 			w := &b.Circuit[wI]
 			if !w.IsInput() {
-				ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs))
+				ce.evaluators[wI] = newGateEvaluator(w.CompiledGate, len(w.Inputs))
 			}
 		}
 		return ce
@@ -317,7 +318,7 @@ func (b *BlueprintProve) proofSize() int {
 		return 0
 	}
 	logNbInstances := bits.TrailingZeros32(b.SolveBlueprint.NbInstances)
-	return gadget.ProofSize(b.SolveBlueprint.Circuit, logNbInstances)
+	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
 }
 
 // NbOutputs implements Blueprint
@@ -437,7 +438,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BW6_761
-func NewBlueprints(circuit gkrtypes.Circuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrinfo.Circuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)

@@ -8,10 +8,16 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
-// @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
+// Snark-Friendly circuit types
+
+type (
+	Wire    gkrtypes.Wire[gkr.GateFunction]
+	Circuit gkrtypes.Circuit[gkr.GateFunction]
+)
 
 // A SNARK gadget capable of verifying a GKR proof
 // The goal is to prove/verify evaluations of many instances of the same circuit.
@@ -28,7 +34,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gkrtypes.Wire {
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
 	return e.manager.wires[e.wireI]
 }
 
@@ -143,7 +149,7 @@ func (m *claimsManager) deleteClaim(wire int) {
 }
 
 type settings struct {
-	sorted           []*gkrtypes.Wire
+	sorted           []*Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -151,7 +157,7 @@ type settings struct {
 
 type Option func(*settings)
 
-func WithSortedCircuit(sorted []*gkrtypes.Wire) Option {
+func WithSortedCircuit(sorted []*Wire) Option {
 	return func(options *settings) {
 		options.sorted = sorted
 	}
@@ -188,13 +194,13 @@ func setup(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignm
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
-func ProofSize(c gkrtypes.Circuit, logNbInstances int) int {
+func ProofSize(c Circuit, logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
 		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
 		if !c[i].NoProof() {
-			nbPartialEvalPolys += c[i].Gate.Degree() + 1
+			nbPartialEvalPolys += c[i].Gate.Degree + 1
 		}
 	}
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
@@ -269,7 +275,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenge
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(api frontend.API, c Circuit, assignment gkrtypes.WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err

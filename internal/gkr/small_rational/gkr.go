@@ -14,6 +14,7 @@ import (
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
@@ -443,7 +444,7 @@ func WithWorkers(workers *utils.WorkerPool) Option {
 	}
 }
 
-func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(c gkrinfo.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -554,7 +555,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]small_r
 }
 
 // Prove consistency of the claimed assignment
-func Prove(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
+func Prove(c gkrinfo.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return nil, err
@@ -608,7 +609,7 @@ func Prove(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(c gkrinfo.Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -735,7 +736,7 @@ func frToBigInts(dst []*big.Int, src []small_rational.SmallRational) {
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
 type gateEvaluator struct {
-	gate      *gkrtypes.CompiledGate
+	gate      *gkrinfo.CompiledGate
 	vars      []small_rational.SmallRational
 	frameSize int // number of constants plus currently pushed inputs
 	nbIn      int // number of inputs expected
@@ -743,7 +744,7 @@ type gateEvaluator struct {
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
+func newGateEvaluator(gate *gkrinfo.CompiledGate, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
 		gate:      gate,
 		nbIn:      nbIn,
@@ -788,28 +789,28 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 
 		// Use switch instead of function pointer for better inlining
 		switch inst.Op {
-		case gkrtypes.OpAdd:
+		case gkrinfo.OpAdd:
 			dst.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Add(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpMul:
+		case gkrinfo.OpMul:
 			dst.Mul(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Mul(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpSub:
+		case gkrinfo.OpSub:
 			dst.Sub(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Sub(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpNeg:
+		case gkrinfo.OpNeg:
 			dst.Neg(&e.vars[inst.Inputs[0]])
-		case gkrtypes.OpMulAcc:
+		case gkrinfo.OpMulAcc:
 			var prod small_rational.SmallRational
 			prod.Mul(&e.vars[inst.Inputs[1]], &e.vars[inst.Inputs[2]])
 			dst.Add(&e.vars[inst.Inputs[0]], &prod)
-		case gkrtypes.OpSumExp17:
+		case gkrinfo.OpSumExp17:
 			// result = (x[0] + x[1] + x[2])^17
 			var sum small_rational.SmallRational
 			sum.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
@@ -835,14 +836,14 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
 // All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
-	gate        *gkrtypes.CompiledGate
+	gate        *gkrinfo.CompiledGate
 	nbIn        int
 	lock        sync.Mutex
 	available   map[*gateEvaluator]struct{}
 	elementPool *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate *gkrinfo.CompiledGate, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
 		gate:        gate,
 		nbIn:        nbIn,
