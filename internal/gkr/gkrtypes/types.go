@@ -293,28 +293,6 @@ type SolvingInfo struct {
 	HashName    string
 }
 
-// NewSolvingInfo converts []gkrinfo.StoringInfo into concrete SolvingInfo objects:
-// - The gates are loaded in accordance with their names.
-// - The instances/assignments are padded into a power of 2, as needed for creating multilinear extensions.
-//
-// The gateGetter function is used to retrieve gate definitions by name. It is provided for avoiding
-// import cycles and should typically be gkrgates.Get.
-func NewSolvingInfo(info []*gkrinfo.StoringInfo, gateGetter func(name gkr.GateName) *Gate) ([]SolvingInfo, error) {
-	res := make([]SolvingInfo, len(info))
-	for i := range info {
-		circuit, err := NewCircuit(info[i].Circuit, gateGetter)
-		if err != nil {
-			return nil, err
-		}
-		res[i] = SolvingInfo{
-			Circuit:     circuit,
-			NbInstances: info[i].NbInstances,
-			HashName:    info[i].HashName,
-		}
-	}
-	return res, nil
-}
-
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignment []polynomial.MultiLin
 

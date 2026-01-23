@@ -10,8 +10,7 @@ import (
 )
 
 type API struct {
-	toStore     *gkrinfo.StoringInfo
-	index       int
+	circuit     gkrinfo.Circuit
 	assignments gkrtypes.WireAssignment
 	parentApi   frontend.API
 }
@@ -21,12 +20,12 @@ func frontendVarToInt(a gkr.Variable) int {
 }
 
 func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
-	api.toStore.Circuit = append(api.toStore.Circuit, gkrinfo.Wire{
+	api.circuit = append(api.circuit, gkrinfo.Wire{
 		Gate:   string(gate),
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
-	return gkr.Variable(len(api.toStore.Circuit) - 1)
+	return gkr.Variable(len(api.circuit) - 1)
 }
 
 func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {

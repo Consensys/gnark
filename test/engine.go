@@ -15,8 +15,6 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
-
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -789,10 +787,6 @@ func (e *engine) InternalVariable(vID uint32) frontend.Variable {
 func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
 	r := e.toBigInt(v)
 	return wrappedBigInt{Int: r, modulus: e.q}
-}
-
-func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

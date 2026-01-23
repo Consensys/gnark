@@ -19,10 +19,6 @@ import (
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	gkr "github.com/consensys/gnark/internal/gkr/bls12-377"
-	"github.com/consensys/gnark/internal/gkr/gkrhints"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -50,27 +46,6 @@ type solver struct {
 }
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
-	// add GKR options to overwrite placeholder hints
-	if len(cs.GkrInfo) != 0 {
-		solvingInfo, err := gkrtypes.NewSolvingInfo(cs.GkrInfo, gkrgates.Get)
-		if err != nil {
-			return nil, err
-		}
-
-		gkrData := gkr.NewSolvingData(solvingInfo)
-		// we need to get the current hint ID for each of the GKR hints.
-		// Currently the hints are defined on gkrhints.TestEngineHints, so
-		// we create a temporary instance for hint retrieval. In case this is
-		// not replaced, then we still keep using the big-int based hints on the
-		// GKR test engine.
-		var gkrHints *gkrhints.TestEngineHints
-		// Replace the hint calls with actual references to GKR assignment
-		// getter, solver, and prover based on the defined circuits.
-		opts = append(opts,
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(gkrData)))
-	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
 	if err != nil {

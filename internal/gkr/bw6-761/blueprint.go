@@ -10,8 +10,8 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
@@ -23,7 +23,7 @@ type circuitEvaluator struct {
 	evaluators []gateEvaluator // one evaluator per wire
 }
 
-// BlueprintSolve is a BN254-specific blueprint for solving GKR circuit instances.
+// BlueprintSolve is a BW6_761-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure
 	Circuit      gkrtypes.Circuit
@@ -221,7 +221,7 @@ func (b *BlueprintSolve) GetNbInstances() int {
 	return b.nbInstances
 }
 
-// BlueprintProve is a BN254-specific blueprint for generating GKR proofs.
+// BlueprintProve is a BW6_761-specific blueprint for generating GKR proofs.
 type BlueprintProve struct {
 	SolveBlueprint *BlueprintSolve
 	HashName       string
@@ -264,13 +264,13 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	// Create Fiat-Shamir settings
-	hsh := hash.NewHash(b.HashName + "_BN254")
+	hsh := hash.NewHash(b.HashName + "_BW6_761")
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
-	// Call the BN254-specific Prove function (assignments already WireAssignment type)
+	// Call the BW6_761-specific Prove function (assignments already WireAssignment type)
 	proof, err := Prove(b.SolveBlueprint.Circuit, assignments, fsSettings)
 	if err != nil {
-		return fmt.Errorf("bn254 prove failed: %w", err)
+		return fmt.Errorf("bw6_761 prove failed: %w", err)
 	}
 
 	// Serialize proof and convert to U64

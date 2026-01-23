@@ -6,10 +6,11 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrhints"
+	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -30,33 +31,36 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	toStore              *gkrinfo.StoringInfo
+	circuit              gkrinfo.Circuit // untyped circuit definition
 	assignments          gkrtypes.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
-	api                  frontend.API              // the parent API used for hints
-	hints                *gkrhints.TestEngineHints // hints for the GKR circuit, used for testing purposes
-	index                int                       // index among all GKR circuits
+	api                  frontend.API // the parent API
+
+	// Blueprint-based fields
+	solveBlueprintID constraint.BlueprintID
+	proveBlueprintID constraint.BlueprintID
+	blueprint        interface{} // actual type is *gkrbn254.BlueprintSolve
+
+	// Metadata
+	hashName    string
+	nbInstances int
 }
 
 // New creates a new GKR API
 func New(api frontend.API) (*API, error) {
-	gkrer, ok := api.Compiler().(gkrinfo.ConstraintSystem)
-	if !ok {
-		return nil, errors.New("provided api does not support GKR")
-	}
-	toStore, index := gkrer.NewGkr()
 	return &API{
-		toStore:   toStore,
-		index:     index,
+		circuit:   make(gkrinfo.Circuit, 0),
 		parentApi: api,
 	}, nil
 }
 
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
-	return gkr.Variable(api.toStore.NewInputVariable())
+	i := len(api.circuit)
+	api.circuit = append(api.circuit, gkrinfo.Wire{})
+	return gkr.Variable(i)
 }
 
 type CompileOption func(*Circuit)
@@ -74,40 +78,36 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
-		toStore:     api.toStore,
-		index:       api.index,
-		assignments: make(gkrtypes.WireAssignment, len(api.toStore.Circuit)),
+		circuit:     api.circuit,
+		assignments: make(gkrtypes.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
+		hashName:    fiatshamirHashName,
 	}
 
-	res.toStore.HashName = fiatshamirHashName
-	res.toStore.Circuit = api.toStore.Circuit
-
-	var err error
-	res.hints, err = gkrhints.NewTestEngineHints(res.toStore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call GKR hints: %w", err)
+	// Create and populate blueprint
+	if err := res.createBlueprint(); err != nil {
+		return nil, fmt.Errorf("failed to create GKR blueprint: %w", err)
 	}
 
 	for _, opt := range options {
 		opt(&res)
 	}
 
-	notOut := make([]bool, len(res.toStore.Circuit))
-	for i := range res.toStore.Circuit {
-		if res.toStore.Circuit[i].IsInput() {
+	notOut := make([]bool, len(res.circuit))
+	for i := range res.circuit {
+		if res.circuit[i].IsInput() {
 			res.ins = append(res.ins, gkr.Variable(i))
 		}
-		for _, inWI := range res.toStore.Circuit[i].Inputs {
+		for _, inWI := range res.circuit[i].Inputs {
 			notOut[inWI] = true
 		}
 	}
 
-	if len(res.ins) == len(res.toStore.Circuit) {
+	if len(res.ins) == len(res.circuit) {
 		return nil, errors.New("circuit has no non-input wires")
 	}
 
-	for i := range res.toStore.Circuit {
+	for i := range res.circuit {
 		if !notOut[i] {
 			res.outs = append(res.outs, gkr.Variable(i))
 		}
@@ -118,39 +118,122 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	return &res, nil
 }
 
+// createBlueprint creates and initializes the GKR blueprint for this circuit
+func (c *Circuit) createBlueprint() error {
+	blueprint := &gkrbn254.BlueprintSolve{}
+
+	// Convert circuit to typed circuit
+	circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
+	if err != nil {
+		return fmt.Errorf("failed to convert circuit: %w", err)
+	}
+
+	blueprint.Circuit = circuit
+	blueprint.MaxNbIn = circuit.MaxGateNbIn()
+
+	// Identify input wires
+	for i := range circuit {
+		if circuit[i].IsInput() {
+			blueprint.NbInputs++
+			blueprint.InputWires = append(blueprint.InputWires, i)
+		}
+	}
+
+	// Identify output wires (not inputs to any other wire)
+	isOutput := make([]bool, len(circuit))
+	for i := range circuit {
+		isOutput[i] = true
+	}
+	for _, wire := range c.circuit {
+		for _, inIdx := range wire.Inputs {
+			isOutput[inIdx] = false
+		}
+	}
+	for i := range circuit {
+		if isOutput[i] {
+			blueprint.NbOutputVars++
+			blueprint.OutputWires = append(blueprint.OutputWires, i)
+		}
+	}
+
+	// Initialize evaluator pool (same as in NewSolvingData)
+	maxGateStackSize := 0
+	for _, w := range circuit {
+		if !w.IsInput() {
+			stackSize := w.Gate.Compiled().NbConstants() + len(w.Inputs) + len(w.Gate.Compiled().Instructions)
+			if stackSize > maxGateStackSize {
+				maxGateStackSize = stackSize
+			}
+		}
+	}
+
+	// Initialize evaluator pool - this creates the sync.Pool with a factory function
+	// that creates circuitEvaluators. The actual initialization happens inside the blueprint
+	// when InitializeEvaluatorPool is called.
+	blueprint.InitializeEvaluatorPool(circuit, maxGateStackSize)
+
+	// Register solve blueprint with compiler
+	c.solveBlueprintID = c.api.Compiler().AddBlueprint(blueprint)
+	c.blueprint = blueprint
+
+	// Create and register prove blueprint with reference to solve blueprint
+	proveBlueprint := &gkrbn254.BlueprintProve{
+		SolveBlueprint: blueprint,
+		HashName:       c.hashName,
+	}
+	c.proveBlueprintID = c.api.Compiler().AddBlueprint(proveBlueprint)
+
+	return nil
+}
+
 // AddInstance adds a new instance to the GKR circuit, returning the values of output variables for the instance.
 func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr.Variable]frontend.Variable, error) {
 	if len(input) != len(c.ins) {
 		for k := range input {
-			if k >= gkr.Variable(len(c.toStore.Circuit)) {
-				return nil, fmt.Errorf("variable %d is out of bounds (max %d)", k, len(c.toStore.Circuit)-1)
+			if k >= gkr.Variable(len(c.circuit)) {
+				return nil, fmt.Errorf("variable %d is out of bounds (max %d)", k, len(c.circuit)-1)
 			}
-			if !c.toStore.Circuit[k].IsInput() {
+			if !c.circuit[k].IsInput() {
 				return nil, fmt.Errorf("value provided for non-input variable %d", k)
 			}
 		}
 	}
-	hintIn := make([]frontend.Variable, 2+len(c.ins)) // first and second input denote the circuit and instance, respectively.
-	hintIn[0] = c.index
-	hintIn[1] = c.toStore.NbInstances
-	for hintInI, wI := range c.ins {
-		if inV, ok := input[wI]; !ok {
+
+	// Build instruction calldata for blueprint
+	// Format: [0]=length, [1]=nbInputs, [2...]=input values as linear expressions
+	compiler := c.api.Compiler()
+	calldata := make([]uint32, 2, 2+len(c.ins)*2+2) // pre-allocate roughly
+	calldata[1] = uint32(len(c.ins))
+
+	// Encode input variables
+	for _, wI := range c.ins {
+		inV, ok := input[wI]
+		if !ok {
 			return nil, fmt.Errorf("missing entry for input variable %d", wI)
-		} else {
-			hintIn[hintInI+2] = inV
-			c.assignments[wI] = append(c.assignments[wI], inV)
 		}
+		// Store in assignment for later use
+		c.assignments[wI] = append(c.assignments[wI], inV)
+
+		// Encode as linear expression in calldata
+		v := compiler.ToCanonicalVariable(inV)
+		v.Compress(&calldata)
 	}
 
-	outsSerialized, err := c.api.Compiler().NewHint(c.hints.Solve, len(c.outs), hintIn...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call solve hint: %w", err)
-	}
-	c.toStore.NbInstances++
+	// Set total length
+	calldata[0] = uint32(len(calldata))
+
+	// Execute solve blueprint instruction
+	outputs := compiler.AddInstruction(c.solveBlueprintID, calldata)
+
+	// Track instance count
+	c.nbInstances++
+
+	// Convert outputs to map
 	res := make(map[gkr.Variable]frontend.Variable, len(c.outs))
 	for i, v := range c.outs {
-		res[v] = outsSerialized[i]
-		c.assignments[v] = append(c.assignments[v], outsSerialized[i])
+		outVar := compiler.InternalVariable(outputs[i])
+		res[v] = outVar
+		c.assignments[v] = append(c.assignments[v], outVar)
 	}
 
 	return res, nil
@@ -165,9 +248,9 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	// pad instances to the next power of 2
-	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(c.toStore.NbInstances)))
+	nbPaddedInstances := int(ecc.NextPowerOfTwo(uint64(c.nbInstances)))
 	// pad instances to the next power of 2 by repeating the last instance
-	if c.toStore.NbInstances < nbPaddedInstances && c.toStore.NbInstances > 0 {
+	if c.nbInstances < nbPaddedInstances && c.nbInstances > 0 {
 		for _, wI := range c.ins {
 			c.assignments[wI] = utils.ExtendRepeatLast(c.assignments[wI], nbPaddedInstances)
 		}
@@ -178,7 +261,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
-		circuit, err := gkrtypes.NewCircuit(c.toStore.Circuit, gkrgates.Get)
+		circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
 		if err != nil {
 			return fmt.Errorf("failed to convert GKR info to circuit: %w", err)
 		}
@@ -221,29 +304,40 @@ func (c *Circuit) finalize(api frontend.API) error {
 }
 
 func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable) error {
-	forSnark, err := newCircuitDataForSnark(utils.FieldToCurve(api.Compiler().Field()), c.toStore, c.assignments)
+	forSnark, err := newCircuitDataForSnark(utils.FieldToCurve(api.Compiler().Field()), c.circuit, c.assignments)
 	if err != nil {
 		return fmt.Errorf("failed to create circuit data for snark: %w", err)
 	}
 
-	// first input is the circuit index.
-	// hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve".
-	hintIns := make([]frontend.Variable, len(initialChallenges)+2)
-	firstOutputAssignment := c.assignments[c.outs[0]]
-	hintIns[0] = c.index
-	hintIns[1] = firstOutputAssignment[len(firstOutputAssignment)-1] // take the last output of the first output wire
+	// Build prove instruction using blueprint
+	proofSize := gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(len(c.assignments[0]))))
 
-	copy(hintIns[2:], initialChallenges)
+	compiler := api.Compiler()
 
-	var (
-		proofSerialized []frontend.Variable
-		proof           gadget.Proof
-	)
+	// Build calldata for prove instruction
+	// Format: [0]=length, [1]=proofSize, [2]=nbChallenges, [3...]=challenge linear expressions
+	proveCalldata := make([]uint32, 3, 3+len(initialChallenges)*2+2)
+	proveCalldata[1] = uint32(proofSize)
+	proveCalldata[2] = uint32(len(initialChallenges))
 
-	if proofSerialized, err = api.Compiler().NewHint(
-		c.hints.Prove, gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(len(c.assignments[0])))), hintIns...); err != nil {
-		return err
+	// Encode initial challenges
+	for _, challenge := range initialChallenges {
+		v := compiler.ToCanonicalVariable(challenge)
+		v.Compress(&proveCalldata)
 	}
+
+	proveCalldata[0] = uint32(len(proveCalldata))
+
+	// Execute prove blueprint instruction
+	proofOutputs := compiler.AddInstruction(c.proveBlueprintID, proveCalldata)
+
+	// Convert outputs to proof
+	proofSerialized := make([]frontend.Variable, len(proofOutputs))
+	for i, wireID := range proofOutputs {
+		proofSerialized[i] = compiler.InternalVariable(wireID)
+	}
+
+	var proof gadget.Proof
 
 	forSnarkSorted := utils.SliceOfRefs(forSnark.circuit)
 
@@ -252,22 +346,22 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	}
 
 	var hsh hash.FieldHasher
-	if hsh, err = hash.GetFieldHasher(c.toStore.HashName, api); err != nil {
+	if hsh, err = hash.GetFieldHasher(c.hashName, api); err != nil {
 		return err
 	}
 
 	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 }
 
-func newCircuitDataForSnark(curve ecc.ID, info *gkrinfo.StoringInfo, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
-	circuit, err := gkrtypes.NewCircuit(info.Circuit, gkrgates.Get)
+func newCircuitDataForSnark(curve ecc.ID, untypedCircuit gkrinfo.Circuit, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
+	circuit, err := gkrtypes.NewCircuit(untypedCircuit, gkrgates.Get)
 	if err != nil {
 		return circuitDataForSnark{}, fmt.Errorf("failed to convert GKR info to circuit: %w", err)
 	}
 
 	for i := range circuit {
 		if !circuit[i].Gate.SupportsCurve(curve) {
-			return circuitDataForSnark{}, fmt.Errorf("gate \"%s\" not usable over curve \"%s\"", info.Circuit[i].Gate, curve)
+			return circuitDataForSnark{}, fmt.Errorf("gate \"%s\" not usable over curve \"%s\"", untypedCircuit[i].Gate, curve)
 		}
 	}
 
@@ -280,10 +374,22 @@ func newCircuitDataForSnark(curve ecc.ID, info *gkrinfo.StoringInfo, assignment 
 // GetValue is a debugging utility returning the value of variable v at instance i.
 // While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
 func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
-	// last input to ensure the solver's work is done before GetAssignment is called
-	res, err := c.api.Compiler().NewHint(c.hints.GetAssignment, 1, c.index, int(v), i, c.assignments[c.outs[0]][i])
+	// Access blueprint directly to get assignment
+	// The blueprint stores all wire assignments after solving
+	if c.blueprint == nil {
+		panic("blueprint not initialized")
+	}
+
+	// Get blueprint (GKR only works with U64/large fields)
+	bp := c.blueprint.(*gkrbn254.BlueprintSolve)
+	compiler := c.api.Compiler()
+	solver, ok := compiler.(constraint.Solver[constraint.U64])
+	if !ok {
+		panic("compiler does not implement Solver[U64] interface")
+	}
+	val, err := bp.GetAssignment(solver, int(v), i)
 	if err != nil {
 		panic(err)
 	}
-	return res[0]
+	return val
 }
