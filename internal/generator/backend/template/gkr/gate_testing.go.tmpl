@@ -3,11 +3,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"{{.FieldPackagePath}}"
 	{{- if .CanUseFFT }}
-	"{{.FieldPackagePath}}/fft"
-	"sync"{{- else}}
+	"{{.FieldPackagePath}}/fft"{{- else}}
 	"errors"{{- end }}
 	"{{.FieldPackagePath}}/polynomial"
 	"slices"
