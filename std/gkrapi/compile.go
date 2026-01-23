@@ -38,9 +38,10 @@ type Circuit struct {
 	api                  frontend.API // the parent API
 
 	// Blueprint-based fields
-	solveBlueprintID constraint.BlueprintID
-	proveBlueprintID constraint.BlueprintID
-	blueprint        interface{} // actual type is *gkrbn254.BlueprintSolve
+	solveBlueprintID         constraint.BlueprintID
+	proveBlueprintID         constraint.BlueprintID
+	getAssignmentBlueprintID constraint.BlueprintID
+	solveBlueprint           gadget.BlueprintSolve
 
 	// Metadata
 	hashName    string
@@ -83,9 +84,9 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		hashName:    fiatshamirHashName,
 	}
 
-	// Create and populate blueprint
+	// Create and populate solveBlueprint
 	if err := res.createBlueprint(); err != nil {
-		return nil, fmt.Errorf("failed to create GKR blueprint: %w", err)
+		return nil, fmt.Errorf("failed to create GKR solveBlueprint: %w", err)
 	}
 
 	for _, opt := range options {
@@ -117,7 +118,7 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	return &res, nil
 }
 
-// createBlueprint creates and initializes the GKR blueprint for this circuit
+// createBlueprint creates and initializes the GKR solveBlueprint for this circuit
 func (c *Circuit) createBlueprint() error {
 	blueprint := &gkrbn254.BlueprintSolve{}
 
@@ -130,17 +131,23 @@ func (c *Circuit) createBlueprint() error {
 	blueprint.Circuit = circuit
 	// Note: metadata and evaluatorPool are initialized lazily on first Solve() call
 
-	// Register solve blueprint with compiler
+	// Register solve solveBlueprint with compiler
 	c.solveBlueprintID = c.api.Compiler().AddBlueprint(blueprint)
-	c.blueprint = blueprint
 
-	// Create and register prove blueprint with reference to solve blueprint
+	// Create and register prove solveBlueprint with reference to solve solveBlueprint
 	proveBlueprint := &gkrbn254.BlueprintProve{
 		SolveBlueprintID: c.solveBlueprintID,
 		SolveBlueprint:   blueprint,
 		HashName:         c.hashName,
 	}
 	c.proveBlueprintID = c.api.Compiler().AddBlueprint(proveBlueprint)
+
+	// Create and register GetAssignment solveBlueprint for debugging
+	getAssignmentBlueprint := &gkrbn254.BlueprintGetAssignment{
+		SolveBlueprintID: c.solveBlueprintID,
+		SolveBlueprint:   blueprint,
+	}
+	c.getAssignmentBlueprintID = c.api.Compiler().AddBlueprint(getAssignmentBlueprint)
 
 	return nil
 }
@@ -158,7 +165,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		}
 	}
 
-	// Build instruction calldata for blueprint
+	// Build instruction calldata for solveBlueprint
 	// Format: [0]=instanceIndex, [1...]=input values as linear expressions
 	compiler := c.api.Compiler()
 	calldata := make([]uint32, 1, 1+len(c.ins)*2+2) // pre-allocate roughly
@@ -178,7 +185,7 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		v.Compress(&calldata)
 	}
 
-	// Execute solve blueprint instruction
+	// Execute solve solveBlueprint instruction
 	outputs := compiler.AddInstruction(c.solveBlueprintID, calldata)
 
 	// Track instance count
@@ -215,8 +222,8 @@ func (c *Circuit) finalize(api frontend.API) error {
 		}
 	}
 
-	// Set NbInstances in the solve blueprint (used for pre-allocation and proof size computation)
-	solveBlueprint := c.blueprint.(*gkrbn254.BlueprintSolve)
+	// Set NbInstances in the solve solveBlueprint (used for pre-allocation and proof size computation)
+	solveBlueprint := c.solveBlueprint.(*gkrbn254.BlueprintSolve)
 	solveBlueprint.NbInstances = nbPaddedInstances
 
 	// if the circuit consists of only one instance, directly solve the circuit
@@ -281,7 +288,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		v.Compress(&proveCalldata)
 	}
 
-	// Execute prove blueprint instruction
+	// Execute prove solveBlueprint instruction
 	proofOutputs := compiler.AddInstruction(c.proveBlueprintID, proveCalldata)
 
 	// Convert outputs to proof
@@ -327,22 +334,22 @@ func newCircuitDataForSnark(curve ecc.ID, untypedCircuit gkrinfo.Circuit, assign
 // GetValue is a debugging utility returning the value of variable v at instance i.
 // While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
 func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
-	// Access blueprint directly to get assignment
-	// The blueprint stores all wire assignments after solving
-	if c.blueprint == nil {
-		panic("blueprint not initialized")
-	}
-
-	// Get blueprint (GKR only works with U64/large fields)
-	bp := c.blueprint.(*gkrbn254.BlueprintSolve)
+	// Create an instruction that will retrieve the assignment at solve time
 	compiler := c.api.Compiler()
-	solver, ok := compiler.(constraint.Solver[constraint.U64])
-	if !ok {
-		panic("compiler does not implement Solver[U64] interface")
+
+	// Build calldata: [wireI, instanceI, dependency_wire_as_linear_expression]
+	// The dependency ensures this instruction runs after the solve instruction for instance i
+	calldata := []uint32{uint32(v), uint32(i)}
+
+	// Use the first output variable from instance i as a dependency
+	// This ensures the solve instruction for this instance has completed
+	if len(c.outs) == 0 || i >= len(c.assignments[c.outs[0]]) {
+		panic("GetValue called with invalid instance or before instance was added")
 	}
-	val, err := bp.GetAssignment(solver, int(v), i)
-	if err != nil {
-		panic(err)
-	}
-	return val
+	dependencyWire := c.assignments[c.outs[0]][i]
+	depVar := compiler.ToCanonicalVariable(dependencyWire)
+	depVar.Compress(&calldata)
+
+	outputs := compiler.AddInstruction(c.getAssignmentBlueprintID, calldata)
+	return compiler.InternalVariable(outputs[0])
 }

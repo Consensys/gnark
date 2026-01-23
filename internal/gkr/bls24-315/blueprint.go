@@ -139,12 +139,10 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	// Set output wires (copy fr.Element to U64 in Montgomery form)
-	outputI := 0
-	for _, outWI := range b.outputWires {
+	for outI, outWI := range b.outputWires {
 		var val constraint.U64
 		copy(val[:], b.assignment[outWI][instanceI][:])
-		s.SetValue(uint32(outputI+int(inst.WireOffset)), val)
-		outputI++
+		s.SetValue(uint32(outI+int(inst.WireOffset)), val)
 	}
 
 	return nil
@@ -200,20 +198,20 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 	return outputLevel
 }
 
-// GetAssignment returns the assignment for a specific wire and instance (for debugging)
-func (b *BlueprintSolve) GetAssignment(s constraint.Solver[constraint.U64], wireIdx, instanceIdx int) (constraint.U64, error) {
+// GetAssignment returns the assignment for a specific wire and instance (internal use)
+func (b *BlueprintSolve) GetAssignment(wireI, instanceI int) (constraint.U64, error) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
 	var zero constraint.U64
-	if wireIdx >= len(b.assignment) || instanceIdx >= len(b.assignment[wireIdx]) {
-		return zero, fmt.Errorf("wire %d instance %d out of bounds", wireIdx, instanceIdx)
+	if wireI >= len(b.assignment) || instanceI >= len(b.assignment[wireI]) {
+		return zero, fmt.Errorf("wire %d instance %d out of bounds", wireI, instanceI)
 	}
 
-	// Convert fr.Element to U64
-	var bigInt big.Int
-	b.assignment[wireIdx][instanceIdx].BigInt(&bigInt)
-	return s.FromInterface(&bigInt), nil
+	// Copy fr.Element to U64 directly (both in Montgomery form)
+	var val constraint.U64
+	copy(val[:], b.assignment[wireI][instanceI][:])
+	return val, nil
 }
 
 // GetAssignments returns all assignments for proving
@@ -358,5 +356,82 @@ func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree
 		}
 	}
 
+	return outputLevel
+}
+
+// BlueprintGetAssignment is a BLS24_315-specific blueprint for retrieving wire assignments.
+type BlueprintGetAssignment struct {
+	SolveBlueprintID constraint.BlueprintID
+	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
+
+	lock sync.Mutex
+}
+
+// Ensures BlueprintGetAssignment implements BlueprintSolvable
+var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintGetAssignment)(nil)
+
+// Solve implements the BlueprintSolvable interface for getting assignments.
+func (b *BlueprintGetAssignment) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	// Read wireI and instanceI from calldata
+	wireI := int(inst.Calldata[0])
+	instanceI := int(inst.Calldata[1])
+
+	// Get solve blueprint from solver by ID
+	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
+
+	// Get assignment
+	val, err := solveBlueprint.GetAssignment(wireI, instanceI)
+	if err != nil {
+		return err
+	}
+
+	// Set output wire
+	s.SetValue(inst.WireOffset, val)
+	return nil
+}
+
+// CalldataSize implements Blueprint
+func (b *BlueprintGetAssignment) CalldataSize() int {
+	return -1 // variable size: [wireI, instanceI, dependency_linear_expression]
+}
+
+// NbConstraints implements Blueprint
+func (b *BlueprintGetAssignment) NbConstraints() int {
+	return 0
+}
+
+// NbOutputs implements Blueprint
+func (b *BlueprintGetAssignment) NbOutputs(inst constraint.Instruction) int {
+	return 1 // returns one assignment value
+}
+
+// UpdateInstructionTree implements Blueprint
+func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
+	maxLevel := constraint.LevelUnset
+
+	// Parse wireI and instanceI (skip them)
+	offset := 2
+
+	// Parse dependency linear expression
+	// This ensures we run after the solve instruction for this instance
+	n := int(inst.Calldata[offset])
+	offset++
+
+	for range n {
+		wireID := inst.Calldata[offset+1]
+		offset += 2
+		if !tree.HasWire(wireID) {
+			continue
+		}
+		if level := tree.GetWireLevel(wireID); level > maxLevel {
+			maxLevel = level
+		}
+	}
+
+	outputLevel := maxLevel + 1
+	tree.InsertWire(inst.WireOffset, outputLevel)
 	return outputLevel
 }
