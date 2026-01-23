@@ -8,6 +8,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -156,6 +157,9 @@ func KzgPointEvaluation(
 	expectedBlobSize [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
 	expectedBlsModulus [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
 ) error {
+	if smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluation method cannot be called over small field compiler")
+	}
 	// check expected modulus against 128-bit format
 	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
 	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
@@ -191,6 +195,9 @@ func KzgPointEvaluation16(
 	expectedBlobSize [16]frontend.Variable, // arithmetization uses 16-element array (2-byte words). It is constant for all purposes, but we check it anyway.
 	expectedBlsModulus [16]frontend.Variable, // arithmetization uses 16-element array. It is constant for all purposes, but we check it anyway.
 ) error {
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluation16 method cannot be called over large field compiler")
+	}
 	// check expected modulus against 16-bit format
 	for i := range evmBlsModulus16 {
 		api.AssertIsEqual(expectedBlsModulus[i], evmBlsModulus16[i])
@@ -336,6 +343,9 @@ func KzgPointEvaluationFailure(
 	expectedBlobSize [2]frontend.Variable,
 	expectedBlsModulus [2]frontend.Variable,
 ) error {
+	if smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluationFailure method cannot be called over small field compiler")
+	}
 	return kzgPointEvaluationFailure(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
 }
 
@@ -374,6 +384,9 @@ func KzgPointEvaluationFailure16(
 	expectedBlobSize [16]frontend.Variable,
 	expectedBlsModulus [16]frontend.Variable,
 ) error {
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluationFailure16 method cannot be called over large field compiler")
+	}
 	return kzgPointEvaluationFailure(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
 }
 
