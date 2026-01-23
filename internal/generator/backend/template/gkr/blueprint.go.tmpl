@@ -20,22 +20,20 @@ type circuitEvaluator struct {
 
 // BlueprintSolve is a {{.FieldID}}-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
-	// Circuit structure
-	Circuit       gkrtypes.Circuit
+	// Circuit structure (serialized)
+	Circuit     gkrtypes.Circuit
+	NbInstances int
 
-	NbInstances   int
-
-	// Stateful data - stored as native {{ .ElementType }}
 	// Not serialized - recreated lazily at solve time
-	assignment    WireAssignment // []polynomial.MultiLin
-	evaluatorPool sync.Pool      // pool of circuitEvaluator, lazy-initialized
-	nbInputs      int
-	nbOutputVars  int
-	inputWires    []int
-	outputWires   []int
-	maxNbIn       int // maximum number of inputs for any gate
+	assignment    WireAssignment `cbor:"-"` // []polynomial.MultiLin
+	evaluatorPool sync.Pool      `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
+	nbInputs      int            `cbor:"-"`
+	nbOutputVars  int            `cbor:"-"`
+	inputWires    []int          `cbor:"-"`
+	outputWires   []int          `cbor:"-"`
+	maxNbIn       int            `cbor:"-"` // maximum number of inputs for any gate
 
-	lock sync.Mutex
+	lock sync.Mutex `cbor:"-"`
 }
 
 // Ensures BlueprintSolve implements BlueprintStateful
@@ -53,6 +51,32 @@ func (b *BlueprintSolve) initialize() {
 		return	// the unlikely event that two or more instructions were competing to initialize the blueprint
 	}
 
+	// Compute metadata from Circuit
+	b.maxNbIn = b.Circuit.MaxGateNbIn()
+	for i := range b.Circuit {
+		if b.Circuit[i].IsInput() {
+			b.nbInputs++
+			b.inputWires = append(b.inputWires, i)
+		}
+	}
+
+	// Identify output wires (not inputs to any other wire)
+	isOutput := make([]bool, len(b.Circuit))
+	for i := range b.Circuit {
+		isOutput[i] = true
+	}
+	for _, w := range b.Circuit {
+		for _, inIdx := range w.Inputs {
+			isOutput[inIdx] = false
+		}
+	}
+	for i := range b.Circuit {
+		if isOutput[i] {
+			b.nbOutputVars++
+			b.outputWires = append(b.outputWires, i)
+		}
+	}
+
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
 			evaluators: make([]gateEvaluator, len(b.Circuit)),
@@ -68,7 +92,7 @@ func (b *BlueprintSolve) initialize() {
 
 	b.assignment = make(WireAssignment, len(b.Circuit))
 	for i := range b.assignment {
-		b.assignment[i] = make(polynomial.MultiLin, b.nbInstances)
+		b.assignment[i] = make(polynomial.MultiLin, b.NbInstances)
 	}
 }
 
@@ -77,76 +101,60 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 	b.initialize()
 
-	// Read instance index from calldata
-	instanceI := int(inst.Calldata[0])
-
-	// Grow assignment slices to accommodate this instance
-	for i := range b.assignment {
-		for len(b.assignment[i]) <= instanceI {
-			var zero {{ .ElementType }}
-			b.assignment[i] = append(b.assignment[i], zero)
-		}
-	}
-
-	// Lazy initialize evaluator pool on first use
-	if b.evaluatorPool.New == nil {
-	}
-
-	// Read input values
-	offset := 1
 
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
 	defer b.evaluatorPool.Put(ce)
 
-	// Read exactly b.NbInputs values from calldata
-	inputValues := make([]{{ .ElementType }}, b.NbInputs)
-	for i := range b.NbInputs {
-		val, delta := s.Read(inst.Calldata[offset:])
+	// Read exactly b.nbInputs values from calldata
+	inputValues := make([]{{ .ElementType }}, b.nbInputs)
+	for i := range b.nbInputs {
+
 		offset += delta
 		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
 		copy(inputValues[i][:], val[:])
 	}
 
+	instanceI := int(inst.Calldata[0])
+	calldata := inst.Calldata[1:]
+	inputI := 0
 	// Process all wires in topological order (circuit is already sorted)
-	inputIdx := 0
 	for wI := range b.Circuit {
 		w := &b.Circuit[wI]
 
-		if w.IsInput() {
-			// Use pre-read input value
-			b.assignment[wI][instanceIdx].Set(&inputValues[inputIdx])
-			inputIdx++
+		if  w.IsInput(){
+			val, delta := s.Read(calldata)
+			calldata = calldata[delta:]
+			copy(b.assignment[wI][instanceI][:], val)
+			inputI++
 		} else {
 			// Get evaluator for this wire from the circuit evaluator
 			evaluator := &ce.evaluators[wI]
 
 			// Push gate inputs
 			for _, inWI := range w.Inputs {
-				evaluator.pushInput(&b.assignment[inWI][instanceIdx])
+				evaluator.pushInput(&b.assignment[inWI][instanceI])
 			}
 
 			// Evaluate the gate
-			b.assignment[wI][instanceIdx].Set(evaluator.evaluate())
+			b.assignment[wI][instanceI].Set(evaluator.evaluate())
 		}
 	}
 
 	// Set output wires for the instruction (convert {{ .ElementType }} to U64)
-	outputIdx := 0
-	for _, outWI := range b.OutputWires {
+	outputI := 0
+	for _, outWI := range b.outputWires {
 		var bigInt big.Int
-		b.assignment[outWI][instanceIdx].BigInt(&bigInt)
-		s.SetValue(uint32(outputIdx+int(inst.WireOffset)), s.FromInterface(&bigInt))
+		b.assignment[outWI][instanceI].BigInt(&bigInt)
+		s.SetValue(uint32(outputI+int(inst.WireOffset)), s.FromInterface(&bigInt))
 		outputIdx++
 	}
 
-	b.nbInstances++
 	return nil
 }
 
 // Reset implements BlueprintStateful
 func (b *BlueprintSolve) Reset() {
-	b.nbInstances = 0
 	b.assignment = nil
 }
 
@@ -162,16 +170,16 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	return b.NbOutputVars
+	return b.nbOutputVars
 }
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
 	maxLevel := constraint.LevelUnset
 
-	// Parse exactly b.NbInputs linear expressions
+	// Parse exactly b.nbInputs linear expressions
 	offset := 1 // skip instance index
-	for range b.NbInputs {
+	for range b.nbInputs {
 		n := int(inst.Calldata[offset])
 		offset++
 
@@ -188,7 +196,7 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 	}
 
 	outputLevel := maxLevel + 1
-	for i := range b.NbOutputVars {
+	for i := range b.nbOutputVars {
 		tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
 	}
 
@@ -218,11 +226,9 @@ func (b *BlueprintSolve) GetAssignments() WireAssignment {
 	return b.assignment
 }
 
-// GetNbInstances returns the number of instances solved
+// GetNbInstances returns the number of instances (compile-time)
 func (b *BlueprintSolve) GetNbInstances() int {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	return b.nbInstances
+	return b.NbInstances
 }
 
 // BlueprintProve is a {{.FieldID}}-specific blueprint for generating GKR proofs.
@@ -255,7 +261,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	insBytes := make([][]byte, 0) // first challenges
 	calldata := inst.Calldata
 	for len(calldata) != 0 {
-		val, delta := s.Read(inst.Calldata[delta:])
+		val, delta := s.Read(calldata)
 		calldata = calldata[delta:]
 
 		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)

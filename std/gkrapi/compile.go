@@ -128,34 +128,7 @@ func (c *Circuit) createBlueprint() error {
 	}
 
 	blueprint.Circuit = circuit
-	blueprint.MaxNbIn = circuit.MaxGateNbIn()
-
-	// Identify input wires
-	for i := range circuit {
-		if circuit[i].IsInput() {
-			blueprint.NbInputs++
-			blueprint.InputWires = append(blueprint.InputWires, i)
-		}
-	}
-
-	// Identify output wires (not inputs to any other wire)
-	isOutput := make([]bool, len(circuit))
-	for i := range circuit {
-		isOutput[i] = true
-	}
-	for _, wire := range c.circuit {
-		for _, inIdx := range wire.Inputs {
-			isOutput[inIdx] = false
-		}
-	}
-	for i := range circuit {
-		if isOutput[i] {
-			blueprint.NbOutputVars++
-			blueprint.OutputWires = append(blueprint.OutputWires, i)
-		}
-	}
-
-	// Note: evaluatorPool is initialized lazily on first Solve() call
+	// Note: metadata and evaluatorPool are initialized lazily on first Solve() call
 
 	// Register solve blueprint with compiler
 	c.solveBlueprintID = c.api.Compiler().AddBlueprint(blueprint)
@@ -241,6 +214,10 @@ func (c *Circuit) finalize(api frontend.API) error {
 			c.assignments[wI] = utils.ExtendRepeatLast(c.assignments[wI], nbPaddedInstances)
 		}
 	}
+
+	// Set NbInstances in the solve blueprint (used for pre-allocation and proof size computation)
+	solveBlueprint := c.blueprint.(*gkrbn254.BlueprintSolve)
+	solveBlueprint.NbInstances = nbPaddedInstances
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
