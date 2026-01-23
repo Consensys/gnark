@@ -3,6 +3,7 @@ package gkrapi
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -10,7 +11,7 @@ import (
 
 type API struct {
 	circuit     gkrtypes.RegisteredCircuit
-	assignments gkrtypes.WireAssignment
+	assignments gadget.WireAssignment
 	parentApi   frontend.API
 }
 

@@ -48,9 +48,9 @@ func TestRegister(t *testing.T) {
 		return api.Add(x[0], x[1], x[2])
 	}, 3, 1)
 
-	testGate("mul2", gkrtypes.Mul2().Executable.SnarkFriendly, 2, 2)
+	testGate("mul2", gkrtypes.Mul2().Evaluate.SnarkFriendly, 2, 2)
 
-	testGate("mimc", gkrtesting.NewCache().GetGate("mimc").Executable.SnarkFriendly, 2, 7)
+	testGate("mimc", gkrtesting.NewCache().GetGate("mimc").Evaluate.SnarkFriendly, 2, 7)
 
 	testGate("sub2PlusOne", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(

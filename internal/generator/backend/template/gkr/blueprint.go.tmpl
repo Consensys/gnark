@@ -85,7 +85,7 @@ func (b *BlueprintSolve) initialize() {
 		for wI := range b.Circuit {
 			w := &b.Circuit[wI]
 			if !w.IsInput() {
-				ce.evaluators[wI] = newGateEvaluator(w.Gate.Executable, len(w.Inputs))
+				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
 			}
 		}
 		return ce

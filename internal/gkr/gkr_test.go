@@ -133,9 +133,9 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
-func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
+func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	sorted := c.TopologicalSort()
-	res := make(gkrtypes.WireAssignment, len(c))
+	res := make(WireAssignment, len(c))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
 		if w.IsInput() {
@@ -156,7 +156,7 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit gkrtypes.Circuit
+	Circuit Circuit
 	Hash    HashDescription
 	Proof   Proof
 	Input   [][]frontend.Variable

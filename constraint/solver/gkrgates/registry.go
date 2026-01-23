@@ -177,7 +177,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 		}
 
 		for _, curve := range curvesForTesting {
-			gateVer, err := newGateTester(g.Executable.Bytecode, g.NbIn, curve)
+			gateVer, err := newGateTester(g.Evaluate.Bytecode, g.NbIn, curve)
 			if err != nil {
 				return err
 			}

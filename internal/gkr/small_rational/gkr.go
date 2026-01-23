@@ -105,7 +105,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.S
 			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
 		}
 
-		evaluator := newGateEvaluator(wire.Gate.Executable, len(wire.Inputs))
+		evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 		for _, uniqueI := range injectionLeftInv { // map from all to unique
 			evaluator.pushInput(&uniqueInputEvaluations[uniqueI])
 		}
@@ -411,7 +411,7 @@ func (m *claimsManager) getClaim(wireI int) *eqTimesGateEvalSumcheckClaims {
 		}
 	}
 
-	res.gateEvaluatorPool = newGateEvaluatorPool(wire.Gate.Executable, len(res.input), m.memPool)
+	res.gateEvaluatorPool = newGateEvaluatorPool(wire.Gate.Evaluate, len(res.input), m.memPool)
 
 	return res
 }
@@ -680,7 +680,7 @@ func (a WireAssignment) Complete(wires Wires) WireAssignment {
 			a[i] = make([]small_rational.SmallRational, nbInstances)
 		}
 		if !wires[i].IsInput() {
-			evaluators[i] = newGateEvaluator(wires[i].Gate.Executable, len(wires[i].Inputs))
+			evaluators[i] = newGateEvaluator(wires[i].Gate.Evaluate, len(wires[i].Inputs))
 		}
 	}
 

@@ -21,7 +21,7 @@ type (
 
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
-		Executable  GateExecutable
+		Evaluate    GateExecutable
 		NbIn        int      // number of inputs
 		Degree      int      // total Degree of the polynomial
 		SolvableVar int      // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
@@ -39,13 +39,6 @@ type (
 	// Wires is a slice of pointers to Wire. It is used for propagating claim
 	// information through the circuit.
 	Wires[GateExecutable any] []*Wire[GateExecutable]
-
-	Permutations struct {
-		SortedInstances      []int
-		SortedWires          []int
-		InstancesPermutation []int
-		WiresPermutation     []int
-	}
 
 	BothExecutables struct {
 		Bytecode      *GateBytecode
@@ -81,7 +74,7 @@ type (
 func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, solvableVar int, curves []ecc.ID) *RegisteredGate {
 
 	return &RegisteredGate{
-		Executable: BothExecutables{
+		Evaluate: BothExecutables{
 			Bytecode:      compiled,
 			SnarkFriendly: f,
 		},
@@ -172,7 +165,7 @@ func MaxStackSize(c SerializableCircuit) int {
 	maxSize := 0
 	for i := range c {
 		if !c[i].IsInput() {
-			gate := c[i].Gate.Executable
+			gate := c[i].Gate.Evaluate
 			nbIn := len(c[i].Inputs)
 			stackSize := gate.NbConstants() + nbIn + len(gate.Instructions)
 			maxSize = max(maxSize, stackSize)
@@ -263,36 +256,6 @@ func (c Circuit[GateExecutable]) MaxGateNbIn() int {
 		res = max(res, len(c[i].Inputs))
 	}
 	return res
-}
-
-// WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment []polynomial.MultiLin
-
-func (a WireAssignment) Permute(p Permutations) {
-	utils.Permute(a, p.WiresPermutation)
-	for i := range a {
-		if a[i] != nil {
-			utils.Permute(a[i], p.InstancesPermutation)
-		}
-	}
-}
-
-func (a WireAssignment) NbInstances() int {
-	for _, aW := range a {
-		if aW != nil {
-			return len(aW)
-		}
-	}
-	panic("empty assignment")
-}
-
-func (a WireAssignment) NbVars() int {
-	for _, aW := range a {
-		if aW != nil {
-			return aW.NumVars()
-		}
-	}
-	panic("empty assignment")
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set.
@@ -433,7 +396,7 @@ func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExec
 	for i := range c {
 		res[i] = Wire[TargetGateExecutable]{
 			Gate: &Gate[TargetGateExecutable]{
-				Executable:  gateConverter(c[i].Gate.Executable),
+				Evaluate:    gateConverter(c[i].Gate.Evaluate),
 				NbIn:        c[i].Gate.NbIn,
 				Degree:      c[i].Gate.Degree,
 				SolvableVar: c[i].Gate.SolvableVar,

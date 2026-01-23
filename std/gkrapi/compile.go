@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -25,7 +24,7 @@ import (
 
 type circuitDataForSnark struct {
 	circuit     gkrtypes.GadgetCircuit
-	assignments gkrtypes.WireAssignment
+	assignments gadget.WireAssignment
 }
 
 // The InitialChallengeGetter provides a one-time initial Fiat-Shamir challenge for the GKR prover.
@@ -35,7 +34,7 @@ type InitialChallengeGetter func() []frontend.Variable
 // Circuit represents a GKR circuit.
 type Circuit struct {
 	circuit              gkrtypes.RegisteredCircuit
-	assignments          gkrtypes.WireAssignment
+	assignments          gadget.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
 	outs                 []gkr.Variable
@@ -85,7 +84,7 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
 		circuit:     api.circuit,
-		assignments: make(gkrtypes.WireAssignment, len(api.circuit)),
+		assignments: make(gadget.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
 		hashName:    fiatshamirHashName,
 	}
@@ -220,14 +219,22 @@ func (c *Circuit) finalize(api frontend.API) error {
 	// Set NbInstances in the solve solveBlueprint (used for pre-allocation and proof size computation)
 	c.blueprints.Solve.SetNbInstances(uint32(nbPaddedInstances))
 
+	curve := utils.FieldToCurve(api.Compiler().Field())
+
+	// Convert registered circuit to gadget circuit (using GateFunction)
+	gadgetCircuit := gkrtypes.ToGadget(c.circuit)
+
+	// Check curve support
+	for i := range gadgetCircuit {
+		if !gadgetCircuit[i].Gate.SupportsCurve(curve) {
+			return fmt.Errorf("gate not usable over curve \"%s\"", curve)
+		}
+	}
+
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
-		circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
-		if err != nil {
-			return fmt.Errorf("failed to convert GKR info to circuit: %w", err)
-		}
-		gateIn := make([]frontend.Variable, circuit.MaxGateNbIn())
-		for wI, w := range circuit {
+		gateIn := make([]frontend.Variable, gadgetCircuit.MaxGateNbIn())
+		for wI, w := range gadgetCircuit {
 			if w.IsInput() {
 				continue
 			}
@@ -245,7 +252,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	if c.getInitialChallenges != nil {
-		return c.verify(api, c.getInitialChallenges())
+		return c.verify(api, gadgetCircuit, c.getInitialChallenges())
 	}
 
 	// default initial challenge is a commitment to all input and output values
@@ -258,17 +265,13 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		return c.verify(api, []frontend.Variable{commitment})
+		return c.verify(api, nil, []frontend.Variable{commitment})
 	}, insOuts...)
 
 	return nil
 }
 
-func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable) error {
-	forSnark, err := newCircuitDataForSnark(utils.FieldToCurve(api.Compiler().Field()), c.circuit, c.assignments)
-	if err != nil {
-		return fmt.Errorf("failed to create circuit data for snark: %w", err)
-	}
+func (c *Circuit) verify(api frontend.API, circuit gkrtypes.GadgetCircuit, initialChallenges []frontend.Variable) error {
 
 	compiler := api.Compiler()
 
@@ -291,9 +294,12 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		proofSerialized[i] = compiler.InternalVariable(wireID)
 	}
 
-	var proof gadget.Proof
+	var (
+		proof gadget.Proof
+		err   error
+	)
 
-	forSnarkSorted := utils.SliceOfRefs(forSnark.circuit)
+	forSnarkSorted := utils.SliceOfRefs(circuit)
 
 	if proof, err = gadget.DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
 		return err
@@ -304,24 +310,7 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		return err
 	}
 
-	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
-}
-
-func newCircuitDataForSnark(curve ecc.ID, registeredCircuit gkrtypes.RegisteredCircuit, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
-	// Convert registered circuit to gadget circuit (using GateFunction)
-	snarkCircuit := gkrtypes.ToGadget(registeredCircuit)
-
-	// Check curve support
-	for i := range snarkCircuit {
-		if !snarkCircuit[i].Gate.SupportsCurve(curve) {
-			return circuitDataForSnark{}, fmt.Errorf("gate not usable over curve \"%s\"", curve)
-		}
-	}
-
-	return circuitDataForSnark{
-		circuit:     snarkCircuit,
-		assignments: assignment,
-	}, nil
+	return gadget.Verify(api, circuit, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 }
 
 // GetValue is a debugging utility returning the value of variable v at instance i.

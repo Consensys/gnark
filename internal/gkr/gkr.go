@@ -7,17 +7,55 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
-// Snark-Friendly circuit types
-
+// Type aliases for gadget circuit types
 type (
-	Wire    gkrtypes.Wire[gkr.GateFunction]
-	Circuit gkrtypes.Circuit[gkr.GateFunction]
+	Wire    = gkrtypes.GadgetWire
+	Wires   = gkrtypes.GadgetWires
+	Circuit = gkrtypes.GadgetCircuit
 )
+
+// Permutations describes how to reorder wires and instances
+type Permutations struct {
+	SortedInstances      []int
+	SortedWires          []int
+	InstancesPermutation []int
+	WiresPermutation     []int
+}
+
+// WireAssignment is assignment of values to the same wire across many instances of the circuit
+type WireAssignment []polynomial.MultiLin
+
+func (a WireAssignment) Permute(p Permutations) {
+	utils.Permute(a, p.WiresPermutation)
+	for i := range a {
+		if a[i] != nil {
+			utils.Permute(a[i], p.InstancesPermutation)
+		}
+	}
+}
+
+func (a WireAssignment) NbInstances() int {
+	for _, aW := range a {
+		if aW != nil {
+			return len(aW)
+		}
+	}
+	panic("empty assignment")
+}
+
+func (a WireAssignment) NbVars() int {
+	for _, aW := range a {
+		if aW != nil {
+			return aW.NumVars()
+		}
+	}
+	panic("empty assignment")
+}
 
 // A SNARK gadget capable of verifying a GKR proof
 // The goal is to prove/verify evaluations of many instances of the same circuit.
@@ -106,16 +144,16 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(api frontend.API, a fron
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.getWire().Gate.Degree()
+	return 1 + e.getWire().Gate.Degree
 }
 
 type claimsManager struct {
 	claims     []*eqTimesGateEvalSumcheckLazyClaims
-	assignment gkrtypes.WireAssignment
-	wires      gkrtypes.Wires
+	assignment WireAssignment
+	wires      Wires
 }
 
-func newClaimsManager(wires gkrtypes.Wires, assignment gkrtypes.WireAssignment) (claims claimsManager) {
+func newClaimsManager(wires Wires, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
 	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	claims.wires = wires
@@ -163,7 +201,7 @@ func WithSortedCircuit(sorted []*Wire) Option {
 	}
 }
 
-func setup(api frontend.API, c gkrtypes.Circuit, assignment gkrtypes.WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -206,7 +244,7 @@ func ProofSize(c Circuit, logNbInstances int) int {
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
-func ChallengeNames(sorted []*gkrtypes.Wire, logNbInstances int, prefix string) []string {
+func ChallengeNames(sorted Wires, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -275,7 +313,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenge
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(api frontend.API, c Circuit, assignment gkrtypes.WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -350,11 +388,11 @@ func (p Proof) Serialize() []frontend.Variable {
 // ComputeLogNbInstances derives n such that the number of instances is 2ⁿ
 // from the size of the proof and the circuit structure.
 // It is used in proof deserialization.
-func ComputeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
+func ComputeLogNbInstances(wires Wires, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.NoProof() {
-			partialEvalElemsPerVar += w.Gate.Degree() + 1
+			partialEvalElemsPerVar += w.Gate.Degree + 1
 		}
 		serializedProofLen -= w.NbUniqueOutputs
 	}
@@ -373,7 +411,7 @@ func (r *variablesReader) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variable) (Proof, error) {
+func DeserializeProof(sorted Wires, serializedProof []frontend.Variable) (Proof, error) {
 	proof := make(Proof, len(sorted))
 	logNbInstances := ComputeLogNbInstances(sorted, len(serializedProof))
 
@@ -382,7 +420,7 @@ func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variab
 		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
+				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree + 1)
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())

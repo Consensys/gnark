@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"slices"
@@ -24,7 +23,7 @@ type GateTester struct {
 	nbIn      int
 }
 
-func NewGateTester(g *gkrinfo.CompiledGate, nbIn int) *GateTester {
+func NewGateTester(g *gkrtypes.GateBytecode, nbIn int) *GateTester {
 	return &GateTester{
 		evaluator: newGateEvaluator(g, nbIn),
 		nbIn:      nbIn,
@@ -153,7 +152,7 @@ func (t *GateTester) VerifyDegree(claimedDegree int) error {
 }
 
 // Equal checks if two gate functions are equal, by testing the same at a random point.
-func (t *GateTester) Equal(g *gkrinfo.CompiledGate) bool {
+func (t *GateTester) Equal(g *gkrtypes.GateBytecode) bool {
 	x := make(fr.Vector, t.nbIn)
 	x.MustSetRandom()
 	fAt := t.evaluator.evaluate(x...)

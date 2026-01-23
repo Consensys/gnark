@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
 	"slices"
@@ -24,7 +23,7 @@ type GateTester struct {
 	nbIn      int
 }
 
-func NewGateTester(g *gkrinfo.CompiledGate, nbIn int) *GateTester {
+func NewGateTester(g *gkrtypes.GateBytecode, nbIn int) *GateTester {
 	return &GateTester{
 		evaluator: newGateEvaluator(g, nbIn),
 		nbIn:      nbIn,
