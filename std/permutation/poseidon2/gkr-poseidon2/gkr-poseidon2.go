@@ -284,7 +284,7 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	// apply the external matrix one last time to obtain the final value of y
 	out = gkrApi.Gate(extAddGate, y, x, in2)
 
-	gkrCircuit, err = gkrApi.Compile("MIMC")
+	gkrCircuit, err = gkrApi.Compile("POSEIDON2")
 
 	return
 }
