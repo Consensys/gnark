@@ -108,42 +108,22 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 	b.initialize()
 
-	// Read instance index from calldata
-	instanceI := int(inst.Calldata[0])
-
-	// Grow assignment slices to accommodate this instance
-	for i := range b.assignment {
-		for len(b.assignment[i]) <= instanceI {
-			var zero fr.Element
-			b.assignment[i] = append(b.assignment[i], zero)
-		}
-	}
-
-	// Read input values
-	offset := 1
-
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
 	defer b.evaluatorPool.Put(ce)
 
-	// Read exactly b.nbInputs values from calldata
-	inputValues := make([]fr.Element, b.nbInputs)
-	for i := range b.nbInputs {
-		val, delta := s.Read(inst.Calldata[offset:])
-		offset += delta
-		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
-		copy(inputValues[i][:], val[:])
-	}
+	instanceI := int(inst.Calldata[0])
+	calldata := inst.Calldata[1:]
 
 	// Process all wires in topological order (circuit is already sorted)
-	inputIdx := 0
 	for wI := range b.Circuit {
 		w := &b.Circuit[wI]
 
 		if w.IsInput() {
-			// Use pre-read input value
-			b.assignment[wI][instanceI].Set(&inputValues[inputIdx])
-			inputIdx++
+			val, delta := s.Read(calldata)
+			calldata = calldata[delta:]
+			// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
+			copy(b.assignment[wI][instanceI][:], val[:])
 		} else {
 			// Get evaluator for this wire from the circuit evaluator
 			evaluator := &ce.evaluators[wI]
@@ -158,13 +138,13 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
-	// Set output wires for the instruction (convert fr.Element to U64)
-	outputIdx := 0
+	// Set output wires (copy fr.Element to U64 in Montgomery form)
+	outputI := 0
 	for _, outWI := range b.outputWires {
-		var bigInt big.Int
-		b.assignment[outWI][instanceI].BigInt(&bigInt)
-		s.SetValue(uint32(outputIdx+int(inst.WireOffset)), s.FromInterface(&bigInt))
-		outputIdx++
+		var val constraint.U64
+		copy(val[:], b.assignment[outWI][instanceI][:])
+		s.SetValue(uint32(outputI+int(inst.WireOffset)), val)
+		outputI++
 	}
 
 	return nil

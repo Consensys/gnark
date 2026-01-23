@@ -101,32 +101,22 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 	b.initialize()
 
-
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
 	defer b.evaluatorPool.Put(ce)
 
-	// Read exactly b.nbInputs values from calldata
-	inputValues := make([]{{ .ElementType }}, b.nbInputs)
-	for i := range b.nbInputs {
-
-		offset += delta
-		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
-		copy(inputValues[i][:], val[:])
-	}
-
 	instanceI := int(inst.Calldata[0])
 	calldata := inst.Calldata[1:]
-	inputI := 0
+
 	// Process all wires in topological order (circuit is already sorted)
 	for wI := range b.Circuit {
 		w := &b.Circuit[wI]
 
-		if  w.IsInput(){
+		if w.IsInput() {
 			val, delta := s.Read(calldata)
 			calldata = calldata[delta:]
-			copy(b.assignment[wI][instanceI][:], val)
-			inputI++
+			// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
+			copy(b.assignment[wI][instanceI][:], val[:])
 		} else {
 			// Get evaluator for this wire from the circuit evaluator
 			evaluator := &ce.evaluators[wI]
@@ -141,13 +131,11 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
-	// Set output wires for the instruction (convert {{ .ElementType }} to U64)
-	outputI := 0
-	for _, outWI := range b.outputWires {
-		var bigInt big.Int
-		b.assignment[outWI][instanceI].BigInt(&bigInt)
-		s.SetValue(uint32(outputI+int(inst.WireOffset)), s.FromInterface(&bigInt))
-		outputIdx++
+	// Set output wires (copy fr.Element to U64 in Montgomery form)
+	for outI, outWI := range b.outputWires {
+		var val constraint.U64
+		copy(val[:], b.assignment[outWI][instanceI][:])
+		s.SetValue(uint32(outI+int(inst.WireOffset)), val)
 	}
 
 	return nil
