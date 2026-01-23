@@ -111,7 +111,7 @@ var (
 		"0x0001",
 	}
 	// evmBlobSize16 is the expected blob size (4096) encoded as 16 2-byte parts.
-	// 4096 = 0x1000, so it's 14 zero limbs followed by 0x0000 and 0x1000 (big-endian).
+	// 4096 = 0x1000, so it's 15 zero limbs followed by 0x1000.
 	evmBlobSize16 = [16]int{
 		0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, evmBlockSize,
