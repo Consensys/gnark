@@ -3,7 +3,6 @@ package gkrapi
 import (
 	"errors"
 	"fmt"
-	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
@@ -200,10 +199,10 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 
 	// Build instruction calldata for blueprint
-	// Format: [0]=length, [1]=nbInputs, [2...]=input values as linear expressions
+	// Format: [0]=instanceIndex, [1...]=input values as linear expressions
 	compiler := c.api.Compiler()
-	calldata := make([]uint32, 2, 2+len(c.ins)*2+2) // pre-allocate roughly
-	calldata[1] = uint32(len(c.ins))
+	calldata := make([]uint32, 1, 1+len(c.ins)*2+2) // pre-allocate roughly
+	calldata[0] = uint32(c.nbInstances)             // instance index
 
 	// Encode input variables
 	for _, wI := range c.ins {
@@ -218,9 +217,6 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		v := compiler.ToCanonicalVariable(inV)
 		v.Compress(&calldata)
 	}
-
-	// Set total length
-	calldata[0] = uint32(len(calldata))
 
 	// Execute solve blueprint instruction
 	outputs := compiler.AddInstruction(c.solveBlueprintID, calldata)
@@ -309,24 +305,17 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 		return fmt.Errorf("failed to create circuit data for snark: %w", err)
 	}
 
-	// Build prove instruction using blueprint
-	proofSize := gadget.ProofSize(forSnark.circuit, bits.TrailingZeros(uint(len(c.assignments[0]))))
-
 	compiler := api.Compiler()
 
 	// Build calldata for prove instruction
-	// Format: [0]=length, [1]=proofSize, [2]=nbChallenges, [3...]=challenge linear expressions
-	proveCalldata := make([]uint32, 3, 3+len(initialChallenges)*2+2)
-	proveCalldata[1] = uint32(proofSize)
-	proveCalldata[2] = uint32(len(initialChallenges))
+	// Format: [0...]=challenge linear expressions (no metadata)
+	proveCalldata := make([]uint32, 0, len(initialChallenges)*2+2)
 
 	// Encode initial challenges
 	for _, challenge := range initialChallenges {
 		v := compiler.ToCanonicalVariable(challenge)
 		v.Compress(&proveCalldata)
 	}
-
-	proveCalldata[0] = uint32(len(proveCalldata))
 
 	// Execute prove blueprint instruction
 	proofOutputs := compiler.AddInstruction(c.proveBlueprintID, proveCalldata)

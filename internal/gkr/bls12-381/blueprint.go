@@ -8,6 +8,7 @@ package gkr
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -15,6 +16,7 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
+	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
 
@@ -68,7 +70,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	instanceIdx := b.nbInstances
+	// Read instance index from calldata
+	instanceIdx := int(inst.Calldata[0])
 
 	// Initialize assignment array if this is the first instance
 	if b.assignment == nil {
@@ -86,17 +89,21 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
-	// Read input values from instruction calldata
-	nbInputsInst := int(inst.Calldata[1])
-	if nbInputsInst != b.NbInputs {
-		return fmt.Errorf("expected %d inputs, got %d", b.NbInputs, nbInputsInst)
-	}
-
-	offset := 2
+	// Read input values from instruction calldata (no metadata, just inputs)
+	offset := 1
 
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
 	defer b.evaluatorPool.Put(ce)
+
+	// Read exactly b.NbInputs values from calldata
+	inputValues := make([]fr.Element, b.NbInputs)
+	for i := range b.NbInputs {
+		val, delta := s.Read(inst.Calldata[offset:])
+		offset += delta
+		bigInt := s.ToBigInt(val)
+		inputValues[i].SetBigInt(bigInt)
+	}
 
 	// Process all wires in topological order (circuit is already sorted)
 	inputIdx := 0
@@ -104,13 +111,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 		w := &b.Circuit[wI]
 
 		if w.IsInput() {
-			// Read input value from calldata and convert to fr.Element
-			val, delta := s.Read(inst.Calldata[offset:])
-			offset += delta
-
-			// Convert U64 to fr.Element
-			bigInt := s.ToBigInt(val)
-			b.assignment[wI][instanceIdx].SetBigInt(bigInt)
+			// Use pre-read input value
+			b.assignment[wI][instanceIdx].Set(&inputValues[inputIdx])
 			inputIdx++
 		} else {
 			// Get evaluator for this wire from the circuit evaluator
@@ -164,10 +166,9 @@ func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
 func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
 	maxLevel := constraint.LevelUnset
 
-	nbInputsInst := int(inst.Calldata[1])
-	offset := 2
-
-	for range nbInputsInst {
+	// Parse exactly b.NbInputs linear expressions
+	offset := 1 // skip instance index
+	for range b.NbInputs {
 		n := int(inst.Calldata[offset])
 		offset++
 
@@ -243,17 +244,18 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("no assignments available for proving")
 	}
 
-	// Read initial challenges from instruction calldata
-	nbChallenges := int(inst.Calldata[2])
-	challenges := make([]fr.Element, nbChallenges)
-	offset := 3
-	for i := range nbChallenges {
+	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
+	challenges := make([]fr.Element, 0, 4) // pre-allocate reasonable size
+	offset := 0
+	for offset < len(inst.Calldata) {
 		val, delta := s.Read(inst.Calldata[offset:])
 		offset += delta
 
 		// Convert U64 to fr.Element
+		var challenge fr.Element
 		bigInt := s.ToBigInt(val)
-		challenges[i].SetBigInt(bigInt)
+		challenge.SetBigInt(bigInt)
+		challenges = append(challenges, challenge)
 	}
 
 	// Convert challenges to [][]byte for Fiat-Shamir
@@ -312,24 +314,22 @@ func (b *BlueprintProve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintProve) NbOutputs(inst constraint.Instruction) int {
-	if len(inst.Calldata) > 1 {
-		return int(inst.Calldata[1])
+	// Compute proof size from blueprint state
+	nbInstances := b.SolveBlueprint.GetNbInstances()
+	if nbInstances == 0 {
+		return 0
 	}
-	return 0
+	logNbInstances := bits.TrailingZeros(uint(nbInstances))
+	return gadget.ProofSize(b.SolveBlueprint.Circuit, logNbInstances)
 }
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
 	maxLevel := constraint.LevelUnset
 
-	if len(inst.Calldata) < 3 {
-		return maxLevel + 1
-	}
-
-	nbChallenges := int(inst.Calldata[2])
-	offset := 3
-
-	for range nbChallenges {
+	// Parse all challenges dynamically (no metadata)
+	offset := 0
+	for offset < len(inst.Calldata) {
 		n := int(inst.Calldata[offset])
 		offset++
 
@@ -346,9 +346,14 @@ func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree
 	}
 
 	outputLevel := maxLevel + 1
-	proofSize := int(inst.Calldata[1])
-	for i := range proofSize {
-		tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
+	// Compute proof size from blueprint state
+	nbInstances := b.SolveBlueprint.GetNbInstances()
+	if nbInstances > 0 {
+		logNbInstances := bits.TrailingZeros(uint(nbInstances))
+		proofSize := gadget.ProofSize(b.SolveBlueprint.Circuit, logNbInstances)
+		for i := range proofSize {
+			tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
+		}
 	}
 
 	return outputLevel
