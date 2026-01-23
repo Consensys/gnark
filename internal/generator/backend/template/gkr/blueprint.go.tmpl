@@ -22,62 +22,67 @@ type circuitEvaluator struct {
 type BlueprintSolve struct {
 	// Circuit structure
 	Circuit       gkrtypes.Circuit
-	NbInputs      int
-	NbOutputVars  int
-	InputWires    []int
-	OutputWires   []int
-	MaxNbIn       int // maximum number of inputs for any gate
+
+	NbInstances   int
 
 	// Stateful data - stored as native {{ .ElementType }}
 	// Not serialized - recreated lazily at solve time
-	nbInstances   int
 	assignment    WireAssignment // []polynomial.MultiLin
 	evaluatorPool sync.Pool      // pool of circuitEvaluator, lazy-initialized
+	nbInputs      int
+	nbOutputVars  int
+	inputWires    []int
+	outputWires   []int
+	maxNbIn       int // maximum number of inputs for any gate
 
 	lock sync.Mutex
-}
-
-// initializeEvaluatorPool lazily initializes the evaluator pool on first solve
-func (b *BlueprintSolve) initializeEvaluatorPool() {
-	b.evaluatorPool = sync.Pool{
-		New: func() interface{} {
-			ce := &circuitEvaluator{
-				evaluators: make([]gateEvaluator, len(b.Circuit)),
-			}
-			for wI := range b.Circuit {
-				w := &b.Circuit[wI]
-				if !w.IsInput() {
-					// Each gate evaluator allocates its own appropriately-sized stack
-					ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs))
-				}
-			}
-			return ce
-		},
-	}
 }
 
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-// Solve implements the BlueprintStateful interface.
-func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
+func (b *BlueprintSolve) initialize() {
+
+	if b.assignment != nil {
+		return
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	// Read instance index from calldata
-	instanceIdx := int(inst.Calldata[0])
-
-	// Initialize assignment array if this is the first instance
-	if b.assignment == nil {
-		b.assignment = make(WireAssignment, len(b.Circuit))
-		for i := range b.assignment {
-			b.assignment[i] = make(polynomial.MultiLin, 0, 16) // pre-allocate
-		}
+	if b.assignment != nil {
+		return	// the unlikely event that two or more instructions were competing to initialize the blueprint
 	}
+
+	b.evaluatorPool.New = func() interface{} {
+		ce := &circuitEvaluator{
+			evaluators: make([]gateEvaluator, len(b.Circuit)),
+		}
+		for wI := range b.Circuit {
+			w := &b.Circuit[wI]
+			if !w.IsInput() {
+				ce.evaluators[wI] = newGateEvaluator(w.Gate.Compiled(), len(w.Inputs))
+			}
+		}
+		return ce
+	}
+
+	b.assignment = make(WireAssignment, len(b.Circuit))
+	for i := range b.assignment {
+		b.assignment[i] = make(polynomial.MultiLin, b.nbInstances)
+	}
+}
+
+// Solve implements the BlueprintStateful interface.
+func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
+
+	b.initialize()
+
+	// Read instance index from calldata
+	instanceI := int(inst.Calldata[0])
 
 	// Grow assignment slices to accommodate this instance
 	for i := range b.assignment {
-		for len(b.assignment[i]) <= instanceIdx {
+		for len(b.assignment[i]) <= instanceI {
 			var zero {{ .ElementType }}
 			b.assignment[i] = append(b.assignment[i], zero)
 		}
@@ -85,7 +90,6 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 	// Lazy initialize evaluator pool on first use
 	if b.evaluatorPool.New == nil {
-		b.initializeEvaluatorPool()
 	}
 
 	// Read input values
@@ -100,8 +104,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	for i := range b.NbInputs {
 		val, delta := s.Read(inst.Calldata[offset:])
 		offset += delta
-		bigInt := s.ToBigInt(val)
-		inputValues[i].SetBigInt(bigInt)
+		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
+		copy(inputValues[i][:], val[:])
 	}
 
 	// Process all wires in topological order (circuit is already sorted)
@@ -223,8 +227,9 @@ func (b *BlueprintSolve) GetNbInstances() int {
 
 // BlueprintProve is a {{.FieldID}}-specific blueprint for generating GKR proofs.
 type BlueprintProve struct {
-	SolveBlueprint *BlueprintSolve
-	HashName       string
+	SolveBlueprintID constraint.BlueprintID
+	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
+	HashName         string
 
 	lock sync.Mutex
 }
@@ -237,31 +242,26 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
+	// Get solve blueprint from solver by ID
+	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
+
 	// Get assignments from solve blueprint (already in {{ .ElementType }} form)
-	assignments := b.SolveBlueprint.GetAssignments()
+	assignments := solveBlueprint.GetAssignments()
 	if len(assignments) == 0 {
 		return fmt.Errorf("no assignments available for proving")
 	}
 
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
-	challenges := make([]{{ .ElementType }}, 0, 4) // pre-allocate reasonable size
-	offset := 0
-	for offset < len(inst.Calldata) {
-		val, delta := s.Read(inst.Calldata[offset:])
-		offset += delta
+	insBytes := make([][]byte, 0) // first challenges
+	calldata := inst.Calldata
+	for len(calldata) != 0 {
+		val, delta := s.Read(inst.Calldata[delta:])
+		calldata = calldata[delta:]
 
-		// Convert U64 to {{ .ElementType }}
+		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
 		var challenge {{ .ElementType }}
-		bigInt := s.ToBigInt(val)
-		challenge.SetBigInt(bigInt)
-		challenges = append(challenges, challenge)
-	}
-
-	// Convert challenges to [][]byte for Fiat-Shamir
-	insBytes := make([][]byte, len(challenges))
-	for i := range challenges {
-		insBytes[i] = make([]byte, fr.Bytes)
-		challenges[i].BigInt((*big.Int)(nil)).FillBytes(insBytes[i])
+		copy(challenge[:], val[:])
+		insBytes = append(insBytes, challenge.Marshal())
 	}
 
 	// Create Fiat-Shamir settings
@@ -269,7 +269,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
 	// Call the {{.FieldID}}-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(b.SolveBlueprint.Circuit, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, assignments, fsSettings)
 	if err != nil {
 		return fmt.Errorf("{{toLower .FieldID}} prove failed: %w", err)
 	}

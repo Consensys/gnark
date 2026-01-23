@@ -13,6 +13,7 @@ import (
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
 	q                 *big.Int
+	blueprints        []constraint.Blueprint
 }
 
 // implements constraint.Solver
@@ -34,6 +35,10 @@ func (s *blueprintSolver[E]) GetCoeff(cID uint32) E {
 
 func (s *blueprintSolver[E]) IsSolved(vID uint32) bool {
 	panic("not implemented in test.Engine")
+}
+
+func (s *blueprintSolver[E]) GetBlueprint(id constraint.BlueprintID) constraint.Blueprint {
+	return s.blueprints[id]
 }
 
 // implements constraint.Field

@@ -163,8 +163,9 @@ func (c *Circuit) createBlueprint() error {
 
 	// Create and register prove blueprint with reference to solve blueprint
 	proveBlueprint := &gkrbn254.BlueprintProve{
-		SolveBlueprint: blueprint,
-		HashName:       c.hashName,
+		SolveBlueprintID: c.solveBlueprintID,
+		SolveBlueprint:   blueprint,
+		HashName:         c.hashName,
 	}
 	c.proveBlueprintID = c.api.Compiler().AddBlueprint(proveBlueprint)
 

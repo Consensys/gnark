@@ -107,8 +107,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	for i := range b.NbInputs {
 		val, delta := s.Read(inst.Calldata[offset:])
 		offset += delta
-		bigInt := s.ToBigInt(val)
-		inputValues[i].SetBigInt(bigInt)
+		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
+		copy(inputValues[i][:], val[:])
 	}
 
 	// Process all wires in topological order (circuit is already sorted)
@@ -230,8 +230,9 @@ func (b *BlueprintSolve) GetNbInstances() int {
 
 // BlueprintProve is a BLS12_381-specific blueprint for generating GKR proofs.
 type BlueprintProve struct {
-	SolveBlueprint *BlueprintSolve
-	HashName       string
+	SolveBlueprintID constraint.BlueprintID
+	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
+	HashName         string
 
 	lock sync.Mutex
 }
@@ -244,31 +245,26 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
+	// Get solve blueprint from solver by ID
+	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
+
 	// Get assignments from solve blueprint (already in fr.Element form)
-	assignments := b.SolveBlueprint.GetAssignments()
+	assignments := solveBlueprint.GetAssignments()
 	if len(assignments) == 0 {
 		return fmt.Errorf("no assignments available for proving")
 	}
 
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
-	challenges := make([]fr.Element, 0, 4) // pre-allocate reasonable size
-	offset := 0
-	for offset < len(inst.Calldata) {
-		val, delta := s.Read(inst.Calldata[offset:])
-		offset += delta
+	insBytes := make([][]byte, 0) // first challenges
+	calldata := inst.Calldata
+	for len(calldata) != 0 {
+		val, delta := s.Read(inst.Calldata[delta:])
+		calldata = calldata[delta:]
 
-		// Convert U64 to fr.Element
+		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
 		var challenge fr.Element
-		bigInt := s.ToBigInt(val)
-		challenge.SetBigInt(bigInt)
-		challenges = append(challenges, challenge)
-	}
-
-	// Convert challenges to [][]byte for Fiat-Shamir
-	insBytes := make([][]byte, len(challenges))
-	for i := range challenges {
-		insBytes[i] = make([]byte, fr.Bytes)
-		challenges[i].BigInt((*big.Int)(nil)).FillBytes(insBytes[i])
+		copy(challenge[:], val[:])
+		insBytes = append(insBytes, challenge.Marshal())
 	}
 
 	// Create Fiat-Shamir settings
@@ -276,7 +272,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
 	// Call the BLS12_381-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(b.SolveBlueprint.Circuit, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, assignments, fsSettings)
 	if err != nil {
 		return fmt.Errorf("bls12_381 prove failed: %w", err)
 	}
