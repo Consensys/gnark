@@ -8,7 +8,6 @@ import (
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
@@ -17,12 +16,12 @@ import (
 // The main functionality is to cache whole circuits, but this package needs to use its own gate registry, in order to avoid import cycles.
 // Cache is used in tests for the per-curve GKR packages, but they in turn provide gate degree discovery functions to the gkrgates package.
 type Cache struct {
-	circuits map[string]gkrtypes.Circuit
-	gates    map[gkr.GateName]*gkrtypes.Gate
+	circuits map[string]gkrtypes.RegisteredCircuit
+	gates    map[gkr.GateName]*gkrtypes.RegisteredGate
 }
 
 func NewCache() *Cache {
-	gates := make(map[gkr.GateName]*gkrtypes.Gate, 7)
+	gates := make(map[gkr.GateName]*gkrtypes.RegisteredGate, 7)
 	gates[gkr.Identity] = gkrtypes.Identity()
 	gates[gkr.Add2] = gkrtypes.Add2()
 	gates[gkr.Sub2] = gkrtypes.Sub2()
@@ -37,71 +36,79 @@ func NewCache() *Cache {
 
 		return res
 	}
-	mimcCompiled, err := gkrinfo.CompileGateFunction(mimcF, 2)
+	mimcCompiled, err := gkrtypes.CompileGateFunction(mimcF, 2)
 	if err != nil {
 		panic(err)
 	}
 	gates["mimc"] = gkrtypes.NewGate(mimcF, mimcCompiled, 2, 7, -1, gnark.Curves())
 	gates["select-input-3"] = gkrtypes.NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 		return in[2]
-	}, &gkrinfo.CompiledGate{}, 3, 1, 0, gnark.Curves())
+	}, &gkrtypes.GateBytecode{}, 3, 1, 0, gnark.Curves())
 
 	return &Cache{
-		circuits: make(map[string]gkrtypes.Circuit),
+		circuits: make(map[string]gkrtypes.RegisteredCircuit),
 		gates:    gates,
 	}
 }
 
-func (c *Cache) GetCircuit(path string) (circuit gkrtypes.Circuit) {
+func (c *Cache) GetCircuit(path string) gkrtypes.RegisteredCircuit {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		panic(err)
 	}
 	var ok bool
+	var circuit gkrtypes.RegisteredCircuit
 	if circuit, ok = c.circuits[path]; ok {
-		return
+		return circuit
 	}
 
 	var bytes []byte
 	if bytes, err = os.ReadFile(path); err != nil {
 		panic(err)
 	}
-	var circuitInfo gkrinfo.Circuit
+	var circuitInfo gkrtypes.SerializableCircuit
 	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
 		panic(err)
 	}
 
-	// Build gate map from compiled gates to full gates
-	gateMap := make(map[*gkrinfo.CompiledGate]*gkrtypes.Gate)
+	// Build gate map from bytecode to registered gates
+	gateMap := make(map[*gkrtypes.GateBytecode]*gkrtypes.RegisteredGate)
 	for _, wire := range circuitInfo {
-		if wire.CompiledGate != nil {
-			// For each compiled gate, find the matching full gate from our cache
-			// This is a temporary solution - in practice, the circuit should store gate references
+		if wire.Gate.Executable != nil {
+			// For each bytecode gate, find the matching registered gate from our cache
 			for _, gate := range c.gates {
-				if gate.Compiled() == wire.CompiledGate {
-					gateMap[wire.CompiledGate] = gate
+				if gate.Executable.Bytecode == wire.Gate.Executable {
+					gateMap[wire.Gate.Executable] = gate
 					break
 				}
 			}
 		}
 	}
 
-	if circuit, err = gkrtypes.NewCircuit(circuitInfo, gateMap); err != nil {
-		panic(err)
-	}
+	// Convert serializable circuit to registered circuit with both executables
+	circuit = gkrtypes.ConvertCircuit[*gkrtypes.GateBytecode, gkrtypes.BothExecutables](
+		gkrtypes.Circuit[*gkrtypes.GateBytecode](circuitInfo),
+		func(bytecode *gkrtypes.GateBytecode) gkrtypes.BothExecutables {
+			if gate, ok := gateMap[bytecode]; ok {
+				return gate.Executable
+			}
+			panic("gate not found in cache")
+		},
+	)
+
 	c.circuits[path] = circuit
 
-	return
+	return circuit
 }
 
-func (c *Cache) RegisterGate(name gkr.GateName, gate *gkrtypes.Gate) {
+func (c *Cache) RegisterGate(name gkr.GateName, gate *gkrtypes.RegisteredGate) {
 	if _, ok := c.gates[name]; ok {
 		panic("gate already registered")
 	}
 	c.gates[name] = gate
 }
 
-func (c *Cache) GetGate(name gkr.GateName) *gkrtypes.Gate {
+func (c *Cache) GetGate(name gkr.GateName) *gkrtypes.RegisteredGate {
 	if gate, ok := c.gates[name]; ok {
 		return gate
 	}

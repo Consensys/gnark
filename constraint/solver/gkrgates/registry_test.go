@@ -50,7 +50,7 @@ func TestRegister(t *testing.T) {
 
 	testGate("mul2", gkrtypes.Mul2().Executable.SnarkFriendly, 2, 2)
 
-	testGate("mimc", gkrtesting.NewCache().GetGate("mimc"), 2, 7)
+	testGate("mimc", gkrtesting.NewCache().GetGate("mimc").Executable.SnarkFriendly, 2, 7)
 
 	testGate("sub2PlusOne", func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		return api.Sub(

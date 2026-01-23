@@ -40,15 +40,6 @@ type (
 	// information through the circuit.
 	Wires[GateExecutable any] []*Wire[GateExecutable]
 
-	SerializableWire struct {
-		CompiledGate *GateBytecode // Compiled gate (serializable)
-		Inputs       []int
-	}
-
-	SerializableCircuit Circuit[*GateBytecode]
-
-	SerializableWires Wire[*GateBytecode]
-
 	Permutations struct {
 		SortedInstances      []int
 		SortedWires          []int
@@ -60,7 +51,24 @@ type (
 		Bytecode      *GateBytecode
 		SnarkFriendly gkr.GateFunction
 	}
-	RegisteredGate Gate[BothExecutables]
+
+	// Type aliases for different circuit instantiations
+
+	// Registered types (with both bytecode and SNARK-friendly executables)
+	RegisteredGate    = Gate[BothExecutables]
+	RegisteredCircuit = Circuit[BothExecutables]
+	RegisteredWire    = Wire[BothExecutables]
+	RegisteredWires   = Wires[BothExecutables]
+
+	// Serializable types (bytecode only, for native proving)
+	SerializableCircuit = Circuit[*GateBytecode]
+	SerializableWire    = Wire[*GateBytecode]
+	SerializableWires   = Wires[*GateBytecode]
+
+	// Gadget types (gate functions only, for in-circuit verification)
+	GadgetCircuit = Circuit[gkr.GateFunction]
+	GadgetWire    = Wire[gkr.GateFunction]
+	GadgetWires   = Wires[gkr.GateFunction]
 )
 
 // NewGate creates a new gate function with the given parameters:
@@ -160,7 +168,7 @@ func (c Circuit[GateExecutable]) maxGateDegree() int {
 
 // MaxStackSize returns the maximum stack size needed by any gate evaluator in the circuit.
 // This is used to initialize universal gate evaluators that can handle any gate in the circuit.
-func (c SerializableCircuit) MaxStackSize() int {
+func MaxStackSize(c SerializableCircuit) int {
 	maxSize := 0
 	for i := range c {
 		if !c[i].IsInput() {
@@ -188,23 +196,12 @@ func (c Circuit[GateExecutable]) MemoryRequirements(nbInstances int) []int {
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
-// It also sets the NbUniqueOutputs fields, and sets the wire metadata.
+// It also sets the NbUniqueOutputs fields.
 func (c Circuit[GateExecutable]) OutputsList() [][]int {
-	idGate := Identity()
-	var idGateTyped GateExecutable
-	switch idGateTyped.(type) {
-	case GateBytecode:
-		idGateTyped = idGate.Executable.Bytecode
-	case gkr.GateFunction:
-		idGateTyped = idGate.Executable.SnarkFriendly
-	}
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
 		c[i].NbUniqueOutputs = 0
-		if c[i].IsInput() {
-			c[i].Gate = idGateTyped
-		}
 	}
 	ins := make(map[int]struct{}, len(c))
 	for i := range c {
@@ -429,4 +426,38 @@ func Mul2() *RegisteredGate {
 			Inputs: []uint16{0, 1},
 		}},
 	}, 2, 2, -1, gnark.Curves())
+}
+
+func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExecutable], gateConverter func(GateExecutable) TargetGateExecutable) Circuit[TargetGateExecutable] {
+	res := make(Circuit[TargetGateExecutable], len(c))
+	for i := range c {
+		res[i] = Wire[TargetGateExecutable]{
+			Gate: &Gate[TargetGateExecutable]{
+				Executable:  gateConverter(c[i].Gate.Executable),
+				NbIn:        c[i].Gate.NbIn,
+				Degree:      c[i].Gate.Degree,
+				SolvableVar: c[i].Gate.SolvableVar,
+				Curves:      c[i].Gate.Curves,
+			},
+
+			Inputs:          c[i].Inputs,
+			NbUniqueOutputs: c[i].NbUniqueOutputs,
+		}
+	}
+
+	return res
+}
+
+// ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
+func ToSerializable(c RegisteredCircuit) SerializableCircuit {
+	return ConvertCircuit(c, func(e BothExecutables) *GateBytecode {
+		return e.Bytecode
+	})
+}
+
+// ToGadget converts a registered circuit (with both executables) to a gadget circuit (gate functions only, for in-circuit verification).
+func ToGadget(c RegisteredCircuit) GadgetCircuit {
+	return ConvertCircuit(c, func(e BothExecutables) gkr.GateFunction {
+		return e.SnarkFriendly
+	})
 }

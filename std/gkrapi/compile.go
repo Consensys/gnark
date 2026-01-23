@@ -15,7 +15,6 @@ import (
 	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	gkrbw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
@@ -25,7 +24,7 @@ import (
 )
 
 type circuitDataForSnark struct {
-	circuit     gkrtypes.Circuit
+	circuit     gkrtypes.GadgetCircuit
 	assignments gkrtypes.WireAssignment
 }
 
@@ -35,7 +34,7 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	circuit              gkrinfo.Circuit // untyped circuit definition
+	circuit              gkrtypes.RegisteredCircuit
 	assignments          gkrtypes.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
@@ -53,7 +52,7 @@ type Circuit struct {
 // New creates a new GKR API
 func New(api frontend.API) (*API, error) {
 	return &API{
-		circuit:   make(gkrinfo.Circuit, 0),
+		circuit:   make(gkrtypes.RegisteredCircuit, 0),
 		parentApi: api,
 	}, nil
 }
@@ -61,7 +60,12 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrinfo.Wire{})
+	// Input wires have Identity gate with empty Inputs slice
+	api.circuit = append(api.circuit, gkrtypes.RegisteredWire{
+		Gate:   gkrtypes.Identity(),
+		Inputs: []int{},
+	})
+	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
 
@@ -86,25 +90,30 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		hashName:    fiatshamirHashName,
 	}
 
+	// Convert registered circuit to serializable circuit (bytecode only) for blueprints
+	serializableCircuit := gkrtypes.ConvertCircuit(api.circuit, func(e gkrtypes.BothExecutables) *gkrtypes.GateBytecode {
+		return e.Bytecode
+	})
+
 	// Dispatch to curve-specific factory
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
 	compiler := api.parentApi.Compiler()
 
 	switch curveID {
 	case ecc.BN254:
-		res.blueprints = gkrbn254.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_377:
-		res.blueprints = gkrbls12377.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
-		res.blueprints = gkrbls12381.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS24_315:
-		res.blueprints = gkrbls24315.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls24315.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS24_317:
-		res.blueprints = gkrbls24317.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls24317.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BW6_633:
-		res.blueprints = gkrbw6633.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6633.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
-		res.blueprints = gkrbw6761.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
@@ -298,20 +307,19 @@ func (c *Circuit) verify(api frontend.API, initialChallenges []frontend.Variable
 	return gadget.Verify(api, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
 }
 
-func newCircuitDataForSnark(curve ecc.ID, untypedCircuit gkrinfo.Circuit, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
-	circuit, err := gkrtypes.NewCircuit(untypedCircuit, gkrgates.Get)
-	if err != nil {
-		return circuitDataForSnark{}, fmt.Errorf("failed to convert GKR info to circuit: %w", err)
-	}
+func newCircuitDataForSnark(curve ecc.ID, registeredCircuit gkrtypes.RegisteredCircuit, assignment gkrtypes.WireAssignment) (circuitDataForSnark, error) {
+	// Convert registered circuit to gadget circuit (using GateFunction)
+	snarkCircuit := gkrtypes.ToGadget(registeredCircuit)
 
-	for i := range circuit {
-		if !circuit[i].Gate.SupportsCurve(curve) {
-			return circuitDataForSnark{}, fmt.Errorf("gate \"%s\" not usable over curve \"%s\"", untypedCircuit[i].Gate, curve)
+	// Check curve support
+	for i := range snarkCircuit {
+		if !snarkCircuit[i].Gate.SupportsCurve(curve) {
+			return circuitDataForSnark{}, fmt.Errorf("gate not usable over curve \"%s\"", curve)
 		}
 	}
 
 	return circuitDataForSnark{
-		circuit:     circuit,
+		circuit:     snarkCircuit,
 		assignments: assignment,
 	}, nil
 }

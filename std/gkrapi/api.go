@@ -3,14 +3,13 @@ package gkrapi
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 type API struct {
-	circuit     gkrinfo.Circuit
+	circuit     gkrtypes.RegisteredCircuit
 	assignments gkrtypes.WireAssignment
 	parentApi   frontend.API
 }
@@ -19,9 +18,15 @@ func frontendVarToInt(a gkr.Variable) int {
 	return int(a)
 }
 
-func (api *API) NamedGate(gate gkr.GateName, in ...gkr.Variable) gkr.Variable {
-	api.circuit = append(api.circuit, gkrinfo.Wire{
-		Gate:   string(gate),
+func (api *API) NamedGate(gateName gkr.GateName, in ...gkr.Variable) gkr.Variable {
+	// Get the registered gate (with both executables)
+	registeredGate := gkrgates.Get(gateName)
+	if registeredGate == nil {
+		panic("gate not found: " + gateName)
+	}
+
+	api.circuit = append(api.circuit, gkrtypes.RegisteredWire{
+		Gate:   registeredGate,
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)

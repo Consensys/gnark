@@ -17,7 +17,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
@@ -28,7 +28,7 @@ type circuitEvaluator struct {
 // BlueprintSolve is a BW6_633-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
-	Circuit     gkrinfo.Circuit
+	Circuit     gkrtypes.SerializableCircuit
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
@@ -92,7 +92,7 @@ func (b *BlueprintSolve) initialize() {
 		for wI := range b.Circuit {
 			w := &b.Circuit[wI]
 			if !w.IsInput() {
-				ce.evaluators[wI] = newGateEvaluator(w.CompiledGate, len(w.Inputs))
+				ce.evaluators[wI] = newGateEvaluator(w.Gate.Executable, len(w.Inputs))
 			}
 		}
 		return ce
@@ -438,7 +438,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BW6_633
-func NewBlueprints(circuit gkrinfo.Circuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
