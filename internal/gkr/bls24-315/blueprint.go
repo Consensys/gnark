@@ -32,7 +32,7 @@ type BlueprintSolve struct {
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
-	assignment    WireAssignment `cbor:"-"` // []polynomial.MultiLin
+	assignments   WireAssignment `cbor:"-"` // []polynomial.MultiLin
 	evaluatorPool sync.Pool      `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
 	nbInputs      int            `cbor:"-"`
 	outputWires   []int          `cbor:"-"`
@@ -45,13 +45,13 @@ var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
 func (b *BlueprintSolve) initialize() {
 
-	if b.assignment != nil {
+	if b.assignments != nil {
 		return
 	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	if b.assignment != nil {
+	if b.assignments != nil {
 		return // the unlikely event that two or more instructions were competing to initialize the blueprint
 	}
 
@@ -72,9 +72,9 @@ func (b *BlueprintSolve) initialize() {
 		return ce
 	}
 
-	b.assignment = make(WireAssignment, len(b.Circuit))
-	for i := range b.assignment {
-		b.assignment[i] = make(polynomial.MultiLin, b.NbInstances)
+	b.assignments = make(WireAssignment, len(b.Circuit))
+	for i := range b.assignments {
+		b.assignments[i] = make(polynomial.MultiLin, b.NbInstances)
 	}
 }
 
@@ -90,6 +90,17 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	instanceI := int(inst.Calldata[0])
 	calldata := inst.Calldata[1:]
 
+	// The test engine runs the instruction before "finalize" is called. We need to avoid attempting to access an uninitialized slice
+	if len(b.assignments[0]) <= instanceI {
+		b.lock.Lock()
+		defer b.lock.Unlock()
+		for wI := range b.assignments {
+			for len(b.assignments[wI]) <= instanceI {
+				b.assignments[wI] = append(b.assignments[wI], fr.Element{})
+			}
+		}
+	}
+
 	// Process all wires in topological order (circuit is already sorted)
 	for wI := range b.Circuit {
 		w := &b.Circuit[wI]
@@ -98,25 +109,25 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 			val, delta := s.Read(calldata)
 			calldata = calldata[delta:]
 			// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
-			copy(b.assignment[wI][instanceI][:], val[:])
+			copy(b.assignments[wI][instanceI][:], val[:])
 		} else {
 			// Get evaluator for this wire from the circuit evaluator
 			evaluator := &ce.evaluators[wI]
 
 			// Push gate inputs
 			for _, inWI := range w.Inputs {
-				evaluator.pushInput(&b.assignment[inWI][instanceI])
+				evaluator.pushInput(&b.assignments[inWI][instanceI])
 			}
 
 			// Evaluate the gate
-			b.assignment[wI][instanceI].Set(evaluator.evaluate())
+			b.assignments[wI][instanceI].Set(evaluator.evaluate())
 		}
 	}
 
 	// Set output wires (copy fr.Element to U64 in Montgomery form)
 	for outI, outWI := range b.outputWires {
 		var val constraint.U64
-		copy(val[:], b.assignment[outWI][instanceI][:])
+		copy(val[:], b.assignments[outWI][instanceI][:])
 		s.SetValue(uint32(outI+int(inst.WireOffset)), val)
 	}
 
@@ -125,7 +136,7 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 // Reset implements BlueprintStateful
 func (b *BlueprintSolve) Reset() {
-	b.assignment = nil
+	b.assignments = nil
 }
 
 // SetNbInstances sets the number of instances for the blueprint
@@ -180,29 +191,6 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 	return outputLevel
 }
 
-// GetAssignment returns the assignment for a specific wire and instance (internal use)
-func (b *BlueprintSolve) GetAssignment(wireI, instanceI int) (constraint.U64, error) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	var zero constraint.U64
-	if wireI >= len(b.assignment) || instanceI >= len(b.assignment[wireI]) {
-		return zero, fmt.Errorf("wire %d instance %d out of bounds", wireI, instanceI)
-	}
-
-	// Copy fr.Element to U64 directly (both in Montgomery form)
-	var val constraint.U64
-	copy(val[:], b.assignment[wireI][instanceI][:])
-	return val, nil
-}
-
-// GetAssignments returns all assignments for proving
-func (b *BlueprintSolve) GetAssignments() WireAssignment {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	return b.assignment
-}
-
 // BlueprintProve is a BLS24_315-specific blueprint for generating GKR proofs.
 type BlueprintProve struct {
 	SolveBlueprintID constraint.BlueprintID
@@ -224,7 +212,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
 
 	// Get assignments from solve blueprint (already in fr.Element form)
-	assignments := solveBlueprint.GetAssignments()
+	assignments := solveBlueprint.assignments
 	if len(assignments) == 0 {
 		return fmt.Errorf("no assignments available for proving")
 	}
@@ -359,14 +347,10 @@ func (b *BlueprintGetAssignment) Solve(s constraint.Solver[constraint.U64], inst
 	// Get solve blueprint from solver by ID
 	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
 
-	// Get assignment
-	val, err := solveBlueprint.GetAssignment(wireI, instanceI)
-	if err != nil {
-		return err
-	}
-
+	var v constraint.U64
+	copy(v[:], solveBlueprint.assignments[wireI][instanceI][:])
 	// Set output wire
-	s.SetValue(inst.WireOffset, val)
+	s.SetValue(inst.WireOffset, v)
 	return nil
 }
 

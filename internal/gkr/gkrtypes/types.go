@@ -236,7 +236,8 @@ func (c Circuit[GateExecutable]) Inputs() []int {
 	return res
 }
 
-// Outputs returns the list of output wire indices
+// Outputs returns the list of output wire indices.
+// It requires the NbUniqueOutput values to have been set.
 func (c Circuit[GateExecutable]) Outputs() []int {
 	res := make([]int, 0, len(c))
 	for i := range c {

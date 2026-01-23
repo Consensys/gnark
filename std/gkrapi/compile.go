@@ -121,6 +121,7 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 
 	// Use circuit helper methods for inputs and outputs
 	inputIndices := res.circuit.Inputs()
+	res.circuit.OutputsList() // for side effects
 	outputIndices := res.circuit.Outputs()
 
 	if len(inputIndices) == len(res.circuit) {
