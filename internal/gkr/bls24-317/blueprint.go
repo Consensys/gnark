@@ -153,6 +153,11 @@ func (b *BlueprintSolve) Reset() {
 	b.assignment = nil
 }
 
+// SetNbInstances sets the number of instances for the blueprint
+func (b *BlueprintSolve) SetNbInstances(nbInstances int) {
+	b.NbInstances = nbInstances
+}
+
 // CalldataSize implements Blueprint
 func (b *BlueprintSolve) CalldataSize() int {
 	return -1 // variable size

@@ -120,7 +120,7 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 
 // createBlueprint creates and initializes the GKR solveBlueprint for this circuit
 func (c *Circuit) createBlueprint() error {
-	blueprint := &gkrbn254.BlueprintSolve{}
+	var blueprint gkrbn254.BlueprintSolve
 
 	// Convert circuit to typed circuit
 	circuit, err := gkrtypes.NewCircuit(c.circuit, gkrgates.Get)
@@ -132,12 +132,13 @@ func (c *Circuit) createBlueprint() error {
 	// Note: metadata and evaluatorPool are initialized lazily on first Solve() call
 
 	// Register solve solveBlueprint with compiler
-	c.solveBlueprintID = c.api.Compiler().AddBlueprint(blueprint)
+	c.solveBlueprintID = c.api.Compiler().AddBlueprint(&blueprint)
+	c.solveBlueprint = &blueprint
 
 	// Create and register prove solveBlueprint with reference to solve solveBlueprint
 	proveBlueprint := &gkrbn254.BlueprintProve{
 		SolveBlueprintID: c.solveBlueprintID,
-		SolveBlueprint:   blueprint,
+		SolveBlueprint:   &blueprint,
 		HashName:         c.hashName,
 	}
 	c.proveBlueprintID = c.api.Compiler().AddBlueprint(proveBlueprint)
@@ -145,7 +146,7 @@ func (c *Circuit) createBlueprint() error {
 	// Create and register GetAssignment solveBlueprint for debugging
 	getAssignmentBlueprint := &gkrbn254.BlueprintGetAssignment{
 		SolveBlueprintID: c.solveBlueprintID,
-		SolveBlueprint:   blueprint,
+		SolveBlueprint:   &blueprint,
 	}
 	c.getAssignmentBlueprintID = c.api.Compiler().AddBlueprint(getAssignmentBlueprint)
 
@@ -223,8 +224,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	// Set NbInstances in the solve solveBlueprint (used for pre-allocation and proof size computation)
-	solveBlueprint := c.solveBlueprint.(*gkrbn254.BlueprintSolve)
-	solveBlueprint.NbInstances = nbPaddedInstances
+	c.solveBlueprint.SetNbInstances(nbPaddedInstances)
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
