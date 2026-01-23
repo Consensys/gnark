@@ -51,6 +51,15 @@ func NewCache() *Cache {
 	}
 }
 
+// JSONWire is the JSON serialization format for circuit wires (gate name + inputs)
+type JSONWire struct {
+	Gate   *gkr.GateName `json:"gate"`   // gate name, null for input wires
+	Inputs []int         `json:"inputs"` // indices of input wires
+}
+
+// JSONCircuit is the JSON serialization format for circuits
+type JSONCircuit []JSONWire
+
 func (c *Cache) GetCircuit(path string) gkrtypes.RegisteredCircuit {
 	path, err := filepath.Abs(path)
 	if err != nil {
@@ -66,35 +75,30 @@ func (c *Cache) GetCircuit(path string) gkrtypes.RegisteredCircuit {
 	if bytes, err = os.ReadFile(path); err != nil {
 		panic(err)
 	}
-	var circuitInfo gkrtypes.SerializableCircuit
-	if err = json.Unmarshal(bytes, &circuitInfo); err != nil {
+
+	// Unmarshal from JSON format (gate names as strings)
+	var jsonCircuit JSONCircuit
+	if err = json.Unmarshal(bytes, &jsonCircuit); err != nil {
 		panic(err)
 	}
 
-	// Build gate map from bytecode to registered gates
-	gateMap := make(map[*gkrtypes.GateBytecode]*gkrtypes.RegisteredGate)
-	for _, wire := range circuitInfo {
-		if wire.Gate.Executable != nil {
-			// For each bytecode gate, find the matching registered gate from our cache
-			for _, gate := range c.gates {
-				if gate.Executable.Bytecode == wire.Gate.Executable {
-					gateMap[wire.Gate.Executable] = gate
-					break
-				}
-			}
+	// Convert JSON format to RegisteredCircuit
+	circuit = make(gkrtypes.RegisteredCircuit, len(jsonCircuit))
+	for i, wJSON := range jsonCircuit {
+		var gate *gkrtypes.RegisteredGate
+		if wJSON.Gate == nil {
+			// Input wire - use identity gate
+			gate = gkrtypes.Identity()
+		} else {
+			// Look up gate by name in cache
+			gate = c.GetGate(*wJSON.Gate)
+		}
+
+		circuit[i] = gkrtypes.RegisteredWire{
+			Gate:   gate,
+			Inputs: wJSON.Inputs,
 		}
 	}
-
-	// Convert serializable circuit to registered circuit with both executables
-	circuit = gkrtypes.ConvertCircuit[*gkrtypes.GateBytecode, gkrtypes.BothExecutables](
-		gkrtypes.Circuit[*gkrtypes.GateBytecode](circuitInfo),
-		func(bytecode *gkrtypes.GateBytecode) gkrtypes.BothExecutables {
-			if gate, ok := gateMap[bytecode]; ok {
-				return gate.Executable
-			}
-			panic("gate not found in cache")
-		},
-	)
 
 	c.circuits[path] = circuit
 
