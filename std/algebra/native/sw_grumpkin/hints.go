@@ -57,8 +57,8 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 	}
 	// lambda as nonnative element
 	lambdaEmu := sapi.NewElement(cc.lambda)
-	// the scalar as nonnative element. We need to split at 64 bits.
-	nbLimbs, _ := emulated.GetEffectiveFieldParams[emparams.GrumpkinFr](api.Compiler().Field())
+	// the scalar as nonnative element, split into nbBits-wide limbs as per GetEffectiveFieldParams.
+	nbLimbs, nbBits := emulated.GetEffectiveFieldParams[emparams.GrumpkinFr](api.Compiler().Field())
 	limbs, err := api.NewHint(decompose, int(nbLimbs), s)
 	if err != nil {
 		panic(err)
@@ -76,7 +76,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 	for i := range sd[0].Limbs {
 		s1 = api.Add(s1, api.Mul(sd[0].Limbs[i], b))
 		s2 = api.Add(s2, api.Mul(sd[1].Limbs[i], b))
-		b.Lsh(b, 64)
+		b.Lsh(b, nbBits)
 	}
 	return s1, s2
 }

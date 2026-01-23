@@ -4,8 +4,9 @@ import (
 	"hash/fnv"
 	"math/big"
 	"reflect"
-	"regexp"
 	"runtime"
+	"strings"
+	"sync"
 )
 
 // HintID is a unique identifier for a hint function used for lookup.
@@ -95,30 +96,85 @@ type HintID uint32
 // the hint function hintFn to register a hint function in the package registry.
 type Hint func(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 
-// GetHintID returns the derived hint ID from the hint function reference.
-func GetHintID(fn Hint) HintID {
-	hf := fnv.New32a()
-	name := GetHintName(fn)
+// hintCache caches hint names and IDs by function pointer to avoid repeated
+// reflection and regex operations.
+var (
+	hintNameCache sync.Map // map[uintptr]string
+	hintIDCache   sync.Map // map[uintptr]HintID
+)
 
+// GetHintID returns the derived hint ID from the hint function reference.
+// Results are cached for performance.
+func GetHintID(fn Hint) HintID {
+	fnptr := reflect.ValueOf(fn).Pointer()
+
+	// Check cache first
+	if cached, ok := hintIDCache.Load(fnptr); ok {
+		return cached.(HintID)
+	}
+
+	// Compute and cache
+	name := GetHintName(fn)
+	hf := fnv.New32a()
 	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, will be package.glob..funcN
 	// and if new anonymous functions are added in the package, N may change, so will UUID.
 	hf.Write([]byte(name)) // #nosec G104 -- does not err
+	id := HintID(hf.Sum32())
 
-	return HintID(hf.Sum32())
+	hintIDCache.Store(fnptr, id)
+	return id
 }
 
 // GetHintName returns the derived hint name from the hint function reference.
 // By default, it is the fully qualified name of the function. If the function
 // is anonymous, then it is the fully qualified name of the package and the
 // function index.
+// Results are cached for performance.
 func GetHintName(fn Hint) string {
 	fnptr := reflect.ValueOf(fn).Pointer()
+
+	// Check cache first
+	if cached, ok := hintNameCache.Load(fnptr); ok {
+		return cached.(string)
+	}
+
+	// Compute and cache
 	name := runtime.FuncForPC(fnptr).Name()
-	return newToOldStyle(name)
+	name = newToOldStyle(name)
+
+	hintNameCache.Store(fnptr, name)
+	return name
 }
 
+// newToOldStyle transforms Go 1.22+ anonymous function names back to the old style
+// for backwards compatibility. Pattern: "pkg.init.funcN" -> "pkg.glob..funcN"
+// Note the double dots in the output - this matches the original regex behavior.
 func newToOldStyle(name string) string {
-	return string(newStyleAnonRe.ReplaceAll([]byte(name), []byte("${pkgname}glob.${funcname}")))
-}
+	// Fast path: check if this could be an init function pattern
+	// Pattern is: anything.init.funcN where N is a number
+	initIdx := strings.LastIndex(name, ".init")
+	if initIdx == -1 {
+		return name
+	}
 
-var newStyleAnonRe = regexp.MustCompile(`^(?P<pkgname>.*\.)init(?P<funcname>\.func\d+)$`)
+	// Check if what follows is ".funcN"
+	suffix := name[initIdx+5:] // skip ".init"
+	if !strings.HasPrefix(suffix, ".func") {
+		return name
+	}
+
+	// Verify the rest is digits
+	numPart := suffix[5:] // skip ".func"
+	if len(numPart) == 0 {
+		return name
+	}
+	for _, c := range numPart {
+		if c < '0' || c > '9' {
+			return name
+		}
+	}
+
+	// Transform: replace ".init" with ".glob." (note: suffix already starts with ".")
+	// This produces "pkg.glob..funcN" matching the original regex output
+	return name[:initIdx] + ".glob." + suffix
+}

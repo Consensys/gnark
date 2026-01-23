@@ -706,9 +706,10 @@ func (f *Field[T]) mulPreCondReduced(a, b *Element[T]) (nextOverflow uint, err e
 // As the result will not be reduced, then we need to ensure that the full
 // multiplication result can fit into the native field.
 func (f *Field[T]) mulPreCondNoReduce(a, b *Element[T]) (nextOverflow uint, err error) {
+	reduceRight := a.overflow < b.overflow
 	nextOverflow = f.mulResultOverflow(a, b)
 	if nextOverflow > f.maxOverflow() {
-		err = overflowError{op: "mulNoReduce", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow()}
+		err = overflowError{op: "mulNoReduce", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
 	return
 }
