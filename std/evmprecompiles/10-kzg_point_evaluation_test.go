@@ -112,25 +112,11 @@ func TestKzgPointEvaluationPrecompile16(t *testing.T) {
 		0, 0, 0, 0, 0, 0, 0, evmBlockSize,
 	}
 	witnessBlsModulus := [16]frontend.Variable{
-		"0x73ed",
-		"0xa753",
-		"0x299d",
-		"0x7d48",
-		"0x3339",
-		"0xd808",
-		"0x09a1",
-		"0xd805",
-		// "0x73eda753299d7d483339d80809a1d805",
+		"0x73ed", "0xa753", "0x299d", "0x7d48", "0x3339", "0xd808", "0x09a1", "0xd805",
+		// "0x73eda753299d7d483339d80809a1d805" in 16-bit parts
 
-		"0x53bd",
-		"0xa402",
-		"0xfffe",
-		"0x5bfe",
-		"0xffff",
-		"0xffff",
-		"0x0000",
-		"0x0001",
-		// "0x53bda402fffe5bfeffffffff00000001",
+		"0x53bd", "0xa402", "0xfffe", "0x5bfe", "0xffff", "0xffff", "0x0000", "0x0001",
+		// "0x53bda402fffe5bfeffffffff00000001" in 16-bit parts
 	}
 
 	// prepare the full witness
@@ -168,7 +154,6 @@ func (c *kzgPointEvalFailureCircuit16) Define(api frontend.API) error {
 func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValue fr.Element, hashBytes []byte, commitmentBytes [48]byte, proofBytes [48]byte, blobSize []int, blsModulus []string) error {
 	var witnessHash [16]frontend.Variable
 	for i := range witnessHash {
-		// witnessHash[i] = hashBytesEncoded[i]
 		witnessHash[i] = encode(hashBytes[2*i : 2*i+2])
 	}
 
