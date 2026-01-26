@@ -17,11 +17,18 @@ var defaultExtensions = map[string][]*big.Int{
 	"2013265921-8":       {biN11, bi0, bi0, bi0, bi0, bi0, bi0, bi0, bi1}, // x^8 - 11 -- BabyBear field
 	"2013265921-4":       {biN11, bi0, bi0, bi0, bi1},                     // x^4 - 11 -- BabyBear field
 
-	"2130706433-default": {biN3, bi0, bi0, bi0, bi0, bi0, bi0, bi0, bi1}, // x^8 - 3 -- KoalaBear field
-	"2130706433-8":       {biN3, bi0, bi0, bi0, bi0, bi0, bi0, bi0, bi1}, // x^8 - 3 -- KoalaBear field
-	"2130706433-4":       {biN3, bi0, bi0, bi0, bi1},                     // x^4 - 3 -- KoalaBear field
+	"2130706433-8": {biN3, bi0, bi0, bi0, bi0, bi0, bi0, bi0, bi1}, // x^8 - 3 -- KoalaBear field
+	// default extension for Koalabear is degree 4. For both default extension
+	// and degree 4 extension we use the tower instead so we don't define the
+	// direct extension here.
 
 	"18446744069414584321-default": {biN7, bi0, bi0, bi0, bi1}, // x^4 - 7 -- Goldilocks field
 	"18446744069414584321-4":       {biN7, bi0, bi0, bi0, bi1}, // x^4 - 7 -- Goldilocks field
 	"18446744069414584321-2":       {biN7, bi0, bi1},           // x^2 - 7 -- Goldilocks field
+}
+
+var defaultExtensionDegrees = map[string]int{
+	"2013265921":           8, // BabyBear field
+	"2130706433":           4, // KoalaBear field
+	"18446744069414584321": 4, // Goldilocks field
 }

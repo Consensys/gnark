@@ -12,8 +12,8 @@ import (
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
-	"github.com/consensys/gnark/std/math/fieldextension"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 )
@@ -51,6 +51,13 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 
 	deferredChecks []deferredChecker
+
+	// smallFieldMode indicates that the emulated field is small enough that
+	// products fit in the native field and we can use scalar batched verification
+	// instead of polynomial identity testing. This provides significant constraint
+	// reduction for small field emulation (e.g., KoalaBear on BLS12-377).
+	smallFieldMode     bool
+	smallFieldModeOnce sync.Once
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -59,11 +66,13 @@ type ctxKey[T FieldParams] struct{}
 // arithmetic over the field defined by type parameter [FieldParams]. The
 // operations on this type are defined on [Element].
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
-	if storer, ok := native.(kvstore.Store); ok {
+	if storer, ok := native.Compiler().(kvstore.Store); ok {
 		ff := storer.GetKeyValue(ctxKey[T]{})
 		if ff, ok := ff.(*Field[T]); ok {
 			return ff, nil
 		}
+	} else {
+		panic("compiler does not implement kvstore.Store")
 	}
 	f := &Field[T]{
 		api:              native,
@@ -106,14 +115,18 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return f, errors.New("missing api")
 	}
 
-	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
+	// to ensure that we can perform the operations, we have to consider the
+	// biggest overflow grow for elements we can have. Currently this is for
+	// subtraction which can have overflow up to 2 bits. We add one more bit of
+	// margin for safety.
+	if uint(f.api.Compiler().FieldBitLen()) < f.fParams.BitsPerLimb()+3 {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
 	native.Compiler().Defer(f.performDeferredChecks)
-	if storer, ok := native.(kvstore.Store); ok {
+	if storer, ok := native.Compiler().(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
-	}
+	} // other case is already checked above
 	return f, nil
 }
 
@@ -123,7 +136,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 //   - if this methods interprets v as being the limbs (frontend.Variable or []frontend.Variable),
 //     it constructs a new Element[T] with v as limbs and constraints the limbs to the parameters
 //     of the Field[T].
-func (f *Field[T]) NewElement(v interface{}) *Element[T] {
+func (f *Field[T]) NewElement(v any) *Element[T] {
 	if e, ok := v.(Element[T]); ok {
 		return e.copy()
 	}
@@ -280,9 +293,40 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 // then the limbs may overflow the native field.
 func (f *Field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
+		// if we change this computation then also change maxOverflowReducedResult
 		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
 	})
+	// when we perform non-reducing operations then we have to ensure that we are still
+	// able to reduce the result afterwards (i.e. when doing additions/subtractions).
 	return f.maxOf
+}
+
+func (f *Field[T]) maxOverflowReducedResult() uint {
+	f.maxOfOnce.Do(func() {
+		// if we change this computation then also change maxOverflow
+		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
+	})
+	// when doing multiplication (or checkZero), the hint always outputs
+	// quotient and result limbs with width BitsPerLimb. As the carry limbs are
+	// additionally shifted by BitsPerLimb, then we have additional BitsPerLimb
+	// bits of margin (relative to the native field width). Keep in mind that
+	// the `maxOf` constant is already BitsPerLimb less than the modulus width,
+	// then we can add BitsPerLimb again twice.
+	return f.maxOf + 2*f.fParams.BitsPerLimb()
+}
+
+func max[T cmp.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
+	}
+	m := a[0]
+	for _, v := range a {
+		if v > m {
+			m = v
+		}
+	}
+	return m
 }
 
 func sum[T cmp.Ordered](a ...T) T {
@@ -295,4 +339,47 @@ func sum[T cmp.Ordered](a ...T) T {
 		m += v
 	}
 	return m
+}
+
+// useSmallFieldOptimization returns true if we can use the small field
+// optimization for multiplication. The optimization is possible when:
+//   - NbLimbs == 1 (emulated field fits in a single native limb)
+//   - 2 * modBits + margin < nativeBits - 2 (products fit with margin for batching)
+//
+// When these conditions are met, we can use scalar batched verification instead
+// of polynomial identity testing, which significantly reduces constraint counts.
+func (f *Field[T]) useSmallFieldOptimization() bool {
+	f.smallFieldModeOnce.Do(func() {
+		// Small field optimization only works when NbLimbs == 1
+		if f.fParams.NbLimbs() != 1 {
+			f.smallFieldMode = false
+			return
+		}
+
+		// Small field optimization doesn't work when we're already using extension field
+		// for multiplication checks (native field is small)
+		if f.extensionApi != nil {
+			f.smallFieldMode = false
+			return
+		}
+
+		// Check that products fit in the native field with margin for batching.
+		// We need: 2 * modBits + batchingMargin < nativeBits - 2
+		// The margin accounts for:
+		// - γ^i scaling factors in the batched sum
+		// - Multiple terms being summed together
+		// We use 32 bits margin which allows for batching millions of operations.
+		modBits := uint(f.fParams.Modulus().BitLen())
+		nativeBits := uint(f.api.Compiler().FieldBitLen())
+		const batchingMargin = 32
+
+		f.smallFieldMode = 2*modBits+batchingMargin < nativeBits-2
+		if f.smallFieldMode {
+			f.log.Debug().
+				Uint("modBits", modBits).
+				Uint("nativeBits", nativeBits).
+				Msg("using small field optimization for emulated multiplication")
+		}
+	})
+	return f.smallFieldMode
 }

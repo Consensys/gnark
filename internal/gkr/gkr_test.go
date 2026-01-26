@@ -245,7 +245,7 @@ func TestLogNbInstances(t *testing.T) {
 			assert.NoError(t, err)
 			wires := testCase.Circuit.TopologicalSort()
 			serializedProof := testCase.Proof.Serialize()
-			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
+			logNbInstances := ComputeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
 		}
 	}

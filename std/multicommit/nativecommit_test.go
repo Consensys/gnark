@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/widecommitter"
-	"github.com/consensys/gnark/std/math/fieldextension"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 	"github.com/consensys/gnark/test"
 )
 
@@ -89,7 +89,7 @@ func (c *wideCommitment) Define(api frontend.API) error {
 		}, c.X)
 	}
 	WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
-		fe, err := fieldextension.NewExtension(api, fieldextension.WithDegree(8))
+		fe, err := fieldextension.NewExtension(api, fieldextension.WithDegree(4))
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func (c *wideCommitment) Define(api frontend.API) error {
 			api.AssertIsDifferent(res[i], 0)
 		}
 		return nil
-	}, 8, c.X)
+	}, 4, c.X)
 	return nil
 }
 

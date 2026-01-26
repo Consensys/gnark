@@ -155,8 +155,15 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 }
 
 func callDeferred(builder frontend.API) error {
-	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
-		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
+	// we get the compiler from the builder in case builder is already wrapped
+	// and overwrites methods required in kvstore.Store (SetKeyValue and
+	// GetKeyValue).
+	//
+	// However, as an API to the callbacks we still pass in the initial builder
+	// as deferred methods may use wrapped methods (Commit, WideCommit).
+	compiler := builder.Compiler()
+	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](compiler)); i++ {
+		if err := circuitdefer.GetAll[func(frontend.API) error](compiler)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
 	}
@@ -704,6 +711,8 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 }
 
 func (e *engine) Defer(cb func(frontend.API) error) {
+	// here we can use *engine as the type implementing frontend.API as test engine
+	// is initialized in IsSolved and we know keystore isn't wrapped.
 	circuitdefer.Put(e, cb)
 }
 
@@ -782,8 +791,8 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	return wrappedBigInt{Int: r, modulus: e.q}
 }
 
-func (e *engine) SetGkrInfo(gkrinfo.StoringInfo) error {
-	return nil
+func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
+	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits
@@ -838,8 +847,4 @@ func (e *smallfieldEngine) Check(in frontend.Variable, width int) {
 	if bin.BitLen() > width {
 		panic(fmt.Sprintf("range check failed: %s (bitLen == %d) with %d bits", bin.String(), bin.BitLen(), width))
 	}
-}
-
-func (e *smallfieldEngine) Compiler() frontend.Compiler {
-	return e
 }

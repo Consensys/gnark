@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -19,6 +18,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/widecommitter"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
@@ -134,7 +134,7 @@ func lazySchema(field *big.Int, circuit frontend.Circuit) func() *schema.Schema 
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, field *big.Int, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem, error) {
 	var newBuilder frontend.NewBuilder
 
 	switch backendID {
@@ -147,12 +147,32 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	}
 
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
+	ccs, err := frontend.Compile(field, newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
+	_ccs, err := frontend.Compile(field, newBuilder, circuit, compileOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
+	}
+
+	if !reflect.DeepEqual(ccs, _ccs) {
+		return nil, ErrCompilationNotDeterministic
+	}
+
+	return ccs, nil
+}
+
+func (assert *Assert) compileU32(circuit frontend.Circuit, field *big.Int, compileOpts []frontend.CompileOption) (constraint.ConstraintSystemU32, error) {
+	newBuilder := widecommitter.From(scs.NewBuilder)
+	// else compile it and ensure it is deterministic
+	ccs, err := frontend.CompileU32(field, newBuilder, circuit, compileOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	_ccs, err := frontend.CompileU32(field, newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}
@@ -207,7 +227,7 @@ func (assert *Assert) noError(field *big.Int, err error, w *_witness) {
 	assert.FailNow(e.Error())
 }
 
-func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, curveID ecc.ID, publicOnly bool) {
+func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, field *big.Int, publicOnly bool) {
 	var err error
 	if publicOnly {
 		w, err = w.Public()
@@ -219,7 +239,7 @@ func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, cu
 	assert.NoError(err)
 
 	// re-read
-	witness, err := witness.New(curveID.ScalarField())
+	witness, err := witness.New(field)
 	assert.NoError(err)
 	err = witness.FromJSON(s, data)
 	assert.NoError(err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/cmp"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
@@ -63,7 +64,8 @@ func IsValid(curve twistededwards.Curve, sig Signature, msg frontend.Variable, p
 	}
 
 	// Assert S < GroupSize (see https://datatracker.ietf.org/doc/html/rfc8032#section-3.4)
-	curve.API().AssertIsLessOrEqual(sig.S, curve.Params().Order)
+	isLess := cmp.IsLess(curve.API(), sig.S, curve.Params().Order)
+	curve.API().AssertIsEqual(isLess, 1)
 
 	//[S]G-[H(R,A,M)]*A
 	_A := curve.Neg(pubKey.A)

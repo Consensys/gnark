@@ -241,7 +241,8 @@ func NativeToBytes(api frontend.API, v frontend.Variable, opts ...Option) ([]uin
 // then the method panics. Please open an issue if you need this functionality.
 func EmulatedToBytes[T emulated.FieldParams](api frontend.API, v *emulated.Element[T], opts ...Option) ([]uints.U8, error) {
 	var fr T
-	if fr.BitsPerLimb()%8 != 0 {
+	_, nbBitsPerLimb := emulated.GetEffectiveFieldParams[T](api.Compiler().Field())
+	if nbBitsPerLimb%8 != 0 {
 		panic("EmulatedToBytes: not supported for field with limb width not divisible by 8 bits")
 	}
 	f, err := emulated.NewField[T](api)
@@ -260,7 +261,7 @@ func EmulatedToBytes[T emulated.FieldParams](api frontend.API, v *emulated.Eleme
 	}
 
 	nbBytes := (api.Compiler().Field().BitLen() + 7) / 8
-	nbLimbBytes := fr.BitsPerLimb() / 8
+	nbLimbBytes := nbBitsPerLimb / 8 // bits per limb is divisible by 8, so this is ok
 	resU8 := make([]uints.U8, (fr.Modulus().BitLen()+7)/8)
 	uapi, err := uints.NewBytes(api)
 	if err != nil {

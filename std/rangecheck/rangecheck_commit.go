@@ -85,6 +85,10 @@ func (c *commitChecker) commit(api frontend.API) error {
 	collected := make([]frontend.Variable, len(c.collected))
 	coef := new(big.Int)
 	one := big.NewInt(1)
+
+	// check if PlonkAPI is available for optimized constraint generation
+	plonkAPI, hasPlonkAPI := api.(frontend.PlonkAPI)
+
 	for i := range c.collected {
 		// collect all vars for commitment input
 		collected[i] = c.collected[i].v
@@ -97,11 +101,7 @@ func (c *commitChecker) commit(api frontend.API) error {
 		// store all limbs for counting
 		decomposed = append(decomposed, limbs...)
 		// check that limbs are correct. We check the sizes of the limbs later
-		var composed frontend.Variable = 0
-		for j := range limbs {
-			composed = api.Add(composed, api.Mul(limbs[j], coef.Lsh(one, uint(baseLength*j))))
-		}
-		api.AssertIsEqual(composed, c.collected[i].v)
+		c.assertRecomposition(api, plonkAPI, hasPlonkAPI, limbs, c.collected[i].v, baseLength, coef, one)
 		// we have split the input into nbLimbs partitions of length baseLength.
 		// This ensures that the checked variable is not more than
 		// nbLimbs*baseLength bits, but was requested to be c.collected[i].bits,
@@ -118,6 +118,65 @@ func (c *commitChecker) commit(api frontend.API) error {
 	}
 	nbTable := 1 << baseLength
 	return logderivarg.Build(api, logderivarg.AsTable(c.buildTable(nbTable)), logderivarg.AsTable(decomposed))
+}
+
+// assertRecomposition checks that limbs correctly recompose to the original value.
+// For PlonK (SCS) backend, uses optimized PlonkAPI to reduce constraint count.
+func (c *commitChecker) assertRecomposition(api frontend.API, plonkAPI frontend.PlonkAPI, hasPlonkAPI bool, limbs []frontend.Variable, original frontend.Variable, baseLength int, coef *big.Int, one *big.Int) {
+	nbLimbs := len(limbs)
+	if nbLimbs == 0 {
+		api.AssertIsEqual(0, original)
+		return
+	}
+	if nbLimbs == 1 {
+		api.AssertIsEqual(limbs[0], original)
+		return
+	}
+
+	// Check if we can use PlonkAPI optimization.
+	// The coefficients (powers of 2^baseLength) must fit in int for PlonkAPI.
+	// Max coefficient is 2^(baseLength*(nbLimbs-1)).
+	// We use 62 bits as safe limit for int64 (leaving room for sign bit and safety).
+	maxBits := baseLength * (nbLimbs - 1)
+	canUsePlonkAPI := hasPlonkAPI && maxBits <= 62
+
+	if canUsePlonkAPI {
+		// Use PlonkAPI for optimized constraint generation.
+		// For n limbs, this uses n-1 constraints instead of n with the generic API.
+		// EvaluatePlonkExpression returns res = qL*a + qR*b + qM*a*b + qC
+		// AddPlonkConstraint asserts qL*a + qR*b + qM*a*b + qO*o + qC = 0
+
+		// Start with first two limbs: composed = limbs[0] + limbs[1] * 2^baseLength
+		coefVal := 1 << baseLength
+		var composed frontend.Variable
+		if nbLimbs == 2 {
+			// For 2 limbs, directly assert: limbs[0] + limbs[1]*coef - original = 0
+			// qL=1, qR=coef, qM=0, qO=-1, qC=0
+			plonkAPI.AddPlonkConstraint(limbs[0], limbs[1], original, 1, coefVal, -1, 0, 0)
+			return
+		}
+
+		// For 3+ limbs, build up the composed value
+		composed = plonkAPI.EvaluatePlonkExpression(limbs[0], limbs[1], 1, coefVal, 0, 0)
+
+		// Add remaining limbs except the last one
+		for j := 2; j < nbLimbs-1; j++ {
+			coefVal = 1 << (baseLength * j)
+			composed = plonkAPI.EvaluatePlonkExpression(composed, limbs[j], 1, coefVal, 0, 0)
+		}
+
+		// For the last limb, combine with the assertion
+		coefVal = 1 << (baseLength * (nbLimbs - 1))
+		// composed + limbs[last]*coef - original = 0
+		plonkAPI.AddPlonkConstraint(composed, limbs[nbLimbs-1], original, 1, coefVal, -1, 0, 0)
+	} else {
+		// Fallback to generic API (for R1CS or when coefficients don't fit in int)
+		var composed frontend.Variable = 0
+		for j := range limbs {
+			composed = api.Add(composed, api.Mul(limbs[j], coef.Lsh(one, uint(baseLength*j))))
+		}
+		api.AssertIsEqual(composed, original)
+	}
 }
 
 func decompSize(varSize int, limbSize int) int {
@@ -151,7 +210,7 @@ func DecomposeHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 func (c *commitChecker) getOptimalBasewidth(api frontend.API) int {
-	if ft, ok := api.(frontendtype.FrontendTyper); ok {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
 		switch ft.FrontendType() {
 		case frontendtype.R1CS:
 			return optimalWidth(nbR1CSConstraints, c.collected)

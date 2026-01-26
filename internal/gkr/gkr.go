@@ -78,7 +78,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 			inputEvaluations[i] = uniqueInputEvaluations[uniqueI]
 		}
 
-		gateEvaluation = wire.Gate.Evaluate(api, inputEvaluations...)
+		gateEvaluation = wire.Gate.Evaluate(FrontendAPIWrapper{api}, inputEvaluations...)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -341,7 +341,10 @@ func (p Proof) Serialize() []frontend.Variable {
 	return res
 }
 
-func computeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
+// ComputeLogNbInstances derives n such that the number of instances is 2ⁿ
+// from the size of the proof and the circuit structure.
+// It is used in proof deserialization.
+func ComputeLogNbInstances(wires []*gkrtypes.Wire, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.NoProof() {
@@ -366,7 +369,7 @@ func (r *variablesReader) hasNextN(n int) bool {
 
 func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variable) (Proof, error) {
 	proof := make(Proof, len(sorted))
-	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
+	logNbInstances := ComputeLogNbInstances(sorted, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
@@ -382,4 +385,17 @@ func DeserializeProof(sorted []*gkrtypes.Wire, serializedProof []frontend.Variab
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
+}
+
+type FrontendAPIWrapper struct {
+	frontend.API
+}
+
+func (api FrontendAPIWrapper) SumExp17(a, b, c frontend.Variable) frontend.Variable {
+	i := api.Add(a, b, c)
+	res := api.Mul(i, i)    // i^2
+	res = api.Mul(res, res) // i^4
+	res = api.Mul(res, res) // i^8
+	res = api.Mul(res, res) // i^16
+	return api.Mul(res, i)  // i^17
 }

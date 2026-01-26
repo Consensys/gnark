@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/smallfields"
-	"github.com/consensys/gnark/std/math/fieldextension"
+	"github.com/consensys/gnark/std/internal/fieldextension"
 )
 
 type multicommitter struct {
@@ -39,34 +39,10 @@ type wcbInfo struct {
 
 type ctxMulticommitterKey struct{}
 
-// Initialize creates a multicommitter in the cache and defers its finalization.
-// This can be useful in a context where `api.Defer` is already called and where
-// calls to `WithCommitment` are deferred. Panics if the multicommit is already
-// initialized.
-func Initialize(api frontend.API) {
-	kv, ok := api.(kvstore.Store)
-	if !ok {
-		// if the builder doesn't implement key-value store then cannot store
-		// multi-committer in cache.
-		panic("builder should implement key-value store")
-	}
-
-	// check if the multicommit is already initialized
-	mc := kv.GetKeyValue(ctxMulticommitterKey{})
-	if mc != nil {
-		panic("multicommit is already initialized")
-	}
-
-	// initialize the multicommit
-	mct := &multicommitter{}
-	kv.SetKeyValue(ctxMulticommitterKey{}, mct)
-	api.Compiler().Defer(mct.commitAndCall)
-}
-
 // getCached gets the cached committer from the key-value storage. If it is not
 // there then creates, stores and defers it, and then returns.
 func getCached(api frontend.API) *multicommitter {
-	kv, ok := api.(kvstore.Store)
+	kv, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		// if the builder doesn't implement key-value store then cannot store
 		// multi-committer in cache.
@@ -101,7 +77,7 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 		//  2. that there are no callbacks for single-element commitment (using [WithCommitment] method). If anythind has
 		//     called with this method then it expects a field element as a commitment. This means that it is not aware of
 		//     the possibility of handling field extension element.
-		committer, ok := api.Compiler().(frontend.WideCommitter)
+		committer, ok := api.(frontend.WideCommitter)
 		if !ok {
 			panic("compiler doesn't implement frontend.WideCommitter")
 		}
@@ -129,7 +105,7 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 		// we compile over a large field. In this case we can use the [frontend.Committer]
 		// interface. We also check that the there are no wide callbacks with [WithWideCommitment] method
 		// as the caller should be able to expand the commitment into multiple values themselves.
-		committer, ok := api.Compiler().(frontend.Committer)
+		committer, ok := api.(frontend.Committer)
 		if !ok {
 			panic("compiler doesn't implement frontend.Committer")
 		}

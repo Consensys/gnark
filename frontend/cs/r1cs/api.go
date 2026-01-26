@@ -868,6 +868,6 @@ func (builder *builder[E]) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
 	return res
 }
 
-func (builder *builder[E]) SetGkrInfo(info gkrinfo.StoringInfo) error {
-	return builder.cs.AddGkr(info)
+func (builder *builder[E]) NewGkr() (*gkrinfo.StoringInfo, int) {
+	return builder.cs.NewGkr()
 }

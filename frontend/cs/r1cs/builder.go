@@ -491,7 +491,12 @@ func (builder *builder[E]) compress(le expr.LinearExpression[E]) expr.LinearExpr
 }
 
 func (builder *builder[E]) Defer(cb func(frontend.API) error) {
-	circuitdefer.Put(builder, cb)
+	// in case the builder is wrapped implementing kvstore.Store methods then we
+	// may put and retrieve deferred functions from different storages. We use
+	// the unwrapped builder for storing deferred functions to avoid this issue.
+	// See [callDeferred] function in frontend/compile.go
+	compiler := builder.Compiler()
+	circuitdefer.Put(compiler, cb)
 }
 
 func (*builder[E]) FrontendType() frontendtype.Type {

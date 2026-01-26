@@ -20,7 +20,13 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity {{ .Cfg.PragmaVersion }};
 
-contract PlonkVerifier {
+{{- if .Cfg.SortedImports }}
+{{ range $imp := .Cfg.SortedImports }}
+{{ $imp }}
+{{- end }}
+{{- end }}
+
+contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
 
   uint256 private constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 private constant R_MOD_MINUS_ONE = 21888242871839275222246405745257275088548364400416034343698204186575808495616;
@@ -162,6 +168,14 @@ contract PlonkVerifier {
   uint8 private constant EC_ADD = 0x6;
   uint8 private constant EC_MUL = 0x7;
   uint8 private constant EC_PAIR = 0x8;
+{{- if .Cfg.Constants }}
+
+{{ .Cfg.Constants }}
+{{- end }}
+{{- if .Cfg.Constructor }}
+
+{{ .Cfg.Constructor }}
+{{- end }}
   
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -1342,6 +1356,10 @@ contract PlonkVerifier {
       }
     }
   }
+{{- if .Cfg.Functions }}
+
+{{ .Cfg.Functions }}
+{{- end }}
 }
 `
 

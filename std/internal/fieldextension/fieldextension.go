@@ -5,6 +5,10 @@
 // to achieve the required soundness level. This package provides some
 // primitives to perform such operations.
 //
+// NB! This is not a general purpose field extension package. It is designed to
+// help in specific use-cases inside the field emulation, range checking and
+// log-derivative packages when operating over small fields.
+//
 // NB! This is an experimental package. The API is not stable and may change in
 // backwards incompatible way. We also may change the extension construction for
 // better performance.
@@ -15,6 +19,8 @@ import (
 	"math/big"
 	"strconv"
 
+	"github.com/consensys/gnark-crypto/field/koalabear"
+	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -43,8 +49,11 @@ type Field interface {
 	Reduce(a Element) Element
 	// Mul multiplies two extension field elements and reduces the result.
 	Mul(a, b Element) Element
-	// MulNoReduce multiplies two extension field elements without reducing the result.
-	// The degree of the result is the sum of the degrees of the two operands.
+	// MulNoReduce multiplies two extension field elements without reducing the
+	// result. The degree of the result is the sum of the degrees of the two
+	// operands.
+	//
+	// This method may be no-op if using extension using towers.
 	MulNoReduce(a, b Element) Element
 	// Add adds two extension field elements. The result is not reduced. The
 	// degree of the result is the max of the degrees of the two operands.
@@ -70,6 +79,8 @@ type Field interface {
 	AsExtensionVariable(a frontend.Variable) Element
 	// Degree returns the degree of the extension field.
 	Degree() int
+	// Inverse returns the multiplicative inverse of an extension field element.
+	Inverse(a Element) Element
 }
 
 // NewExtension returns a new extension field object.
@@ -97,6 +108,10 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 	}
 
 	// extension is not provided, we try to find a stored one
+	// - if native is Koalabear and degree is not set or 4, then use the dedicated Koalabear extension
+	if api.Compiler().Field().Cmp(koalabear.Modulus()) == 0 && (cfg.degree == -1 || cfg.degree == defaultExtensionDegrees[koalabear.Modulus().String()]) {
+		return newKoalabearExt4(api), nil
+	}
 
 	// if the degree is not set, then we take the default extension for the given field
 	degree := "default"
@@ -114,6 +129,39 @@ func NewExtension(api frontend.API, opts ...Option) (Field, error) {
 
 // Element is the extension field element.
 type Element []frontend.Variable
+
+// Initialize initializes the extension field element when using with default
+// field extension constructor. Otherwise, when using a custom extension, the
+// user should use [AllocateElement] function.
+func (e *Element) Initialize(field *big.Int) {
+	if len(*e) != 0 {
+		return // already initialized
+	}
+	// we try to find the default degree for the given field
+	if deg, ok := defaultExtensionDegrees[field.String()]; ok {
+		*e = make([]frontend.Variable, deg)
+		return
+	}
+	// no default degree found. The user should initialize the element explicitly.
+	panic("no default extension degree for the given field, cannot initialize element")
+}
+
+// ValueOf converts a value of type any to an extension field element. If the
+// type is not supported, it panics.
+//
+// Currently supported types are:
+//   - [github.com/consensys/gnark-crypto/field/koalabear.Element] -- returns extension field element with only one coefficient
+//   - [github.com/consensys/gnark-crypto/field/koalabear/extensions.E4] -- returns extension field element with four coefficients
+func ValueOf(a any) Element {
+	switch v := a.(type) {
+	case koalabear.Element:
+		return Element{v, 0, 0, 0}
+	case extensions.E4:
+		return Element{v.B0.A0, v.B0.A1, v.B1.A0, v.B1.A1}
+	default:
+		panic("cannot convert to extension element")
+	}
+}
 
 func (e *ext) Reduce(a Element) Element {
 	if e.extensionType == generic {
