@@ -315,20 +315,6 @@ func (f *Field[T]) maxOverflowReducedResult() uint {
 	return f.maxOf + 2*f.fParams.BitsPerLimb()
 }
 
-func max[T cmp.Ordered](a ...T) T {
-	if len(a) == 0 {
-		var f T
-		return f
-	}
-	m := a[0]
-	for _, v := range a {
-		if v > m {
-			m = v
-		}
-	}
-	return m
-}
-
 func sum[T cmp.Ordered](a ...T) T {
 	if len(a) == 0 {
 		var f T
