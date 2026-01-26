@@ -81,7 +81,7 @@ func BytesToNative(api frontend.API, b []uints.U8, opts ...Option) (frontend.Var
 	}
 	// check that the input was in range of the field modulus. Omit if cfg.allowOverflow is set.
 	if !cfg.allowOverflow {
-		assertBytesLeq(api, b, api.Compiler().Field())
+		assertBytesLeq(api, b, api.Compiler().Field(), true)
 	}
 	return res, nil
 }
@@ -220,7 +220,7 @@ func NativeToBytes(api frontend.API, v frontend.Variable, opts ...Option) ([]uin
 	// check if we don't care about the uniqueness (in case later when composing
 	// back to native element the check is done there).
 	if !cfg.allowOverflow {
-		assertBytesLeq(api, resU8, api.Compiler().Field())
+		assertBytesLeq(api, resU8, api.Compiler().Field(), true)
 	}
 	return resU8, nil
 }
@@ -294,7 +294,7 @@ func EmulatedToBytes[T emulated.FieldParams](api frontend.API, v *emulated.Eleme
 
 // assertBytesLeq checks that the bytes in MSB order are less or equal than the
 // bound. The method internally decomposes the bound into MSB bytes.
-func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) error {
+func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int, disallowEquality bool) error {
 	bapi, err := uints.NewBytes(api)
 	if err != nil {
 		return err
@@ -335,6 +335,10 @@ func assertBytesLeq(api frontend.API, b []uints.U8, bound *big.Int) error {
 		rchecker.Check(api.Mul(eq_i, diff), nbBits)
 		isEq := api.IsZero(diff)
 		eq_i = api.Mul(eq_i, isEq)
+	}
+	if disallowEquality {
+		// when lengths are comparable, disallow equality
+		api.AssertIsEqual(eq_i, 0)
 	}
 	return nil
 }

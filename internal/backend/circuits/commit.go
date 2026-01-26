@@ -55,7 +55,10 @@ func (circuit *noCommitCircuit) Define(api frontend.API) error {
 }
 
 func init() {
-	// need to have separate test cases as the hash-to-field for PLONK and Groth16 verifiers are different
+	// We need separate test cases because hash-to-field implementations differ between PLONK and Groth16 verifiers.
+	// commitCircuit tests circuits with commitments, where hash-to-field differences between backends are critical.
+	// noCommitCircuit tests circuits without commitments, where these differences don't affect verification.
+	// We test only on bn254 as the hash-to-field behavior is consistent across curves for this test scenario.
 	addEntry(
 		"commit",
 		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},

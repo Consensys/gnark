@@ -391,7 +391,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 }
 
 // Verifier allows verifying KZG opening proofs.
-type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
+type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	api       frontend.API
 	scalarApi *emulated.Field[FR]
 	curve     algebra.Curve[FR, G1El]
@@ -399,7 +399,7 @@ type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2E
 }
 
 // NewVerifier initializes a new Verifier instance.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
 	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return nil, err
