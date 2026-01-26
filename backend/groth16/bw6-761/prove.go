@@ -6,7 +6,9 @@
 package groth16
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"runtime"
 	"time"
@@ -386,4 +388,9 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
 
 	return a
+}
+
+// ExportProof not implemented for BW6-761
+func (vk *Proof) ExportProof(publicSignals []string, w io.Writer) error {
+	return errors.New("not implemented")
 }
