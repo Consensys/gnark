@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/blang/semver/v4"
@@ -428,7 +429,157 @@ func (system *System) GetNbConstraints() int {
 }
 
 func (system *System) CheckUnconstrainedWires() error {
-	// TODO @gbotrel
+	nbPublic := system.GetNbPublicVariables()
+	nbSecret := system.GetNbSecretVariables()
+	nbInputs := nbPublic + nbSecret
+
+	if nbInputs == 0 {
+		return fmt.Errorf("invalid constraint system: no input defined")
+	}
+
+	// Track which input wires are constrained (wire 0 is the constant ONE, doesn't need constraint)
+	inputConstrained := make([]bool, nbInputs)
+	if nbInputs > 0 {
+		inputConstrained[0] = true // wire 0 is constant ONE
+	}
+	cptInputs := nbInputs - 1 // count unconstrained inputs (excluding wire 0)
+
+	// Collect all hint output wire ranges
+	hintWireRanges := make(map[uint32]bool) // map from wire ID to whether it's a hint output
+	for _, inst := range system.Instructions {
+		blueprint := system.Blueprints[inst.BlueprintID]
+		if bh, ok := blueprint.(BlueprintHint); ok {
+			unpacked := inst.Unpack(system)
+			var hm HintMapping
+			bh.DecompressHint(&hm, unpacked)
+			// Mark all wires in the output range as hint outputs
+			for w := hm.OutputRange.Start; w < hm.OutputRange.End; w++ {
+				hintWireRanges[w] = true
+			}
+		}
+	}
+
+	// Track which hint wires are constrained
+	hintWiresConstrained := make(map[uint32]bool)
+	cptHints := len(hintWireRanges)
+
+	// Process all constraints to find which wires are used
+	processWire := func(wireID int) {
+		if wireID < 0 {
+			return
+		}
+		wireIDU32 := uint32(wireID)
+
+		// Check if it's an input wire
+		if wireID < nbInputs {
+			if !inputConstrained[wireID] {
+				inputConstrained[wireID] = true
+				cptInputs--
+			}
+		} else {
+			// Check if it's a hint output wire
+			if hintWireRanges[wireIDU32] {
+				if !hintWiresConstrained[wireIDU32] {
+					hintWiresConstrained[wireIDU32] = true
+					cptHints--
+				}
+			}
+		}
+	}
+
+	// Process all constraints
+	for _, inst := range system.Instructions {
+		blueprint := system.Blueprints[inst.BlueprintID]
+		unpacked := inst.Unpack(system)
+
+		// Process R1C constraints
+		if br1c, ok := blueprint.(BlueprintR1C); ok {
+			var r1c R1C
+			br1c.DecompressR1C(&r1c, unpacked)
+
+			// Process L, R, O linear expressions
+			processLinearExpr := func(le LinearExpression) {
+				for _, t := range le {
+					if t.CoeffID() == CoeffIdZero {
+						continue // ignore zero coefficient
+					}
+					processWire(t.WireID())
+				}
+			}
+
+			processLinearExpr(r1c.L)
+			processLinearExpr(r1c.R)
+			processLinearExpr(r1c.O)
+
+			if cptHints == 0 && cptInputs == 0 {
+				return nil // early exit if all wires are constrained
+			}
+		}
+
+		// Process SparseR1C constraints
+		if bsr1c, ok := blueprint.(BlueprintSparseR1C); ok {
+			var sr1c SparseR1C
+			bsr1c.DecompressSparseR1C(&sr1c, unpacked)
+
+			// Process XA, XB, XC (only if coefficients are non-zero)
+			if sr1c.QL != CoeffIdZero {
+				processWire(int(sr1c.XA))
+			}
+			if sr1c.QR != CoeffIdZero {
+				processWire(int(sr1c.XB))
+			}
+			if sr1c.QO != CoeffIdZero {
+				processWire(int(sr1c.XC))
+			}
+			// XA and XB are also used in multiplication term if QM is non-zero
+			if sr1c.QM != CoeffIdZero {
+				processWire(int(sr1c.XA))
+				processWire(int(sr1c.XB))
+			}
+
+			if cptHints == 0 && cptInputs == 0 {
+				return nil // early exit if all wires are constrained
+			}
+		}
+	}
+
+	// Build error message if there are unconstrained wires
+	var sbb strings.Builder
+	hasError := false
+
+	if cptInputs > 0 {
+		hasError = true
+		sbb.WriteString(strconv.Itoa(cptInputs))
+		sbb.WriteString(" unconstrained input(s):")
+		sbb.WriteByte('\n')
+		for i := 0; i < nbInputs && cptInputs > 0; i++ {
+			if !inputConstrained[i] {
+				if i < nbPublic {
+					sbb.WriteString(system.Public[i])
+				} else {
+					sbb.WriteString(system.Secret[i-nbPublic])
+				}
+				sbb.WriteByte('\n')
+				cptInputs--
+			}
+		}
+		sbb.WriteByte('\n')
+	}
+
+	if cptHints > 0 {
+		// For hints, we log a warning but don't fail (as per old implementation)
+		log := logger.Logger()
+		var hintMsg strings.Builder
+		hintMsg.WriteString(strconv.Itoa(cptHints))
+		hintMsg.WriteString(" unconstrained hints; i.e. wire created through NewHint() but doesn't not appear in the constraint system")
+		log.Warn().Msg(hintMsg.String())
+		// Note: unconstrained hints don't cause the function to return an error
+	}
+
+	if hasError {
+		return fmt.Errorf("%s", sbb.String())
+	}
+
 	return nil
 }
 
