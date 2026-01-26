@@ -59,6 +59,10 @@ func initSnippets() {
 		api.AssertIsLessOrEqual(newVariable(), bound)
 	})
 
+	registerSnippet("api/AssertIsCrumb", func(api frontend.API, newVariable func() frontend.Variable) {
+		api.AssertIsCrumb(newVariable())
+	})
+
 	// add std snippets
 	registerSnippet("math/bits.ToBinary", func(api frontend.API, newVariable func() frontend.Variable) {
 		_ = bits.ToBinary(api, newVariable())

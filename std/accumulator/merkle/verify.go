@@ -69,10 +69,12 @@ func nodeSum(api frontend.API, h hash.FieldHasher, a, b frontend.Variable) front
 	return res
 }
 
-// VerifyProof takes a Merkle root, a proofSet, and a proofIndex and returns
-// true if the first element of the proof set is a leaf of data in the Merkle
-// root. False is returned if the proof set or Merkle root is nil, and if
-// 'numLeaves' equals 0.
+// VerifyProof encodes constraints that verify inclusion of a leaf at the given
+// index into the Merkle root stored in mp.RootHash, using the authentication
+// path stored in mp.Path. The argument leaf is the leaf index (little-endian
+// bit order). The actual leaf value must be provided as mp.Path[0]. This
+// method does not return a value; it asserts equality of the recomputed root
+// and mp.RootHash via constraints.
 func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.FieldHasher, leaf frontend.Variable) {
 
 	depth := len(mp.Path) - 1

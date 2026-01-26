@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math/big"
@@ -15,7 +16,6 @@ import (
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/constraints"
 )
 
 // Field holds the configuration for non-native field operations. The field
@@ -315,21 +315,7 @@ func (f *Field[T]) maxOverflowReducedResult() uint {
 	return f.maxOf + 2*f.fParams.BitsPerLimb()
 }
 
-func max[T constraints.Ordered](a ...T) T {
-	if len(a) == 0 {
-		var f T
-		return f
-	}
-	m := a[0]
-	for _, v := range a {
-		if v > m {
-			m = v
-		}
-	}
-	return m
-}
-
-func sum[T constraints.Ordered](a ...T) T {
+func sum[T cmp.Ordered](a ...T) T {
 	if len(a) == 0 {
 		var f T
 		return f

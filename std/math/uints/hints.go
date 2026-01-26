@@ -2,6 +2,7 @@ package uints
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -44,7 +45,7 @@ func toBytes(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	nbLimbs := int(inputs[0].Uint64())
 	if len(outputs) != nbLimbs {
-		return errors.New("output must be 8 elements")
+		return fmt.Errorf("expecting %d outputs, got %d", nbLimbs, len(outputs))
 	}
 	if !inputs[1].IsUint64() {
 		return errors.New("input must be 64 bits")
