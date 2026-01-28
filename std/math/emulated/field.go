@@ -89,6 +89,15 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		}
 		f.extensionApi = extapi
 	}
+	if f.useSmallFieldOptimization() {
+		// in case of emulated small fields we use base length 16 to reduce
+		// needing to range check for [v_lo, v_hi, 2*v_hi].
+		//
+		// But this means that hints could output values which are bigger than
+		// the emulated modulus bitwidth (for example 31 bits). This means we
+		// have to set the overflow of returned elements correctly.
+		f.checker = rangecheck.New(native, rangecheck.WithBaseLength(16))
+	}
 
 	// ensure prime is correctly set
 	if f.fParams.IsPrime() {
