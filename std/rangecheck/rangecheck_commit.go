@@ -47,7 +47,9 @@ func newCommitRangechecker(api frontend.API, opts ...Option) *commitChecker {
 		if cht, ok := ch.(*commitChecker); ok {
 			if cfg.baseLength > 0 && cht.cfg.baseLength != cfg.baseLength {
 				log := logger.Logger()
-				log.Warn().Msgf("rangechecker: existing checker has base length %d, requested %d. setting to requested", cht.cfg.baseLength, cfg.baseLength)
+				if cht.cfg.baseLength > 0 {
+					log.Warn().Msgf("rangechecker: existing checker has base length %d, requested %d. overwriting", cht.cfg.baseLength, cfg.baseLength)
+				}
 				cht.cfg.baseLength = cfg.baseLength
 			}
 			return cht
