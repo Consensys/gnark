@@ -44,6 +44,7 @@ func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 	return s.toElement(&b)
 }
 
+// ToBigInt converts element (Montgomery form) to canonical big.Int
 func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
 	// Element is in Montgomery form, convert to canonical: canonical = f * R^-1 mod q
 	fBytes := f.Bytes()
@@ -52,38 +53,76 @@ func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
 	result.Mod(result, s.q)
 	return result
 }
+
+// toMontBigInt extracts element bytes as Montgomery form big.Int (no conversion)
+func (s *blueprintSolver[E]) toMontBigInt(f E) *big.Int {
+	fBytes := f.Bytes()
+	return new(big.Int).SetBytes(fBytes[:])
+}
+
+// montBigIntToElement converts Montgomery big.Int directly to element (no conversion)
+func (s *blueprintSolver[E]) montBigIntToElement(mont *big.Int) E {
+	bytes := mont.Bytes()
+	var bytesLen int
+	var r E
+	switch any(r).(type) {
+	case constraint.U32:
+		bytesLen = 4
+	case constraint.U64:
+		bytesLen = 48
+	default:
+		panic("unsupported type")
+	}
+	if len(bytes) > bytesLen {
+		panic("value too big")
+	}
+	paddedBytes := make([]byte, bytesLen)
+	copy(paddedBytes[bytesLen-len(bytes):], bytes[:])
+	return constraint.NewElement[E](paddedBytes[:])
+}
 func (s *blueprintSolver[E]) Mul(a, b E) E {
-	ba, bb := s.ToBigInt(a), s.ToBigInt(b)
-	ba.Mul(ba, bb).Mod(ba, s.q)
-	return s.toElement(ba)
+	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
+	ba.Mul(ba, bb).
+		Mod(ba, s.q).
+		Mul(ba, s.rInv).
+		Mod(ba, s.q)
+	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Add(a, b E) E {
-	ba, bb := s.ToBigInt(a), s.ToBigInt(b)
+	// Addition works the same in Montgomery form: (a*R + b*R) mod m = (a+b)*R mod m
+	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Add(ba, bb).Mod(ba, s.q)
-	return s.toElement(ba)
+	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Sub(a, b E) E {
-	ba, bb := s.ToBigInt(a), s.ToBigInt(b)
+	// Subtraction works the same in Montgomery form: (a*R - b*R) mod m = (a-b)*R mod m
+	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Sub(ba, bb).Mod(ba, s.q)
-	return s.toElement(ba)
+	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Neg(a E) E {
-	ba := s.ToBigInt(a)
+	// Negation works the same in Montgomery form: -(a*R) mod m = (-a)*R mod m
+	ba := s.toMontBigInt(a)
 	ba.Neg(ba).Mod(ba, s.q)
-	return s.toElement(ba)
+	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
-	ba := s.ToBigInt(a)
-	r := ba.ModInverse(ba, s.q)
-	return s.toElement(ba), r != nil
+	r := s.toMontBigInt(a)
+	r = r.ModInverse(r, s.q)
+	if r == nil {
+		var zero E
+		return zero, false
+	}
+	r.Lsh(r, getLogR(s.q)).
+		Mod(r, s.q)
+	return s.toElement(r), true
 }
 func (s *blueprintSolver[E]) One() E {
 	b := new(big.Int).SetUint64(1)
 	return s.toElement(b)
 }
 func (s *blueprintSolver[E]) IsOne(a E) bool {
-	b := s.ToBigInt(a)
-	return b.IsUint64() && b.Uint64() == 1
+	return a == s.One()
 }
 
 func (s *blueprintSolver[E]) String(a E) string {
