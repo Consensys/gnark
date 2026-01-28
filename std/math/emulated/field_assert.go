@@ -31,11 +31,6 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 }
 
 func (f *Field[T]) smallEnforceWidth(a *Element[T]) {
-	if _, aConst := f.constantValue(a); aConst {
-		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
-			panic("constant limb width doesn't match parametrized field")
-		}
-	}
 	if len(a.Limbs) != int(f.fParams.NbLimbs()) {
 		panic("enforcing modulus width element with inexact number of limbs")
 	}
