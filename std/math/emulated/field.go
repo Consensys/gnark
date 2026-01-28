@@ -213,7 +213,7 @@ func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T]
 		return e
 	} else {
 		e := f.newInternalElement(limbs, uint(f.smallAdditionalOverflow()))
-		f.smallEnforceWidth(e)
+		f.smallEnforceWidth(e, strict)
 		return e
 	}
 }
@@ -277,7 +277,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		if !f.useSmallFieldOptimization() {
 			f.enforceWidth(a, true)
 		} else {
-			f.smallEnforceWidth(a)
+			f.smallEnforceWidth(a, true)
 		}
 	}
 	return
