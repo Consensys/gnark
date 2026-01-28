@@ -42,7 +42,7 @@ func (f *Field[T]) smallEnforceWidth(a *Element[T]) {
 
 	// when we use small field optimization, then we know that we work on a single limb.
 	// Additionally, we want to reduce the number of range checks, so we
-	f.checker.Check(a.Limbs[0], f.fParams.Modulus().BitLen()+f.smallAdditionalOverflow())
+	f.checker.Check(a.Limbs[0], f.fParams.Modulus().BitLen()+int(a.overflow))
 }
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
