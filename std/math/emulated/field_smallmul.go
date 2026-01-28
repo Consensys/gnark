@@ -181,7 +181,7 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 
 	// Range check the remainder (quotient is range-checked via batched sum in check)
 	modBits := f.fParams.Modulus().BitLen()
-	f.checker.Check(r, modBits)
+	f.checker.Check(r, modBits+f.smallAdditionalOverflow())
 
 	// Compute the number of bits needed for the quotient.
 	// For a*b = q*p + r:
@@ -196,7 +196,7 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 	smc.addEntry(a.Limbs[0], b.Limbs[0], r, q, qBits)
 
 	// Return result as single-limb element
-	return f.newInternalElement([]frontend.Variable{r}, 0)
+	return f.newInternalElement([]frontend.Variable{r}, uint(f.smallAdditionalOverflow()))
 }
 
 // getOrCreateSmallMulCheck returns the existing smallMulCheck or creates a new one.
@@ -367,4 +367,8 @@ func (f *Field[T]) toSingleLimbElement(a *Element[T]) *Element[T] {
 	// Recompose multiple limbs into a single limb
 	singleLimb := f.toSingleLimb(a)
 	return f.newInternalElement([]frontend.Variable{singleLimb}, a.overflow)
+}
+
+func (f *Field[T]) smallAdditionalOverflow() int {
+	return rangeCheckBaseLengthForSmallField - (f.fParams.Modulus().BitLen() % rangeCheckBaseLengthForSmallField)
 }
