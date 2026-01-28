@@ -30,6 +30,16 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 	}
 }
 
+func (f *Field[T]) smallEnforceWidth(a *Element[T], modWidth bool) {
+	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		panic("enforcing modulus width element with inexact number of limbs")
+	}
+
+	// when we use small field optimization, then we know that we work on a single limb.
+	// Additionally, we want to reduce the number of range checks, so we
+	f.checker.Check(a.Limbs[0], f.fParams.Modulus().BitLen()+int(a.overflow))
+}
+
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.enforceWidthConditional(a)
