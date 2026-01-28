@@ -41,6 +41,7 @@ import (
 type engine struct {
 	curveID ecc.ID
 	q       *big.Int
+	rInv    *big.Int // R^-1 mod q for efficient Montgomery conversion
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
@@ -90,6 +91,11 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		constVars: false,
 		Store:     kvstore.New(),
 	}
+
+	// computeRInv computes R^-1 mod modulus for Montgomery conversion
+	R := new(big.Int).Lsh(big.NewInt(1), getLogR(e.q))
+	e.rInv = new(big.Int).ModInverse(R, e.q)
+
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
@@ -738,6 +744,7 @@ func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.Bluep
 	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
 		q:                 e.q,
+		rInv:              e.rInv,
 	}
 	if err := blueprint.Solve(&s, inst); err != nil {
 		panic(err)

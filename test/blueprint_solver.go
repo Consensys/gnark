@@ -13,6 +13,7 @@ import (
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
 	q                 *big.Int
+	rInv              *big.Int // R^-1 mod q for efficient Montgomery conversion
 }
 
 // implements constraint.Solver
@@ -44,10 +45,12 @@ func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 }
 
 func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
-	r := new(big.Int)
+	// Element is in Montgomery form, convert to canonical: canonical = f * R^-1 mod q
 	fBytes := f.Bytes()
-	r.SetBytes(fBytes[:])
-	return r
+	montgomery := new(big.Int).SetBytes(fBytes[:])
+	result := new(big.Int).Mul(montgomery, s.rInv)
+	result.Mod(result, s.q)
+	return result
 }
 func (s *blueprintSolver[E]) Mul(a, b E) E {
 	ba, bb := s.ToBigInt(a), s.ToBigInt(b)
@@ -94,32 +97,40 @@ func (s *blueprintSolver[E]) Uint64(a E) (uint64, bool) {
 }
 
 func (s *blueprintSolver[E]) Read(calldata []uint32) (E, int) {
-	// We encoded big.Int as constraint.Element on 12 uint32 words.
+	// Read canonical bytes from calldata, convert to Montgomery form element
 	var r E
+	var canonicalValue *big.Int
+	var nWords int
+
 	switch t := any(&r).(type) {
 	case *constraint.U64:
+		// Read canonical bytes from calldata
 		for i := 0; i < len(r); i++ {
 			index := i * 2
 			t[i] = uint64(calldata[index])<<32 | uint64(calldata[index+1])
 		}
-		return r, len(r) * 2
+		canonicalValue = new(big.Int).SetBytes(r.Bytes())
+		nWords = len(r) * 2
 	case *constraint.U32:
 		t[0] = uint32(calldata[0])
-		return r, 1
+		canonicalValue = new(big.Int).SetUint64(uint64(t[0]))
+		nWords = 1
 	default:
 		panic("unsupported type")
 	}
+
+	// Convert canonical to Montgomery and return as element
+	return s.toElement(canonicalValue), nWords
 }
 
 func (s *blueprintSolver[E]) toElement(b *big.Int) E {
-	return bigIntToElement[E](b)
-}
-
-func bigIntToElement[E constraint.Element](b *big.Int) E {
 	if b.Sign() == -1 {
 		panic("negative value")
 	}
-	bytes := b.Bytes()
+
+	mont := new(big.Int).Lsh(b, getLogR(s.q))
+	mont.Mod(mont, s.q)
+	bytes := mont.Bytes()
 	var bytesLen int
 	var r E
 	switch any(r).(type) {
@@ -138,18 +149,45 @@ func bigIntToElement[E constraint.Element](b *big.Int) E {
 	return constraint.NewElement[E](paddedBytes[:])
 }
 
+// getLogR returns log2(R) for efficient shifting
+func getLogR(modulus *big.Int) uint {
+	if smallfields.IsSmallField(modulus) {
+		return 32
+	}
+	// For large fields, R = 2^(nbLimbs * 64)
+	nbBits := modulus.BitLen()
+	nbLimbs := (nbBits + 63) / 64
+	return uint(nbLimbs * 64)
+}
+
 // wrappedBigInt is a wrapper around big.Int to implement the frontend.CanonicalVariable interface
 type wrappedBigInt struct {
 	*big.Int
 	modulus *big.Int
 }
 
+// Compress writes canonical bytes to calldata (no Montgomery conversion)
 func (w wrappedBigInt) Compress(to *[]uint32) {
+	if w.Sign() == -1 {
+		panic("negative value")
+	}
+
+	bytes := w.Bytes()
 	if smallfields.IsSmallField(w.modulus) {
-		e := bigIntToElement[constraint.U32](w.Int)
+		if len(bytes) > 4 {
+			panic("value too big")
+		}
+		paddedBytes := make([]byte, 4)
+		copy(paddedBytes[4-len(bytes):], bytes[:])
+		e := constraint.NewElement[constraint.U32](paddedBytes[:])
 		*to = append(*to, uint32(e[0]))
 	} else {
-		e := bigIntToElement[constraint.U64](w.Int)
+		if len(bytes) > 48 {
+			panic("value too big")
+		}
+		paddedBytes := make([]byte, 48)
+		copy(paddedBytes[48-len(bytes):], bytes[:])
+		e := constraint.NewElement[constraint.U64](paddedBytes[:])
 		// append the uint32 words to the slice
 		for i := 0; i < len(e); i++ {
 			*to = append(*to, uint32(e[i]>>32))

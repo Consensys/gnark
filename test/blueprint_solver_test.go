@@ -13,13 +13,26 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/stretchr/testify/require"
 )
 
 func testBigIntoToElement[E constraint.Element](t *testing.T, modulus *big.Int) {
 	// sample a random big.Int, convert it to an element, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{q: modulus}
+	// Compute R^-1 for this test
+	var rBits uint
+	if smallfields.IsSmallField(modulus) {
+		rBits = 32
+	} else {
+		nbBits := modulus.BitLen()
+		nbLimbs := (nbBits + 63) / 64
+		rBits = uint(nbLimbs * 64)
+	}
+	R := new(big.Int).Lsh(big.NewInt(1), rBits)
+	rInv := new(big.Int).ModInverse(R, modulus)
+
+	s := blueprintSolver[E]{q: modulus, rInv: rInv}
 	b := big.NewInt(0)
 	for i := 0; i < 50; i++ {
 		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q) //#nosec G404 -- This is a false positive
@@ -41,7 +54,19 @@ func TestBigIntToElement(t *testing.T) {
 func testBigIntToUint32Slice[E constraint.Element](t *testing.T, modulus *big.Int) {
 	// sample a random big.Int, write it to a uint32 slice, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{q: modulus}
+	// Compute R^-1 for this test
+	var rBits uint
+	if smallfields.IsSmallField(modulus) {
+		rBits = 32
+	} else {
+		nbBits := modulus.BitLen()
+		nbLimbs := (nbBits + 63) / 64
+		rBits = uint(nbLimbs * 64)
+	}
+	R := new(big.Int).Lsh(big.NewInt(1), rBits)
+	rInv := new(big.Int).ModInverse(R, modulus)
+
+	s := blueprintSolver[E]{q: modulus, rInv: rInv}
 	var elementLen int // number of uint32 words in the element
 	var e E
 	switch any(e).(type) {
