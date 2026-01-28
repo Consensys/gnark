@@ -15,10 +15,11 @@ import (
 //   - q: the quotient (single limb)
 //   - qBits: the number of bits needed to represent q (depends on input overflow)
 type smallMulEntry struct {
-	a, b  frontend.Variable // operands
-	r     frontend.Variable // remainder
-	q     frontend.Variable // quotient
-	qBits int               // bits needed for quotient
+	a, b      frontend.Variable // operands
+	r         frontend.Variable // remainder
+	q         frontend.Variable // quotient
+	qBits     int               // bits needed for quotient
+	checkZero bool              // indicates if this is a zero check (a ≡ 0 mod p)
 }
 
 // smallMulCheck implements the deferredChecker interface for small field
@@ -42,8 +43,8 @@ type smallMulCheck[T FieldParams] struct {
 }
 
 // addEntry adds a new multiplication entry to the batch.
-func (mc *smallMulCheck[T]) addEntry(a, b, r, q frontend.Variable, qBits int) {
-	mc.entries = append(mc.entries, smallMulEntry{a: a, b: b, r: r, q: q, qBits: qBits})
+func (mc *smallMulCheck[T]) addEntry(a, b, r, q frontend.Variable, qBits int, checkZero bool) {
+	mc.entries = append(mc.entries, smallMulEntry{a: a, b: b, r: r, q: q, qBits: qBits, checkZero: checkZero})
 	if qBits > mc.maxQBits {
 		mc.maxQBits = qBits
 	}
@@ -129,15 +130,25 @@ func (mc *smallMulCheck[T]) check(api frontend.API, peval, coef frontend.Variabl
 	// Using Horner's method: a_0 + γ(a_1 + γ(a_2 + ...))
 	// We iterate backwards from the last entry.
 
+	// Additionally, when we have zero checks (a_i ≡ 0 mod p), we skip those entries
+	// as we already perform a == q * p check before adding entry. We only have an entry
+	// to ensure that q is also included in the unweighted sum above for range checking.
+
 	// Start with the last entry
 	lastEntry := mc.entries[n-1]
 	sumAB := api.Mul(lastEntry.a, lastEntry.b)
 	sumR := lastEntry.r
 	sumQ := lastEntry.q
+	if lastEntry.checkZero {
+		sumQ = 0
+	}
 
 	// Process remaining entries using Horner's method (backwards)
 	for i := n - 2; i >= 0; i-- {
 		e := mc.entries[i]
+		if e.checkZero {
+			continue
+		}
 
 		// sumAB = a_i * b_i + γ * sumAB
 		ab := api.Mul(e.a, e.b)
@@ -193,7 +204,7 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 	qBits := 2*bitsPerLimb + int(a.overflow) + int(b.overflow) - modBits + 1
 
 	// Add entry to the batch
-	smc.addEntry(a.Limbs[0], b.Limbs[0], r, q, qBits)
+	smc.addEntry(a.Limbs[0], b.Limbs[0], r, q, qBits, false)
 
 	// Return result as single-limb element
 	return f.newInternalElement([]frontend.Variable{r}, uint(f.smallAdditionalOverflow()))
@@ -288,7 +299,8 @@ func (f *Field[T]) smallCheckZero(a *Element[T]) {
 	// Add entry: a * 1 = q * p + 0
 	// We use 0 directly as the remainder (not from hint) to ensure soundness.
 	// The batch check will verify a = q * p, proving a ≡ 0 (mod p).
-	smc.addEntry(a.Limbs[0], 1, 0, q, qBits)
+	f.api.AssertIsEqual(a.Limbs[0], f.api.Mul(q, f.fParams.Modulus()))
+	smc.addEntry(0, 0, 0, q, qBits, true)
 }
 
 // callSmallCheckZeroHint computes q such that a = q * p (+ remainder).
