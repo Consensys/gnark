@@ -370,5 +370,5 @@ func (f *Field[T]) toSingleLimbElement(a *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) smallAdditionalOverflow() int {
-	return rangeCheckBaseLengthForSmallField - (f.fParams.Modulus().BitLen() % rangeCheckBaseLengthForSmallField)
+	return (rangeCheckBaseLengthForSmallField - (f.fParams.Modulus().BitLen() % rangeCheckBaseLengthForSmallField)) % rangeCheckBaseLengthForSmallField
 }
