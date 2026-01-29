@@ -228,16 +228,6 @@ func (s *blueprintSolver[E]) Read(calldata []uint32) (E, int) {
 	return s.bigIntToElement(canonicalValue), nWords
 }
 
-func (s *blueprintSolver[E]) bigIntToElement(b *big.Int) E {
-	if b.Sign() == -1 {
-		panic("negative value")
-	}
-
-	x := new(big.Int).Lsh(b, s.modulus.logR)
-	x.Mod(x, s.modulus.q)
-	return s.montBigIntToElement(x)
-}
-
 // wrappedBigInt is a wrapper around big.Int to implement the frontend.CanonicalVariable interface
 type wrappedBigInt[E constraint.Element] struct {
 	*big.Int
