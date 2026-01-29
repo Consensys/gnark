@@ -126,26 +126,6 @@ func (s *blueprintSolver[E]) toMontBigInt(f E) *big.Int {
 	return new(big.Int).SetBytes(fBytes[:])
 }
 
-// montBigIntToElement converts Montgomery big.Int directly to element (no conversion)
-func (s *blueprintSolver[E]) montBigIntToElement(mont *big.Int) E {
-	bytes := mont.Bytes()
-	var bytesLen int
-	var r E
-	switch any(r).(type) {
-	case constraint.U32:
-		bytesLen = 4
-	case constraint.U64:
-		bytesLen = 48
-	default:
-		panic("unsupported type")
-	}
-	if len(bytes) > bytesLen {
-		panic("value too big")
-	}
-	paddedBytes := make([]byte, bytesLen)
-	copy(paddedBytes[bytesLen-len(bytes):], bytes[:])
-	return constraint.NewElement[E](paddedBytes[:])
-}
 func (s *blueprintSolver[E]) Mul(a, b E) E {
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Mul(ba, bb).
