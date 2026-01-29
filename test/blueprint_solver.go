@@ -46,12 +46,11 @@ func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 
 // ToBigInt converts element (Montgomery form) to canonical big.Int
 func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
-	// Element is in Montgomery form, convert to canonical: canonical = f * R⁻¹ mod q
-	fBytes := f.Bytes()
-	montgomery := new(big.Int).SetBytes(fBytes[:])
-	result := new(big.Int).Mul(montgomery, s.rInv)
-	result.Mod(result, s.q)
-	return result
+	x := s.toMontBigInt(f)
+	x.
+		Mul(x, s.rInv).
+		Mod(x, s.q)
+	return x
 }
 
 // toMontBigInt extracts element bytes as Montgomery form big.Int (no conversion)
@@ -167,25 +166,9 @@ func (s *blueprintSolver[E]) toElement(b *big.Int) E {
 		panic("negative value")
 	}
 
-	mont := new(big.Int).Lsh(b, logR(s.q))
-	mont.Mod(mont, s.q)
-	bytes := mont.Bytes()
-	var bytesLen int
-	var r E
-	switch any(r).(type) {
-	case constraint.U32:
-		bytesLen = 4
-	case constraint.U64:
-		bytesLen = 48
-	default:
-		panic("unsupported type")
-	}
-	if len(bytes) > bytesLen {
-		panic("value too big")
-	}
-	paddedBytes := make([]byte, bytesLen)
-	copy(paddedBytes[bytesLen-len(bytes):], bytes[:])
-	return constraint.NewElement[E](paddedBytes[:])
+	x := new(big.Int).Lsh(b, logR(s.q))
+	x.Mod(x, s.q)
+	return s.montBigIntToElement(x)
 }
 
 // logR returns log₂(R)
@@ -237,7 +220,7 @@ func (w wrappedBigInt) Compress(to *[]uint32) {
 		copy(paddedBytes[48-len(bytes):], bytes[:])
 		e := constraint.NewElement[constraint.U64](paddedBytes[:])
 		// append the uint32 words to the slice
-		for i := 0; i < len(e); i++ {
+		for i := range e {
 			*to = append(*to, uint32(e[i]>>32))
 			*to = append(*to, uint32(e[i]&0xffffffff))
 		}
