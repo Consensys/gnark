@@ -13,7 +13,7 @@ import (
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
 	q                 *big.Int
-	rInv              *big.Int // R^-1 mod q for efficient Montgomery conversion
+	rInv              *big.Int // R⁻¹ mod q for efficient Montgomery conversion
 }
 
 // implements constraint.Solver
@@ -46,7 +46,7 @@ func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 
 // ToBigInt converts element (Montgomery form) to canonical big.Int
 func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
-	// Element is in Montgomery form, convert to canonical: canonical = f * R^-1 mod q
+	// Element is in Montgomery form, convert to canonical: canonical = f * R⁻¹ mod q
 	fBytes := f.Bytes()
 	montgomery := new(big.Int).SetBytes(fBytes[:])
 	result := new(big.Int).Mul(montgomery, s.rInv)
@@ -113,7 +113,7 @@ func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
 		var zero E
 		return zero, false
 	}
-	r.Lsh(r, getLogR(s.q)).
+	r.Lsh(r, logR(s.q)).
 		Mod(r, s.q)
 	return s.toElement(r), true
 }
@@ -167,7 +167,7 @@ func (s *blueprintSolver[E]) toElement(b *big.Int) E {
 		panic("negative value")
 	}
 
-	mont := new(big.Int).Lsh(b, getLogR(s.q))
+	mont := new(big.Int).Lsh(b, logR(s.q))
 	mont.Mod(mont, s.q)
 	bytes := mont.Bytes()
 	var bytesLen int
@@ -188,15 +188,24 @@ func (s *blueprintSolver[E]) toElement(b *big.Int) E {
 	return constraint.NewElement[E](paddedBytes[:])
 }
 
-// getLogR returns log2(R) for efficient shifting
-func getLogR(modulus *big.Int) uint {
+// logR returns log₂(R)
+func logR(modulus *big.Int) uint {
 	if smallfields.IsSmallField(modulus) {
 		return 32
 	}
-	// For large fields, R = 2^(nbLimbs * 64)
+	// For large fields, R = 2^{nbLimbs * 64}
 	nbBits := modulus.BitLen()
 	nbLimbs := (nbBits + 63) / 64
 	return uint(nbLimbs * 64)
+}
+
+// rInv computes R⁻¹ mod modulus
+func rInv(modulus *big.Int) *big.Int {
+	x := big.NewInt(1)
+	x = x.
+		Lsh(x, logR(modulus)).
+		ModInverse(x, modulus)
+	return x
 }
 
 // wrappedBigInt is a wrapper around big.Int to implement the frontend.CanonicalVariable interface
