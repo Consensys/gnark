@@ -79,3 +79,64 @@ func BenchmarkGkrCompressions(b *testing.B) {
 	_, err = cs.Solve(witness)
 	require.NoError(b, err)
 }
+
+// directPoseidon2Circuit uses direct poseidon2 calls (no GKR)
+type directPoseidon2Circuit struct {
+	Ins [][2]frontend.Variable
+}
+
+func (c *directPoseidon2Circuit) Define(api frontend.API) error {
+	pos2, err := poseidon2.NewPoseidon2(api)
+	if err != nil {
+		return err
+	}
+	for i := range c.Ins {
+		_ = pos2.Compress(c.Ins[i][0], c.Ins[i][1])
+	}
+	return nil
+}
+
+// gkrPoseidon2Circuit uses GKR-based poseidon2 compressions
+type gkrPoseidon2Circuit struct {
+	Ins [][2]frontend.Variable
+}
+
+func (c *gkrPoseidon2Circuit) Define(api frontend.API) error {
+	gkr, err := NewCompressor(api)
+	if err != nil {
+		return err
+	}
+	for i := range c.Ins {
+		_ = gkr.Compress(c.Ins[i][0], c.Ins[i][1])
+	}
+	return nil
+}
+
+// BenchmarkConstraintComparison compares constraint counts between direct poseidon2 and GKR-based poseidon2
+// at various scales to identify the crossover point where GKR becomes beneficial.
+func BenchmarkConstraintComparison(b *testing.B) {
+	// Test various scales to find the crossover point
+	scales := []int{1 << 6, 1 << 13, 1 << 14, 1 << 15, 1 << 16, 1 << 17, 1 << 18}
+
+	for _, n := range scales {
+		b.Run(fmt.Sprintf("Direct/n=%d", n), func(b *testing.B) {
+			circuit := &directPoseidon2Circuit{
+				Ins: make([][2]frontend.Variable, n),
+			}
+			cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+			require.NoError(b, err)
+			b.ReportMetric(float64(cs.GetNbConstraints()), "constraints")
+			b.ReportMetric(float64(cs.GetNbConstraints())/float64(n), "constraints/hash")
+		})
+
+		b.Run(fmt.Sprintf("GKR/n=%d", n), func(b *testing.B) {
+			circuit := &gkrPoseidon2Circuit{
+				Ins: make([][2]frontend.Variable, n),
+			}
+			cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+			require.NoError(b, err)
+			b.ReportMetric(float64(cs.GetNbConstraints()), "constraints")
+			b.ReportMetric(float64(cs.GetNbConstraints())/float64(n), "constraints/hash")
+		})
+	}
+}
