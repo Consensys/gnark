@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testBigIntoToElement[E constraint.Element](t *testing.T, fieldModulus *big.Int) {
+func testBigIntoToElement[E constraint.Element](t *testing.T, modulus *big.Int) {
 	// sample a random big.Int, convert it to an element, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{modulus: newModulus[E](fieldModulus)}
+	s := blueprintSolver[E]{modulus: newModulus[E](modulus)}
 	b := big.NewInt(0)
 	for i := 0; i < 50; i++ {
 		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.modulus.q) //#nosec G404 -- This is a false positive
@@ -38,10 +38,10 @@ func TestBigIntToElement(t *testing.T) {
 	testBigIntoToElement[constraint.U32](t, babybear.Modulus())
 }
 
-func testBigIntToUint32Slice[E constraint.Element](t *testing.T, fieldModulus *big.Int) {
+func testBigIntToUint32Slice[E constraint.Element](t *testing.T, modulus *big.Int) {
 	// sample a random big.Int, write it to a uint32 slice, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{modulus: newModulus[E](fieldModulus)}
+	s := blueprintSolver[E]{modulus: newModulus[E](modulus)}
 	var elementLen int // number of uint32 words in the element
 	var e E
 	switch any(e).(type) {
@@ -151,13 +151,13 @@ func (b *BlueprintCheckReadConsistency) Solve(s constraint.Solver[constraint.U64
 
 var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintCheckReadConsistency)(nil)
 
-// readConsistencyCircuit tests that s.Read returns Montgomery form consistently
-type readConsistencyCircuit struct {
+// testReadMontCircuit tests that s.Read returns Montgomery form consistently.
+type testReadMontCircuit struct {
 	X                  frontend.Variable
 	expectedMontgomery constraint.U64
 }
 
-func (c *readConsistencyCircuit) Define(api frontend.API) error {
+func (c *testReadMontCircuit) Define(api frontend.API) error {
 	// First, ensure X is used in a constraint so it gets a wire assignment
 	api.AssertIsEqual(c.X, c.X)
 
@@ -183,13 +183,11 @@ func (c *readConsistencyCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-// TestReadConsistency verifies that s.Read returns Montgomery form consistently
+// TestReadMont verifies that s.Read returns Montgomery form consistently
 // in both the test engine and real solver.
 //
-// Expected behavior: BOTH should pass by returning Montgomery form.
-// Current status: Real solver passes (returns Montgomery), test engine FAILS (returns canonical).
-// Goal: Make test engine also return Montgomery form so both pass.
-func TestReadConsistency(t *testing.T) {
+// Expected behavior: Both should pass by returning Montgomery form.
+func TestReadMont(t *testing.T) {
 	testValue := big.NewInt(12345)
 	field := ecc.BLS12_381.ScalarField()
 
@@ -199,8 +197,8 @@ func TestReadConsistency(t *testing.T) {
 	var expectedMontgomery constraint.U64
 	copy(expectedMontgomery[:], frElement[:])
 
-	circuit := &readConsistencyCircuit{expectedMontgomery: expectedMontgomery}
-	assignment := &readConsistencyCircuit{X: testValue, expectedMontgomery: expectedMontgomery}
+	circuit := &testReadMontCircuit{expectedMontgomery: expectedMontgomery}
+	assignment := &testReadMontCircuit{X: testValue, expectedMontgomery: expectedMontgomery}
 
 	// Test with a real solver
 	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)

@@ -90,7 +90,6 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		constVars: false,
 		Store:     kvstore.New(),
 	}
-
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
