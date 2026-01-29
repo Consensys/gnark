@@ -111,21 +111,6 @@ func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 	return s.bigIntToElement(&b)
 }
 
-// ToBigInt converts element (Montgomery form) to canonical big.Int
-func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
-	x := s.toMontBigInt(f)
-	x.
-		Mul(x, s.modulus.rInv).
-		Mod(x, s.modulus.q)
-	return x
-}
-
-// toMontBigInt extracts element bytes as Montgomery form big.Int (no conversion)
-func (s *blueprintSolver[E]) toMontBigInt(f E) *big.Int {
-	fBytes := f.Bytes()
-	return new(big.Int).SetBytes(fBytes[:])
-}
-
 func (s *blueprintSolver[E]) Mul(a, b E) E {
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Mul(ba, bb).
@@ -147,9 +132,8 @@ func (s *blueprintSolver[E]) Sub(a, b E) E {
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Neg(a E) E {
-	// Negation works the same in Montgomery form: -(a*R) mod m = (-a)*R mod m
 	ba := s.toMontBigInt(a)
-	ba.Neg(ba).Mod(ba, s.modulus.q)
+	ba.Sub(s.modulus.q, ba)
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
