@@ -8,12 +8,79 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// modulus encapsulates field modulus and Montgomery conversion parameters
+type modulus[E constraint.Element] struct {
+	q    *big.Int
+	rInv *big.Int
+	logR uint
+}
+
+// newModulus creates a typed modulus and computes Montgomery parameters
+func newModulus[E constraint.Element](q *big.Int) *modulus[E] {
+	res := &modulus[E]{q: q, rInv: big.NewInt(1)}
+	if smallfields.IsSmallField(q) {
+		res.logR = 32
+	} else {
+		nbBits := q.BitLen()
+		nbLimbs := (nbBits + 63) / 64
+		res.logR = uint(nbLimbs * 64)
+	}
+	res.rInv = res.rInv.
+		Lsh(big.NewInt(1), res.logR).
+		ModInverse(res.rInv, q)
+
+	return res
+}
+
+// toMontBigInt extracts element bytes as Montgomery form big.Int (no conversion)
+func (m *modulus[E]) toMontBigInt(f E) *big.Int {
+	fBytes := f.Bytes()
+	return new(big.Int).SetBytes(fBytes[:])
+}
+
+// montBigIntToElement converts Montgomery big.Int directly to element (no conversion)
+func (m *modulus[E]) montBigIntToElement(mont *big.Int) E {
+	bytes := mont.Bytes()
+	var bytesLen int
+	var r E
+	switch any(r).(type) {
+	case constraint.U32:
+		bytesLen = 4
+	case constraint.U64:
+		bytesLen = 48
+	default:
+		panic("unsupported type")
+	}
+	if len(bytes) > bytesLen {
+		panic("value too big")
+	}
+	paddedBytes := make([]byte, bytesLen)
+	copy(paddedBytes[bytesLen-len(bytes):], bytes[:])
+	return constraint.NewElement[E](paddedBytes[:])
+}
+
+// ToBigInt converts element (Montgomery form) to canonical big.Int
+func (m *modulus[E]) ToBigInt(f E) *big.Int {
+	x := m.toMontBigInt(f)
+	x.Mul(x, m.rInv).Mod(x, m.q)
+	return x
+}
+
+// bigIntToElement converts canonical big.Int to Montgomery form element
+func (m *modulus[E]) bigIntToElement(b *big.Int) E {
+	if b.Sign() == -1 {
+		panic("negative value")
+	}
+	x := new(big.Int).Lsh(b, m.logR)
+	x.Mod(x, m.q)
+	return m.montBigIntToElement(x)
+}
+
 // blueprintSolver is a constraint.Solver that can be used to test a circuit
 // it is a separate type to avoid method collisions with the engine.
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
-	q                 *big.Int
-	rInv              *big.Int // R⁻¹ mod q for efficient Montgomery conversion
+	*modulus[E]
 }
 
 // implements constraint.Solver
@@ -41,15 +108,15 @@ func (s *blueprintSolver[E]) IsSolved(vID uint32) bool {
 
 func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
 	b := utils.FromInterface(i)
-	return s.toElement(&b)
+	return s.bigIntToElement(&b)
 }
 
 // ToBigInt converts element (Montgomery form) to canonical big.Int
 func (s *blueprintSolver[E]) ToBigInt(f E) *big.Int {
 	x := s.toMontBigInt(f)
 	x.
-		Mul(x, s.rInv).
-		Mod(x, s.q)
+		Mul(x, s.modulus.rInv).
+		Mod(x, s.modulus.q)
 	return x
 }
 
@@ -82,43 +149,43 @@ func (s *blueprintSolver[E]) montBigIntToElement(mont *big.Int) E {
 func (s *blueprintSolver[E]) Mul(a, b E) E {
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Mul(ba, bb).
-		Mod(ba, s.q).
-		Mul(ba, s.rInv).
-		Mod(ba, s.q)
+		Mod(ba, s.modulus.q).
+		Mul(ba, s.modulus.rInv).
+		Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Add(a, b E) E {
 	// Addition works the same in Montgomery form: (a*R + b*R) mod m = (a+b)*R mod m
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
-	ba.Add(ba, bb).Mod(ba, s.q)
+	ba.Add(ba, bb).Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Sub(a, b E) E {
 	// Subtraction works the same in Montgomery form: (a*R - b*R) mod m = (a-b)*R mod m
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
-	ba.Sub(ba, bb).Mod(ba, s.q)
+	ba.Sub(ba, bb).Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Neg(a E) E {
 	// Negation works the same in Montgomery form: -(a*R) mod m = (-a)*R mod m
 	ba := s.toMontBigInt(a)
-	ba.Neg(ba).Mod(ba, s.q)
+	ba.Neg(ba).Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
 func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
 	r := s.toMontBigInt(a)
-	r = r.ModInverse(r, s.q)
+	r = r.ModInverse(r, s.modulus.q)
 	if r == nil {
 		var zero E
 		return zero, false
 	}
-	r.Lsh(r, logR(s.q)).
-		Mod(r, s.q)
-	return s.toElement(r), true
+	r.Lsh(r, s.modulus.logR).
+		Mod(r, s.modulus.q)
+	return s.bigIntToElement(r), true
 }
 func (s *blueprintSolver[E]) One() E {
 	b := new(big.Int).SetUint64(1)
-	return s.toElement(b)
+	return s.bigIntToElement(b)
 }
 func (s *blueprintSolver[E]) IsOne(a E) bool {
 	return a == s.One()
@@ -158,71 +225,45 @@ func (s *blueprintSolver[E]) Read(calldata []uint32) (E, int) {
 	}
 
 	// Convert canonical to Montgomery and return as element
-	return s.toElement(canonicalValue), nWords
+	return s.bigIntToElement(canonicalValue), nWords
 }
 
-func (s *blueprintSolver[E]) toElement(b *big.Int) E {
+func (s *blueprintSolver[E]) bigIntToElement(b *big.Int) E {
 	if b.Sign() == -1 {
 		panic("negative value")
 	}
 
-	x := new(big.Int).Lsh(b, logR(s.q))
-	x.Mod(x, s.q)
+	x := new(big.Int).Lsh(b, s.modulus.logR)
+	x.Mod(x, s.modulus.q)
 	return s.montBigIntToElement(x)
 }
 
-// logR returns log₂(R)
-func logR(modulus *big.Int) uint {
-	if smallfields.IsSmallField(modulus) {
-		return 32
-	}
-	// For large fields, R = 2^{nbLimbs * 64}
-	nbBits := modulus.BitLen()
-	nbLimbs := (nbBits + 63) / 64
-	return uint(nbLimbs * 64)
-}
-
-// rInv computes R⁻¹ mod modulus
-func rInv(modulus *big.Int) *big.Int {
-	x := big.NewInt(1)
-	x = x.
-		Lsh(x, logR(modulus)).
-		ModInverse(x, modulus)
-	return x
-}
-
 // wrappedBigInt is a wrapper around big.Int to implement the frontend.CanonicalVariable interface
-type wrappedBigInt struct {
+type wrappedBigInt[E constraint.Element] struct {
 	*big.Int
-	modulus *big.Int
+	*modulus[E]
 }
 
 // Compress writes canonical bytes to calldata (no Montgomery conversion)
-func (w wrappedBigInt) Compress(to *[]uint32) {
+func (w wrappedBigInt[E]) Compress(to *[]uint32) {
 	if w.Sign() == -1 {
 		panic("negative value")
 	}
 
-	bytes := w.Bytes()
-	if smallfields.IsSmallField(w.modulus) {
-		if len(bytes) > 4 {
-			panic("value too big")
-		}
-		paddedBytes := make([]byte, 4)
-		copy(paddedBytes[4-len(bytes):], bytes[:])
-		e := constraint.NewElement[constraint.U32](paddedBytes[:])
+	// Use montBigIntToElement to handle byte padding and type switching
+	e := w.modulus.montBigIntToElement(w.Int)
+
+	// Extract uint32 values from the element
+	switch e := any(e).(type) {
+	case constraint.U32:
 		*to = append(*to, uint32(e[0]))
-	} else {
-		if len(bytes) > 48 {
-			panic("value too big")
-		}
-		paddedBytes := make([]byte, 48)
-		copy(paddedBytes[48-len(bytes):], bytes[:])
-		e := constraint.NewElement[constraint.U64](paddedBytes[:])
+	case constraint.U64:
 		// append the uint32 words to the slice
 		for i := range e {
 			*to = append(*to, uint32(e[i]>>32))
 			*to = append(*to, uint32(e[i]&0xffffffff))
 		}
+	default:
+		panic("unsupported type")
 	}
 }

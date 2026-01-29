@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testBigIntoToElement[E constraint.Element](t *testing.T, modulus *big.Int) {
+func testBigIntoToElement[E constraint.Element](t *testing.T, fieldModulus *big.Int) {
 	// sample a random big.Int, convert it to an element, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{q: modulus, rInv: rInv(modulus)}
+	s := blueprintSolver[E]{modulus: newModulus[E](fieldModulus)}
 	b := big.NewInt(0)
 	for i := 0; i < 50; i++ {
-		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q) //#nosec G404 -- This is a false positive
-		e := s.toElement(b)
+		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.modulus.q) //#nosec G404 -- This is a false positive
+		e := s.bigIntToElement(b)
 		b2 := s.ToBigInt(e)
 		if b.Cmp(b2) != 0 {
 			t.Fatal("b != b2")
@@ -38,10 +38,10 @@ func TestBigIntToElement(t *testing.T) {
 	testBigIntoToElement[constraint.U32](t, babybear.Modulus())
 }
 
-func testBigIntToUint32Slice[E constraint.Element](t *testing.T, modulus *big.Int) {
+func testBigIntToUint32Slice[E constraint.Element](t *testing.T, fieldModulus *big.Int) {
 	// sample a random big.Int, write it to a uint32 slice, and back
 	// to a big.Int, and check that it's the same
-	s := blueprintSolver[E]{q: modulus, rInv: rInv(modulus)}
+	s := blueprintSolver[E]{modulus: newModulus[E](fieldModulus)}
 	var elementLen int // number of uint32 words in the element
 	var e E
 	switch any(e).(type) {
@@ -57,10 +57,10 @@ func testBigIntToUint32Slice[E constraint.Element](t *testing.T, modulus *big.In
 	randSource := rand.New(rand.NewSource(time.Now().Unix())) //#nosec G404 -- This is a false positive
 
 	for i := 0; i < 50; i++ {
-		b1.Rand(randSource, s.q)
-		b2.Rand(randSource, s.q)
-		wb1 := wrappedBigInt{Int: b1, modulus: modulus}
-		wb2 := wrappedBigInt{Int: b2, modulus: modulus}
+		b1.Rand(randSource, s.modulus.q)
+		b2.Rand(randSource, s.modulus.q)
+		wb1 := wrappedBigInt[E]{Int: b1, modulus: s.modulus}
+		wb2 := wrappedBigInt[E]{Int: b2, modulus: s.modulus}
 		var to []uint32
 		wb1.Compress(&to)
 		wb2.Compress(&to)

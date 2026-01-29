@@ -40,8 +40,7 @@ import (
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
 	curveID ecc.ID
-	q       *big.Int
-	rInv    *big.Int // R⁻¹ mod q for efficient Montgomery conversion
+	q       *big.Int // field modulus
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
@@ -88,7 +87,6 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	e := &engine{
 		curveID:   utils.FieldToCurve(field),
 		q:         new(big.Int).Set(field),
-		rInv:      rInv(field),
 		constVars: false,
 		Store:     kvstore.New(),
 	}
@@ -740,8 +738,7 @@ func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.Bluep
 	// solve the blueprint synchronously
 	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
-		q:                 e.q,
-		rInv:              e.rInv,
+		modulus:           newModulus[E](e.q),
 	}
 	if err := blueprint.Solve(&s, inst); err != nil {
 		panic(err)
@@ -792,7 +789,10 @@ func (e *engine) InternalVariable(vID uint32) frontend.Variable {
 // this is used in custom blueprints to return a variable than can be encoded in blueprints
 func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
 	r := e.toBigInt(v)
-	return wrappedBigInt{Int: r, modulus: e.q}
+	if smallfields.IsSmallField(e.q) {
+		return wrappedBigInt[constraint.U32]{Int: r, modulus: newModulus[constraint.U32](e.q)}
+	}
+	return wrappedBigInt[constraint.U64]{Int: r, modulus: newModulus[constraint.U64](e.q)}
 }
 
 func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
