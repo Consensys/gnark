@@ -202,22 +202,6 @@ func collectVirtualSample(pc []uintptr, count int64, name string) {
 	}
 }
 
-// // filterEmulatedPrivateFunc filters internal emulated package functions from virtual samples.
-// func filterEmulatedPrivateFunc(f string) bool {
-// 	const emulatedPrefix = "github.com/consensys/gnark/std/math/emulated.(*Field"
-// 	if strings.HasPrefix(f, emulatedPrefix) {
-// 		// keep public methods (capitalized after the method receiver)
-// 		idx := strings.LastIndex(f, ").")
-// 		if idx != -1 && idx+2 < len(f) {
-// 			c := []rune(f)[idx+2]
-// 			if unicode.IsLower(c) {
-// 				return true
-// 			}
-// 		}
-// 	}
-// 	return false
-// }
-
 func filterSCSPrivateFunc(f string) bool {
 	const scsPrefix = "github.com/consensys/gnark/frontend/cs/scs.(*builder)."
 	if strings.HasPrefix(f, scsPrefix) && len(f) > len(scsPrefix) {
