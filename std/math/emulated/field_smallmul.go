@@ -134,17 +134,33 @@ func (mc *smallMulCheck[T]) check(api frontend.API, peval, coef frontend.Variabl
 	// as we already perform a == q * p check before adding entry. We only have an entry
 	// to ensure that q is also included in the unweighted sum above for range checking.
 
-	// Start with the last entry
-	lastEntry := mc.entries[n-1]
-	sumAB := api.Mul(lastEntry.a, lastEntry.b)
-	sumR := lastEntry.r
-	sumQ := lastEntry.q
-	if lastEntry.checkZero {
+	// Find the last non-zero-check entry to initialize Horner's method.
+	var sumAB, sumR, sumQ frontend.Variable
+	startIdx := -1
+	for i := n - 1; i >= 0; i-- {
+		if !mc.entries[i].checkZero {
+			startIdx = i
+			break
+		}
+	}
+
+	if startIdx == -1 {
+		// All entries are zero checks: there is no non-trivial multiplication to batch.
+		// Initialize the accumulators to zero; the loop below will keep them at zero
+		// because all entries are skipped.
+		sumAB = 0
+		sumR = 0
 		sumQ = 0
+	} else {
+		// Start with the last non-zero-check entry
+		lastEntry := mc.entries[startIdx]
+		sumAB = api.Mul(lastEntry.a, lastEntry.b)
+		sumR = lastEntry.r
+		sumQ = lastEntry.q
 	}
 
 	// Process remaining entries using Horner's method (backwards)
-	for i := n - 2; i >= 0; i-- {
+	for i := startIdx - 1; i >= 0; i-- {
 		e := mc.entries[i]
 		if e.checkZero {
 			continue
