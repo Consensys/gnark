@@ -213,3 +213,81 @@ func TestReadMont(t *testing.T) {
 	// Test with engine
 	require.NoError(t, IsSolved(circuit, assignment, field))
 }
+
+func testArithmetic[E constraint.Element](t *testing.T, modulus *big.Int) {
+	s := blueprintSolver[E]{modulus: newModulus[E](modulus)}
+	randSource := rand.New(rand.NewSource(time.Now().Unix())) //#nosec G404 -- This is a false positive
+
+	for range 100 {
+		// Generate random values
+		a := new(big.Int).Rand(randSource, modulus)
+		b := new(big.Int).Rand(randSource, modulus)
+
+		// Convert to elements
+		ea := s.bigIntToElement(a)
+		eb := s.bigIntToElement(b)
+
+		// Test Mul
+		res := s.Mul(ea, eb)
+		expected := new(big.Int).Mul(a, b)
+		expected.Mod(expected, modulus)
+		actualProduct := s.ToBigInt(res)
+		require.Equal(t, 0, expected.Cmp(actualProduct), "Mul failed: expected %v, got %v", expected, actualProduct)
+
+		// Test Add
+		res = s.Add(ea, eb)
+		expected = new(big.Int).Add(a, b)
+		expected.Mod(expected, modulus)
+		actual := s.ToBigInt(res)
+		require.Equal(t, 0, expected.Cmp(actual), "Add failed: expected %v, got %v", expected, actual)
+
+		// Test Sub
+		res = s.Sub(ea, eb)
+		expected = new(big.Int).Sub(a, b)
+		expected.Mod(expected, modulus)
+		actual = s.ToBigInt(res)
+		require.Equal(t, 0, expected.Cmp(actual), "Sub failed: expected %v, got %v", expected, actual)
+
+		// Test Neg
+		res = s.Neg(ea)
+		expected = new(big.Int).Neg(a)
+		expected.Mod(expected, modulus)
+		actual = s.ToBigInt(res)
+		require.Equal(t, 0, expected.Cmp(actual), "Neg failed: expected %v, got %v", expected, actual)
+
+		// Test Inverse (skip zero)
+		if a.Sign() != 0 {
+			res, ok := s.Inverse(ea)
+			require.True(t, ok, "Inverse should succeed for non-zero value")
+			expected = new(big.Int).ModInverse(a, modulus)
+			actual = s.ToBigInt(res)
+			require.Equal(t, 0, expected.Cmp(actual), "Inverse failed: expected %v, got %v", expected, actual)
+
+			// Verify a * a⁻¹ = 1
+			res = s.Mul(ea, res)
+			actual = s.ToBigInt(res)
+			require.Equal(t, 0, big.NewInt(1).Cmp(actual), "a * a⁻¹ should equal 1")
+		}
+	}
+
+	// Test Inverse of zero
+	var zero E
+	_, ok := s.Inverse(zero)
+	require.False(t, ok, "Inverse of zero should fail")
+
+	// Test Neg of zero
+	res := s.Neg(zero)
+	require.Equal(t, zero, res, "Neg of zero should be zero")
+}
+
+func TestArithmetic(t *testing.T) {
+	t.Run("BW6_761", func(t *testing.T) {
+		testArithmetic[constraint.U64](t, ecc.BW6_761.ScalarField())
+	})
+	t.Run("BN254", func(t *testing.T) {
+		testArithmetic[constraint.U64](t, ecc.BN254.ScalarField())
+	})
+	t.Run("BabyBear", func(t *testing.T) {
+		testArithmetic[constraint.U32](t, babybear.Modulus())
+	})
+}
