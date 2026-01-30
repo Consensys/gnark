@@ -55,9 +55,9 @@ func (c *commitChecker) Check(in frontend.Variable, bits int) {
 		panic("checker already closed")
 	}
 
-	// Record virtual constraint for profiling - tracks range checks at call site
+	// Record operation for profiling - tracks range checks at call site
 	// The bit width is included in the name for visibility in pprof flamegraphs
-	profile.RecordVirtual("rangecheck", (bits+15)/16)
+	profile.RecordOperation("rangecheck", (bits+15)/16)
 
 	switch bits {
 	case 0:

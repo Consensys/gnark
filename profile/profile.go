@@ -41,15 +41,15 @@ type Profile struct {
 
 	chDone chan struct{}
 
-	// virtualWeights maps virtual constraint names to their weight multipliers.
-	// When RecordVirtual is called with a name that matches a key, the count
+	// operationWeights maps operation names to their weight multipliers.
+	// When RecordOperation is called with a name that matches a key, the count
 	// is multiplied by the corresponding weight.
-	virtualWeights map[string]int
+	operationWeights map[string]int
 
-	// excludeConstraints and excludeVirtual control which sample types
+	// excludeConstraints and excludeOperations control which sample types
 	// are included in the exported profile
 	excludeConstraints bool
-	excludeVirtual     bool
+	excludeOperations  bool
 }
 
 // Option defines configuration Options for Profile.
@@ -73,27 +73,27 @@ func WithNoOutput() Option {
 	}
 }
 
-// WithVirtualWeights sets weight multipliers for virtual constraint names.
-// When RecordVirtual is called with a name that matches a key in the weights map,
+// WithOperationWeights sets weight multipliers for operation names.
+// When RecordOperation is called with a name that matches a key in the weights map,
 // the count is multiplied by the corresponding weight value.
 //
-// This allows users to have more representative and tunable profiles for virtual
-// constraints, especially useful when different operations have different costs.
+// This allows users to have more representative and tunable profiles for
+// operations, especially useful when different operations have different costs.
 //
 // Example:
 //
-//	p := profile.Start(profile.WithVirtualWeights(map[string]int{
+//	p := profile.Start(profile.WithOperationWeights(map[string]int{
 //	    "emulated.Mul": 10,
 //	    "rangecheck":   5,
 //	}))
-func WithVirtualWeights(weights map[string]int) Option {
+func WithOperationWeights(weights map[string]int) Option {
 	return func(p *Profile) {
-		p.virtualWeights = weights
+		p.operationWeights = weights
 	}
 }
 
 // WithoutConstraints excludes constraint samples from the exported profile.
-// When enabled, only virtual operation samples will appear in the pprof output.
+// When enabled, only operation samples will appear in the pprof output.
 // This is useful when you only care about high-level operation counts.
 func WithoutConstraints() Option {
 	return func(p *Profile) {
@@ -101,13 +101,13 @@ func WithoutConstraints() Option {
 	}
 }
 
-// WithoutVirtual excludes virtual operation samples from the exported profile.
+// WithoutOperations excludes operation samples from the exported profile.
 // When enabled, only constraint samples will appear in the pprof output.
 // This is useful when you want a profile compatible with older tools that
 // don't expect multiple sample types, or when you only care about constraints.
-func WithoutVirtual() Option {
+func WithoutOperations() Option {
 	return func(p *Profile) {
-		p.excludeVirtual = true
+		p.excludeOperations = true
 	}
 }
 
@@ -130,11 +130,11 @@ func Start(options ...Option) *Profile {
 		filePath:  filepath.Join(".", "gnark.pprof"),
 		chDone:    make(chan struct{}),
 	}
-	// Two sample types: constraints (actual) and virtual (for tracking operations at call site)
-	// Use: go tool pprof -sample_index=0 for constraints, -sample_index=1 for virtual
+	// Two sample types: constraints (actual) and operations (for tracking operations at call site)
+	// Use: go tool pprof -sample_index=0 for constraints, -sample_index=1 for operations
 	p.pprof.SampleType = []*profile.ValueType{
 		{Type: "constraints", Unit: "count"},
-		{Type: "virtual", Unit: "count"},
+		{Type: "operations", Unit: "count"},
 	}
 	// Set default sample type to "constraints" for backwards compatibility
 	// Without this, pprof may default to the last sample type
@@ -144,8 +144,8 @@ func Start(options ...Option) *Profile {
 		option(&p)
 	}
 
-	if p.excludeConstraints && p.excludeVirtual {
-		panic("profile: cannot use both WithoutConstraints and WithoutVirtual options")
+	if p.excludeConstraints && p.excludeOperations {
+		panic("profile: cannot use both WithoutConstraints and WithoutOperations options")
 	}
 
 	log := logger.Logger()
@@ -213,13 +213,13 @@ func (p *Profile) NbConstraints() int {
 	return count
 }
 
-// NbVirtualOperations returns the total count of virtual operations recorded.
-// Returns 0 if WithoutVirtual option was used.
-func (p *Profile) NbVirtualOperations() int {
-	if p.excludeVirtual {
+// NbOperations returns the total count of operations recorded.
+// Returns 0 if WithoutOperations option was used.
+func (p *Profile) NbOperations() int {
+	if p.excludeOperations {
 		return 0
 	}
-	// When excludeConstraints is set, virtual values are at index 0
+	// When excludeConstraints is set, operation values are at index 0
 	idx := 1
 	if p.excludeConstraints {
 		idx = 0
@@ -252,13 +252,13 @@ func (p *Profile) Top() string {
 	return buf.String()
 }
 
-// TopVirtual return a similar output than pprof top command for virtual operations (sample_index=1).
-// Returns empty string if WithoutVirtual option was used.
-func (p *Profile) TopVirtual() string {
-	if p.excludeVirtual {
+// TopOperations return a similar output than pprof top command for operations (sample_index=1).
+// Returns empty string if WithoutOperations option was used.
+func (p *Profile) TopOperations() string {
+	if p.excludeOperations {
 		return ""
 	}
-	// When excludeConstraints is set, virtual values are at index 0
+	// When excludeConstraints is set, operation values are at index 0
 	idx := 1
 	if p.excludeConstraints {
 		idx = 0
@@ -292,28 +292,28 @@ func RecordConstraint() {
 	chCommands <- command{pc: pc}
 }
 
-// RecordVirtual records a virtual operation with the given name and count.
-// Virtual operations are recorded at call sites (like emulated.Mul) and provide
+// RecordOperation records an operation with the given name and count.
+// Operations are recorded at call sites (like emulated.Mul) and provide
 // an immediate view of high-level operations independently of when actual constraints
 // are created (which may happen later in deferred callbacks).
 //
-// Virtual samples appear in the same pprof file with a different sample type.
+// Operation samples appear in the same pprof file with a different sample type.
 //
 // Usage:
 //
 //	go tool pprof gnark.pprof                    # constraints (default)
-//	go tool pprof -sample_index=1 gnark.pprof   # virtual operations
+//	go tool pprof -sample_index=1 gnark.pprof   # operations
 //
 // Web UI:
 //
 //	go tool pprof -http=:8080 gnark.pprof
-//	# Select "virtual" from SAMPLE dropdown (top-left) to see virtual operations
+//	# Select "operations" from SAMPLE dropdown (top-left) to see operations
 //
 // The name parameter should be descriptive and can include metadata:
 //
-//	profile.RecordVirtual("rangecheck_64bits", 1)
-//	profile.RecordVirtual("emulated.Mul_4limbs", 1)
-func RecordVirtual(name string, count int) {
+//	profile.RecordOperation("rangecheck_64bits", 1)
+//	profile.RecordOperation("emulated.Mul_4limbs", 1)
+func RecordOperation(name string, count int) {
 	if n := atomic.LoadUint32(&activeSessions); n == 0 {
 		return // do nothing, no active session.
 	}
@@ -325,7 +325,7 @@ func RecordVirtual(name string, count int) {
 		return
 	}
 	pc = pc[:n]
-	chCommands <- command{pc: pc, virtual: true, virtualCount: int64(count), virtualName: name}
+	chCommands <- command{pc: pc, operation: true, operationCount: int64(count), operationName: name}
 }
 
 func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
@@ -358,31 +358,31 @@ func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
 	return l
 }
 
-// getVirtualLocation returns a synthetic location for a virtual constraint name.
+// getOperationLocation returns a synthetic location for an operation name.
 // This creates a fake function/location that will appear in the pprof output,
 // making names like "rangecheck_64bits" or "emulated.Mul_4limbs" visible in flamegraphs.
 // If weight > 1, a separate location is created with the weight displayed in the name.
-func (p *Profile) getVirtualLocation(name string, weight int) *profile.Location {
+func (p *Profile) getOperationLocation(name string, weight int) *profile.Location {
 	// Include weight in the key when weight > 1 to create separate locations
 	var key, displayName string
 	if weight > 1 {
-		key = "[virtual]" + name + fmt.Sprintf("[x%d]", weight)
+		key = "[operation]" + name + fmt.Sprintf("[x%d]", weight)
 		displayName = fmt.Sprintf("%s [x%d]", name, weight)
 	} else {
-		key = "[virtual]" + name
+		key = "[operation]" + name
 		displayName = name
 	}
 
 	l, ok := p.locations[uint64(hash(key))]
 	if !ok {
-		// Create a synthetic function for this virtual constraint name
+		// Create a synthetic function for this operation name
 		f, ok := p.functions[key]
 		if !ok {
 			f = &profile.Function{
 				ID:         uint64(len(p.functions) + 1),
 				Name:       displayName,
 				SystemName: name,
-				Filename:   "[virtual]",
+				Filename:   "[operation]",
 			}
 			p.functions[key] = f
 			p.pprof.Function = append(p.pprof.Function, f)
@@ -411,11 +411,11 @@ func hash(s string) uint64 {
 // filterSampleTypes modifies the pprof profile to exclude sample types based on options.
 // It updates SampleType and filters sample values accordingly.
 func (p *Profile) filterSampleTypes() {
-	if !p.excludeConstraints && !p.excludeVirtual {
+	if !p.excludeConstraints && !p.excludeOperations {
 		return // nothing to filter
 	}
 
-	if p.excludeVirtual {
+	if p.excludeOperations {
 		// Keep only constraints (index 0)
 		p.pprof.SampleType = []*profile.ValueType{
 			{Type: "constraints", Unit: "count"},
@@ -429,11 +429,11 @@ func (p *Profile) filterSampleTypes() {
 		return
 	}
 
-	// excludeConstraints is true - keep only virtual (index 1)
+	// excludeConstraints is true - keep only operations (index 1)
 	p.pprof.SampleType = []*profile.ValueType{
-		{Type: "virtual", Unit: "count"},
+		{Type: "operations", Unit: "count"},
 	}
-	p.pprof.DefaultSampleType = "virtual"
+	p.pprof.DefaultSampleType = "operations"
 	for _, s := range p.pprof.Sample {
 		if len(s.Value) > 1 {
 			s.Value = []int64{s.Value[1]}

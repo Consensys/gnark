@@ -196,8 +196,8 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 	// Add entry to the batch
 	smc.addEntry(a.Limbs[0], b.Limbs[0], r, q, qBits)
 
-	// Record virtual constraint for profiling
-	profile.RecordVirtual("emulated.SmallMulMod", 3)
+	// Record operation for profiling
+	profile.RecordOperation("emulated.SmallMulMod", 3)
 
 	// Return result as single-limb element
 	return f.newInternalElement([]frontend.Variable{r}, 0)
@@ -294,8 +294,8 @@ func (f *Field[T]) smallCheckZero(a *Element[T]) {
 	// The batch check will verify a = q * p, proving a ≡ 0 (mod p).
 	smc.addEntry(a.Limbs[0], 1, 0, q, qBits)
 
-	// Record virtual constraint for profiling
-	profile.RecordVirtual("emulated.SmallCheckZero", 1)
+	// Record operation for profiling
+	profile.RecordOperation("emulated.SmallCheckZero", 1)
 }
 
 // callSmallCheckZeroHint computes q such that a = q * p (+ remainder).

@@ -259,10 +259,10 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		p: p,
 	}
 	f.deferredChecks = append(f.deferredChecks, &mc)
-	// Record virtual constraint for profiling - this tracks the operation at call site
+	// Record operation for profiling - this tracks the operation at call site
 	// independently of when the actual constraints are created in deferred callbacks.
 	// Include limb count in the name for visibility in pprof flamegraphs.
-	profile.RecordVirtual("emulated.MulMod", len(a.Limbs)+len(b.Limbs)+len(r.Limbs)+len(k.Limbs)+len(c.Limbs))
+	profile.RecordOperation("emulated.MulMod", len(a.Limbs)+len(b.Limbs)+len(r.Limbs)+len(k.Limbs)+len(c.Limbs))
 	return r
 }
 
@@ -301,9 +301,9 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	}
 	f.deferredChecks = append(f.deferredChecks, &mc)
 
-	// Record virtual constraint for profiling - this tracks the operation at call site
+	// Record operation for profiling - this tracks the operation at call site
 	// independently of when the actual constraints are created in deferred callbacks.
-	profile.RecordVirtual("emulated.CheckZero", len(a.Limbs)+len(k.Limbs)+len(c.Limbs))
+	profile.RecordOperation("emulated.CheckZero", len(a.Limbs)+len(k.Limbs)+len(c.Limbs))
 }
 
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
@@ -744,7 +744,7 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 			resLimbs[i+j] = f.api.MulAcc(resLimbs[i+j], a.Limbs[i], b.Limbs[j])
 		}
 	}
-	profile.RecordVirtual("emulated.MulNoReduce", 2*len(resLimbs))
+	profile.RecordOperation("emulated.MulNoReduce", 2*len(resLimbs))
 	return f.newInternalElement(resLimbs, nextoverflow)
 }
 
@@ -894,13 +894,13 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 
 	f.deferredChecks = append(f.deferredChecks, &mvc)
 
-	// Record virtual constraint for profiling
+	// Record operation for profiling
 	nbLimbs := 0
 	for i := range allElems {
 		nbLimbs += len(allElems[i].Limbs)
 	}
 	nbLimbs += len(r.Limbs) + len(k.Limbs) + len(c.Limbs)
-	profile.RecordVirtual("emulated.Eval", nbLimbs)
+	profile.RecordOperation("emulated.Eval", nbLimbs)
 	return r
 }
 

@@ -151,7 +151,7 @@ func WithCommitment(api frontend.API, cb WithCommitmentFn, committedVariables ..
 	if mct.closed {
 		panic("called WithCommitment recursively")
 	}
-	profile.RecordVirtual("multicommit.WithCommitment", len(committedVariables))
+	profile.RecordOperation("multicommit.WithCommitment", len(committedVariables))
 	mct.vars = append(mct.vars, committedVariables...)
 	mct.cbs = append(mct.cbs, cb)
 }

@@ -94,7 +94,7 @@ func (t *table[E]) Insert(val frontend.Variable) (index int) {
 	v.Compress(&t.blueprint.EntriesCalldata)
 
 	// Record constraints for profiling
-	profile.RecordVirtual("logderivlookup.Insert", 3)
+	profile.RecordOperation("logderivlookup.Insert", 3)
 
 	return len(t.entries) - 1
 }
@@ -115,7 +115,7 @@ func (t *table[E]) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) 
 	}
 
 	// Record constraints for profiling
-	profile.RecordVirtual("logderivlookup.Lookup", 3*len(inds))
+	profile.RecordOperation("logderivlookup.Lookup", 3*len(inds))
 
 	return t.performLookup(inds)
 }

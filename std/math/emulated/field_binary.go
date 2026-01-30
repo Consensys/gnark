@@ -32,8 +32,8 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	}
 	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
 
-	// Record virtual constraints for profiling
-	profile.RecordVirtual("emulated.ToBits", 4*len(fullBits))
+	// Record operation for profiling
+	profile.RecordOperation("emulated.ToBits", 4*len(fullBits))
 	return fullBits
 }
 

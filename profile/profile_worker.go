@@ -18,12 +18,12 @@ var chCommands = make(chan command, 100)
 var onceInit sync.Once
 
 type command struct {
-	p            *Profile
-	pc           []uintptr
-	remove       bool
-	virtual      bool
-	virtualCount int64
-	virtualName  string // name to display in pprof (e.g., "rangecheck_64bits")
+	p              *Profile
+	pc             []uintptr
+	remove         bool
+	operation      bool
+	operationCount int64
+	operationName  string // name to display in pprof (e.g., "rangecheck_64bits")
 }
 
 func worker() {
@@ -48,8 +48,8 @@ func worker() {
 		}
 
 		// it's a sampling event
-		if c.virtual {
-			collectVirtualSample(c.pc, c.virtualCount, c.virtualName)
+		if c.operation {
+			collectOperationSample(c.pc, c.operationCount, c.operationName)
 		} else {
 			collectSample(c.pc)
 		}
@@ -62,7 +62,7 @@ func collectSample(pc []uintptr) {
 	// for each session we may have a distinct sample, since ids of functions and locations may mismatch
 	samples := make([]*profile.Sample, len(sessions))
 	for i := 0; i < len(samples); i++ {
-		// Value[0] = constraints count, Value[1] = virtual count
+		// Value[0] = constraints count, Value[1] = operations count
 		samples[i] = &profile.Sample{Value: []int64{1, 0}}
 	}
 
@@ -123,30 +123,30 @@ func collectSample(pc []uintptr) {
 
 }
 
-// collectVirtualSample collects a virtual operation sample. Virtual samples are recorded
+// collectOperationSample collects an operation sample. Operation samples are recorded
 // at the call site (e.g., emulated.Mul) and provide insight into high-level operations
 // independently of deferred constraint creation.
-func collectVirtualSample(pc []uintptr, count int64, name string) {
+func collectOperationSample(pc []uintptr, count int64, name string) {
 	// for each session we may have a distinct sample, since ids of functions and locations may mismatch
 	samples := make([]*profile.Sample, len(sessions))
 	for i := 0; i < len(samples); i++ {
 		// Apply weight multiplier if the session has a weight for this name
 		effectiveCount := count
 		var weight int
-		if sessions[i].virtualWeights != nil {
-			if w, ok := sessions[i].virtualWeights[name]; ok {
+		if sessions[i].operationWeights != nil {
+			if w, ok := sessions[i].operationWeights[name]; ok {
 				weight = w
 				effectiveCount = count * int64(weight)
 			}
 		}
 
-		// Value[0] = constraints count, Value[1] = virtual count
+		// Value[0] = constraints count, Value[1] = operations count
 		samples[i] = &profile.Sample{Value: []int64{0, effectiveCount}}
 
-		// Add a synthetic location for the virtual constraint name at the top of the stack
+		// Add a synthetic location for the operation name at the top of the stack
 		// This makes the name visible in pprof flamegraphs (e.g., "rangecheck_64bits")
 		if name != "" {
-			syntheticLoc := sessions[i].getVirtualLocation(name, weight)
+			syntheticLoc := sessions[i].getOperationLocation(name, weight)
 			samples[i].Location = append(samples[i].Location, syntheticLoc)
 		}
 	}

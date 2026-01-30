@@ -83,7 +83,7 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		f.api.AssertIsEqual(ll, 0)
 	}
 
-	profile.RecordVirtual("emulated.AssertIsLessOrEqual", 4*(len(eBits)+len(aBits)))
+	profile.RecordOperation("emulated.AssertIsLessOrEqual", 4*(len(eBits)+len(aBits)))
 }
 
 // AssertIsInRange ensures that a is less than the emulated modulus. When we
