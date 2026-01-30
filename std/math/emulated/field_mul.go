@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/internal/fieldextension"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/multicommit"
@@ -243,6 +244,11 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		return f.smallMulMod(aLimb, bLimb)
 	}
 
+	// Record virtual constraint for profiling - this tracks the operation at call site
+	// independently of when the actual constraints are created in deferred callbacks.
+	// Include limb count in the name for visibility in pprof flamegraphs.
+	profile.RecordVirtual(fmt.Sprintf("emulated.Mul_%dlimbs", f.fParams.NbLimbs()))
+
 	f.enforceWidthConditional(p)
 	k, r, c, err := f.callMulHint(a, b, true, p)
 	if err != nil {
@@ -276,6 +282,10 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 		f.smallCheckZero(aLimb)
 		return
 	}
+
+	// Record virtual constraint for profiling - this tracks the operation at call site
+	// independently of when the actual constraints are created in deferred callbacks.
+	profile.RecordVirtual(fmt.Sprintf("emulated.AssertIsEqual_%dlimbs", f.fParams.NbLimbs()))
 
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
@@ -869,6 +879,9 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if err != nil {
 		panic(err)
 	}
+
+	// Record virtual constraint for profiling
+	profile.RecordVirtual("emulated.Eval")
 
 	// finally, we store the deferred check which is performed later. The
 	// `mvCheck` implements the deferredChecker interface, so that we use the

@@ -6,6 +6,7 @@ package profile
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,6 +40,15 @@ type Profile struct {
 	onceSetName sync.Once
 
 	chDone chan struct{}
+
+	// virtualMapping is a separate mapping for virtual constraints to distinguish
+	// them visually in pprof viewers
+	virtualMapping *profile.Mapping
+
+	// virtualWeights maps virtual constraint names to their weight multipliers.
+	// When RecordVirtual is called with a name that matches a key, the count
+	// is multiplied by the corresponding weight.
+	virtualWeights map[string]int
 }
 
 // Option defines configuration Options for Profile.
@@ -62,6 +72,25 @@ func WithNoOutput() Option {
 	}
 }
 
+// WithVirtualWeights sets weight multipliers for virtual constraint names.
+// When RecordVirtual is called with a name that matches a key in the weights map,
+// the count is multiplied by the corresponding weight value.
+//
+// This allows users to have more representative and tunable profiles for virtual
+// constraints, especially useful when different operations have different costs.
+//
+// Example:
+//
+//	p := profile.Start(profile.WithVirtualWeights(map[string]int{
+//	    "emulated.Mul": 10,
+//	    "rangecheck":   5,
+//	}))
+func WithVirtualWeights(weights map[string]int) Option {
+	return func(p *Profile) {
+		p.virtualWeights = weights
+	}
+}
+
 // Start creates a new active profiling session. When Stop() is called, this session is removed from
 // active profiling sessions and may be serialized to disk as a pprof compatible file (see ProfilePath option).
 //
@@ -81,10 +110,17 @@ func Start(options ...Option) *Profile {
 		filePath:  filepath.Join(".", "gnark.pprof"),
 		chDone:    make(chan struct{}),
 	}
-	p.pprof.SampleType = []*profile.ValueType{{
-		Type: "constraints",
-		Unit: "count",
-	}}
+	// Two sample types: constraints (actual) and virtual (for tracking operations at call site)
+	// Use: go tool pprof -sample_index=0 for constraints, -sample_index=1 for virtual
+	p.pprof.SampleType = []*profile.ValueType{
+		{Type: "constraints", Unit: "count"},
+		{Type: "virtual", Unit: "count"},
+	}
+	// Set default sample type to "constraints" for backwards compatibility
+	// Without this, pprof may default to the last sample type
+	p.pprof.DefaultSampleType = "constraints"
+	// Virtual mapping to visually distinguish virtual samples in flamegraphs
+	p.virtualMapping = &profile.Mapping{ID: 2, File: "[virtual]"}
 
 	for _, option := range options {
 		option(&p)
@@ -136,12 +172,30 @@ func (p *Profile) Stop() {
 
 }
 
-// NbConstraints return number of collected samples (constraints) by the profile session
+// NbConstraints return number of collected samples (constraints) by the profile session.
+// Note: this counts samples, not actual constraint count when using sample values > 1.
 func (p *Profile) NbConstraints() int {
-	return len(p.pprof.Sample)
+	var count int
+	for _, s := range p.pprof.Sample {
+		if len(s.Value) > 0 {
+			count += int(s.Value[0])
+		}
+	}
+	return count
 }
 
-// Top return a similar output than pprof top command
+// NbVirtualOperations returns the total count of virtual operations recorded.
+func (p *Profile) NbVirtualOperations() int {
+	var count int
+	for _, s := range p.pprof.Sample {
+		if len(s.Value) > 1 {
+			count += int(s.Value[1])
+		}
+	}
+	return count
+}
+
+// Top return a similar output than pprof top command for constraints (sample_index=0)
 func (p *Profile) Top() string {
 	r := report.NewDefault(&p.pprof, report.Options{
 		OutputFormat:  report.Tree,
@@ -149,6 +203,21 @@ func (p *Profile) Top() string {
 		NodeFraction:  0.005,
 		EdgeFraction:  0.001,
 		SampleValue:   func(v []int64) int64 { return v[0] },
+		SampleUnit:    "count",
+	})
+	var buf bytes.Buffer
+	report.Generate(&buf, r)
+	return buf.String()
+}
+
+// TopVirtual return a similar output than pprof top command for virtual operations (sample_index=1)
+func (p *Profile) TopVirtual() string {
+	r := report.NewDefault(&p.pprof, report.Options{
+		OutputFormat:  report.Tree,
+		CompactLabels: true,
+		NodeFraction:  0.005,
+		EdgeFraction:  0.001,
+		SampleValue:   func(v []int64) int64 { return v[1] },
 		SampleUnit:    "count",
 	})
 	var buf bytes.Buffer
@@ -170,6 +239,42 @@ func RecordConstraint() {
 	}
 	pc = pc[:n]
 	chCommands <- command{pc: pc}
+}
+
+// RecordVirtual records a virtual operation with the given name and count.
+// Virtual operations are recorded at call sites (like emulated.Mul) and provide
+// an immediate view of high-level operations independently of when actual constraints
+// are created (which may happen later in deferred callbacks).
+//
+// Virtual samples appear in the same pprof file with a different sample type.
+//
+// Usage:
+//
+//	go tool pprof gnark.pprof                    # constraints (default)
+//	go tool pprof -sample_index=1 gnark.pprof   # virtual operations
+//
+// Web UI:
+//
+//	go tool pprof -http=:8080 gnark.pprof
+//	# Select "virtual" from SAMPLE dropdown (top-left) to see virtual operations
+//
+// The name parameter should be descriptive and can include metadata:
+//
+//	profile.RecordVirtual("rangecheck_64bits", 1)
+//	profile.RecordVirtual("emulated.Mul_4limbs", 1)
+func RecordVirtual(name string) {
+	if n := atomic.LoadUint32(&activeSessions); n == 0 {
+		return // do nothing, no active session.
+	}
+
+	// collect the stack and send it async to the worker
+	pc := make([]uintptr, 20)
+	n := runtime.Callers(2, pc)
+	if n == 0 {
+		return
+	}
+	pc = pc[:n]
+	chCommands <- command{pc: pc, virtual: true, virtualCount: int64(1), virtualName: name}
 }
 
 func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
@@ -200,4 +305,54 @@ func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
 	}
 
 	return l
+}
+
+// getVirtualLocation returns a synthetic location for a virtual constraint name.
+// This creates a fake function/location that will appear in the pprof output,
+// making names like "rangecheck_64bits" or "emulated.Mul_4limbs" visible in flamegraphs.
+// If weight > 1, a separate location is created with the weight displayed in the name.
+func (p *Profile) getVirtualLocation(name string, weight int) *profile.Location {
+	// Include weight in the key when weight > 1 to create separate locations
+	var key, displayName string
+	if weight > 1 {
+		key = "[virtual]" + name + fmt.Sprintf("[x%d]", weight)
+		displayName = fmt.Sprintf("%s [x%d]", name, weight)
+	} else {
+		key = "[virtual]" + name
+		displayName = name
+	}
+
+	l, ok := p.locations[uint64(hash(key))]
+	if !ok {
+		// Create a synthetic function for this virtual constraint name
+		f, ok := p.functions[key]
+		if !ok {
+			f = &profile.Function{
+				ID:         uint64(len(p.functions) + 1),
+				Name:       displayName,
+				SystemName: name,
+				Filename:   "[virtual]",
+			}
+			p.functions[key] = f
+			p.pprof.Function = append(p.pprof.Function, f)
+		}
+
+		l = &profile.Location{
+			ID:   uint64(len(p.locations) + 1),
+			Line: []profile.Line{{Function: f, Line: 0}},
+		}
+		p.locations[uint64(hash(key))] = l
+		p.pprof.Location = append(p.pprof.Location, l)
+	}
+	return l
+}
+
+// hash returns a simple hash of a string for use as a map key
+func hash(s string) uint64 {
+	var h uint64 = 14695981039346656037 // FNV-1a offset basis
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= 1099511628211 // FNV-1a prime
+	}
+	return h
 }

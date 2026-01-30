@@ -18,9 +18,12 @@ var chCommands = make(chan command, 100)
 var onceInit sync.Once
 
 type command struct {
-	p      *Profile
-	pc     []uintptr
-	remove bool
+	p            *Profile
+	pc           []uintptr
+	remove       bool
+	virtual      bool
+	virtualCount int64
+	virtualName  string // name to display in pprof (e.g., "rangecheck_64bits")
 }
 
 func worker() {
@@ -44,8 +47,12 @@ func worker() {
 			continue
 		}
 
-		// it's a sampling of event
-		collectSample(c.pc)
+		// it's a sampling event
+		if c.virtual {
+			collectVirtualSample(c.pc, c.virtualCount, c.virtualName)
+		} else {
+			collectSample(c.pc)
+		}
 	}
 
 }
@@ -55,7 +62,8 @@ func collectSample(pc []uintptr) {
 	// for each session we may have a distinct sample, since ids of functions and locations may mismatch
 	samples := make([]*profile.Sample, len(sessions))
 	for i := 0; i < len(samples); i++ {
-		samples[i] = &profile.Sample{Value: []int64{1}} // for now, we just collect new constraints count
+		// Value[0] = constraints count, Value[1] = virtual count
+		samples[i] = &profile.Sample{Value: []int64{1, 0}}
 	}
 
 	frames := runtime.CallersFrames(pc)
@@ -114,6 +122,101 @@ func collectSample(pc []uintptr) {
 	}
 
 }
+
+// collectVirtualSample collects a virtual operation sample. Virtual samples are recorded
+// at the call site (e.g., emulated.Mul) and provide insight into high-level operations
+// independently of deferred constraint creation.
+func collectVirtualSample(pc []uintptr, count int64, name string) {
+	// for each session we may have a distinct sample, since ids of functions and locations may mismatch
+	samples := make([]*profile.Sample, len(sessions))
+	for i := 0; i < len(samples); i++ {
+		// Apply weight multiplier if the session has a weight for this name
+		effectiveCount := count
+		var weight int
+		if sessions[i].virtualWeights != nil {
+			if w, ok := sessions[i].virtualWeights[name]; ok {
+				weight = w
+				effectiveCount = count * int64(weight)
+			}
+		}
+
+		// Value[0] = constraints count, Value[1] = virtual count
+		samples[i] = &profile.Sample{Value: []int64{0, effectiveCount}}
+
+		// Add a synthetic location for the virtual constraint name at the top of the stack
+		// This makes the name visible in pprof flamegraphs (e.g., "rangecheck_64bits")
+		if name != "" {
+			syntheticLoc := sessions[i].getVirtualLocation(name, weight)
+			samples[i].Location = append(samples[i].Location, syntheticLoc)
+		}
+	}
+
+	frames := runtime.CallersFrames(pc)
+	// Loop to get frames.
+	for {
+		frame, more := frames.Next()
+
+		if strings.Contains(frame.Function, "frontend.parseCircuit") {
+			// we stop; previous frame was the .Define definition of the circuit
+			break
+		}
+
+		if strings.HasSuffix(frame.Function, ".func1") {
+			continue
+		}
+
+		// filter internal builder functions
+		if filterSCSPrivateFunc(frame.Function) || filterR1CSPrivateFunc(frame.Function) {
+			continue
+		}
+
+		// // filter emulated internal functions - we want to show the caller
+		// if filterEmulatedPrivateFunc(frame.Function) {
+		// 	continue
+		// }
+
+		frame.Function = strings.ReplaceAll(frame.Function, "[...]", "[T]")
+
+		for i := 0; i < len(samples); i++ {
+			samples[i].Location = append(samples[i].Location, sessions[i].getLocation(&frame))
+		}
+
+		if !more {
+			break
+		}
+		if strings.HasSuffix(frame.Function, ".Define") {
+			for i := 0; i < len(sessions); i++ {
+				sessions[i].onceSetName.Do(func() {
+					fe := strings.Split(frame.Function, "/")
+					circuitName := strings.TrimSuffix(fe[len(fe)-1], ".Define")
+					sessions[i].pprof.Mapping = []*profile.Mapping{
+						{ID: 1, File: circuitName},
+					}
+				})
+			}
+		}
+	}
+
+	for i := 0; i < len(sessions); i++ {
+		sessions[i].pprof.Sample = append(sessions[i].pprof.Sample, samples[i])
+	}
+}
+
+// // filterEmulatedPrivateFunc filters internal emulated package functions from virtual samples.
+// func filterEmulatedPrivateFunc(f string) bool {
+// 	const emulatedPrefix = "github.com/consensys/gnark/std/math/emulated.(*Field"
+// 	if strings.HasPrefix(f, emulatedPrefix) {
+// 		// keep public methods (capitalized after the method receiver)
+// 		idx := strings.LastIndex(f, ").")
+// 		if idx != -1 && idx+2 < len(f) {
+// 			c := []rune(f)[idx+2]
+// 			if unicode.IsLower(c) {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
 
 func filterSCSPrivateFunc(f string) bool {
 	const scsPrefix = "github.com/consensys/gnark/frontend/cs/scs.(*builder)."
