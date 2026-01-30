@@ -369,6 +369,17 @@ func (f *Field[T]) toSingleLimbElement(a *Element[T]) *Element[T] {
 	return f.newInternalElement([]frontend.Variable{singleLimb}, a.overflow)
 }
 
+// smallAdditionalOverflow returns the additional overflow bits needed
+// for small field optimization range checks.
+//
+// For performing range checks, we check that the element is multiple of base
+// length in the range checking package. When the field modulus bit length is
+// not a multiple then we still use the next multiple of the base length for
+// range checking, but define that the non-native small field element can have
+// some additional overflow bits to accommodate this difference.
 func (f *Field[T]) smallAdditionalOverflow() int {
+	if !f.useSmallFieldOptimization() {
+		return 0
+	}
 	return (rangeCheckBaseLengthForSmallField - (f.fParams.Modulus().BitLen() % rangeCheckBaseLengthForSmallField)) % rangeCheckBaseLengthForSmallField
 }
