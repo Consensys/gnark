@@ -2,6 +2,7 @@ package emulated
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -30,6 +31,9 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 		}
 	}
 	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.ToBits", 4*len(fullBits))
 	return fullBits
 }
 
