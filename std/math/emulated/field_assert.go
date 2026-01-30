@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 )
 
 // enforceWidth enforces the width of the limbs. When modWidth is true, then the
@@ -103,6 +104,8 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		ll := f.api.Mul(l, eBits[i])
 		f.api.AssertIsEqual(ll, 0)
 	}
+
+	profile.RecordOperation("emulated.AssertIsLessOrEqual", 4*(len(eBits)+len(aBits)))
 }
 
 // AssertIsInRange ensures that a is less than the emulated modulus. When we

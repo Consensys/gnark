@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 )
 
 // smallMulEntry represents a single multiplication entry for batched verification.
@@ -222,6 +223,9 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 	// Add entry to the batch
 	smc.addEntry(a.Limbs[0], b.Limbs[0], r, q, qBits, false)
 
+	// Record operation for profiling
+	profile.RecordOperation("emulated.SmallMulMod", 3)
+
 	// Return result as single-limb element
 	return f.newInternalElement([]frontend.Variable{r}, uint(f.smallAdditionalOverflow()))
 }
@@ -317,6 +321,9 @@ func (f *Field[T]) smallCheckZero(a *Element[T]) {
 	// The batch check will verify a = q * p, proving a ≡ 0 (mod p).
 	f.api.AssertIsEqual(a.Limbs[0], f.api.Mul(q, f.fParams.Modulus()))
 	smc.addEntry(0, 0, 0, q, qBits, true)
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.SmallCheckZero", 1)
 }
 
 // callSmallCheckZeroHint computes q such that a = q * p (+ remainder).
