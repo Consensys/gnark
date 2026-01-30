@@ -118,7 +118,11 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 	}
 	// we omit conditional width assertion as is done in ToBits down the calling stack
 	f.AssertIsLessOrEqual(a, f.modulusPrev())
+
+	// set properties for the element so that we wouldn't duplicate check when
+	// called again
 	a.modReduced = true
+	a.overflow = 0
 }
 
 // IsZero returns a boolean indicating if the element is strictly zero. The
