@@ -32,7 +32,7 @@ type BlueprintSolve struct {
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
-	assignments   WireAssignment `cbor:"-"` // []polynomial.MultiLin
+	assignments   WireAssignment `cbor:"-"`
 	evaluatorPool sync.Pool      `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
 	nbInputs      int            `cbor:"-"`
 	outputWires   []int          `cbor:"-"`

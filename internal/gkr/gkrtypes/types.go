@@ -161,21 +161,6 @@ func (c Circuit[GateExecutable]) maxGateDegree() int {
 	return res
 }
 
-// MaxStackSize returns the maximum stack size needed by any gate evaluator in the circuit.
-// This is used to initialize universal gate evaluators that can handle any gate in the circuit.
-func (c Circuit) MaxStackSize() int {
-	maxSize := 0
-	for i := range c {
-		if !c[i].IsInput() {
-			gate := c[i].Gate.Compiled()
-			nbIn := len(c[i].Inputs)
-			stackSize := gate.NbConstants() + nbIn + len(gate.Instructions)
-			maxSize = max(maxSize, stackSize)
-		}
-	}
-	return maxSize
-}
-
 // MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
 func (c Circuit[GateExecutable]) MemoryRequirements(nbInstances int) []int {
 	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
