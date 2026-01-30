@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
@@ -29,9 +30,15 @@ type commitChecker struct {
 
 	collected []checkedVariable
 	closed    bool
+
+	cfg *config
 }
 
-func newCommitRangechecker(api frontend.API) *commitChecker {
+func newCommitRangechecker(api frontend.API, opts ...Option) *commitChecker {
+	cfg, err := newConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("cannot create rangechecker config: %v", err))
+	}
 	kv, ok := api.Compiler().(kvstore.Store)
 	if !ok {
 		panic("builder should implement key-value store")
@@ -39,12 +46,19 @@ func newCommitRangechecker(api frontend.API) *commitChecker {
 	ch := kv.GetKeyValue(ctxCheckerKey{})
 	if ch != nil {
 		if cht, ok := ch.(*commitChecker); ok {
+			if cfg.baseLength > 0 && cht.cfg.baseLength != cfg.baseLength {
+				log := logger.Logger()
+				if cht.cfg.baseLength > 0 {
+					log.Warn().Msgf("rangechecker: existing checker has base length %d, requested %d. overwriting", cht.cfg.baseLength, cfg.baseLength)
+				}
+				cht.cfg.baseLength = cfg.baseLength
+			}
 			return cht
 		} else {
 			panic("stored rangechecker is not valid")
 		}
 	}
-	cht := &commitChecker{api: api}
+	cht := &commitChecker{api: api, cfg: cfg}
 	kv.SetKeyValue(ctxCheckerKey{}, cht)
 	api.Compiler().Defer(cht.commit)
 	return cht
@@ -85,7 +99,16 @@ func (c *commitChecker) commit(api frontend.API) error {
 	if len(c.collected) == 0 {
 		return nil
 	}
-	baseLength := c.getOptimalBasewidth(api)
+	var baseLength int
+	if c.cfg.baseLength > 0 {
+		// we use the user-defined base length
+		baseLength = c.cfg.baseLength
+	} else {
+		// we determine the optimal base length using a heuristic considering
+		// the number of constraints that would be generated for different base
+		// lengths
+		baseLength = c.getOptimalBasewidth(api)
+	}
 	// decompose into smaller limbs
 	decomposed := make([]frontend.Variable, 0, len(c.collected))
 	collected := make([]frontend.Variable, len(c.collected))

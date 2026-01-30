@@ -31,6 +31,16 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 	}
 }
 
+func (f *Field[T]) smallEnforceWidth(a *Element[T], modWidth bool) {
+	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		panic("enforcing modulus width element with inexact number of limbs")
+	}
+
+	for i := range a.Limbs {
+		f.checker.Check(a.Limbs[i], f.fParams.Modulus().BitLen()+int(a.overflow))
+	}
+}
+
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.enforceWidthConditional(a)
@@ -54,8 +64,20 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 // bitwise comparison first reduce the element using [Field.ReduceStrict].
 func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	// we omit conditional width assertion as is done in ToBits below
-	if e.overflow+a.overflow > 0 {
-		panic("inputs must have 0 overflow")
+
+	// we usually require that the inputs are already reduced fully
+	// (overflow=1). but in case we use small field parameters, we mostly
+	// operate with a small overflow to optimize range checks. In this case we
+	// allow both inputs to have small overflow. As we check binary check below anyway,
+	// having small overflow is not an issue.
+	//
+	// when we emulate large fields, then f.smallAdditionalOverflow() returns 0, thus
+	// we enforce that both inputs have overflow 0.
+	if e.overflow > uint(f.smallAdditionalOverflow()) {
+		panic("first input must have 0 overflow")
+	}
+	if a.overflow > uint(f.smallAdditionalOverflow()) {
+		panic("second input must have 0 overflow")
 	}
 	eBits := f.ToBits(e)
 	aBits := f.ToBits(a)
@@ -99,7 +121,11 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 	}
 	// we omit conditional width assertion as is done in ToBits down the calling stack
 	f.AssertIsLessOrEqual(a, f.modulusPrev())
+
+	// set properties for the element so that we wouldn't duplicate check when
+	// called again
 	a.modReduced = true
+	a.overflow = 0
 }
 
 // IsZero returns a boolean indicating if the element is strictly zero. The
