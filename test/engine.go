@@ -735,7 +735,6 @@ func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.Bluep
 	// solve the blueprint synchronously
 	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
-		blueprints:        e.blueprints,
 		modulus:           newModulus[E](e.q),
 	}
 	if err := blueprint.Solve(&s, inst); err != nil {

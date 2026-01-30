@@ -111,10 +111,6 @@ func (s *blueprintSolver[E]) IsSolved(vID uint32) bool {
 	panic("not implemented in test.Engine")
 }
 
-func (s *blueprintSolver[E]) GetBlueprint(id constraint.BlueprintID) constraint.Blueprint {
-	return s.blueprints[id]
-}
-
 // implements constraint.Field
 
 func (s *blueprintSolver[E]) FromInterface(i interface{}) E {
