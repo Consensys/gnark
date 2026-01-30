@@ -21,6 +21,7 @@ package logderivlookup
 import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
 
@@ -92,6 +93,9 @@ func (t *table[E]) Insert(val frontend.Variable) (index int) {
 	v := t.api.Compiler().ToCanonicalVariable(val)
 	v.Compress(&t.blueprint.EntriesCalldata)
 
+	// Record constraints for profiling
+	profile.RecordVirtual("logderivlookup.Insert", 3)
+
 	return len(t.entries) - 1
 }
 
@@ -109,6 +113,10 @@ func (t *table[E]) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) 
 	if len(t.entries) == 0 {
 		panic("looking up from empty table")
 	}
+
+	// Record constraints for profiling
+	profile.RecordVirtual("logderivlookup.Lookup", 3*len(inds))
+
 	return t.performLookup(inds)
 }
 
