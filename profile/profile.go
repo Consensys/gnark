@@ -41,10 +41,6 @@ type Profile struct {
 
 	chDone chan struct{}
 
-	// virtualMapping is a separate mapping for virtual constraints to distinguish
-	// them visually in pprof viewers
-	virtualMapping *profile.Mapping
-
 	// virtualWeights maps virtual constraint names to their weight multipliers.
 	// When RecordVirtual is called with a name that matches a key, the count
 	// is multiplied by the corresponding weight.
@@ -119,8 +115,6 @@ func Start(options ...Option) *Profile {
 	// Set default sample type to "constraints" for backwards compatibility
 	// Without this, pprof may default to the last sample type
 	p.pprof.DefaultSampleType = "constraints"
-	// Virtual mapping to visually distinguish virtual samples in flamegraphs
-	p.virtualMapping = &profile.Mapping{ID: 2, File: "[virtual]"}
 
 	for _, option := range options {
 		option(&p)
