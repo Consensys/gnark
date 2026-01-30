@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
 
@@ -53,6 +54,11 @@ func (c *commitChecker) Check(in frontend.Variable, bits int) {
 	if c.closed {
 		panic("checker already closed")
 	}
+
+	// Record operation for profiling - tracks range checks at call site
+	// The bit width is included in the name for visibility in pprof flamegraphs
+	profile.RecordOperation("rangecheck", (bits+15)/16)
+
 	switch bits {
 	case 0:
 		c.api.AssertIsEqual(in, 0)
