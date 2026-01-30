@@ -226,3 +226,81 @@ func Example_virtualConstraints() {
 	// p.Top() - shows constraint tree
 	// p.TopVirtual() - shows virtual operation tree
 }
+
+func TestWithoutVirtual(t *testing.T) {
+	// Test that WithoutVirtual excludes virtual samples from the profile
+	p := profile.Start(profile.WithNoOutput(), profile.WithoutVirtual())
+
+	// Record both constraint and virtual samples
+	profile.RecordConstraint()
+	profile.RecordConstraint()
+	profile.RecordVirtual("test.op", 1)
+	profile.RecordVirtual("test.op", 1)
+
+	p.Stop()
+
+	// After Stop(), filtering is applied
+	// NbConstraints should still work (returns 2)
+	nbConstraints := p.NbConstraints()
+	if nbConstraints != 2 {
+		t.Errorf("expected 2 constraints, got %d", nbConstraints)
+	}
+
+	// Virtual operations count should be 0 after filtering
+	nbVirtual := p.NbVirtualOperations()
+	if nbVirtual != 0 {
+		t.Errorf("expected 0 virtual operations with WithoutVirtual, got %d", nbVirtual)
+	}
+
+	t.Logf("WithoutVirtual - Constraints: %d, Virtual: %d", nbConstraints, nbVirtual)
+}
+
+func TestWithoutConstraints(t *testing.T) {
+	// Test that WithoutConstraints excludes constraint samples from the profile
+	p := profile.Start(profile.WithNoOutput(), profile.WithoutConstraints())
+
+	// Record both constraint and virtual samples
+	profile.RecordConstraint()
+	profile.RecordConstraint()
+	profile.RecordVirtual("test.op", 1)
+	profile.RecordVirtual("test.op", 1)
+
+	p.Stop()
+
+	// After Stop(), filtering is applied - constraints are excluded
+	// When WithoutConstraints is used, the virtual values become index 0
+	nbConstraints := p.NbConstraints()
+	if nbConstraints != 2 {
+		t.Errorf("expected 2 (virtual values moved to index 0), got %d", nbConstraints)
+	}
+
+	// NbVirtualOperations looks at index 1, which no longer exists
+	nbVirtual := p.NbVirtualOperations()
+	if nbVirtual != 0 {
+		t.Errorf("expected 0 virtual at index 1, got %d", nbVirtual)
+	}
+
+	t.Logf("WithoutConstraints - Value at index 0: %d", nbConstraints)
+}
+
+func TestWithoutBoth(t *testing.T) {
+	// Test that using both WithoutConstraints and WithoutVirtual clears everything
+	p := profile.Start(profile.WithNoOutput(), profile.WithoutConstraints(), profile.WithoutVirtual())
+
+	profile.RecordConstraint()
+	profile.RecordVirtual("test.op", 1)
+
+	p.Stop()
+
+	nbConstraints := p.NbConstraints()
+	nbVirtual := p.NbVirtualOperations()
+
+	if nbConstraints != 0 {
+		t.Errorf("expected 0 constraints with both options, got %d", nbConstraints)
+	}
+	if nbVirtual != 0 {
+		t.Errorf("expected 0 virtual with both options, got %d", nbVirtual)
+	}
+
+	t.Logf("WithoutBoth - Constraints: %d, Virtual: %d", nbConstraints, nbVirtual)
+}

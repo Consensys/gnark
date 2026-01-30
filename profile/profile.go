@@ -45,6 +45,11 @@ type Profile struct {
 	// When RecordVirtual is called with a name that matches a key, the count
 	// is multiplied by the corresponding weight.
 	virtualWeights map[string]int
+
+	// excludeConstraints and excludeVirtual control which sample types
+	// are included in the exported profile
+	excludeConstraints bool
+	excludeVirtual     bool
 }
 
 // Option defines configuration Options for Profile.
@@ -84,6 +89,25 @@ func WithNoOutput() Option {
 func WithVirtualWeights(weights map[string]int) Option {
 	return func(p *Profile) {
 		p.virtualWeights = weights
+	}
+}
+
+// WithoutConstraints excludes constraint samples from the exported profile.
+// When enabled, only virtual operation samples will appear in the pprof output.
+// This is useful when you only care about high-level operation counts.
+func WithoutConstraints() Option {
+	return func(p *Profile) {
+		p.excludeConstraints = true
+	}
+}
+
+// WithoutVirtual excludes virtual operation samples from the exported profile.
+// When enabled, only constraint samples will appear in the pprof output.
+// This is useful when you want a profile compatible with older tools that
+// don't expect multiple sample types, or when you only care about constraints.
+func WithoutVirtual() Option {
+	return func(p *Profile) {
+		p.excludeVirtual = true
 	}
 }
 
@@ -148,6 +172,9 @@ func (p *Profile) Stop() {
 	// wait for worker routine to remove us.
 	<-p.chDone
 	p.chDone = nil
+
+	// Apply sample type filtering based on options
+	p.filterSampleTypes()
 
 	// if filePath is set, serialize profile to disk in pprof format
 	if p.filePath != "" {
@@ -349,4 +376,47 @@ func hash(s string) uint64 {
 		h *= 1099511628211 // FNV-1a prime
 	}
 	return h
+}
+
+// filterSampleTypes modifies the pprof profile to exclude sample types based on options.
+// It updates SampleType and filters sample values accordingly.
+func (p *Profile) filterSampleTypes() {
+	if !p.excludeConstraints && !p.excludeVirtual {
+		return // nothing to filter
+	}
+
+	if p.excludeConstraints && p.excludeVirtual {
+		// Both excluded - just clear everything
+		p.pprof.SampleType = nil
+		p.pprof.Sample = nil
+		p.pprof.DefaultSampleType = ""
+		return
+	}
+
+	if p.excludeVirtual {
+		// Keep only constraints (index 0)
+		p.pprof.SampleType = []*profile.ValueType{
+			{Type: "constraints", Unit: "count"},
+		}
+		p.pprof.DefaultSampleType = "constraints"
+		for _, s := range p.pprof.Sample {
+			if len(s.Value) > 0 {
+				s.Value = s.Value[:1]
+			}
+		}
+		return
+	}
+
+	// excludeConstraints is true - keep only virtual (index 1)
+	p.pprof.SampleType = []*profile.ValueType{
+		{Type: "virtual", Unit: "count"},
+	}
+	p.pprof.DefaultSampleType = "virtual"
+	for _, s := range p.pprof.Sample {
+		if len(s.Value) > 1 {
+			s.Value = []int64{s.Value[1]}
+		} else {
+			s.Value = []int64{0}
+		}
+	}
 }
