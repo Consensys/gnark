@@ -87,6 +87,7 @@ func (m *modulus[E]) bigIntToElement(b *big.Int) E {
 // it is a separate type to avoid method collisions with the engine.
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
+	blueprints        []constraint.Blueprint
 	*modulus[E]
 }
 
