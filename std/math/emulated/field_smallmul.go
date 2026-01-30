@@ -19,7 +19,7 @@ type smallMulEntry struct {
 	r         frontend.Variable // remainder
 	q         frontend.Variable // quotient
 	qBits     int               // bits needed for quotient
-	checkZero bool              // indicates if this is a zero check (a ≡ 0 mod p)
+	checkZero bool              // indicates if this is a zero check (a ≡ 0 mod p). Indicates a, b, r are all zero.
 }
 
 // smallMulCheck implements the deferredChecker interface for small field
