@@ -267,40 +267,38 @@ func TestWithoutConstraints(t *testing.T) {
 
 	p.Stop()
 
-	// After Stop(), filtering is applied - constraints are excluded
-	// When WithoutConstraints is used, the virtual values become index 0
+	// NbConstraints returns 0 when WithoutConstraints is used
 	nbConstraints := p.NbConstraints()
-	if nbConstraints != 2 {
-		t.Errorf("expected 2 (virtual values moved to index 0), got %d", nbConstraints)
+	if nbConstraints != 0 {
+		t.Errorf("expected 0 constraints with WithoutConstraints, got %d", nbConstraints)
 	}
 
-	// NbVirtualOperations looks at index 1, which no longer exists
+	// NbVirtualOperations should still work correctly
 	nbVirtual := p.NbVirtualOperations()
-	if nbVirtual != 0 {
-		t.Errorf("expected 0 virtual at index 1, got %d", nbVirtual)
+	if nbVirtual != 2 {
+		t.Errorf("expected 2 virtual operations, got %d", nbVirtual)
 	}
 
-	t.Logf("WithoutConstraints - Value at index 0: %d", nbConstraints)
+	// Top() should return empty string when constraints are excluded
+	if p.Top() != "" {
+		t.Errorf("expected empty Top() with WithoutConstraints")
+	}
+
+	// TopVirtual() should still work
+	if p.TopVirtual() == "" {
+		t.Errorf("expected non-empty TopVirtual() with WithoutConstraints")
+	}
+
+	t.Logf("WithoutConstraints - Constraints: %d, Virtual: %d", nbConstraints, nbVirtual)
 }
 
 func TestWithoutBoth(t *testing.T) {
-	// Test that using both WithoutConstraints and WithoutVirtual clears everything
-	p := profile.Start(profile.WithNoOutput(), profile.WithoutConstraints(), profile.WithoutVirtual())
+	// Test that using both WithoutConstraints and WithoutVirtual panics
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expected panic when using both WithoutConstraints and WithoutVirtual")
+		}
+	}()
 
-	profile.RecordConstraint()
-	profile.RecordVirtual("test.op", 1)
-
-	p.Stop()
-
-	nbConstraints := p.NbConstraints()
-	nbVirtual := p.NbVirtualOperations()
-
-	if nbConstraints != 0 {
-		t.Errorf("expected 0 constraints with both options, got %d", nbConstraints)
-	}
-	if nbVirtual != 0 {
-		t.Errorf("expected 0 virtual with both options, got %d", nbVirtual)
-	}
-
-	t.Logf("WithoutBoth - Constraints: %d, Virtual: %d", nbConstraints, nbVirtual)
+	_ = profile.Start(profile.WithNoOutput(), profile.WithoutConstraints(), profile.WithoutVirtual())
 }

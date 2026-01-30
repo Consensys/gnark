@@ -144,6 +144,10 @@ func Start(options ...Option) *Profile {
 		option(&p)
 	}
 
+	if p.excludeConstraints && p.excludeVirtual {
+		panic("profile: cannot use both WithoutConstraints and WithoutVirtual options")
+	}
+
 	log := logger.Logger()
 	if p.filePath == "" {
 		log.Warn().Msg("gnark profiling enabled [not writing to disk]")
@@ -195,7 +199,11 @@ func (p *Profile) Stop() {
 
 // NbConstraints return number of collected samples (constraints) by the profile session.
 // Note: this counts samples, not actual constraint count when using sample values > 1.
+// Returns 0 if WithoutConstraints option was used.
 func (p *Profile) NbConstraints() int {
+	if p.excludeConstraints {
+		return 0
+	}
 	var count int
 	for _, s := range p.pprof.Sample {
 		if len(s.Value) > 0 {
@@ -206,18 +214,31 @@ func (p *Profile) NbConstraints() int {
 }
 
 // NbVirtualOperations returns the total count of virtual operations recorded.
+// Returns 0 if WithoutVirtual option was used.
 func (p *Profile) NbVirtualOperations() int {
+	if p.excludeVirtual {
+		return 0
+	}
+	// When excludeConstraints is set, virtual values are at index 0
+	idx := 1
+	if p.excludeConstraints {
+		idx = 0
+	}
 	var count int
 	for _, s := range p.pprof.Sample {
-		if len(s.Value) > 1 {
-			count += int(s.Value[1])
+		if len(s.Value) > idx {
+			count += int(s.Value[idx])
 		}
 	}
 	return count
 }
 
-// Top return a similar output than pprof top command for constraints (sample_index=0)
+// Top return a similar output than pprof top command for constraints (sample_index=0).
+// Returns empty string if WithoutConstraints option was used.
 func (p *Profile) Top() string {
+	if p.excludeConstraints {
+		return ""
+	}
 	r := report.NewDefault(&p.pprof, report.Options{
 		OutputFormat:  report.Tree,
 		CompactLabels: true,
@@ -231,14 +252,23 @@ func (p *Profile) Top() string {
 	return buf.String()
 }
 
-// TopVirtual return a similar output than pprof top command for virtual operations (sample_index=1)
+// TopVirtual return a similar output than pprof top command for virtual operations (sample_index=1).
+// Returns empty string if WithoutVirtual option was used.
 func (p *Profile) TopVirtual() string {
+	if p.excludeVirtual {
+		return ""
+	}
+	// When excludeConstraints is set, virtual values are at index 0
+	idx := 1
+	if p.excludeConstraints {
+		idx = 0
+	}
 	r := report.NewDefault(&p.pprof, report.Options{
 		OutputFormat:  report.Tree,
 		CompactLabels: true,
 		NodeFraction:  0.005,
 		EdgeFraction:  0.001,
-		SampleValue:   func(v []int64) int64 { return v[1] },
+		SampleValue:   func(v []int64) int64 { return v[idx] },
 		SampleUnit:    "count",
 	})
 	var buf bytes.Buffer
@@ -383,14 +413,6 @@ func hash(s string) uint64 {
 func (p *Profile) filterSampleTypes() {
 	if !p.excludeConstraints && !p.excludeVirtual {
 		return // nothing to filter
-	}
-
-	if p.excludeConstraints && p.excludeVirtual {
-		// Both excluded - just clear everything
-		p.pprof.SampleType = nil
-		p.pprof.Sample = nil
-		p.pprof.DefaultSampleType = ""
-		return
 	}
 
 	if p.excludeVirtual {
