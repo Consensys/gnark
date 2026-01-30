@@ -15,8 +15,6 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
-
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -737,6 +735,7 @@ func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.Bluep
 	// solve the blueprint synchronously
 	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
+		blueprints:        e.blueprints,
 		modulus:           newModulus[E](e.q),
 	}
 	if err := blueprint.Solve(&s, inst); err != nil {
@@ -792,10 +791,6 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 		return wrappedBigInt[constraint.U32]{Int: r, modulus: newModulus[constraint.U32](e.q)}
 	}
 	return wrappedBigInt[constraint.U64]{Int: r, modulus: newModulus[constraint.U64](e.q)}
-}
-
-func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

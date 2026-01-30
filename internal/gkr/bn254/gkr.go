@@ -19,6 +19,13 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
 
+// Type aliases for bytecode-based GKR types
+type (
+	Wire    = gkrtypes.SerializableWire
+	Wires   = gkrtypes.SerializableWires
+	Circuit = gkrtypes.SerializableCircuit
+)
+
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
@@ -36,7 +43,7 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *gkrtypes.Wire {
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
 	return e.manager.wires[e.wireI]
 }
 
@@ -55,7 +62,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a fr.Element) fr.Element
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.manager.wires[e.wireI].Gate.Degree()
+	return 1 + e.manager.wires[e.wireI].Gate.Degree
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -98,7 +105,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 			e.manager.add(wire.Inputs[i], r, uniqueInputEvaluations[uniqueI])
 		}
 
-		evaluator := newGateEvaluator(wire.Gate.Compiled(), len(wire.Inputs))
+		evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 		for _, uniqueI := range injectionLeftInv { // map from all to unique
 			evaluator.pushInput(&uniqueInputEvaluations[uniqueI])
 		}
@@ -130,7 +137,7 @@ type eqTimesGateEvalSumcheckClaims struct {
 	gateEvaluatorPool *gateEvaluatorPool
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) getWire() *gkrtypes.Wire {
+func (c *eqTimesGateEvalSumcheckClaims) getWire() *Wire {
 	return c.manager.wires[c.wireI]
 }
 
@@ -218,7 +225,7 @@ func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m polynomial.MultiLin, q []fr.E
 func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 
 	wire := c.getWire()
-	degGJ := 1 + wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(gⱼ)
+	degGJ := 1 + wire.Gate.Degree // guaranteed to be no smaller than the actual deg(gⱼ)
 	nbGateIn := len(c.input)
 
 	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
@@ -351,10 +358,10 @@ type claimsManager struct {
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *utils.WorkerPool
-	wires      gkrtypes.Wires
+	wires      Wires
 }
 
-func newClaimsManager(wires []*gkrtypes.Wire, assignment WireAssignment, o settings) (manager claimsManager) {
+func newClaimsManager(wires []*Wire, assignment WireAssignment, o settings) (manager claimsManager) {
 	manager.assignment = assignment
 	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	manager.memPool = o.pool
@@ -404,7 +411,7 @@ func (m *claimsManager) getClaim(wireI int) *eqTimesGateEvalSumcheckClaims {
 		}
 	}
 
-	res.gateEvaluatorPool = newGateEvaluatorPool(wire.Gate.Compiled(), len(res.input), m.memPool)
+	res.gateEvaluatorPool = newGateEvaluatorPool(wire.Gate.Evaluate, len(res.input), m.memPool)
 
 	return res
 }
@@ -416,7 +423,7 @@ func (m *claimsManager) deleteClaim(wire int) {
 
 type settings struct {
 	pool             *polynomial.Pool
-	sorted           []*gkrtypes.Wire
+	sorted           []*Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -431,7 +438,7 @@ func WithPool(pool *polynomial.Pool) Option {
 	}
 }
 
-func WithSortedCircuit(sorted []*gkrtypes.Wire) Option {
+func WithSortedCircuit(sorted []*Wire) Option {
 	return func(options *settings) {
 		options.sorted = sorted
 	}
@@ -443,7 +450,7 @@ func WithWorkers(workers *utils.WorkerPool) Option {
 	}
 }
 
-func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -484,7 +491,7 @@ func setup(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 	return o, err
 }
 
-func ChallengeNames(sorted []*gkrtypes.Wire, logNbInstances int, prefix string) []string {
+func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -554,7 +561,7 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Elem
 }
 
 // Prove consistency of the claimed assignment
-func Prove(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
+func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return nil, err
@@ -608,7 +615,7 @@ func Prove(c gkrtypes.Circuit, assignment WireAssignment, transcriptSettings fia
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
 	o, err := setup(c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -663,7 +670,7 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 }
 
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
+func (a WireAssignment) Complete(wires Wires) WireAssignment {
 
 	nbInstances := a.NumInstances()
 	evaluators := make([]gateEvaluator, len(wires))
@@ -673,7 +680,7 @@ func (a WireAssignment) Complete(wires gkrtypes.Wires) WireAssignment {
 			a[i] = make([]fr.Element, nbInstances)
 		}
 		if !wires[i].IsInput() {
-			evaluators[i] = newGateEvaluator(wires[i].Gate.Compiled(), len(wires[i].Inputs))
+			evaluators[i] = newGateEvaluator(wires[i].Gate.Evaluate, len(wires[i].Inputs))
 		}
 	}
 
@@ -735,7 +742,7 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
 type gateEvaluator struct {
-	gate      *gkrtypes.CompiledGate
+	gate      *gkrtypes.GateBytecode
 	vars      []fr.Element
 	frameSize int // number of constants plus currently pushed inputs
 	nbIn      int // number of inputs expected
@@ -743,7 +750,7 @@ type gateEvaluator struct {
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate *gkrtypes.CompiledGate, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
+func newGateEvaluator(gate *gkrtypes.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
 		gate:      gate,
 		nbIn:      nbIn,
@@ -835,14 +842,14 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
 // All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
-	gate        *gkrtypes.CompiledGate
+	gate        *gkrtypes.GateBytecode
 	nbIn        int
 	lock        sync.Mutex
 	available   map[*gateEvaluator]struct{}
 	elementPool *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate *gkrtypes.CompiledGate, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate *gkrtypes.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
 		gate:        gate,
 		nbIn:        nbIn,

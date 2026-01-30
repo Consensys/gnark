@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -287,8 +286,4 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	a, err = t.O.ReadFrom(r)
 	n += a
 	return n, err
-}
-
-func (cs *system) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return cs.System.NewGkr()
 }
