@@ -731,10 +731,9 @@ func NewScalar(v fr_bls24315.Element) Scalar {
 // The method is for compatibility for existing scalar multiplication
 // implementation which assumes as an input frontend.Variable.
 func (c *Curve) packScalarToVar(s *Scalar) frontend.Variable {
-	var fr ScalarField
+	_, nbBits := emulated.GetEffectiveFieldParams[ScalarField](c.api.Compiler().Field())
 	reduced := c.fr.Reduce(s)
 	var res frontend.Variable = 0
-	nbBits := fr.BitsPerLimb()
 	coef := new(big.Int)
 	one := big.NewInt(1)
 	for i := range reduced.Limbs {

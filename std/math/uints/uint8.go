@@ -283,7 +283,7 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 		}
 		vres := bf.api.Add(va[0], va[1], va[2:]...)
 		// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
-		vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+		vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen))
 		res := bf.ValueOf(vreslow)
 		return res
 	} else {
@@ -319,7 +319,7 @@ func (bf *BinaryField[T]) Add(a ...T) T {
 			} else {
 				vres = bf.api.Add(aij[0], aij[1], aij[2:]...)
 			}
-			vreslow, vreshigh := bitslice.Partition(bf.api, vres, 8, bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+			vreslow, vreshigh := bitslice.Partition(bf.api, vres, 8, bitslice.WithNbDigits(maxBitlen))
 			// store the result byte
 			res[i] = bf.ByteValueOf(vreslow)
 			carry = vreshigh // we omit the last carry as performing addition modulo 2^(lenBts*8)

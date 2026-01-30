@@ -31,16 +31,15 @@ func testSubPadding[T FieldParams](t *testing.T) {
 			assert.Zero(padValue.Cmp(big.NewInt(0)), "padding not multiple of order")
 		}, fmt.Sprintf("%s/nbLimbs=%d", testName[T](), i))
 	}
-	sfp, ok := any(fp).(DynamicFieldParams)
-	assert.True(ok, "field %T does not implement DynamicFieldParams", fp)
-	for i := sfp.NbLimbsDynamic(babybear.Modulus()); i < 2*sfp.NbLimbsDynamic(babybear.Modulus()); i++ {
+	nbLimbs, nbBits := GetEffectiveFieldParams[T](babybear.Modulus())
+	for i := nbLimbs; i < 2*nbLimbs; i++ {
 		assert.Run(func(assert *test.Assert) {
-			ls := subPadding(sfp.Modulus(), sfp.BitsPerLimbDynamic(babybear.Modulus()), 0, i)
+			ls := subPadding(fp.Modulus(), nbBits, 0, i)
 			padValue := new(big.Int)
-			if err := limbs.Recompose(ls, sfp.BitsPerLimbDynamic(babybear.Modulus()), padValue); err != nil {
+			if err := limbs.Recompose(ls, nbBits, padValue); err != nil {
 				assert.FailNow("recompose", err)
 			}
-			padValue.Mod(padValue, sfp.Modulus())
+			padValue.Mod(padValue, fp.Modulus())
 			assert.Zero(padValue.Cmp(big.NewInt(0)), "padding not multiple of order")
 		}, fmt.Sprintf("smallfield/%s/nbLimbs=%d", testName[T](), i))
 	}

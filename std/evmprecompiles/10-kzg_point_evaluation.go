@@ -8,6 +8,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -24,8 +25,11 @@ import (
 // argument.
 var fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
 
+// fixedKzgSrsVk16 is the verifying key for the KZG precompile using 16-bit limbs.
+var fixedKzgSrsVk16 *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+
 func init() {
-	fixedKzgSrsVk = fixedVerificationKey() // initialize the fixed verifying key
+	fixedKzgSrsVk, fixedKzgSrsVk16 = fixedVerificationKey() // initialize the fixed verifying key
 }
 
 var (
@@ -52,7 +56,7 @@ var (
 	}
 )
 
-func fixedVerificationKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine] {
+func fixedVerificationKey() (*kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine], *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]) {
 	var vk kzg_bls12381.VerifyingKey
 	dec := bls12381.NewDecoder(bytes.NewBuffer(srs), bls12381.NoSubgroupChecks())
 	err := dec.Decode(&vk.G1)
@@ -73,7 +77,13 @@ func fixedVerificationKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.
 	if err != nil {
 		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
 	}
-	return &vkw
+	// as the constant values are decomposed automatically at circuit parsing time and this is
+	// a global variable, we need to create a separate instance for 16-bit limbs
+	vkw16, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
+	}
+	return &vkw, &vkw16
 }
 
 const (
@@ -89,8 +99,37 @@ const (
 	evmBlsModulusLo = "0x53bda402fffe5bfeffffffff00000001"
 )
 
+var (
+	// evmBlsModulus16 is the modulus of the BLS12-381 scalar field in hexadecimal
+	// format, split into 16 2-byte parts for the expected values.
+	evmBlsModulus16 = [16]string{
+		"0x73ed",
+		"0xa753",
+		"0x299d",
+		"0x7d48",
+		"0x3339",
+		"0xd808",
+		"0x09a1",
+		"0xd805",
+		"0x53bd",
+		"0xa402",
+		"0xfffe",
+		"0x5bfe",
+		"0xffff",
+		"0xffff",
+		"0x0000",
+		"0x0001",
+	}
+	// evmBlobSize16 is the expected blob size (4096) encoded as 16 2-byte parts.
+	// 4096 = 0x1000, so it's 15 zero limbs followed by 0x1000.
+	evmBlobSize16 = [16]int{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, evmBlockSize,
+	}
+)
+
 // KzgPointEvaluation implements the [KZG_POINT_EVALUATION] precompile at
-// address 0xa.
+// address 0xa using 128-bit limbs.
 //
 // The data is encoded as follows:
 //
@@ -117,8 +156,70 @@ func KzgPointEvaluation(
 	proofCompressed [3]frontend.Variable, // proof is a 48 byte compressed point. Arithmetization uses 16-byte words, so we use a 3-element array.
 	expectedBlobSize [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
 	expectedBlsModulus [2]frontend.Variable, // arithmetization uses 2-element array. It is constant for all purposes, but we check it anyway.
-) error { // we don't return a value as the result is a constant value
-	// -- perform conversion from 16-byte words to 1-byte words
+) error {
+	if smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluation method cannot be called over small field compiler")
+	}
+	// check expected modulus against 128-bit format
+	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
+	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
+	return kzgPointEvaluation(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 16)
+}
+
+// KzgPointEvaluation16 implements the [KZG_POINT_EVALUATION] precompile at
+// address 0xa using 16-bit limbs.
+//
+// The data is encoded as follows:
+//
+//	[ versioned_hash | point |  claim  | commitment |   proof   ]
+//	 <---- 32b -----> <-32b-> <- 32b -> <-- 48b  --> <-- 48b -->
+//
+// Values point and claim are the evaluation point and the claimed value, they
+// are represented as 32-byte scalar field elements. We use [16]frontend.Variable
+// as the arithmetization provides them as 2-byte words.
+//
+// Values commitment and proof are the KZG commitment and proof respectively.
+// They are given as compressed points, for which we use 24 native elements to
+// represent. The method performs decompression and all necessary checks. The
+// encoding is given by Appendix C of [PAIRING_FRIENDLY_CURVES].
+//
+// [KZG_POINT_EVALUATION]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
+// [PAIRING_FRIENDLY_CURVES]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/
+func KzgPointEvaluation16(
+	api frontend.API,
+	versionedHash [16]frontend.Variable, // arithmetization gives us a 16-element array. We convert it ourselves to a byte array.
+	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
+	claimedValue *emulated.Element[sw_bls12381.ScalarField],
+	commitmentCompressed [24]frontend.Variable, // commitment is a 48 byte compressed point. Arithmetization uses 2-byte words, so we use a 24-element array.
+	proofCompressed [24]frontend.Variable, // proof is a 48 byte compressed point. Arithmetization uses 2-byte words, so we use a 24-element array.
+	expectedBlobSize [16]frontend.Variable, // arithmetization uses 16-element array (2-byte words). It is constant for all purposes, but we check it anyway.
+	expectedBlsModulus [16]frontend.Variable, // arithmetization uses 16-element array. It is constant for all purposes, but we check it anyway.
+) error {
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluation16 method cannot be called over large field compiler")
+	}
+	// check expected modulus against 16-bit format
+	for i := range evmBlsModulus16 {
+		api.AssertIsEqual(expectedBlsModulus[i], evmBlsModulus16[i])
+	}
+	return kzgPointEvaluation(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 2)
+}
+
+// kzgPointEvaluation is the generic implementation of KZG point evaluation.
+// bytesPerLimb specifies how many bytes each limb represents (16 for 128-bit, 2 for 16-bit).
+func kzgPointEvaluation(
+	api frontend.API,
+	fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine],
+	versionedHash []frontend.Variable,
+	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
+	claimedValue *emulated.Element[sw_bls12381.ScalarField],
+	commitmentCompressed []frontend.Variable,
+	proofCompressed []frontend.Variable,
+	expectedBlobSize []frontend.Variable,
+	bytesPerLimb int,
+) error {
+	// -- perform conversion from limbs to 1-byte words
+	totalNativeBytes := (api.Compiler().Field().BitLen() + 7) / 8
 
 	// versioned hash
 	var versionedHashBytes [sha256.Size]uints.U8
@@ -127,7 +228,7 @@ func KzgPointEvaluation(
 		if err != nil {
 			return fmt.Errorf("convert versioned hash element %d to bytes: %w", i, err)
 		}
-		copy(versionedHashBytes[i*16:(i+1)*16], res[16:])
+		copy(versionedHashBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 
 	// commitment
@@ -137,7 +238,7 @@ func KzgPointEvaluation(
 		if err != nil {
 			return fmt.Errorf("convert commitment element %d to bytes: %w", i, err)
 		}
-		copy(comSerializedBytes[i*16:(i+1)*16], res[16:])
+		copy(comSerializedBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 	// proof
 	var proofSerialisedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
@@ -146,7 +247,7 @@ func KzgPointEvaluation(
 		if err != nil {
 			return fmt.Errorf("convert proof element %d to bytes: %w", i, err)
 		}
-		copy(proofSerialisedBytes[i*16:(i+1)*16], res[16:])
+		copy(proofSerialisedBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 
 	// -- unmarshal compressed commitment and proof into uncompressed points
@@ -198,15 +299,17 @@ func KzgPointEvaluation(
 	}
 
 	// -- check expected values. These are constant values, so we just check that they match the expected values.
-	api.AssertIsEqual(expectedBlobSize[0], 0)
-	api.AssertIsEqual(expectedBlobSize[1], evmBlockSize)
-	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
-	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
+	// For both 128-bit and 16-bit formats, all limbs except the last should be 0, and the last should be evmBlockSize.
+	for i := 0; i < len(expectedBlobSize)-1; i++ {
+		api.AssertIsEqual(expectedBlobSize[i], 0)
+	}
+	api.AssertIsEqual(expectedBlobSize[len(expectedBlobSize)-1], evmBlockSize)
 
 	return nil
 }
 
-// KzgPointEvaluationFailure checks a failing case of KZG point evaluation precompile.
+// KzgPointEvaluationFailure checks a failing case of KZG point evaluation precompile
+// using 128-bit limbs.
 // It has the same interface as [KzgPointEvaluation] but it allows to pass in
 // inputs which should fail according to the [EIP-4844] specification. The
 // method CAN NOT assert validity of valid inputs. The goal of the method is to
@@ -240,6 +343,69 @@ func KzgPointEvaluationFailure(
 	expectedBlobSize [2]frontend.Variable,
 	expectedBlsModulus [2]frontend.Variable,
 ) error {
+	if smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluationFailure method cannot be called over small field compiler")
+	}
+	return kzgPointEvaluationFailure(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
+}
+
+// KzgPointEvaluationFailure16 checks a failing case of KZG point evaluation precompile
+// using 16-bit limbs.
+// It has the same interface as [KzgPointEvaluation16] but it allows to pass in
+// inputs which should fail according to the [EIP-4844] specification. The
+// method CAN NOT assert validity of valid inputs. The goal of the method is to
+// allow proving that the precompile call failed in EVM.
+//
+// For data encoding (particularly for compressed inputs), see
+// [KzgPointEvaluation16] method documentation.
+//
+// The method checks that any of the following failure cases happen:
+//   - the versioned hash version is incorrect
+//   - the versioned hash does not match the commitment
+//   - the compressed commitment or proof have invalid compression mask (allowed masks are 0b100, 0b101 and 0b110)
+//   - x coordinate value in compressed commitment or proof does overflows
+//   - x coordinate value in compressed commitment or proof differs from mask (for infinity mask x != 0, for non-infinity mask x == 0)
+//   - the compressed commitment or proof do not represent curve points
+//   - the compressed commitment or proof do not represent points in the correct subgroup
+//   - pairing check fails for the inputs
+//   - expected blob size is incorrect (should be 4096)
+//   - expected BLS modulus is incorrect (should be BLS12-381 scalar field modulus)
+//
+// The checks are non-exclusive, i.e. multiple of them can fail at the same time.
+//
+// [EIP-4844]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
+func KzgPointEvaluationFailure16(
+	api frontend.API,
+	versionedHash [16]frontend.Variable,
+	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
+	claimedValue *emulated.Element[sw_bls12381.ScalarField],
+	commitmentCompressed [24]frontend.Variable,
+	proofCompressed [24]frontend.Variable,
+	expectedBlobSize [16]frontend.Variable,
+	expectedBlsModulus [16]frontend.Variable,
+) error {
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		return fmt.Errorf("KzgPointEvaluationFailure16 method cannot be called over large field compiler")
+	}
+	return kzgPointEvaluationFailure(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
+}
+
+// kzgPointEvaluationFailure is the generic implementation of KZG point evaluation failure.
+// bytesPerLimb specifies how many bytes each limb represents (16 for 128-bit, 2 for 16-bit).
+func kzgPointEvaluationFailure(
+	api frontend.API,
+	fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine],
+	versionedHash []frontend.Variable,
+	evaluationPoint *emulated.Element[sw_bls12381.ScalarField],
+	claimedValue *emulated.Element[sw_bls12381.ScalarField],
+	commitmentCompressed []frontend.Variable,
+	proofCompressed []frontend.Variable,
+	expectedBlobSize []frontend.Variable,
+	expectedBlsModulus []frontend.Variable,
+	bytesPerLimb int,
+) error {
+	totalNativeBytes := (api.Compiler().Field().BitLen() + 7) / 8
+
 	// -- initialize the gadgets we use
 	bapi, err := uints.NewBytes(api)
 	if err != nil {
@@ -288,9 +454,20 @@ func KzgPointEvaluationFailure(
 		X: *fp.NewElement(0),
 		Y: *fp.NewElement(0),
 	}
-	dummyVersionedHash := []frontend.Variable{
-		"0x010657f37554c781402a22917dee2f75",
-		"0xdef7ab966d7b770905398eba3c444014",
+	// dummy versioned hash matching the number of limbs
+	dummyVersionedHash := make([]frontend.Variable, len(versionedHash))
+	if bytesPerLimb == 16 {
+		// 128-bit format: 2 limbs
+		dummyVersionedHash[0] = "0x010657f37554c781402a22917dee2f75"
+		dummyVersionedHash[1] = "0xdef7ab966d7b770905398eba3c444014"
+	} else {
+		// 16-bit format: 16 limbs
+		copy(dummyVersionedHash, []frontend.Variable{
+			"0x0106", "0x57f3", "0x7554", "0xc781",
+			"0x402a", "0x2291", "0x7dee", "0x2f75",
+			"0xdef7", "0xab96", "0x6d7b", "0x7709",
+			"0x0539", "0x8eba", "0x3c44", "0x4014",
+		})
 	}
 	// -- check that the masks of compressed commitment and proof are correct
 	// (infinity, small y, large y). If either of them is not correct, then we
@@ -304,7 +481,7 @@ func KzgPointEvaluationFailure(
 		if err != nil {
 			return fmt.Errorf("convert commitment element %d to bytes: %w", i, err)
 		}
-		copy(comSerializedBytes[i*16:(i+1)*16], res[16:])
+		copy(comSerializedBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 	var proofSerialisedBytes [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range proofCompressed {
@@ -312,7 +489,7 @@ func KzgPointEvaluationFailure(
 		if err != nil {
 			return fmt.Errorf("convert proof element %d to bytes: %w", i, err)
 		}
-		copy(proofSerialisedBytes[i*16:(i+1)*16], res[16:])
+		copy(proofSerialisedBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 	// - allowed bytes are 0b100<<5, 0b101<<5 and 0b110<<5. We mask the upper
 	// three bits and then shift by division by 32.
@@ -335,12 +512,11 @@ func KzgPointEvaluationFailure(
 	isValidMasks := api.And(isValidMaskCom, isValidMaskProof)
 	// - if the masks are correct, then we will keep the values as they are.
 	// however, if they are not correct then we will swap the bytes to dummy values.
-	comSerializedBytes = selectVector(bapi, isValidMasks, comSerializedBytes, dummyComBytes)
-	proofSerialisedBytes = selectVector(bapi, isValidMasks, proofSerialisedBytes, dummyProofBytes)
+	comSerializedBytes = selectSliceUint8(bapi, isValidMasks, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectSliceUint8(bapi, isValidMasks, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isValidMasks, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isValidMasks, claimedValue, dummyClaimedValue)
-	versionedHash[0] = api.Select(isValidMasks, versionedHash[0], dummyVersionedHash[0])
-	versionedHash[1] = api.Select(isValidMasks, versionedHash[1], dummyVersionedHash[1])
+	versionedHash = selectSliceVariable(api, isValidMasks, versionedHash, dummyVersionedHash)
 	// -- now we need to ensure that both compressed commitment and proof have x coordinate
 	// values in range. Otherwise, the underlying call to UnmarshalCompress will fail as
 	// we explicitly perform range check in the BytesToEmulated method.
@@ -392,12 +568,11 @@ func KzgPointEvaluationFailure(
 	}
 	isInRange := api.And(isInRangeCom, isInRangeProof)
 	// - swap with dummy values if they are not in range
-	comSerializedBytes = selectVector(bapi, isInRange, comSerializedBytes, dummyComBytes)
-	proofSerialisedBytes = selectVector(bapi, isInRange, proofSerialisedBytes, dummyProofBytes)
+	comSerializedBytes = selectSliceUint8(bapi, isInRange, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectSliceUint8(bapi, isInRange, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isInRange, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isInRange, claimedValue, dummyClaimedValue)
-	versionedHash[0] = api.Select(isInRange, versionedHash[0], dummyVersionedHash[0])
-	versionedHash[1] = api.Select(isInRange, versionedHash[1], dummyVersionedHash[1])
+	versionedHash = selectSliceVariable(api, isInRange, versionedHash, dummyVersionedHash)
 	xCoordComEmul = fp.Select(isInRange, xCoordComEmul, fp.Zero())
 	xCoordProofEmul = fp.Select(isInRange, xCoordProofEmul, fp.Zero())
 	// -- if the mask is given for infinity then we need to ensure that x is zero
@@ -416,12 +591,11 @@ func KzgPointEvaluationFailure(
 	isNotValidInfinityMask := api.Or(isInvalidInfinityMaskCom, isInvalidInfinityMaskProof)
 	isValidInfinityMask := api.Sub(1, isNotValidInfinityMask)
 	// - in case of invalid infinity mask, we swap to dummy values
-	comSerializedBytes = selectVector(bapi, isValidInfinityMask, comSerializedBytes, dummyComBytes)
-	proofSerialisedBytes = selectVector(bapi, isValidInfinityMask, proofSerialisedBytes, dummyProofBytes)
+	comSerializedBytes = selectSliceUint8(bapi, isValidInfinityMask, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectSliceUint8(bapi, isValidInfinityMask, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isValidInfinityMask, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isValidInfinityMask, claimedValue, dummyClaimedValue)
-	versionedHash[0] = api.Select(isValidInfinityMask, versionedHash[0], dummyVersionedHash[0])
-	versionedHash[1] = api.Select(isValidInfinityMask, versionedHash[1], dummyVersionedHash[1])
+	versionedHash = selectSliceVariable(api, isValidInfinityMask, versionedHash, dummyVersionedHash)
 	// -- uncompress the commitment and proof
 	commitmentUncompressed, err := g1.UnmarshalCompressed(comSerializedBytes[:], algopts.WithNoSubgroupMembershipCheck())
 	if err != nil {
@@ -444,12 +618,11 @@ func KzgPointEvaluationFailure(
 		X: *fp.Select(isInSubgroups, &proofUncompressed.X, &dummyProof.X),
 		Y: *fp.Select(isInSubgroups, &proofUncompressed.Y, &dummyProof.Y),
 	}
-	comSerializedBytes = selectVector(bapi, isInSubgroups, comSerializedBytes, dummyComBytes)
-	proofSerialisedBytes = selectVector(bapi, isInSubgroups, proofSerialisedBytes, dummyProofBytes)
+	comSerializedBytes = selectSliceUint8(bapi, isInSubgroups, comSerializedBytes, dummyComBytes)
+	proofSerialisedBytes = selectSliceUint8(bapi, isInSubgroups, proofSerialisedBytes, dummyProofBytes)
 	evaluationPoint = fr.Select(isInSubgroups, evaluationPoint, dummyEvaluationPoint)
 	claimedValue = fr.Select(isInSubgroups, claimedValue, dummyClaimedValue)
-	versionedHash[0] = api.Select(isInSubgroups, versionedHash[0], dummyVersionedHash[0])
-	versionedHash[1] = api.Select(isInSubgroups, versionedHash[1], dummyVersionedHash[1])
+	versionedHash = selectSliceVariable(api, isInSubgroups, versionedHash, dummyVersionedHash)
 	// -- now we check that the rest of hash is correct. If it is not, then we
 	// swap the rest of the values to dummy values
 	// - first we compute the hash of the commitment
@@ -462,7 +635,7 @@ func KzgPointEvaluationFailure(
 		if err != nil {
 			return fmt.Errorf("convert versioned hash element %d to bytes: %w", i, err)
 		}
-		copy(versionedHashBytes[i*16:(i+1)*16], res[16:])
+		copy(versionedHashBytes[i*bytesPerLimb:(i+1)*bytesPerLimb], res[totalNativeBytes-bytesPerLimb:])
 	}
 	// - check the hash version
 	isCorrectHashVersion := api.IsZero(api.Sub(bapi.ValueUnchecked(versionedHashBytes[0]), blobCommitmentVersionKZG))
@@ -483,15 +656,26 @@ func KzgPointEvaluationFailure(
 		Y: *fp.Select(isCorrectHash, &proofUncompressed.Y, &dummyProof.Y),
 	}
 	// -- now check that the expected return values are correct
-	// - we check the KZG blob size.
-	isCorrectBlobSize := api.And(
-		api.IsZero(api.Sub(expectedBlobSize[0], 0)),
-		api.IsZero(api.Sub(expectedBlobSize[1], evmBlockSize)),
-	)
-	isCorrectBlsModulus := api.And(
-		api.IsZero(api.Sub(expectedBlsModulus[0], evmBlsModulusHi)),
-		api.IsZero(api.Sub(expectedBlsModulus[1], evmBlsModulusLo)),
-	)
+	// - we check the KZG blob size. All limbs except the last should be 0, and the last should be evmBlockSize.
+	var isCorrectBlobSize frontend.Variable = 1
+	for i := 0; i < len(expectedBlobSize)-1; i++ {
+		isCorrectBlobSize = api.Mul(isCorrectBlobSize, api.IsZero(expectedBlobSize[i]))
+	}
+	isCorrectBlobSize = api.Mul(isCorrectBlobSize, api.IsZero(api.Sub(expectedBlobSize[len(expectedBlobSize)-1], evmBlockSize)))
+	// - check the BLS modulus based on the format
+	var isCorrectBlsModulus frontend.Variable = 1
+	if bytesPerLimb == 16 {
+		// 128-bit format: 2 limbs
+		isCorrectBlsModulus = api.And(
+			api.IsZero(api.Sub(expectedBlsModulus[0], evmBlsModulusHi)),
+			api.IsZero(api.Sub(expectedBlsModulus[1], evmBlsModulusLo)),
+		)
+	} else {
+		// 16-bit format: 16 limbs
+		for i := range evmBlsModulus16 {
+			isCorrectBlsModulus = api.Mul(isCorrectBlsModulus, api.IsZero(api.Sub(expectedBlsModulus[i], evmBlsModulus16[i])))
+		}
+	}
 	isExpectedResult := api.And(
 		isCorrectBlobSize,
 		isCorrectBlsModulus,
@@ -574,13 +758,24 @@ func KzgPointEvaluationFailure(
 	return nil
 }
 
-func selectVector(bapi *uints.Bytes, cond frontend.Variable, onTrue [bls12381.SizeOfG1AffineCompressed]uints.U8, onFalse []uints.U8) [bls12381.SizeOfG1AffineCompressed]uints.U8 {
+func selectSliceUint8(bapi *uints.Bytes, cond frontend.Variable, onTrue [bls12381.SizeOfG1AffineCompressed]uints.U8, onFalse []uints.U8) [bls12381.SizeOfG1AffineCompressed]uints.U8 {
 	if len(onFalse) != bls12381.SizeOfG1AffineCompressed {
 		panic("unexpected length of onFalse")
 	}
 	var res [bls12381.SizeOfG1AffineCompressed]uints.U8
 	for i := range res {
 		res[i] = bapi.Select(cond, onTrue[i], onFalse[i])
+	}
+	return res
+}
+
+func selectSliceVariable(api frontend.API, cond frontend.Variable, onTrue []frontend.Variable, onFalse []frontend.Variable) []frontend.Variable {
+	if len(onTrue) != len(onFalse) {
+		panic("selectSliceVariable: onTrue and onFalse must have the same length")
+	}
+	res := make([]frontend.Variable, len(onTrue))
+	for i := range res {
+		res[i] = api.Select(cond, onTrue[i], onFalse[i])
 	}
 	return res
 }

@@ -59,6 +59,10 @@ func initSnippets() {
 		api.AssertIsLessOrEqual(newVariable(), bound)
 	})
 
+	registerSnippet("api/AssertIsCrumb", func(api frontend.API, newVariable func() frontend.Variable) {
+		api.AssertIsCrumb(newVariable())
+	})
+
 	// add std snippets
 	registerSnippet("math/bits.ToBinary", func(api frontend.API, newVariable func() frontend.Variable) {
 		_ = bits.ToBinary(api, newVariable())
@@ -82,7 +86,8 @@ func initSnippets() {
 		secp256k1, _ := emulated.NewField[emulated.Secp256k1Fp](api)
 
 		newElement := func() *emulated.Element[emulated.Secp256k1Fp] {
-			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -141,7 +146,8 @@ func initSnippets() {
 
 		bls12381, _ := emulated.NewField[emulated.BLS12381Fp](api)
 		newElement := func() *emulated.Element[emulated.BLS12381Fp] {
-			limbs := make([]frontend.Variable, emulated.BLS12381Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BLS12381Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -168,7 +174,8 @@ func initSnippets() {
 
 		bn254, _ := emulated.NewField[emulated.BN254Fp](api)
 		newElement := func() *emulated.Element[emulated.BN254Fp] {
-			limbs := make([]frontend.Variable, emulated.BN254Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -195,7 +202,8 @@ func initSnippets() {
 
 		bw6761, _ := emulated.NewField[emulated.BW6761Fp](api)
 		newElement := func() *emulated.Element[emulated.BW6761Fp] {
-			limbs := make([]frontend.Variable, emulated.BW6761Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BW6761Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -224,7 +232,8 @@ func initSnippets() {
 		}
 		bn_fr, _ := emulated.NewField[emulated.BN254Fr](api)
 		newFr := func() *emulated.Element[emulated.BN254Fr] {
-			limbs := make([]frontend.Variable, emulated.BN254Fr{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -232,7 +241,8 @@ func initSnippets() {
 		}
 		bn_fp, _ := emulated.NewField[emulated.BN254Fp](api)
 		newFp := func() *emulated.Element[emulated.BN254Fp] {
-			limbs := make([]frontend.Variable, emulated.BN254Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -256,7 +266,8 @@ func initSnippets() {
 		}
 		bn_fr, _ := emulated.NewField[emulated.Secp256k1Fr](api)
 		newFr := func() *emulated.Element[emulated.Secp256k1Fr] {
-			limbs := make([]frontend.Variable, emulated.Secp256k1Fr{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -264,7 +275,8 @@ func initSnippets() {
 		}
 		bn_fp, _ := emulated.NewField[emulated.Secp256k1Fp](api)
 		newFp := func() *emulated.Element[emulated.Secp256k1Fp] {
-			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -288,7 +300,8 @@ func initSnippets() {
 		}
 		bn_fr, _ := emulated.NewField[emulated.P256Fr](api)
 		newFr := func() *emulated.Element[emulated.P256Fr] {
-			limbs := make([]frontend.Variable, emulated.P256Fr{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.P256Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}
@@ -296,7 +309,8 @@ func initSnippets() {
 		}
 		bn_fp, _ := emulated.NewField[emulated.P256Fp](api)
 		newFp := func() *emulated.Element[emulated.P256Fp] {
-			limbs := make([]frontend.Variable, emulated.P256Fp{}.NbLimbs())
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.P256Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
 			for i := 0; i < len(limbs); i++ {
 				limbs[i] = newVariable()
 			}

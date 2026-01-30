@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -19,11 +20,13 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) divPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
-	mulOf, err := f.mulPreCond(&Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}, b)
+	mulOf, err := f.mulPreCondReduced(&Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}, b)
 	if err != nil {
 		return mulOf, err
 	}
-	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+	// we didn't need to reduce b. Inside div the result a/b is already reduced,
+	// so can use overflow 0
+	return f.subPreCond(a, &Element[T]{overflow: 0})
 }
 
 func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
@@ -49,11 +52,15 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
-	mulOf, err := f.mulPreCond(a, &Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}) // order is important, we want that reduce left side
+	// check if we need to reduce a first. Order is important here, we want to
+	// reduce a first if needed.
+	mulOf, err := f.mulPreCondReduced(a, f.One())
 	if err != nil {
 		return mulOf, err
 	}
-	return f.subPreCond(&Element[T]{overflow: 0}, &Element[T]{overflow: mulOf})
+	// we didn't need to reduce a. Inside inverse the result 1/a is already reduced,
+	// so can use overflow 0
+	return 0, nil
 }
 
 func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
@@ -82,11 +89,9 @@ func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) sqrtPreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
-	mulOf, err := f.mulPreCond(a, a)
-	if err != nil {
-		return mulOf, err
-	}
-	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+	// when we compute the square root, the result is always reduced, so we can use
+	// overflow 0
+	return f.subPreCond(a, &Element[T]{overflow: 0})
 }
 
 func (f *Field[T]) sqrt(a, _ *Element[T], _ uint) *Element[T] {
@@ -138,6 +143,9 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.Add", len(a.Limbs)+len(b.Limbs))
 	return f.newInternalElement(limbs, nextOverflow)
 }
 
@@ -169,6 +177,7 @@ func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
 			limbs[j] = f.api.Add(limbs[j], inputs[i].Limbs[j])
 		}
 	}
+	profile.RecordOperation("emulated.Sum", nbLimbs)
 	return f.newInternalElement(limbs, overflow+uint(addOverflow))
 }
 
@@ -209,6 +218,9 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.Sub", len(a.Limbs)+len(b.Limbs))
 	return f.newInternalElement(limbs, nextOverflow)
 }
 
@@ -241,6 +253,9 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 	for i := range e.Limbs {
 		e.Limbs[i] = f.api.Select(selector, aNormLimbs[i], bNormLimbs[i])
 	}
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.Select", 2*(len(a.Limbs)+len(b.Limbs)))
 	return e
 }
 
@@ -278,6 +293,9 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	for i := range nbLimbs {
 		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
 	}
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.Lookup2", 4*(len(a.Limbs)+len(b.Limbs)+len(c.Limbs)+len(d.Limbs)))
 	return e
 }
 
@@ -327,6 +345,9 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 	for i := range nbLimbs {
 		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
 	}
+
+	// Record operation for profiling
+	profile.RecordOperation("emulated.Mux", nbInputs*nbLimbs)
 	return e
 }
 
@@ -340,7 +361,17 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 	var err error
 	var target overflowError
 
+	var nbLoops int
 	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
+		if nbLoops++; nbLoops > 2 {
+			// we have tried reducing both sides and still the operation doesn't fit.
+			// this should never happen as after reducing both sides, the operation
+			// must fit.
+			//
+			// This is gnark-side error which needs to be fixed in the code, so we
+			// panic here.
+			panic("internal error: too many reduction loops")
+		}
 		if !target.reduceRight {
 			a = f.Reduce(a)
 		} else {
