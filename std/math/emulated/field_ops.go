@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -142,6 +143,9 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
+
+	// Record virtual constraints for profiling
+	profile.RecordVirtual("emulated.Add", len(a.Limbs)+len(b.Limbs))
 	return f.newInternalElement(limbs, nextOverflow)
 }
 
@@ -173,6 +177,7 @@ func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
 			limbs[j] = f.api.Add(limbs[j], inputs[i].Limbs[j])
 		}
 	}
+	profile.RecordVirtual("emulated.Sum", nbLimbs)
 	return f.newInternalElement(limbs, overflow+uint(addOverflow))
 }
 
@@ -213,6 +218,9 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
+
+	// Record virtual constraints for profiling
+	profile.RecordVirtual("emulated.Sub", len(a.Limbs)+len(b.Limbs))
 	return f.newInternalElement(limbs, nextOverflow)
 }
 
@@ -245,6 +253,9 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 	for i := range e.Limbs {
 		e.Limbs[i] = f.api.Select(selector, aNormLimbs[i], bNormLimbs[i])
 	}
+
+	// Record virtual constraints for profiling
+	profile.RecordVirtual("emulated.Select", 2*(len(a.Limbs)+len(b.Limbs)))
 	return e
 }
 
@@ -282,6 +293,9 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	for i := range nbLimbs {
 		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
 	}
+
+	// Record virtual constraints for profiling
+	profile.RecordVirtual("emulated.Lookup2", 4*(len(a.Limbs)+len(b.Limbs)+len(c.Limbs)+len(d.Limbs)))
 	return e
 }
 
@@ -331,6 +345,9 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 	for i := range nbLimbs {
 		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
 	}
+
+	// Record virtual constraints for profiling
+	profile.RecordVirtual("emulated.Mux", nbInputs*nbLimbs)
 	return e
 }
 

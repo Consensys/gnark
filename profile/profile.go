@@ -256,7 +256,7 @@ func RecordConstraint() {
 //
 //	profile.RecordVirtual("rangecheck_64bits", 1)
 //	profile.RecordVirtual("emulated.Mul_4limbs", 1)
-func RecordVirtual(name string) {
+func RecordVirtual(name string, count int) {
 	if n := atomic.LoadUint32(&activeSessions); n == 0 {
 		return // do nothing, no active session.
 	}
@@ -268,7 +268,7 @@ func RecordVirtual(name string) {
 		return
 	}
 	pc = pc[:n]
-	chCommands <- command{pc: pc, virtual: true, virtualCount: int64(1), virtualName: name}
+	chCommands <- command{pc: pc, virtual: true, virtualCount: int64(count), virtualName: name}
 }
 
 func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {

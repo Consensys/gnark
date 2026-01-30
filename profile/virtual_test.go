@@ -72,9 +72,9 @@ func TestVirtualConstraintsDirectAPI(t *testing.T) {
 	p := profile.Start(profile.WithNoOutput())
 
 	// Record some virtual operations manually (each records count=1)
-	profile.RecordVirtual("test.op1")
-	profile.RecordVirtual("test.op2")
-	profile.RecordVirtual("test.op2") // record op2 twice
+	profile.RecordVirtual("test.op1", 1)
+	profile.RecordVirtual("test.op2", 1)
+	profile.RecordVirtual("test.op2", 1) // record op2 twice
 
 	// Also record regular constraints (simulate with RecordConstraint)
 	profile.RecordConstraint()
@@ -101,7 +101,7 @@ func TestVirtualConstraintsNoSession(t *testing.T) {
 	// This tests that it doesn't panic and doesn't affect anything
 
 	// No profile.Start() - just call RecordVirtual
-	profile.RecordVirtual("test.noop")
+	profile.RecordVirtual("test.noop", 1)
 	profile.RecordConstraint()
 
 	// Start a new session to verify nothing was recorded
@@ -127,10 +127,10 @@ func TestVirtualWeights(t *testing.T) {
 	p := profile.Start(profile.WithNoOutput(), profile.WithVirtualWeights(weights))
 
 	// Record virtual operations
-	profile.RecordVirtual("expensive.op") // should count as 10
-	profile.RecordVirtual("medium.op")    // should count as 5
-	profile.RecordVirtual("medium.op")    // should count as 5
-	profile.RecordVirtual("cheap.op")     // should count as 1 (no weight)
+	profile.RecordVirtual("expensive.op", 1) // should count as 10
+	profile.RecordVirtual("medium.op", 1)    // should count as 5
+	profile.RecordVirtual("medium.op", 1)    // should count as 5
+	profile.RecordVirtual("cheap.op", 1)     // should count as 1 (no weight)
 
 	p.Stop()
 
@@ -152,7 +152,7 @@ func TestVirtualWeightsMultipleSessions(t *testing.T) {
 	p2 := profile.Start(profile.WithNoOutput(), profile.WithVirtualWeights(weights2))
 
 	// Record a virtual operation - each session should apply its own weight
-	profile.RecordVirtual("op")
+	profile.RecordVirtual("op", 1)
 
 	p2.Stop()
 	p1.Stop()

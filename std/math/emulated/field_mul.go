@@ -244,11 +244,6 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		return f.smallMulMod(aLimb, bLimb)
 	}
 
-	// Record virtual constraint for profiling - this tracks the operation at call site
-	// independently of when the actual constraints are created in deferred callbacks.
-	// Include limb count in the name for visibility in pprof flamegraphs.
-	profile.RecordVirtual(fmt.Sprintf("emulated.Mul_%dlimbs", f.fParams.NbLimbs()))
-
 	f.enforceWidthConditional(p)
 	k, r, c, err := f.callMulHint(a, b, true, p)
 	if err != nil {
@@ -264,6 +259,10 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		p: p,
 	}
 	f.deferredChecks = append(f.deferredChecks, &mc)
+	// Record virtual constraint for profiling - this tracks the operation at call site
+	// independently of when the actual constraints are created in deferred callbacks.
+	// Include limb count in the name for visibility in pprof flamegraphs.
+	profile.RecordVirtual("emulated.MulMod", len(a.Limbs)+len(b.Limbs)+len(r.Limbs)+len(k.Limbs)+len(c.Limbs))
 	return r
 }
 
@@ -283,10 +282,6 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 		return
 	}
 
-	// Record virtual constraint for profiling - this tracks the operation at call site
-	// independently of when the actual constraints are created in deferred callbacks.
-	profile.RecordVirtual(fmt.Sprintf("emulated.AssertIsEqual_%dlimbs", f.fParams.NbLimbs()))
-
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
 	f.enforceWidthConditional(p)
@@ -305,6 +300,10 @@ func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 		p: p,
 	}
 	f.deferredChecks = append(f.deferredChecks, &mc)
+
+	// Record virtual constraint for profiling - this tracks the operation at call site
+	// independently of when the actual constraints are created in deferred callbacks.
+	profile.RecordVirtual("emulated.CheckZero", len(a.Limbs)+len(k.Limbs)+len(c.Limbs))
 }
 
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
@@ -745,6 +744,7 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 			resLimbs[i+j] = f.api.MulAcc(resLimbs[i+j], a.Limbs[i], b.Limbs[j])
 		}
 	}
+	profile.RecordVirtual("emulated.MulNoReduce", 2*len(resLimbs))
 	return f.newInternalElement(resLimbs, nextoverflow)
 }
 
@@ -880,9 +880,6 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		panic(err)
 	}
 
-	// Record virtual constraint for profiling
-	profile.RecordVirtual("emulated.Eval")
-
 	// finally, we store the deferred check which is performed later. The
 	// `mvCheck` implements the deferredChecker interface, so that we use the
 	// generic deferred check method.
@@ -896,6 +893,14 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	}
 
 	f.deferredChecks = append(f.deferredChecks, &mvc)
+
+	// Record virtual constraint for profiling
+	nbLimbs := 0
+	for i := range allElems {
+		nbLimbs += len(allElems[i].Limbs)
+	}
+	nbLimbs += len(r.Limbs) + len(k.Limbs) + len(c.Limbs)
+	profile.RecordVirtual("emulated.Eval", nbLimbs)
 	return r
 }
 
