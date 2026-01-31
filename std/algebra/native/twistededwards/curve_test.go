@@ -18,7 +18,9 @@ import (
 	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/test"
 )
@@ -415,4 +417,35 @@ func testData(params *CurveParams, curveID twistededwards.ID, zero1, zero2 bool)
 func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
+}
+
+// Benchmarks for constraint counting
+
+type scalarMulCircuit struct {
+	curveID twistededwards.ID
+	P       Point
+	S       frontend.Variable
+	R       Point
+}
+
+func (circuit *scalarMulCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+	res := curve.ScalarMul(circuit.P, circuit.S)
+	api.AssertIsEqual(res.X, circuit.R.X)
+	api.AssertIsEqual(res.Y, circuit.R.Y)
+	return nil
+}
+
+func BenchmarkScalarMulTwistedEdwards(b *testing.B) {
+	var circuit scalarMulCircuit
+	circuit.curveID = twistededwards.BN254
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
 }

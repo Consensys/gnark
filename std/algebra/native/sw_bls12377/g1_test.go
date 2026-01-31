@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -1004,4 +1005,16 @@ func TestScalarMulG1GLVAndFakeGLVEdgeCases(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+// Benchmarks for constraint counting
+
+func BenchmarkScalarMulG1GLVAndFakeGLV(b *testing.B) {
+	var circuit scalarMulGLVAndFakeGLV
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls12381_fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -17,7 +18,6 @@ import (
 	secp_fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	stark_fp "github.com/consensys/gnark-crypto/ecc/stark-curve/fp"
-	"github.com/consensys/gnark-crypto/field/eisenstein"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -30,8 +30,8 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalarG1,
 		scalarMulHint,
-		halfGCD,
-		halfGCDEisenstein,
+		rationalReconstruct,
+		rationalReconstructExt,
 	}
 }
 
@@ -156,7 +156,7 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	})
 }
 
-func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func rationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
@@ -173,25 +173,37 @@ func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		if len(emuOutputs) != 2 {
 			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
 		}
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[0], glvBasis)
-		emuOutputs[0].Set(&glvBasis.V1[0])
-		emuOutputs[1].Set(&glvBasis.V1[1])
+		// Use lattice reduction to find (x, z) such that s ≡ x/z (mod r),
+		// i.e., x - s*z ≡ 0 (mod r), or equivalently x + s*(-z) ≡ 0 (mod r).
+		// The circuit checks: s1 + s*_s2 ≡ 0 (mod r)
+		// So we need s1 = x and _s2 = -z.
+		res := lattice.RationalReconstruct(emuInputs[0], moduli[0])
+		x, z := res[0], res[1]
+
+		// Ensure x is non-negative (the circuit bit-decomposes s1 assuming it's small positive).
+		// If x < 0, flip signs: (x, z) -> (-x, -z), which preserves s = x/z.
+		if x.Sign() < 0 {
+			x.Neg(x)
+			z.Neg(z)
+		}
+
+		emuOutputs[0].Set(x)
+		emuOutputs[1].Abs(z)
+
 		// we need the absolute values for the in-circuit computations,
 		// otherwise the negative values will be reduced modulo the SNARK scalar
 		// field and not the emulated field.
-		// 		output0 = |s0| mod r
-		// 		output1 = |s1| mod r
+		// The sign indicates whether to negate s2 in circuit to get -z.
+		// sign = 1 when z > 0 (so -z < 0, and we need to negate |z| to get -z)
 		nativeOutputs[0].SetUint64(0)
-		if emuOutputs[1].Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
-			nativeOutputs[0].SetUint64(1) // we return the sign of the second subscalar
+		if z.Sign() > 0 {
+			nativeOutputs[0].SetUint64(1)
 		}
 		return nil
 	})
 }
 
-func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func rationalReconstructExt(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
@@ -209,47 +221,53 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 			return fmt.Errorf("expecting four outputs, got %d", len(emuOutputs))
 		}
 
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
-		r := eisenstein.ComplexNumber{
-			A0: glvBasis.V1[0],
-			A1: glvBasis.V1[1],
-		}
-		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
+		// Use lattice reduction to find (x, y, z, t) such that
+		// k ≡ (x + λ*y) / (z + λ*t) (mod r)
+		//
 		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-		// so here we return -s instead of s.
-		s := eisenstein.ComplexNumber{
-			A0: sp[0],
-			A1: sp[1],
-		}
-		s.Neg(&s)
+		// so here we use k = -s.
+		//
+		// With k = -s:
+		// -s ≡ (x + λ*y) / (z + λ*t) (mod r)
+		// s ≡ -(x + λ*y) / (z + λ*t) = (-x - λ*y) / (z + λ*t) (mod r)
+		//
+		// The circuit checks: s*(v1 + λ*v2) + u1 + λ*u2 ≡ 0 (mod r)
+		// Rearranging: s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r)
+		//
+		// Matching: (-x - λ*y) = -(u1 + λ*u2)
+		// So: u1 = x, u2 = y, v1 = z, v2 = t
+		k := new(big.Int).Neg(emuInputs[0])
+		k.Mod(k, moduli[0])
+		res := lattice.RationalReconstructExt(k, moduli[0], emuInputs[1])
+		x, y, z, t := res[0], res[1], res[2], res[3]
 
-		res := eisenstein.HalfGCD(&r, &s)
-		// values
-		emuOutputs[0].Set(&res[0].A0)
-		emuOutputs[1].Set(&res[0].A1)
-		emuOutputs[2].Set(&res[1].A0)
-		emuOutputs[3].Set(&res[1].A1)
+		// u1 = x, u2 = y, v1 = z, v2 = t
+		// We return absolute values and track signs
+		emuOutputs[0].Abs(x) // |u1| = |x|
+		emuOutputs[1].Abs(y) // |u2| = |y|
+		emuOutputs[2].Abs(z) // |v1| = |z|
+		emuOutputs[3].Abs(t) // |v2| = |t|
+
 		// signs
-		nativeOutputs[0].SetUint64(0)
-		nativeOutputs[1].SetUint64(0)
-		nativeOutputs[2].SetUint64(0)
-		nativeOutputs[3].SetUint64(0)
+		nativeOutputs[0].SetUint64(0) // isNegu1
+		nativeOutputs[1].SetUint64(0) // isNegu2
+		nativeOutputs[2].SetUint64(0) // isNegv1
+		nativeOutputs[3].SetUint64(0) // isNegv2
 
-		if res[0].A0.Sign() == -1 {
-			emuOutputs[0].Neg(emuOutputs[0])
+		// u1 = x is negative when x < 0
+		if x.Sign() < 0 {
 			nativeOutputs[0].SetUint64(1)
 		}
-		if res[0].A1.Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
+		// u2 = y is negative when y < 0
+		if y.Sign() < 0 {
 			nativeOutputs[1].SetUint64(1)
 		}
-		if res[1].A0.Sign() == -1 {
-			emuOutputs[2].Neg(emuOutputs[2])
+		// v1 = z is negative when z < 0
+		if z.Sign() < 0 {
 			nativeOutputs[2].SetUint64(1)
 		}
-		if res[1].A1.Sign() == -1 {
-			emuOutputs[3].Neg(emuOutputs[3])
+		// v2 = t is negative when t < 0
+		if t.Sign() < 0 {
 			nativeOutputs[3].SetUint64(1)
 		}
 		return nil

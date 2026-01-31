@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/field/eisenstein"
 	"github.com/consensys/gnark/constraint/solver"
 )
 
@@ -16,7 +16,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Simple,
 		decomposeScalarG2,
 		scalarMulGLVG1Hint,
-		halfGCDEisenstein,
+		rationalReconstructExt,
 		pairingCheckHint,
 	}
 }
@@ -196,66 +196,79 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 	return nil
 }
 
-func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return errors.New("expecting two input")
+		return errors.New("expecting two inputs")
 	}
 	if len(outputs) != 10 {
 		return errors.New("expecting ten outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(cc.fr, inputs[1], glvBasis)
-	r := eisenstein.ComplexNumber{
-		A0: glvBasis.V1[0],
-		A1: glvBasis.V1[1],
-	}
-	sp := ecc.SplitScalar(inputs[0], glvBasis)
+
+	// Use lattice reduction to find (x, y, z, t) such that
+	// k ≡ (x + λ*y) / (z + λ*t) (mod r)
+	//
 	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-	// so here we return -s instead of s.
-	s := eisenstein.ComplexNumber{
-		A0: sp[0],
-		A1: sp[1],
-	}
-	s.Neg(&s)
-	res := eisenstein.HalfGCD(&r, &s)
-	outputs[0].Set(&res[0].A0)
-	outputs[1].Set(&res[0].A1)
-	outputs[2].Set(&res[1].A0)
-	outputs[3].Set(&res[1].A1)
-	outputs[4].Mul(&res[1].A1, inputs[1]).
-		Add(outputs[4], &res[1].A0).
-		Mul(outputs[4], inputs[0]).
-		Add(outputs[4], &res[0].A0)
-	s.A0.Mul(&res[0].A1, inputs[1])
-	outputs[4].Add(outputs[4], &s.A0).
-		Div(outputs[4], cc.fr)
+	// so here we use k = -s.
+	//
+	// With k = -s:
+	// -s ≡ (x + λ*y) / (z + λ*t) (mod r)
+	// s ≡ -(x + λ*y) / (z + λ*t) = (-x - λ*y) / (z + λ*t) (mod r)
+	//
+	// The circuit checks: s*(v1 + λ*v2) + u1 + λ*u2 ≡ 0 (mod r)
+	// Rearranging: s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r)
+	//
+	// Matching: (-x - λ*y) = -(u1 + λ*u2)
+	// So: u1 = x, u2 = y, v1 = z, v2 = t
+	k := new(big.Int).Neg(inputs[0])
+	k.Mod(k, cc.fr)
+	res := lattice.RationalReconstructExt(k, cc.fr, inputs[1])
+	x, y, z, t := res[0], res[1], res[2], res[3]
+
+	// u1 = x, u2 = y, v1 = z, v2 = t
+	outputs[0].Abs(x) // |u1| = |x|
+	outputs[1].Abs(y) // |u2| = |y|
+	outputs[2].Abs(z) // |v1| = |z|
+	outputs[3].Abs(t) // |v2| = |t|
+
+	// Compute overflow: q = (s*(v1 + λ*v2) + u1 + λ*u2) / r
+	// Using signed values for the computation
+	lambdaV2 := new(big.Int).Mul(inputs[1], t)
+	vSum := new(big.Int).Add(z, lambdaV2)
+	sTimesV := new(big.Int).Mul(inputs[0], vSum)
+	lambdaU2 := new(big.Int).Mul(inputs[1], y)
+	uSum := new(big.Int).Add(x, lambdaU2)
+	outputs[4].Add(sTimesV, uSum)
+	outputs[4].Div(outputs[4], cc.fr)
+	outputs[4].Abs(outputs[4])
 
 	// set the signs
-	outputs[5].SetUint64(0)
-	outputs[6].SetUint64(0)
-	outputs[7].SetUint64(0)
-	outputs[8].SetUint64(0)
-	outputs[9].SetUint64(0)
+	outputs[5].SetUint64(0) // isNegu1
+	outputs[6].SetUint64(0) // isNegu2
+	outputs[7].SetUint64(0) // isNegv1
+	outputs[8].SetUint64(0) // isNegv2
+	outputs[9].SetUint64(0) // isNegq
 
-	if outputs[0].Sign() == -1 {
-		outputs[0].Neg(outputs[0])
+	// u1 = x is negative when x < 0
+	if x.Sign() < 0 {
 		outputs[5].SetUint64(1)
 	}
-	if outputs[1].Sign() == -1 {
-		outputs[1].Neg(outputs[1])
+	// u2 = y is negative when y < 0
+	if y.Sign() < 0 {
 		outputs[6].SetUint64(1)
 	}
-	if outputs[2].Sign() == -1 {
-		outputs[2].Neg(outputs[2])
+	// v1 = z is negative when z < 0
+	if z.Sign() < 0 {
 		outputs[7].SetUint64(1)
 	}
-	if outputs[3].Sign() == -1 {
-		outputs[3].Neg(outputs[3])
+	// v2 = t is negative when t < 0
+	if t.Sign() < 0 {
 		outputs[8].SetUint64(1)
 	}
-	if outputs[4].Sign() == -1 {
-		outputs[4].Neg(outputs[4])
+	// q sign
+	qSign := new(big.Int).Add(sTimesV, uSum)
+	qSign.Div(qSign, cc.fr)
+	if qSign.Sign() < 0 {
 		outputs[9].SetUint64(1)
 	}
 
