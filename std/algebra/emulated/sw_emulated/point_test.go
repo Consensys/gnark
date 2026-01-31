@@ -20,6 +20,7 @@ import (
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	fr_stark "github.com/consensys/gnark-crypto/ecc/stark-curve/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -2544,4 +2545,36 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+// Benchmarks for constraint counting
+
+func BenchmarkScalarMulFakeGLV(b *testing.B) {
+	var circuit ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
+}
+
+func BenchmarkScalarMulGLVAndFakeGLV(b *testing.B) {
+	var circuit ScalarMulGLVAndFakeGLVTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
+}
+
+func BenchmarkScalarMulGLVAndFakeGLVBN254(b *testing.B) {
+	var circuit ScalarMulGLVAndFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
 }

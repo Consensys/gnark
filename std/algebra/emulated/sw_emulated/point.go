@@ -1253,9 +1253,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
 	// we also output the sign in case s2 is negative. In that case we compute _s2 = -s2 mod r.
-	sign, sd, err := c.scalarApi.NewHintGeneric(halfGCD, 1, 2, nil, []*emulated.Element[S]{_s})
+	sign, sd, err := c.scalarApi.NewHintGeneric(rationalReconstruct, 1, 2, nil, []*emulated.Element[S]{_s})
 	if err != nil {
-		panic(fmt.Sprintf("halfGCD hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstruct hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
@@ -1557,9 +1557,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, sd, err := c.scalarApi.NewHintGeneric(halfGCDEisenstein, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
+	signs, sd, err := c.scalarApi.NewHintGeneric(rationalReconstructExt, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
 	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
 	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
@@ -1668,10 +1668,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	g := c.Generator()
 	Acc = c.Add(Acc, g)
 
-	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is log_(3/sqrt(3)))(r).
-	// so we need to add 9 bits to r^{1/4}.nbits().
-	nbits := st.Modulus().BitLen()>>2 + 9
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25 (proven bound from LLL lattice reduction).
+	// We need ceil(r.BitLen()/4) + 2 bits to account for the constant factor.
+	nbits := (st.Modulus().BitLen()+3)/4 + 2
 	u1bits := c.scalarApi.ToBits(u1)
 	u2bits := c.scalarApi.ToBits(u2)
 	v1bits := c.scalarApi.ToBits(v1)

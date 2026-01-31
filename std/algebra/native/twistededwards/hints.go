@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
@@ -19,7 +20,7 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		halfGCD,
+		rationalReconstruct,
 		scalarMulHint,
 		decomposeScalar,
 	}
@@ -66,16 +67,14 @@ func decomposeScalar(scalarField *big.Int, inputs []*big.Int, res []*big.Int) er
 	return nil
 }
 
-func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
+func rationalReconstruct(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
 	if len(outputs) != 4 {
 		return errors.New("expecting four outputs")
 	}
-	// using PrecomputeLattice for scalar decomposition is a hack and it doesn't
-	// work in case the scalar is zero. override it for now to avoid division by
-	// zero until a long-term solution is found.
+	// Handle zero scalar case
 	if inputs[0].Sign() == 0 {
 		outputs[0].SetUint64(0)
 		outputs[1].SetUint64(0)
@@ -83,22 +82,37 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 		outputs[3].SetUint64(0)
 		return nil
 	}
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
-	outputs[0].Set(&glvBasis.V1[0])
-	outputs[1].Set(&glvBasis.V1[1])
 
-	// figure out how many times we have overflowed
-	// s2 * s + s1 = k*r
-	outputs[3].Mul(outputs[1], inputs[0]).
-		Add(outputs[3], outputs[0]).
-		Div(outputs[3], inputs[1])
+	// Use lattice reduction to find (x, z) such that s ≡ x/z (mod r),
+	// i.e., x - s*z ≡ 0 (mod r), or equivalently x + s*(-z) ≡ 0 (mod r).
+	// The circuit checks: s1 + s*_s2 ≡ 0 (mod r)
+	// So we need s1 = x and _s2 = -z.
+	res := lattice.RationalReconstruct(inputs[0], inputs[1])
+	x, z := res[0], res[1]
 
+	// Ensure x is non-negative (the circuit bit-decomposes s1 assuming it's small positive).
+	// If x < 0, flip signs: (x, z) -> (-x, -z), which preserves s = x/z.
+	if x.Sign() < 0 {
+		x.Neg(x)
+		z.Neg(z)
+	}
+
+	outputs[0].Set(x)
+	outputs[1].Abs(z)
+
+	// The sign indicates whether to negate s2 in circuit to get -z.
+	// sign = 1 when z > 0 (so -z < 0, and we need to negate |z| to get -z)
 	outputs[2].SetUint64(0)
-	if outputs[1].Sign() == -1 {
-		outputs[1].Neg(outputs[1])
+	if z.Sign() > 0 {
 		outputs[2].SetUint64(1)
 	}
+
+	// Compute overflow: k = (x - s*z) / r
+	// The constraint is x - s*z ≡ 0 (mod r), so x - s*z = k*r for some integer k
+	// We need to keep the sign of k for the circuit to work correctly.
+	outputs[3].Mul(z, inputs[0])          // s*z
+	outputs[3].Sub(x, outputs[3])         // x - s*z
+	outputs[3].Div(outputs[3], inputs[1]) // k = (x - s*z) / r
 
 	return nil
 }

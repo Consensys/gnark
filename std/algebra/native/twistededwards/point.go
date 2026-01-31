@@ -245,7 +245,7 @@ func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variab
 func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + s * s2 == 0 mod Order,
-	s, err := api.NewHint(halfGCD, 4, scalar, curve.Order)
+	s, err := api.NewHint(rationalReconstruct, 4, scalar, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
