@@ -18,6 +18,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	rangeCheckBaseLengthForSmallField = 16
+)
+
 // Field holds the configuration for non-native field operations. The field
 // parameters (modulus, number of limbs) is given by [FieldParams] type
 // parameter. If [FieldParams.IsPrime] is true, then allows inverse and division
@@ -88,6 +92,15 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 			return nil, fmt.Errorf("extension field: %w", err)
 		}
 		f.extensionApi = extapi
+	}
+	if f.useSmallFieldOptimization() {
+		// in case of emulated small fields we use base length 16 to reduce
+		// needing to range check for [v_lo, v_hi, 2*v_hi].
+		//
+		// But this means that hints could output values which are bigger than
+		// the emulated modulus bitwidth (for example 31 bits). This means we
+		// have to set the overflow of returned elements correctly.
+		f.checker = rangecheck.New(native, rangecheck.WithBaseLength(rangeCheckBaseLengthForSmallField))
 	}
 
 	// ensure prime is correctly set
@@ -194,9 +207,15 @@ func (f *Field[T]) modulusPrev() *Element[T] {
 // less constraints will be generated.
 // If strict is false, each limbs is constrained to have width as defined by field parameter.
 func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
-	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, strict)
-	return e
+	if !f.useSmallFieldOptimization() {
+		e := f.newInternalElement(limbs, 0)
+		f.enforceWidth(e, strict)
+		return e
+	} else {
+		e := f.newInternalElement(limbs, uint(f.smallAdditionalOverflow()))
+		f.smallEnforceWidth(e, strict)
+		return e
+	}
 }
 
 func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
@@ -255,7 +274,11 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		}
 	}
 	if didConstrain {
-		f.enforceWidth(a, true)
+		if !f.useSmallFieldOptimization() {
+			f.enforceWidth(a, true)
+		} else {
+			f.smallEnforceWidth(a, true)
+		}
 	}
 	return
 }
