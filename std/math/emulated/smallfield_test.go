@@ -426,9 +426,13 @@ func BenchmarkSmallFieldMulConstraints(b *testing.B) {
 			circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], bc.nbMuls)}
 
 			for b.Loop() {
-				// even though we run the compile to report the metrics, then we still run in the
-				// loop to avoid many circuit compile runs. This adds benchmark overhead but it is
-				// better than compiling outside the loop.
+				// for some reason, when we don't run the loop here, then the benchmark suite
+				// runs the whole benchmark multiple times. I guess it has something to do
+				// with the `b.Run` above (i.e. it parallelizes etc). To avoid this, we run an
+				// empty b.Loop() here to ensure we only run the compile once.
+				//
+				// this adds overhead as the `b.Loop()` will be run for `benchtime` period, but
+				// by default it is small. Otherwise the benchmark will be very slow.
 			}
 			csr1, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 			if err != nil {
@@ -445,6 +449,7 @@ func BenchmarkSmallFieldMulConstraints(b *testing.B) {
 			constraintsSCSPerMul := float64(css.GetNbConstraints()) / float64(bc.nbMuls)
 			b.ReportMetric(constraintsSCSPerMul, "scs_constraints/mul")
 			b.ReportMetric(float64(css.GetNbConstraints()), "scs_total_constraints")
+			b.ReportMetric(0.0, "ns/op") // avoid ns/op reporting as we don't measure time here
 		})
 	}
 }
