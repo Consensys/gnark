@@ -425,6 +425,11 @@ func BenchmarkSmallFieldMulConstraints(b *testing.B) {
 		b.Run(bc.name, func(b *testing.B) {
 			circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], bc.nbMuls)}
 
+			for b.Loop() {
+				// even though we run the compile to report the metrics, then we still run in the
+				// loop to avoid many circuit compile runs. This adds benchmark overhead but it is
+				// better than compiling outside the loop.
+			}
 			csr1, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 			if err != nil {
 				b.Fatal(err)
