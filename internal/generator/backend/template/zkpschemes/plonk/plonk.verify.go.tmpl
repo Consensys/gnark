@@ -3,7 +3,7 @@ import (
 	"fmt"
     "io"
 	"math/big"
-    {{ if eq .Curve "BN254" -}}
+    {{ if or (eq .Curve "BN254") (eq .Curve "BLS12-381") -}}
     "text/template"
     {{- end }}
 	"time"
@@ -14,6 +14,9 @@ import (
 	{{ template "import_fr" . }}
 	{{ if eq .Curve "BN254" -}}
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	{{- end }}
+	{{ if eq .Curve "BLS12-381" -}}
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	{{- end }}
 	{{- template "import_hash_to_field" . }}
 	{{ template "import_kzg" . }}

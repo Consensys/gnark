@@ -8,14 +8,12 @@ package plonk
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"math/big"
-
+	"text/template"
 	"time"
 
 	"github.com/consensys/gnark/backend/solidity"
-	"github.com/crate-crypto/go-ipa/bandersnatch/fp"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -23,6 +21,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/hash_to_field"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
