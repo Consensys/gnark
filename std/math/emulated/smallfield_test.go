@@ -488,11 +488,11 @@ func (c *MaliciousMulCircuit) Define(api frontend.API) error {
 	}
 
 	// 5 multiplications: ((A*B) * (C*D)) * (E*F)
-	ab := f.Mul(&c.A, &c.B)
-	cd := f.Mul(&c.C, &c.D)
-	ef := f.Mul(&c.E, &c.F)
-	abcd := f.Mul(ab, cd)
-	result := f.Mul(abcd, ef)
+	ab := f.MulMod(&c.A, &c.B)
+	cd := f.MulMod(&c.C, &c.D)
+	ef := f.MulMod(&c.E, &c.F)
+	abcd := f.MulMod(ab, cd)
+	result := f.MulMod(abcd, ef)
 	f.AssertIsEqual(result, &c.Result)
 	return nil
 }
