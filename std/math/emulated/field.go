@@ -264,7 +264,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 				// that we should enforce width for the whole element. But we
 				// still iterate over all limbs just to mark them in the table.
 				didConstrain = true
-				f.constrainedLimbs[h] = struct{}{}
+				break
 			}
 		} else {
 			// we have no way of knowing if the limb has been constrained. To be
