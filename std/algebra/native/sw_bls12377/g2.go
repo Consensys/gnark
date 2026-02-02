@@ -4,6 +4,7 @@
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -113,6 +114,20 @@ func (p *g2AffP) Select(api frontend.API, b frontend.Variable, p1, p2 g2AffP) *g
 	return p
 }
 
+// Lookup2 performs a 2-bit lookup between p1, p2, p3, p4 based on bits b0 and b1.
+// Returns:
+//   - p1 if b0=0 and b1=0,
+//   - p2 if b0=1 and b1=0,
+//   - p3 if b0=0 and b1=1,
+//   - p4 if b0=1 and b1=1.
+func (p *g2AffP) Lookup2(api frontend.API, b1, b2 frontend.Variable, p1, p2, p3, p4 g2AffP) *g2AffP {
+
+	p.X.Lookup2(api, b1, b2, p1.X, p2.X, p3.X, p4.X)
+	p.Y.Lookup2(api, b1, b2, p1.Y, p2.Y, p3.Y, p4.Y)
+
+	return p
+}
+
 // Double compute 2*p1, assign the result to p and return it
 // Only for curve with j invariant 0 (a=0).
 func (p *g2AffP) Double(api frontend.API, p1 g2AffP) *g2AffP {
@@ -177,7 +192,7 @@ func (p *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 	if n, ok := api.Compiler().ConstantValue(s); ok {
 		return p.constScalarMul(api, Q, n, opts...)
 	} else {
-		return p.varScalarMul(api, Q, s, opts...)
+		return p.scalarMulGLVAndFakeGLV(api, Q, s, opts...)
 	}
 }
 
@@ -544,6 +559,249 @@ func (p *g2AffP) psi(api frontend.API, q *g2AffP) *g2AffP {
 
 	p.X = x
 	p.Y = y
+
+	return p
+}
+
+// scalarMulGLVAndFakeGLV computes [s]P using GLV+fakeGLV with r^(1/4) bounds.
+// It implements the "GLV + fake GLV" optimization which achieves tighter bounds
+// on the sub-scalars, reducing the number of iterations in the scalar multiplication loop.
+//
+// ⚠️  The scalar s must be nonzero and the point P different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+func (p *g2AffP) scalarMulGLVAndFakeGLV(api frontend.API, P g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	// handle zero-scalar
+	var selector0 frontend.Variable
+	_s := s
+	if cfg.CompleteArithmetic {
+		selector0 = api.IsZero(s)
+		_s = api.Select(selector0, 1, s)
+	}
+
+	// Instead of computing [s]P=Q, we check that Q-[s]P == 0.
+	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
+	//
+	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
+	// of the GLV endomorphism is a primitive cube root of unity. If we write
+	// v, s and r as Eisenstein integers we can express the check as:
+	//
+	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
+	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
+	//
+	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
+	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	//
+	// The hint returns u1, u2, v1, v2 and the quotient q.
+	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	//
+	// Eisenstein integers real and imaginary parts can be negative. So we
+	// return the absolute value in the hint and negate the corresponding
+	// points here when needed.
+	sd, err := api.NewHint(rationalReconstructExt, 10, _s, cc.lambda)
+	if err != nil {
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
+	}
+	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
+	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
+
+	// We need to check that:
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
+	sv1 := api.Mul(_s, v1)
+	sλv2 := api.Mul(_s, api.Mul(cc.lambda, v2))
+	λu2 := api.Mul(cc.lambda, u2)
+	rq := api.Mul(cc.fr, q)
+
+	lhs1 := api.Select(isNegv1, 0, sv1)
+	lhs2 := api.Select(isNegv2, 0, sλv2)
+	lhs3 := api.Select(isNegu1, 0, u1)
+	lhs4 := api.Select(isNegu2, 0, λu2)
+	lhs5 := api.Select(isNegq, rq, 0)
+	lhs := api.Add(
+		api.Add(lhs1, lhs2),
+		api.Add(lhs3, lhs4),
+	)
+	lhs = api.Add(lhs, lhs5)
+
+	rhs1 := api.Select(isNegv1, sv1, 0)
+	rhs2 := api.Select(isNegv2, sλv2, 0)
+	rhs3 := api.Select(isNegu1, u1, 0)
+	rhs4 := api.Select(isNegu2, λu2, 0)
+	rhs5 := api.Select(isNegq, 0, rq)
+	rhs := api.Add(
+		api.Add(rhs1, rhs2),
+		api.Add(rhs3, rhs4),
+	)
+	rhs = api.Add(rhs, rhs5)
+
+	api.AssertIsEqual(lhs, rhs)
+
+	// Next we compute the hinted scalar mul Q = [s]P
+	point, err := api.NewHint(scalarMulGLVG2Hint, 4, P.X.A0, P.X.A1, P.Y.A0, P.Y.A1, s)
+	if err != nil {
+		panic(fmt.Sprintf("scalar mul hint: %v", err))
+	}
+	Q := g2AffP{
+		X: fields_bls12377.E2{A0: point[0], A1: point[1]},
+		Y: fields_bls12377.E2{A0: point[2], A1: point[3]},
+	}
+
+	// handle (0,0)-point
+	var _selector0, selectorQ0 frontend.Variable
+	_P := P
+	one := fields_bls12377.E2{A0: 1, A1: 0}
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
+	if cfg.CompleteArithmetic {
+		// if P=(0,0) we assign a dummy point to P and continue
+		_selector0 = api.And(P.X.IsZero(api), P.Y.IsZero(api))
+		two := fields_bls12377.E2{A0: 2, A1: 0}
+		_P.Select(api, _selector0, g2AffP{X: two, Y: one}, P)
+		// if Q=(0,0) (either because s=0 or P=(0,0)) we assign a dummy point to Q
+		selectorQ0 = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
+		Q.Select(api, selectorQ0, g2AffP{X: one, Y: one}, Q)
+	}
+
+	// precompute -P, -Φ(P), Φ(P)
+	var tableP, tablePhiP [2]g2AffP
+	var negPY fields_bls12377.E2
+	negPY.Neg(api, _P.Y)
+	tableP[1] = g2AffP{
+		X: _P.X,
+		Y: fields_bls12377.E2{
+			A0: api.Select(isNegu1, negPY.A0, _P.Y.A0),
+			A1: api.Select(isNegu1, negPY.A1, _P.Y.A1),
+		},
+	}
+	tableP[0].Neg(api, tableP[1])
+	var phiPX fields_bls12377.E2
+	phiPX.MulByFp(api, _P.X, cc.thirdRootOne2)
+	tablePhiP[1] = g2AffP{
+		X: phiPX,
+		Y: fields_bls12377.E2{
+			A0: api.Select(isNegu2, negPY.A0, _P.Y.A0),
+			A1: api.Select(isNegu2, negPY.A1, _P.Y.A1),
+		},
+	}
+	tablePhiP[0].Neg(api, tablePhiP[1])
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]g2AffP
+	var negQY fields_bls12377.E2
+	negQY.Neg(api, Q.Y)
+	tableQ[1] = g2AffP{
+		X: Q.X,
+		Y: fields_bls12377.E2{
+			A0: api.Select(isNegv1, negQY.A0, Q.Y.A0),
+			A1: api.Select(isNegv1, negQY.A1, Q.Y.A1),
+		},
+	}
+	tableQ[0].Neg(api, tableQ[1])
+	var phiQX fields_bls12377.E2
+	phiQX.MulByFp(api, Q.X, cc.thirdRootOne2)
+	tablePhiQ[1] = g2AffP{
+		X: phiQX,
+		Y: fields_bls12377.E2{
+			A0: api.Select(isNegv2, negQY.A0, Q.Y.A0),
+			A1: api.Select(isNegv2, negQY.A1, Q.Y.A1),
+		},
+	}
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
+	// We use AddUnified for table precomputation to handle edge cases like s=1 where Q=P
+	// and the points might be equal (requiring doubling instead of addition).
+	var tableS, tablePhiS [4]g2AffP
+	tableS[0] = tableP[0]
+	tableS[0].AddUnified(api, tableQ[0])
+	tableS[1].Neg(api, tableS[0])
+	tableS[2] = tableP[1]
+	tableS[2].AddUnified(api, tableQ[0])
+	tableS[3].Neg(api, tableS[2])
+	tablePhiS[0] = tablePhiP[0]
+	tablePhiS[0].AddUnified(api, tablePhiQ[0])
+	tablePhiS[1].Neg(api, tablePhiS[0])
+	tablePhiS[2] = tablePhiP[1]
+	tablePhiS[2].AddUnified(api, tablePhiQ[0])
+	tablePhiS[3].Neg(api, tablePhiS[2])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = P + Q + Φ(P) + Φ(Q)
+	Acc := tableS[1]
+	Acc.AddAssign(api, tablePhiS[1])
+	// When doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen that
+	// Acc==B or -B. So we add the G2 generator to it to avoid incomplete
+	// additions in the loop by forcing Acc to be different than the stored B.
+	// At the end, since [u1]P + [u2]Φ(P) + [v1]Q + [v2]Φ(Q) = 0,
+	// Acc will equal [2^(nbits-1)]G2 (precomputed).
+	points := getTwistPoints()
+	G2Gen := g2AffP{
+		X: fields_bls12377.E2{A0: points.G2x[0], A1: points.G2x[1]},
+		Y: fields_bls12377.E2{A0: points.G2y[0], A1: points.G2y[1]},
+	}
+	Acc.AddAssign(api, G2Gen)
+
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25 (proven bound from LLL lattice reduction).
+	// We need ceil(r.BitLen()/4) + 2 bits to account for the constant factor.
+	// For BLS12-377, r.BitLen() = 253, so nbits = 64 + 2 = 66.
+	nbits := (cc.fr.BitLen()+3)/4 + 2
+	u1bits := api.ToBinary(u1, nbits)
+	u2bits := api.ToBinary(u2, nbits)
+	v1bits := api.ToBinary(v1, nbits)
+	v2bits := api.ToBinary(v2, nbits)
+
+	var B g2AffP
+	for i := nbits - 1; i > 0; i-- {
+		B.X.Select(api, api.Xor(u1bits[i], v1bits[i]), tableS[2].X, tableS[0].X)
+		B.Y.Lookup2(api, u1bits[i], v1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+		B.X.Select(api, api.Xor(u2bits[i], v2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
+		B.Y.Lookup2(api, u2bits[i], v2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
+		Acc.AddAssign(api, B)
+	}
+
+	// i = 0
+	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
+	tableP[0].AddAssign(api, Acc)
+	Acc.Select(api, u1bits[0], Acc, tableP[0])
+	tablePhiP[0].AddAssign(api, Acc)
+	Acc.Select(api, u2bits[0], Acc, tablePhiP[0])
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, v1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, v2bits[0], Acc, tablePhiQ[0])
+
+	// Acc should be now equal to [2^(nbits-1)]G2 since we added G2 at the beginning
+	// and [u1]P + [u2]Φ(P) + [v1]Q + [v2]Φ(Q) = 0.
+	// The loop does nbits-1 doublings, so the generator accumulates to [2^(nbits-1)]G2.
+	// G2m[i] = [2^i]G2, so we need G2m[nbits-1] = [2^(nbits-1)]G2.
+	expected := g2AffP{
+		X: fields_bls12377.E2{
+			A0: points.G2m[nbits-1][0],
+			A1: points.G2m[nbits-1][1],
+		},
+		Y: fields_bls12377.E2{
+			A0: points.G2m[nbits-1][2],
+			A1: points.G2m[nbits-1][3],
+		},
+	}
+	if cfg.CompleteArithmetic {
+		// if P=(0,0) or s=0 (which makes Q=(0,0)), set Acc to expected to pass the check
+		skipCheck := api.Or(selector0, _selector0)
+		Acc.Select(api, skipCheck, expected, Acc)
+	}
+	Acc.AssertIsEqual(api, expected)
+
+	if cfg.CompleteArithmetic {
+		// Return (0,0) when s=0 or P=(0,0)
+		Q.Select(api, api.Or(selector0, _selector0), g2AffP{X: zero, Y: zero}, Q)
+	}
+
+	p.X = Q.X
+	p.Y = Q.Y
 
 	return p
 }

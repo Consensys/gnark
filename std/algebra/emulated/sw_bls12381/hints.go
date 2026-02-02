@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -24,6 +25,9 @@ func GetHints() []solver.Hint {
 		pairingCheckHint,
 		millerLoopAndCheckFinalExpHint,
 		decomposeScalarG1,
+		decomposeScalarG2,
+		scalarMulG2Hint,
+		rationalReconstructExtG2,
 		g1SqrtRatioHint,
 		g2SqrtRatioHint,
 		unmarshalG1,
@@ -447,6 +451,134 @@ func unmarshalG1(mod *big.Int, nativeInputs []*big.Int, outputs []*big.Int) erro
 			}
 		}
 		point.Y.BigInt(outputs[0])
+		return nil
+	})
+}
+
+func decomposeScalarG2(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
+		}
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 2 {
+			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
+		}
+
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
+		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
+		emuOutputs[0].Set(&sp[0])
+		emuOutputs[1].Set(&sp[1])
+		nativeOutputs[0].SetUint64(0)
+		nativeOutputs[1].SetUint64(0)
+		if emuOutputs[0].Sign() == -1 {
+			emuOutputs[0].Neg(emuOutputs[0])
+			nativeOutputs[0].SetUint64(1)
+		}
+		if emuOutputs[1].Sign() == -1 {
+			emuOutputs[1].Neg(emuOutputs[1])
+			nativeOutputs[1].SetUint64(1)
+		}
+
+		return nil
+	})
+}
+
+func scalarMulG2Hint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(field, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 2 {
+			return fmt.Errorf("expecting two moduli, got %d", len(moduli))
+		}
+		baseModulus, scalarModulus := moduli[0], moduli[1]
+		baseInputs, baseOutputs := hc.InputsOutputs(baseModulus)
+		scalarInputs, _ := hc.InputsOutputs(scalarModulus)
+		if len(baseInputs) != 4 {
+			return fmt.Errorf("expecting four base inputs (Q.X.A0, Q.X.A1, Q.Y.A0, Q.Y.A1), got %d", len(baseInputs))
+		}
+		if len(baseOutputs) != 4 {
+			return fmt.Errorf("expecting four base outputs, got %d", len(baseOutputs))
+		}
+		if len(scalarInputs) != 1 {
+			return fmt.Errorf("expecting one scalar input, got %d", len(scalarInputs))
+		}
+
+		// compute the resulting point [s]Q on G2
+		var Q bls12381.G2Affine
+		Q.X.A0.SetBigInt(baseInputs[0])
+		Q.X.A1.SetBigInt(baseInputs[1])
+		Q.Y.A0.SetBigInt(baseInputs[2])
+		Q.Y.A1.SetBigInt(baseInputs[3])
+		Q.ScalarMultiplication(&Q, scalarInputs[0])
+		Q.X.A0.BigInt(baseOutputs[0])
+		Q.X.A1.BigInt(baseOutputs[1])
+		Q.Y.A0.BigInt(baseOutputs[2])
+		Q.Y.A1.BigInt(baseOutputs[3])
+		return nil
+	})
+}
+
+func rationalReconstructExtG2(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
+		}
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(emuOutputs))
+		}
+
+		// Use lattice reduction to find (x, y, z, t) such that
+		// k ≡ (x + λ*y) / (z + λ*t) (mod r)
+		//
+		// in-circuit we check that R - [s]Q = 0 or equivalently R + [-s]Q = 0
+		// so here we use k = -s.
+		k := new(big.Int).Neg(emuInputs[0])
+		k.Mod(k, moduli[0])
+		res := lattice.RationalReconstructExt(k, moduli[0], emuInputs[1])
+		x, y, z, t := res[0], res[1], res[2], res[3]
+
+		// u1 = x, u2 = y, v1 = z, v2 = t
+		emuOutputs[0].Abs(x)
+		emuOutputs[1].Abs(y)
+		emuOutputs[2].Abs(z)
+		emuOutputs[3].Abs(t)
+
+		// signs
+		nativeOutputs[0].SetUint64(0)
+		nativeOutputs[1].SetUint64(0)
+		nativeOutputs[2].SetUint64(0)
+		nativeOutputs[3].SetUint64(0)
+
+		if x.Sign() < 0 {
+			nativeOutputs[0].SetUint64(1)
+		}
+		if y.Sign() < 0 {
+			nativeOutputs[1].SetUint64(1)
+		}
+		if z.Sign() < 0 {
+			nativeOutputs[2].SetUint64(1)
+		}
+		if t.Sign() < 0 {
+			nativeOutputs[3].SetUint64(1)
+		}
 		return nil
 	})
 }

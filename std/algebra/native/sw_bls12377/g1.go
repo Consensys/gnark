@@ -170,7 +170,7 @@ func (p *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts .
 	if n, ok := api.Compiler().ConstantValue(s); ok {
 		return p.constScalarMul(api, Q, n, opts...)
 	} else {
-		return p.varScalarMul(api, Q, s, opts...)
+		return p.scalarMulGLVAndFakeGLV(api, Q, s, opts...)
 	}
 }
 
@@ -660,9 +660,6 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 	return p
 }
 
-// fake-GLV
-//
-// N.B.: this method is more expensive than classical GLV, but it is useful for testing purposes.
 func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {

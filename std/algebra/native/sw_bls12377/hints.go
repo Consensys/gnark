@@ -16,6 +16,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Simple,
 		decomposeScalarG2,
 		scalarMulGLVG1Hint,
+		scalarMulGLVG2Hint,
 		rationalReconstructExt,
 		pairingCheckHint,
 	}
@@ -193,6 +194,28 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 	P.ScalarMultiplication(&P, inputs[2])
 	P.X.BigInt(outputs[0])
 	P.Y.BigInt(outputs[1])
+	return nil
+}
+
+func scalarMulGLVG2Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 5 {
+		return errors.New("expecting five inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+
+	// compute the resulting point [s]Q on G2
+	var Q bls12377.G2Affine
+	Q.X.A0.SetBigInt(inputs[0])
+	Q.X.A1.SetBigInt(inputs[1])
+	Q.Y.A0.SetBigInt(inputs[2])
+	Q.Y.A1.SetBigInt(inputs[3])
+	Q.ScalarMultiplication(&Q, inputs[4])
+	Q.X.A0.BigInt(outputs[0])
+	Q.X.A1.BigInt(outputs[1])
+	Q.Y.A0.BigInt(outputs[2])
+	Q.Y.A1.BigInt(outputs[3])
 	return nil
 }
 

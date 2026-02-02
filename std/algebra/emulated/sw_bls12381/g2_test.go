@@ -24,11 +24,47 @@ func (c *mulG2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new G2 struct: %w", err)
 	}
-	res1 := g2.scalarMulGLV(&c.In, &c.S)
-	res2 := g2.scalarMulGeneric(&c.In, &c.S)
+	res1 := g2.scalarMulGeneric(&c.In, &c.S)
+	res2 := g2.scalarMulGLV(&c.In, &c.S)
+	res3 := g2.scalarMulGLVAndFakeGLV(&c.In, &c.S)
 	g2.AssertIsEqual(res1, &c.Res)
 	g2.AssertIsEqual(res2, &c.Res)
+	g2.AssertIsEqual(res3, &c.Res)
 	return nil
+}
+
+type mulG2GLVAndFakeGLVCircuit struct {
+	In, Res G2Affine
+	S       Scalar
+}
+
+func (c *mulG2GLVAndFakeGLVCircuit) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	res := g2.scalarMulGLVAndFakeGLV(&c.In, &c.S)
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestScalarMulG2GLVAndFakeGLV(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r fr_bls12381.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var res bls12381.G2Affine
+	_, _, _, gen := bls12381.Generators()
+	res.ScalarMultiplication(&gen, s)
+
+	witness := mulG2GLVAndFakeGLVCircuit{
+		In:  NewG2Affine(gen),
+		S:   NewScalar(r),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&mulG2GLVAndFakeGLVCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 func TestScalarMulG2TestSolve(t *testing.T) {
