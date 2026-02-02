@@ -119,7 +119,7 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 		// at least native_width-overflow) and should be nbBits+overflow+1 bits
 		// wide (as expected padding is one bit wider than the maximum allowed
 		// subtraction limb).
-		f.checker.Check(f.api.Sub(res[i], maxLimb), int(f.fParams.BitsPerLimb()+overflow+1))
+		f.rangeCheck(f.api.Sub(res[i], maxLimb), int(f.fParams.BitsPerLimb()+overflow+1))
 	}
 
 	// ensure that condition 1 holds

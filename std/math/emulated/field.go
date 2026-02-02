@@ -19,7 +19,14 @@ import (
 )
 
 const (
+	// rangeCheckBaseLengthForSmallField is the base length used for range
+	// checking when using small field optimization. We start enforcing
+	// the base length only when the number of range checks exceeds
+	// thresholdOptimizeOptimizedOverflow.
 	rangeCheckBaseLengthForSmallField = 16
+	// thresholdOptimizeOptimizedOverflow is the number of range checks after
+	// which we start enforcing the base length for small field optimization.
+	thresholdOptimizeOptimizedOverflow = 50000
 )
 
 // Field holds the configuration for non-native field operations. The field
@@ -53,6 +60,7 @@ type Field[T FieldParams] struct {
 
 	constrainedLimbs map[[16]byte]struct{}
 	checker          frontend.Rangechecker
+	nbRangeChecks    int
 
 	deferredChecks []deferredChecker
 
@@ -92,15 +100,6 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 			return nil, fmt.Errorf("extension field: %w", err)
 		}
 		f.extensionApi = extapi
-	}
-	if f.useSmallFieldOptimization() {
-		// in case of emulated small fields we use base length 16 to reduce
-		// needing to range check for [v_lo, v_hi, 2*v_hi].
-		//
-		// But this means that hints could output values which are bigger than
-		// the emulated modulus bitwidth (for example 31 bits). This means we
-		// have to set the overflow of returned elements correctly.
-		f.checker = rangecheck.New(native, rangecheck.WithBaseLength(rangeCheckBaseLengthForSmallField))
 	}
 
 	// ensure prime is correctly set
@@ -391,4 +390,48 @@ func (f *Field[T]) useSmallFieldOptimization() bool {
 		}
 	})
 	return f.smallFieldMode
+}
+
+// rangeCheck performs a range check on v to ensure it fits in nbBits.
+// It also keeps track of the number of range checks done, and after a certain
+// threshold switches to using base length range checking for small field
+// optimization.
+//
+// It returns a boolean indicating if the range check was actually performed (i.e. if
+// the limb was not already constrained).
+func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
+	// update the number of range checks done. This is only to keep track if we
+	// should switch to the case where instead of exact width we range check
+	// multiple of base length. This reduces number of range checks when
+	// emulating small field.
+	f.nbRangeChecks++
+
+	if h, ok := v.(interface{ HashCode() [16]byte }); ok {
+		// if the variable has a hashcode, then we can use it to see if we have
+		// already range checked it.
+		hc := h.HashCode()
+		if _, ok := f.constrainedLimbs[hc]; ok {
+			// already range checked
+			return false
+		}
+		// mark as range checked
+		f.constrainedLimbs[hc] = struct{}{}
+	}
+
+	if f.nbRangeChecks == thresholdOptimizeOptimizedOverflow {
+		// the threshold is reached, set the range checker to use base length.
+		// Now we know that when construcint non-native elements, then we should
+		// set overflow=f.smallAdditionalOverflow()
+		if f.useSmallFieldOptimization() {
+			// in case of emulated small fields we use base length 16 to reduce
+			// needing to range check for [v_lo, v_hi, 2*v_hi].
+			//
+			// But this means that hints could output values which are bigger than
+			// the emulated modulus bitwidth (for example 31 bits). This means we
+			// have to set the overflow of returned elements correctly.
+			f.checker = rangecheck.New(f.api, rangecheck.WithBaseLength(rangeCheckBaseLengthForSmallField))
+		}
+	}
+	f.checker.Check(v, nbBits)
+	return true
 }
