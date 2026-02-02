@@ -400,12 +400,6 @@ func (f *Field[T]) useSmallFieldOptimization() bool {
 // It returns a boolean indicating if the range check was actually performed (i.e. if
 // the limb was not already constrained).
 func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
-	// update the number of range checks done. This is only to keep track if we
-	// should switch to the case where instead of exact width we range check
-	// multiple of base length. This reduces number of range checks when
-	// emulating small field.
-	f.nbRangeChecks++
-
 	if h, ok := v.(interface{ HashCode() [16]byte }); ok {
 		// if the variable has a hashcode, then we can use it to see if we have
 		// already range checked it.
@@ -417,6 +411,11 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 		// mark as range checked
 		f.constrainedLimbs[hc] = struct{}{}
 	}
+	// update the number of range checks done. This is only to keep track if we
+	// should switch to the case where instead of exact width we range check
+	// multiple of base length. This reduces number of range checks when
+	// emulating small field.
+	f.nbRangeChecks++
 
 	if f.nbRangeChecks == thresholdOptimizeOptimizedOverflow {
 		// the threshold is reached, set the range checker to use base length.
