@@ -946,7 +946,7 @@ contract PlonkVerifier {
         store_point(add(mPtr, {{ hex $offset }}), VK_S2_COM_X_hi, VK_S2_COM_X_lo, VK_S2_COM_Y_hi, VK_S2_COM_Y_lo){{ $offset = add $offset 0x80 }}
         mstore(add(mPtr, {{ hex $offset }}), acc_gamma){{ $offset = add $offset 0x20 }}
 
-        {{ if (gt (len .Vk.CommitmentConstraintIndexes ) 1 ) }}
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes ) 0 ) }}
         {{- $offsetValues := 0x00 }}
         {{- $offsetComs := 0x00 }}
         {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
