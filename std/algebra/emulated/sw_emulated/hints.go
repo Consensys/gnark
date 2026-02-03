@@ -30,7 +30,9 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalarG1,
 		scalarMulHint,
+		jointScalarMulHint,
 		rationalReconstruct,
+		multiRationalReconstruct,
 		rationalReconstructExt,
 	}
 }
@@ -156,6 +158,60 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	})
 }
 
+// jointScalarMulHint computes [s]Q + [t]R given Q, R, s, t.
+func jointScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(field, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 2 {
+			return fmt.Errorf("expecting two moduli, got %d", len(moduli))
+		}
+		baseModulus, scalarModulus := moduli[0], moduli[1]
+		baseInputs, baseOutputs := hc.InputsOutputs(baseModulus)
+		scalarInputs, _ := hc.InputsOutputs(scalarModulus)
+		if len(baseInputs) != 4 {
+			return fmt.Errorf("expecting four base inputs (Qx, Qy, Rx, Ry), got %d", len(baseInputs))
+		}
+		if len(baseOutputs) != 2 {
+			return fmt.Errorf("expecting two base outputs, got %d", len(baseOutputs))
+		}
+		if len(scalarInputs) != 2 {
+			return fmt.Errorf("expecting two scalar inputs (s, t), got %d", len(scalarInputs))
+		}
+		Qx, Qy := baseInputs[0], baseInputs[1]
+		Rx, Ry := baseInputs[2], baseInputs[3]
+		S, T := scalarInputs[0], scalarInputs[1]
+		if baseModulus.Cmp(elliptic.P256().Params().P) == 0 {
+			curve := elliptic.P256()
+			Px, Py := curve.ScalarMult(Qx, Qy, S.Bytes())
+			Tx, Ty := curve.ScalarMult(Rx, Ry, T.Bytes())
+			Px, Py = curve.Add(Px, Py, Tx, Ty)
+			baseOutputs[0].Set(Px)
+			baseOutputs[1].Set(Py)
+		} else if baseModulus.Cmp(elliptic.P384().Params().P) == 0 {
+			curve := elliptic.P384()
+			Px, Py := curve.ScalarMult(Qx, Qy, S.Bytes())
+			Tx, Ty := curve.ScalarMult(Rx, Ry, T.Bytes())
+			Px, Py = curve.Add(Px, Py, Tx, Ty)
+			baseOutputs[0].Set(Px)
+			baseOutputs[1].Set(Py)
+		} else if baseModulus.Cmp(stark_fp.Modulus()) == 0 {
+			var Q, R stark_curve.G1Affine
+			Q.X.SetBigInt(Qx)
+			Q.Y.SetBigInt(Qy)
+			R.X.SetBigInt(Rx)
+			R.Y.SetBigInt(Ry)
+			Q.ScalarMultiplication(&Q, S)
+			R.ScalarMultiplication(&R, T)
+			Q.Add(&Q, &R)
+			Q.X.BigInt(baseOutputs[0])
+			Q.Y.BigInt(baseOutputs[1])
+		} else {
+			return errors.New("unsupported curve for jointScalarMulHint")
+		}
+		return nil
+	})
+}
+
 func rationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
@@ -199,6 +255,69 @@ func rationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) er
 		if z.Sign() > 0 {
 			nativeOutputs[0].SetUint64(1)
 		}
+		return nil
+	})
+}
+
+// multiRationalReconstruct decomposes two scalars s, t into three scalars u1, u2, v
+// using lattice.MultiRationalReconstruct. Each output scalar is ~r^(1/3) bits.
+// This is used for 3-MSM on curves without GLV endomorphism.
+//
+// The decomposition satisfies:
+//
+//	s * v + u1 ≡ 0 (mod r)
+//	t * v + u2 ≡ 0 (mod r)
+func multiRationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
+		}
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 3 {
+			return fmt.Errorf("expecting three native outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 3 {
+			return fmt.Errorf("expecting three emulated outputs, got %d", len(emuOutputs))
+		}
+
+		// Use lattice reduction to find (x1, x2, z) such that
+		// k1 ≡ x1/z (mod r)  and  k2 ≡ x2/z (mod r)
+		// We use k1 = -s, k2 = -t so that:
+		// -s ≡ u1/v (mod r) => s*v + u1 ≡ 0
+		// -t ≡ u2/v (mod r) => t*v + u2 ≡ 0
+		k1 := new(big.Int).Neg(emuInputs[0])
+		k1.Mod(k1, moduli[0])
+		k2 := new(big.Int).Neg(emuInputs[1])
+		k2.Mod(k2, moduli[0])
+
+		res := lattice.MultiRationalReconstruct(k1, k2, moduli[0])
+		x1, x2, z := res[0], res[1], res[2]
+
+		// Return absolute values
+		emuOutputs[0].Abs(x1) // |u1|
+		emuOutputs[1].Abs(x2) // |u2|
+		emuOutputs[2].Abs(z)  // |v|
+
+		// Set the signs
+		nativeOutputs[0].SetUint64(0) // isNegu1
+		nativeOutputs[1].SetUint64(0) // isNegu2
+		nativeOutputs[2].SetUint64(0) // isNegv
+
+		if x1.Sign() < 0 {
+			nativeOutputs[0].SetUint64(1)
+		}
+		if x2.Sign() < 0 {
+			nativeOutputs[1].SetUint64(1)
+		}
+		if z.Sign() < 0 {
+			nativeOutputs[2].SetUint64(1)
+		}
+
 		return nil
 	})
 }
