@@ -408,7 +408,7 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 		hc := h.HashCode()
 		if existingWidth, ok := f.constrainedLimbs[hc]; ok {
 			// already range checked with a certain width
-			if existingWidth >= nbBits {
+			if existingWidth <= nbBits {
 				return false
 			}
 		}
@@ -423,7 +423,7 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 
 	if f.nbRangeChecks == thresholdOptimizeOptimizedOverflow {
 		// the threshold is reached, set the range checker to use base length.
-		// Now we know that when construcint non-native elements, then we should
+		// Now we know that when constructing non-native elements, then we should
 		// set overflow=f.smallAdditionalOverflow()
 		if f.useSmallFieldOptimization() {
 			// in case of emulated small fields we use base length 16 to reduce
