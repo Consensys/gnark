@@ -587,21 +587,20 @@ func (p *g2AffP) scalarMulGLVAndFakeGLV(api frontend.API, P g2AffP, s frontend.V
 	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
-	// of the GLV endomorphism is a primitive cube root of unity. If we write
-	// v, s and r as Eisenstein integers we can express the check as:
+	// of the GLV endomorphism is a primitive cube root of unity λ. Using this we can
+	// express the check as:
 	//
 	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
 	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
-	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
-	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// where (v1 + λ*v2)*s = u1 + λ*u2 mod r
+	// and u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL lattice reduction).
 	//
 	// The hint returns u1, u2, v1, v2 and the quotient q.
-	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	// In-circuit we check that (v1 + λ*v2)*s + u1 + λ*u2 = r*q
 	//
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
+	// The sub-scalars can be negative. So we return the absolute value in the
+	// hint and negate the corresponding points here when needed.
 	sd, err := api.NewHint(rationalReconstructExt, 10, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))

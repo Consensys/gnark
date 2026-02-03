@@ -589,11 +589,11 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	// Instead of computing [s]Q=R, we check that R-[s]Q == 0.
 	// This is equivalent to [v]R + [-s*v]Q = 0 for some nonzero v.
 	//
-	// Using Eisenstein decomposition:
+	// Using LLL-based lattice reduction we find small sub-scalars:
 	// 		[v1 + λ*v2]R + [u1 + λ*u2]Q = 0
 	// 		[v1]R + [v2]Φ(R) + [u1]Q + [u2]Φ(Q) = 0
 	//
-	// where u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// where u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL).
 
 	// decompose s into u1, u2, v1, v2
 	signs, sd, err := g2.fr.NewHintGeneric(rationalReconstructExtG2, 4, 4, nil, []*emulated.Element[ScalarField]{_s, g2.eigenvalue})

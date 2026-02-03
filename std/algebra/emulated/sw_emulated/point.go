@@ -1533,30 +1533,23 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
-	// of the GLV endomorphism is a primitive cube root of unity.  If we write
-	// v, s and r as Eisenstein integers we can express the check as:
+	// of the GLV endomorphism is a primitive cube root of unity λ. Using this we can
+	// express the check as:
 	//
 	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
 	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
-	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
-	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// where (v1 + λ*v2)*s = u1 + λ*u2 mod r
+	// and u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL lattice reduction).
 	//
-	// This can be done as follows:
-	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted classical GLV decomposition).
-	// 		2. decompose r into r1 + λ*r2  s.t. r1, r2 < sqrt(r) (hardcoded half-GCD of λ mod r).
-	// 		3. find u1, u2, v1, v2 < c*r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
-	// 		   This can be done through a hinted half-GCD in the number field
-	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
-	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
+	// We use LLL-based lattice reduction to find small u1, u2, v1, v2 satisfying
+	// s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r).
 	//
 	// The hint returns u1, u2, v1, v2.
-	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
+	// In-circuit we check that (v1 + λ*v2)*s + u1 + λ*u2 = 0 mod r
 	//
-	//
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
+	// The sub-scalars can be negative. So we return the absolute value in the
+	// hint and negate the corresponding points here when needed.
 	signs, sd, err := c.scalarApi.NewHintGeneric(rationalReconstructExt, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
