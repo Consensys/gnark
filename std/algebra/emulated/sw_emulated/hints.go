@@ -159,6 +159,7 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 }
 
 // jointScalarMulHint computes [s]Q + [t]R given Q, R, s, t.
+// Handles edge cases: (0,0) is treated as point at infinity.
 func jointScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(field, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
@@ -180,20 +181,76 @@ func jointScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) e
 		Qx, Qy := baseInputs[0], baseInputs[1]
 		Rx, Ry := baseInputs[2], baseInputs[3]
 		S, T := scalarInputs[0], scalarInputs[1]
+
+		// Helper: check if point is infinity (0,0)
+		isInfinity := func(x, y *big.Int) bool {
+			return x.Sign() == 0 && y.Sign() == 0
+		}
+		// Helper: check if scalar is zero
+		isZeroScalar := func(s *big.Int) bool {
+			return s.Sign() == 0
+		}
+
 		if baseModulus.Cmp(elliptic.P256().Params().P) == 0 {
 			curve := elliptic.P256()
-			Px, Py := curve.ScalarMult(Qx, Qy, S.Bytes())
-			Tx, Ty := curve.ScalarMult(Rx, Ry, T.Bytes())
-			Px, Py = curve.Add(Px, Py, Tx, Ty)
-			baseOutputs[0].Set(Px)
-			baseOutputs[1].Set(Py)
+			var Px, Py, Tx, Ty *big.Int
+
+			// Compute [s]Q
+			if isInfinity(Qx, Qy) || isZeroScalar(S) {
+				Px, Py = big.NewInt(0), big.NewInt(0)
+			} else {
+				Px, Py = curve.ScalarMult(Qx, Qy, S.Bytes())
+			}
+
+			// Compute [t]R
+			if isInfinity(Rx, Ry) || isZeroScalar(T) {
+				Tx, Ty = big.NewInt(0), big.NewInt(0)
+			} else {
+				Tx, Ty = curve.ScalarMult(Rx, Ry, T.Bytes())
+			}
+
+			// Add the results, handling infinity
+			if isInfinity(Px, Py) {
+				baseOutputs[0].Set(Tx)
+				baseOutputs[1].Set(Ty)
+			} else if isInfinity(Tx, Ty) {
+				baseOutputs[0].Set(Px)
+				baseOutputs[1].Set(Py)
+			} else {
+				Px, Py = curve.Add(Px, Py, Tx, Ty)
+				baseOutputs[0].Set(Px)
+				baseOutputs[1].Set(Py)
+			}
 		} else if baseModulus.Cmp(elliptic.P384().Params().P) == 0 {
 			curve := elliptic.P384()
-			Px, Py := curve.ScalarMult(Qx, Qy, S.Bytes())
-			Tx, Ty := curve.ScalarMult(Rx, Ry, T.Bytes())
-			Px, Py = curve.Add(Px, Py, Tx, Ty)
-			baseOutputs[0].Set(Px)
-			baseOutputs[1].Set(Py)
+			var Px, Py, Tx, Ty *big.Int
+
+			// Compute [s]Q
+			if isInfinity(Qx, Qy) || isZeroScalar(S) {
+				Px, Py = big.NewInt(0), big.NewInt(0)
+			} else {
+				Px, Py = curve.ScalarMult(Qx, Qy, S.Bytes())
+			}
+
+			// Compute [t]R
+			if isInfinity(Rx, Ry) || isZeroScalar(T) {
+				Tx, Ty = big.NewInt(0), big.NewInt(0)
+			} else {
+				Tx, Ty = curve.ScalarMult(Rx, Ry, T.Bytes())
+			}
+
+			// Add the results, handling infinity
+			if isInfinity(Px, Py) {
+				baseOutputs[0].Set(Tx)
+				baseOutputs[1].Set(Ty)
+			} else if isInfinity(Tx, Ty) {
+				baseOutputs[0].Set(Px)
+				baseOutputs[1].Set(Py)
+			} else {
+				Px, Py = curve.Add(Px, Py, Tx, Ty)
+				baseOutputs[0].Set(Px)
+				baseOutputs[1].Set(Py)
+			}
 		} else if baseModulus.Cmp(stark_fp.Modulus()) == 0 {
 			var Q, R stark_curve.G1Affine
 			Q.X.SetBigInt(Qx)

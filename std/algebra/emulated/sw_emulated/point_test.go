@@ -2578,3 +2578,59 @@ func BenchmarkScalarMulGLVAndFakeGLVBN254(b *testing.B) {
 	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	b.Log("constraints:", ccs.GetNbConstraints())
 }
+
+// JointScalarMulBaseCompleteTest tests JointScalarMulBase with complete arithmetic (for P256)
+type JointScalarMulBaseCompleteTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S1  emulated.Element[S]
+	S2  emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *JointScalarMulBaseCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func BenchmarkJointScalarMulBase_P256_CompleteArithmetic(b *testing.B) {
+	var circuit JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("JointScalarMulBase P256 (CompleteArithmetic) constraints:", ccs.GetNbConstraints())
+}
+
+// JointScalarMulBaseUnsafeTest tests JointScalarMulBase without complete arithmetic
+type JointScalarMulBaseUnsafeTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S1  emulated.Element[S]
+	S2  emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *JointScalarMulBaseUnsafeTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S1, &c.S2)
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func BenchmarkJointScalarMulBase_P256_Unsafe(b *testing.B) {
+	var circuit JointScalarMulBaseUnsafeTest[emulated.P256Fp, emulated.P256Fr]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("JointScalarMulBase P256 (Unsafe) constraints:", ccs.GetNbConstraints())
+}
