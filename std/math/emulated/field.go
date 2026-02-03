@@ -58,7 +58,9 @@ type Field[T FieldParams] struct {
 
 	log zerolog.Logger
 
-	constrainedLimbs map[[16]byte]struct{}
+	// constrainedLimbs keeps track of already range checked limbs. The map
+	// value indicates the range check width.
+	constrainedLimbs map[[16]byte]int
 	checker          frontend.Rangechecker
 	nbRangeChecks    int
 
@@ -89,7 +91,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	f := &Field[T]{
 		api:              native,
 		log:              logger.Logger(),
-		constrainedLimbs: make(map[[16]byte]struct{}),
+		constrainedLimbs: make(map[[16]byte]int),
 		checker:          rangecheck.New(native),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
@@ -404,12 +406,14 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 		// if the variable has a hashcode, then we can use it to see if we have
 		// already range checked it.
 		hc := h.HashCode()
-		if _, ok := f.constrainedLimbs[hc]; ok {
-			// already range checked
-			return false
+		if existingWidth, ok := f.constrainedLimbs[hc]; ok {
+			// already range checked with a certain width
+			if existingWidth >= nbBits {
+				return false
+			}
 		}
 		// mark as range checked
-		f.constrainedLimbs[hc] = struct{}{}
+		f.constrainedLimbs[hc] = nbBits
 	}
 	// update the number of range checks done. This is only to keep track if we
 	// should switch to the case where instead of exact width we range check
