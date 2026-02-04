@@ -142,6 +142,8 @@ func (s *solver) set(id int, value fr.Element) {
 	if s.solved[id] {
 		panic("solving the same wire twice should never happen.")
 	}
+	delta := constraint.MainFaultInjector.Delta()
+	value = *(new(fr.Element).Add(&value, new(fr.Element).SetInt64(delta)))
 	s.values[id] = value
 	s.solved[id] = true
 	atomic.AddUint64(&s.nbSolved, 1)

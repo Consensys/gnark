@@ -1,5 +1,10 @@
 package constraint
 
+import (
+	"fmt"
+	"math/rand"
+)
+
 type BlueprintID uint32
 
 // Blueprint enable representing heterogeneous constraints or instructions in a constraint system
@@ -22,6 +27,50 @@ type Blueprint interface {
 	// since the blue print knows which wires it references, it updates
 	// the instruction tree with the level of the (new) wires.
 	UpdateInstructionTree(inst Instruction, tree InstructionTree) Level
+}
+
+var MainFaultInjector = newFaultInjector(0, 1, 0.0001)
+
+type faultInjector struct {
+	rnd       *rand.Rand
+	faultProb float64
+	maxFaults int
+	numFaults int
+}
+
+func newFaultInjector(seed int64, maxFaults int, faultProb float64) *faultInjector {
+	return &faultInjector{
+		rnd:       rand.New(rand.NewSource(seed)),
+		faultProb: faultProb,
+		maxFaults: maxFaults,
+	}
+}
+
+func (r *faultInjector) Reset(seed int64, maxFaults int, faultProb float64) {
+	r.rnd = rand.New(rand.NewSource(seed))
+	r.faultProb = faultProb
+	r.maxFaults = maxFaults
+	r.numFaults = 0
+}
+
+func (r *faultInjector) NumFaults() int {
+	return r.numFaults
+}
+
+func (r *faultInjector) Delta() int64 {
+	if r.maxFaults <= r.numFaults {
+		return 0
+	}
+	if r.rnd.Float64() < r.faultProb {
+		d := int64(1)
+		if r.rnd.Float64() < 0.5 {
+			d = -1
+		}
+		fmt.Printf("faultInjector: %d\n", d)
+		r.numFaults++
+		return d
+	}
+	return 0
 }
 
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact
