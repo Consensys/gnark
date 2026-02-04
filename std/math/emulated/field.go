@@ -26,7 +26,7 @@ const (
 	rangeCheckBaseLengthForSmallField = 16
 	// thresholdOptimizeOptimizedOverflow is the number of range checks after
 	// which we start enforcing the base length for small field optimization.
-	thresholdOptimizeOptimizedOverflow = 50000
+	thresholdOptimizeOptimizedOverflow = 55000
 )
 
 // Field holds the configuration for non-native field operations. The field
