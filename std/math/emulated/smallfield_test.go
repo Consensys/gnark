@@ -425,6 +425,15 @@ func BenchmarkSmallFieldMulConstraints(b *testing.B) {
 		b.Run(bc.name, func(b *testing.B) {
 			circuit := &SmallFieldMulBenchCircuit{A: make([]Element[emparams.KoalaBear], bc.nbMuls)}
 
+			for b.Loop() {
+				// for some reason, when we don't run the loop here, then the benchmark suite
+				// runs the whole benchmark multiple times. I guess it has something to do
+				// with the `b.Run` above (i.e. it parallelizes etc). To avoid this, we run an
+				// empty b.Loop() here to ensure we only run the compile once.
+				//
+				// this adds overhead as the `b.Loop()` will be run for `benchtime` period, but
+				// by default it is small. Otherwise the benchmark will be very slow.
+			}
 			csr1, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 			if err != nil {
 				b.Fatal(err)
@@ -440,6 +449,7 @@ func BenchmarkSmallFieldMulConstraints(b *testing.B) {
 			constraintsSCSPerMul := float64(css.GetNbConstraints()) / float64(bc.nbMuls)
 			b.ReportMetric(constraintsSCSPerMul, "scs_constraints/mul")
 			b.ReportMetric(float64(css.GetNbConstraints()), "scs_total_constraints")
+			b.ReportMetric(0.0, "ns/op") // avoid ns/op reporting as we don't measure time here
 		})
 	}
 }
@@ -483,11 +493,11 @@ func (c *MaliciousMulCircuit) Define(api frontend.API) error {
 	}
 
 	// 5 multiplications: ((A*B) * (C*D)) * (E*F)
-	ab := f.Mul(&c.A, &c.B)
-	cd := f.Mul(&c.C, &c.D)
-	ef := f.Mul(&c.E, &c.F)
-	abcd := f.Mul(ab, cd)
-	result := f.Mul(abcd, ef)
+	ab := f.MulMod(&c.A, &c.B)
+	cd := f.MulMod(&c.C, &c.D)
+	ef := f.MulMod(&c.E, &c.F)
+	abcd := f.MulMod(ab, cd)
+	result := f.MulMod(abcd, ef)
 	f.AssertIsEqual(result, &c.Result)
 	return nil
 }

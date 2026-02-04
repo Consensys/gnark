@@ -209,7 +209,7 @@ func (f *Field[T]) smallMulMod(a, b *Element[T]) *Element[T] {
 
 	// Range check the remainder (quotient is range-checked via batched sum in check)
 	modBits := f.fParams.Modulus().BitLen()
-	f.checker.Check(r, modBits+f.smallAdditionalOverflow())
+	f.rangeCheck(r, modBits+f.smallAdditionalOverflow())
 
 	// Compute the number of bits needed for the quotient.
 	// For a*b = q*p + r:
@@ -413,8 +413,17 @@ func (f *Field[T]) toSingleLimbElement(a *Element[T]) *Element[T] {
 // range checking, but define that the non-native small field element can have
 // some additional overflow bits to accommodate this difference.
 func (f *Field[T]) smallAdditionalOverflow() int {
+	// when we emulate large field, then we always construct elements with exact
+	// overflow
 	if !f.useSmallFieldOptimization() {
 		return 0
 	}
+	// when we haven't performed too many range checks, then we still use exact
+	// overflow
+	if f.nbRangeChecks < thresholdForInexactOverflow {
+		return 0
+	}
+	// otherwise, we use the additional overflow which reduced number of
+	// decompositions during range checking
 	return (rangeCheckBaseLengthForSmallField - (f.fParams.Modulus().BitLen() % rangeCheckBaseLengthForSmallField)) % rangeCheckBaseLengthForSmallField
 }

@@ -27,7 +27,7 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 			// take only required bits from the most significant limb
 			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
 		}
-		f.checker.Check(a.Limbs[i], limbNbBits)
+		f.rangeCheck(a.Limbs[i], limbNbBits)
 	}
 }
 
@@ -37,7 +37,7 @@ func (f *Field[T]) smallEnforceWidth(a *Element[T], modWidth bool) {
 	}
 
 	for i := range a.Limbs {
-		f.checker.Check(a.Limbs[i], f.fParams.Modulus().BitLen()+int(a.overflow))
+		f.rangeCheck(a.Limbs[i], f.fParams.Modulus().BitLen()+int(a.overflow))
 	}
 }
 
