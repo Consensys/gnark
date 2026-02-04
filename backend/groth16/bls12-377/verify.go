@@ -133,3 +133,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }
+
+// ExportVerifyingKey not implemented for BLS12-377
+func (vk *VerifyingKey) ExportVerifyingKey(w io.Writer) error {
+	return errors.New("not implemented")
+}
