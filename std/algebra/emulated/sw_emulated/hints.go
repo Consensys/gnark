@@ -262,6 +262,126 @@ func jointScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) e
 			Q.Add(&Q, &R)
 			Q.X.BigInt(baseOutputs[0])
 			Q.Y.BigInt(baseOutputs[1])
+		} else if baseModulus.Cmp(bn_fp.Modulus()) == 0 {
+			var Q, R bn254.G1Affine
+			Q.X.SetBigInt(Qx)
+			Q.Y.SetBigInt(Qy)
+			R.X.SetBigInt(Rx)
+			R.Y.SetBigInt(Ry)
+			// Compute [s]Q and [t]R
+			qIsInf := isInfinity(Qx, Qy) || isZeroScalar(S)
+			rIsInf := isInfinity(Rx, Ry) || isZeroScalar(T)
+			if !qIsInf {
+				Q.ScalarMultiplication(&Q, S)
+			}
+			if !rIsInf {
+				R.ScalarMultiplication(&R, T)
+			}
+			// Add the results, handling infinity
+			if qIsInf && rIsInf {
+				baseOutputs[0].SetInt64(0)
+				baseOutputs[1].SetInt64(0)
+			} else if qIsInf {
+				R.X.BigInt(baseOutputs[0])
+				R.Y.BigInt(baseOutputs[1])
+			} else if rIsInf {
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			} else {
+				Q.Add(&Q, &R)
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			}
+		} else if baseModulus.Cmp(bls12381_fp.Modulus()) == 0 {
+			var Q, R bls12381.G1Affine
+			Q.X.SetBigInt(Qx)
+			Q.Y.SetBigInt(Qy)
+			R.X.SetBigInt(Rx)
+			R.Y.SetBigInt(Ry)
+			// Compute [s]Q and [t]R
+			qIsInf := isInfinity(Qx, Qy) || isZeroScalar(S)
+			rIsInf := isInfinity(Rx, Ry) || isZeroScalar(T)
+			if !qIsInf {
+				Q.ScalarMultiplication(&Q, S)
+			}
+			if !rIsInf {
+				R.ScalarMultiplication(&R, T)
+			}
+			// Add the results, handling infinity
+			if qIsInf && rIsInf {
+				baseOutputs[0].SetInt64(0)
+				baseOutputs[1].SetInt64(0)
+			} else if qIsInf {
+				R.X.BigInt(baseOutputs[0])
+				R.Y.BigInt(baseOutputs[1])
+			} else if rIsInf {
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			} else {
+				Q.Add(&Q, &R)
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			}
+		} else if baseModulus.Cmp(secp_fp.Modulus()) == 0 {
+			var Q, R secp256k1.G1Affine
+			Q.X.SetBigInt(Qx)
+			Q.Y.SetBigInt(Qy)
+			R.X.SetBigInt(Rx)
+			R.Y.SetBigInt(Ry)
+			// Compute [s]Q and [t]R
+			qIsInf := isInfinity(Qx, Qy) || isZeroScalar(S)
+			rIsInf := isInfinity(Rx, Ry) || isZeroScalar(T)
+			if !qIsInf {
+				Q.ScalarMultiplication(&Q, S)
+			}
+			if !rIsInf {
+				R.ScalarMultiplication(&R, T)
+			}
+			// Add the results, handling infinity
+			if qIsInf && rIsInf {
+				baseOutputs[0].SetInt64(0)
+				baseOutputs[1].SetInt64(0)
+			} else if qIsInf {
+				R.X.BigInt(baseOutputs[0])
+				R.Y.BigInt(baseOutputs[1])
+			} else if rIsInf {
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			} else {
+				Q.Add(&Q, &R)
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			}
+		} else if baseModulus.Cmp(bw6_fp.Modulus()) == 0 {
+			var Q, R bw6761.G1Affine
+			Q.X.SetBigInt(Qx)
+			Q.Y.SetBigInt(Qy)
+			R.X.SetBigInt(Rx)
+			R.Y.SetBigInt(Ry)
+			// Compute [s]Q and [t]R
+			qIsInf := isInfinity(Qx, Qy) || isZeroScalar(S)
+			rIsInf := isInfinity(Rx, Ry) || isZeroScalar(T)
+			if !qIsInf {
+				Q.ScalarMultiplication(&Q, S)
+			}
+			if !rIsInf {
+				R.ScalarMultiplication(&R, T)
+			}
+			// Add the results, handling infinity
+			if qIsInf && rIsInf {
+				baseOutputs[0].SetInt64(0)
+				baseOutputs[1].SetInt64(0)
+			} else if qIsInf {
+				R.X.BigInt(baseOutputs[0])
+				R.Y.BigInt(baseOutputs[1])
+			} else if rIsInf {
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			} else {
+				Q.Add(&Q, &R)
+				Q.X.BigInt(baseOutputs[0])
+				Q.Y.BigInt(baseOutputs[1])
+			}
 		} else {
 			return errors.New("unsupported curve for jointScalarMulHint")
 		}

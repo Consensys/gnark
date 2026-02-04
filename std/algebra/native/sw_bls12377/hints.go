@@ -17,6 +17,7 @@ func GetHints() []solver.Hint {
 		decomposeScalarG2,
 		scalarMulGLVG1Hint,
 		scalarMulGLVG2Hint,
+		jointScalarMulG1Hint,
 		rationalReconstructExt,
 		pairingCheckHint,
 	}
@@ -194,6 +195,53 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 	P.ScalarMultiplication(&P, inputs[2])
 	P.X.BigInt(outputs[0])
 	P.Y.BigInt(outputs[1])
+	return nil
+}
+
+func jointScalarMulG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 6 {
+		return errors.New("expecting six inputs")
+	}
+	if len(outputs) != 2 {
+		return errors.New("expecting two outputs")
+	}
+
+	// compute the resulting point [s]Q + [t]R
+	var Q, R, result bls12377.G1Affine
+	Q.X.SetBigInt(inputs[0])
+	Q.Y.SetBigInt(inputs[1])
+	R.X.SetBigInt(inputs[2])
+	R.Y.SetBigInt(inputs[3])
+
+	// handle infinity cases
+	QIsInfinity := Q.X.IsZero() && Q.Y.IsZero()
+	RIsInfinity := R.X.IsZero() && R.Y.IsZero()
+	sIsZero := inputs[4].Sign() == 0
+	tIsZero := inputs[5].Sign() == 0
+
+	switch {
+	case (QIsInfinity || sIsZero) && (RIsInfinity || tIsZero):
+		// both contributions are zero
+		outputs[0].SetInt64(0)
+		outputs[1].SetInt64(0)
+	case QIsInfinity || sIsZero:
+		// only R contributes
+		R.ScalarMultiplication(&R, inputs[5])
+		R.X.BigInt(outputs[0])
+		R.Y.BigInt(outputs[1])
+	case RIsInfinity || tIsZero:
+		// only Q contributes
+		Q.ScalarMultiplication(&Q, inputs[4])
+		Q.X.BigInt(outputs[0])
+		Q.Y.BigInt(outputs[1])
+	default:
+		// both contribute
+		Q.ScalarMultiplication(&Q, inputs[4])
+		R.ScalarMultiplication(&R, inputs[5])
+		result.Add(&Q, &R)
+		result.X.BigInt(outputs[0])
+		result.Y.BigInt(outputs[1])
+	}
 	return nil
 }
 

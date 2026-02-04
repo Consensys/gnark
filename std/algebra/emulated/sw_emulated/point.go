@@ -1019,7 +1019,8 @@ func (c *Curve[B, S]) jointScalarMul3D(Q, R *AffinePoint[B], s, t *emulated.Elem
 				table_Y[0], table_Y[1], table_Y[2], table_Y[3],
 				table_Y[4], table_Y[5], table_Y[6], table_Y[7]),
 		}
-		Acc = c.doubleAndAddGeneric(Acc, Bi, completeArithmetic)
+		// The bias G ensures Acc != ±Bi, so we can use regular doubleAndAdd
+		Acc = c.doubleAndAdd(Acc, Bi)
 	}
 
 	// i = 0: subtract points if first bits are 0
@@ -1086,6 +1087,8 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	if cfg.CompleteArithmetic {
+		// Use optimized Shamir's trick for complete arithmetic
+		// This handles edge cases: zero scalars, zero points
 		res1 := c.scalarMulGLVAndFakeGLV(p1, s1, opts...)
 		res2 := c.scalarMulGLVAndFakeGLV(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
@@ -1423,11 +1426,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
-	var selector1 frontend.Variable
+	// Handle edge cases for complete arithmetic: s=0, s=-1, Q=(0,0)
+	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
-		selector1 = c.scalarApi.IsZero(s)
-		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
+		one := c.scalarApi.One()
+		// Check s=0 or s=-1 (both cause Q=±R which needs special handling)
+		selector0 = c.api.Or(
+			c.scalarApi.IsZero(s),
+			c.scalarApi.IsZero(c.scalarApi.Add(s, one)),
+		)
+		_s = c.scalarApi.Select(selector0, one, s)
 	}
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
@@ -1456,17 +1465,20 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	var selector2 frontend.Variable
-	one := c.baseApi.One()
-	dummy := &AffinePoint[B]{X: *one, Y: *one}
-	addFn := c.Add
+	// Handle Q=(0,0) and s=0/s=-1 for complete arithmetic
+	var selector1 frontend.Variable
+	_Q := Q
 	if cfg.CompleteArithmetic {
-		addFn = c.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
-		selector2 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		Q = c.Select(selector2, dummy, Q)
-		r0 = c.baseApi.Select(selector2, c.baseApi.Zero(), r0)
-		r1 = c.baseApi.Select(selector2, &dummy.Y, r1)
+		// Use different dummy points for _Q and R to avoid _Q == ±R
+		dummyQ := c.Generator()
+		dummyR := &c.GeneratorMultiples()[3] // 8*G, different from G
+		selector1 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		_Q = c.Select(selector1, dummyQ, Q)
+		// When s=0 or s=-1 (selector0), the hint returns (0,0) or ±Q,
+		// which can cause issues. Use dummy for R when selector0 OR selector1.
+		selectorAny := c.api.Or(selector0, selector1)
+		r0 = c.baseApi.Select(selectorAny, &dummyR.X, r0)
+		r1 = c.baseApi.Select(selectorAny, &dummyR.Y, r1)
 	}
 
 	var st S
@@ -1482,26 +1494,28 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//   	tableR[1] = R or -R if s2 is negative
 	// 		tableR[2] = [3]R or [-3]R if s2 is negative
 	var tableQ, tableR [3]*AffinePoint[B]
-	tableQ[1] = Q
-	tableQ[0] = c.Neg(Q)
+	tableQ[1] = _Q
+	tableQ[0] = c.Neg(_Q)
 	tableQ[2] = c.triple(tableQ[1])
 	tableR[1] = &AffinePoint[B]{
 		X: *r0,
 		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(r1), r1),
 	}
 	tableR[0] = c.Neg(tableR[1])
-	if cfg.CompleteArithmetic {
-		tableR[2] = c.AddUnified(tableR[1], tableR[1])
-		tableR[2] = c.AddUnified(tableR[2], tableR[1])
-	} else {
-		tableR[2] = c.triple(tableR[1])
-	}
+	tableR[2] = c.triple(tableR[1])
 
 	// We should start the accumulator by the infinity point, but since affine
 	// formulae are incomplete we suppose that the first bits of the
 	// sub-scalars s1 and s2 are 1, and set:
 	// 		Acc = Q + R
-	Acc := addFn(tableQ[1], tableR[1])
+	// For complete arithmetic, we add a bias point G to avoid Acc == ±Bi during the loop.
+	// T2 = Q + R (without bias, used in table construction)
+	T2 := c.Add(tableQ[1], tableR[1])
+	Acc := T2
+	if cfg.CompleteArithmetic {
+		g := c.Generator()
+		Acc = c.Add(Acc, g)
+	}
 
 	// At each iteration we need to compute:
 	// 		[2]Acc ± Q ± R.
@@ -1519,16 +1533,13 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//
 	// T = [3](Q + R)
 	// P = B1 and P' = B1
-	T1 := addFn(tableQ[2], tableR[2])
-	// T = Q + R
-	// P = B1 and P' = B2
-	T2 := Acc
+	T1 := c.Add(tableQ[2], tableR[2])
 	// T = [3]Q + R
 	// P = B1 and P' = B3
-	T3 := addFn(tableQ[2], tableR[1])
+	T3 := c.Add(tableQ[2], tableR[1])
 	// T = Q + [3]R
 	// P = B1 and P' = B4
-	T4 := addFn(tableQ[1], tableR[2])
+	T4 := c.Add(tableQ[1], tableR[2])
 	// T  = -Q - R
 	// P = B2 and P' = B1
 	T5 := c.Neg(T2)
@@ -1543,17 +1554,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	T8 := c.Neg(T3)
 	// T = [3]Q - R
 	// P = B3 and P' = B1
-	T9 := addFn(tableQ[2], tableR[0])
+	T9 := c.Add(tableQ[2], tableR[0])
 	// T = Q - [3]R
 	// P = B3 and P' = B2
 	T11 := c.Neg(tableR[2])
-	T10 := addFn(tableQ[1], T11)
+	T10 := c.Add(tableQ[1], T11)
 	// T = [3](Q - R)
 	// P = B3 and P' = B3
-	T11 = addFn(tableQ[2], T11)
+	T11 = c.Add(tableQ[2], T11)
 	// T = -R + Q
 	// P = B3 and P' = B4
-	T12 := addFn(tableR[0], tableQ[1])
+	T12 := c.Add(tableR[0], tableQ[1])
 	// T = [3]R - Q
 	// P = B4 and P' = B1
 	T13 := c.Neg(T10)
@@ -1578,8 +1589,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		}
 		// We don't use doubleAndAdd here as it would involve edge cases
 		// when bits are 00 (T==-Acc) or 11 (T==Acc).
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-		Acc = addFn(Acc, T)
+		// With bias point, we can use regular double and Add.
+		Acc = c.double(Acc)
+		Acc = c.Add(Acc, T)
 	} else {
 		// when nbits is odd we start the main loop at normally nbits - 1
 		nbits++
@@ -1611,8 +1623,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			),
 		}
 		// Acc = [4]Acc + T
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-		Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+		// Bias point protects us from incomplete additions
+		Acc = c.double(Acc)
+		Acc = c.doubleAndAdd(Acc, T)
 	}
 
 	// i = 2
@@ -1645,24 +1658,26 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
 	// 		Acc = [4]Acc + T + [3]R
-	T = addFn(T, tableR[2])
-	Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-	Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+	T = c.Add(T, tableR[2])
+	Acc = c.double(Acc)
+	Acc = c.doubleAndAdd(Acc, T)
 
 	// i = 0
-	// subtract Q and R if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
-	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	tableQ[0] = addFn(tableQ[0], Acc)
+	// subtract Q and R if the first bits are 0
+	tableQ[0] = c.Add(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
-	tableR[0] = addFn(tableR[0], Acc)
+	tableR[0] = c.Add(tableR[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
+	// For complete arithmetic, subtract the bias [2^nbits]G and handle edge cases
 	if cfg.CompleteArithmetic {
-		Acc = c.Select(c.api.Or(selector1, selector2), tableR[2], Acc)
+		gm := c.GeneratorMultiples()[nbits-1]
+		Acc = c.Add(Acc, c.Neg(&gm))
+		// If s=0, s=-1, or Q=(0,0), use the precomputed [3]R as a fallback
+		Acc = c.Select(c.api.Or(selector0, selector1), tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
-	// 		Acc = [s1]Q + [s2]R + [3]R
+	// 		Acc = [s1]Q + [s2]R + [3]R (+ [2^nbits]G - [2^nbits]G for complete arithmetic)
 	// 		    = [s1]Q + [s2*s]Q + [3]R
 	// 		    = [s1+s2*s]Q + [3]R
 	// 		    = [0]Q + [3]R
