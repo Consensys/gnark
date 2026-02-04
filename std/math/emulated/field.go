@@ -24,9 +24,9 @@ const (
 	// the base length only when the number of range checks exceeds
 	// thresholdOptimizeOptimizedOverflow.
 	rangeCheckBaseLengthForSmallField = 16
-	// thresholdOptimizeOptimizedOverflow is the number of range checks after
+	// thresholdForInexactOverflow is the number of range checks after
 	// which we start enforcing the base length for small field optimization.
-	thresholdOptimizeOptimizedOverflow = 55000
+	thresholdForInexactOverflow = 55000
 )
 
 // Field holds the configuration for non-native field operations. The field
@@ -421,7 +421,7 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 	// emulating small field.
 	f.nbRangeChecks++
 
-	if f.nbRangeChecks == thresholdOptimizeOptimizedOverflow {
+	if f.nbRangeChecks == thresholdForInexactOverflow {
 		// the threshold is reached, set the range checker to use base length.
 		// Now we know that when constructing non-native elements, then we should
 		// set overflow=f.smallAdditionalOverflow()

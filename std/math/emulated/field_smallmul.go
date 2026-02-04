@@ -420,7 +420,7 @@ func (f *Field[T]) smallAdditionalOverflow() int {
 	}
 	// when we haven't performed too many range checks, then we still use exact
 	// overflow
-	if f.nbRangeChecks < thresholdOptimizeOptimizedOverflow {
+	if f.nbRangeChecks < thresholdForInexactOverflow {
 		return 0
 	}
 	// otherwise, we use the additional overflow which reduced number of
