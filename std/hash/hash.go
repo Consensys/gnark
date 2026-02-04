@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -24,6 +25,13 @@ type FieldHasher interface {
 
 	// Reset empty the internal state and put the intermediate state to zero.
 	Reset()
+}
+
+// DynamicLengthFieldHasher can compute hashes of lengths unknown at compile time.
+type DynamicLengthFieldHasher interface {
+	FieldHasher
+	// SumWithLength computes the hash of the first l inputs written into the hash.
+	SumWithLength(l frontend.Variable) frontend.Variable
 }
 
 // StateStorer allows to store and retrieve the state of a hash function.
@@ -108,48 +116,68 @@ type Compressor interface {
 }
 
 type merkleDamgardHasher struct {
-	state frontend.Variable
-	iv    frontend.Variable
-	f     Compressor
-	api   frontend.API
+	state         []frontend.Variable  // state after being updated with each written element
+	stateTable    logderivlookup.Table // stateTable always contains a prefix of h.state
+	stateTableLen int
+	f             Compressor
+	api           frontend.API
 }
 
-// NewMerkleDamgardHasher transforms a 2-1 one-way function into a hash
-// initialState is a value whose preimage is not known
+// NewMerkleDamgardHasher range-extends a 2-1 one-way hash compression function into a hash by way of the Merkle-Damgård construction.
+// Parameters:
+//   - api: constraint builder
+//   - f: 2-1 hash compression (one-way) function
+//   - initialState: the initialization vector (IV) in the Merkle-Damgård chain. It must be a value whose preimage is not known.
 func NewMerkleDamgardHasher(api frontend.API, f Compressor, initialState frontend.Variable) StateStorer {
 	return &merkleDamgardHasher{
-		state: initialState,
-		iv:    initialState,
+		state: []frontend.Variable{initialState},
 		f:     f,
 		api:   api,
 	}
 }
 
 func (h *merkleDamgardHasher) Reset() {
-	h.state = h.iv
+	h.state = h.state[:1]
+	h.stateTableLen = 0
+	h.stateTable = nil
 }
 
 func (h *merkleDamgardHasher) Write(data ...frontend.Variable) {
 	for _, d := range data {
-		h.state = h.f.Compress(h.state, d)
+		h.state = append(h.state, h.f.Compress(h.state[len(h.state)-1], d))
 	}
 }
 
 func (h *merkleDamgardHasher) Sum() frontend.Variable {
-	return h.state
+	return h.state[len(h.state)-1]
+}
+
+// SumWithLength computes the Merkle-Damgård hash of the input data, truncated at the given length.
+// Parameters:
+//   - length: length of the prefix of data to be hashed. The verifier will not accept a value outside the range {0, 1, ..., len(data)}.
+//     The gnark prover will refuse to attempt to generate such an unsuccessful proof.
+func (h *merkleDamgardHasher) SumWithLength(length frontend.Variable) frontend.Variable {
+	if h.stateTable == nil {
+		h.stateTable = logderivlookup.New(h.api)
+	}
+	for h.stateTableLen < len(h.state) {
+		h.stateTable.Insert(h.state[h.stateTableLen])
+		h.stateTableLen++
+	}
+	return h.stateTable.Lookup(length)[0]
 }
 
 func (h *merkleDamgardHasher) State() []frontend.Variable {
-	return []frontend.Variable{h.state}
+	return []frontend.Variable{h.state[len(h.state)-1]}
 }
 
 func (h *merkleDamgardHasher) SetState(state []frontend.Variable) error {
-	if h.state != h.iv {
-		return fmt.Errorf("the hasher is not in an initial state; reset before attempting to set the state")
-	}
 	if len(state) != 1 {
 		return fmt.Errorf("expected one state variable, got %d", len(state))
 	}
-	h.state = state[0]
+	if len(h.state) != 1 {
+		return fmt.Errorf("the hasher is not in an initial state; reset before attempting to set the state")
+	}
+	h.state = append(h.state, state[0])
 	return nil
 }
