@@ -18,6 +18,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	// rangeCheckBaseLengthForSmallField is the base length used for range
+	// checking when using small field optimization. We start enforcing
+	// the base length only when the number of range checks exceeds
+	// thresholdOptimizeOptimizedOverflow.
+	rangeCheckBaseLengthForSmallField = 16
+	// thresholdForInexactOverflow is the number of range checks after
+	// which we start enforcing the base length for small field optimization.
+	thresholdForInexactOverflow = 55000
+)
+
 // Field holds the configuration for non-native field operations. The field
 // parameters (modulus, number of limbs) is given by [FieldParams] type
 // parameter. If [FieldParams.IsPrime] is true, then allows inverse and division
@@ -47,8 +58,11 @@ type Field[T FieldParams] struct {
 
 	log zerolog.Logger
 
-	constrainedLimbs map[[16]byte]struct{}
+	// constrainedLimbs keeps track of already range checked limbs. The map
+	// value indicates the range check width.
+	constrainedLimbs map[[16]byte]int
 	checker          frontend.Rangechecker
+	nbRangeChecks    int
 
 	deferredChecks []deferredChecker
 
@@ -77,7 +91,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	f := &Field[T]{
 		api:              native,
 		log:              logger.Logger(),
-		constrainedLimbs: make(map[[16]byte]struct{}),
+		constrainedLimbs: make(map[[16]byte]int),
 		checker:          rangecheck.New(native),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
@@ -194,9 +208,15 @@ func (f *Field[T]) modulusPrev() *Element[T] {
 // less constraints will be generated.
 // If strict is false, each limbs is constrained to have width as defined by field parameter.
 func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
-	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, strict)
-	return e
+	if !f.useSmallFieldOptimization() {
+		e := f.newInternalElement(limbs, 0)
+		f.enforceWidth(e, strict)
+		return e
+	} else {
+		e := f.newInternalElement(limbs, uint(f.smallAdditionalOverflow()))
+		f.smallEnforceWidth(e, strict)
+		return e
+	}
 }
 
 func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
@@ -246,7 +266,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 				// that we should enforce width for the whole element. But we
 				// still iterate over all limbs just to mark them in the table.
 				didConstrain = true
-				f.constrainedLimbs[h] = struct{}{}
+				break
 			}
 		} else {
 			// we have no way of knowing if the limb has been constrained. To be
@@ -255,7 +275,11 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		}
 	}
 	if didConstrain {
-		f.enforceWidth(a, true)
+		if !f.useSmallFieldOptimization() {
+			f.enforceWidth(a, true)
+		} else {
+			f.smallEnforceWidth(a, true)
+		}
 	}
 	return
 }
@@ -368,4 +392,49 @@ func (f *Field[T]) useSmallFieldOptimization() bool {
 		}
 	})
 	return f.smallFieldMode
+}
+
+// rangeCheck performs a range check on v to ensure it fits in nbBits.
+// It also keeps track of the number of range checks done, and after a certain
+// threshold switches to using base length range checking for small field
+// optimization.
+//
+// It returns a boolean indicating if the range check was actually performed (i.e. if
+// the limb was not already constrained).
+func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
+	if h, ok := v.(interface{ HashCode() [16]byte }); ok {
+		// if the variable has a hashcode, then we can use it to see if we have
+		// already range checked it.
+		hc := h.HashCode()
+		if existingWidth, ok := f.constrainedLimbs[hc]; ok {
+			// already range checked with a certain width
+			if existingWidth <= nbBits {
+				return false
+			}
+		}
+		// mark as range checked
+		f.constrainedLimbs[hc] = nbBits
+	}
+	// update the number of range checks done. This is only to keep track if we
+	// should switch to the case where instead of exact width we range check
+	// multiple of base length. This reduces number of range checks when
+	// emulating small field.
+	f.nbRangeChecks++
+
+	if f.nbRangeChecks == thresholdForInexactOverflow {
+		// the threshold is reached, set the range checker to use base length.
+		// Now we know that when constructing non-native elements, then we should
+		// set overflow=f.smallAdditionalOverflow()
+		if f.useSmallFieldOptimization() {
+			// in case of emulated small fields we use base length 16 to reduce
+			// needing to range check for [v_lo, v_hi, 2*v_hi].
+			//
+			// But this means that hints could output values which are bigger than
+			// the emulated modulus bitwidth (for example 31 bits). This means we
+			// have to set the overflow of returned elements correctly.
+			f.checker = rangecheck.New(f.api, rangecheck.WithBaseLength(rangeCheckBaseLengthForSmallField))
+		}
+	}
+	f.checker.Check(v, nbBits)
+	return true
 }
