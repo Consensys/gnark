@@ -594,6 +594,8 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 			Y: fields_bls12381.E2{A0: *point[2], A1: *point[3]},
 		},
 	}
+	// Preserve the original hinted R for return value (before edge-case modifications)
+	originalR := R
 
 	// handle (0,0)-point and edge cases
 	var _selector0, _selector1 frontend.Variable
@@ -765,10 +767,10 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	g2.AssertIsEqual(Acc, expected)
 
 	if cfg.CompleteArithmetic {
-		// if s=0 or Q=(0,0), return (0,0)
+		// if s=0 or Q=(0,0), return (0,0); otherwise return the original hinted R
 		zeroE2 := g2.Ext2.Zero()
 		returnZero := g2.api.Or(selector0, _selector0)
-		R = g2.Select(returnZero, &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}, R)
+		return g2.Select(returnZero, &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}, originalR)
 	}
 
 	return R

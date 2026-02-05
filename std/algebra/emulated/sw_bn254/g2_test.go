@@ -2,6 +2,7 @@ package sw_bn254
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/test"
 )
 
@@ -213,4 +215,75 @@ func TestScalarMulG2GLVAndFakeGLVRandom(t *testing.T) {
 	}
 	err := test.IsSolved(&scalarMulG2GLVAndFakeGLVCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+// Circuit for testing G2 scalar multiplication with complete arithmetic (handles edge cases)
+type scalarMulG2CompleteCircuit struct {
+	In, Res G2Affine
+	S       Scalar
+}
+
+func (c *scalarMulG2CompleteCircuit) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	res := g2.scalarMulGLVAndFakeGLV(&c.In, &c.S, algopts.WithCompleteArithmetic())
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// TestScalarMulG2EdgeCases tests edge cases: s=0, s=1, s=-1, Q=(0,0)
+func TestScalarMulG2EdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, _, gen := bn254.Generators()
+
+	// Test case: s = 1 (result should be Q)
+	t.Run("s=1", func(t *testing.T) {
+		var s fr.Element
+		s.SetOne()
+		var res bn254.G2Affine
+		res.Set(&gen) // [1]Q = Q
+
+		witness := scalarMulG2CompleteCircuit{
+			In:  NewG2Affine(gen),
+			S:   NewScalar(s),
+			Res: NewG2Affine(res),
+		}
+		err := test.IsSolved(&scalarMulG2CompleteCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	})
+
+	// Test case: s = -1 (result should be -Q)
+	t.Run("s=-1", func(t *testing.T) {
+		var s fr.Element
+		s.SetOne()
+		s.Neg(&s) // s = -1
+		var res bn254.G2Affine
+		res.Neg(&gen) // [-1]Q = -Q
+
+		witness := scalarMulG2CompleteCircuit{
+			In:  NewG2Affine(gen),
+			S:   NewScalar(s),
+			Res: NewG2Affine(res),
+		}
+		err := test.IsSolved(&scalarMulG2CompleteCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	})
+
+	// Test case: s = 0 (result should be (0,0))
+	t.Run("s=0", func(t *testing.T) {
+		var s fr.Element
+		s.SetZero()
+		var res bn254.G2Affine // zero value is (0,0)
+
+		witness := scalarMulG2CompleteCircuit{
+			In:  NewG2Affine(gen),
+			S:   NewScalar(s),
+			Res: NewG2Affine(res),
+		}
+		err := test.IsSolved(&scalarMulG2CompleteCircuit{}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	})
+
 }
