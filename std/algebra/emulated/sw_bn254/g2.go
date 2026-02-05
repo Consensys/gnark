@@ -350,19 +350,6 @@ func (g2 *G2) Select(b frontend.Variable, p, q *G2Affine) *G2Affine {
 	}
 }
 
-// glvPhi computes the GLV endomorphism: phi(P) = (w * P.X, P.Y)
-// This satisfies phi(P) = [lambda]P where lambda is the GLV eigenvalue.
-// Note: This is different from the psi2/phi function which negates Y.
-func (g2 *G2) glvPhi(q *G2Affine) *G2Affine {
-	x := g2.Ext2.MulByElement(&q.P.X, g2.w)
-	return &G2Affine{
-		P: g2AffP{
-			X: *x,
-			Y: q.P.Y,
-		},
-	}
-}
-
 func (g2 G2) triple(p *G2Affine) *G2Affine {
 	mone := g2.fp.NewElement(-1)
 
@@ -496,16 +483,21 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 		},
 	}
 
-	// handle (0,0)-point
-	var _selector0 frontend.Variable
+	// handle (0,0)-point and edge cases
+	var _selector0, _selector1 frontend.Variable
 	_Q := Q
 	if cfg.CompleteArithmetic {
-		// if R=(0,0) we assign a dummy point
 		one := g2.Ext2.One()
-		R = g2.Select(selector0, &G2Affine{P: g2AffP{X: *one, Y: *one}}, R)
 		// if Q=(0,0) we assign a dummy point
 		_selector0 = g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
 		_Q = g2.Select(_selector0, &G2Affine{P: g2AffP{X: *one, Y: *one}}, Q)
+		// if R.X == Q.X (happens when s=±1, so R=±Q), the incomplete addition fails
+		// We check this BEFORE potentially modifying R
+		_selector1 = g2.Ext2.IsZero(g2.Ext2.Sub(&Q.P.X, &R.P.X))
+		// if s=0/s=-1 (selector0), Q=(0,0) (_selector0), or R.X==Q.X (_selector1),
+		// we assign a dummy point to R
+		selectorAny := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
+		R = g2.Select(selectorAny, &G2Affine{P: g2AffP{X: *one, Y: *one}}, R)
 	}
 
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -655,15 +647,17 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	expected := &G2Affine{P: *g2.g2GenNbits}
 
 	if cfg.CompleteArithmetic {
-		// if Q=(0,0) or s=0, skip the check
-		skip := g2.api.Or(selector0, _selector0)
+		// if Q=(0,0), s=0, or R.X==Q.X, skip the check
+		skip := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
 		Acc = g2.Select(skip, expected, Acc)
 	}
 	g2.AssertIsEqual(Acc, expected)
 
 	if cfg.CompleteArithmetic {
+		// if s=0 or Q=(0,0), return (0,0)
 		zeroE2 := g2.Ext2.Zero()
-		R = g2.Select(selector0, &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}, R)
+		returnZero := g2.api.Or(selector0, _selector0)
+		R = g2.Select(returnZero, &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}, R)
 	}
 
 	return R

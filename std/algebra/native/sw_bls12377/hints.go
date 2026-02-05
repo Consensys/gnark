@@ -311,6 +311,8 @@ func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*
 	uSum := new(big.Int).Add(x, lambdaU2)
 	outputs[4].Add(sTimesV, uSum)
 	outputs[4].Div(outputs[4], cc.fr)
+	// Capture the sign of q before taking absolute value
+	qIsNeg := outputs[4].Sign() < 0
 	outputs[4].Abs(outputs[4])
 
 	// set the signs
@@ -336,10 +338,8 @@ func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*
 	if t.Sign() < 0 {
 		outputs[8].SetUint64(1)
 	}
-	// q sign
-	qSign := new(big.Int).Add(sTimesV, uSum)
-	qSign.Div(qSign, cc.fr)
-	if qSign.Sign() < 0 {
+	// q sign (captured earlier)
+	if qIsNeg {
 		outputs[9].SetUint64(1)
 	}
 
