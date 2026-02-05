@@ -852,191 +852,27 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 // jointScalarMulFakeGLV computes [s1]p1 + [s2]p2. It doesn't modify p1, p2 nor s1, s2.
 //
+// For non-GLV curves, using two separate ScalarMul calls with the 2D half-GCD
+// decomposition (r^(1/2) sub-scalars) is more efficient than a 3D lattice approach
+// which produces r^(2/3) sub-scalars. Constraint comparison for P-256:
+//   - Two ScalarMul + Add: ~152k constraints (r^(1/2) ≈ 128 bits)
+//   - 3D Lattice: ~245k constraints (r^(2/3) ≈ 171 bits)
+//   - Shamir's trick: ~221k constraints (256 bits)
+//
 // ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulFakeGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	// Use 3-MSM for both cases - it uses ~r^(1/3) bit scalars vs ~r^(1/2), giving 3x fewer iterations
-	return c.jointScalarMul3D(p1, p2, s1, s2, cfg.CompleteArithmetic)
-}
-
-// jointScalarMul3D computes [s]Q + [t]R using 3-MSM with an 8-entry Mux table.
-// Uses multiRationalReconstruct to decompose s, t into u1, u2, v with shared denominator.
-// Each scalar is ~r^(1/3) bits. This is for curves without GLV endomorphism.
-//
-// The decomposition satisfies:
-//
-//	s * v + u1 ≡ 0 (mod r)
-//	t * v + u2 ≡ 0 (mod r)
-//
-// The 3-MSM verifies [u1]Q + [u2]R + [v]P = 0 where P = [s]Q + [t]R (hinted).
-//
-// When completeArithmetic is true, handles edge cases:
-// - Q or R being (0,0)
-// - s or t being 0
-// - Result P being (0,0)
-func (c *Curve[B, S]) jointScalarMul3D(Q, R *AffinePoint[B], s, t *emulated.Element[S], completeArithmetic bool) *AffinePoint[B] {
-	// For complete arithmetic, handle edge cases
-	var s1IsZero, s2IsZero, p1IsZero, p2IsZero frontend.Variable
-	// Use the generator as the dummy point (always valid and on the curve)
-	dummy := c.Generator()
-
-	_s, _t := s, t
-	_Q, _R := Q, R
-	if completeArithmetic {
-		// Check for zero scalars
-		s1IsZero = c.scalarApi.IsZero(s)
-		s2IsZero = c.scalarApi.IsZero(t)
-		// Replace zero scalars with 1 to avoid degenerate decomposition
-		_s = c.scalarApi.Select(s1IsZero, c.scalarApi.One(), s)
-		_t = c.scalarApi.Select(s2IsZero, c.scalarApi.One(), t)
-
-		// Check for zero points
-		p1IsZero = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		p2IsZero = c.api.And(c.baseApi.IsZero(&R.X), c.baseApi.IsZero(&R.Y))
-		// Replace zero points with generator to avoid invalid curve points
-		_Q = c.Select(p1IsZero, dummy, Q)
-		_R = c.Select(p2IsZero, dummy, R)
+	// Two separate ScalarMul with fakeGLV (r^(1/2) decomposition) + Add is most efficient.
+	// Each ScalarMul uses half-GCD to decompose the scalar into ~128-bit sub-scalars.
+	r1 := c.ScalarMul(p1, s1, opts...)
+	r2 := c.ScalarMul(p2, s2, opts...)
+	if cfg.CompleteArithmetic {
+		return c.AddUnified(r1, r2)
 	}
-
-	// Hint P = [s]Q + [t]R (using original values - hint handles edge cases)
-	_, PCoords, _, err := emulated.NewVarGenericHint(c.api, 0, 2, 0, nil,
-		[]*emulated.Element[B]{&Q.X, &Q.Y, &R.X, &R.Y},
-		[]*emulated.Element[S]{s, t}, jointScalarMulHint)
-	if err != nil {
-		panic(fmt.Sprintf("joint scalar mul hint: %v", err))
-	}
-	P := &AffinePoint[B]{X: *PCoords[0], Y: *PCoords[1]}
-
-	// For verification, we need _P = [_s]_Q + [_t]_R (with adjusted values)
-	var _P *AffinePoint[B]
-	if completeArithmetic {
-		_, _PCoords, _, err := emulated.NewVarGenericHint(c.api, 0, 2, 0, nil,
-			[]*emulated.Element[B]{&_Q.X, &_Q.Y, &_R.X, &_R.Y},
-			[]*emulated.Element[S]{_s, _t}, jointScalarMulHint)
-		if err != nil {
-			panic(fmt.Sprintf("joint scalar mul hint (adjusted): %v", err))
-		}
-		_P = &AffinePoint[B]{X: *_PCoords[0], Y: *_PCoords[1]}
-	} else {
-		_P = P
-	}
-
-	// Hint the 3D decomposition using multiRationalReconstruct (using adjusted scalars)
-	sdBits, sd, err := c.scalarApi.NewHintGeneric(multiRationalReconstruct, 3, 3, nil, []*emulated.Element[S]{_s, _t})
-	if err != nil {
-		panic(fmt.Sprintf("multiRationalReconstruct hint: %v", err))
-	}
-	u1, u2, v := sd[0], sd[1], sd[2]
-	isNegu1, isNegu2, isNegv := sdBits[0], sdBits[1], sdBits[2]
-
-	// Verify decomposition equations in the scalar field (using adjusted scalars)
-	// Equation 1: _s * v + u1 ≡ 0 (mod r)
-	_u1 := c.scalarApi.Select(isNegu1, c.scalarApi.Neg(u1), u1)
-	_v := c.scalarApi.Select(isNegv, c.scalarApi.Neg(v), v)
-	lhs1 := c.scalarApi.Add(c.scalarApi.Mul(_s, _v), _u1)
-	c.scalarApi.AssertIsEqual(lhs1, c.scalarApi.Zero())
-
-	// Equation 2: _t * v + u2 ≡ 0 (mod r)
-	_u2 := c.scalarApi.Select(isNegu2, c.scalarApi.Neg(u2), u2)
-	lhs2 := c.scalarApi.Add(c.scalarApi.Mul(_t, _v), _u2)
-	c.scalarApi.AssertIsEqual(lhs2, c.scalarApi.Zero())
-
-	// Select add function based on complete arithmetic flag
-	addFn := c.Add
-	if completeArithmetic {
-		addFn = c.AddUnified
-	}
-
-	// Build single points with sign adjustments (using adjusted points)
-	// Q points (indexed by u1)
-	var tableQ [2]*AffinePoint[B]
-	negQY := c.baseApi.Neg(&_Q.Y)
-	tableQ[1] = &AffinePoint[B]{
-		X: _Q.X,
-		Y: *c.baseApi.Select(isNegu1, negQY, &_Q.Y),
-	}
-	tableQ[0] = c.Neg(tableQ[1])
-
-	// R points (indexed by u2)
-	var tableR [2]*AffinePoint[B]
-	negRY := c.baseApi.Neg(&_R.Y)
-	tableR[1] = &AffinePoint[B]{
-		X: _R.X,
-		Y: *c.baseApi.Select(isNegu2, negRY, &_R.Y),
-	}
-	tableR[0] = c.Neg(tableR[1])
-
-	// P points (indexed by v) - using adjusted _P for verification
-	var tableP [2]*AffinePoint[B]
-	negPY := c.baseApi.Neg(&_P.Y)
-	tableP[1] = &AffinePoint[B]{
-		X: _P.X,
-		Y: *c.baseApi.Select(isNegv, negPY, &_P.Y),
-	}
-	tableP[0] = c.Neg(tableP[1])
-
-	// Build full 8-entry table for ±Q ± R ± P (indexed by u1 + 2*u2 + 4*v)
-	var table_X, table_Y [8]*emulated.Element[B]
-	for idx := 0; idx < 8; idx++ {
-		u1bit := idx & 1
-		u2bit := (idx >> 1) & 1
-		vbit := (idx >> 2) & 1
-		tmp := addFn(tableQ[u1bit], tableR[u2bit])
-		tmp = addFn(tmp, tableP[vbit])
-		table_X[idx] = &tmp.X
-		table_Y[idx] = &tmp.Y
-	}
-
-	// Initial accumulator: assume all high bits are 1 (idx = 7)
-	Acc := &AffinePoint[B]{X: *table_X[7], Y: *table_Y[7]}
-
-	// Add bias point to avoid incomplete additions
-	g := c.Generator()
-	Acc = addFn(Acc, g)
-
-	// Get bit decompositions
-	u1bits := c.scalarApi.ToBits(u1)
-	u2bits := c.scalarApi.ToBits(u2)
-	vbits := c.scalarApi.ToBits(v)
-
-	// Sub-scalar bit length: ~r^(1/3)
-	var st S
-	nbits := (st.Modulus().BitLen()+2)/3 + 2
-
-	for i := nbits - 1; i > 0; i-- {
-		// Compute index: idx = u1 + 2*u2 + 4*v
-		idx := c.api.Add(u1bits[i], c.api.Mul(u2bits[i], 2), c.api.Mul(vbits[i], 4))
-
-		// 8-way Mux lookup
-		Bi := &AffinePoint[B]{
-			X: *c.baseApi.Mux(idx,
-				table_X[0], table_X[1], table_X[2], table_X[3],
-				table_X[4], table_X[5], table_X[6], table_X[7]),
-			Y: *c.baseApi.Mux(idx,
-				table_Y[0], table_Y[1], table_Y[2], table_Y[3],
-				table_Y[4], table_Y[5], table_Y[6], table_Y[7]),
-		}
-		// The bias G ensures Acc != ±Bi, so we can use regular doubleAndAdd
-		Acc = c.doubleAndAdd(Acc, Bi)
-	}
-
-	// i = 0: subtract points if first bits are 0
-	tableQ[0] = addFn(tableQ[0], Acc)
-	Acc = c.Select(u1bits[0], Acc, tableQ[0])
-	tableR[0] = addFn(tableR[0], Acc)
-	Acc = c.Select(u2bits[0], Acc, tableR[0])
-	tableP[0] = addFn(tableP[0], Acc)
-	Acc = c.Select(vbits[0], Acc, tableP[0])
-
-	// Subtract bias
-	gm := c.GeneratorMultiples()[nbits-1]
-	Acc = addFn(Acc, c.Neg(&gm))
-
-	// Return the hinted result P (computed with original values, handles edge cases)
-	return P
+	return c.Add(r1, r2)
 }
 
 // jointScalarMulGenericUnsafe computes [s1]p1 + [s2]p2 using Shamir's trick and returns it. It doesn't modify p1, p2 nor s1, s2.
@@ -1465,18 +1301,21 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	// Handle Q=(0,0) and s=0/s=-1 for complete arithmetic
-	var selector1 frontend.Variable
+	// Handle Q=(0,0), s=0/s=-1, and s=±1 (where R=±Q) for complete arithmetic
+	var selector1, selector2 frontend.Variable
 	_Q := Q
 	if cfg.CompleteArithmetic {
 		// Use different dummy points for _Q and R to avoid _Q == ±R
 		dummyQ := c.Generator()
 		dummyR := &c.GeneratorMultiples()[3] // 8*G, different from G
+		// selector1: Q=(0,0)
 		selector1 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
 		_Q = c.Select(selector1, dummyQ, Q)
-		// When s=0 or s=-1 (selector0), the hint returns (0,0) or ±Q,
-		// which can cause issues. Use dummy for R when selector0 OR selector1.
-		selectorAny := c.api.Or(selector0, selector1)
+		// selector2: R.X == Q.X (happens when s=±1, so R=±Q and Add would fail)
+		selector2 = c.baseApi.IsZero(c.baseApi.Sub(&Q.X, r0))
+		// When s=0/s=-1 (selector0), Q=(0,0) (selector1), or R.X==Q.X (selector2),
+		// the incomplete addition formula fails. Use dummy for R in these cases.
+		selectorAny := c.api.Or(c.api.Or(selector0, selector1), selector2)
 		r0 = c.baseApi.Select(selectorAny, &dummyR.X, r0)
 		r1 = c.baseApi.Select(selectorAny, &dummyR.Y, r1)
 	}
@@ -1673,8 +1512,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if cfg.CompleteArithmetic {
 		gm := c.GeneratorMultiples()[nbits-1]
 		Acc = c.Add(Acc, c.Neg(&gm))
-		// If s=0, s=-1, or Q=(0,0), use the precomputed [3]R as a fallback
-		Acc = c.Select(c.api.Or(selector0, selector1), tableR[2], Acc)
+		// If s=0, s=-1, Q=(0,0), or R.X==Q.X (s=±1), use the precomputed [3]R as a fallback
+		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), selector2)
+		Acc = c.Select(selectorEdge, tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
 	// 		Acc = [s1]Q + [s2]R + [3]R (+ [2^nbits]G - [2^nbits]G for complete arithmetic)
