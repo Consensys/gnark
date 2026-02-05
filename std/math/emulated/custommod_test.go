@@ -169,3 +169,36 @@ func TestVariableExp(t *testing.T) {
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
 }
+
+func TestVariableExpEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	testCases := []struct {
+		name           string
+		base, exp, mod *big.Int
+	}{
+		{"small exponent", big.NewInt(2), big.NewInt(10), big.NewInt(1000)},
+		{"zero exponent", big.NewInt(2), big.NewInt(0), big.NewInt(1000)},
+		{"zero base", big.NewInt(0), big.NewInt(10), big.NewInt(1000)},
+		{"base is one", big.NewInt(1), big.NewInt(12345), big.NewInt(1000)},
+		{"small modulus", big.NewInt(7), big.NewInt(256), big.NewInt(13)},
+		{"large base", new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}), big.NewInt(3), big.NewInt(1000000007)},
+		{"large exponent", big.NewInt(2), new(big.Int).Lsh(big.NewInt(1), 32), big.NewInt(1000000007)},
+		{"large modulus", big.NewInt(12345), big.NewInt(67890), new(big.Int).Lsh(big.NewInt(1), 256)},
+	}
+
+	for _, tc := range testCases {
+		assert.Run(func(assert *test.Assert) {
+			expected := new(big.Int).Exp(tc.base, tc.exp, tc.mod)
+			circuit := &variableExp[emparams.Mod1e512]{}
+			assignment := &variableExp[emparams.Mod1e512]{
+				Modulus:  ValueOf[emparams.Mod1e512](tc.mod),
+				Base:     ValueOf[emparams.Mod1e512](tc.base),
+				Exp:      ValueOf[emparams.Mod1e512](tc.exp),
+				Expected: ValueOf[emparams.Mod1e512](expected),
+			}
+			err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+			assert.NoError(err)
+		}, tc.name)
+	}
+}
