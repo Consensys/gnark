@@ -129,14 +129,16 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	numWindows := paddedLen / windowSize
 
 	// Initialize result with table lookup for the MSB window
-	// Extract MSB window bits (with padding of zeros)
+	// MSB window (window 0) covers bits [(numWindows-1)*windowSize, numWindows*windowSize-1]
+	// in the padded representation. Bits at indices >= n are padding zeros.
 	msbWindowBits := make([]frontend.Variable, windowSize)
+	msbBaseIdx := (numWindows - 1) * windowSize
 	for i := 0; i < windowSize; i++ {
-		bitIdx := n - 1 - i // Start from MSB
-		if bitIdx >= 0 {
-			msbWindowBits[windowSize-1-i] = expBts[bitIdx]
+		actualIdx := msbBaseIdx + i
+		if actualIdx < n {
+			msbWindowBits[i] = expBts[actualIdx]
 		} else {
-			msbWindowBits[windowSize-1-i] = 0
+			msbWindowBits[i] = 0
 		}
 	}
 	res := f.tableLookup(table, msbWindowBits)
