@@ -421,56 +421,6 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	}
 }
 
-// doubleAndAddSelect is the same as doubleAndAdd but computes either:
-//
-//	2p+q if b=1 or
-//	2q+p if b=0
-//
-// It first computes the x-coordinate of p+q via the slope(p,q)
-// and then based on a Select adds either p or q.
-func (g2 G2) doubleAndAddSelect(b frontend.Variable, p, q *G2Affine) *G2Affine {
-	mone := g2.fp.NewElement(-1)
-
-	// compute λ1 = (q.y-p.y)/(q.x-p.x)
-	yqyp := g2.Ext2.Sub(&q.P.Y, &p.P.Y)
-	xqxp := g2.Ext2.Sub(&q.P.X, &p.P.X)
-	λ1 := g2.Ext2.DivUnchecked(yqyp, xqxp)
-
-	// compute x2 = λ1²-p.x-q.x
-	x20 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p.P.X.A0}, {mone, &q.P.X.A0}}, []int{1, 1, 1, 1})
-	x21 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p.P.X.A1}, {mone, &q.P.X.A1}}, []int{2, 1, 1})
-	x2 := &fields_bls12381.E2{A0: *x20, A1: *x21}
-
-	// omit y2 computation
-
-	// conditional second addition
-	t := g2.Select(b, p, q)
-
-	// compute -λ2 = λ1+2*t.y/(x2-t.x)
-	ypyp := g2.Ext2.Add(&t.P.Y, &t.P.Y)
-	x2xp := g2.Ext2.Sub(x2, &t.P.X)
-	λ2 := g2.Ext2.DivUnchecked(ypyp, x2xp)
-	λ2 = g2.Ext2.Add(λ1, λ2)
-
-	// compute x3 = (-λ2)²-t.x-x2
-	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &t.P.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
-	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &t.P.X.A1}, {mone, x21}}, []int{2, 1, 1})
-	x3 := &fields_bls12381.E2{A0: *x30, A1: *x31}
-
-	// compute y3 = -λ2*(x3 - t.x)-t.y
-	y3 := g2.Ext2.Sub(x3, &t.P.X)
-	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {mone, &λ2.A1, &y3.A1}, {mone, &t.P.Y.A0}}, []int{1, 1, 1})
-	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {mone, &t.P.Y.A1}}, []int{1, 1, 1})
-	y3 = &fields_bls12381.E2{A0: *y30, A1: *y31}
-
-	return &G2Affine{
-		P: g2AffP{
-			X: *x3,
-			Y: *y3,
-		},
-	}
-}
-
 func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
