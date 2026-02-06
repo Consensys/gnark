@@ -181,7 +181,7 @@ type pairingCheckBLS377 struct {
 
 func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
 
-	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+	err := PairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -203,6 +203,32 @@ func TestPairingCheckBLS377(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&pairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
+}
+
+type pairingCheckTorusBLS377 struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (circuit *pairingCheckTorusBLS377) Define(api frontend.API) error {
+	err := PairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	return nil
+}
+
+func TestPairingCheckTorusBLS377(t *testing.T) {
+	// pairing test data
+	P, Q := pairingCheckData()
+	witness := pairingCheckTorusBLS377{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&pairingCheckTorusBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 }
 
 type groupMembership struct {
@@ -281,13 +307,4 @@ func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine, 
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q[0], Q[1]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
 	return
-}
-
-// bench
-func BenchmarkPairingCheck(b *testing.B) {
-	c := pairingCheckBLS377{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("PairingCheck(2): ", p.NbConstraints())
 }

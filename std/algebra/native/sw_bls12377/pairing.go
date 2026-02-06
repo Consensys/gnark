@@ -238,8 +238,18 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups
+// This function doesn't check that the inputs are in the correct subgroups.
+// It uses the optimized torus-based Miller loop internally.
 func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
+	return pairingCheckTorus(api, P, Q)
+}
+
+// pairingCheckClassical calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+// It uses the classical E12-based Miller loop.
+func pairingCheckClassical(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 	// check input size match
 	nP := len(P)

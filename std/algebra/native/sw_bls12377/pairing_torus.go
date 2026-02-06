@@ -74,12 +74,12 @@ func PairTorus(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	return FinalExponentiationTorus(api, f), nil
 }
 
-// PairingCheckTorus calculates the reduced pairing using torus-based Miller loop
+// pairingCheckTorus calculates the reduced pairing using torus-based Miller loop
 // and asserts if the result is One using hint verification with squaring sharing
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
 // This function doesn't check that the inputs are in the correct subgroups
-func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
+func pairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	nP := len(P)
 	nQ := len(Q)
 	if nP == 0 || nP != nQ {
