@@ -16,6 +16,10 @@ func GetHints() []solver.Hint {
 		inverseE6Hint,
 		inverseE12Hint,
 		finalExpHint,
+		torusSquareHint,
+		torusMulHint,
+		torusMulBy01Hint,
+		torusDecompressHint,
 	}
 }
 
@@ -253,6 +257,180 @@ func finalExpHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	scalingFactor.C0.B1.A1.BigInt(outputs[15])
 	scalingFactor.C0.B2.A0.BigInt(outputs[16])
 	scalingFactor.C0.B2.A1.BigInt(outputs[17])
+
+	return nil
+}
+
+// torusSquareHint computes the square in torus representation
+// Input: y ∈ E6 (6 elements)
+// Output: y' ∈ E6 where y' = 2y / (1 + y²·v)
+func torusSquareHint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	var y, ySq, num, denom, result bls12377.E6
+
+	y.B0.A0.SetBigInt(inputs[0])
+	y.B0.A1.SetBigInt(inputs[1])
+	y.B1.A0.SetBigInt(inputs[2])
+	y.B1.A1.SetBigInt(inputs[3])
+	y.B2.A0.SetBigInt(inputs[4])
+	y.B2.A1.SetBigInt(inputs[5])
+
+	// num = 2y
+	num.Double(&y)
+
+	// ySq = y²
+	ySq.Square(&y)
+
+	// denom = 1 + y²·v (MulByNonResidue)
+	denom.MulByNonResidue(&ySq)
+	var one bls12377.E6
+	one.SetOne()
+	denom.Add(&denom, &one)
+
+	// result = num / denom
+	result.Inverse(&denom)
+	result.Mul(&result, &num)
+
+	result.B0.A0.BigInt(res[0])
+	result.B0.A1.BigInt(res[1])
+	result.B1.A0.BigInt(res[2])
+	result.B1.A1.BigInt(res[3])
+	result.B2.A0.BigInt(res[4])
+	result.B2.A1.BigInt(res[5])
+
+	return nil
+}
+
+// torusMulHint computes multiplication of two dense elements in torus
+// Input: y1, y2 ∈ E6 (12 elements)
+// Output: y' ∈ E6 where y' = (y1 + y2) / (1 + y1·y2·v)
+func torusMulHint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	var y1, y2, prod, num, denom, result bls12377.E6
+
+	y1.B0.A0.SetBigInt(inputs[0])
+	y1.B0.A1.SetBigInt(inputs[1])
+	y1.B1.A0.SetBigInt(inputs[2])
+	y1.B1.A1.SetBigInt(inputs[3])
+	y1.B2.A0.SetBigInt(inputs[4])
+	y1.B2.A1.SetBigInt(inputs[5])
+
+	y2.B0.A0.SetBigInt(inputs[6])
+	y2.B0.A1.SetBigInt(inputs[7])
+	y2.B1.A0.SetBigInt(inputs[8])
+	y2.B1.A1.SetBigInt(inputs[9])
+	y2.B2.A0.SetBigInt(inputs[10])
+	y2.B2.A1.SetBigInt(inputs[11])
+
+	// num = y1 + y2
+	num.Add(&y1, &y2)
+
+	// prod = y1 · y2
+	prod.Mul(&y1, &y2)
+
+	// denom = 1 + prod·v
+	denom.MulByNonResidue(&prod)
+	var one bls12377.E6
+	one.SetOne()
+	denom.Add(&denom, &one)
+
+	// result = num / denom
+	result.Inverse(&denom)
+	result.Mul(&result, &num)
+
+	result.B0.A0.BigInt(res[0])
+	result.B0.A1.BigInt(res[1])
+	result.B1.A0.BigInt(res[2])
+	result.B1.A1.BigInt(res[3])
+	result.B2.A0.BigInt(res[4])
+	result.B2.A1.BigInt(res[5])
+
+	return nil
+}
+
+// torusMulBy01Hint computes multiplication by sparse element in torus
+// Input: y ∈ E6 (6 elements), l0, l1 ∈ E2 (4 elements)
+// Output: y' ∈ E6 where y' = (y + sparse) / (1 + y·sparse·v)
+func torusMulBy01Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	var y, sparse, prod, num, denom, result bls12377.E6
+
+	y.B0.A0.SetBigInt(inputs[0])
+	y.B0.A1.SetBigInt(inputs[1])
+	y.B1.A0.SetBigInt(inputs[2])
+	y.B1.A1.SetBigInt(inputs[3])
+	y.B2.A0.SetBigInt(inputs[4])
+	y.B2.A1.SetBigInt(inputs[5])
+
+	// sparse = (l0, l1, 0)
+	sparse.B0.A0.SetBigInt(inputs[6])
+	sparse.B0.A1.SetBigInt(inputs[7])
+	sparse.B1.A0.SetBigInt(inputs[8])
+	sparse.B1.A1.SetBigInt(inputs[9])
+	// sparse.B2 = 0
+
+	// num = y + sparse
+	num.Add(&y, &sparse)
+
+	// prod = y · sparse (using MulBy01)
+	prod.Set(&y)
+	prod.MulBy01(&sparse.B0, &sparse.B1)
+
+	// denom = 1 + prod·v
+	denom.MulByNonResidue(&prod)
+	var one bls12377.E6
+	one.SetOne()
+	denom.Add(&denom, &one)
+
+	// result = num / denom
+	result.Inverse(&denom)
+	result.Mul(&result, &num)
+
+	result.B0.A0.BigInt(res[0])
+	result.B0.A1.BigInt(res[1])
+	result.B1.A0.BigInt(res[2])
+	result.B1.A1.BigInt(res[3])
+	result.B2.A0.BigInt(res[4])
+	result.B2.A1.BigInt(res[5])
+
+	return nil
+}
+
+// torusDecompressHint converts torus representation back to E12
+// Input: y ∈ E6 (6 elements)
+// Output: x ∈ E12 where x = (1 + y·w) / (1 - y·w)
+func torusDecompressHint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	var y bls12377.E6
+	var num, denom, result bls12377.E12
+
+	y.B0.A0.SetBigInt(inputs[0])
+	y.B0.A1.SetBigInt(inputs[1])
+	y.B1.A0.SetBigInt(inputs[2])
+	y.B1.A1.SetBigInt(inputs[3])
+	y.B2.A0.SetBigInt(inputs[4])
+	y.B2.A1.SetBigInt(inputs[5])
+
+	// num = 1 + y·w  (C0 = 1, C1 = y)
+	num.C0.SetOne()
+	num.C1.Set(&y)
+
+	// denom = 1 - y·w  (C0 = 1, C1 = -y)
+	denom.C0.SetOne()
+	denom.C1.Neg(&y)
+
+	// result = num / denom
+	result.Inverse(&denom)
+	result.Mul(&result, &num)
+
+	result.C0.B0.A0.BigInt(res[0])
+	result.C0.B0.A1.BigInt(res[1])
+	result.C0.B1.A0.BigInt(res[2])
+	result.C0.B1.A1.BigInt(res[3])
+	result.C0.B2.A0.BigInt(res[4])
+	result.C0.B2.A1.BigInt(res[5])
+	result.C1.B0.A0.BigInt(res[6])
+	result.C1.B0.A1.BigInt(res[7])
+	result.C1.B1.A0.BigInt(res[8])
+	result.C1.B1.A1.BigInt(res[9])
+	result.C1.B2.A0.BigInt(res[10])
+	result.C1.B2.A1.BigInt(res[11])
 
 	return nil
 }
