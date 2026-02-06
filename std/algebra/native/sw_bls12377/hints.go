@@ -117,25 +117,10 @@ func pairingCheckTorusHint(scalarField *big.Int, inputs, outputs []*big.Int) err
 	scalingFactor.C0.B2.A0.BigInt(outputs[16])
 	scalingFactor.C0.B2.A1.BigInt(outputs[17])
 
-	// Compute torus compression of residueWitness: y = C1 / (1 + C0)
-	// For x = C0 + C1·w in cyclotomic subgroup, torus repr is y where x = (1+y·w)/(1-y·w)
-	// This gives y = C1 / (C0 + 1)
-	var torusWitness bls12377.E6
-	var c0PlusOne bls12377.E6
-	c0PlusOne.Set(&residueWitness.C0)
-	var oneE6 bls12377.E6
-	oneE6.SetOne()
-	c0PlusOne.Add(&c0PlusOne, &oneE6)
-	torusWitness.Inverse(&c0PlusOne)
-	torusWitness.Mul(&torusWitness, &residueWitness.C1)
-
-	// return the torus-compressed witness
-	torusWitness.B0.A0.BigInt(outputs[18])
-	torusWitness.B0.A1.BigInt(outputs[19])
-	torusWitness.B1.A0.BigInt(outputs[20])
-	torusWitness.B1.A1.BigInt(outputs[21])
-	torusWitness.B2.A0.BigInt(outputs[22])
-	torusWitness.B2.A1.BigInt(outputs[23])
+	// Note: We no longer compute torusWitness or expectedTorus in the hint.
+	// The circuit will compute torusWitness = compress(residueWitness) and verify
+	// the final equation: decompress(res) * scalingFactor == Frobenius(residueWitness)
+	// This ensures soundness by constraining the hint values in-circuit.
 
 	return nil
 }

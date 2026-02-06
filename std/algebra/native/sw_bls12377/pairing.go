@@ -311,7 +311,7 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 		return errors.New("invalid inputs sizes")
 	}
 
-	// hint the non-residue witness with torus-compressed form
+	// hint the non-residue witness
 	inputs := make([]frontend.Variable, 0, 2*nP+4*nQ)
 	for _, p := range P {
 		inputs = append(inputs, p.X, p.Y)
@@ -319,10 +319,12 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	for _, q := range Q {
 		inputs = append(inputs, q.P.X.A0, q.P.X.A1, q.P.Y.A0, q.P.Y.A1)
 	}
-	hint, err := api.NewHint(pairingCheckTorusHint, 24, inputs...)
+	hint, err := api.NewHint(pairingCheckTorusHint, 18, inputs...)
 	if err != nil {
 		panic(err)
 	}
+
+	// Read residueWitness (E12) from hint
 	var residueWitness GT
 	residueWitness.C0.B0.A0 = hint[0]
 	residueWitness.C0.B0.A1 = hint[1]
@@ -337,6 +339,7 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	residueWitness.C1.B2.A0 = hint[10]
 	residueWitness.C1.B2.A1 = hint[11]
 
+	// Read scalingFactor (E6) from hint
 	var scalingFactor fields_bls12377.E6
 	scalingFactor.B0.A0 = hint[12]
 	scalingFactor.B0.A1 = hint[13]
@@ -345,14 +348,15 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	scalingFactor.B2.A0 = hint[16]
 	scalingFactor.B2.A1 = hint[17]
 
-	// Torus-compressed residue witness
+	// Compute torusWitness = compress(residueWitness) in circuit
+	// This constrains the torus witness to be consistent with residueWitness
+	// compress(x) = C1 / (1 + C0) for x = C0 + C1·w
 	var torusWitness fields_bls12377.E6
-	torusWitness.B0.A0 = hint[18]
-	torusWitness.B0.A1 = hint[19]
-	torusWitness.B1.A0 = hint[20]
-	torusWitness.B1.A1 = hint[21]
-	torusWitness.B2.A0 = hint[22]
-	torusWitness.B2.A1 = hint[23]
+	var one fields_bls12377.E6
+	one.SetOne()
+	var c0PlusOne fields_bls12377.E6
+	c0PlusOne.Add(api, residueWitness.C0, one)
+	torusWitness.DivUnchecked(api, residueWitness.C1, c0PlusOne)
 
 	// Compute torus Miller loop with hint-sharing
 	lines := make([]lineEvaluations, nQ)
@@ -365,17 +369,20 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	}
 	res := millerLoopLinesTorusWithWitness(api, P, lines, torusWitness)
 
-	// The result is compress(ML^(p^6-1) * residueWitness^x0)
-	// Decompress to E12
+	// Decompress res back to E12 for final verification
+	// decompress(y) = (1 + y·w) / (1 - y·w)
 	resE12 := fields_bls12377.TorusDecompressWithHint(api, res)
 
-	// Check that resE12 * scalingFactor == residueWitness^q
-	var t0, t1 GT
-	t1.C0.Mul(api, resE12.C0, scalingFactor)
-	t1.C1.Mul(api, resE12.C1, scalingFactor)
-	t0.Frobenius(api, residueWitness)
+	// Verify: resE12 * scalingFactor == Frobenius(residueWitness)
+	// Since scalingFactor is in E6 (C1 = 0), multiply component-wise
+	var lhs GT
+	lhs.C0.Mul(api, resE12.C0, scalingFactor)
+	lhs.C1.Mul(api, resE12.C1, scalingFactor)
 
-	t0.AssertIsEqual(api, t1)
+	var rhs GT
+	rhs.Frobenius(api, residueWitness)
+
+	lhs.AssertIsEqual(api, rhs)
 
 	return nil
 }
