@@ -78,8 +78,7 @@ func TorusMulBy01(api frontend.API, y E6, l0, l1 E2) E6 {
 	num.Add(api, y, sparse)
 
 	// Compute y · sparse using MulBy01
-	var prod E6
-	prod = y
+	prod := y
 	prod.MulBy01(api, l0, l1)
 
 	// Compute denominator: 1 + prod·v
