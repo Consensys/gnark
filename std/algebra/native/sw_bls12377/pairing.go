@@ -170,16 +170,16 @@ func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (G
 			}
 
 			// lines evaluation at P
-			// ℓ × res
-			res.MulBy034(api,
+
+			// ℓ × ℓ
+			prodLines = *fields_bls12377.Mul034By034(api,
 				*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
 				*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
-			)
-			// ℓ × res
-			res.MulBy034(api,
 				*l1.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
 				*l1.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
 			)
+			// (ℓ × ℓ) × res
+			res.MulBy01234(api, prodLines)
 		}
 	}
 	return res, nil
@@ -305,6 +305,7 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	// of residueWitness^{x₀}
 	res := residueWitness
 
+	var prodLines [5]fields_bls12377.E2
 	var l0, l1 lineEvaluation
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
@@ -327,16 +328,15 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 			res.Mul(api, res, residueWitness)
 			for k := 0; k < nP; k++ {
 				// lines evaluation at P
-				// ℓ × res
-				res.MulBy034(api,
+				// ℓ × ℓ
+				prodLines = *fields_bls12377.Mul034By034(api,
 					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
 					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
-				)
-				// ℓ × res
-				res.MulBy034(api,
 					*l1.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
 					*l1.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
 				)
+				// (ℓ × ℓ) × res
+				res.MulBy01234(api, prodLines)
 			}
 		}
 	}
