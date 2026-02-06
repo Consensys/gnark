@@ -95,32 +95,31 @@ func pairingCheckTorusHint(scalarField *big.Int, inputs, outputs []*big.Int) err
 	exponent.ModInverse(&lambda, &finalExpFactor)
 	residueWitness.Exp(millerLoopCyclotomic, &exponent)
 
-	// return the witness residue
-	residueWitness.C0.B0.A0.BigInt(outputs[0])
-	residueWitness.C0.B0.A1.BigInt(outputs[1])
-	residueWitness.C0.B1.A0.BigInt(outputs[2])
-	residueWitness.C0.B1.A1.BigInt(outputs[3])
-	residueWitness.C0.B2.A0.BigInt(outputs[4])
-	residueWitness.C0.B2.A1.BigInt(outputs[5])
-	residueWitness.C1.B0.A0.BigInt(outputs[6])
-	residueWitness.C1.B0.A1.BigInt(outputs[7])
-	residueWitness.C1.B1.A0.BigInt(outputs[8])
-	residueWitness.C1.B1.A1.BigInt(outputs[9])
-	residueWitness.C1.B2.A0.BigInt(outputs[10])
-	residueWitness.C1.B2.A1.BigInt(outputs[11])
+	// Compute torus compression of residueWitness: y = C1 / (1 + C0)
+	var torusWitness bls12377.E6
+	var c0PlusOne bls12377.E6
+	c0PlusOne.Set(&residueWitness.C0)
+	var oneE6 bls12377.E6
+	oneE6.SetOne()
+	c0PlusOne.Add(&c0PlusOne, &oneE6)
+	torusWitness.Inverse(&c0PlusOne)
+	torusWitness.Mul(&torusWitness, &residueWitness.C1)
 
-	// return the scaling factor (only C0 since it's in Fp6)
-	scalingFactor.C0.B0.A0.BigInt(outputs[12])
-	scalingFactor.C0.B0.A1.BigInt(outputs[13])
-	scalingFactor.C0.B1.A0.BigInt(outputs[14])
-	scalingFactor.C0.B1.A1.BigInt(outputs[15])
-	scalingFactor.C0.B2.A0.BigInt(outputs[16])
-	scalingFactor.C0.B2.A1.BigInt(outputs[17])
+	// return the torus-compressed witness (6 elements)
+	torusWitness.B0.A0.BigInt(outputs[0])
+	torusWitness.B0.A1.BigInt(outputs[1])
+	torusWitness.B1.A0.BigInt(outputs[2])
+	torusWitness.B1.A1.BigInt(outputs[3])
+	torusWitness.B2.A0.BigInt(outputs[4])
+	torusWitness.B2.A1.BigInt(outputs[5])
 
-	// Note: We no longer compute torusWitness or expectedTorus in the hint.
-	// The circuit will compute torusWitness = compress(residueWitness) and verify
-	// the final equation: decompress(res) * scalingFactor == Frobenius(residueWitness)
-	// This ensures soundness by constraining the hint values in-circuit.
+	// return the scaling factor (6 elements, only C0 since it's in Fp6)
+	scalingFactor.C0.B0.A0.BigInt(outputs[6])
+	scalingFactor.C0.B0.A1.BigInt(outputs[7])
+	scalingFactor.C0.B1.A0.BigInt(outputs[8])
+	scalingFactor.C0.B1.A1.BigInt(outputs[9])
+	scalingFactor.C0.B2.A0.BigInt(outputs[10])
+	scalingFactor.C0.B2.A1.BigInt(outputs[11])
 
 	return nil
 }

@@ -319,38 +319,28 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	for _, q := range Q {
 		inputs = append(inputs, q.P.X.A0, q.P.X.A1, q.P.Y.A0, q.P.Y.A1)
 	}
-	hint, err := api.NewHint(pairingCheckTorusHint, 18, inputs...)
+	hint, err := api.NewHint(pairingCheckTorusHint, 12, inputs...)
 	if err != nil {
 		panic(err)
 	}
 
-	// Read residueWitness (E12) from hint
-	var residueWitness GT
-	residueWitness.C0.B0.A0 = hint[0]
-	residueWitness.C0.B0.A1 = hint[1]
-	residueWitness.C0.B1.A0 = hint[2]
-	residueWitness.C0.B1.A1 = hint[3]
-	residueWitness.C0.B2.A0 = hint[4]
-	residueWitness.C0.B2.A1 = hint[5]
-	residueWitness.C1.B0.A0 = hint[6]
-	residueWitness.C1.B0.A1 = hint[7]
-	residueWitness.C1.B1.A0 = hint[8]
-	residueWitness.C1.B1.A1 = hint[9]
-	residueWitness.C1.B2.A0 = hint[10]
-	residueWitness.C1.B2.A1 = hint[11]
+	// Read torusWitness (E6) directly from hint
+	var torusWitness fields_bls12377.E6
+	torusWitness.B0.A0 = hint[0]
+	torusWitness.B0.A1 = hint[1]
+	torusWitness.B1.A0 = hint[2]
+	torusWitness.B1.A1 = hint[3]
+	torusWitness.B2.A0 = hint[4]
+	torusWitness.B2.A1 = hint[5]
 
 	// Read scalingFactor (E6) from hint
 	var scalingFactor fields_bls12377.E6
-	scalingFactor.B0.A0 = hint[12]
-	scalingFactor.B0.A1 = hint[13]
-	scalingFactor.B1.A0 = hint[14]
-	scalingFactor.B1.A1 = hint[15]
-	scalingFactor.B2.A0 = hint[16]
-	scalingFactor.B2.A1 = hint[17]
-
-	// Compute torusWitness = compress(residueWitness) in circuit using hint
-	// This constrains the torus witness to be consistent with residueWitness
-	torusWitness := fields_bls12377.TorusCompressWithHint(api, residueWitness)
+	scalingFactor.B0.A0 = hint[6]
+	scalingFactor.B0.A1 = hint[7]
+	scalingFactor.B1.A0 = hint[8]
+	scalingFactor.B1.A1 = hint[9]
+	scalingFactor.B2.A0 = hint[10]
+	scalingFactor.B2.A1 = hint[11]
 
 	// Compute torus Miller loop with hint-sharing
 	lines := make([]lineEvaluations, nQ)
