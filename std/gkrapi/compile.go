@@ -157,10 +157,10 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 	}
 
 	// Build instruction calldata for solveBlueprint
-	// Format: [0]=instanceIndex, [1...]=input values as linear expressions
+	// Format: [0]=totalSize, [1]=instanceIndex, [2...]=input values as linear expressions
 	compiler := c.api.Compiler()
-	calldata := make([]uint32, 1, 1+len(c.ins)*2+2) // pre-allocate roughly
-	calldata[0] = uint32(c.nbInstances)             // instance index
+	calldata := make([]uint32, 2, 2+len(c.ins)*3) // pre-allocate: size + instanceIndex + linear expressions
+	calldata[1] = uint32(c.nbInstances)
 
 	// Encode input variables
 	for _, wI := range c.ins {
@@ -175,6 +175,9 @@ func (c *Circuit) AddInstance(input map[gkr.Variable]frontend.Variable) (map[gkr
 		v := compiler.ToCanonicalVariable(inV)
 		v.Compress(&calldata)
 	}
+
+	// Update total size
+	calldata[0] = uint32(len(calldata))
 
 	// Execute solve blueprint instruction
 	outputs := compiler.AddInstruction(c.blueprints.SolveID, calldata)
@@ -272,17 +275,20 @@ func (c *Circuit) verify(api frontend.API, circuit gkrtypes.GadgetCircuit, initi
 	compiler := api.Compiler()
 
 	// Build calldata for prove instruction
-	// Format: [0...]=challenge linear expressions (no metadata)
-	proveCalldata := make([]uint32, 0, len(initialChallenges)*2+2)
+	// Format: [0]=totalSize, [1...]=challenge linear expressions
+	calldata := make([]uint32, 1, 1+len(initialChallenges)*3)
 
 	// Encode initial challenges
 	for _, challenge := range initialChallenges {
 		v := compiler.ToCanonicalVariable(challenge)
-		v.Compress(&proveCalldata)
+		v.Compress(&calldata)
 	}
 
+	// Update total size
+	calldata[0] = uint32(len(calldata))
+
 	// Execute prove solveBlueprint instruction
-	proofOutputs := compiler.AddInstruction(c.blueprints.ProveID, proveCalldata)
+	proofOutputs := compiler.AddInstruction(c.blueprints.ProveID, calldata)
 
 	// Convert outputs to proof
 	proofSerialized := make([]frontend.Variable, len(proofOutputs))
@@ -315,9 +321,11 @@ func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
 	// Create an instruction that will retrieve the assignment at solve time
 	compiler := c.api.Compiler()
 
-	// Build calldata: [wireI, instanceI, dependency_wire_as_linear_expression]
+	// Build calldata: [0]=totalSize, [1]=wireI, [2]=instanceI, [3...]=dependency_wire_as_linear_expression
 	// The dependency ensures this instruction runs after the solve instruction for instance i
-	calldata := []uint32{uint32(v), uint32(i)}
+	calldata := make([]uint32, 3, 6) // pre-allocate: size + wireI + instanceI + dependency linear expression (typically 3)
+	calldata[1] = uint32(v)
+	calldata[2] = uint32(i)
 
 	// Use the first output variable from instance i as a dependency
 	// This ensures the solve instruction for this instance has completed
@@ -327,6 +335,9 @@ func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
 	dependencyWire := c.assignments[c.outs[0]][i]
 	depVar := compiler.ToCanonicalVariable(dependencyWire)
 	depVar.Compress(&calldata)
+
+	// Update total size
+	calldata[0] = uint32(len(calldata))
 
 	outputs := compiler.AddInstruction(c.blueprints.GetAssignmentID, calldata)
 	return compiler.InternalVariable(outputs[0])

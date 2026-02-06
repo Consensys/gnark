@@ -80,8 +80,9 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
 	defer b.evaluatorPool.Put(ce)
 
-	instanceI := int(inst.Calldata[0])
-	calldata := inst.Calldata[1:]
+	// Format: [0]=totalSize, [1]=instanceIndex, [2...]=input linear expressions
+	instanceI := int(inst.Calldata[1])
+	calldata := inst.Calldata[2:]
 
 	// The test engine runs the instruction before "finalize" is called. We need to avoid attempting to access an uninitialized slice
 	if len(b.assignments[0]) <= instanceI {
@@ -155,13 +156,16 @@ func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
+	b.initialize() // ensure metadata is available
 
 	maxLevel := constraint.LevelUnset
 
-	// Parse exactly b.nbInputs linear expressions
-	offset := 1 // skip instance index
-	for range b.nbInputs {
-		n := int(inst.Calldata[offset])
+	// Format: [0]=totalSize, [1]=instanceIndex, [2...]=input linear expressions
+	offset := 2 // skip size and instance index
+
+	// Parse input linear expressions
+	for offset < len(inst.Calldata) {
+		n := int(inst.Calldata[offset]) // number of terms in this linear expression
 		offset++
 
 		for range n {
@@ -211,8 +215,9 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
+	// Format: [0]=totalSize, [1...]=challenge linear expressions
 	insBytes := make([][]byte, 0) // first challenges
-	calldata := inst.Calldata
+	calldata := inst.Calldata[1:]  // skip size prefix
 	for len(calldata) != 0 {
 		val, delta := s.Read(calldata)
 		calldata = calldata[delta:]
@@ -287,10 +292,12 @@ func (b *BlueprintProve) NbOutputs(inst constraint.Instruction) int {
 func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
 	maxLevel := constraint.LevelUnset
 
-	// Parse all challenges dynamically (no metadata)
-	offset := 0
+	// Format: [0]=totalSize, [1...]=challenge linear expressions
+	offset := 1 // skip size prefix
+
+	// Parse all challenge linear expressions
 	for offset < len(inst.Calldata) {
-		n := int(inst.Calldata[offset])
+		n := int(inst.Calldata[offset]) // number of terms in this linear expression
 		offset++
 
 		for range n {
@@ -333,8 +340,9 @@ func (b *BlueprintGetAssignment) Solve(s constraint.Solver[constraint.U64], inst
 	defer b.lock.Unlock()
 
 	// Read wireI and instanceI from calldata
-	wireI := int(inst.Calldata[0])
-	instanceI := int(inst.Calldata[1])
+	// Format: [0]=totalSize, [1]=wireI, [2]=instanceI, [3...]=dependency linear expression
+	wireI := int(inst.Calldata[1])
+	instanceI := int(inst.Calldata[2])
 
 	// Get solve blueprint from solver by ID
 	solveBlueprint := s.GetBlueprint(b.SolveBlueprintID).(*BlueprintSolve)
@@ -365,8 +373,8 @@ func (b *BlueprintGetAssignment) NbOutputs(inst constraint.Instruction) int {
 func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
 	maxLevel := constraint.LevelUnset
 
-	// Parse wireI and instanceI (skip them)
-	offset := 2
+	// Format: [0]=totalSize, [1]=wireI, [2]=instanceI, [3...]=dependency linear expression
+	offset := 3 // skip size, wireI, and instanceI
 
 	// Parse dependency linear expression
 	// This ensures we run after the solve instruction for this instance
