@@ -160,7 +160,7 @@ func millerLoopLinesTorusWithWitness(api frontend.API, P []G1Affine, lines []lin
 	// Main loop: i = 62 down to 0
 	for i := 62; i >= 0; i-- {
 		// Square in torus
-		acc = fields_bls12377.TorusSquareWithHint(api, acc)
+		acc = fields_bls12377.TorusSquare(api, acc)
 
 		if loopCounter[i] == 0 {
 			// Single line per pair at this bit
@@ -171,11 +171,11 @@ func millerLoopLinesTorusWithWitness(api frontend.API, P []G1Affine, lines []lin
 				var negL0, negL1 fields_bls12377.E2
 				negL0.Neg(api, l0.R0)
 				negL1.Neg(api, l0.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL0, negL1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL0, negL1)
 			}
 		} else {
 			// At bit=1: multiply by torusWitness to share squarings
-			acc = fields_bls12377.TorusMulWithHint(api, acc, torusWitness)
+			acc = fields_bls12377.TorusMul(api, acc, torusWitness)
 
 			// Two lines per pair at this bit (doubling + addition)
 			for k := 0; k < n; k++ {
@@ -185,7 +185,7 @@ func millerLoopLinesTorusWithWitness(api frontend.API, P []G1Affine, lines []lin
 				var negL0, negL1 fields_bls12377.E2
 				negL0.Neg(api, l0.R0)
 				negL1.Neg(api, l0.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL0, negL1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL0, negL1)
 
 				// Second line
 				var l1 lineEvaluation
@@ -194,7 +194,7 @@ func millerLoopLinesTorusWithWitness(api frontend.API, P []G1Affine, lines []lin
 				var negL1_0, negL1_1 fields_bls12377.E2
 				negL1_0.Neg(api, l1.R0)
 				negL1_1.Neg(api, l1.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL1_0, negL1_1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL1_0, negL1_1)
 			}
 		}
 	}
@@ -254,13 +254,13 @@ func millerLoopLinesTorus(api frontend.API, P []G1Affine, lines []lineEvaluation
 		var negL0, negL1 fields_bls12377.E2
 		negL0.Neg(api, l0.R0)
 		negL1.Neg(api, l0.R1)
-		acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL0, negL1)
+		acc = fields_bls12377.TorusMulBy01(api, acc, negL0, negL1)
 	}
 
 	// Main loop: i = 61 down to 0
 	for i := 61; i >= 0; i-- {
 		// Square in torus
-		acc = fields_bls12377.TorusSquareWithHint(api, acc)
+		acc = fields_bls12377.TorusSquare(api, acc)
 
 		for k := 0; k < n; k++ {
 			if loopCounter[i] == 0 {
@@ -271,7 +271,7 @@ func millerLoopLinesTorus(api frontend.API, P []G1Affine, lines []lineEvaluation
 				var negL0, negL1 fields_bls12377.E2
 				negL0.Neg(api, l0.R0)
 				negL1.Neg(api, l0.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL0, negL1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL0, negL1)
 			} else {
 				// Two lines at this bit (doubling + addition)
 				// First line
@@ -280,7 +280,7 @@ func millerLoopLinesTorus(api frontend.API, P []G1Affine, lines []lineEvaluation
 				var negL0, negL1 fields_bls12377.E2
 				negL0.Neg(api, l0.R0)
 				negL1.Neg(api, l0.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL0, negL1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL0, negL1)
 
 				// Second line
 				var l1 lineEvaluation
@@ -289,7 +289,7 @@ func millerLoopLinesTorus(api frontend.API, P []G1Affine, lines []lineEvaluation
 				var negL1_0, negL1_1 fields_bls12377.E2
 				negL1_0.Neg(api, l1.R0)
 				negL1_1.Neg(api, l1.R1)
-				acc = fields_bls12377.TorusMulBy01WithHint(api, acc, negL1_0, negL1_1)
+				acc = fields_bls12377.TorusMulBy01(api, acc, negL1_0, negL1_1)
 			}
 		}
 	}
@@ -297,7 +297,7 @@ func millerLoopLinesTorus(api frontend.API, P []G1Affine, lines []lineEvaluation
 	// Decompress back to E12
 	// The result is already in the cyclotomic subgroup (projected via p^6-1)
 	// We need to get back to E12 representation
-	result := fields_bls12377.TorusDecompressWithHint(api, acc)
+	result := fields_bls12377.TorusDecompress(api, acc)
 
 	return result, nil
 }

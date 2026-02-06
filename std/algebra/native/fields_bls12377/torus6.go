@@ -15,7 +15,7 @@ import (
 // Input: y ∈ E6 representing x ∈ T₆
 // Output: y' ∈ E6 representing x² ∈ T₆
 // Formula: y' = 2y / (1 + y²·v) where v is the cubic non-residue
-func TorusSquare(api frontend.API, y E6, hint E6) E6 {
+func TorusSquare(api frontend.API, y E6) E6 {
 	// Compute numerator: 2y
 	var num E6
 	num.Double(api, y)
@@ -29,19 +29,18 @@ func TorusSquare(api frontend.API, y E6, hint E6) E6 {
 	denom.MulByNonResidue(api, ySq)
 	denom.B0.A0 = api.Add(denom.B0.A0, 1)
 
-	// Verify: hint · denom = num
-	var check E6
-	check.Mul(api, hint, denom)
-	check.AssertIsEqual(api, num)
+	// Compute result = num / denom (DivUnchecked uses hint internally)
+	var result E6
+	result.DivUnchecked(api, num, denom)
 
-	return hint
+	return result
 }
 
 // TorusMul computes multiplication in torus representation
 // Input: y1, y2 ∈ E6 representing x1, x2 ∈ T₆
 // Output: y' ∈ E6 representing x1·x2 ∈ T₆
 // Formula: y' = (y1 + y2) / (1 + y1·y2·v)
-func TorusMul(api frontend.API, y1, y2 E6, hint E6) E6 {
+func TorusMul(api frontend.API, y1, y2 E6) E6 {
 	// Compute numerator: y1 + y2
 	var num E6
 	num.Add(api, y1, y2)
@@ -55,17 +54,17 @@ func TorusMul(api frontend.API, y1, y2 E6, hint E6) E6 {
 	denom.MulByNonResidue(api, prod)
 	denom.B0.A0 = api.Add(denom.B0.A0, 1)
 
-	// Verify: hint · denom = num
-	var check E6
-	check.Mul(api, hint, denom)
-	check.AssertIsEqual(api, num)
+	// Compute result = num / denom (DivUnchecked uses hint internally)
+	var result E6
+	result.DivUnchecked(api, num, denom)
 
-	return hint
+	return result
 }
 
-// TorusMulBy01 computes multiplication by sparse element (y0, y1, 0) in torus
+// TorusMulBy01 computes multiplication by sparse element (l0, l1, 0) in torus
 // This is used for line multiplication where the line projects to (-c3, -c4, 0)
-func TorusMulBy01(api frontend.API, y E6, l0, l1 E2, hint E6) E6 {
+// Formula: y' = (y + sparse) / (1 + y·sparse·v)
+func TorusMulBy01(api frontend.API, y E6, l0, l1 E2) E6 {
 	// Sparse element: (l0, l1, 0)
 	var sparse E6
 	sparse.B0 = l0
@@ -88,133 +87,59 @@ func TorusMulBy01(api frontend.API, y E6, l0, l1 E2, hint E6) E6 {
 	denom.MulByNonResidue(api, prod)
 	denom.B0.A0 = api.Add(denom.B0.A0, 1)
 
-	// Verify: hint · denom = num
-	var check E6
-	check.Mul(api, hint, denom)
-	check.AssertIsEqual(api, num)
+	// Compute result = num / denom (DivUnchecked uses hint internally)
+	var result E6
+	result.DivUnchecked(api, num, denom)
 
-	return hint
-}
-
-// TorusSquareWithHint computes the square in torus representation using hints
-func TorusSquareWithHint(api frontend.API, y E6) E6 {
-	// Get hint for result
-	res, err := api.NewHint(torusSquareHint, 6,
-		y.B0.A0, y.B0.A1, y.B1.A0, y.B1.A1, y.B2.A0, y.B2.A1)
-	if err != nil {
-		panic(err)
-	}
-	var hint E6
-	hint.B0.A0 = res[0]
-	hint.B0.A1 = res[1]
-	hint.B1.A0 = res[2]
-	hint.B1.A1 = res[3]
-	hint.B2.A0 = res[4]
-	hint.B2.A1 = res[5]
-
-	return TorusSquare(api, y, hint)
-}
-
-// TorusMulWithHint computes multiplication of two dense elements in torus using hints
-func TorusMulWithHint(api frontend.API, y1, y2 E6) E6 {
-	// Get hint for result
-	res, err := api.NewHint(torusMulHint, 6,
-		y1.B0.A0, y1.B0.A1, y1.B1.A0, y1.B1.A1, y1.B2.A0, y1.B2.A1,
-		y2.B0.A0, y2.B0.A1, y2.B1.A0, y2.B1.A1, y2.B2.A0, y2.B2.A1)
-	if err != nil {
-		panic(err)
-	}
-	var hint E6
-	hint.B0.A0 = res[0]
-	hint.B0.A1 = res[1]
-	hint.B1.A0 = res[2]
-	hint.B1.A1 = res[3]
-	hint.B2.A0 = res[4]
-	hint.B2.A1 = res[5]
-
-	return TorusMul(api, y1, y2, hint)
-}
-
-// TorusMulBy01WithHint computes multiplication by sparse element using hints
-func TorusMulBy01WithHint(api frontend.API, y E6, l0, l1 E2) E6 {
-	// Get hint for result
-	res, err := api.NewHint(torusMulBy01Hint, 6,
-		y.B0.A0, y.B0.A1, y.B1.A0, y.B1.A1, y.B2.A0, y.B2.A1,
-		l0.A0, l0.A1, l1.A0, l1.A1)
-	if err != nil {
-		panic(err)
-	}
-	var hint E6
-	hint.B0.A0 = res[0]
-	hint.B0.A1 = res[1]
-	hint.B1.A0 = res[2]
-	hint.B1.A1 = res[3]
-	hint.B2.A0 = res[4]
-	hint.B2.A1 = res[5]
-
-	return TorusMulBy01(api, y, l0, l1, hint)
-}
-
-// TorusDecompressWithHint converts torus representation back to E12 using hints
-func TorusDecompressWithHint(api frontend.API, y E6) E12 {
-	// Get hint for result
-	res, err := api.NewHint(torusDecompressHint, 12,
-		y.B0.A0, y.B0.A1, y.B1.A0, y.B1.A1, y.B2.A0, y.B2.A1)
-	if err != nil {
-		panic(err)
-	}
-	var hint E12
-	hint.C0.B0.A0 = res[0]
-	hint.C0.B0.A1 = res[1]
-	hint.C0.B1.A0 = res[2]
-	hint.C0.B1.A1 = res[3]
-	hint.C0.B2.A0 = res[4]
-	hint.C0.B2.A1 = res[5]
-	hint.C1.B0.A0 = res[6]
-	hint.C1.B0.A1 = res[7]
-	hint.C1.B1.A0 = res[8]
-	hint.C1.B1.A1 = res[9]
-	hint.C1.B2.A0 = res[10]
-	hint.C1.B2.A1 = res[11]
-
-	return TorusDecompress(api, y, hint)
+	return result
 }
 
 // TorusDecompress converts torus representation back to E12
 // Input: y ∈ E6 representing x ∈ T₆
 // Output: x ∈ E12 where x = (1 + y·w) / (1 - y·w)
-// Verification: x · (1 - y·w) = (1 + y·w)
-func TorusDecompress(api frontend.API, y E6, hint E12) E12 {
-	// Verify: hint · (1 - y·w) = (1 + y·w)
-	// (a + b·w) · (1 - y·w) = a - b·y·v + (b - a·y)·w
-	// Should equal (1 + y·w), so:
-	// a - b·y·v = 1
-	// b - a·y = y
+//
+// We compute C0 and C1 such that x = C0 + C1·w
+// From (1 + y·w) = (C0 + C1·w)(1 - y·w):
+//
+//	1 = C0 - C1·y·v  =>  C0 = 1 + C1·y·v
+//	y = C1 - C0·y    =>  C1 = y + C0·y = y(1 + C0)
+//
+// Substituting: C1 = y(1 + 1 + C1·y·v) = y(2 + C1·y·v)
+// C1 = 2y + C1·y²·v
+// C1(1 - y²·v) = 2y
+// C1 = 2y / (1 - y²·v)
+func TorusDecompress(api frontend.API, y E6) E12 {
+	// Compute y²
+	var ySq E6
+	ySq.Square(api, y)
 
-	// Compute hint.C0 - hint.C1·y·v
-	var tmp E6
-	tmp.Mul(api, hint.C1, y)
-	tmp.MulByNonResidue(api, tmp)
+	// Compute y²·v
+	var ySqV E6
+	ySqV.MulByNonResidue(api, ySq)
 
-	var lhs0 E6
-	lhs0.Sub(api, hint.C0, tmp)
-
-	// Compute hint.C1 - hint.C0·y
-	var tmp2 E6
-	tmp2.Mul(api, hint.C0, y)
-
-	var lhs1 E6
-	lhs1.Sub(api, hint.C1, tmp2)
-
-	// Check lhs0 = 1
+	// Compute denominator: 1 - y²·v
 	var one E6
 	one.SetOne()
-	lhs0.AssertIsEqual(api, one)
+	var denom E6
+	denom.Sub(api, one, ySqV)
 
-	// Check lhs1 = y
-	lhs1.AssertIsEqual(api, y)
+	// Compute numerator: 2y
+	var num E6
+	num.Double(api, y)
 
-	return hint
+	// C1 = 2y / (1 - y²·v)
+	var c1 E6
+	c1.DivUnchecked(api, num, denom)
+
+	// C0 = 1 + C1·y·v
+	var c1y E6
+	c1y.Mul(api, c1, y)
+	var c1yv E6
+	c1yv.MulByNonResidue(api, c1y)
+	var c0 E6
+	c0.Add(api, one, c1yv)
+
+	return E12{C0: c0, C1: c1}
 }
 
 // FrobeniusTorus computes the Frobenius endomorphism on torus element
@@ -233,32 +158,18 @@ func FrobeniusTorus(api frontend.API, y E6) E6 {
 	return z
 }
 
-// TorusCompressWithHint computes compress(residueWitness) = C1 / (1 + C0)
-// using a hint for the division result
-func TorusCompressWithHint(api frontend.API, x E12) E6 {
-	// Get hint for result: y = C1 / (1 + C0)
-	res, err := api.NewHint(torusCompressHint, 6,
-		x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1,
-		x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
-	if err != nil {
-		panic(err)
-	}
-	var y E6
-	y.B0.A0 = res[0]
-	y.B0.A1 = res[1]
-	y.B1.A0 = res[2]
-	y.B1.A1 = res[3]
-	y.B2.A0 = res[4]
-	y.B2.A1 = res[5]
-
-	// Verify: y · (1 + C0) = C1
+// TorusCompress computes compress(x) = C1 / (1 + C0)
+// Input: x ∈ E12 in cyclotomic subgroup
+// Output: y ∈ E6 such that x = (1 + y·w) / (1 - y·w)
+func TorusCompress(api frontend.API, x E12) E6 {
+	// y = C1 / (1 + C0)
 	var one E6
 	one.SetOne()
 	var c0PlusOne E6
 	c0PlusOne.Add(api, x.C0, one)
-	var check E6
-	check.Mul(api, y, c0PlusOne)
-	check.AssertIsEqual(api, x.C1)
+
+	var y E6
+	y.DivUnchecked(api, x.C1, c0PlusOne)
 
 	return y
 }
@@ -297,7 +208,7 @@ func CompressFrobDivideByScaling(api frontend.API, y E6, s E6) E6 {
 	var num E6
 	num.Double(api, z)
 
-	// Compute result = num / denom using hint
+	// Compute result = num / denom
 	var result E6
 	result.DivUnchecked(api, num, denom)
 

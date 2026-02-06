@@ -18,7 +18,7 @@ type torusSquareCircuit struct {
 }
 
 func (c *torusSquareCircuit) Define(api frontend.API) error {
-	result := TorusSquareWithHint(api, c.Y)
+	result := TorusSquare(api, c.Y)
 	result.AssertIsEqual(api, c.Expected)
 	return nil
 }
@@ -54,7 +54,7 @@ type torusMulCircuit struct {
 }
 
 func (c *torusMulCircuit) Define(api frontend.API) error {
-	result := TorusMulWithHint(api, c.Y1, c.Y2)
+	result := TorusMul(api, c.Y1, c.Y2)
 	result.AssertIsEqual(api, c.Expected)
 	return nil
 }
@@ -92,7 +92,7 @@ type torusMulBy01Circuit struct {
 }
 
 func (c *torusMulBy01Circuit) Define(api frontend.API) error {
-	result := TorusMulBy01WithHint(api, c.Y, c.L0, c.L1)
+	result := TorusMulBy01(api, c.Y, c.L0, c.L1)
 	result.AssertIsEqual(api, c.Expected)
 	return nil
 }
@@ -137,7 +137,7 @@ type torusDecompressCircuit struct {
 }
 
 func (c *torusDecompressCircuit) Define(api frontend.API) error {
-	result := TorusDecompressWithHint(api, c.Y)
+	result := TorusDecompress(api, c.Y)
 	result.AssertIsEqual(api, c.Expected)
 	return nil
 }
@@ -170,7 +170,7 @@ type torusCompressCircuit struct {
 }
 
 func (c *torusCompressCircuit) Define(api frontend.API) error {
-	result := TorusCompressWithHint(api, c.X)
+	result := TorusCompress(api, c.X)
 	result.AssertIsEqual(api, c.Expected)
 	return nil
 }
@@ -252,8 +252,8 @@ type torusRoundTripCircuit struct {
 
 func (c *torusRoundTripCircuit) Define(api frontend.API) error {
 	// Decompress to E12, then compress back - should get original
-	decompressed := TorusDecompressWithHint(api, c.Y)
-	compressed := TorusCompressWithHint(api, decompressed)
+	decompressed := TorusDecompress(api, c.Y)
+	compressed := TorusCompress(api, decompressed)
 	compressed.AssertIsEqual(api, c.Y)
 	return nil
 }
