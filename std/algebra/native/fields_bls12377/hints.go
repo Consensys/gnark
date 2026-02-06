@@ -20,6 +20,7 @@ func GetHints() []solver.Hint {
 		torusMulHint,
 		torusMulBy01Hint,
 		torusDecompressHint,
+		torusCompressHint,
 	}
 }
 
@@ -431,6 +432,44 @@ func torusDecompressHint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	result.C1.B1.A1.BigInt(res[9])
 	result.C1.B2.A0.BigInt(res[10])
 	result.C1.B2.A1.BigInt(res[11])
+
+	return nil
+}
+
+// torusCompressHint computes compress(x) = C1 / (1 + C0) for x = C0 + C1·w
+// Input: x ∈ E12 (12 elements)
+// Output: y ∈ E6 where y = C1 / (1 + C0)
+func torusCompressHint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+	var x bls12377.E12
+
+	x.C0.B0.A0.SetBigInt(inputs[0])
+	x.C0.B0.A1.SetBigInt(inputs[1])
+	x.C0.B1.A0.SetBigInt(inputs[2])
+	x.C0.B1.A1.SetBigInt(inputs[3])
+	x.C0.B2.A0.SetBigInt(inputs[4])
+	x.C0.B2.A1.SetBigInt(inputs[5])
+	x.C1.B0.A0.SetBigInt(inputs[6])
+	x.C1.B0.A1.SetBigInt(inputs[7])
+	x.C1.B1.A0.SetBigInt(inputs[8])
+	x.C1.B1.A1.SetBigInt(inputs[9])
+	x.C1.B2.A0.SetBigInt(inputs[10])
+	x.C1.B2.A1.SetBigInt(inputs[11])
+
+	// y = C1 / (1 + C0)
+	var c0PlusOne, y bls12377.E6
+	c0PlusOne.Set(&x.C0)
+	var one bls12377.E6
+	one.SetOne()
+	c0PlusOne.Add(&c0PlusOne, &one)
+	y.Inverse(&c0PlusOne)
+	y.Mul(&y, &x.C1)
+
+	y.B0.A0.BigInt(res[0])
+	y.B0.A1.BigInt(res[1])
+	y.B1.A0.BigInt(res[2])
+	y.B1.A1.BigInt(res[3])
+	y.B2.A0.BigInt(res[4])
+	y.B2.A1.BigInt(res[5])
 
 	return nil
 }

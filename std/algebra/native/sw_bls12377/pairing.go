@@ -348,15 +348,9 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	scalingFactor.B2.A0 = hint[16]
 	scalingFactor.B2.A1 = hint[17]
 
-	// Compute torusWitness = compress(residueWitness) in circuit
+	// Compute torusWitness = compress(residueWitness) in circuit using hint
 	// This constrains the torus witness to be consistent with residueWitness
-	// compress(x) = C1 / (1 + C0) for x = C0 + C1·w
-	var torusWitness fields_bls12377.E6
-	var one fields_bls12377.E6
-	one.SetOne()
-	var c0PlusOne fields_bls12377.E6
-	c0PlusOne.Add(api, residueWitness.C0, one)
-	torusWitness.DivUnchecked(api, residueWitness.C1, c0PlusOne)
+	torusWitness := fields_bls12377.TorusCompressWithHint(api, residueWitness)
 
 	// Compute torus Miller loop with hint-sharing
 	lines := make([]lineEvaluations, nQ)
@@ -369,20 +363,12 @@ func PairingCheckTorus(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	}
 	res := millerLoopLinesTorusWithWitness(api, P, lines, torusWitness)
 
-	// Decompress res back to E12 for final verification
-	// decompress(y) = (1 + y·w) / (1 - y·w)
-	resE12 := fields_bls12377.TorusDecompressWithHint(api, res)
+	// Compute expected = compress(Frob(residueWitness) / scalingFactor) entirely in torus
+	// Formula: expected = 2·z / (1 + s + z²·v·(1 - s)) where z = FrobeniusTorus(torusWitness)
+	expected := fields_bls12377.CompressFrobDivideByScaling(api, torusWitness, scalingFactor)
 
-	// Verify: resE12 * scalingFactor == Frobenius(residueWitness)
-	// Since scalingFactor is in E6 (C1 = 0), multiply component-wise
-	var lhs GT
-	lhs.C0.Mul(api, resE12.C0, scalingFactor)
-	lhs.C1.Mul(api, resE12.C1, scalingFactor)
-
-	var rhs GT
-	rhs.Frobenius(api, residueWitness)
-
-	lhs.AssertIsEqual(api, rhs)
+	// Verify in torus form (no decompression needed!)
+	res.AssertIsEqual(api, expected)
 
 	return nil
 }

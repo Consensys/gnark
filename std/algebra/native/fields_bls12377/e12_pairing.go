@@ -453,3 +453,90 @@ func (e *E12) AssertFinalExponentiationIsOne(api frontend.API) {
 
 	t0.AssertIsEqual(api, t1)
 }
+
+// FrobeniusTorus computes the Frobenius endomorphism on torus element
+// For y ∈ E6 representing W in cyclotomic subgroup via W = (1+y·w)/(1-y·w):
+// Frob(W) = (1 + z·w) / (1 - z·w) where z = FrobeniusTorus(y)
+// Formula:
+//
+//	z.B0 = Conj(y.B0) · frobw
+//	z.B1 = Conj(y.B1) · frobvw
+//	z.B2 = Conj(y.B2) · frobv2w
+func FrobeniusTorus(api frontend.API, y E6) E6 {
+	var z E6
+	z.B0.Conjugate(api, y.B0).MulByFp(api, z.B0, ext.frobw)
+	z.B1.Conjugate(api, y.B1).MulByFp(api, z.B1, ext.frobvw)
+	z.B2.Conjugate(api, y.B2).MulByFp(api, z.B2, ext.frobv2w)
+	return z
+}
+
+// TorusCompressWithHint computes compress(residueWitness) = C1 / (1 + C0)
+// using a hint for the division result
+func TorusCompressWithHint(api frontend.API, x E12) E6 {
+	// Get hint for result: y = C1 / (1 + C0)
+	res, err := api.NewHint(torusCompressHint, 6,
+		x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1,
+		x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
+	if err != nil {
+		panic(err)
+	}
+	var y E6
+	y.B0.A0 = res[0]
+	y.B0.A1 = res[1]
+	y.B1.A0 = res[2]
+	y.B1.A1 = res[3]
+	y.B2.A0 = res[4]
+	y.B2.A1 = res[5]
+
+	// Verify: y · (1 + C0) = C1
+	var one E6
+	one.SetOne()
+	var c0PlusOne E6
+	c0PlusOne.Add(api, x.C0, one)
+	var check E6
+	check.Mul(api, y, c0PlusOne)
+	check.AssertIsEqual(api, x.C1)
+
+	return y
+}
+
+// CompressFrobDivideByScaling computes compress(Frob(W) / s) where W = decompress(y)
+// Formula: result = 2·z / (1 + s + z²·v·(1 - s))
+// where z = FrobeniusTorus(y)
+func CompressFrobDivideByScaling(api frontend.API, y E6, s E6) E6 {
+	// Compute z = FrobeniusTorus(y)
+	z := FrobeniusTorus(api, y)
+
+	// Compute z²
+	var zSquare E6
+	zSquare.Square(api, z)
+
+	// Compute z²·v (multiply by non-residue)
+	var zSquareV E6
+	zSquareV.MulByNonResidue(api, zSquare)
+
+	// Compute (1 - s)
+	var one E6
+	one.SetOne()
+	var oneMinusS E6
+	oneMinusS.Sub(api, one, s)
+
+	// Compute z²·v·(1 - s)
+	var term E6
+	term.Mul(api, zSquareV, oneMinusS)
+
+	// Compute denominator = 1 + s + z²·v·(1 - s)
+	var denom E6
+	denom.Add(api, one, s)
+	denom.Add(api, denom, term)
+
+	// Compute numerator = 2·z
+	var num E6
+	num.Double(api, z)
+
+	// Compute result = num / denom using hint
+	var result E6
+	result.DivUnchecked(api, num, denom)
+
+	return result
+}
