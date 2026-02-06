@@ -8,9 +8,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -181,7 +178,7 @@ type pairingCheckBLS377 struct {
 
 func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
 
-	err := PairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+	err := pairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -211,7 +208,7 @@ type pairingCheckTorusBLS377 struct {
 }
 
 func (circuit *pairingCheckTorusBLS377) Define(api frontend.API) error {
-	err := PairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+	err := pairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}

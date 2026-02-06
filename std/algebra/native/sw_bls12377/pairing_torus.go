@@ -62,11 +62,11 @@ func FinalExponentiationTorus(api frontend.API, e1 GT) GT {
 	return result
 }
 
-// PairTorus calculates the reduced pairing using torus-based Miller loop
+// pairTorus calculates the reduced pairing using torus-based Miller loop
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function doesn't check that the inputs are in the correct subgroup
-func PairTorus(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+func pairTorus(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	f, err := MillerLoopTorus(api, P, Q)
 	if err != nil {
 		return GT{}, err
