@@ -29,17 +29,26 @@ func init() {
 // pairingCheckTorusHint computes the residue witness for torus-based pairing check
 // The torus Miller loop computes ML^(p^6-1), so we need to adjust the hint accordingly
 func pairingCheckTorusHint(scalarField *big.Int, inputs, outputs []*big.Int) error {
+	// Input layout: 2 limbs per G1 (X, Y) + 4 limbs per G2 (X.A0, X.A1, Y.A0, Y.A1) = 6 limbs per pair
+	n := len(inputs)
+	if n%6 != 0 {
+		return errors.New("invalid number of inputs for pairing check hint")
+	}
+	nPairs := n / 6
+
 	var P bls12377.G1Affine
 	var Q bls12377.G2Affine
-	n := len(inputs)
-	p := make([]bls12377.G1Affine, 0, n/6)
-	q := make([]bls12377.G2Affine, 0, n/6)
-	for k := 0; k < n/6+1; k += 2 {
+	p := make([]bls12377.G1Affine, 0, nPairs)
+	q := make([]bls12377.G2Affine, 0, nPairs)
+
+	// Parse G1 points from indices [0, 2*nPairs)
+	for k := 0; k < 2*nPairs; k += 2 {
 		P.X.SetBigInt(inputs[k])
 		P.Y.SetBigInt(inputs[k+1])
 		p = append(p, P)
 	}
-	for k := n / 3; k < n/2+3; k += 4 {
+	// Parse G2 points from indices [2*nPairs, 6*nPairs)
+	for k := 2 * nPairs; k < 6*nPairs; k += 4 {
 		Q.X.A0.SetBigInt(inputs[k])
 		Q.X.A1.SetBigInt(inputs[k+1])
 		Q.Y.A0.SetBigInt(inputs[k+2])
