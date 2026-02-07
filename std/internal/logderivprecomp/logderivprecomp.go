@@ -29,7 +29,8 @@ type ctxPrecomputedKey struct{ fn uintptr }
 type Precomputed struct {
 	api     frontend.API
 	compute solver.Hint
-	queries []frontend.Variable
+	queries []frontend.Variable // packed query values (x, y, f(x,y))
+	indices []frontend.Variable // query indices (x + 256*y) for LogUp*
 	rets    []uint
 }
 
@@ -86,13 +87,16 @@ func (t *Precomputed) Query(x, y frontend.Variable) []frontend.Variable {
 	}
 	packed := t.pack(x, y, rets)
 	t.queries = append(t.queries, packed)
+	// Store index for LogUp* optimization: index = x + 256*y
+	index := t.api.Add(x, t.api.Mul(256, y))
+	t.indices = append(t.indices, index)
 	return rets
 }
 
-func (t *Precomputed) buildTable() []frontend.Variable {
+func (t *Precomputed) buildTable() []*big.Int {
 	tmp := new(big.Int)
 	shift := new(big.Int)
-	tbl := make([]frontend.Variable, 65536)
+	tbl := make([]*big.Int, 65536)
 	inputs := []*big.Int{big.NewInt(0), big.NewInt(0)}
 	outputs := make([]*big.Int, len(t.rets))
 	for i := range outputs {
@@ -123,5 +127,6 @@ func (t *Precomputed) build(api frontend.API) error {
 		return nil
 	}
 	table := t.buildTable()
-	return logderivarg.Build(t.api, logderivarg.AsTable(table), logderivarg.AsTable(t.queries))
+	// Use LogUp* optimization: don't commit query values, only multiplicities
+	return logderivarg.BuildIndexedPrecomputed(t.api, table, t.indices, t.queries)
 }

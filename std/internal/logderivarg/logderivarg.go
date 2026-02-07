@@ -57,7 +57,7 @@ func init() {
 
 // GetHints returns all hints used in this package
 func GetHints() []solver.Hint {
-	return []solver.Hint{countHint}
+	return []solver.Hint{countHint, countIndexedHint}
 }
 
 // Table is a vector of vectors.
@@ -301,5 +301,166 @@ func countHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		}
 		outputs[i].Set(big.NewInt(histo[string(buf)]))
 	}
+	return nil
+}
+
+// countIndexedHint counts occurrences of each index in the indices array.
+// inputs[0] = table size, inputs[1:] = indices
+// outputs = multiplicities for each table entry
+func countIndexedHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) < 1 {
+		return fmt.Errorf("at least table size required")
+	}
+	if !inputs[0].IsInt64() {
+		return fmt.Errorf("table size must be int64")
+	}
+	tableSize := int(inputs[0].Int64())
+	if len(outputs) != tableSize {
+		return fmt.Errorf("output size mismatch: got %d, expected %d", len(outputs), tableSize)
+	}
+
+	// Initialize to zero
+	for i := 0; i < tableSize; i++ {
+		outputs[i].SetInt64(0)
+	}
+
+	// Count index occurrences
+	for i := 1; i < len(inputs); i++ {
+		if !inputs[i].IsInt64() {
+			return fmt.Errorf("index must be int64")
+		}
+		idx := int(inputs[i].Int64())
+		if idx < 0 || idx >= tableSize {
+			return fmt.Errorf("index %d out of bounds [0, %d)", idx, tableSize)
+		}
+		outputs[idx].Add(outputs[idx], big.NewInt(1))
+	}
+	return nil
+}
+
+// BuildIndexedConstant builds a LogUp* argument for constant identity tables [0,1,...,n-1]
+// where table[i] = i, meaning table[index] = index. This is optimized for range checks.
+//
+// The key optimization over Build is that we don't commit to the query values (indices),
+// since for identity tables the query values equal the indices which are already committed
+// as part of the circuit structure.
+//
+// Reference: https://eprint.iacr.org/2025/946
+func BuildIndexedConstant(api frontend.API, tableSize int, indices []frontend.Variable) error {
+	// For identity tables, query values equal indices, so we can reuse BuildIndexedPrecomputed
+	// with table[i] = i
+	table := make([]*big.Int, tableSize)
+	for i := range table {
+		table[i] = big.NewInt(int64(i))
+	}
+	return BuildIndexedPrecomputed(api, table, indices, indices)
+}
+
+// BuildIndexedPrecomputed builds a LogUp* argument for precomputed constant tables.
+// This is optimized for cases where table[i] = f(i) for some precomputed function f.
+//
+// Parameters:
+//   - table: constant table values (table[i] is the precomputed value at index i)
+//   - indices: variable indices into the table
+//   - queryValues: the actual query values (must equal table[indices[i]], NOT committed)
+//
+// The key optimization over Build is that we don't commit to query values.
+// The queryValues are used in the log-derivative equation but not committed,
+// saving O(m) commitment elements for m queries.
+//
+// Reference: https://eprint.iacr.org/2025/946
+func BuildIndexedPrecomputed(api frontend.API, table []*big.Int, indices []frontend.Variable, queryValues []frontend.Variable) error {
+	if len(table) == 0 {
+		return errors.New("table empty")
+	}
+	if len(indices) == 0 {
+		return errors.New("at least one index required")
+	}
+	if len(indices) != len(queryValues) {
+		return errors.New("indices and queryValues length mismatch")
+	}
+
+	tableSize := len(table)
+	hintInputs := make([]frontend.Variable, 1+len(indices))
+	hintInputs[0] = tableSize
+	copy(hintInputs[1:], indices)
+
+	mults, err := api.NewHint(countIndexedHint, tableSize, hintInputs...)
+	if err != nil {
+		return fmt.Errorf("hint: %w", err)
+	}
+
+	// Only commit multiplicities (queryValues NOT committed - key LogUp* optimization)
+	toCommit := mults
+
+	if !smallfields.IsSmallField(api.Compiler().Field()) {
+		multicommit.WithCommitment(api, func(api frontend.API, challenge frontend.Variable) error {
+			// LHS: sum_{j=0}^{n-1} mults[j]/(challenge - table[j])
+			lhsTerms := make([]frontend.Variable, tableSize)
+			for j := 0; j < tableSize; j++ {
+				denom := api.Sub(challenge, table[j])
+				lhsTerms[j] = api.DivUnchecked(mults[j], denom)
+			}
+			var lhs frontend.Variable = 0
+			for j := 0; j < tableSize; j++ {
+				lhs = api.Add(lhs, lhsTerms[j])
+			}
+
+			// RHS: sum_{i} 1/(challenge - queryValues[i])
+			// queryValues[i] should equal table[indices[i]], verified by the log-derivative check
+			toInvert := make([]frontend.Variable, len(queryValues))
+			for i := range queryValues {
+				toInvert[i] = api.Sub(challenge, queryValues[i])
+			}
+
+			if bapi, ok := api.(frontend.BatchInverter); ok {
+				toInvert = bapi.BatchInvert(toInvert)
+			} else {
+				for i := range toInvert {
+					toInvert[i] = api.Inverse(toInvert[i])
+				}
+			}
+
+			var rhs frontend.Variable = 0
+			for i := range queryValues {
+				rhs = api.Add(rhs, toInvert[i])
+			}
+
+			api.AssertIsEqual(lhs, rhs)
+			return nil
+		}, toCommit...)
+	} else {
+		extapi, err := fieldextension.NewExtension(api)
+		if err != nil {
+			return fmt.Errorf("create field extension: %w", err)
+		}
+		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
+			challenge := fieldextension.Element(commitment)
+
+			// LHS over extension field
+			var lhs fieldextension.Element
+			for j := 0; j < tableSize; j++ {
+				tableExt := extapi.AsExtensionVariable(table[j])
+				denom := extapi.Sub(challenge, tableExt)
+				denom = extapi.Inverse(denom)
+				multExt := extapi.AsExtensionVariable(mults[j])
+				term := extapi.Mul(multExt, denom)
+				lhs = extapi.Add(lhs, term)
+			}
+
+			// RHS over extension field
+			var rhs fieldextension.Element
+			for i := range queryValues {
+				qvExt := extapi.AsExtensionVariable(queryValues[i])
+				denom := extapi.Sub(challenge, qvExt)
+				denom = extapi.Inverse(denom)
+				rhs = extapi.Add(rhs, denom)
+			}
+
+			extapi.AssertIsEqual(lhs, rhs)
+			return nil
+		}, extapi.Degree(), toCommit...)
+	}
+
 	return nil
 }

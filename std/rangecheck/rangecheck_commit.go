@@ -83,14 +83,6 @@ func (c *commitChecker) Check(in frontend.Variable, bits int) {
 	}
 }
 
-func (c *commitChecker) buildTable(nbTable int) []frontend.Variable {
-	tbl := make([]frontend.Variable, nbTable)
-	for i := 0; i < nbTable; i++ {
-		tbl[i] = i
-	}
-	return tbl
-}
-
 func (c *commitChecker) commit(api frontend.API) error {
 	if c.closed {
 		return nil
@@ -146,7 +138,10 @@ func (c *commitChecker) commit(api frontend.API) error {
 		}
 	}
 	nbTable := 1 << baseLength
-	return logderivarg.Build(api, logderivarg.AsTable(c.buildTable(nbTable)), logderivarg.AsTable(decomposed))
+	// Use LogUp* optimization: since table[i] = i (identity table),
+	// the decomposed limbs are indices into the table. This avoids
+	// committing to query values, reducing commitment size.
+	return logderivarg.BuildIndexedConstant(api, nbTable, decomposed)
 }
 
 // assertRecomposition checks that limbs correctly recompose to the original value.
