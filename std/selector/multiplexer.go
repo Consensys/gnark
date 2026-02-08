@@ -63,19 +63,35 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 		api.AssertIsEqual(sel, 0)
 		return inputs[0]
 	}
+
+	// Fast path: if selector is a constant, return the selected input directly
+	if s, ok := api.Compiler().ConstantValue(sel); ok {
+		idx := int(s.Int64())
+		if idx < 0 || idx >= len(inputs) {
+			panic(fmt.Sprintf("constant selector %d out of bounds [0, %d)", idx, len(inputs)))
+		}
+		return inputs[idx]
+	}
+
+	// Special case for n=2: use Select directly (most efficient)
+	if n == 2 {
+		return api.Select(sel, inputs[1], inputs[0])
+	}
+
 	nbBits := binary.Len(n - 1)                                   // we use n-1 as sel is 0-indexed
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits)) // binary decomposition ensures sel < 2^nbBits
 
 	// We use BinaryMux when len(inputs) is a power of 2.
+	// Use Unchecked variant since ToBinary already constrains bits to be boolean.
 	if binary.OnesCount(n) == 1 {
-		return BinaryMux(api, selBits, inputs)
+		return BinaryMuxUnchecked(api, selBits, inputs)
 	}
 
 	bcmp := cmp.NewBoundedComparator(api, big.NewInt((1<<nbBits)-1), false)
 	bcmp.AssertIsLessEq(sel, n-1)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
-	return muxRecursive(api, selBits, inputs)
+	return muxRecursiveUnchecked(api, selBits, inputs)
 }
 
 func muxRecursive(api frontend.API,
@@ -93,6 +109,29 @@ func muxRecursive(api frontend.API,
 		right = BinaryMux(api, selBits[:nbRightBits-1], inputs[leftCount:])
 	} else {
 		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:])
+	}
+
+	msb := selBits[nbBits-1]
+	return api.Select(msb, right, left)
+}
+
+// muxRecursiveUnchecked is like muxRecursive but uses BinaryMuxUnchecked
+// since the bits are already constrained.
+func muxRecursiveUnchecked(api frontend.API,
+	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
+
+	nbBits := len(selBits)
+	leftCount := uint(1 << (nbBits - 1))
+	left := BinaryMuxUnchecked(api, selBits[:nbBits-1], inputs[:leftCount])
+
+	rightCount := uint(len(inputs)) - leftCount
+	nbRightBits := binary.Len(rightCount)
+
+	var right frontend.Variable
+	if binary.OnesCount(rightCount) == 1 {
+		right = BinaryMuxUnchecked(api, selBits[:nbRightBits-1], inputs[leftCount:])
+	} else {
+		right = muxRecursiveUnchecked(api, selBits[:nbRightBits], inputs[leftCount:])
 	}
 
 	msb := selBits[nbBits-1]
