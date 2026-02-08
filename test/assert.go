@@ -62,6 +62,20 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 		return path, fmt.Sprintf("type %v", a.Type()), fmt.Sprintf("type %v", b.Type())
 	}
 
+	// Use DeepEqual as oracle - if equal, no need to recurse
+	if a.CanInterface() && b.CanInterface() {
+		if reflect.DeepEqual(a.Interface(), b.Interface()) {
+			return "", "", ""
+		}
+	}
+
+	// At this point, we know there's a mismatch at or below this path.
+	// Try to find a more specific path; if we can't, return this path.
+	bestPath := path
+	if bestPath == "" {
+		bestPath = fmt.Sprintf("(%v)", a.Type())
+	}
+
 	switch a.Kind() {
 	case reflect.Ptr:
 		if a.IsNil() && b.IsNil() {
@@ -70,7 +84,10 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 		if a.IsNil() || b.IsNil() {
 			return path, fmt.Sprintf("%v", a), fmt.Sprintf("%v", b)
 		}
-		return deepEqualMismatchValue(a.Elem(), b.Elem(), path)
+		if p, av, bv := deepEqualMismatchValue(a.Elem(), b.Elem(), path); p != "" {
+			return p, av, bv
+		}
+		return bestPath, "(pointer contents differ)", "(pointer contents differ)"
 
 	case reflect.Interface:
 		if a.IsNil() && b.IsNil() {
@@ -79,7 +96,10 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 		if a.IsNil() || b.IsNil() {
 			return path, fmt.Sprintf("%v", a), fmt.Sprintf("%v", b)
 		}
-		return deepEqualMismatchValue(a.Elem(), b.Elem(), path)
+		if p, av, bv := deepEqualMismatchValue(a.Elem(), b.Elem(), path); p != "" {
+			return p, av, bv
+		}
+		return bestPath, "(interface contents differ)", "(interface contents differ)"
 
 	case reflect.Struct:
 		for i := range a.NumField() {
@@ -89,7 +109,6 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 			if path == "" {
 				fieldPath = fieldName
 			}
-			fmt.Println("comparing field", fieldPath)
 
 			var aField, bField reflect.Value
 			if field.IsExported() {
@@ -97,8 +116,6 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 			} else {
 				aField, bField = getUnexportedField(a, i), getUnexportedField(b, i)
 				if !aField.IsValid() || !bField.IsValid() {
-					// Can't access field (not addressable) - skip
-					fmt.Printf("DEBUG: skipping %s (struct %v, canAddr=%v)\n", fieldPath, a.Type(), a.CanAddr())
 					continue
 				}
 			}
@@ -107,7 +124,8 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 				return p, av, bv
 			}
 		}
-		return "", "", ""
+		// Couldn't find specific field - return best path
+		return bestPath, "(struct differs)", "(struct differs)"
 
 	case reflect.Slice, reflect.Array:
 		if a.Kind() == reflect.Slice && a.IsNil() && b.IsNil() {
@@ -131,7 +149,7 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 				return p, av, bv
 			}
 		}
-		return "", "", ""
+		return bestPath, "(slice/array differs)", "(slice/array differs)"
 
 	case reflect.Map:
 		if a.IsNil() && b.IsNil() {
@@ -154,14 +172,19 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 				return p, av, bv
 			}
 		}
-		return "", "", ""
+		return bestPath, "(map differs)", "(map differs)"
 
 	case reflect.Func:
 		if a.IsNil() && b.IsNil() {
 			return "", "", ""
 		}
-		// Functions are only equal if both are nil
-		if a.Pointer() != b.Pointer() {
+		// Use DeepEqual for functions - it compares closure state, not just code pointer
+		if a.CanInterface() && b.CanInterface() {
+			if !reflect.DeepEqual(a.Interface(), b.Interface()) {
+				return path, fmt.Sprintf("func@%p", a.UnsafePointer()), fmt.Sprintf("func@%p", b.UnsafePointer())
+			}
+		} else if a.Pointer() != b.Pointer() {
+			// Fallback to pointer comparison if can't interface
 			return path, fmt.Sprintf("func@%p", a.UnsafePointer()), fmt.Sprintf("func@%p", b.UnsafePointer())
 		}
 		return "", "", ""
@@ -173,19 +196,11 @@ func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, st
 		return "", "", ""
 
 	default:
-		// For basic types, use reflect.DeepEqual
-		// Check if we can access the interface (not unexported)
+		// Leaf node that differs
 		if a.CanInterface() && b.CanInterface() {
-			if !reflect.DeepEqual(a.Interface(), b.Interface()) {
-				if path == "" {
-					path = fmt.Sprintf("(%v)", a.Type())
-				}
-				return path, fmt.Sprintf("%v", a.Interface()), fmt.Sprintf("%v", b.Interface())
-			}
-		} else {
-			fmt.Printf("DEBUG default: can't interface %s (type=%v, aCanIface=%v, bCanIface=%v)\n", path, a.Type(), a.CanInterface(), b.CanInterface())
+			return bestPath, fmt.Sprintf("%v", a.Interface()), fmt.Sprintf("%v", b.Interface())
 		}
-		return "", "", ""
+		return bestPath, "(unexported)", "(unexported)"
 	}
 }
 

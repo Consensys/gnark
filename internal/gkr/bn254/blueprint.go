@@ -56,8 +56,6 @@ func (b *BlueprintSolve) initialize() {
 	}
 
 	// Compute metadata from Circuit
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
 
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
@@ -157,14 +155,13 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.initialize() // circuit metadata
+	b.Circuit.OutputsList() // for side effects
+	b.outputWires = b.Circuit.Outputs()
 	return len(b.outputWires)
 }
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
-	b.initialize() // ensure metadata is available
-
 	maxLevel := constraint.LevelUnset
 
 	// Format: [0]=totalSize, [1]=instanceIndex, [2...]=input linear expressions
