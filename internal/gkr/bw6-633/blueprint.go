@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"slices"
 	"sync"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -71,8 +73,9 @@ func (b *BlueprintSolve) initialize() {
 	}
 
 	b.assignments = make(WireAssignment, len(b.Circuit))
+	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
 	for i := range b.assignments {
-		b.assignments[i] = make(polynomial.MultiLin, b.NbInstances)
+		b.assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
 	}
 }
 
@@ -220,6 +223,24 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("no assignments available for proving")
 	}
 
+	nbPaddedInstances := uint32(ecc.NextPowerOfTwo(uint64(solveBlueprint.NbInstances)))
+	if nbPaddedInstances != uint32(len(assignments[0])) { // test engine path
+		nbPadding := nbPaddedInstances - solveBlueprint.NbInstances
+		for wI := range assignments {
+			assignments[wI] = slices.Grow(assignments[wI], int(nbPadding))
+			toRepeat := assignments[wI][solveBlueprint.NbInstances-1]
+			for range nbPadding {
+				assignments[wI] = append(assignments[wI], toRepeat)
+			}
+		}
+	} else {
+		for wI := range assignments {
+			for i := solveBlueprint.NbInstances; i < nbPaddedInstances; i++ {
+				assignments[wI][i] = assignments[wI][i-1]
+			}
+		}
+	}
+
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
 	// Format: [0]=totalSize, [1...]=challenge linear expressions
 	insBytes := make([][]byte, 0) // first challenges
@@ -285,7 +306,8 @@ func (b *BlueprintProve) proofSize() int {
 	if b.SolveBlueprint.NbInstances < 2 {
 		return 0
 	}
-	logNbInstances := bits.TrailingZeros32(b.SolveBlueprint.NbInstances)
+	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
+	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
 	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
 }
 

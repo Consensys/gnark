@@ -216,7 +216,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 		}
 	}
 
-	c.blueprints.Solve.SetNbInstances(uint32(nbPaddedInstances))
+	c.blueprints.Solve.SetNbInstances(uint32(c.nbInstances))
 
 	curve := utils.FieldToCurve(api.Compiler().Field())
 
