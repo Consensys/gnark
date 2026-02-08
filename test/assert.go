@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
@@ -28,6 +29,165 @@ var (
 	ErrInvalidWitnessSolvedCS      = errors.New("invalid witness solved the constraint system")
 	ErrInvalidWitnessVerified      = errors.New("invalid witness resulted in a valid proof")
 )
+
+// getUnexportedField uses unsafe to access an unexported struct field.
+// Returns an invalid Value if the field is not addressable.
+func getUnexportedField(v reflect.Value, i int) reflect.Value {
+	field := v.Field(i)
+	if !field.CanAddr() {
+		return reflect.Value{} // Return invalid value if not addressable
+	}
+	// Use unsafe to bypass the exported field check
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+}
+
+// deepEqualMismatch finds the first mismatch between two values using reflection.
+// It returns the path to the mismatch and string representations of the differing values.
+// If the values are equal, it returns empty strings.
+func deepEqualMismatch(a, b interface{}) (path string, aVal string, bVal string) {
+	return deepEqualMismatchValue(reflect.ValueOf(a), reflect.ValueOf(b), "")
+}
+
+func deepEqualMismatchValue(a, b reflect.Value, path string) (string, string, string) {
+	// Handle invalid values
+	if !a.IsValid() && !b.IsValid() {
+		return "", "", ""
+	}
+	if !a.IsValid() || !b.IsValid() {
+		return path, fmt.Sprintf("%v", a), fmt.Sprintf("%v", b)
+	}
+
+	// Types must match
+	if a.Type() != b.Type() {
+		return path, fmt.Sprintf("type %v", a.Type()), fmt.Sprintf("type %v", b.Type())
+	}
+
+	switch a.Kind() {
+	case reflect.Ptr:
+		if a.IsNil() && b.IsNil() {
+			return "", "", ""
+		}
+		if a.IsNil() || b.IsNil() {
+			return path, fmt.Sprintf("%v", a), fmt.Sprintf("%v", b)
+		}
+		return deepEqualMismatchValue(a.Elem(), b.Elem(), path)
+
+	case reflect.Interface:
+		if a.IsNil() && b.IsNil() {
+			return "", "", ""
+		}
+		if a.IsNil() || b.IsNil() {
+			return path, fmt.Sprintf("%v", a), fmt.Sprintf("%v", b)
+		}
+		return deepEqualMismatchValue(a.Elem(), b.Elem(), path)
+
+	case reflect.Struct:
+		for i := range a.NumField() {
+			field := a.Type().Field(i)
+			fieldName := field.Name
+			fieldPath := path + "." + fieldName
+			if path == "" {
+				fieldPath = fieldName
+			}
+			fmt.Println("comparing field", fieldPath)
+
+			var aField, bField reflect.Value
+			if field.IsExported() {
+				aField, bField = a.Field(i), b.Field(i)
+			} else {
+				aField, bField = getUnexportedField(a, i), getUnexportedField(b, i)
+				if !aField.IsValid() || !bField.IsValid() {
+					// Can't access field (not addressable) - skip
+					fmt.Printf("DEBUG: skipping %s (struct %v, canAddr=%v)\n", fieldPath, a.Type(), a.CanAddr())
+					continue
+				}
+			}
+
+			if p, av, bv := deepEqualMismatchValue(aField, bField, fieldPath); p != "" {
+				return p, av, bv
+			}
+		}
+		return "", "", ""
+
+	case reflect.Slice, reflect.Array:
+		if a.Kind() == reflect.Slice && a.IsNil() && b.IsNil() {
+			return "", "", ""
+		}
+		if a.Kind() == reflect.Slice && (a.IsNil() || b.IsNil()) {
+			return path, fmt.Sprintf("nil=%v len=%d", a.IsNil(), a.Len()), fmt.Sprintf("nil=%v len=%d", b.IsNil(), b.Len())
+		}
+		if a.Len() != b.Len() {
+			return path, fmt.Sprintf("len=%d", a.Len()), fmt.Sprintf("len=%d", b.Len())
+		}
+		for i := 0; i < a.Len(); i++ {
+			elem := a.Index(i)
+			elemType := ""
+			// For interface elements, show the concrete type
+			if elem.Kind() == reflect.Interface && !elem.IsNil() {
+				elemType = fmt.Sprintf("(%v)", elem.Elem().Type())
+			}
+			elemPath := fmt.Sprintf("%s[%d]%s", path, i, elemType)
+			if p, av, bv := deepEqualMismatchValue(a.Index(i), b.Index(i), elemPath); p != "" {
+				return p, av, bv
+			}
+		}
+		return "", "", ""
+
+	case reflect.Map:
+		if a.IsNil() && b.IsNil() {
+			return "", "", ""
+		}
+		if a.IsNil() || b.IsNil() {
+			return path, fmt.Sprintf("nil=%v", a.IsNil()), fmt.Sprintf("nil=%v", b.IsNil())
+		}
+		if a.Len() != b.Len() {
+			return path, fmt.Sprintf("len=%d", a.Len()), fmt.Sprintf("len=%d", b.Len())
+		}
+		for _, key := range a.MapKeys() {
+			aVal := a.MapIndex(key)
+			bVal := b.MapIndex(key)
+			if !bVal.IsValid() {
+				return fmt.Sprintf("%s[%v]", path, key), "exists", "missing"
+			}
+			keyPath := fmt.Sprintf("%s[%v]", path, key)
+			if p, av, bv := deepEqualMismatchValue(aVal, bVal, keyPath); p != "" {
+				return p, av, bv
+			}
+		}
+		return "", "", ""
+
+	case reflect.Func:
+		if a.IsNil() && b.IsNil() {
+			return "", "", ""
+		}
+		// Functions are only equal if both are nil
+		if a.Pointer() != b.Pointer() {
+			return path, fmt.Sprintf("func@%p", a.UnsafePointer()), fmt.Sprintf("func@%p", b.UnsafePointer())
+		}
+		return "", "", ""
+
+	case reflect.Chan, reflect.UnsafePointer:
+		if a.Pointer() != b.Pointer() {
+			return path, fmt.Sprintf("%p", a.UnsafePointer()), fmt.Sprintf("%p", b.UnsafePointer())
+		}
+		return "", "", ""
+
+	default:
+		// For basic types, use reflect.DeepEqual
+		// Check if we can access the interface (not unexported)
+		if a.CanInterface() && b.CanInterface() {
+			if !reflect.DeepEqual(a.Interface(), b.Interface()) {
+				if path == "" {
+					path = fmt.Sprintf("(%v)", a.Type())
+				}
+				return path, fmt.Sprintf("%v", a.Interface()), fmt.Sprintf("%v", b.Interface())
+			}
+		} else {
+			fmt.Printf("DEBUG default: can't interface %s (type=%v, aCanIface=%v, bCanIface=%v)\n", path, a.Type(), a.CanInterface(), b.CanInterface())
+		}
+		return "", "", ""
+	}
+}
 
 // Assert is a helper to test circuits
 type Assert struct {
@@ -158,7 +318,12 @@ func (assert *Assert) compile(circuit frontend.Circuit, field *big.Int, backendI
 	}
 
 	if !reflect.DeepEqual(ccs, _ccs) {
-		return nil, ErrCompilationNotDeterministic
+		path, aVal, bVal := deepEqualMismatch(ccs, _ccs)
+		if path != "" {
+			return nil, fmt.Errorf("%w: mismatch at %s: first=%s, second=%s", ErrCompilationNotDeterministic, path, aVal, bVal)
+		}
+		// Debug: show types
+		return nil, fmt.Errorf("%w (type: %T, could not determine path)", ErrCompilationNotDeterministic, ccs)
 	}
 
 	return ccs, nil
@@ -178,7 +343,11 @@ func (assert *Assert) compileU32(circuit frontend.Circuit, field *big.Int, compi
 	}
 
 	if !reflect.DeepEqual(ccs, _ccs) {
-		return nil, ErrCompilationNotDeterministic
+		path, aVal, bVal := deepEqualMismatch(ccs, _ccs)
+		if path != "" {
+			return nil, fmt.Errorf("%w: mismatch at %s: first=%s, second=%s", ErrCompilationNotDeterministic, path, aVal, bVal)
+		}
+		return nil, fmt.Errorf("%w (type: %T, could not determine path)", ErrCompilationNotDeterministic, ccs)
 	}
 
 	return ccs, nil
