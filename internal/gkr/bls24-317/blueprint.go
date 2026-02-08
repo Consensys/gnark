@@ -56,8 +56,6 @@ func (b *BlueprintSolve) initialize() {
 	}
 
 	// Compute metadata from Circuit
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
 
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
