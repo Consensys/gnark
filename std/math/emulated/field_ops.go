@@ -3,10 +3,13 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
+	mathbits "github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -341,9 +344,29 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 			normLimbsTransposed[i][j] = normLimbs[j][i]
 		}
 	}
+
 	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
-	for i := range nbLimbs {
-		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
+
+	// Optimization: decompose sel into bits once and reuse for all limbs
+	// instead of decomposing inside each selector.Mux call.
+	// ToBinary already constrains bits to be boolean, so we use the Unchecked
+	// variants to avoid redundant boolean assertions.
+	n := uint(nbInputs)
+	nbBits := bits.Len(n - 1) // we use n-1 as sel is 0-indexed
+	selBits := mathbits.ToBinary(f.api, sel, mathbits.WithNbDigits(nbBits))
+
+	if bits.OnesCount(n) == 1 {
+		// Power of 2: binary decomposition guarantees sel < 2^nbBits = n
+		for i := range nbLimbs {
+			e.Limbs[i] = selector.BinaryMuxUnchecked(f.api, selBits, normLimbsTransposed[i])
+		}
+	} else {
+		// Non-power of 2: need additional bound check sel <= n-1
+		bcmp := cmp.NewBoundedComparator(f.api, big.NewInt((1<<nbBits)-1), false)
+		bcmp.AssertIsLessEq(sel, n-1)
+		for i := range nbLimbs {
+			e.Limbs[i] = selector.GeneralMuxUnchecked(f.api, selBits, normLimbsTransposed[i])
+		}
 	}
 
 	// Record operation for profiling

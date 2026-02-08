@@ -44,3 +44,22 @@ func binaryMuxRecursive(api frontend.API, selBits, inputs []frontend.Variable) f
 	right := binaryMuxRecursive(api, nextSelBits, inputs[pivot:])
 	return api.Add(left, api.Mul(msb, api.Sub(right, left)))
 }
+
+// BinaryMuxUnchecked is like BinaryMux but assumes selBits are already
+// constrained to be boolean (e.g., from bits.ToBinary). This avoids redundant
+// boolean assertions when the same bits are reused across multiple Mux calls.
+// len(inputs) must be 2^len(selBits).
+func BinaryMuxUnchecked(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
+	if len(inputs) != 1<<len(selBits) {
+		panic(fmt.Sprintf("invalid input length for BinaryMuxUnchecked (%d != 2^%d)", len(inputs), len(selBits)))
+	}
+	return binaryMuxRecursive(api, selBits, inputs)
+}
+
+// GeneralMuxUnchecked is a multiplexer that handles any number of inputs
+// (not just powers of 2). It assumes selBits are already constrained to be
+// boolean and that sel < len(inputs) has been verified by the caller.
+// This is useful when the same selector bits are reused across multiple Mux calls.
+func GeneralMuxUnchecked(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
+	return binaryMuxRecursive(api, selBits, inputs)
+}
