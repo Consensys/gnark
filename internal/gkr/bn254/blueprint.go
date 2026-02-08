@@ -32,10 +32,11 @@ type BlueprintSolve struct {
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
-	assignments   WireAssignment `cbor:"-"`
-	evaluatorPool sync.Pool      `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
-	nbInputs      int            `cbor:"-"`
-	outputWires   []int          `cbor:"-"`
+	assignments    WireAssignment   `cbor:"-"`
+	evaluatorPool  sync.Pool        `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
+	nbInputs       int              `cbor:"-"`
+	outputWires    []int            `cbor:"-"`
+	maxOutputLevel constraint.Level `cbor:"-"` // highest output level across all solve instances
 
 	lock sync.Mutex `cbor:"-"`
 }
@@ -189,6 +190,8 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 		tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
 	}
 
+	b.maxOutputLevel = max(b.maxOutputLevel, outputLevel)
+
 	return outputLevel
 }
 
@@ -294,7 +297,7 @@ func (b *BlueprintProve) NbOutputs(inst constraint.Instruction) int {
 
 // UpdateInstructionTree implements Blueprint
 func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
-	maxLevel := constraint.LevelUnset
+	maxLevel := b.SolveBlueprint.maxOutputLevel
 
 	// Format: [0]=totalSize, [1...]=challenge linear expressions
 	offset := 1 // skip size prefix
@@ -310,9 +313,8 @@ func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree
 			if !tree.HasWire(wireID) {
 				continue
 			}
-			if level := tree.GetWireLevel(wireID); level > maxLevel {
-				maxLevel = level
-			}
+
+			maxLevel = max(maxLevel, tree.GetWireLevel(wireID))
 		}
 	}
 
