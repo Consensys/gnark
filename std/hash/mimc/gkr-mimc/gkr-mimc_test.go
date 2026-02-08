@@ -83,7 +83,7 @@ type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c merkleTreeCircuit) Define(api frontend.API) error {
+func (c *merkleTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
@@ -127,7 +127,7 @@ func BenchmarkGkrMiMC(b *testing.B) {
 		assignment.Leaves[i] = i
 	}
 
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	require.NoError(b, err)
 
 	b.ResetTimer()

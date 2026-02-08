@@ -72,11 +72,12 @@ func (b *BlueprintSolve) initialize() {
 		return ce
 	}
 
-	b.assignments = make(WireAssignment, len(b.Circuit))
+	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
-	for i := range b.assignments {
-		b.assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
+	for i := range assignments {
+		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
 	}
+	b.assignments = assignments
 }
 
 // Solve implements the BlueprintStateful interface.
