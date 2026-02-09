@@ -808,7 +808,7 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 			msbWindowBits[i] = 0
 		}
 	}
-	res := f.expTableLookup(table, msbWindowBits)
+	res := f.tableLookup(table, msbWindowBits)
 
 	// Process remaining windows
 	for w := 1; w < numWindows; w++ {
@@ -827,30 +827,11 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 		}
 
 		// Table lookup and multiply
-		selected := f.expTableLookup(table, windowBits)
+		selected := f.tableLookup(table, windowBits)
 		res = f.Mul(res, selected)
 	}
 
 	return res
-}
-
-// expTableLookup performs a selection to retrieve table[idx] where idx is the
-// value represented by bits (LSB first). Uses Lookup2 for efficiency.
-// Assumes len(table) == 16 and len(bits) == 4.
-func (f *Field[T]) expTableLookup(table []*Element[T], bits []frontend.Variable) *Element[T] {
-	// For 4 bits selecting from 16 elements:
-	// - bits[0], bits[1] select within groups of 4
-	// - bits[2], bits[3] select which group
-
-	// First level: use bits[0], bits[1] to reduce 16 -> 4
-	level1 := make([]*Element[T], 4)
-	for i := 0; i < 4; i++ {
-		level1[i] = f.Lookup2(bits[0], bits[1],
-			table[4*i+0], table[4*i+1], table[4*i+2], table[4*i+3])
-	}
-
-	// Second level: use bits[2], bits[3] to reduce 4 -> 1
-	return f.Lookup2(bits[2], bits[3], level1[0], level1[1], level1[2], level1[3])
 }
 
 // multivariate represents a multivariate polynomial. It is a list of terms
