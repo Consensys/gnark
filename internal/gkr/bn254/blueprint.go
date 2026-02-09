@@ -44,45 +44,8 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) initialize() {
-
-	if b.assignments != nil {
-		return
-	}
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	if b.assignments != nil {
-		return // the unlikely event that two or more instructions were competing to initialize the blueprint
-	}
-
-	// Compute metadata from Circuit
-
-	b.evaluatorPool.New = func() interface{} {
-		ce := &circuitEvaluator{
-			evaluators: make([]gateEvaluator, len(b.Circuit)),
-		}
-		for wI := range b.Circuit {
-			w := &b.Circuit[wI]
-			if !w.IsInput() {
-				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
-			}
-		}
-		return ce
-	}
-
-	assignments := make(WireAssignment, len(b.Circuit))
-	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
-	for i := range assignments {
-		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
-	}
-	b.assignments = assignments
-}
-
 // Solve implements the BlueprintStateful interface.
 func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
-
-	b.initialize()
 
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
@@ -138,7 +101,25 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 // Reset implements BlueprintStateful
 func (b *BlueprintSolve) Reset() {
-	b.assignments = nil
+	b.evaluatorPool.New = func() interface{} {
+		ce := &circuitEvaluator{
+			evaluators: make([]gateEvaluator, len(b.Circuit)),
+		}
+		for wI := range b.Circuit {
+			w := &b.Circuit[wI]
+			if !w.IsInput() {
+				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
+			}
+		}
+		return ce
+	}
+
+	assignments := make(WireAssignment, len(b.Circuit))
+	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
+	for i := range assignments {
+		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
+	}
+	b.assignments = assignments
 }
 
 // SetNbInstances sets the number of instances for the blueprint
