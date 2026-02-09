@@ -712,23 +712,28 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-func iterateElems(elems []fr.Element, counter *int, yield func(int, *fr.Element) bool) {
+func iterateElems(elems []fr.Element, counter *int, yield func(int, *fr.Element) bool) bool {
 	for i := range elems {
 		if !yield(*counter, &elems[i]) {
-			return
+			return false
 		}
 		*counter++
 	}
+	return true
 }
 
-func (p Proof) iterator() iter.Seq2[int, *fr.Element] {
+func (p Proof) flatten() iter.Seq2[int, *fr.Element] {
 	return func(yield func(int, *fr.Element) bool) {
 		var counter int
 		for i := range p {
 			for _, poly := range p[i].partialSumPolys {
-				iterateElems(poly, &counter, yield)
+				if !iterateElems(poly, &counter, yield) {
+					return
+				}
 			}
-			iterateElems(p[i].finalEvalProof, &counter, yield)
+			if !iterateElems(p[i].finalEvalProof, &counter, yield) {
+				return
+			}
 		}
 	}
 }

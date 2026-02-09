@@ -712,23 +712,28 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-func iterateElems(elems []small_rational.SmallRational, counter *int, yield func(int, *small_rational.SmallRational) bool) {
+func iterateElems(elems []small_rational.SmallRational, counter *int, yield func(int, *small_rational.SmallRational) bool) bool {
 	for i := range elems {
 		if !yield(*counter, &elems[i]) {
-			return
+			return false
 		}
 		*counter++
 	}
+	return true
 }
 
-func (p Proof) iterator() iter.Seq2[int, *small_rational.SmallRational] {
+func (p Proof) flatten() iter.Seq2[int, *small_rational.SmallRational] {
 	return func(yield func(int, *small_rational.SmallRational) bool) {
 		var counter int
 		for i := range p {
 			for _, poly := range p[i].partialSumPolys {
-				iterateElems(poly, &counter, yield)
+				if !iterateElems(poly, &counter, yield) {
+					return
+				}
 			}
-			iterateElems(p[i].finalEvalProof, &counter, yield)
+			if !iterateElems(p[i].finalEvalProof, &counter, yield) {
+				return
+			}
 		}
 	}
 }

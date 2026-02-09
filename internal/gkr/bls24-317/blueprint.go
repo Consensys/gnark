@@ -265,7 +265,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("bls24_317 prove failed: %w", err)
 	}
 
-	for i, elem := range proof.iterator() {
+	for i, elem := range proof.flatten() {
 		var val constraint.U64
 		copy(val[:], (*elem)[:])
 		s.SetValue(uint32(i+int(inst.WireOffset)), val)
