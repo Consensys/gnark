@@ -265,10 +265,9 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("bn254 prove failed: %w", err)
 	}
 
-	// Set output wires (copy fr.Element to U64 in Montgomery form)
-	for i, elem := range proof.Flatten() {
+	for i, elem := range proof.iterator() {
 		var val constraint.U64
-		copy(val[:], elem[:])
+		copy(val[:], (*elem)[:])
 		s.SetValue(uint32(i+int(inst.WireOffset)), val)
 	}
 

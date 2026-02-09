@@ -8,6 +8,7 @@ package gkr
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"strconv"
 	"sync"
 
@@ -711,33 +712,25 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-// Flatten returns all proof elements as a flat slice of field elements
-func (p Proof) Flatten() []small_rational.SmallRational {
-	// Compute total size
-	var size int
-	for i := range p {
-		for _, poly := range p[i].partialSumPolys {
-			size += len(poly)
+func iterateElems(elems []small_rational.SmallRational, counter *int, yield func(int, *small_rational.SmallRational) bool) {
+	for i := range elems {
+		if !yield(*counter, &elems[i]) {
+			return
 		}
-		if p[i].finalEvalProof != nil {
-			size += len(p[i].finalEvalProof)
-		}
+		*counter++
 	}
+}
 
-	// Flatten into slice
-	outs := make([]small_rational.SmallRational, size)
-	offset := 0
-	for i := range p {
-		for _, poly := range p[i].partialSumPolys {
-			copy(outs[offset:], poly)
-			offset += len(poly)
-		}
-		if p[i].finalEvalProof != nil {
-			copy(outs[offset:], p[i].finalEvalProof)
-			offset += len(p[i].finalEvalProof)
+func (p Proof) iterator() iter.Seq2[int, *small_rational.SmallRational] {
+	return func(yield func(int, *small_rational.SmallRational) bool) {
+		var counter int
+		for i := range p {
+			for _, poly := range p[i].partialSumPolys {
+				iterateElems(poly, &counter, yield)
+			}
+			iterateElems(p[i].finalEvalProof, &counter, yield)
 		}
 	}
-	return outs
 }
 
 // gateEvaluator provides a high-level API for evaluating compiled gates efficiently.
