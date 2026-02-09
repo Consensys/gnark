@@ -75,6 +75,7 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 
 	// Special case for n=2: use Select directly (most efficient)
 	if n == 2 {
+		api.AssertIsBoolean(sel)
 		return api.Select(sel, inputs[1], inputs[0])
 	}
 
@@ -94,28 +95,7 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	return muxRecursiveUnchecked(api, selBits, inputs)
 }
 
-func muxRecursive(api frontend.API,
-	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
-
-	nbBits := len(selBits)
-	leftCount := uint(1 << (nbBits - 1))
-	left := BinaryMux(api, selBits[:nbBits-1], inputs[:leftCount])
-
-	rightCount := uint(len(inputs)) - leftCount
-	nbRightBits := binary.Len(rightCount)
-
-	var right frontend.Variable
-	if binary.OnesCount(rightCount) == 1 {
-		right = BinaryMux(api, selBits[:nbRightBits-1], inputs[leftCount:])
-	} else {
-		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:])
-	}
-
-	msb := selBits[nbBits-1]
-	return api.Select(msb, right, left)
-}
-
-// muxRecursiveUnchecked is like muxRecursive but uses BinaryMuxUnchecked
+// muxRecursiveUnchecked uses BinaryMuxUnchecked
 // since the bits are already constrained.
 func muxRecursiveUnchecked(api frontend.API,
 	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
