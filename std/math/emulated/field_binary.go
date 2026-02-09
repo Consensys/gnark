@@ -40,23 +40,67 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 // ToBitsCanonical represents the unique bit representation in the canonical
 // format (less that the modulus).
 func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
-	// TODO: implement a inline version of this function. We perform binary
-	// decomposition both in the `ReduceStrict` and `ToBits` methods, but we can
-	// essentially do them at the same time.
-	//
-	// If we do this, then also check in places where we use `Reduce` and
-	// `ToBits` after that manually (e.g. in point and scalar marshaling) and
-	// replace them with this method.
-
 	nbBits := f.fParams.Modulus().BitLen()
 	// when the modulus is a power of 2, then we can remove the most significant
 	// bit as it is always zero.
 	if f.fParams.Modulus().TrailingZeroBits() == uint(nbBits-1) {
 		nbBits--
 	}
-	ca := f.ReduceStrict(a)
-	bts := f.ToBits(ca)
-	return bts[:nbBits]
+
+	// Fast path: if already strictly reduced, just get bits
+	if a.modReduced {
+		bts := f.ToBits(a)
+		return bts[:nbBits]
+	}
+
+	// Reduce the element first using strict reduction (always performs mulMod).
+	// This ensures the value is actually reduced mod p, not just has overflow=0.
+	ca := f.reduce(a, true)
+
+	// Get bits of reduced element
+	caBits := f.ToBits(ca)
+
+	// Get bits of modulus-1 (this is cached as a constant, so ToBits is cheap)
+	modPrev := f.modulusPrev()
+	modPrevBits := f.ToBits(modPrev)
+
+	// Now perform the less-or-equal check using the bits we already have.
+	// This avoids calling ToBits again on the same element (which is what
+	// the original ReduceStrict + AssertIsInRange path would do).
+	padBits := func(xbits, ybits []frontend.Variable) []frontend.Variable {
+		diff := len(xbits) - len(ybits)
+		ybits = append(ybits, make([]frontend.Variable, diff)...)
+		for i := len(ybits) - diff; i < len(ybits); i++ {
+			ybits[i] = 0
+		}
+		return ybits
+	}
+	eBits := caBits
+	aBits := modPrevBits
+	if len(eBits) > len(aBits) {
+		aBits = padBits(eBits, aBits)
+	} else {
+		eBits = padBits(aBits, eBits)
+	}
+
+	// Perform the comparison: assert ca <= modulusPrev
+	p := make([]frontend.Variable, len(eBits)+1)
+	p[len(eBits)] = 1
+	for i := len(eBits) - 1; i >= 0; i-- {
+		v := f.api.Mul(p[i+1], eBits[i])
+		p[i] = f.api.Select(aBits[i], v, p[i+1])
+		t := f.api.Select(aBits[i], 0, p[i+1])
+		l := f.api.Sub(1, t, eBits[i])
+		ll := f.api.Mul(l, eBits[i])
+		f.api.AssertIsEqual(ll, 0)
+	}
+
+	// Mark element as strictly reduced
+	ca.modReduced = true
+	ca.overflow = 0
+
+	profile.RecordOperation("emulated.ToBitsCanonical", 4*(len(eBits)+len(aBits)))
+	return caBits[:nbBits]
 }
 
 // FromBits returns a new Element given the bits is little-endian order.
