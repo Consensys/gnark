@@ -50,7 +50,8 @@ func rationalReconstruct(mod *big.Int, inputs, outputs []*big.Int) error {
 	// i.e., x - s*z ≡ 0 (mod r), or equivalently x + s*(-z) ≡ 0 (mod r).
 	// The circuit checks: s1 + s*_s2 ≡ 0 (mod r)
 	// So we need s1 = x and _s2 = -z.
-	res := lattice.RationalReconstruct(inputs[0], inputs[1])
+	rc := lattice.NewReconstructor(inputs[1])
+	res := rc.RationalReconstruct(inputs[0])
 	x, z := res[0], res[1]
 
 	// Ensure x is non-negative (the circuit bit-decomposes s1 assuming it's small positive).
@@ -297,7 +298,8 @@ func multiRationalReconstructExtHint(mod *big.Int, inputs, outputs []*big.Int) e
 	// Use MultiRationalReconstructExt to find (x1, y1, x2, y2, z, t) with shared denominator
 	// k1 ≡ (x1 + λ*y1)/(z + λ*t) (mod order)
 	// k2 ≡ (x2 + λ*y2)/(z + λ*t) (mod order)
-	res := lattice.MultiRationalReconstructExt(k1, k2, order, lambda)
+	rc := lattice.NewReconstructor(order).SetLambda(lambda)
+	res := rc.MultiRationalReconstructExt(k1, k2)
 	x1, y1, x2, y2, z, t := res[0], res[1], res[2], res[3], res[4], res[5]
 
 	// Store absolute values

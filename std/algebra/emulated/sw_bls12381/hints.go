@@ -552,7 +552,8 @@ func rationalReconstructExtG2(mod *big.Int, inputs []*big.Int, outputs []*big.In
 		// so here we use k = -s.
 		k := new(big.Int).Neg(emuInputs[0])
 		k.Mod(k, moduli[0])
-		res := lattice.RationalReconstructExt(k, moduli[0], emuInputs[1])
+		rc := lattice.NewReconstructor(moduli[0]).SetLambda(emuInputs[1])
+		res := rc.RationalReconstructExt(k)
 		x, y, z, t := res[0], res[1], res[2], res[3]
 
 		// u1 = x, u2 = y, v1 = z, v2 = t

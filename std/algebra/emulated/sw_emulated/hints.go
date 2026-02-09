@@ -177,7 +177,8 @@ func rationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) er
 		// i.e., x - s*z ≡ 0 (mod r), or equivalently x + s*(-z) ≡ 0 (mod r).
 		// The circuit checks: s1 + s*_s2 ≡ 0 (mod r)
 		// So we need s1 = x and _s2 = -z.
-		res := lattice.RationalReconstruct(emuInputs[0], moduli[0])
+		rc := lattice.NewReconstructor(moduli[0])
+		res := rc.RationalReconstruct(emuInputs[0])
 		x, z := res[0], res[1]
 
 		// Ensure x is non-negative (the circuit bit-decomposes s1 assuming it's small positive).
@@ -238,7 +239,8 @@ func rationalReconstructExt(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 		// So: u1 = x, u2 = y, v1 = z, v2 = t
 		k := new(big.Int).Neg(emuInputs[0])
 		k.Mod(k, moduli[0])
-		res := lattice.RationalReconstructExt(k, moduli[0], emuInputs[1])
+		rc := lattice.NewReconstructor(moduli[0]).SetLambda(emuInputs[1])
+		res := rc.RationalReconstructExt(k)
 		x, y, z, t := res[0], res[1], res[2], res[3]
 
 		// u1 = x, u2 = y, v1 = z, v2 = t

@@ -293,7 +293,8 @@ func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*
 	// So: u1 = x, u2 = y, v1 = z, v2 = t
 	k := new(big.Int).Neg(inputs[0])
 	k.Mod(k, cc.fr)
-	res := lattice.RationalReconstructExt(k, cc.fr, inputs[1])
+	rc := lattice.NewReconstructor(cc.fr).SetLambda(inputs[1])
+	res := rc.RationalReconstructExt(k)
 	x, y, z, t := res[0], res[1], res[2], res[3]
 
 	// u1 = x, u2 = y, v1 = z, v2 = t
