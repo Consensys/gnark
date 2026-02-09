@@ -37,20 +37,9 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) initialize() {
-
-	if b.assignments != nil {
-		return
-	}
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	if b.assignments != nil {
-		return	// the unlikely event that two or more instructions were competing to initialize the blueprint
-	}
-
-	// Compute metadata from Circuit
-
+// Reset implements BlueprintStateful.
+// It is used to initialize the blueprint for the current circuit.
+func (b *BlueprintSolve) Reset() {
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
 			evaluators: make([]gateEvaluator, len(b.Circuit)),
@@ -74,8 +63,6 @@ func (b *BlueprintSolve) initialize() {
 
 // Solve implements the BlueprintStateful interface.
 func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
-
-	b.initialize()
 
 	// Get a circuit evaluator from the pool
 	ce := b.evaluatorPool.Get().(*circuitEvaluator)
@@ -127,11 +114,6 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	return nil
-}
-
-// Reset implements BlueprintStateful
-func (b *BlueprintSolve) Reset() {
-	b.assignments = nil
 }
 
 // SetNbInstances sets the number of instances for the blueprint

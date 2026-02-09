@@ -44,6 +44,30 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
+// Reset implements BlueprintStateful.
+// It is used to initialize the blueprint for the current circuit.
+func (b *BlueprintSolve) Reset() {
+	b.evaluatorPool.New = func() interface{} {
+		ce := &circuitEvaluator{
+			evaluators: make([]gateEvaluator, len(b.Circuit)),
+		}
+		for wI := range b.Circuit {
+			w := &b.Circuit[wI]
+			if !w.IsInput() {
+				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
+			}
+		}
+		return ce
+	}
+
+	assignments := make(WireAssignment, len(b.Circuit))
+	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
+	for i := range assignments {
+		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
+	}
+	b.assignments = assignments
+}
+
 // Solve implements the BlueprintStateful interface.
 func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
 
@@ -97,29 +121,6 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	return nil
-}
-
-// Reset implements BlueprintStateful
-func (b *BlueprintSolve) Reset() {
-	b.evaluatorPool.New = func() interface{} {
-		ce := &circuitEvaluator{
-			evaluators: make([]gateEvaluator, len(b.Circuit)),
-		}
-		for wI := range b.Circuit {
-			w := &b.Circuit[wI]
-			if !w.IsInput() {
-				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
-			}
-		}
-		return ce
-	}
-
-	assignments := make(WireAssignment, len(b.Circuit))
-	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
-	for i := range assignments {
-		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
-	}
-	b.assignments = assignments
 }
 
 // SetNbInstances sets the number of instances for the blueprint
