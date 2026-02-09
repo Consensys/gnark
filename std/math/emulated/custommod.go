@@ -167,23 +167,21 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	return res
 }
 
-// tableLookup performs a binary tree selection to retrieve table[idx] where
-// idx is the value represented by bits (LSB first).
+// tableLookup performs a selection to retrieve table[idx] where idx is the
+// value represented by bits (LSB first). Uses Lookup2 for efficiency.
+// Assumes len(table) == 16 and len(bits) == 4.
 func (f *Field[T]) tableLookup(table []*Element[T], bits []frontend.Variable) *Element[T] {
-	// bits[0] is LSB, bits[len-1] is MSB
-	// We need to select table[b0 + 2*b1 + 4*b2 + ...]
-	current := make([]*Element[T], len(table))
-	copy(current, table)
+	// For 4 bits selecting from 16 elements:
+	// - bits[0], bits[1] select within groups of 4
+	// - bits[2], bits[3] select which group
 
-	for _, bit := range bits {
-		half := len(current) / 2
-		next := make([]*Element[T], half)
-		for j := 0; j < half; j++ {
-			// If bit=0, take current[2j], if bit=1, take current[2j+1]
-			next[j] = f.Select(bit, current[2*j+1], current[2*j])
-		}
-		current = next
+	// First level: use bits[0], bits[1] to reduce 16 -> 4
+	level1 := make([]*Element[T], 4)
+	for i := 0; i < 4; i++ {
+		level1[i] = f.Lookup2(bits[0], bits[1],
+			table[4*i+0], table[4*i+1], table[4*i+2], table[4*i+3])
 	}
 
-	return current[0]
+	// Second level: use bits[2], bits[3] to reduce 4 -> 1
+	return f.Lookup2(bits[2], bits[3], level1[0], level1[1], level1[2], level1[3])
 }
