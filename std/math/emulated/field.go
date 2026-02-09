@@ -72,6 +72,17 @@ type Field[T FieldParams] struct {
 	// reduction for small field emulation (e.g., KoalaBear on BLS12-377).
 	smallFieldMode     bool
 	smallFieldModeOnce sync.Once
+
+	// bitCache stores the bit decomposition of elements to avoid redundant ToBits calls.
+	// The key is computed from the element's limb hash codes and overflow.
+	bitCache map[bitCacheKey][]frontend.Variable
+}
+
+// bitCacheKey uniquely identifies an element for bit caching purposes.
+type bitCacheKey struct {
+	limbHashes [8][16]byte // hash codes of first 8 limbs (most elements have <= 8 limbs)
+	numLimbs   int
+	overflow   uint
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -94,6 +105,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		constrainedLimbs: make(map[[16]byte]int),
 		checker:          rangecheck.New(native),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
+		bitCache:         make(map[bitCacheKey][]frontend.Variable),
 	}
 	if smallfields.IsSmallField(native.Compiler().Field()) {
 		f.log.Debug().Msg("using small native field, multiplication checks will be performed in extension field")
@@ -437,4 +449,30 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 	}
 	f.checker.Check(v, nbBits)
 	return true
+}
+
+// computeBitCacheKey computes a unique key for the element to use in the bit cache.
+// Returns the key and a boolean indicating whether the element can be cached
+// (elements with non-hashable limbs cannot be cached).
+func (f *Field[T]) computeBitCacheKey(a *Element[T]) (bitCacheKey, bool) {
+	if len(a.Limbs) == 0 || len(a.Limbs) > 8 {
+		// Don't cache elements with 0 limbs or more than 8 limbs
+		return bitCacheKey{}, false
+	}
+
+	key := bitCacheKey{
+		numLimbs: len(a.Limbs),
+		overflow: a.overflow,
+	}
+
+	for i, limb := range a.Limbs {
+		if h, ok := limb.(interface{ HashCode() [16]byte }); ok {
+			key.limbHashes[i] = h.HashCode()
+		} else {
+			// Limb doesn't have a hash code (might be a constant), don't cache
+			return bitCacheKey{}, false
+		}
+	}
+
+	return key, true
 }

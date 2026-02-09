@@ -10,6 +10,9 @@ import (
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, use method [Field.ToBitsCanonical].
+//
+// The bit decomposition is cached in the Field to avoid redundant computation
+// when the same element is decomposed multiple times.
 func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	f.enforceWidthConditional(a)
 	ba, aConst := f.constantValue(a)
@@ -20,6 +23,15 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 		}
 		return res
 	}
+
+	// Check if we have cached bits for this element
+	cacheKey, canCache := f.computeBitCacheKey(a)
+	if canCache {
+		if cached, ok := f.bitCache[cacheKey]; ok {
+			return cached
+		}
+	}
+
 	var carry frontend.Variable = 0
 	var fullBits []frontend.Variable
 	var limbBits []frontend.Variable
@@ -31,6 +43,11 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 		}
 	}
 	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
+
+	// Cache the bits for future use
+	if canCache {
+		f.bitCache[cacheKey] = fullBits
+	}
 
 	// Record operation for profiling
 	profile.RecordOperation("emulated.ToBits", 4*len(fullBits))
