@@ -156,12 +156,7 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 		windowBits := make([]frontend.Variable, windowSize)
 		baseIdx := (numWindows - 1 - w) * windowSize
 		for i := 0; i < windowSize; i++ {
-			actualIdx := baseIdx + i
-			if actualIdx < n && actualIdx >= 0 {
-				windowBits[i] = expBts[actualIdx]
-			} else {
-				windowBits[i] = 0
-			}
+			windowBits[i] = expBts[baseIdx+i]
 		}
 
 		// Table lookup and multiply
