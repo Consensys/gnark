@@ -5,7 +5,6 @@ import (
 	"{{.FieldPackagePath}}/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"math/big"
 	"strconv"
 	"sync"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -707,30 +706,33 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-// SerializeToBigInts flattens a proof object into the given slice of big.Ints
-// useful in gnark hints.
-func (p Proof) SerializeToBigInts(outs []*big.Int) error {
+// Flatten returns all proof elements as a flat slice of field elements
+func (p Proof) Flatten() []{{ .ElementType }} {
+	// Compute total size
+	var size int
+	for i := range p {
+		for _, poly := range p[i].partialSumPolys {
+			size += len(poly)
+		}
+		if p[i].finalEvalProof != nil {
+			size += len(p[i].finalEvalProof)
+		}
+	}
+
+	// Flatten into slice
+	outs := make([]{{ .ElementType }}, size)
 	offset := 0
 	for i := range p {
 		for _, poly := range p[i].partialSumPolys {
-			frToBigInts(outs[offset:], poly)
+			copy(outs[offset:], poly)
 			offset += len(poly)
 		}
 		if p[i].finalEvalProof != nil {
-			frToBigInts(outs[offset:], p[i].finalEvalProof)
+			copy(outs[offset:], p[i].finalEvalProof)
 			offset += len(p[i].finalEvalProof)
 		}
 	}
-	if offset != len(outs) {
-		return fmt.Errorf("expected %d elements, got %d", offset, len(outs))
-	}
-	return nil
-}
-
-func frToBigInts(dst []*big.Int, src []{{ .ElementType }}) {
-	for i := range src {
-		src[i].BigInt(dst[i])
-	}
+	return outs
 }
 
 // gateEvaluator provides a high-level API for evaluating compiled gates efficiently.

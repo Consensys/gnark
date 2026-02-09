@@ -7,7 +7,6 @@ package gkr
 
 import (
 	"fmt"
-	"math/big"
 	"math/bits"
 	"slices"
 	"sync"
@@ -266,28 +265,11 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("bls24_317 prove failed: %w", err)
 	}
 
-	// Serialize proof and convert to U64
-	proofSize := 0
-	for i := range proof {
-		for _, poly := range proof[i].partialSumPolys {
-			proofSize += len(poly)
-		}
-		if proof[i].finalEvalProof != nil {
-			proofSize += len(proof[i].finalEvalProof)
-		}
-	}
-
-	outsBig := make([]*big.Int, proofSize)
-	for i := range outsBig {
-		outsBig[i] = new(big.Int)
-	}
-	if err := proof.SerializeToBigInts(outsBig); err != nil {
-		return fmt.Errorf("failed to serialize proof: %w", err)
-	}
-
-	// Set output wires (convert big.Int to U64)
-	for i, bigVal := range outsBig {
-		s.SetValue(uint32(i+int(inst.WireOffset)), s.FromInterface(bigVal))
+	// Set output wires (copy fr.Element to U64 in Montgomery form)
+	for i, elem := range proof.Flatten() {
+		var val constraint.U64
+		copy(val[:], elem[:])
+		s.SetValue(uint32(i+int(inst.WireOffset)), val)
 	}
 
 	return nil
