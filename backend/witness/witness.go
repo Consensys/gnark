@@ -49,10 +49,7 @@ import (
 
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/field/babybear"
 	"github.com/consensys/gnark-crypto/field/koalabear"
@@ -183,12 +180,6 @@ func (w *witness) WriteTo(wr io.Writer) (n int64, err error) {
 		m, err = t.WriteTo(wr)
 	case fr_bw6761.Vector:
 		m, err = t.WriteTo(wr)
-	case fr_bls24317.Vector:
-		m, err = t.WriteTo(wr)
-	case fr_bls24315.Vector:
-		m, err = t.WriteTo(wr)
-	case fr_bw6633.Vector:
-		m, err = t.WriteTo(wr)
 	case tinyfield.Vector:
 		m, err = t.WriteTo(wr)
 	case babybear.Vector:
@@ -227,15 +218,6 @@ func (w *witness) ReadFrom(r io.Reader) (n int64, err error) {
 		m, err = t.ReadFrom(r)
 		w.vector = t
 	case fr_bw6761.Vector:
-		m, err = t.ReadFrom(r)
-		w.vector = t
-	case fr_bls24317.Vector:
-		m, err = t.ReadFrom(r)
-		w.vector = t
-	case fr_bls24315.Vector:
-		m, err = t.ReadFrom(r)
-		w.vector = t
-	case fr_bw6633.Vector:
 		m, err = t.ReadFrom(r)
 		w.vector = t
 	case tinyfield.Vector:
