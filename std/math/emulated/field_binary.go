@@ -112,10 +112,6 @@ func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
 		f.api.AssertIsEqual(ll, 0)
 	}
 
-	// Mark element as strictly reduced
-	ca.modReduced = true
-	ca.overflow = 0
-
 	profile.RecordOperation("emulated.ToBitsCanonical", 4*(len(eBits)+len(aBits)))
 	return caBits[:nbBits]
 }
