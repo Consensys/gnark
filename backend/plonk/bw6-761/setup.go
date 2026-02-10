@@ -148,9 +148,14 @@ func (vk *VerifyingKey) NbPublicWitness() int {
 	return int(vk.NbPublicVariables)
 }
 
-// Version returns the verifying key binary serialization format version.
+// Version returns the key binary serialization format version.
 func (vk *VerifyingKey) Version() KeyVersion {
 	return vk.version
+}
+
+// Version returns the key binary serialization format version.
+func (pk *ProvingKey) Version() KeyVersion {
+	return pk.Vk.Version()
 }
 
 // VerifyingKey returns pk.Vk
