@@ -46,38 +46,54 @@ jobs:
     steps:
       - name: Post to Slack
         run: |
-          # Determine status
-          if [ "${{ inputs.staticcheck_status }}" = "success" ] && [ "${{ inputs.test_status }}" = "success" ]; then
-            color="#2eb67d"
-            icon="✅"
-            headline="CI Passed"
+          # ── Derive status ──────────────────────────────────────
+          sc="${{ inputs.staticcheck_status }}"
+          ts="${{ inputs.test_status }}"
+          all_pass="false"
+          [ "$sc" = "success" ] && [ "$ts" = "success" ] && all_pass="true"
+
+          if [ "$all_pass" = "true" ]; then
+            color="#36a64f"
+            status_emoji=":large_green_circle:"
+            headline="Pipeline Passed"
+            vibe=":rocket:"
           else
-            color="#e01e5a"
-            icon="❌"
-            headline="CI Failed"
+            color="#E01E5A"
+            status_emoji=":red_circle:"
+            headline="Pipeline Failed"
+            vibe=":eyes:"
           fi
 
-          # Job status emoji mapping
-          sc_icon=$( [ "${{ inputs.staticcheck_status }}" = "success" ] && echo "✅" || echo "❌" )
-          test_icon=$( [ "${{ inputs.test_status }}" = "success" ] && echo "✅" || echo "❌" )
+          # Per-job emoji
+          sc_e=$( [ "$sc" = "success" ] && echo ":white_check_mark:" || echo ":x:" )
+          ts_e=$( [ "$ts" = "success" ] && echo ":white_check_mark:" || echo ":x:" )
 
           run_url="https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}"
           repo_short=$(echo "${{ inputs.repository }}" | cut -d'/' -f2)
+          branch="${{ inputs.branch }}"
+          actor="${{ inputs.actor }}"
+          event="${{ inputs.event_name }}"
+          workflow="${{ inputs.workflow_name }}"
+          ts_unix=$(date +%s)
 
+          # ── Build payload ──────────────────────────────────────
           payload=$(jq -n \
             --arg color "$color" \
-            --arg icon "$icon" \
+            --arg status_emoji "$status_emoji" \
             --arg headline "$headline" \
+            --arg vibe "$vibe" \
             --arg repo "$repo_short" \
-            --arg branch "${{ inputs.branch }}" \
-            --arg actor "${{ inputs.actor }}" \
-            --arg event "${{ inputs.event_name }}" \
-            --arg sc_icon "$sc_icon" \
-            --arg test_icon "$test_icon" \
+            --arg branch "$branch" \
+            --arg actor "$actor" \
+            --arg event "$event" \
+            --arg workflow "$workflow" \
+            --arg sc_e "$sc_e" \
+            --arg ts_e "$ts_e" \
             --arg run_url "$run_url" \
+            --argjson ts_unix "$ts_unix" \
             '{
               "channel": "team-gnark-build",
-              "text": "\($icon) \($headline) · \($repo) (\($branch))",
+              "text": "\($status_emoji) \($headline) — \($repo) (\($branch))",
               "unfurl_links": false,
               "attachments": [
                 {
@@ -87,24 +103,46 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "\($icon) *\($headline)* · `\($repo)` on `\($branch)`\n\($sc_icon) staticcheck    \($test_icon) tests"
-                      },
-                      "accessory": {
-                        "type": "button",
-                        "text": {
-                          "type": "plain_text",
-                          "text": "View Run ↗"
-                        },
-                        "url": "\($run_url)",
-                        "style": "primary"
+                        "text": "\($status_emoji)  *\($headline)*  \($vibe)\n*<\($run_url)|\($repo)>* on `\($branch)` via `\($event)`"
                       }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "\($sc_e)  `staticcheck`"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "\($ts_e)  `tests`"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": ":github:  View Run",
+                            "emoji": true
+                          },
+                          "url": "\($run_url)",
+                          "style": "primary"
+                        }
+                      ]
                     },
                     {
                       "type": "context",
                       "elements": [
                         {
                           "type": "mrkdwn",
-                          "text": "triggered by *\($actor)* via `\($event)` · <\($run_url)|#\($run_url | split("/") | last)>"
+                          "text": ":bust_in_silhouette: *\($actor)*  ·  :gear: \($workflow)  ·  <!date^\($ts_unix)^{date_short_pretty} at {time}|just now>"
                         }
                       ]
                     }
@@ -113,6 +151,7 @@ jobs:
               ]
             }')
 
+          # ── Send ───────────────────────────────────────────────
           response=$(curl -fsS -X POST \
             -H 'Content-type: application/json; charset=utf-8' \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
