@@ -312,6 +312,10 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 		return nil
 	}
 	nbInputs := len(inputs)
+	if nbInputs == 1 {
+		f.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
 	overflow := uint(0)
 	nbLimbs := 0
 	for i := range inputs {
