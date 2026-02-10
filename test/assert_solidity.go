@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/solidity"
@@ -16,14 +18,25 @@ import (
 // solidityVerification checks that the exported solidity contract can verify the proof
 // and that the proof is valid.
 // It uses gnark-solidity-checker see test.WithSolidity option.
-func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKey,
+func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.VerifyingKey,
 	proof any,
 	validPublicWitness witness.Witness,
 	opts []solidity.ExportOption,
 ) {
-	if !SolcCheck || len(validPublicWitness.Vector().(fr_bn254.Vector)) == 0 {
-		return // nothing to check, will make solc fail.
+	if !SolcCheck {
+		// we return, we don't have the solidity check build tag defined
+		return
 	}
+	var nbPubWit int
+	switch c {
+	case ecc.BN254:
+		nbPubWit = len(validPublicWitness.Vector().(fr_bn254.Vector))
+	case ecc.BLS12_381:
+		nbPubWit = len(validPublicWitness.Vector().(fr_bls12381.Vector))
+	default:
+		panic("solidity verification not implemented for this curve: " + c.String())
+	}
+
 	if assert.b != nil {
 		assert.b.Helper()
 	} else {
@@ -53,7 +66,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	assert.NoError(err, string(out))
 
 	// len(vk.K) - 1 == len(publicWitness) + len(commitments)
-	numOfCommitments := vk.NbPublicWitness() - len(validPublicWitness.Vector().(fr_bn254.Vector))
+	numOfCommitments := vk.NbPublicWitness() - nbPubWit
 
 	checkerOpts := []string{"verify"}
 	if b == backend.GROTH16 {
@@ -87,7 +100,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	publicWitnessStr := hex.EncodeToString(bPublicWitness)
 
 	checkerOpts = append(checkerOpts, "--dir", tmpDir)
-	checkerOpts = append(checkerOpts, "--nb-public-inputs", strconv.Itoa(len(validPublicWitness.Vector().(fr_bn254.Vector))))
+	checkerOpts = append(checkerOpts, "--nb-public-inputs", strconv.Itoa(nbPubWit))
 	checkerOpts = append(checkerOpts, "--proof", proofStr)
 	checkerOpts = append(checkerOpts, "--public-inputs", publicWitnessStr)
 
