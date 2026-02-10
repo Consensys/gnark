@@ -269,7 +269,6 @@ func BenchmarkPoseidon2_BLS12377(b *testing.B) {
 		b.Fatal(err)
 	}
 
-
 	width := params.Width
 
 	// Set up circuit
