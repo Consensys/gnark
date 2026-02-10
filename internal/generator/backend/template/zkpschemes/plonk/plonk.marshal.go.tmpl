@@ -166,7 +166,7 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (int64, error) {
 }
 
 func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n int64, err error) {
-	enc := curve.NewEncoder(w)
+	enc := curve.NewEncoder(w, options...)
 	vk.version = currentKeyVersion
 
 	toEncode := []interface{}{
@@ -208,7 +208,15 @@ func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 	return vk.ReadFrom(r)
 }
 
-// ReadFrom reads from binary representation in r into VerifyingKey
+// ReadFrom reads a binary-encoded VerifyingKey from r.
+//
+// It is backward compatible with legacy (unversioned) encodings:
+//   - If the stream starts with keyVersionMarker, it treats the next word as
+//     the serialization version and decodes according to that version.
+//   - Otherwise, it assumes the data is in the legacy, unversioned format and
+//     decodes it accordingly.
+//
+// An error is returned if the encoded version is not supported.
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
 	var firstWord uint64
