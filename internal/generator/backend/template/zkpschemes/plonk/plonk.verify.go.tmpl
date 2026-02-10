@@ -7,19 +7,16 @@ import (
     "text/template"
     {{- end }}
 	"time"
-	"github.com/consensys/gnark/backend/solidity"
 
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark-crypto/ecc"
-	{{ template "import_curve" . }}
-	{{ template "import_fr" . }}
-	{{ if eq .Curve "BN254" -}}
-	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
-	{{- end }}
-	{{ if eq .Curve "BLS12-381" -}}
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	{{- template "import_curve" . }}
+	{{- template "import_fr" . }}
+	{{ if or (eq .Curve "BN254") (eq .Curve "BLS12-381") -}}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fp"
 	{{- end }}
 	{{- template "import_hash_to_field" . }}
-	{{ template "import_kzg" . }}
+	{{- template "import_kzg" . }}
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/logger"

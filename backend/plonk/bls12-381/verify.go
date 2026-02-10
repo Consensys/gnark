@@ -13,20 +13,15 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/consensys/gnark/backend/solidity"
-
 	"github.com/consensys/gnark-crypto/ecc"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/hash_to_field"
-
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/logger"
 )
 
