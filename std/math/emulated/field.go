@@ -468,11 +468,29 @@ func (f *Field[T]) computeBitCacheKey(a *Element[T]) (bitCacheKey, bool) {
 	for i, limb := range a.Limbs {
 		if h, ok := limb.(interface{ HashCode() [16]byte }); ok {
 			key.limbHashes[i] = h.HashCode()
+		} else if cv, ok := f.api.Compiler().ConstantValue(limb); ok {
+			// For constants, derive a hash from the constant value
+			key.limbHashes[i] = constantToHash(cv)
 		} else {
-			// Limb doesn't have a hash code (might be a constant), don't cache
+			// Limb is neither hashable nor a constant, don't cache
 			return bitCacheKey{}, false
 		}
 	}
 
 	return key, true
+}
+
+// constantToHash converts a big.Int constant to a [16]byte hash for caching.
+// Uses a simple scheme: fill bytes from the big.Int, padded/truncated to 16 bytes.
+// The first byte is set to 0x01 to distinguish from variable hashes.
+func constantToHash(v *big.Int) [16]byte {
+	var h [16]byte
+	h[0] = 0x01 // marker to distinguish constants from variables
+	b := v.Bytes()
+	if len(b) >= 15 {
+		copy(h[1:], b[:15])
+	} else {
+		copy(h[16-len(b):], b)
+	}
+	return h
 }
