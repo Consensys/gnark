@@ -3,7 +3,7 @@ package groth16
 import (
 	"bytes"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 )
 
 // solidityTemplate
@@ -832,6 +832,6 @@ func (proof *Proof) MarshalSolidity() []byte {
 	if len(proof.Commitments) > 0 {
 		return buf.Bytes()
 	} else {
-		return buf.Bytes()[:8*fr.Bytes]
+		return buf.Bytes()[:8*fp.Bytes]
 	}
 }

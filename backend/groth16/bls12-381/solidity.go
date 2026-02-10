@@ -3,7 +3,7 @@ package groth16
 import (
 	"bytes"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 )
 
 // solidityTemplate is the Solidity template for the Groth16 verifier on BLS12-381.
@@ -1260,6 +1260,6 @@ func (proof *Proof) MarshalSolidity() []byte {
 	if len(proof.Commitments) > 0 {
 		return buf.Bytes()
 	} else {
-		return buf.Bytes()[:8*fr.Bytes]
+		return buf.Bytes()[:8*fp.Bytes]
 	}
 }
