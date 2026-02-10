@@ -6,6 +6,8 @@
 package plonk
 
 import (
+	"fmt"
+
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"io"
@@ -174,8 +176,11 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (int64, error) {
 
 func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n int64, err error) {
 	enc := curve.NewEncoder(w)
+	vk.version = currentKeyVersion
 
 	toEncode := []interface{}{
+		keyVersionMarker,
+		uint64(vk.version),
 		vk.Size,
 		&vk.SizeInv,
 		&vk.Generator,
@@ -215,26 +220,68 @@ func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 // ReadFrom reads from binary representation in r into VerifyingKey
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
-	toDecode := []interface{}{
-		&vk.Size,
-		&vk.SizeInv,
-		&vk.Generator,
-		&vk.NbPublicVariables,
-		&vk.CosetShift,
-		&vk.S[0],
-		&vk.S[1],
-		&vk.S[2],
-		&vk.Ql,
-		&vk.Qr,
-		&vk.Qm,
-		&vk.Qo,
-		&vk.Qk,
-		&vk.Qcp,
-		&vk.Kzg.G1,
-		&vk.Kzg.G2[0],
-		&vk.Kzg.G2[1],
-		&vk.Kzg.Lines,
-		&vk.CommitmentConstraintIndexes,
+	var firstWord uint64
+	if err := dec.Decode(&firstWord); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	var toDecode []interface{}
+	if firstWord == keyVersionMarker {
+		var version uint64
+		if err := dec.Decode(&version); err != nil {
+			return dec.BytesRead(), err
+		}
+
+		vk.version = KeyVersion(version)
+		switch vk.version {
+		case KeyVersion1:
+			toDecode = []interface{}{
+				&vk.Size,
+				&vk.SizeInv,
+				&vk.Generator,
+				&vk.NbPublicVariables,
+				&vk.CosetShift,
+				&vk.S[0],
+				&vk.S[1],
+				&vk.S[2],
+				&vk.Ql,
+				&vk.Qr,
+				&vk.Qm,
+				&vk.Qo,
+				&vk.Qk,
+				&vk.Qcp,
+				&vk.Kzg.G1,
+				&vk.Kzg.G2[0],
+				&vk.Kzg.G2[1],
+				&vk.Kzg.Lines,
+				&vk.CommitmentConstraintIndexes,
+			}
+		default:
+			return dec.BytesRead(), fmt.Errorf("unsupported verifying key serialization version %d", version)
+		}
+	} else {
+		vk.version = KeyVersionLegacy
+		vk.Size = firstWord
+		toDecode = []interface{}{
+			&vk.SizeInv,
+			&vk.Generator,
+			&vk.NbPublicVariables,
+			&vk.CosetShift,
+			&vk.S[0],
+			&vk.S[1],
+			&vk.S[2],
+			&vk.Ql,
+			&vk.Qr,
+			&vk.Qm,
+			&vk.Qo,
+			&vk.Qk,
+			&vk.Qcp,
+			&vk.Kzg.G1,
+			&vk.Kzg.G2[0],
+			&vk.Kzg.G2[1],
+			&vk.Kzg.Lines,
+			&vk.CommitmentConstraintIndexes,
+		}
 	}
 
 	for _, v := range toDecode {
