@@ -116,18 +116,6 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
 
-	// XXX(@ivokub): commented out - this seems to match the implementation of native solver,
-	// but we always create new test engine when calling `IsSolved`, so this slice is always empty.
-	// Skipping this allows us to avoid making test engine generic.
-	/*
-		// first we reset the stateful blueprints
-		for i := range e.blueprints {
-			if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
-				b.Reset()
-			}
-		}
-	*/
-
 	var apiEngine frontend.API
 	if smallfields.IsSmallField(e.modulus()) && !e.noSmallFieldCompatibility {
 		apiEngine = &smallfieldEngine{engine: e}
@@ -769,7 +757,16 @@ func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
 			panic("unsupported blueprint in test engine")
 		}
 	}
+
 	e.blueprints = append(e.blueprints, b)
+
+	if stateful, ok := b.(constraint.BlueprintStateful[constraint.U32]); ok {
+		stateful.Reset()
+	}
+	if stateful, ok := b.(constraint.BlueprintStateful[constraint.U64]); ok {
+		stateful.Reset()
+	}
+
 	return constraint.BlueprintID(len(e.blueprints) - 1)
 }
 

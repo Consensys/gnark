@@ -22,11 +22,6 @@ import (
 	"github.com/consensys/gnark/std/multicommit"
 )
 
-type circuitDataForSnark struct {
-	circuit     gkrtypes.GadgetCircuit
-	assignments gadget.WireAssignment
-}
-
 // The InitialChallengeGetter provides a one-time initial Fiat-Shamir challenge for the GKR prover.
 // Normally, these should include a unique circuit identifier and all input-output pairs.
 type InitialChallengeGetter func() []frontend.Variable
