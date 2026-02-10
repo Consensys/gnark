@@ -380,6 +380,8 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 
 // ExportSolidity exports the verifying key to a solidity smart contract.
 //
+// See https://github.com/Consensys/gnark-tests for example usage.
+//
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	funcMap := template.FuncMap{
@@ -391,6 +393,12 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		},
 		"inc": func(i int) int {
 			return i + 1
+		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
 		},
 		"frstr": func(x fr.Element) string {
 			// we use big.Int to always get a positive string.
@@ -412,12 +420,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			x.BigInt(bv)
 			bv.Rsh(bv, 256)
 			return bv.String()
-		},
-		"add": func(i, j int) int {
-			return i + j
-		},
-		"sub": func(i, j int) int {
-			return i - j
 		},
 	}
 

@@ -137,7 +137,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 }
 
 // ExportSolidity writes a solidity Verifier contract on provided writer.
-// This is an experimental feature and gnark solidity generator as not been thoroughly tested.
+// This is an experimental feature and gnark solidity generator has not been thoroughly tested.
 //
 // See https://github.com/Consensys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {

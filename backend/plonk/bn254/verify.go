@@ -394,6 +394,12 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		"inc": func(i int) int {
 			return i + 1
 		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
+		},
 		"frstr": func(x fr.Element) string {
 			// we use big.Int to always get a positive string.
 			// not the most efficient hack, but it works better for .sol generation.
@@ -405,9 +411,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			bv := new(big.Int)
 			x.BigInt(bv)
 			return bv.String()
-		},
-		"add": func(i, j int) int {
-			return i + j
 		},
 	}
 

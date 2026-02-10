@@ -376,7 +376,7 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 }
 
 
-{{if eq .Curve "BN254"}}
+{{if or (eq .Curve "BN254") (eq .Curve "BLS12-381") }}
 // ExportSolidity exports the verifying key to a solidity smart contract.
 //
 // See https://github.com/Consensys/gnark-tests for example usage.
@@ -393,6 +393,12 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		"inc": func(i int) int {
 			return i + 1
 		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
+		},
 		"frstr": func(x fr.Element) string {
 			// we use big.Int to always get a positive string.
 			// not the most efficient hack, but it works better for .sol generation.
@@ -400,61 +406,13 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			x.BigInt(bv)
 			return bv.String()
 		},
+		{{- if eq .Curve "BN254" }}
 		"fpstr": func(x fp.Element) string {
 			bv := new(big.Int)
 			x.BigInt(bv)
 			return bv.String()
 		},
-		"add": func(i, j int) int {
-			return i + j
-		},
-	}
-
-	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
-	if err != nil {
-		return err
-	}
-
-	cfg, err := solidity.NewExportConfig(exportOpts...)
-	if err != nil {
-		return err
-	}
-	if cfg.HashToFieldFn != nil {
-		return fmt.Errorf("setting hash to field function is not supported for PLONK Solidity export. Hash function is hardcoded to RFC9380")
-	}
-
-	return t.Execute(w, struct {
-		Cfg solidity.ExportConfig
-		Vk VerifyingKey
-	}{
-		Cfg: cfg,
-		Vk:  *vk,
-	})
-}
-
-{{else if eq .Curve "BLS12-381"}}
-
-// ExportSolidity exports the verifying key to a solidity smart contract.
-//
-// Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
-	funcMap := template.FuncMap{
-		"hex": func(i int) string {
-			return fmt.Sprintf("0x%x", i)
-		},
-		"mul": func(a, b int) int {
-			return a * b
-		},
-		"inc": func(i int) int {
-			return i + 1
-		},
-		"frstr": func(x fr.Element) string {
-			// we use big.Int to always get a positive string.
-			// not the most efficient hack, but it works better for .sol generation.
-			bv := new(big.Int)
-			x.BigInt(bv)
-			return bv.String()
-		},
+		{{- else }}
 		"fpstr_lo": func(x fp.Element) string {
 			bv := new(big.Int)
 			twoTo256 := new(big.Int)
@@ -469,12 +427,7 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			bv.Rsh(bv, 256)
 			return bv.String()
 		},
-		"add": func(i, j int) int {
-			return i + j
-		},
-		"sub": func(i, j int) int {
-			return i - j
-		},
+		{{- end }}
 	}
 
 	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
@@ -498,7 +451,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		Vk:  *vk,
 	})
 }
-
 {{else}}
 // ExportSolidity not implemented for {{.Curve}}
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {

@@ -15,9 +15,11 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
+	"golang.org/x/crypto/sha3"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
@@ -25,7 +27,6 @@ import (
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -166,10 +167,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		return fmt.Errorf("unsupported hash function used, only supported sha256 and legacy keccak256")
 	}
 	cfg.HashToFieldFn.Reset()
-
-	twoTo256 := new(big.Int)
-	twoTo256.SetString("115792089237316195423570985008687907853269984665640564039457584007913129639936", 10)
-
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -180,9 +177,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		"mul": func(a, b int) int {
 			return a * b
 		},
-		"hex": func(i int) string {
-			return fmt.Sprintf("0x%x", i)
-		},
 		"intRange": func(max int) []int {
 			out := make([]int, max)
 			for i := 0; i < max; i++ {
@@ -190,8 +184,13 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			}
 			return out
 		},
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
 		"fpstr_lo": func(x fp.Element) string {
 			bv := new(big.Int)
+			twoTo256 := new(big.Int)
+			twoTo256.SetString("115792089237316195423570985008687907853269984665640564039457584007913129639936", 10)
 			x.BigInt(bv)
 			bv.Mod(bv, twoTo256)
 			return bv.String()
