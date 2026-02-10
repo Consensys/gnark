@@ -242,7 +242,7 @@ func main() {
 	runCmd("gofmt", "-w", "../../../")
 
 	// run goimports on whole directory
-	runCmd("goimports", "-w", "../../../")
+	runGoImports()
 }
 
 func runCmd(name string, arg ...string) {
@@ -251,6 +251,17 @@ func runCmd(name string, arg ...string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	assertNoError(cmd.Run())
+}
+
+func runGoImports() {
+	fmt.Println("go tool goimports", "-w", "../../../")
+	cmd := exec.Command("go", "tool", "goimports", "-w", "../../../")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+
 }
 
 type templateData struct {
