@@ -46,83 +46,79 @@ jobs:
     steps:
       - name: Post to Slack
         run: |
+          # Determine status
           if [ "${{ inputs.staticcheck_status }}" = "success" ] && [ "${{ inputs.test_status }}" = "success" ]; then
-            icon=":large_green_circle:"
-            headline="All CI checks passed"
-            summary="Everything is green for this run."
+            color="#2eb67d"
+            icon="✅"
+            headline="CI Passed"
           else
-            icon=":red_circle:"
-            headline="CI checks failed"
-            summary="At least one required job failed. Please inspect the run."
+            color="#e01e5a"
+            icon="❌"
+            headline="CI Failed"
           fi
 
+          # Job status emoji mapping
+          sc_icon=$( [ "${{ inputs.staticcheck_status }}" = "success" ] && echo "✅" || echo "❌" )
+          test_icon=$( [ "${{ inputs.test_status }}" = "success" ] && echo "✅" || echo "❌" )
+
           run_url="https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}"
+          repo_short=$(echo "${{ inputs.repository }}" | cut -d'/' -f2)
+
           payload=$(jq -n \
+            --arg color "$color" \
             --arg icon "$icon" \
             --arg headline "$headline" \
-            --arg summary "$summary" \
-            --arg repository "${{ inputs.repository }}" \
+            --arg repo "$repo_short" \
             --arg branch "${{ inputs.branch }}" \
             --arg actor "${{ inputs.actor }}" \
-            --arg staticcheck "${{ inputs.staticcheck_status }}" \
-            --arg test "${{ inputs.test_status }}" \
-            --arg workflow "${{ inputs.workflow_name }}" \
             --arg event "${{ inputs.event_name }}" \
+            --arg sc_icon "$sc_icon" \
+            --arg test_icon "$test_icon" \
             --arg run_url "$run_url" \
             '{
               "channel": "team-gnark-build",
-              "text": "\($icon) \($headline) - \($repository) (\($branch))",
+              "text": "\($icon) \($headline) · \($repo) (\($branch))",
               "unfurl_links": false,
-              "blocks": [
+              "attachments": [
                 {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "\($icon) \($headline)"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*\($repository)* on `\($branch)`\n\($summary)"
-                  },
-                  "fields": [
+                  "color": "\($color)",
+                  "blocks": [
                     {
-                      "type": "mrkdwn",
-                      "text": "*Workflow:*\n\($workflow)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Event:*\n\($event)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Triggered by:*\n\($actor)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Jobs:*\nstaticcheck=`\($staticcheck)` | test=`\($test)`"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
+                      "type": "section",
                       "text": {
-                        "type": "plain_text",
-                        "text": "Open GitHub Run"
+                        "type": "mrkdwn",
+                        "text": "\($icon) *\($headline)* · `\($repo)` on `\($branch)`\n\($sc_icon) staticcheck    \($test_icon) tests"
                       },
-                      "url": "\($run_url)"
+                      "accessory": {
+                        "type": "button",
+                        "text": {
+                          "type": "plain_text",
+                          "text": "View Run ↗"
+                        },
+                        "url": "\($run_url)",
+                        "style": "primary"
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "triggered by *\($actor)* via `\($event)` · <\($run_url)|#\($run_url | split("/") | last)>"
+                        }
+                      ]
                     }
                   ]
                 }
               ]
             }')
 
-          response=$(curl -fsS -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}")
+          response=$(curl -fsS -X POST \
+            -H 'Content-type: application/json; charset=utf-8' \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            --data "$payload" \
+            https://slack.com/api/chat.postMessage)
+
           ok=$(echo "$response" | jq -r '.ok')
           if [ "$ok" != "true" ]; then
             echo "Slack API error: $response"
