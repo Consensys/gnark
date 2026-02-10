@@ -103,9 +103,6 @@ which can be instantiated with the following curves
 - [x] BLS12-381
 - [x] BLS12-377
 - [x] BW6-761
-- [x] BLS24-315
-- [x] BW6-633
-- [x] BLS24-317
 
 ### Example
 

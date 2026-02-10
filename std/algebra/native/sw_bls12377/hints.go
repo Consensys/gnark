@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/eisenstein"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/field/eisenstein"
 	"github.com/consensys/gnark/constraint/solver"
 )
 

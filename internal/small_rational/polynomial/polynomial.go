@@ -244,8 +244,9 @@ func getLagrangeBasis(domainSize uint8) []Polynomial {
 	if domainSize >= 2 {
 		res = computeLagrangeBasis(domainSize)
 	} else if domainSize == 1 {
-		res = []Polynomial{make(Polynomial, 1)}
-		res[0][0].SetOne()
+		var oneCoeff small_rational.SmallRational
+		oneCoeff.SetOne()
+		res = []Polynomial{{oneCoeff}}
 	}
 	lagrangeBasis.Store(domainSize, res)
 
