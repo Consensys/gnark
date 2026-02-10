@@ -10,10 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
 	bls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	bls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
-	bls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
 	bn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	bw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -95,21 +92,9 @@ func (h *TestEngineHints) Prove(mod *big.Int, ins, outs []*big.Int) error {
 		data := bls12381.NewSolvingData(infos, bls12381.WithAssignments(h.assignment))
 		return bls12381.ProveHint(data)(mod, ins, outs)
 	}
-	if mod.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-		data := bls24315.NewSolvingData(infos, bls24315.WithAssignments(h.assignment))
-		return bls24315.ProveHint(data)(mod, ins, outs)
-	}
-	if mod.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-		data := bls24317.NewSolvingData(infos, bls24317.WithAssignments(h.assignment))
-		return bls24317.ProveHint(data)(mod, ins, outs)
-	}
 	if mod.Cmp(ecc.BN254.ScalarField()) == 0 {
 		data := bn254.NewSolvingData(infos, bn254.WithAssignments(h.assignment))
 		return bn254.ProveHint(data)(mod, ins, outs)
-	}
-	if mod.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-		data := bw6633.NewSolvingData(infos, bw6633.WithAssignments(h.assignment))
-		return bw6633.ProveHint(data)(mod, ins, outs)
 	}
 	if mod.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 		data := bw6761.NewSolvingData(infos, bw6761.WithAssignments(h.assignment))
