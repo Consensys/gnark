@@ -1,87 +1,93 @@
 on: pull_request
 name: pull_request
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: 1.25.x
+  GOIMPORTS_VERSION: v0.42.0
+  ASMFMT_VERSION: v1.3.2
+
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
     steps:
-    - name: checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.23.x
+      - name: checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: install deps
-      run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
-    - name: goimports
-      run: if [[ -n $(goimports -l .) ]]; then echo "please run goimports"; exit 1; fi
-    - name: generated files should not be modified
-      run: |
-        go generate ./...
-        git update-index --assume-unchanged go.mod
-        git update-index --assume-unchanged go.sum
-        if [[ -n $(git status --porcelain) ]]; then echo "git repo is dirty after running go generate -- please don't modify generated files"; echo $(git diff);echo $(git status --porcelain); exit 1; fi
+      - name: install deps
+        run: |
+          go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
+          go install github.com/klauspost/asmfmt/cmd/asmfmt@${{ env.ASMFMT_VERSION }}
+      - name: gofmt
+        run: if [[ -n $(gofmt -l .) ]]; then echo "please run gofmt"; exit 1; fi
+      - name: goimports
+        run: if [[ -n $(goimports -l .) ]]; then echo "please run goimports"; exit 1; fi
+      - name: generated files should not be modified
+        run: |
+          go generate ./...
+          changed_files=$(git diff --name-only -- . ':(exclude)go.mod' ':(exclude)go.sum')
+          untracked_files=$(git ls-files --others --exclude-standard -- . ':(exclude)go.mod' ':(exclude)go.sum')
+          if [[ -n "${changed_files}" || -n "${untracked_files}" ]]; then
+            echo "git repo is dirty after running go generate -- please don't modify generated files"
+            git status --porcelain
+            git diff -- . ':(exclude)go.mod' ':(exclude)go.sum'
+            exit 1
+          fi
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v8
-      with:
-          version: v2.1.6
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.8.0
           args: -v --timeout=5m
-  
+
   test:
     needs: staticcheck
     runs-on: gha-runner-scale-set-ubuntu-24-amd64-xxl
-    permissions: 
-      pull-requests: write
     steps:
-    - name: checkout code
-      uses: actions/checkout@v4
-    - name: install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.23.x
+      - name: checkout code
+        uses: actions/checkout@v6
+      - name: install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: install deps
-      run: |
-        go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
-        go install github.com/consensys/gnark-solidity-checker@v0.1.0
-        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
-        sudo add-apt-repository ppa:ethereum/ethereum
-        sudo apt-get update
-        sudo apt-get install solc
-    
-    # Install gotestfmt on the VM running the action.
-    - name: Set up gotestfmt
-      uses: gotesttools/gotestfmt-action@v2
-      with:
-        # Optional: pass GITHUB_TOKEN to avoid rate limiting.
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: install deps
+        run: |
+          go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
+          go install github.com/klauspost/asmfmt/cmd/asmfmt@${{ env.ASMFMT_VERSION }}
+          go install github.com/consensys/gnark-solidity-checker@v0.1.0
+          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
+          sudo add-apt-repository ppa:ethereum/ethereum
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends solc
 
-    # Run tests with nice formatting. Save the original log in /tmp/gotest.log
-    - name: Run tests
-      run: |
-        set -euo pipefail
-        go test -json -v -p 4 -short -timeout=30m ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
-        go test -json -v -p 4 -timeout=30m -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
-        go test -json -v -p 4 -timeout=30m -tags=prover_checks ./test/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
-        go test -json -v -p 4 -timeout=30m -tags=prover_checks ./examples/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
-        go test -json -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+      # Install gotestfmt on the VM running the action.
+      - name: Set up gotestfmt
+        uses: gotesttools/gotestfmt-action@v2.2.0
+        with:
+          # Optional: pass GITHUB_TOKEN to avoid rate limiting.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-
-  slack-notifications:
-    if: always()
-    uses: ./.github/workflows/slack-notifications.yml
-    needs:
-      - test
-      - staticcheck
-    secrets:
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-    with:
-      status: ${{ needs.staticcheck.result }}${{ needs.test.result }}
-      actor: ${{ github.actor }}
-      repository: ${{ github.repository }}
-      branch: ${{ github.event.pull_request.head.ref }}
-      run_id: ${{ github.run_id }}
+      # Run tests with nice formatting. Save the original log in /tmp/gotest.log
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          go test -json -v -p 4 -short -timeout=30m ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
+          go test -json -v -p 4 -timeout=30m -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+          go test -json -v -p 4 -timeout=30m -tags=prover_checks ./test/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+          go test -json -v -p 4 -timeout=30m -tags=prover_checks ./examples/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+          go test -json -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
