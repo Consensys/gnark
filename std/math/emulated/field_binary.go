@@ -1,6 +1,8 @@
 package emulated
 
 import (
+	"slices"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/bits"
@@ -28,7 +30,7 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	cacheKey, canCache := f.computeBitCacheKey(a)
 	if canCache {
 		if cached, ok := f.bitCache[cacheKey]; ok {
-			return cached
+			return slices.Clone(cached)
 		}
 	}
 
