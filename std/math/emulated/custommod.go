@@ -171,6 +171,9 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 // value represented by bits (LSB first). Uses Lookup2 for efficiency.
 // Assumes len(table) == 16 and len(bits) == 4.
 func (f *Field[T]) tableLookup(table []*Element[T], bits []frontend.Variable) *Element[T] {
+	if len(table) != 16 || len(bits) != 4 {
+		panic("tableLookup requires table of size 16 and 4 bits")
+	}
 	// For 4 bits selecting from 16 elements:
 	// - bits[0], bits[1] select within groups of 4
 	// - bits[2], bits[3] select which group
