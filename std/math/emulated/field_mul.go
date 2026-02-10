@@ -780,7 +780,7 @@ func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 	table[0] = f.One()
 	table[1] = base
 	for i := 2; i < tableSize; i++ {
-		table[i] = f.Mul(table[i-1], base)
+		table[i] = f.MulMod(table[i-1], base)
 	}
 
 	// Get exponent bits (LSB first)
