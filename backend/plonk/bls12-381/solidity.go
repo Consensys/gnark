@@ -20,7 +20,13 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity {{ .Cfg.PragmaVersion }};
 
-contract PlonkVerifier {
+{{- if .Cfg.SortedImports }}
+{{ range $imp := .Cfg.SortedImports }}
+{{ $imp }}
+{{- end }}
+{{- end }}
+
+contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
 
   uint256 private constant R_MOD = 52435875175126190479447740508185965837690552500527637822603658699938581184513;
   uint256 private constant R_MOD_MINUS_ONE = 52435875175126190479447740508185965837690552500527637822603658699938581184512;
@@ -180,7 +186,15 @@ contract PlonkVerifier {
   uint8 private constant EC_ADD = 0x6;
   uint8 private constant BLS12_MSM_G1 = 0x0c;
   uint8 private constant BLS12_PAIR = 0x0f;
-  
+{{- if .Cfg.Constants }}
+
+{{ .Cfg.Constants }}
+{{- end }}
+{{- if .Cfg.Constructor }}
+
+{{ .Cfg.Constructor }}
+{{- end }}
+
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
   /// @param proof serialised plonk proof (using gnark's MarshalSolidity)
@@ -250,8 +264,8 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-      /// Called when an operation on Bn254 fails
-      /// @dev for instance when calling EcMul on a point not on Bn254.
+      /// Called when an operation on BLS12-381 fails
+      /// @dev for instance when calling EcMul on a point not on BLS12-381.
       function error_ec_op() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
@@ -1042,7 +1056,7 @@ contract PlonkVerifier {
       ///	α²*L₁(ζ)[Z] - Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
       /// where
       /// * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
-      /// * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
+      /// * the [] means that it's a commitment (i.e. a point on BLS12-381(F_p))
       /// * Z_{H}(ζ) = ζ^n-1
       /// @param aproof pointer to the proof
       function compute_commitment_linearised_polynomial(aproof) {
@@ -1255,6 +1269,10 @@ contract PlonkVerifier {
     }
 		return success;
 	}
+{{- if .Cfg.Functions }}
+
+{{ .Cfg.Functions }}
+{{- end }}
 }
 `
 
