@@ -17,6 +17,22 @@ import (
 	cs "github.com/consensys/gnark/constraint/bls12-381"
 )
 
+// KeyVersion identifies the binary serialization format for keys.
+// Applies to serialized VK and PK (PK stream starts with VK header).
+type KeyVersion uint64
+
+const (
+	// KeyVersionLegacy indicates a key read from the legacy format without an explicit header.
+	KeyVersionLegacy KeyVersion = iota
+	// KeyVersion1 indicates a key read from or written with the versioned format.
+	KeyVersion1
+)
+
+const (
+	keyVersionMarker  uint64 = 0
+	currentKeyVersion        = KeyVersion1
+)
+
 // VerifyingKey stores the data needed to verify a proof:
 // * The commitment scheme
 // * Commitments of ql prepended with as many ones as there are public inputs
@@ -44,6 +60,7 @@ type VerifyingKey struct {
 	Qcp                []kzg.Digest
 
 	CommitmentConstraintIndexes []uint64
+	version                     KeyVersion
 }
 
 // Trace stores a plonk trace as columns
@@ -99,6 +116,7 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	}
 
 	// step 1: set the verifying key
+	vk.version = currentKeyVersion
 	vk.CosetShift.Set(&domain.FrMultiplicativeGen)
 	vk.Size = domain.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
@@ -128,6 +146,16 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 // NbPublicWitness returns the expected public witness size (number of field elements)
 func (vk *VerifyingKey) NbPublicWitness() int {
 	return int(vk.NbPublicVariables)
+}
+
+// Version returns the key binary serialization format version.
+func (vk *VerifyingKey) Version() KeyVersion {
+	return vk.version
+}
+
+// Version returns the key binary serialization format version.
+func (pk *ProvingKey) Version() KeyVersion {
+	return pk.Vk.Version()
 }
 
 // VerifyingKey returns pk.Vk
