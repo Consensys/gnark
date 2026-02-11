@@ -181,77 +181,90 @@ func TestTwoCommitments(t *testing.T) {
 	assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK))
 }
 
-func TestWriteContractsGroth16(t *testing.T) {
-	t.Skip("temporary test to write out existing contracts")
-	assert := test.NewAssert(t)
-	// temporary test to write out existing contracts
-	// groth16 no commitment
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &noCommitCircuit{})
+// loadOrSetupGroth16VK loads an existing VK from vkPath, or if the file doesn't
+// exist, compiles the circuit, runs setup, and writes the new VK to vkPath.
+func loadOrSetupGroth16VK(assert *test.Assert, circuit frontend.Circuit, vkPath string) groth16.VerifyingKey {
+	if _, err := os.Stat(vkPath); err == nil {
+		vk := groth16.NewVerifyingKey(ecc.BN254)
+		vkf, err := os.Open(vkPath)
+		assert.NoError(err)
+		defer vkf.Close()
+		_, err = vk.ReadFrom(vkf)
+		assert.NoError(err)
+		return vk
+	}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(err)
 	_, vk, err := groth16.Setup(ccs)
 	assert.NoError(err)
+	vkf, err := os.Create(vkPath)
+	assert.NoError(err)
+	defer vkf.Close()
+	_, err = vk.WriteTo(vkf)
+	assert.NoError(err)
+	return vk
+}
+
+func TestWriteContractsGroth16(t *testing.T) {
+	t.Skip("temporary test to write out existing contracts")
+	assert := test.NewAssert(t)
+	// groth16 no commitment
+	vk := loadOrSetupGroth16VK(assert, &noCommitCircuit{}, "testdata/blank_groth16_nocommit.vk")
 	solf, err := os.Create("testdata/blank_groth16_nocommit.sol")
 	assert.NoError(err)
 	defer solf.Close()
 	err = vk.ExportSolidity(solf)
 	assert.NoError(err)
-	vkf, err := os.Create("testdata/blank_groth16_nocommit.vk")
-	assert.NoError(err)
-	defer vkf.Close()
-	_, err = vk.WriteTo(vkf)
-	assert.NoError(err)
 	// groth16 single commitment
-	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &commitCircuit{})
-	assert.NoError(err)
-	_, vk, err = groth16.Setup(ccs)
-	assert.NoError(err)
+	vk = loadOrSetupGroth16VK(assert, &commitCircuit{}, "testdata/blank_groth16_commit.vk")
 	solf, err = os.Create("testdata/blank_groth16_commit.sol")
 	assert.NoError(err)
 	defer solf.Close()
 	err = vk.ExportSolidity(solf, solidity.WithHashToFieldFunction(sha3.NewLegacyKeccak256()))
 	assert.NoError(err)
-	vkf, err = os.Create("testdata/blank_groth16_commit.vk")
+}
+
+// loadOrSetupPlonkVK loads an existing VK from vkPath, or if the file doesn't
+// exist, compiles the circuit, runs setup, and writes the new VK to vkPath.
+func loadOrSetupPlonkVK(assert *test.Assert, circuit frontend.Circuit, vkPath string) plonk.VerifyingKey {
+	if _, err := os.Stat(vkPath); err == nil {
+		vk := plonk.NewVerifyingKey(ecc.BN254)
+		vkf, err := os.Open(vkPath)
+		assert.NoError(err)
+		defer vkf.Close()
+		_, err = vk.ReadFrom(vkf)
+		assert.NoError(err)
+		return vk
+	}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+	assert.NoError(err)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
+	assert.NoError(err)
+	_, vk, err := plonk.Setup(ccs, srs, srsLagrange)
+	assert.NoError(err)
+	vkf, err := os.Create(vkPath)
 	assert.NoError(err)
 	defer vkf.Close()
 	_, err = vk.WriteTo(vkf)
 	assert.NoError(err)
+	return vk
 }
 
 func TestWriteContractsPlonk(t *testing.T) {
 	t.Skip("temporary test to write out existing contracts")
 	assert := test.NewAssert(t)
 	// plonk no commitment
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &noCommitCircuit{})
-	assert.NoError(err)
-	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
-	assert.NoError(err)
-	_, vk, err := plonk.Setup(ccs, srs, srsLagrange)
-	assert.NoError(err)
+	vk := loadOrSetupPlonkVK(assert, &noCommitCircuit{}, "testdata/blank_plonk_nocommit.vk")
 	solf, err := os.Create("testdata/blank_plonk_nocommit.sol")
 	assert.NoError(err)
 	defer solf.Close()
 	err = vk.ExportSolidity(solf)
 	assert.NoError(err)
-	vkf, err := os.Create("testdata/blank_plonk_nocommit.vk")
-	assert.NoError(err)
-	defer vkf.Close()
-	_, err = vk.WriteTo(vkf)
-	assert.NoError(err)
 	// plonk single commitment
-	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &commitCircuit{})
-	assert.NoError(err)
-	srs, srsLagrange, err = unsafekzg.NewSRS(ccs)
-	assert.NoError(err)
-	_, vk, err = plonk.Setup(ccs, srs, srsLagrange)
-	assert.NoError(err)
+	vk = loadOrSetupPlonkVK(assert, &commitCircuit{}, "testdata/blank_plonk_commit.vk")
 	solf, err = os.Create("testdata/blank_plonk_commit.sol")
 	assert.NoError(err)
 	defer solf.Close()
 	err = vk.ExportSolidity(solf)
-	assert.NoError(err)
-	vkf, err = os.Create("testdata/blank_plonk_commit.vk")
-	assert.NoError(err)
-	defer vkf.Close()
-	_, err = vk.WriteTo(vkf)
 	assert.NoError(err)
 }
