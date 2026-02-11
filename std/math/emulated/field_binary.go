@@ -73,12 +73,6 @@ func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
 		nbBits--
 	}
 
-	// Fast path: if already strictly reduced, just get bits
-	if a.modReduced {
-		bts := f.ToBits(a)
-		return bts[:nbBits]
-	}
-
 	// Reduce the element first using strict reduction (always performs mulMod).
 	// This ensures the value is actually reduced mod p, not just has overflow=0.
 	ca := f.reduce(a, true)
