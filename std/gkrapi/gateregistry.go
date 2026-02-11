@@ -113,7 +113,7 @@ func (r *gateRegistry) toExecutableCircuit(c gkrtypes.SerializableCircuit) gkrty
 	res := make(gkrtypes.ExecutableCircuit, len(c))
 	for i := range c {
 		res[i].Inputs = c[i].Inputs
-		res[i].Gate = gkrtypes.ToExecutableGate(r.gates[i])
+		res[i].Gate = gkrtypes.ToExecutableGate(r.gates[c[i].Gate])
 	}
 	return res
 }
