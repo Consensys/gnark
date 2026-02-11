@@ -438,21 +438,23 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	tablePhiR[0] = g2.neg(tablePhiR[1])
 
 	// precompute -Q-R, Q+R, Q-R, -Q+R (combining the two points Q and R)
+	// We use AddUnified for table precomputation to handle edge cases like s=1 where R=Q
+	// and the points might be equal (requiring doubling instead of addition).
 	var tableS [4]*G2Affine
-	tableS[0] = g2.add(tableQ[0], tableR[0]) // -Q - R
-	tableS[1] = g2.neg(tableS[0])            // Q + R
-	tableS[2] = g2.add(tableQ[1], tableR[0]) // Q - R
-	tableS[3] = g2.neg(tableS[2])            // -Q + R
+	tableS[0] = g2.AddUnified(tableQ[0], tableR[0]) // -Q - R
+	tableS[1] = g2.neg(tableS[0])                   // Q + R
+	tableS[2] = g2.AddUnified(tableQ[1], tableR[0]) // Q - R
+	tableS[3] = g2.neg(tableS[2])                   // -Q + R
 
 	// precompute -Φ(Q)-Φ(R), Φ(Q)+Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R) (combining endomorphisms)
 	var tablePhiS [4]*G2Affine
-	tablePhiS[0] = g2.add(tablePhiQ[0], tablePhiR[0]) // -Φ(Q) - Φ(R)
-	tablePhiS[1] = g2.neg(tablePhiS[0])               // Φ(Q) + Φ(R)
-	tablePhiS[2] = g2.add(tablePhiQ[1], tablePhiR[0]) // Φ(Q) - Φ(R)
-	tablePhiS[3] = g2.neg(tablePhiS[2])               // -Φ(Q) + Φ(R)
+	tablePhiS[0] = g2.AddUnified(tablePhiQ[0], tablePhiR[0]) // -Φ(Q) - Φ(R)
+	tablePhiS[1] = g2.neg(tablePhiS[0])                      // Φ(Q) + Φ(R)
+	tablePhiS[2] = g2.AddUnified(tablePhiQ[1], tablePhiR[0]) // Φ(Q) - Φ(R)
+	tablePhiS[3] = g2.neg(tablePhiS[2])                      // -Φ(Q) + Φ(R)
 
 	// Acc = Q + Φ(Q) + R + Φ(R)
-	Acc := g2.add(tableS[1], tablePhiS[1])
+	Acc := g2.AddUnified(tableS[1], tablePhiS[1])
 	B1 := Acc
 
 	// Add G2 generator to Acc to avoid incomplete additions in the loop.
@@ -471,21 +473,21 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	// Precompute all 16 combinations: ±Q ± Φ(Q) ± R ± Φ(R)
 	// Using tableS (Q±R) and tablePhiS (Φ(Q)±Φ(R)) to match G1 pattern
 	// B1 = (Q+R) + (Φ(Q)+Φ(R)) = Q + R + Φ(Q) + Φ(R)
-	B2 := g2.add(tableS[1], tablePhiS[2]) // (Q+R) + (Φ(Q)-Φ(R)) = Q + R + Φ(Q) - Φ(R)
-	B3 := g2.add(tableS[1], tablePhiS[3]) // (Q+R) + (-Φ(Q)+Φ(R)) = Q + R - Φ(Q) + Φ(R)
-	B4 := g2.add(tableS[1], tablePhiS[0]) // (Q+R) + (-Φ(Q)-Φ(R)) = Q + R - Φ(Q) - Φ(R)
-	B5 := g2.add(tableS[2], tablePhiS[1]) // (Q-R) + (Φ(Q)+Φ(R)) = Q - R + Φ(Q) + Φ(R)
-	B6 := g2.add(tableS[2], tablePhiS[2]) // (Q-R) + (Φ(Q)-Φ(R)) = Q - R + Φ(Q) - Φ(R)
-	B7 := g2.add(tableS[2], tablePhiS[3]) // (Q-R) + (-Φ(Q)+Φ(R)) = Q - R - Φ(Q) + Φ(R)
-	B8 := g2.add(tableS[2], tablePhiS[0]) // (Q-R) + (-Φ(Q)-Φ(R)) = Q - R - Φ(Q) - Φ(R)
-	B9 := g2.neg(B8)                      // -Q + R + Φ(Q) + Φ(R)
-	B10 := g2.neg(B7)                     // -Q + R + Φ(Q) - Φ(R)
-	B11 := g2.neg(B6)                     // -Q + R - Φ(Q) + Φ(R)
-	B12 := g2.neg(B5)                     // -Q + R - Φ(Q) - Φ(R)
-	B13 := g2.neg(B4)                     // -Q - R + Φ(Q) + Φ(R)
-	B14 := g2.neg(B3)                     // -Q - R + Φ(Q) - Φ(R)
-	B15 := g2.neg(B2)                     // -Q - R - Φ(Q) + Φ(R)
-	B16 := g2.neg(B1)                     // -Q - R - Φ(Q) - Φ(R)
+	B2 := g2.AddUnified(tableS[1], tablePhiS[2]) // (Q+R) + (Φ(Q)-Φ(R)) = Q + R + Φ(Q) - Φ(R)
+	B3 := g2.AddUnified(tableS[1], tablePhiS[3]) // (Q+R) + (-Φ(Q)+Φ(R)) = Q + R - Φ(Q) + Φ(R)
+	B4 := g2.AddUnified(tableS[1], tablePhiS[0]) // (Q+R) + (-Φ(Q)-Φ(R)) = Q + R - Φ(Q) - Φ(R)
+	B5 := g2.AddUnified(tableS[2], tablePhiS[1]) // (Q-R) + (Φ(Q)+Φ(R)) = Q - R + Φ(Q) + Φ(R)
+	B6 := g2.AddUnified(tableS[2], tablePhiS[2]) // (Q-R) + (Φ(Q)-Φ(R)) = Q - R + Φ(Q) - Φ(R)
+	B7 := g2.AddUnified(tableS[2], tablePhiS[3]) // (Q-R) + (-Φ(Q)+Φ(R)) = Q - R - Φ(Q) + Φ(R)
+	B8 := g2.AddUnified(tableS[2], tablePhiS[0]) // (Q-R) + (-Φ(Q)-Φ(R)) = Q - R - Φ(Q) - Φ(R)
+	B9 := g2.neg(B8)                             // -Q + R + Φ(Q) + Φ(R)
+	B10 := g2.neg(B7)                            // -Q + R + Φ(Q) - Φ(R)
+	B11 := g2.neg(B6)                            // -Q + R - Φ(Q) + Φ(R)
+	B12 := g2.neg(B5)                            // -Q + R - Φ(Q) - Φ(R)
+	B13 := g2.neg(B4)                            // -Q - R + Φ(Q) + Φ(R)
+	B14 := g2.neg(B3)                            // -Q - R + Φ(Q) - Φ(R)
+	B15 := g2.neg(B2)                            // -Q - R - Φ(Q) + Φ(R)
+	B16 := g2.neg(B1)                            // -Q - R - Φ(Q) - Φ(R)
 
 	var Bi *G2Affine
 	for i := nbits - 1; i > 0; i-- {
