@@ -192,44 +192,8 @@ func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.I
 		P1.Y.BigInt(outputs[1])
 		P2.X.BigInt(outputs[2])
 		P2.Y.BigInt(outputs[3])
-	} else if field.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-		var P1, P2 edbls24315.PointAffine
-		P1.X.SetBigInt(inputs[0])
-		P1.Y.SetBigInt(inputs[1])
-		P1.ScalarMultiplication(&P1, inputs[2])
-		P2.X.SetBigInt(inputs[3])
-		P2.Y.SetBigInt(inputs[4])
-		P2.ScalarMultiplication(&P2, inputs[5])
-		P1.X.BigInt(outputs[0])
-		P1.Y.BigInt(outputs[1])
-		P2.X.BigInt(outputs[2])
-		P2.Y.BigInt(outputs[3])
-	} else if field.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-		var P1, P2 edbls24317.PointAffine
-		P1.X.SetBigInt(inputs[0])
-		P1.Y.SetBigInt(inputs[1])
-		P1.ScalarMultiplication(&P1, inputs[2])
-		P2.X.SetBigInt(inputs[3])
-		P2.Y.SetBigInt(inputs[4])
-		P2.ScalarMultiplication(&P2, inputs[5])
-		P1.X.BigInt(outputs[0])
-		P1.Y.BigInt(outputs[1])
-		P2.X.BigInt(outputs[2])
-		P2.Y.BigInt(outputs[3])
 	} else if field.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 		var P1, P2 edbw6761.PointAffine
-		P1.X.SetBigInt(inputs[0])
-		P1.Y.SetBigInt(inputs[1])
-		P1.ScalarMultiplication(&P1, inputs[2])
-		P2.X.SetBigInt(inputs[3])
-		P2.Y.SetBigInt(inputs[4])
-		P2.ScalarMultiplication(&P2, inputs[5])
-		P1.X.BigInt(outputs[0])
-		P1.Y.BigInt(outputs[1])
-		P2.X.BigInt(outputs[2])
-		P2.Y.BigInt(outputs[3])
-	} else if field.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-		var P1, P2 edbw6633.PointAffine
 		P1.X.SetBigInt(inputs[0])
 		P1.Y.SetBigInt(inputs[1])
 		P1.ScalarMultiplication(&P1, inputs[2])
