@@ -434,12 +434,3 @@ func ToGadget(c RegisteredCircuit) GadgetCircuit {
 		return e.SnarkFriendly
 	})
 }
-
-func (c SerializableCircuit) ToExecutable(gates []*Gate[*GateBytecode]) ExecutableCircuit {
-	res := make(ExecutableCircuit, len(c))
-	for i := range c {
-		res[i].Inputs = c[i].Inputs
-		res[i].Gate = gates[c[i].Gate]
-	}
-	return res
-}

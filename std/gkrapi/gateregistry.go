@@ -109,6 +109,15 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gkrtypes.GateID {
 	return id
 }
 
+func (r *gateRegistry) toExecutableCircuit(c gkrtypes.SerializableCircuit) gkrtypes.ExecutableCircuit {
+	res := make(gkrtypes.ExecutableCircuit, len(c))
+	for i := range c {
+		res[i].Inputs = c[i].Inputs
+		res[i].Gate = gkrtypes.ToExecutableGate(r.gates[i])
+	}
+	return res
+}
+
 func (r *gateRegistry) getGateFunction(id gkrtypes.GateID) gkr.GateFunction {
 	return r.gates[id].Evaluate.SnarkFriendly
 }

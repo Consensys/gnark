@@ -29,16 +29,14 @@ type circuitEvaluator struct {
 // BlueprintSolve is a BN254-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
-	Circuit     gkrtypes.SerializableCircuit
-	Gates       []*gkrtypes.Gate[*gkrtypes.GateBytecode]
+	Circuit     gkrtypes.ExecutableCircuit
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
-	circuit        gkrtypes.ExecutableCircuit `cbor:"-"` // converted from Circuit using Gates
-	assignments    WireAssignment             `cbor:"-"`
-	evaluatorPool  sync.Pool                  `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
-	outputWires    []int                      `cbor:"-"`
-	maxOutputLevel constraint.Level           `cbor:"-"` // highest output level across all solve instances
+	assignments    WireAssignment   `cbor:"-"`
+	evaluatorPool  sync.Pool        `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
+	outputWires    []int            `cbor:"-"`
+	maxOutputLevel constraint.Level `cbor:"-"` // highest output level across all solve instances
 
 	lock sync.Mutex `cbor:"-"`
 }
@@ -49,16 +47,15 @@ var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
-	b.circuit = b.Circuit.ToExecutable(b.Gates)
-	b.circuit.OutputsList()
-	b.outputWires = b.circuit.Outputs()
+	b.Circuit.OutputsList()
+	b.outputWires = b.Circuit.Outputs()
 
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
-			evaluators: make([]gateEvaluator, len(b.circuit)),
+			evaluators: make([]gateEvaluator, len(b.Circuit)),
 		}
-		for wI := range b.circuit {
-			w := &b.circuit[wI]
+		for wI := range b.Circuit {
+			w := &b.Circuit[wI]
 			if !w.IsInput() {
 				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
 			}
@@ -97,8 +94,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	// Process all wires in topological order (circuit is already sorted)
-	for wI := range b.circuit {
-		w := &b.circuit[wI]
+	for wI := range b.Circuit {
+		w := &b.Circuit[wI]
 
 		if w.IsInput() {
 			val, delta := s.Read(calldata)
@@ -146,11 +143,8 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(constraint.Instruction) int {
-
-	execCircuit := b.Circuit.ToExecutable(b.Gates)
-	execCircuit.OutputsList()
-	b.outputWires = b.circuit.Outputs()
-
+	b.Circuit.OutputsList()
+	b.outputWires = b.Circuit.Outputs()
 	return len(b.outputWires)
 }
 
@@ -251,7 +245,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
 	// Call the BN254-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(solveBlueprint.circuit, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, assignments, fsSettings)
 	if err != nil {
 		return fmt.Errorf("bn254 prove failed: %w", err)
 	}
@@ -281,7 +275,7 @@ func (b *BlueprintProve) proofSize() int {
 	}
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
-	return b.SolveBlueprint.circuit.ProofSize(logNbInstances)
+	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
 }
 
 // NbOutputs implements Blueprint
@@ -398,9 +392,9 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BN254
-func NewBlueprints(circuit gkrtypes.SerializableCircuit, gates []*gkrtypes.Gate[*gkrtypes.GateBytecode], hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrtypes.ExecutableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
 	// Create and register solve blueprint
-	solve := &BlueprintSolve{Circuit: circuit, Gates: gates}
+	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
 
 	// Create and register prove blueprint

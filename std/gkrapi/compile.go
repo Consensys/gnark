@@ -82,15 +82,17 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
 	compiler := api.parentApi.Compiler()
 
+	eCircuit := api.gateRegistry.toExecutableCircuit(api.circuit)
+
 	switch curveID {
 	case ecc.BN254:
-		res.blueprints = gkrbn254.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbn254.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_377:
-		res.blueprints = gkrbls12377.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12377.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
-		res.blueprints = gkrbls12381.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12381.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
-		res.blueprints = gkrbw6761.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6761.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
