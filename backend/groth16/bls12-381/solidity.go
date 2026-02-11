@@ -369,18 +369,19 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
             mstore(add(f, 0x40), 0)
             calldatacopy(add(f, 0x50), add(proof.offset, 0x30), 0x30)
             // B (G2): 192 bytes at proof offset 0x60
-            // X.A0
+            // gnark-crypto serializes G2 as (A1, A0, A1, A0) but EIP-2537 expects (A0, A1, A0, A1)
+            // X.A0 (at proof offset 0x90, 2nd component in gnark-crypto serialization)
             mstore(add(f, 0x80), 0)
-            calldatacopy(add(f, 0x90), add(proof.offset, 0x60), 0x30)
-            // X.A1
+            calldatacopy(add(f, 0x90), add(proof.offset, 0x90), 0x30)
+            // X.A1 (at proof offset 0x60, 1st component in gnark-crypto serialization)
             mstore(add(f, 0xc0), 0)
-            calldatacopy(add(f, 0xd0), add(proof.offset, 0x90), 0x30)
-            // Y.A0
+            calldatacopy(add(f, 0xd0), add(proof.offset, 0x60), 0x30)
+            // Y.A0 (at proof offset 0xf0, 4th component in gnark-crypto serialization)
             mstore(add(f, 0x100), 0)
-            calldatacopy(add(f, 0x110), add(proof.offset, 0xc0), 0x30)
-            // Y.A1
+            calldatacopy(add(f, 0x110), add(proof.offset, 0xf0), 0x30)
+            // Y.A1 (at proof offset 0xc0, 3rd component in gnark-crypto serialization)
             mstore(add(f, 0x140), 0)
-            calldatacopy(add(f, 0x150), add(proof.offset, 0xf0), 0x30)
+            calldatacopy(add(f, 0x150), add(proof.offset, 0xc0), 0x30)
 
             // Pair 1: e(C, -δ)
             // C (G1): 96 bytes at proof offset 0x120
