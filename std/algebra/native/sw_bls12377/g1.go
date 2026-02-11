@@ -479,7 +479,6 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// tContribZero = t=0 OR R=(0,0)
 	sContribZero := api.Or(sIsZero, QIsZero)
 	tContribZero := api.Or(tIsZero, RIsZero)
-	anyEdgeCase := api.Or(sContribZero, tContribZero)
 
 	// when s contribution is zero, set s=1 to avoid issues with scalar decomposition
 	_s := api.Select(sContribZero, 1, s)
@@ -590,16 +589,49 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// subtract [2^N]H = (0,1) since we added H at the beginning
 	Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 
-	// Acc now equals [_s]*_Q + [_t]*_R
-	// For the common case (no edge cases), this equals the hinted result
-	// For edge cases, we skip verification and trust the hint
-	// The hint correctly computes edge cases, and the edge case conditions
-	// (s=0, t=0, Q=0, R=0) are verified through IsZero checks above
+	// Acc now equals [_s]*_Q + [_t]*_R where:
+	// - _s = 1 if sContribZero else s
+	// - _t = 1 if tContribZero else t
+	// - _Q = dummyQ if sContribZero else Q
+	// - _R = dummyR if tContribZero else R
+	//
+	// We need to verify the result for all cases:
+	// 1. Both contributions zero: result must be (0,0)
+	// 2. Only s contribution zero: Acc = dummyQ + [t]*R, result should be [t]*R
+	// 3. Only t contribution zero: Acc = [s]*Q + dummyR, result should be [s]*Q
+	// 4. No edge case: Acc = [s]*Q + [t]*R = result
 
-	// Only verify for the common case (no edge cases)
-	// For edge cases, select Acc = result to make the assertion pass
-	Acc.Select(api, anyEdgeCase, result, Acc)
-	Acc.AssertIsEqual(api, result)
+	bothZero := api.And(sContribZero, tContribZero)
+	onlySZero := api.And(sContribZero, api.IsZero(tContribZero))
+	onlyTZero := api.And(tContribZero, api.IsZero(sContribZero))
+
+	// For case 2: subtract dummyQ from Acc to get [t]*R
+	var AccMinusDummyQ G1Affine
+	negDummyQ := G1Affine{X: dummyQ.X, Y: api.Neg(dummyQ.Y)}
+	AccMinusDummyQ.X = Acc.X
+	AccMinusDummyQ.Y = Acc.Y
+	AccMinusDummyQ.AddUnified(api, negDummyQ)
+
+	// For case 3: subtract dummyR from Acc to get [s]*Q
+	var AccMinusDummyR G1Affine
+	negDummyR := G1Affine{X: dummyR.X, Y: api.Neg(dummyR.Y)}
+	AccMinusDummyR.X = Acc.X
+	AccMinusDummyR.Y = Acc.Y
+	AccMinusDummyR.AddUnified(api, negDummyR)
+
+	// Select the expected value based on the case:
+	// - bothZero: expected = (0,0)
+	// - onlySZero: expected = AccMinusDummyQ = [t]*R
+	// - onlyTZero: expected = AccMinusDummyR = [s]*Q
+	// - otherwise: expected = Acc
+	zeroPoint := G1Affine{X: 0, Y: 0}
+	var expected G1Affine
+	expected = Acc
+	expected.Select(api, onlyTZero, AccMinusDummyR, expected)
+	expected.Select(api, onlySZero, AccMinusDummyQ, expected)
+	expected.Select(api, bothZero, zeroPoint, expected)
+
+	expected.AssertIsEqual(api, result)
 
 	p.X = result.X
 	p.Y = result.Y

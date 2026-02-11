@@ -209,6 +209,54 @@ func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 	return z
 }
 
+// AddUnified adds p and q and returns the result. It uses complete addition
+// formula that handles all edge cases (p=q, p=-q, p=0, q=0).
+//
+// ⚠️  The result is undefined if p or q are not on the curve.
+func (g2 *G2) AddUnified(p, q *G2Affine) *G2Affine {
+	// selector1 = 1 when p is ([0,0],[0,0]) and 0 otherwise
+	selector1 := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+	// selector2 = 1 when q is ([0,0],[0,0]) and 0 otherwise
+	selector2 := g2.api.And(g2.Ext2.IsZero(&q.P.X), g2.Ext2.IsZero(&q.P.Y))
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := g2.Mul(&p.P.X, &q.P.X)
+	pxplusqx := g2.Add(&p.P.X, &q.P.X)
+	num := g2.Mul(pxplusqx, pxplusqx)
+	num = g2.Sub(num, pxqx)
+	denum := g2.Add(&p.P.Y, &q.P.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := g2.IsZero(denum)
+	denum = g2.Ext2.Select(selector3, g2.One(), denum)
+	λ := g2.DivUnchecked(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := g2.Mul(λ, λ)
+	xr = g2.Sub(xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr := g2.Sub(&p.P.X, xr)
+	yr = g2.Mul(yr, λ)
+	yr = g2.Sub(yr, &p.P.Y)
+	result := &G2Affine{
+		P:     g2AffP{X: *xr, Y: *yr},
+		Lines: nil,
+	}
+
+	zero := g2.Ext2.Zero()
+	infinity := G2Affine{
+		P:     g2AffP{X: *zero, Y: *zero},
+		Lines: nil,
+	}
+	// if p=([0,0],[0,0]) return q
+	result = g2.Select(selector1, q, result)
+	// if q=([0,0],[0,0]) return p
+	result = g2.Select(selector2, p, result)
+	// if p.y + q.y = 0, return ([0,0],[0,0])
+	result = g2.Select(selector3, &infinity, result)
+
+	return result
+}
+
 func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	mone := g2.fp.NewElement(-1)
 
