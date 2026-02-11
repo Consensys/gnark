@@ -180,6 +180,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			}
 			return out
 		},
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
 		{{- if eq .Curve "BN254" }}
 		"fpstr": func(x fp.Element) string {
 			bv := new(big.Int)
@@ -187,9 +190,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			return bv.String()
 		},
 		{{- else }}
-		"hex": func(i int) string {
-			return fmt.Sprintf("0x%x", i)
-		},
 		"fpstr_lo": func(x fp.Element) string {
 			bv := new(big.Int)
 			twoTo256 := new(big.Int)
