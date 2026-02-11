@@ -213,7 +213,7 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
       check_proof_size(proof.length)
       check_proof_openings_size(proof.offset)
 
-    //   // compute the challenges
+      // compute the challenges
       let prev_challenge_non_reduced
       prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
       prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
@@ -242,7 +242,7 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
       batch_verify_multi_points(proof.offset)
       success := mload(add(mem, STATE_SUCCESS))
 
-    //   // Beginning errors -------------------------------------------------
+      // Beginning errors -------------------------------------------------
 
       function error_nb_public_inputs() {
         let ptError := mload(0x40)
@@ -421,7 +421,7 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
       }
       // end checks -------------------------------------------------
 
-    //   // Beginning challenges -------------------------------------------------
+      // Beginning challenges -------------------------------------------------
 
       /// Derive gamma as Sha256(<transcript>)
       /// @param aproof pointer to the proof
@@ -595,7 +595,7 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
       }
       // END challenges -------------------------------------------------
 
-    //   // BEGINNING compute_pi -------------------------------------------------
+      // BEGINNING compute_pi -------------------------------------------------
 
       /// sum_pi_wo_api_commit computes the public inputs contributions,
       /// except for the public inputs coming from the custom gate
