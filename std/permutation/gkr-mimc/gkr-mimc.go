@@ -8,10 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
-	bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
@@ -144,12 +141,6 @@ func getParams(curve ecc.ID) ([]big.Int, int, error) {
 		return bls12381.GetConstants(), 5, nil
 	case ecc.BLS12_377:
 		return bls12377.GetConstants(), 17, nil
-	case ecc.BLS24_315:
-		return bls24315.GetConstants(), 5, nil
-	case ecc.BLS24_317:
-		return bls24317.GetConstants(), 7, nil
-	case ecc.BW6_633:
-		return bw6633.GetConstants(), 5, nil
 	case ecc.BW6_761:
 		return bw6761.GetConstants(), 5, nil
 	default:

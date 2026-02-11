@@ -66,7 +66,7 @@ func main() {
 	}
 
 	runCmd("gofmt", "-w", "../../groth16")
-	runCmd("goimports", "-w", "../../groth16")
+	runGoImports()
 }
 
 func runCmd(name string, arg ...string) {
@@ -77,4 +77,15 @@ func runCmd(name string, arg ...string) {
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
+}
+
+func runGoImports() {
+	fmt.Println("go tool goimports", "-w", "../../groth16")
+	cmd := exec.Command("go", "tool", "goimports", "-w", "../../groth16")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+
 }

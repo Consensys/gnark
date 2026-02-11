@@ -19,6 +19,7 @@ linters:
     gosec:
       excludes:
         - G115
+        - G602
   exclusions:
     generated: disable
     presets:

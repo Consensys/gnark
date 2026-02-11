@@ -642,6 +642,9 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 
 			if wire.NbClaims() == 1 { // input wire
 				// simply evaluate and see if it matches
+				if len(claim.evaluationPoints) == 0 || len(claim.claimedEvaluations) == 0 {
+					return errors.New("missing input wire claim")
+				}
 				evaluation := assignment[i].Evaluate(claim.evaluationPoints[0], claims.memPool)
 				if !claim.claimedEvaluations[0].Equal(&evaluation) {
 					return errors.New("incorrect input wire claim")
