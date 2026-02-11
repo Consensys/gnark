@@ -183,7 +183,6 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
   // -------- precompiles
   uint8 private constant SHA2 = 0x2;
   uint8 private constant MOD_EXP = 0x5;
-  uint8 private constant EC_ADD = 0x6;
   uint8 private constant BLS12_MSM_G1 = 0x0c;
   uint8 private constant BLS12_PAIR = 0x0f;
 {{- if .Cfg.Constants }}
