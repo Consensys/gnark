@@ -1,94 +1,113 @@
 on:
   push:
     branches:
-      - 'master'
+      - "master"
 name: push_master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: 1.25.x
 
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
     steps:
-    - name: checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.23.x
+      - name: checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: install deps
-      run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
-    - name: gofmt
-      run: if [[ -n $(gofmt -l .) ]]; then echo "please run gofmt"; exit 1; fi
-    - name: generated files should not be modified
-      run: |
-        go generate ./...
-        git update-index --assume-unchanged go.mod
-        git update-index --assume-unchanged go.sum
-        if [[ -n $(git status --porcelain) ]]; then echo "git repo is dirty after running go generate -- please don't modify generated files"; echo $(git diff);echo $(git status --porcelain); exit 1; fi
+      - name: gofmt
+        run: if [[ -n $(gofmt -l .) ]]; then echo "please run gofmt"; exit 1; fi
+      - name: goimports
+        run: if [[ -n $(go tool goimports -l .) ]]; then echo "please run goimports"; exit 1; fi
+      - name: generated files should not be modified
+        run: |
+          go generate ./...
+          changed_files=$(git diff --name-only -- . ':(exclude)go.mod' ':(exclude)go.sum')
+          untracked_files=$(git ls-files --others --exclude-standard -- . ':(exclude)go.mod' ':(exclude)go.sum')
+          if [[ -n "${changed_files}" || -n "${untracked_files}" ]]; then
+            echo "git repo is dirty after running go generate -- please don't modify generated files"
+            git status --porcelain
+            git diff -- . ':(exclude)go.mod' ':(exclude)go.sum'
+            exit 1
+          fi
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v8
-      with:
-        version: v2.1.6
-        args: -v --timeout=5m
-  
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.8.0
+          args: -v --timeout=5m
+
   test:
     strategy:
+      fail-fast: false
       matrix:
-        go-version: [1.23.x]
-        os: [gha-runner-scale-set-ubuntu-24-amd64-xxl, windows-latest, macos-latest]
+        go-version: [1.25.x]
+        os:
+          [
+            gha-runner-scale-set-ubuntu-24-amd64-xxl,
+            windows-latest,
+            macos-latest,
+          ]
     runs-on: ${{ matrix.os }}
     needs:
       - staticcheck
     steps:
-    - name: checkout code
-      uses: actions/checkout@v4
-    - name: install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
-    - name: install deps
-      run: |
-        go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
-        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
-    - name: install solc deps
-      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
-      run: |
-        go install github.com/consensys/gnark-solidity-checker@v0.1.0
-        sudo add-apt-repository ppa:ethereum/ethereum
-        sudo apt-get update
-        sudo apt-get install solc
+      - name: checkout code
+        uses: actions/checkout@v6
+      - name: install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      - name: install deps
+        run: |
+          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
+      - name: install solc deps
+        if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
+        run: |
+          go install github.com/consensys/gnark-solidity-checker@v0.1.0
+          sudo add-apt-repository ppa:ethereum/ethereum
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends solc
 
-    - name: Test (windows / mac)
-      # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
-      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == false
-      run: |
-        go test -tags=release_checks -v -timeout=60m .
-    - name: Test (ubuntu - race and solc)
-      if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
-      run: |
-        go test -v -p 4 -short -timeout=30m ./...
-        go test -v -p 4 -timeout=120m -tags=release_checks ./std/math/emulated/...
-        go test -v -p 4 -timeout=120m -tags=release_checks ./std/lookup/...
-        go test -v -p 4 -tags=release_checks,solccheck .
-        go test -v -p 4 -timeout=50m -tags=release_checks -race ./examples/cubic/...
-        go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
-        go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
+      - name: Test (windows / mac)
+        # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
+        if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == false
+        run: |
+          go test -tags=release_checks -v -timeout=60m .
+      - name: Test (ubuntu - race and solc)
+        if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
+        run: |
+          go test -v -p 4 -short -timeout=30m ./...
+          go test -v -p 4 -timeout=120m -tags=release_checks ./std/math/emulated/...
+          go test -v -p 4 -timeout=120m -tags=release_checks ./std/lookup/...
+          go test -v -p 4 -tags=release_checks,solccheck .
+          go test -v -p 4 -timeout=50m -tags=release_checks -race ./examples/cubic/...
+          go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
+          go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
 
-
-  slack-notifications:
+  notify:
+    needs: test
     if: always()
     uses: ./.github/workflows/slack-notifications.yml
-    needs:
-      - test
-      - staticcheck
-    secrets:
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     with:
-      status: ${{ needs.staticcheck.result }}${{ needs.test.result }}
+      status: ${{ needs.test.result == 'success' && 'success' || 'failure' }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
-      branch: "master"
+      branch: ${{ github.ref_name }}
       run_id: ${{ github.run_id }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

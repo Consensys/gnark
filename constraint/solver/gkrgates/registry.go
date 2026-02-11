@@ -13,10 +13,7 @@ import (
 
 	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
 	bls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	bls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
-	bls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
 	bn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	bw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
@@ -254,14 +251,8 @@ func newGateTester(g *gkrtypes.CompiledGate, nbIn int, curve ecc.ID) (gateTester
 		return bls12377.NewGateTester(g, nbIn), nil
 	case ecc.BLS12_381:
 		return bls12381.NewGateTester(g, nbIn), nil
-	case ecc.BLS24_315:
-		return bls24315.NewGateTester(g, nbIn), nil
-	case ecc.BLS24_317:
-		return bls24317.NewGateTester(g, nbIn), nil
 	case ecc.BN254:
 		return bn254.NewGateTester(g, nbIn), nil
-	case ecc.BW6_633:
-		return bw6633.NewGateTester(g, nbIn), nil
 	case ecc.BW6_761:
 		return bw6761.NewGateTester(g, nbIn), nil
 	}

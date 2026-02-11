@@ -635,13 +635,16 @@ func Verify(c gkrtypes.Circuit, assignment WireAssignment, proof Proof, transcri
 				return errors.New("no proof allowed for input wire with a single claim")
 			}
 
-			if wire.NbClaims() == 1 { // input wire
-				// simply evaluate and see if it matches
-				evaluation := assignment[i].Evaluate(claim.evaluationPoints[0], claims.memPool)
-				if !claim.claimedEvaluations[0].Equal(&evaluation) {
-					return errors.New("incorrect input wire claim")
+				if wire.NbClaims() == 1 { // input wire
+					// simply evaluate and see if it matches
+					if len(claim.evaluationPoints) == 0 || len(claim.claimedEvaluations) == 0 {
+						return errors.New("missing input wire claim")
+					}
+					evaluation := assignment[i].Evaluate(claim.evaluationPoints[0], claims.memPool)
+					if !claim.claimedEvaluations[0].Equal(&evaluation) {
+						return errors.New("incorrect input wire claim")
+					}
 				}
-			}
 		} else if err = sumcheckVerify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil {  // incorporate prover claims about w's input into the transcript
