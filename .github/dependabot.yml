@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  # 1) GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /            # GitHub scans .github/workflows from here
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+    open-pull-requests-limit: 5
+    assignees: ["gbotrel", "yelhousni", "ivokub"]
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "deps(actions)"
+      include: "scope"
+    groups:
+      core-actions-minor-patch:
+        update-types: ["minor", "patch"]
+        patterns:
+          - "actions/*"
+          - "github/*"
+      third-party-actions-minor-patch:
+        update-types: ["minor", "patch"]
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "actions/*"
+          - "github/*"
+    cooldown:
+      default-days: 7
