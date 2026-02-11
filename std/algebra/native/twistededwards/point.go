@@ -271,8 +271,20 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 // where R = [s1]P + [s2]Q (hinted).
 // Uses LogDerivLookup for the 4-point multi-scalar multiplication (16-entry table).
 func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams) *Point {
+	// Handle edge cases: check if either scalar is zero
+	// When s1=0, the fakeGLV decomposition gives u1=v1=0, so the hinted Q1 isn't verified.
+	// When s2=0, similarly Q2 isn't verified.
+	// We must ensure the returned result is correct in these cases.
+	s1IsZero := api.IsZero(s1)
+	s2IsZero := api.IsZero(s2)
+	bothZero := api.And(s1IsZero, s2IsZero)
+
+	// Use dummy non-zero scalars for hints when actual scalars are zero
+	s1ForHint := api.Select(s1IsZero, 1, s1)
+	s2ForHint := api.Select(s2IsZero, 1, s2)
+
 	// Get hinted results Q1 = [s1]P1 and Q2 = [s2]P2
-	q, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order)
+	q, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1ForHint, p2.X, p2.Y, s2ForHint, curve.Order)
 	if err != nil {
 		panic(err)
 	}
@@ -281,32 +293,38 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	Q2.X, Q2.Y = q[2], q[3]
 
 	// Decompose s1 into (u1, v1) such that u1 + s1*v1 ≡ 0 (mod Order)
-	h1, err := api.NewHint(rationalReconstruct, 4, s1, curve.Order)
+	h1, err := api.NewHint(rationalReconstruct, 4, s1ForHint, curve.Order)
 	if err != nil {
 		panic(err)
 	}
 	u1, v1, bit1, k1 := h1[0], h1[1], h1[2], h1[3]
 
 	// Verify: u1 + s1*v1 == k1*Order (with sign handling)
-	_v1s1 := api.Mul(v1, s1)
+	// Skip verification when s1 is zero (we use dummy values)
+	_v1s1 := api.Mul(v1, s1ForHint)
 	_k1r := api.Mul(k1, curve.Order)
 	lhs1 := api.Select(bit1, u1, api.Add(u1, _v1s1))
 	rhs1 := api.Select(bit1, api.Add(_k1r, _v1s1), _k1r)
-	api.AssertIsEqual(lhs1, rhs1)
+	lhs1Check := api.Select(s1IsZero, 0, lhs1)
+	rhs1Check := api.Select(s1IsZero, 0, rhs1)
+	api.AssertIsEqual(lhs1Check, rhs1Check)
 
 	// Decompose s2 into (u2, v2) such that u2 + s2*v2 ≡ 0 (mod Order)
-	h2, err := api.NewHint(rationalReconstruct, 4, s2, curve.Order)
+	h2, err := api.NewHint(rationalReconstruct, 4, s2ForHint, curve.Order)
 	if err != nil {
 		panic(err)
 	}
 	u2, v2, bit2, k2 := h2[0], h2[1], h2[2], h2[3]
 
 	// Verify: u2 + s2*v2 == k2*Order (with sign handling)
-	_v2s2 := api.Mul(v2, s2)
+	// Skip verification when s2 is zero (we use dummy values)
+	_v2s2 := api.Mul(v2, s2ForHint)
 	_k2r := api.Mul(k2, curve.Order)
 	lhs2 := api.Select(bit2, u2, api.Add(u2, _v2s2))
 	rhs2 := api.Select(bit2, api.Add(_k2r, _v2s2), _k2r)
-	api.AssertIsEqual(lhs2, rhs2)
+	lhs2Check := api.Select(s2IsZero, 0, lhs2)
+	rhs2Check := api.Select(s2IsZero, 0, rhs2)
+	api.AssertIsEqual(lhs2Check, rhs2Check)
 
 	// Apply sign to Q1 and Q2 based on decomposition
 	var _Q1, _Q2 Point
@@ -400,11 +418,43 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	}
 
 	// Verify accumulator equals identity (0, 1)
-	api.AssertIsEqual(res.X, 0)
-	api.AssertIsEqual(res.Y, 1)
+	// Skip when both scalars are zero (result should be identity anyway)
+	resXCheck := api.Select(bothZero, 0, res.X)
+	resYCheck := api.Select(bothZero, 1, res.Y)
+	api.AssertIsEqual(resXCheck, 0)
+	api.AssertIsEqual(resYCheck, 1)
 
-	// Return Q1 + Q2
-	p.add(api, &Q1, &Q2, curve)
+	// Compute the actual result based on edge cases:
+	// - If both s1=0 and s2=0: return identity (0, 1)
+	// - If only s1=0: return [s2]P2 (but we need to compute this separately)
+	// - If only s2=0: return [s1]P1 (but we need to compute this separately)
+	// - Otherwise: return Q1 + Q2
+
+	// For edge cases where one scalar is zero, we need to verify the non-zero part
+	// using a separate scalar multiplication. This adds constraints but ensures security.
+
+	// Compute [s1]P1 when s2=0 (using scalarMulFakeGLV for proper verification)
+	var s1P1 Point
+	s1P1.scalarMulFakeGLV(api, p1, s1, curve)
+
+	// Compute [s2]P2 when s1=0
+	var s2P2 Point
+	s2P2.scalarMulFakeGLV(api, p2, s2, curve)
+
+	// Normal case: Q1 + Q2
+	var normalResult Point
+	normalResult.add(api, &Q1, &Q2, curve)
+
+	// Select the correct result based on edge cases
+	// Identity point for twisted Edwards is (0, 1)
+	identity := Point{X: 0, Y: 1}
+
+	// If s1=0: result = [s2]P2
+	// If s2=0: result = [s1]P1
+	// If both=0: result = identity
+	// Otherwise: result = Q1 + Q2
+	p.X = api.Select(bothZero, identity.X, api.Select(s1IsZero, s2P2.X, api.Select(s2IsZero, s1P1.X, normalResult.X)))
+	p.Y = api.Select(bothZero, identity.Y, api.Select(s1IsZero, s2P2.Y, api.Select(s2IsZero, s1P1.Y, normalResult.Y)))
 
 	return p
 }
@@ -416,8 +466,18 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 // Only works for curves with efficient endomorphism (e.g., Bandersnatch).
 // Uses LogDerivLookup for the 64-entry table (6 points).
 func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
+	// Handle edge cases: check if either scalar is zero
+	// When s1=0 or s2=0, the decomposition may not properly verify the hinted result.
+	s1IsZero := api.IsZero(s1)
+	s2IsZero := api.IsZero(s2)
+	bothZero := api.And(s1IsZero, s2IsZero)
+
+	// Use dummy non-zero scalars for hints when actual scalars are zero
+	s1ForHint := api.Select(s1IsZero, 1, s1)
+	s2ForHint := api.Select(s2IsZero, 1, s2)
+
 	// Get hinted result R = [s1]P + [s2]Q
-	qHint, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order)
+	qHint, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1ForHint, p2.X, p2.Y, s2ForHint, curve.Order)
 	if err != nil {
 		panic(err)
 	}
@@ -430,7 +490,7 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 
 	// Decompose (s1, s2) using MultiRationalReconstructExt
 	// Returns |x1|, |y1|, |x2|, |y2|, |z|, |t|, signX1, signY1, signX2, signY2, signZ, signT
-	h, err := api.NewHint(multiRationalReconstructExtHint, 12, s1, s2, curve.Order, endo.Lambda)
+	h, err := api.NewHint(multiRationalReconstructExtHint, 12, s1ForHint, s2ForHint, curve.Order, endo.Lambda)
 	if err != nil {
 		panic(err)
 	}
@@ -607,12 +667,33 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	}
 
 	// Verify accumulator equals identity (0, 1)
-	api.AssertIsEqual(acc.X, 0)
-	api.AssertIsEqual(acc.Y, 1)
+	// Skip when both scalars are zero (result should be identity anyway)
+	accXCheck := api.Select(bothZero, 0, acc.X)
+	accYCheck := api.Select(bothZero, 1, acc.Y)
+	api.AssertIsEqual(accXCheck, 0)
+	api.AssertIsEqual(accYCheck, 1)
 
-	// Return R (the hinted result)
-	p.X = R.X
-	p.Y = R.Y
+	// For edge cases where one scalar is zero, we need to verify the non-zero part
+	// using a separate scalar multiplication. This adds constraints but ensures security.
+
+	// Compute [s1]P1 when s2=0 (using scalarMulFakeGLV for proper verification)
+	var s1P1 Point
+	s1P1.scalarMulFakeGLV(api, p1, s1, curve)
+
+	// Compute [s2]P2 when s1=0
+	var s2P2 Point
+	s2P2.scalarMulFakeGLV(api, p2, s2, curve)
+
+	// Identity point for twisted Edwards is (0, 1)
+	identity := Point{X: 0, Y: 1}
+
+	// Select the correct result based on edge cases:
+	// If s1=0: result = [s2]P2
+	// If s2=0: result = [s1]P1
+	// If both=0: result = identity
+	// Otherwise: result = R
+	p.X = api.Select(bothZero, identity.X, api.Select(s1IsZero, s2P2.X, api.Select(s2IsZero, s1P1.X, R.X)))
+	p.Y = api.Select(bothZero, identity.Y, api.Select(s1IsZero, s2P2.Y, api.Select(s2IsZero, s1P1.Y, R.Y)))
 
 	return p
 }
