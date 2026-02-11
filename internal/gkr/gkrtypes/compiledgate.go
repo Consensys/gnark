@@ -56,7 +56,7 @@ func (g *GateBytecode) EstimateDegree(nbIn int) int {
 	for i, inst := range g.Instructions {
 		var curr int
 		switch inst.Op {
-		case OpAdd | OpSub | OpNeg | OpSumExp17:
+		case OpAdd, OpSub, OpNeg, OpSumExp17:
 			for _, in := range inst.Inputs {
 				curr = max(curr, deg[in])
 			}
@@ -64,8 +64,8 @@ func (g *GateBytecode) EstimateDegree(nbIn int) int {
 			for _, in := range inst.Inputs {
 				curr += deg[in]
 			}
-		case OpMulAcc:
-			curr = max(deg[inst.Inputs[0]], deg[inst.Inputs[1]]) + deg[inst.Inputs[2]]
+		case OpMulAcc: // a + b*c
+			curr = max(deg[inst.Inputs[0]], deg[inst.Inputs[1]]+deg[inst.Inputs[2]])
 		default:
 			panic("unknown operation")
 		}
