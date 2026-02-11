@@ -1,4 +1,4 @@
-// Copyright 2020-2025 Consensys Software Inc.
+// Copyright 2020-2026 Consensys Software Inc.
 // Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
 
 package sw_bls12377
@@ -14,11 +14,15 @@ import (
 type GT = fields_bls12377.E12
 
 // binary decomposition of x₀=9586122913090633729 little endian
-var loopCounter = [64]int8{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1}
+var loopCounter = [64]int8{
+	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1,
+}
 
-// MillerLoop computes the product of n miller loops (n can be 1)
+// MillerLoopClassical computes the product of n miller loops (n can be 1)
 // ∏ᵢ { fᵢ_{x₀,Q}(P) }
-func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+func MillerLoopClassical(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 
 	// check input size match
 	n := len(P)
@@ -33,12 +37,12 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		}
 		lines[i] = *Q[i].Lines
 	}
-	return millerLoopLines(api, P, lines)
+	return millerLoopLinesClassical(api, P, lines)
 
 }
 
-// millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
-func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (GT, error) {
+// millerLoopLinesClassical computes the multi-Miller loop from points in G1 and precomputed lines in G2
+func millerLoopLinesClassical(api frontend.API, P []G1Affine, lines []lineEvaluations) (GT, error) {
 
 	// check input size match
 	n := len(P)
@@ -223,23 +227,24 @@ func FinalExponentiation(api frontend.API, e1 GT) GT {
 	return result
 }
 
-// Pair calculates the reduced pairing for a set of points
+// pairClassical calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function doesn't check that the inputs are in the correct subgroup
-func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
-	f, err := MillerLoop(api, P, Q)
+func pairClassical(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+	f, err := MillerLoopClassical(api, P, Q)
 	if err != nil {
 		return GT{}, err
 	}
 	return FinalExponentiation(api, f), nil
 }
 
-// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// pairingCheckClassical calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups
-func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
+// This function doesn't check that the inputs are in the correct subgroups.
+// It uses the classical E12-based Miller loop.
+func pairingCheckClassical(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 	// check input size match
 	nP := len(P)
@@ -354,6 +359,23 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	t0.AssertIsEqual(api, t1)
 
 	return nil
+}
+
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroup
+func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+	return pairTorus(api, P, Q)
+}
+
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+// It uses the optimized torus-based Miller loop internally.
+func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
+	return pairingCheckTorus(api, P, Q)
 }
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
