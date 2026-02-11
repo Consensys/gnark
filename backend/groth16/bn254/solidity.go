@@ -25,8 +25,9 @@ pragma solidity {{ .Cfg.PragmaVersion }};
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
 /// @notice Supports verifying Groth16 proofs. Proofs can be in uncompressed
-/// (256 bytes) and compressed (128 bytes) format. A view function is provided
-/// to compress proofs.
+/// (256 bytes + optional commitments) and compressed (128 bytes) format.
+/// Uncompressed proofs are passed as bytes calldata matching the output of
+/// MarshalSolidity(). A view function is provided to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
 contract Verifier{{ .Cfg.InterfaceDeclaration }} {
 
@@ -479,11 +480,11 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// Compress a proof.
     /// @notice Will revert with InvalidProof if the curve points are invalid,
     /// but does not verify the proof itself.
-    /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
-    /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
+    /// @param proof The uncompressed Groth16 proof. Points (A, B, C) encoded as in EIP-197
+    /// (256 bytes total).
     {{- if gt $numCommitments 0 }}
-    /// @param commitments Pedersen commitments from the proof.
-    /// @param commitmentPok proof of knowledge for the Pedersen commitments.
+    /// Followed by Pedersen commitments ({{$numCommitments}} × 64 bytes) and proof of knowledge
+    /// (64 bytes) = {{ sum 256 (mul (sum $numCommitments 1) 64) }} bytes total.
     {{- end }}
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
@@ -492,28 +493,54 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// @return compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
     {{- end }}
     {{- if eq $numCommitments 0 }}
-    function compressProof(uint256[8] calldata proof)
+    function compressProof(bytes calldata proof)
     public view returns (uint256[4] memory compressed) {
+        require(proof.length == 256, "invalid proof length");
     {{- else }}
-    function compressProof(
-        uint256[8] calldata proof,
-        uint256[{{mul 2 $numCommitments}}] calldata commitments,
-        uint256[2] calldata commitmentPok
-    )
+    function compressProof(bytes calldata proof)
     public view returns (
         uint256[4] memory compressed,
         uint256[{{$numCommitments}}] memory compressedCommitments,
         uint256 compressedCommitmentPok
     ) {
+        require(proof.length == {{ sum 256 (mul (sum $numCommitments 1) 64) }}, "invalid proof length");
     {{- end }}
-        compressed[0] = compress_g1(proof[0], proof[1]);
-        (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
-        compressed[3] = compress_g1(proof[6], proof[7]);
+        uint256 a0;
+        uint256 a1;
+        assembly ("memory-safe") {
+            a0 := calldataload(proof.offset)
+            a1 := calldataload(add(proof.offset, 0x20))
+        }
+        compressed[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x60))
+            a1 := calldataload(add(proof.offset, 0x40))
+        }
+        uint256 b0;
+        uint256 b1;
+        assembly ("memory-safe") {
+            b0 := calldataload(add(proof.offset, 0xa0))
+            b1 := calldataload(add(proof.offset, 0x80))
+        }
+        (compressed[2], compressed[1]) = compress_g2(a0, a1, b0, b1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0xc0))
+            a1 := calldataload(add(proof.offset, 0xe0))
+        }
+        compressed[3] = compress_g1(a0, a1);
         {{- if gt $numCommitments 0 }}
         {{- range $i := intRange $numCommitments }}
-        compressedCommitments[{{$i}}] = compress_g1(commitments[{{mul 2 $i}}], commitments[{{sum (mul 2 $i) 1}}]);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, {{ hex (sum 0x100 (mul $i 0x40)) }}))
+            a1 := calldataload(add(proof.offset, {{ hex (sum 0x120 (mul $i 0x40)) }}))
+        }
+        compressedCommitments[{{$i}}] = compress_g1(a0, a1);
         {{- end }}
-        compressedCommitmentPok = compress_g1(commitmentPok[0], commitmentPok[1]);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, {{ hex (sum 0x100 (mul $numCommitments 0x40)) }}))
+            a1 := calldataload(add(proof.offset, {{ hex (sum 0x120 (mul $numCommitments 0x40)) }}))
+        }
+        compressedCommitmentPok = compress_g1(a0, a1);
         {{- end }}
     }
 
@@ -682,25 +709,33 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was successfully verified.
-    /// @param proof the points (A, B, C) in EIP-197 format matching the output
-    /// of compressProof.
+    /// @param proof the serialized proof, containing the points (A, B, C) in EIP-197 format
+    /// (256 bytes total).
     {{- if gt $numCommitments 0 }}
-    /// @param commitments the Pedersen commitments from the proof.
-    /// @param commitmentPok the proof of knowledge for the Pedersen commitments.
+    /// Followed by Pedersen commitments ({{$numCommitments}} × 64 bytes) and proof of knowledge
+    /// (64 bytes) = {{ sum 256 (mul (sum $numCommitments 1) 64) }} bytes total.
     {{- end }}
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
-        uint256[8] calldata proof,
-        {{- if gt $numCommitments 0}}
-        uint256[{{mul 2 $numCommitments}}] calldata commitments,
-        uint256[2] calldata commitmentPok,
-        {{- end }}
+        bytes calldata proof,
         uint256[{{$numWitness}}] calldata input
     ) public view {
+        {{- if gt $numCommitments 0 }}
+        require(proof.length == {{ sum 256 (mul (sum $numCommitments 1) 64) }}, "invalid proof length");
+        {{- else }}
+        require(proof.length == 256, "invalid proof length");
+        {{- end }}
+
         {{- if eq $numCommitments 0 }}
         (uint256 x, uint256 y) = publicInputMSM(input);
         {{- else }}
+        // Copy commitment points from proof bytes into memory for publicInputMSM
+        uint256[{{mul 2 $numCommitments}}] memory commitments;
+        assembly ("memory-safe") {
+            calldatacopy(commitments, add(proof.offset, 0x100), {{ mul $numCommitments 0x40 }})
+        }
+
         // HashToField
         uint256[{{$numCommitments}}] memory publicCommitments;
         uint256[] memory publicAndCommitmentCommitted;
@@ -726,15 +761,13 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
         }
         {{- end }}
 
-            publicCommitments[{{$i}}] = uint256(
-                {{ hashFnName }}(
-                    abi.encodePacked(
-                        commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}],
-                        publicAndCommitmentCommitted
-                    )
-                )
-            ) % R;
+        {
+            bytes memory hashInput = abi.encodePacked(
+                proof[{{ hex (sum 0x100 (mul $i 0x40)) }}:{{ hex (sum 0x140 (mul $i 0x40)) }}],
+                publicAndCommitmentCommitted
+            );
+            publicCommitments[{{$i}}] = uint256({{ hashFnName }}(hashInput)) % R;
+        }
         {{- end }}
 
         // Verify pedersen commitments
@@ -742,12 +775,12 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
         assembly ("memory-safe") {
             let f := mload(0x40)
 
-            calldatacopy(f, commitments, 0x40) // Copy Commitments
+            calldatacopy(f, add(proof.offset, 0x100), 0x40) // Copy first commitment
             mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
             mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
             mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
             mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
-            calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
+            calldatacopy(add(f, 0xc0), add(proof.offset, {{ hex (sum 0x100 (mul $numCommitments 0x40)) }}), 0x40) // Copy PoK
             mstore(add(f, 0x100), PEDERSEN_G_X_1)
             mstore(add(f, 0x120), PEDERSEN_G_X_0)
             mstore(add(f, 0x140), PEDERSEN_G_Y_1)
@@ -778,7 +811,7 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
 
             // Copy points (A, B, C) to memory. They are already in correct encoding.
             // This is pairing e(A, B) and G1 of e(C, -δ).
-            calldatacopy(f, proof, 0x100)
+            calldatacopy(f, proof.offset, 0x100)
 
             // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
             // OPT: This could be better done using a single codecopy, but
@@ -821,6 +854,13 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
 
 // MarshalSolidity converts a proof to a byte array that can be used in a
 // Solidity contract.
+//
+// The output format is:
+//
+//	Ar.X (32) | Ar.Y (32) | Bs.X1 (32) | Bs.X0 (32) | Bs.Y1 (32) | Bs.Y0 (32) | Krs.X (32) | Krs.Y (32)
+//	[Commitment_0.X (32) | Commitment_0.Y (32) | ... | PoK.X (32) | PoK.Y (32)]
+//
+// This matches the bytes calldata expected by verifyProof and compressProof.
 func (proof *Proof) MarshalSolidity() []byte {
 	var buf bytes.Buffer
 	_, err := proof.WriteRawTo(&buf)
@@ -828,10 +868,16 @@ func (proof *Proof) MarshalSolidity() []byte {
 		panic(err)
 	}
 
-	// If there are no commitments, we can return only Ar | Bs | Krs
 	if len(proof.Commitments) > 0 {
-		return buf.Bytes()
-	} else {
-		return buf.Bytes()[:8*fp.Bytes]
+		// WriteRawTo encodes: Ar(64) | Bs(128) | Krs(64) | len(4) | Commitments(N×64) | PoK(64)
+		// We need to strip the 4-byte slice length prefix to get:
+		// Ar(64) | Bs(128) | Krs(64) | Commitments(N×64) | PoK(64)
+		raw := buf.Bytes()
+		base := 8 * fp.Bytes // 256
+		result := make([]byte, 0, len(raw)-4)
+		result = append(result, raw[:base]...)
+		result = append(result, raw[base+4:]...)
+		return result
 	}
+	return buf.Bytes()[:8*fp.Bytes]
 }

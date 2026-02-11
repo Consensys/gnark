@@ -184,6 +184,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			}
 			return out
 		},
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
 		"fpstr": func(x fp.Element) string {
 			bv := new(big.Int)
 			x.BigInt(bv)
