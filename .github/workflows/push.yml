@@ -13,8 +13,6 @@ permissions:
 
 env:
   GO_VERSION: 1.25.x
-  GOIMPORTS_VERSION: v0.42.0
-  ASMFMT_VERSION: v1.3.2
 
 jobs:
   staticcheck:
@@ -30,14 +28,10 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: install deps
-        run: |
-          go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-          go install github.com/klauspost/asmfmt/cmd/asmfmt@${{ env.ASMFMT_VERSION }}
       - name: gofmt
         run: if [[ -n $(gofmt -l .) ]]; then echo "please run gofmt"; exit 1; fi
       - name: goimports
-        run: if [[ -n $(goimports -l .) ]]; then echo "please run goimports"; exit 1; fi
+        run: if [[ -n $(go tool goimports -l .) ]]; then echo "please run goimports"; exit 1; fi
       - name: generated files should not be modified
         run: |
           go generate ./...
@@ -80,8 +74,6 @@ jobs:
           cache: true
       - name: install deps
         run: |
-          go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-          go install github.com/klauspost/asmfmt/cmd/asmfmt@${{ env.ASMFMT_VERSION }}
           go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
       - name: install solc deps
         if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
@@ -106,3 +98,16 @@ jobs:
           go test -v -p 4 -timeout=50m -tags=release_checks -race ./examples/cubic/...
           go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
           go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
+
+  notify:
+    needs: test
+    if: always()
+    uses: ./.github/workflows/slack-notifications.yml
+    with:
+      status: ${{ needs.test.result == 'success' && 'success' || 'failure' }}
+      actor: ${{ github.actor }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.ref_name }}
+      run_id: ${{ github.run_id }}
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
