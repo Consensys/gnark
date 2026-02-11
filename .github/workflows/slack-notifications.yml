@@ -1,4 +1,3 @@
-# .github/workflows/slack-notifications.yml
 name: Slack Notifications
 
 on:
@@ -8,7 +7,7 @@ on:
         required: true
     inputs:
       status:
-        description: 'The status of the workflow (successsuccess or failure)'
+        description: 'The status of the workflow (success or failure)'
         required: true
         type: string
       actor:
@@ -33,9 +32,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Post to Slack
+        env:
+          STATUS: ${{ inputs.status }}
+          ACTOR: ${{ inputs.actor }}
+          REPOSITORY: ${{ inputs.repository }}
+          BRANCH: ${{ inputs.branch }}
+          RUN_ID: ${{ inputs.run_id }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          if [ "${{ inputs.status }}" == "successsuccess" ]; then
-            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" '{
+          if [ "$STATUS" = "success" ]; then
+            payload=$(jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" --arg actor "$ACTOR" --arg run_id "$RUN_ID" '{
               "channel": "team-gnark-build",
               "text": "GitHub Action build result: success",
               "blocks": [
@@ -44,7 +50,7 @@ jobs:
                     "text": {
                         "type": "mrkdwn",
                         "text": ":large_green_circle: *All checks have passed:* *\($branch)* :white_check_mark:"
-                    },
+                    }
                 },
                 {
                   "type": "context",
@@ -58,7 +64,7 @@ jobs:
               ]
             }')
           else
-            payload=$(jq -n --arg repository "${{ inputs.repository }}" --arg branch "${{ inputs.branch }}" --arg actor "${{ inputs.actor }}" --arg run_id "${{ inputs.run_id }}" '{
+            payload=$(jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" --arg actor "$ACTOR" --arg run_id "$RUN_ID" '{
               "channel": "team-gnark-build",
               "text": "GitHub Action build result: failure",
               "blocks": [
@@ -67,7 +73,7 @@ jobs:
                     "text": {
                         "type": "mrkdwn",
                         "text": ":red_circle: *Failed run:* *\($branch)*"
-                    },
+                    }
                 },
                 {
                   "type": "context",
@@ -81,5 +87,5 @@ jobs:
               ]
             }')
           fi
-          response=$(curl -s -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" )
+          response=$(curl -s -X POST -H 'Content-type: application/json; charset=utf-8' --data "$payload" https://slack.com/api/chat.postMessage -H "Authorization: Bearer $SLACK_BOT_TOKEN" )
         shell: bash

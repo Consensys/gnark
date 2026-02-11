@@ -1197,6 +1197,16 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 // The input must be in LagrangeCoset.
 // The result is in Canonical Regular. (in place using a)
 func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
+	smallDomain, bigDomain := domains[0], domains[1]
+	if smallDomain == nil || bigDomain == nil {
+		return nil, errors.New("invalid domain")
+	}
+	if smallDomain.Cardinality == 0 || bigDomain.Cardinality == 0 {
+		return nil, errors.New("invalid domain cardinality")
+	}
+	if bigDomain.Cardinality%smallDomain.Cardinality != 0 {
+		return nil, errors.New("invalid domain ratio")
+	}
 
 	// check that the basis is LagrangeCoset
 	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
@@ -1205,7 +1215,7 @@ func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, err
 
 	// prepare the evaluations of x^n-1 on the big domain's coset
 	xnMinusOneInverseLagrangeCoset := evaluateXnMinusOneDomainBigCoset(domains)
-	rho := int(domains[1].Cardinality / domains[0].Cardinality)
+	rho := int(bigDomain.Cardinality / smallDomain.Cardinality)
 
 	r := a.Coefficients()
 	n := uint64(len(r))
@@ -1219,7 +1229,7 @@ func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, err
 	})
 
 	// since a is in bit reverse order, ToRegular shouldn't do anything
-	a.ToCanonical(domains[1]).ToRegular()
+	a.ToCanonical(bigDomain).ToRegular()
 
 	return a, nil
 
