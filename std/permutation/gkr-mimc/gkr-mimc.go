@@ -1,7 +1,6 @@
 package gkr_mimc
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -10,7 +9,6 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
@@ -61,20 +59,32 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 	y := in1
 
 	curve := utils.FieldToCurve(api.Compiler().Field())
-	params, _, err := getParams(curve) // params is only used for its length
+	constants, deg, err := getConstants(curve)
 	if err != nil {
 		return nil, err
 	}
-	if err = RegisterGates(curve); err != nil {
-		return nil, err
-	}
-	gateNamer := newGateNamer(curve)
 
-	for i := range len(params) - 1 {
-		y = gkrApi.NamedGate(gateNamer.round(i), in0, y)
+	// Select sBox functions based on degree
+	var lastLayerSBox, nonLastLayerSBox func(*big.Int) gkr.GateFunction
+	switch deg {
+	case 5:
+		lastLayerSBox = addPow5Add
+		nonLastLayerSBox = addPow5
+	case 7:
+		lastLayerSBox = addPow7Add
+		nonLastLayerSBox = addPow7
+	case 17:
+		lastLayerSBox = addPow17Add
+		nonLastLayerSBox = addPow17
+	default:
+		return nil, fmt.Errorf("s-Box of degree %d not supported", deg)
 	}
 
-	y = gkrApi.NamedGate(gateNamer.round(len(params)-1), in0, y, in1)
+	for i := range len(constants) - 1 {
+		y = gkrApi.Gate(nonLastLayerSBox(&constants[i]), in0, y)
+	}
+
+	y = gkrApi.Gate(lastLayerSBox(&constants[len(constants)-1]), in0, y, in1)
 
 	gkrCircuit, err := gkrApi.Compile("POSEIDON2")
 	if err != nil {
@@ -93,47 +103,14 @@ func NewCompressor(api frontend.API) (hash.Compressor, error) {
 	return res, nil
 }
 
+// Deprecated: Gate registration now happens automatically via api.Gate().
 func RegisterGates(curves ...ecc.ID) error {
-	if len(curves) == 0 {
-		return errors.New("expected at least one curve")
-	}
-	for _, curve := range curves {
-		constants, deg, err := getParams(curve)
-		if err != nil {
-			return err
-		}
-		gateNamer := newGateNamer(curve)
-		var lastLayerSBox, nonLastLayerSBox func(*big.Int) gkr.GateFunction
-		switch deg {
-		case 5:
-			lastLayerSBox = addPow5Add
-			nonLastLayerSBox = addPow5
-		case 7:
-			lastLayerSBox = addPow7Add
-			nonLastLayerSBox = addPow7
-		case 17:
-			lastLayerSBox = addPow17Add
-			nonLastLayerSBox = addPow17
-		default:
-			return fmt.Errorf("s-Box of degree %d not supported", deg)
-		}
-
-		for i := range len(constants) - 1 {
-			if err = gkrgates.Register(nonLastLayerSBox(&constants[i]), 2, gkrgates.WithName(gateNamer.round(i)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
-				return fmt.Errorf("failed to register keyed GKR gate for round %d of MiMC on curve %s: %w", i, curve, err)
-			}
-		}
-
-		if err = gkrgates.Register(lastLayerSBox(&constants[len(constants)-1]), 3, gkrgates.WithName(gateNamer.round(len(constants)-1)), gkrgates.WithUnverifiedDegree(deg), gkrgates.WithCurves(curve)); err != nil {
-			return fmt.Errorf("failed to register keyed GKR gate for round %d of MiMC on curve %s: %w", len(constants)-1, curve, err)
-		}
-	}
 	return nil
 }
 
-// getParams returns the parameters for the MiMC encryption function for the given curve.
+// getConstants returns the parameters for the MiMC encryption function for the given curve.
 // It also returns the degree of the s-Box
-func getParams(curve ecc.ID) ([]big.Int, int, error) {
+func getConstants(curve ecc.ID) ([]big.Int, int, error) {
 	switch curve {
 	case ecc.BN254:
 		return bn254.GetConstants(), 5, nil
@@ -146,15 +123,6 @@ func getParams(curve ecc.ID) ([]big.Int, int, error) {
 	default:
 		return nil, -1, fmt.Errorf("unsupported curve ID: %s", curve)
 	}
-}
-
-type gateNamer string
-
-func newGateNamer(o fmt.Stringer) gateNamer {
-	return gateNamer("MiMC-" + o.String() + "-round-")
-}
-func (n gateNamer) round(i int) gkr.GateName {
-	return gkr.GateName(fmt.Sprintf("%s%d", string(n), i))
 }
 
 func addPow5(key *big.Int) gkr.GateFunction {

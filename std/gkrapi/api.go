@@ -34,7 +34,11 @@ func (api *API) NamedGate(gateName gkr.GateName, in ...gkr.Variable) gkr.Variabl
 	return gkr.Variable(len(api.circuit) - 1)
 }
 
+// Gate compiles and caches a gate function, then adds a wire using it.
+// The gate is identified by its compiled bytecode, so gates with identical
+// behavior (same operations and constants) are automatically deduplicated.
 func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
+	// TODO: replace global registry with local bytecode-based cache
 	if err := gkrgates.Register(gate, len(in)); err != nil {
 		panic(err)
 	}
