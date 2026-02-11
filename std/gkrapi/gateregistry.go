@@ -80,7 +80,10 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gateID {
 	r.tester.SetGate(bytecode, nbIn)
 
 	g := gkrtypes.RegisteredGate{
-		Evaluate:    gkrtypes.BothExecutables{},
+		Evaluate: gkrtypes.BothExecutables{
+			Bytecode:      bytecode,
+			SnarkFriendly: f,
+		},
 		NbIn:        nbIn,
 		Degree:      r.tester.FindDegree(),
 		SolvableVar: -1,
@@ -101,7 +104,7 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gateID {
 	}
 
 	id := gateID(len(r.gates))
-	r.gates = append(r.gates)
+	r.gates = append(r.gates, &g)
 	r.ids[ptr] = append(r.ids[ptr], id)
 
 	return id
