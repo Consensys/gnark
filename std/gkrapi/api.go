@@ -13,6 +13,7 @@ type API struct {
 	circuit     gkrtypes.RegisteredCircuit
 	assignments gadget.WireAssignment
 	parentApi   frontend.API
+	gates       map[string]gkr.GateFunction
 }
 
 func frontendVarToInt(a gkr.Variable) int {
@@ -34,15 +35,14 @@ func (api *API) NamedGate(gateName gkr.GateName, in ...gkr.Variable) gkr.Variabl
 	return gkr.Variable(len(api.circuit) - 1)
 }
 
-// Gate compiles and caches a gate function, then adds a wire using it.
-// The gate is identified by its compiled bytecode, so gates with identical
-// behavior (same operations and constants) are automatically deduplicated.
-func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
-	// TODO: replace global registry with local bytecode-based cache
-	if err := gkrgates.Register(gate, len(in)); err != nil {
+// Gate adds the given gate with the given inputs and returns its output wire.
+func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable {
+
+	// TODO: replace global registry with local bytecode-based ids
+	if err := gkrgates.Register(gate, len(inputs)); err != nil {
 		panic(err)
 	}
-	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)
+	return api.NamedGate(gkrgates.GetDefaultGateName(gate), inputs...)
 }
 
 func (api *API) namedGate2PlusIn(gate gkr.GateName, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {

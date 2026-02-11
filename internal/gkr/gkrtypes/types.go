@@ -2,7 +2,6 @@ package gkrtypes
 
 import (
 	"errors"
-	"slices"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -20,10 +19,9 @@ type (
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
 		Evaluate    GateExecutable
-		NbIn        int      // number of inputs
-		Degree      int      // total Degree of the polynomial
-		SolvableVar int      // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-		Curves      []ecc.ID // Curves that the gate is allowed to be used over
+		NbIn        int // number of inputs
+		Degree      int // total Degree of the polynomial
+		SolvableVar int // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 	}
 
 	Wire[GateExecutable any] struct {
@@ -79,17 +77,11 @@ func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, s
 		NbIn:        nbIn,
 		Degree:      degree,
 		SolvableVar: solvableVar,
-		Curves:      curves,
 	}
 }
 
 func (be BothExecutables) getByteCode() *GateBytecode {
 	return be.Bytecode
-}
-
-// SupportsCurve returns whether the gate can be used over the given curve.
-func (g *Gate[GateExecutable]) SupportsCurve(curve ecc.ID) bool {
-	return slices.Contains(g.Curves, curve)
 }
 
 // IsInput returns whether the wire is an input wire.
@@ -396,7 +388,6 @@ func ConvertGate[GateExecutable, TargetGateExecutable any](g *Gate[GateExecutabl
 		NbIn:        g.NbIn,
 		Degree:      g.Degree,
 		SolvableVar: g.SolvableVar,
-		Curves:      g.Curves,
 	}
 }
 

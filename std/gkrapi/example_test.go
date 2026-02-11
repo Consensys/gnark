@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
+	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to getID them
 	"github.com/consensys/gnark/test"
 )
 

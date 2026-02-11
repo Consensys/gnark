@@ -597,7 +597,7 @@ func newConstBytesPseudoHash(c int64, mod *big.Int) constBytesPseudoHash {
 }
 
 func init() {
-	// register custom (constant) "hash" functions
+	// getID custom (constant) "hash" functions
 	for _, v := range []int64{-1, -20} {
 		name := strconv.Itoa(int(v))
 		stdHash.RegisterCustomHash(name, func(api frontend.API) (stdHash.FieldHasher, error) {
