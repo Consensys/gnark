@@ -9,8 +9,9 @@ import { B } from "b.sol";
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
 /// @notice Supports verifying Groth16 proofs. Proofs can be in uncompressed
-/// (256 bytes) and compressed (128 bytes) format. A view function is provided
-/// to compress proofs.
+/// (256 bytes + optional commitments) and compressed (128 bytes) format.
+/// Uncompressed proofs are passed as bytes calldata matching the output of
+/// MarshalSolidity(). A view function is provided to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
 contract Verifier is IVerifier {
 
@@ -454,29 +455,54 @@ contract Verifier is IVerifier {
     /// Compress a proof.
     /// @notice Will revert with InvalidProof if the curve points are invalid,
     /// but does not verify the proof itself.
-    /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
-    /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
-    /// @param commitments Pedersen commitments from the proof.
-    /// @param commitmentPok proof of knowledge for the Pedersen commitments.
+    /// @param proof The uncompressed Groth16 proof. Points (A, B, C) encoded as in EIP-197
+    /// (256 bytes total).
+    /// Followed by Pedersen commitments (1 × 64 bytes) and proof of knowledge
+    /// (64 bytes) = 384 bytes total.
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
     /// @return compressedCommitments compressed Pedersen commitments from the proof.
     /// @return compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
-    function compressProof(
-        uint256[8] calldata proof,
-        uint256[2] calldata commitments,
-        uint256[2] calldata commitmentPok
-    )
+    function compressProof(bytes calldata proof)
     public view returns (
         uint256[4] memory compressed,
         uint256[1] memory compressedCommitments,
         uint256 compressedCommitmentPok
     ) {
-        compressed[0] = compress_g1(proof[0], proof[1]);
-        (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
-        compressed[3] = compress_g1(proof[6], proof[7]);
-        compressedCommitments[0] = compress_g1(commitments[0], commitments[1]);
-        compressedCommitmentPok = compress_g1(commitmentPok[0], commitmentPok[1]);
+        require(proof.length == 384, "invalid proof length");
+        uint256 a0;
+        uint256 a1;
+        assembly ("memory-safe") {
+            a0 := calldataload(proof.offset)
+            a1 := calldataload(add(proof.offset, 0x20))
+        }
+        compressed[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x60))
+            a1 := calldataload(add(proof.offset, 0x40))
+        }
+        uint256 b0;
+        uint256 b1;
+        assembly ("memory-safe") {
+            b0 := calldataload(add(proof.offset, 0xa0))
+            b1 := calldataload(add(proof.offset, 0x80))
+        }
+        (compressed[2], compressed[1]) = compress_g2(a0, a1, b0, b1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0xc0))
+            a1 := calldataload(add(proof.offset, 0xe0))
+        }
+        compressed[3] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x100))
+            a1 := calldataload(add(proof.offset, 0x120))
+        }
+        compressedCommitments[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x140))
+            a1 := calldataload(add(proof.offset, 0x160))
+        }
+        compressedCommitmentPok = compress_g1(a0, a1);
     }
 
     /// Verify a Groth16 proof with compressed points.
@@ -602,43 +628,46 @@ contract Verifier is IVerifier {
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was successfully verified.
-    /// @param proof the points (A, B, C) in EIP-197 format matching the output
-    /// of compressProof.
-    /// @param commitments the Pedersen commitments from the proof.
-    /// @param commitmentPok the proof of knowledge for the Pedersen commitments.
+    /// @param proof the serialized proof, containing the points (A, B, C) in EIP-197 format
+    /// (256 bytes total).
+    /// Followed by Pedersen commitments (1 × 64 bytes) and proof of knowledge
+    /// (64 bytes) = 384 bytes total.
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
-        uint256[8] calldata proof,
-        uint256[2] calldata commitments,
-        uint256[2] calldata commitmentPok,
+        bytes calldata proof,
         uint256[3] calldata input
     ) public view {
+        require(proof.length == 384, "invalid proof length");
+        // Copy commitment points from proof bytes into memory for publicInputMSM
+        uint256[2] memory commitments;
+        assembly ("memory-safe") {
+            calldatacopy(commitments, add(proof.offset, 0x100), 64)
+        }
+
         // HashToField
         uint256[1] memory publicCommitments;
         uint256[] memory publicAndCommitmentCommitted;
 
-            publicCommitments[0] = uint256(
-                keccak256(
-                    abi.encodePacked(
-                        commitments[0],
-                        commitments[1],
-                        publicAndCommitmentCommitted
-                    )
-                )
-            ) % R;
+        {
+            bytes memory hashInput = abi.encodePacked(
+                proof[0x100:0x140],
+                publicAndCommitmentCommitted
+            );
+            publicCommitments[0] = uint256(keccak256(hashInput)) % R;
+        }
 
         // Verify pedersen commitments
         bool success;
         assembly ("memory-safe") {
             let f := mload(0x40)
 
-            calldatacopy(f, commitments, 0x40) // Copy Commitments
+            calldatacopy(f, add(proof.offset, 0x100), 0x40) // Copy first commitment
             mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
             mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
             mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
             mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
-            calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
+            calldatacopy(add(f, 0xc0), add(proof.offset, 0x140), 0x40) // Copy PoK
             mstore(add(f, 0x100), PEDERSEN_G_X_1)
             mstore(add(f, 0x120), PEDERSEN_G_X_0)
             mstore(add(f, 0x140), PEDERSEN_G_Y_1)
@@ -664,7 +693,7 @@ contract Verifier is IVerifier {
 
             // Copy points (A, B, C) to memory. They are already in correct encoding.
             // This is pairing e(A, B) and G1 of e(C, -δ).
-            calldatacopy(f, proof, 0x100)
+            calldatacopy(f, proof.offset, 0x100)
 
             // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
             // OPT: This could be better done using a single codecopy, but
