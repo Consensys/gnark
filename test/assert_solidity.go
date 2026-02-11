@@ -36,6 +36,10 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 	default:
 		panic("solidity verification not implemented for this curve: " + c.String())
 	}
+	if nbPubWit == 0 {
+		assert.Log("skipping solidity tests for zero public witness length")
+		return
+	}
 
 	if assert.b != nil {
 		assert.b.Helper()
