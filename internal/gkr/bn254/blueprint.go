@@ -318,7 +318,6 @@ func (b *BlueprintProve) UpdateInstructionTree(inst constraint.Instruction, tree
 // BlueprintGetAssignment is a BN254-specific blueprint for retrieving wire assignments.
 type BlueprintGetAssignment struct {
 	SolveBlueprintID constraint.BlueprintID
-	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
 
 	lock sync.Mutex
 }
@@ -406,7 +405,6 @@ func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compil
 	// Create and register GetAssignment blueprint
 	getAssignment := &BlueprintGetAssignment{
 		SolveBlueprintID: solveID,
-		SolveBlueprint:   solve,
 	}
 	getAssignmentID := compiler.AddBlueprint(getAssignment)
 
