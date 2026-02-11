@@ -82,6 +82,9 @@ func TestP256VerifyCircuit(t *testing.T) {
 }
 
 func TestP256VerifyMockedArithmetization(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	assert := test.NewAssert(t)
 	data, err := os.ReadFile("test_vectors/p256verify_vectors.json")
 	assert.NoError(err, "read vectors.json")

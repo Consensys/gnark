@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/eisenstein"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls12381_fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -17,7 +18,6 @@ import (
 	secp_fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	stark_fp "github.com/consensys/gnark-crypto/ecc/stark-curve/fp"
-	"github.com/consensys/gnark-crypto/field/eisenstein"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
