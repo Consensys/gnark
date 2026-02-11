@@ -130,12 +130,13 @@ func BenchmarkGkrMiMC(b *testing.B) {
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	require.NoError(b, err)
 
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	require.NoError(b, err)
+
 	b.ResetTimer()
 
 	for b.Loop() {
-		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		_, err = cs.Solve(w)
 		require.NoError(b, err)
-
-		require.NoError(b, cs.IsSolved(w))
 	}
 }
