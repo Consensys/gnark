@@ -30,13 +30,15 @@ type circuitEvaluator struct {
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
 	Circuit     gkrtypes.SerializableCircuit
+	Gates       []*gkrtypes.Gate[*gkrtypes.GateBytecode]
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
-	assignments    WireAssignment   `cbor:"-"`
-	evaluatorPool  sync.Pool        `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
-	outputWires    []int            `cbor:"-"`
-	maxOutputLevel constraint.Level `cbor:"-"` // highest output level across all solve instances
+	circuit        gkrtypes.ExecutableCircuit `cbor:"-"` // converted from Circuit using Gates
+	assignments    WireAssignment             `cbor:"-"`
+	evaluatorPool  sync.Pool                  `cbor:"-"` // pool of circuitEvaluator, lazy-initialized
+	outputWires    []int                      `cbor:"-"`
+	maxOutputLevel constraint.Level           `cbor:"-"` // highest output level across all solve instances
 
 	lock sync.Mutex `cbor:"-"`
 }
@@ -47,12 +49,16 @@ var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
+	b.circuit = b.Circuit.ToExecutable(b.Gates)
+	b.circuit.OutputsList()
+	b.outputWires = b.circuit.Outputs()
+
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
-			evaluators: make([]gateEvaluator, len(b.Circuit)),
+			evaluators: make([]gateEvaluator, len(b.circuit)),
 		}
-		for wI := range b.Circuit {
-			w := &b.Circuit[wI]
+		for wI := range b.circuit {
+			w := &b.circuit[wI]
 			if !w.IsInput() {
 				ce.evaluators[wI] = newGateEvaluator(w.Gate.Evaluate, len(w.Inputs))
 			}
@@ -91,8 +97,8 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 	}
 
 	// Process all wires in topological order (circuit is already sorted)
-	for wI := range b.Circuit {
-		w := &b.Circuit[wI]
+	for wI := range b.circuit {
+		w := &b.circuit[wI]
 
 		if w.IsInput() {
 			val, delta := s.Read(calldata)
@@ -139,9 +145,12 @@ func (b *BlueprintSolve) NbConstraints() int {
 }
 
 // NbOutputs implements Blueprint
-func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
+func (b *BlueprintSolve) NbOutputs(constraint.Instruction) int {
+
+	execCircuit := b.Circuit.ToExecutable(b.Gates)
+	execCircuit.OutputsList()
+	b.outputWires = b.circuit.Outputs()
+
 	return len(b.outputWires)
 }
 
@@ -242,7 +251,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
 	// Call the BW6_761-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(solveBlueprint.Circuit, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.circuit, assignments, fsSettings)
 	if err != nil {
 		return fmt.Errorf("bw6_761 prove failed: %w", err)
 	}
@@ -272,7 +281,7 @@ func (b *BlueprintProve) proofSize() int {
 	}
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
-	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
+	return b.SolveBlueprint.circuit.ProofSize(logNbInstances)
 }
 
 // NbOutputs implements Blueprint
@@ -389,9 +398,9 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BW6_761
-func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrtypes.SerializableCircuit, gates []*gkrtypes.Gate[*gkrtypes.GateBytecode], hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
 	// Create and register solve blueprint
-	solve := &BlueprintSolve{Circuit: circuit}
+	solve := &BlueprintSolve{Circuit: circuit, Gates: gates}
 	solveID := compiler.AddBlueprint(solve)
 
 	// Create and register prove blueprint
