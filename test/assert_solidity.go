@@ -72,7 +72,18 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 	// len(vk.K) - 1 == len(publicWitness) + len(commitments)
 	numOfCommitments := vk.NbPublicWitness() - nbPubWit
 
-	checkerOpts := []string{"verify"}
+	// map ecc.ID to the curve name expected by gnark-solidity-checker
+	var curveName string
+	switch c {
+	case ecc.BN254:
+		curveName = "bn254"
+	case ecc.BLS12_381:
+		curveName = "bls12-381"
+	default:
+		panic("unsupported curve for solidity checker: " + c.String())
+	}
+
+	checkerOpts := []string{"verify", "--curve", curveName}
 	if b == backend.GROTH16 {
 		checkerOpts = append(checkerOpts, "--groth16")
 	} else if b == backend.PLONK {
