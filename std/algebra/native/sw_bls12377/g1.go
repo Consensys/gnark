@@ -411,7 +411,7 @@ func (p *G1Affine) AssertIsEqual(api frontend.API, other G1Affine) {
 	api.AssertIsEqual(p.Y, other.Y)
 }
 
-// DoubleAndAdd computes 2*p1+p in affine coords
+// DoubleAndAdd computes 2*p1+p2 in affine coords
 func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -424,6 +424,43 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 	// omit y3 computation
 	// compute lambda2 = lambda1+2*y1/(x3-x1)
 	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), api.Sub(x3, p1.X))
+	l2 = api.Add(l2, l1)
+
+	// compute x4 =lambda2**2-x1-x3
+	x4 := api.Mul(l2, l2)
+	x4 = api.Sub(x4, api.Add(p1.X, x3))
+
+	// compute y4 = lambda2*(x4 - x1)-y1
+	y4 := api.Sub(x4, p1.X)
+	y4 = api.Mul(l2, y4)
+	y4 = api.Sub(y4, p1.Y)
+
+	p.X = x4
+	p.Y = y4
+
+	return p
+}
+
+// DoubleAndAddUnified computes 2*p1+p2 in affine coords, handling edge cases where p1.X == p2.X.
+// When p1.X == p2.X, uses safe dummy values to avoid division by zero. The result is garbage
+// but the caller must handle this by selecting away from the result.
+func (p *G1Affine) DoubleAndAddUnified(api frontend.API, p1, p2 *G1Affine) *G1Affine {
+
+	// compute lambda1 = (y2-y1)/(x2-x1)
+	denom1 := api.Sub(p1.X, p2.X)
+	xEqual := api.IsZero(denom1)
+	denom1 = api.Select(xEqual, 1, denom1)
+	l1 := api.DivUnchecked(api.Sub(p1.Y, p2.Y), denom1)
+
+	// compute x3 = lambda1**2-x1-x2
+	x3 := api.Mul(l1, l1)
+	x3 = api.Sub(x3, api.Add(p1.X, p2.X))
+
+	// compute lambda2 = lambda1+2*y1/(x3-x1)
+	denom2 := api.Sub(x3, p1.X)
+	denom2Zero := api.IsZero(denom2)
+	denom2 = api.Select(denom2Zero, 1, denom2)
+	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), denom2)
 	l2 = api.Add(l2, l1)
 
 	// compute x4 =lambda2**2-x1-x3
@@ -464,167 +501,23 @@ func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	return p
 }
 
-// jointScalarMulComplete computes [s]Q + [t]R using a hint and Shamir's trick verification.
+// jointScalarMulComplete computes [s]Q + [t]R using individual scalar multiplications.
 // It handles edge cases: Q=(0,0), R=(0,0), s=0, t=0.
 func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
-	cc := getInnerCurveConfig(api.Compiler().Field())
+	// Compute [s]Q and [t]R separately using varScalarMul with complete arithmetic.
+	// varScalarMul handles all edge cases (zero scalar, zero point) correctly.
+	var sQ, tR G1Affine
+	sQ.varScalarMul(api, Q, s, algopts.WithCompleteArithmetic())
+	tR.varScalarMul(api, R, t, algopts.WithCompleteArithmetic())
 
-	// handle zero scalars and zero points
-	sIsZero := api.IsZero(s)
-	tIsZero := api.IsZero(t)
-	QIsZero := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-	RIsZero := api.And(api.IsZero(R.X), api.IsZero(R.Y))
-
-	// sContribZero = s=0 OR Q=(0,0)
-	// tContribZero = t=0 OR R=(0,0)
-	sContribZero := api.Or(sIsZero, QIsZero)
-	tContribZero := api.Or(tIsZero, RIsZero)
-
-	// when s contribution is zero, set s=1 to avoid issues with scalar decomposition
-	_s := api.Select(sContribZero, 1, s)
-	// when t contribution is zero, set t=1 to avoid issues with scalar decomposition
-	_t := api.Select(tContribZero, 1, t)
-
-	// Dummy points for edge cases - must be different to avoid table construction issues
-	dummyQ := G1Affine{X: 1, Y: 1}
-	dummyR := G1Affine{X: 2, Y: 1}
-
-	// when Q contribution is zero, assign dummyQ
-	_Q := Q
-	_Q.Select(api, sContribZero, dummyQ, Q)
-	// when R contribution is zero, assign dummyR
-	_R := R
-	_R.Select(api, tContribZero, dummyR, R)
-
-	// Get the result from hint - handles all edge cases correctly
-	point, err := api.Compiler().NewHint(jointScalarMulG1Hint, 2, Q.X, Q.Y, R.X, R.Y, s, t)
-	if err != nil {
-		panic(err)
-	}
-	result := G1Affine{X: point[0], Y: point[1]}
-
-	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, _s)
-	if err != nil {
-		panic(err)
-	}
-	s1, s2 := sd[0], sd[1]
-
-	td, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, _t)
-	if err != nil {
-		panic(err)
-	}
-	t1, t2 := td[0], td[1]
-
-	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), _s)
-	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), _t)
-
-	nbits := cc.lambda.BitLen()
-
-	s1bits := api.ToBinary(s1, nbits)
-	s2bits := api.ToBinary(s2, nbits)
-	t1bits := api.ToBinary(t1, nbits)
-	t2bits := api.ToBinary(t2, nbits)
-
-	// precompute -Q, -Φ(Q), Φ(Q)
-	var tableQ, tablePhiQ [2]G1Affine
-	tableQ[1] = _Q
-	tableQ[0].Neg(api, _Q)
-	cc.phi1(api, &tablePhiQ[1], &_Q)
-	tablePhiQ[0].Neg(api, tablePhiQ[1])
-	// precompute -R, -Φ(R), Φ(R)
-	var tableR, tablePhiR [2]G1Affine
-	tableR[1] = _R
-	tableR[0].Neg(api, _R)
-	cc.phi1(api, &tablePhiR[1], &_R)
-	tablePhiR[0].Neg(api, tablePhiR[1])
-	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
-	// We use AddUnified for table precomputation to handle edge cases where
-	// tableQ and tableR entries might be equal (e.g., when computing Q-R with Q=R).
-	var tableS, tablePhiS [4]G1Affine
-	tableS[0] = tableQ[0]
-	tableS[0].AddUnified(api, tableR[0])
-	tableS[1].Neg(api, tableS[0])
-	tableS[2] = _Q
-	tableS[2].AddUnified(api, tableR[0])
-	tableS[3].Neg(api, tableS[2])
-	cc.phi1(api, &tablePhiS[0], &tableS[0])
-	cc.phi1(api, &tablePhiS[1], &tableS[1])
-	cc.phi1(api, &tablePhiS[2], &tableS[2])
-	cc.phi1(api, &tablePhiS[3], &tableS[3])
-
-	// suppose first bit is 1 and set:
-	// Acc = Q + R + Φ(Q) + Φ(R) = -Φ²(Q+R)
-	var Acc G1Affine
-	cc.phi2Neg(api, &Acc, &tableS[1])
-
-	// We add the point H=(0,1) on BLS12-377 of order 2 to avoid incomplete
-	// additions in the loop by forcing Acc to be different than the stored B.
-	// Since the loop size N=nbits-1 is even, [2^N]H = (0,1).
-	H := G1Affine{X: 0, Y: 1}
-	Acc.AddAssign(api, H)
-
-	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
-	var B G1Affine
-	for i := nbits - 1; i > 0; i-- {
-		B.X = api.Select(api.Xor(s1bits[i], t1bits[i]), tableS[2].X, tableS[0].X)
-		B.Y = api.Lookup2(s1bits[i], t1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
-		Acc.DoubleAndAdd(api, &Acc, &B)
-		B.X = api.Select(api.Xor(s2bits[i], t2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
-		B.Y = api.Lookup2(s2bits[i], t2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
-		Acc.AddAssign(api, B)
-	}
-
-	// i = 0
-	// subtract the initial point from the accumulator when first bit was 0
-	// use AddUnified for complete arithmetic at i=0
-	tableQ[0].AddUnified(api, Acc)
-	Acc.Select(api, s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0].AddUnified(api, Acc)
-	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-	tableR[0].AddUnified(api, Acc)
-	Acc.Select(api, t1bits[0], Acc, tableR[0])
-	tablePhiR[0].AddUnified(api, Acc)
-	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
-
-	// subtract [2^N]H = (0,1) since we added H at the beginning
-	Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
-
-	// Acc now equals [_s]*_Q + [_t]*_R where:
-	// - _s = 1 if sContribZero else s
-	// - _t = 1 if tContribZero else t
-	// - _Q = dummyQ if sContribZero else Q
-	// - _R = dummyR if tContribZero else R
-	//
-	// The hint computes result = [s]*Q + [t]*R correctly for all cases.
-	// For the normal case (no edge cases), Acc = result and we verify directly.
-	// For edge cases, Acc != result because Acc uses dummy values.
-	//
-	// Verification strategy:
-	// - Normal case: verify Acc == result
-	// - Edge cases: verify result constraints (bothZero => result=(0,0))
-	//   and trust the hint for partial edge cases (the hint is constrained
-	//   by how the result is used in the calling context)
-
-	anyEdgeCase := api.Or(sContribZero, tContribZero)
-	bothZero := api.And(sContribZero, tContribZero)
-
-	// Verify: in bothZero case, result must be (0,0)
-	// We check this by asserting that if bothZero, then result.X and result.Y must be 0
-	resultXForCheck := api.Select(bothZero, result.X, 0)
-	resultYForCheck := api.Select(bothZero, result.Y, 0)
-	api.AssertIsEqual(resultXForCheck, 0)
-	api.AssertIsEqual(resultYForCheck, 0)
-
-	// For the main verification:
-	// - In non-edge-case: expected = Acc, verify Acc == result
-	// - In edge case: expected = result, so assertion trivially passes
-	//   (we trust the hint, verified by bothZero check above and usage context)
-	var expected G1Affine
-	expected.Select(api, anyEdgeCase, result, Acc)
-	expected.AssertIsEqual(api, result)
-
-	p.X = result.X
-	p.Y = result.Y
+	// Add the results using AddUnified which handles all cases including:
+	// - sQ = (0,0) (returns tR)
+	// - tR = (0,0) (returns sQ)
+	// - sQ = -tR (returns (0,0))
+	// - sQ = tR (doubles)
+	p.X = sQ.X
+	p.Y = sQ.Y
+	p.AddUnified(api, tR)
 
 	return p
 }

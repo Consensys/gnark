@@ -407,6 +407,12 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return c.doubleAndAddGeneric(p, q, false)
 }
 
+// doubleAndAddUnified is the same as doubleAndAdd but handles the edge case where p.X == q.X.
+// ⚠️  The result is undefined when p == q or p == -q.
+func (c *Curve[B, S]) doubleAndAddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleAndAddGeneric(p, q, true)
+}
+
 func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *AffinePoint[B] {
 
 	mone := c.baseApi.NewElement(-1)
@@ -1765,7 +1771,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		// Use unified version for complete arithmetic to handle edge cases where
+		// Acc.X == Bi.X (can happen with dummy points in edge cases)
+		if cfg.CompleteArithmetic {
+			Acc = c.doubleAndAddUnified(Acc, Bi)
+		} else {
+			Acc = c.doubleAndAdd(Acc, Bi)
+		}
 	}
 
 	// i = 0
