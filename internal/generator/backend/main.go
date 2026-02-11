@@ -47,27 +47,6 @@ func main() {
 		CurveID:     "BW6_761",
 		ElementType: "U64",
 	}
-	bls24_315 := templateData{
-		RootPath:    "../../../backend/{?}/bls24-315/",
-		CSPath:      "../../../constraint/bls24-315/",
-		Curve:       "BLS24-315",
-		CurveID:     "BLS24_315",
-		ElementType: "U64",
-	}
-	bls24_317 := templateData{
-		RootPath:    "../../../backend/{?}/bls24-317/",
-		CSPath:      "../../../constraint/bls24-317/",
-		Curve:       "BLS24-317",
-		CurveID:     "BLS24_317",
-		ElementType: "U64",
-	}
-	bw6_633 := templateData{
-		RootPath:    "../../../backend/{?}/bw6-633/",
-		CSPath:      "../../../constraint/bw6-633/",
-		Curve:       "BW6-633",
-		CurveID:     "BW6_633",
-		ElementType: "U64",
-	}
 	tiny_field := templateData{
 		RootPath:          "../../../internal/smallfields/tinyfield/",
 		CSPath:            "../../../constraint/tinyfield",
@@ -102,9 +81,6 @@ func main() {
 		bls12_381,
 		bn254,
 		bw6_761,
-		bls24_315,
-		bls24_317,
-		bw6_633,
 		tiny_field,
 		baby_bear_field,
 		koala_bear_field,
@@ -266,7 +242,7 @@ func main() {
 	runCmd("gofmt", "-w", "../../../")
 
 	// run goimports on whole directory
-	runCmd("goimports", "-w", "../../../")
+	runGoImports()
 }
 
 func runCmd(name string, arg ...string) {
@@ -275,6 +251,17 @@ func runCmd(name string, arg ...string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	assertNoError(cmd.Run())
+}
+
+func runGoImports() {
+	fmt.Println("go tool goimports", "-w", "../../../")
+	cmd := exec.Command("go", "tool", "goimports", "-w", "../../../")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+
 }
 
 type templateData struct {

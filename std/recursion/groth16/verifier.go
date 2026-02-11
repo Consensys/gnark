@@ -7,8 +7,6 @@ import (
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
@@ -16,7 +14,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
-	groth16backend_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	groth16backend_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 	"github.com/consensys/gnark/backend/witness"
@@ -27,7 +24,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/commitments/pedersen"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
@@ -104,25 +100,6 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 			}
 		}
 		ar.CommitmentPok, err = pedersen.ValueOfKnowledgeProof[sw_bls12381.G1Affine](tProof.CommitmentPok)
-		if err != nil {
-			return ret, fmt.Errorf("commitment pok: %w", err)
-		}
-	case *Proof[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-		tProof, ok := proof.(*groth16backend_bls24315.Proof)
-		if !ok {
-			return ret, fmt.Errorf("expected bls24315.Proof, got %T", proof)
-		}
-		ar.Ar = sw_bls24315.NewG1Affine(tProof.Ar)
-		ar.Krs = sw_bls24315.NewG1Affine(tProof.Krs)
-		ar.Bs = sw_bls24315.NewG2Affine(tProof.Bs)
-		ar.Commitments = make([]pedersen.Commitment[sw_bls24315.G1Affine], len(tProof.Commitments))
-		for i := range tProof.Commitments {
-			ar.Commitments[i], err = pedersen.ValueOfCommitment[sw_bls24315.G1Affine](tProof.Commitments[i])
-			if err != nil {
-				return ret, fmt.Errorf("commitment[%d]: %w", i, err)
-			}
-		}
-		ar.CommitmentPok, err = pedersen.ValueOfKnowledgeProof[sw_bls24315.G1Affine](tProof.CommitmentPok)
 		if err != nil {
 			return ret, fmt.Errorf("commitment pok: %w", err)
 		}
@@ -275,34 +252,6 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 			}
 		}
 		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
-		}
-		// compute E
-		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls24315.NewGTEl(e)
-		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
-		for i := range s.G1.K {
-			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
-		}
-		var deltaNeg, gammaNeg bls24315.G2Affine
-		deltaNeg.Neg(&tVk.G2.Delta)
-		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
-		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
-		s.CommitmentKeys = make([]pedersen.VerifyingKey[sw_bls24315.G2Affine], len(tVk.CommitmentKeys))
-		for i := range tVk.CommitmentKeys {
-			s.CommitmentKeys[i], err = pedersen.ValueOfVerifyingKey[sw_bls24315.G2Affine](&tVk.CommitmentKeys[i])
-			if err != nil {
-				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
-			}
-		}
-		ret.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -427,34 +376,6 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 			}
 		}
 		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
-		}
-		// compute E
-		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls24315.NewGTEl(e)
-		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
-		for i := range s.G1.K {
-			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
-		}
-		var deltaNeg, gammaNeg bls24315.G2Affine
-		deltaNeg.Neg(&tVk.G2.Delta)
-		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bls24315.NewG2AffineFixed(deltaNeg)
-		s.G2.GammaNeg = sw_bls24315.NewG2AffineFixed(gammaNeg)
-		s.CommitmentKeys = make([]pedersen.VerifyingKey[sw_bls24315.G2Affine], len(tVk.CommitmentKeys))
-		for i := range tVk.CommitmentKeys {
-			s.CommitmentKeys[i], err = pedersen.ValueOfVerifyingKeyFixed[sw_bls24315.G2Affine](&tVk.CommitmentKeys[i])
-			if err != nil {
-				return ret, fmt.Errorf("commitment key[%d]: %w", i, err)
-			}
-		}
-		s.PublicAndCommitmentCommitted = tVk.PublicAndCommitmentCommitted
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -542,14 +463,6 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 		}
 		for i := range vect {
 			s.Public = append(s.Public, sw_bls12381.NewScalar(vect[i]))
-		}
-	case *Witness[sw_bls24315.ScalarField]:
-		vect, ok := vec.(fr_bls24315.Vector)
-		if !ok {
-			return ret, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
-		}
-		for i := range vect {
-			s.Public = append(s.Public, sw_bls24315.NewScalar(vect[i]))
 		}
 	case *Witness[sw_bw6761.ScalarField]:
 		vect, ok := vec.(fr_bw6761.Vector)

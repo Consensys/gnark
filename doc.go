@@ -9,9 +9,6 @@
 //   - BLS12_377
 //   - BLS12_381
 //   - BW6_761
-//   - BLS24_315
-//   - BW6_633
-//   - BLS24_317
 //
 // User documentation
 // https://docs.gnark.consensys.net
@@ -30,9 +27,6 @@ func Curves() []ecc.ID {
 		ecc.BN254,
 		ecc.BLS12_377,
 		ecc.BLS12_381,
-		ecc.BLS24_315,
-		ecc.BLS24_317,
 		ecc.BW6_761,
-		ecc.BW6_633,
 	}
 }

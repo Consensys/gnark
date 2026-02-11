@@ -39,7 +39,9 @@ func Permute(uapi *uints.BinaryField[uints.U32], currentHash [8]uints.U32, p [64
 		w[i] = uapi.Add(t1, w[i-7], t2, w[i-16])
 	}
 
-	a, b, c, d, e, f, g, h := currentHash[0], currentHash[1], currentHash[2], currentHash[3], currentHash[4], currentHash[5], currentHash[6], currentHash[7]
+	ih0, ih1, ih2, ih3 := currentHash[0], currentHash[1], currentHash[2], currentHash[3]
+	ih4, ih5, ih6, ih7 := currentHash[4], currentHash[5], currentHash[6], currentHash[7]
+	a, b, c, d, e, f, g, h := ih0, ih1, ih2, ih3, ih4, ih5, ih6, ih7
 
 	for i := 0; i < 64; i++ {
 		t1 := uapi.Add(
@@ -77,14 +79,14 @@ func Permute(uapi *uints.BinaryField[uints.U32], currentHash [8]uints.U32, p [64
 		a = uapi.Add(t1, t2)
 	}
 
-	currentHash[0] = uapi.Add(currentHash[0], a)
-	currentHash[1] = uapi.Add(currentHash[1], b)
-	currentHash[2] = uapi.Add(currentHash[2], c)
-	currentHash[3] = uapi.Add(currentHash[3], d)
-	currentHash[4] = uapi.Add(currentHash[4], e)
-	currentHash[5] = uapi.Add(currentHash[5], f)
-	currentHash[6] = uapi.Add(currentHash[6], g)
-	currentHash[7] = uapi.Add(currentHash[7], h)
-
-	return currentHash
+	return [8]uints.U32{
+		uapi.Add(ih0, a),
+		uapi.Add(ih1, b),
+		uapi.Add(ih2, c),
+		uapi.Add(ih3, d),
+		uapi.Add(ih4, e),
+		uapi.Add(ih5, f),
+		uapi.Add(ih6, g),
+		uapi.Add(ih7, h),
+	}
 }

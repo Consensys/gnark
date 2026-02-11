@@ -9,10 +9,7 @@ import (
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	jubjub "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	babyjubjub "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark/constraint/solver"
 )
@@ -142,29 +139,8 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 		P.ScalarMultiplication(&P, inputs[2])
 		P.X.BigInt(outputs[0])
 		P.Y.BigInt(outputs[1])
-	} else if field.Cmp(ecc.BLS24_315.ScalarField()) == 0 {
-		var P edbls24315.PointAffine
-		P.X.SetBigInt(inputs[0])
-		P.Y.SetBigInt(inputs[1])
-		P.ScalarMultiplication(&P, inputs[2])
-		P.X.BigInt(outputs[0])
-		P.Y.BigInt(outputs[1])
-	} else if field.Cmp(ecc.BLS24_317.ScalarField()) == 0 {
-		var P edbls24317.PointAffine
-		P.X.SetBigInt(inputs[0])
-		P.Y.SetBigInt(inputs[1])
-		P.ScalarMultiplication(&P, inputs[2])
-		P.X.BigInt(outputs[0])
-		P.Y.BigInt(outputs[1])
 	} else if field.Cmp(ecc.BW6_761.ScalarField()) == 0 {
 		var P edbw6761.PointAffine
-		P.X.SetBigInt(inputs[0])
-		P.Y.SetBigInt(inputs[1])
-		P.ScalarMultiplication(&P, inputs[2])
-		P.X.BigInt(outputs[0])
-		P.Y.BigInt(outputs[1])
-	} else if field.Cmp(ecc.BW6_633.ScalarField()) == 0 {
-		var P edbw6633.PointAffine
 		P.X.SetBigInt(inputs[0])
 		P.Y.SetBigInt(inputs[1])
 		P.ScalarMultiplication(&P, inputs[2])

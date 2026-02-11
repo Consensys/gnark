@@ -281,14 +281,14 @@ func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := MillerLoop(pr.api, inP, inQ)
+	res, err := MillerLoopTorus(pr.api, inP, inQ)
 	return &res, err
 }
 
 // FinalExponentiation performs the final exponentiation on the target group
 // element. It doesn't modify the input.
 func (pr *Pairing) FinalExponentiation(e *GT) *GT {
-	res := FinalExponentiation(pr.api, *e)
+	res := FinalExponentiationTorus(pr.api, *e)
 	return &res
 }
 

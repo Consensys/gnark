@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/algebra/native/sw_grumpkin"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -43,12 +42,6 @@ func GetCurve[FR emulated.FieldParams, G1El G1ElementT](api frontend.API) (Curve
 		*s = c
 	case *Curve[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
 		c, err := sw_bls12377.NewCurve(api)
-		if err != nil {
-			return ret, fmt.Errorf("new curve: %w", err)
-		}
-		*s = c
-	case *Curve[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
-		c, err := sw_bls24315.NewCurve(api)
 		if err != nil {
 			return ret, fmt.Errorf("new curve: %w", err)
 		}
@@ -97,9 +90,6 @@ func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT](api frontend.
 		*s = p
 	case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		p := sw_bls12377.NewPairing(api)
-		*s = p
-	case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-		p := sw_bls24315.NewPairing(api)
 		*s = p
 	default:
 		return ret, errors.New("unknown type parametrisation")
