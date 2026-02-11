@@ -42,7 +42,7 @@ type Element[T FieldParams] struct {
 	// bitsDecomposition caches the bit decomposition of the element to avoid
 	// redundant ToBits calls. Once computed, the bits are stored here and
 	// reused on subsequent ToBits calls on the same element.
-	bitsDecomposition []frontend.Variable
+	bitsDecomposition []frontend.Variable `gnark:"-"`
 
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`

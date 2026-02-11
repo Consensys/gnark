@@ -14,6 +14,11 @@ import (
 // The bit decomposition is cached in the Element to avoid redundant computation
 // when the same element is decomposed multiple times.
 func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
+	// Save cached bits BEFORE enforceWidthConditional, which calls Initialize
+	// and resets the cache for deterministic recompilation. This matches the
+	// pattern used by modReduced flag.
+	cachedBits := a.bitsDecomposition
+
 	f.enforceWidthConditional(a)
 	ba, aConst := f.constantValue(a)
 	if aConst {
@@ -24,11 +29,12 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 		return res
 	}
 
-	// Check if we have cached bits for this element
-	if a.bitsDecomposition != nil {
-		// Return a copy to prevent callers from mutating the cached bits
-		res := make([]frontend.Variable, len(a.bitsDecomposition))
-		copy(res, a.bitsDecomposition)
+	// Check if we had cached bits (saved before enforceWidthConditional reset them)
+	if cachedBits != nil {
+		// Restore cache and return a copy to prevent callers from mutating
+		a.bitsDecomposition = cachedBits
+		res := make([]frontend.Variable, len(cachedBits))
+		copy(res, cachedBits)
 		return res
 	}
 
