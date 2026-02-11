@@ -122,7 +122,7 @@ func (t *GateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 }
 
 // FindDegree returns the degree of the gate function, or -1 if it fails.
-// Failure could be due to the function not being a polynomial at all, or being constantly zero.
+// Failure can be due to the function not being a polynomial at all, or being constantly zero.
 func (t *GateTester) FindDegree() int {
 	p := t.fitPoly(ecc.NextPowerOfTwo(uint64(t.evaluator.gate.EstimateDegree(t.nbIn)) + 1))
 	return len(p) - 1
