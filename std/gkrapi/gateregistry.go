@@ -98,9 +98,6 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gkrtypes.GateID {
 	if g.Degree == -1 {
 		panic("cannot find degree for gate")
 	}
-	if g.SolvableVar == -1 {
-		panic("cannot find solvable variable for gate")
-	}
 
 	id := gkrtypes.GateID(len(r.gates))
 	r.gates = append(r.gates, &g)
