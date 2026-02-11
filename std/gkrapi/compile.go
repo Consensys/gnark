@@ -25,7 +25,8 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	circuit              gkrtypes.RegisteredCircuit
+	circuit              gkrtypes.GadgetCircuit
+	gates                []gkrtypes.GateBytecode
 	assignments          gadget.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
@@ -43,19 +44,15 @@ type Circuit struct {
 // New creates a new GKR API
 func New(api frontend.API) (*API, error) {
 	return &API{
-		circuit:   make(gkrtypes.RegisteredCircuit, 0),
-		parentApi: api,
+		parentApi:    api,
+		gateRegistry: newGateRegistry(utils.FieldToCurve(api.Compiler().Field())),
 	}, nil
 }
 
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	// Input wires have Identity gate with empty Inputs slice
-	api.circuit = append(api.circuit, gkrtypes.RegisteredWire{
-		Gate:   gkrtypes.Identity(),
-		Inputs: []int{},
-	})
+	api.circuit = append(api.circuit, gkrtypes.SerializableWire{})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -75,14 +72,11 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
-		circuit:     api.circuit,
+		circuit:     api.gateRegistry.toGadgetCircuit(api.circuit),
 		assignments: make(gadget.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
 		hashName:    fiatshamirHashName,
 	}
-
-	// Convert registered circuit to serializable circuit (bytecode only) for blueprints
-	serializableCircuit := gkrtypes.ToSerializable(api.circuit)
 
 	// Dispatch to curve-specific factory
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
@@ -90,13 +84,13 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 
 	switch curveID {
 	case ecc.BN254:
-		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbn254.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_377:
-		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12377.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
-		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12381.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
-		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6761.NewBlueprints(api.circuit, fiatshamirHashName, compiler)
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
@@ -204,22 +198,10 @@ func (c *Circuit) finalize(api frontend.API) error {
 
 	c.blueprints.Solve.SetNbInstances(uint32(c.nbInstances))
 
-	curve := utils.FieldToCurve(api.Compiler().Field())
-
-	// Convert registered circuit to gadget circuit (using GateFunction)
-	gadgetCircuit := gkrtypes.ToGadget(c.circuit)
-
-	// Check curve support
-	for i := range gadgetCircuit {
-		if !gadgetCircuit[i].Gate.SupportsCurve(curve) {
-			return fmt.Errorf("gate not usable over curve \"%s\"", curve)
-		}
-	}
-
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
-		gateIn := make([]frontend.Variable, gadgetCircuit.MaxGateNbIn())
-		for wI, w := range gadgetCircuit {
+		gateIn := make([]frontend.Variable, c.circuit.MaxGateNbIn())
+		for wI, w := range c.circuit {
 			if w.IsInput() {
 				continue
 			}
@@ -237,7 +219,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	if c.getInitialChallenges != nil {
-		return c.verify(api, gadgetCircuit, c.getInitialChallenges())
+		return c.verify(api, c.circuit, c.getInitialChallenges())
 	}
 
 	// default initial challenge is a commitment to all input and output values
@@ -250,7 +232,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		return c.verify(api, gadgetCircuit, []frontend.Variable{commitment})
+		return c.verify(api, c.circuit, []frontend.Variable{commitment})
 	}, insOuts...)
 
 	return nil

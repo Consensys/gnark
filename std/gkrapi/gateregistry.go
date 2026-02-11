@@ -15,16 +15,15 @@ import (
 )
 
 type (
-	gateID       uint16
 	gateRegistry struct {
-		ids    map[uintptr][]gateID // ids maps a gate function to gates defined using it.
+		ids    map[uintptr][]gkrtypes.GateID // ids maps a gate function to gates defined using it.
 		gates  []*gkrtypes.RegisteredGate
 		tester gateTester
 	}
 )
 
 const (
-	idIdentity gateID = iota
+	idIdentity gkrtypes.GateID = iota
 	idAdd2
 	idSub2
 	idNeg
@@ -41,7 +40,7 @@ var builtinGates = [...]*gkrtypes.RegisteredGate{
 
 func newGateRegistry(curve ecc.ID) gateRegistry {
 	res := gateRegistry{
-		ids:   make(map[uintptr][]gateID),
+		ids:   make(map[uintptr][]gkrtypes.GateID),
 		gates: slices.Clone(builtinGates[:]),
 	}
 
@@ -63,7 +62,7 @@ func newGateRegistry(curve ecc.ID) gateRegistry {
 
 // getID looks up f in the cache, adding it if necessary.
 // Gate ID is returned.
-func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gateID {
+func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gkrtypes.GateID {
 	bytecode, err := gkrtypes.CompileGateFunction(f, nbIn)
 	if err != nil {
 		panic(err)
@@ -103,11 +102,24 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gateID {
 		panic("cannot find solvable variable for gate")
 	}
 
-	id := gateID(len(r.gates))
+	id := gkrtypes.GateID(len(r.gates))
 	r.gates = append(r.gates, &g)
 	r.ids[ptr] = append(r.ids[ptr], id)
 
 	return id
+}
+
+func (r *gateRegistry) getGateFunction(id gkrtypes.GateID) gkr.GateFunction {
+	return r.gates[id].Evaluate.SnarkFriendly
+}
+
+func (r *gateRegistry) toGadgetCircuit(c gkrtypes.SerializableCircuit) gkrtypes.GadgetCircuit {
+	res := make(gkrtypes.GadgetCircuit, len(c))
+	for i := range c {
+		res[i].Inputs = c[i].Inputs
+		res[i].Gate = gkrtypes.ToGadgetGate(r.gates[c[i].Gate])
+	}
+	return res
 }
 
 type gateTester interface {

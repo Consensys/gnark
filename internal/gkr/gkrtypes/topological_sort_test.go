@@ -7,17 +7,17 @@ import (
 )
 
 func TestTopSortTrivial(t *testing.T) {
-	c := make(SerializableCircuit, 2)
+	c := make(ExecutableCircuit, 2)
 	c[0].Inputs = []int{1}
 	sorted := c.TopologicalSort()
-	assert.Equal(t, SerializableWires{&c[1], &c[0]}, sorted)
+	assert.Equal(t, ExecutableWires{&c[1], &c[0]}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
-	c := make(SerializableCircuit, 3)
+	c := make(ExecutableCircuit, 3)
 	c[0].Inputs = []int{1, 2}
 	sorted := c.TopologicalSort()
-	expected := SerializableWires{&c[1], &c[2], &c[0]}
+	expected := ExecutableWires{&c[1], &c[2], &c[0]}
 
 	assert.Equal(t, expected, sorted)
 	assert.Equal(t, c[0].NbUniqueOutputs, 0)
@@ -26,17 +26,17 @@ func TestTopSortSingleGate(t *testing.T) {
 }
 
 func TestTopSortDeep(t *testing.T) {
-	c := make(SerializableCircuit, 4)
+	c := make(ExecutableCircuit, 4)
 	c[0].Inputs = []int{2}
 	c[1].Inputs = []int{3}
 	c[2].Inputs = []int{}
 	c[3].Inputs = []int{0}
 	sorted := c.TopologicalSort()
-	assert.Equal(t, SerializableWires{&c[2], &c[0], &c[3], &c[1]}, sorted)
+	assert.Equal(t, ExecutableWires{&c[2], &c[0], &c[3], &c[1]}, sorted)
 }
 
 func TestTopSortWide(t *testing.T) {
-	c := make(SerializableCircuit, 10)
+	c := make(ExecutableCircuit, 10)
 	c[0].Inputs = []int{3, 8}
 	c[1].Inputs = []int{6}
 	c[2].Inputs = []int{4}
@@ -49,7 +49,7 @@ func TestTopSortWide(t *testing.T) {
 	c[9].Inputs = []int{}
 
 	sorted := c.TopologicalSort()
-	sortedExpected := SerializableWires{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+	sortedExpected := ExecutableWires{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
 	assert.Equal(t, sortedExpected, sorted)
 }

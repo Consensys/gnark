@@ -16,6 +16,13 @@ type (
 		InputInstance  int
 	}
 
+	GateID           uint16
+	SerializableWire struct {
+		Gate   GateID
+		Inputs []int
+	}
+	SerializableCircuit []SerializableWire
+
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
 		Evaluate    GateExecutable
@@ -49,10 +56,10 @@ type (
 	RegisteredWire    = Wire[BothExecutables]
 	RegisteredWires   = Wires[BothExecutables]
 
-	// Serializable types (bytecode only, for native proving)
-	SerializableCircuit = Circuit[*GateBytecode]
-	SerializableWire    = Wire[*GateBytecode]
-	SerializableWires   = Wires[*GateBytecode]
+	// Executable types (bytecode only, for native proving)
+	ExecutableCircuit = Circuit[*GateBytecode]
+	ExecutableWire    = Wire[*GateBytecode]
+	ExecutableWires   = Wires[*GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
 	GadgetCircuit = Circuit[gkr.GateFunction]
@@ -78,6 +85,10 @@ func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, s
 		Degree:      degree,
 		SolvableVar: solvableVar,
 	}
+}
+
+func (be BothExecutables) getGateFunction() gkr.GateFunction {
+	return be.SnarkFriendly
 }
 
 func (be BothExecutables) getByteCode() *GateBytecode {
@@ -404,13 +415,17 @@ func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExec
 	return res
 }
 
-// ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
-func ToSerializable(c RegisteredCircuit) SerializableCircuit {
+// ToExecutable converts a registered circuit (with both executables) to an executable circuit (bytecode only).
+func ToExecutable(c RegisteredCircuit) ExecutableCircuit {
 	return ConvertCircuit(c, BothExecutables.getByteCode)
 }
 
-func ToSerializableGate(g *RegisteredGate) *Gate[*GateBytecode] {
+func ToExecutableGate(g *RegisteredGate) *Gate[*GateBytecode] {
 	return ConvertGate(g, BothExecutables.getByteCode)
+}
+
+func ToGadgetGate(g *RegisteredGate) *Gate[gkr.GateFunction] {
+	return ConvertGate(g, BothExecutables.getGateFunction)
 }
 
 // ToGadget converts a registered circuit (with both executables) to a gadget circuit (gate functions only, for in-circuit verification).
@@ -418,4 +433,13 @@ func ToGadget(c RegisteredCircuit) GadgetCircuit {
 	return ConvertCircuit(c, func(e BothExecutables) gkr.GateFunction {
 		return e.SnarkFriendly
 	})
+}
+
+func (c SerializableCircuit) ToExecutable(gates []*Gate[*GateBytecode]) ExecutableCircuit {
+	res := make(ExecutableCircuit, len(c))
+	for i := range c {
+		res[i].Inputs = c[i].Inputs
+		res[i].Gate = gates[c[i].Gate]
+	}
+	return res
 }
