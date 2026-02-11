@@ -89,6 +89,9 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+	// Handle edge case: if scalar is zero, return identity point (0, 1)
+	scalarIsZero := api.IsZero(scalar)
+
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
@@ -119,8 +122,9 @@ func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Va
 		res.Y = api.Select(b[0], tmp.Y, res.Y)
 	}
 
-	p.X = res.X
-	p.Y = res.Y
+	// Return identity (0, 1) when scalar is zero, otherwise return computed result
+	p.X = api.Select(scalarIsZero, 0, res.X)
+	p.Y = api.Select(scalarIsZero, 1, res.Y)
 
 	return p
 }
@@ -196,28 +200,38 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
+	// Handle edge case: if scalar is zero, return identity point (0, 1)
+	scalarIsZero := api.IsZero(scalar)
+
+	// Use a dummy non-zero scalar (1) when the actual scalar is zero to avoid
+	// division by zero in the hint. The result will be selected away anyway.
+	scalarForHint := api.Select(scalarIsZero, 1, scalar)
+
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + s * s2 == 0 mod Order,
-	s, err := api.NewHint(rationalReconstruct, 4, scalar, curve.Order)
+	s, err := api.NewHint(rationalReconstruct, 4, scalarForHint, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2, bit, k := s[0], s[1], s[2], s[3]
 
-	// check that s1 + s2 * s == k*Order
-	_s2 := api.Mul(s2, scalar)
+	// check that s1 + s2 * s == k*Order (only when scalar is non-zero)
+	_s2 := api.Mul(s2, scalarForHint)
 	_k := api.Mul(k, curve.Order)
 	lhs := api.Select(bit, s1, api.Add(s1, _s2))
 	rhs := api.Select(bit, api.Add(_k, _s2), _k)
-	api.AssertIsEqual(lhs, rhs)
+	// When scalar is zero, we use dummy values, so skip this check
+	lhsCheck := api.Select(scalarIsZero, 0, lhs)
+	rhsCheck := api.Select(scalarIsZero, 0, rhs)
+	api.AssertIsEqual(lhsCheck, rhsCheck)
 
 	n := (curve.Order.BitLen() + 1) / 2
 	b1 := api.ToBinary(s1, n)
 	b2 := api.ToBinary(s2, n)
 
 	var res, p2, p3, tmp Point
-	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalar, curve.Order)
+	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalarForHint, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -237,11 +251,16 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 		res.add(api, &res, &tmp, curve)
 	}
 
-	api.AssertIsEqual(res.X, 0)
-	api.AssertIsEqual(res.Y, 1)
+	// When scalar is non-zero, verify the computation
+	// When scalar is zero, skip verification (we return identity anyway)
+	resXCheck := api.Select(scalarIsZero, 0, res.X)
+	resYCheck := api.Select(scalarIsZero, 1, res.Y)
+	api.AssertIsEqual(resXCheck, 0)
+	api.AssertIsEqual(resYCheck, 1)
 
-	p.X = q[0]
-	p.Y = q[1]
+	// Return identity (0, 1) when scalar is zero, otherwise return computed result
+	p.X = api.Select(scalarIsZero, 0, q[0])
+	p.Y = api.Select(scalarIsZero, 1, q[1])
 
 	return p
 }
