@@ -243,12 +243,13 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
 
 	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := c.baseApi.MulMod(&p.X, &q.X)
-	pxplusqx := c.baseApi.Add(&p.X, &q.X)
-	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
-	num = c.baseApi.Sub(num, pxqx)
+	// Note: (p.x+q.x)² - p.x*q.x = p.x² + 2*p.x*q.x + q.x² - p.x*q.x = p.x² + p.x*q.x + q.x²
+	// Use Eval to compute p.x² + p.x*q.x + q.x² in one shot (saves one MulMod)
+	var num *emulated.Element[B]
 	if c.addA {
-		num = c.baseApi.Add(num, &c.a)
+		num = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X}, {&p.X, &q.X}, {&q.X, &q.X}, {&c.a}}, []int{1, 1, 1, 1})
+	} else {
+		num = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X}, {&p.X, &q.X}, {&q.X, &q.X}}, []int{1, 1, 1})
 	}
 	denum := c.baseApi.Add(&p.Y, &q.Y)
 	// if p.y + q.y = 0, assign dummy 1 to denum and continue
@@ -256,14 +257,12 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
 	λ := c.baseApi.Div(num, denum)
 
-	// x = λ^2 - p.x - q.x
-	xr := c.baseApi.MulMod(λ, λ)
-	xr = c.baseApi.Sub(xr, pxplusqx)
+	// x = λ² - p.x - q.x
+	mone := c.baseApi.NewElement(-1)
+	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
 
-	// y = λ(p.x - xr) - p.y
-	yr := c.baseApi.Sub(&p.X, xr)
-	yr = c.baseApi.MulMod(yr, λ)
-	yr = c.baseApi.Sub(yr, &p.Y)
+	// y = λ(p.x - xr) - p.y = λ*p.x - λ*xr - p.y
+	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
 	result := AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
 		Y: *c.baseApi.Reduce(yr),
