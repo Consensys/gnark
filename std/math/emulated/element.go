@@ -39,6 +39,11 @@ type Element[T FieldParams] struct {
 	// on the bit-representation of the element (ToBits, exponentiation etc.).
 	modReduced bool
 
+	// bitsDecomposition caches the bit decomposition of the element to avoid
+	// redundant ToBits calls. Once computed, the bits are stored here and
+	// reused on subsequent ToBits calls on the same element.
+	bitsDecomposition []frontend.Variable
+
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`
 
@@ -148,6 +153,8 @@ func (e *Element[T]) Initialize(field *big.Int) {
 	// second compilation we may take a shortPath where we assume that modReduce
 	// flag is set.
 	e.modReduced = false
+	// reset bitsDecomposition to avoid stale cached bits from previous compilation
+	e.bitsDecomposition = nil
 }
 
 // copy makes a deep copy of the element.
@@ -158,6 +165,10 @@ func (e *Element[T]) copy() *Element[T] {
 	r.overflow = e.overflow
 	r.internal = e.internal
 	r.modReduced = e.modReduced
+	if e.bitsDecomposition != nil {
+		r.bitsDecomposition = make([]frontend.Variable, len(e.bitsDecomposition))
+		copy(r.bitsDecomposition, e.bitsDecomposition)
+	}
 	r.isEvaluated = e.isEvaluated
 	r.evaluation = e.evaluation
 	if e.witnessValue != nil {

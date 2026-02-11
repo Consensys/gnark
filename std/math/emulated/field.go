@@ -72,17 +72,6 @@ type Field[T FieldParams] struct {
 	// reduction for small field emulation (e.g., KoalaBear on BLS12-377).
 	smallFieldMode     bool
 	smallFieldModeOnce sync.Once
-
-	// bitCache stores the bit decomposition of elements to avoid redundant ToBits calls.
-	// The key is computed from the element's limb hash codes and overflow.
-	bitCache map[bitCacheKey][]frontend.Variable
-}
-
-// bitCacheKey uniquely identifies an element for bit caching purposes.
-type bitCacheKey struct {
-	limbHashes [8][16]byte // hash codes of first 8 limbs (most elements have <= 8 limbs)
-	numLimbs   int
-	overflow   uint
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -105,7 +94,6 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		constrainedLimbs: make(map[[16]byte]int),
 		checker:          rangecheck.New(native),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
-		bitCache:         make(map[bitCacheKey][]frontend.Variable),
 	}
 	if smallfields.IsSmallField(native.Compiler().Field()) {
 		f.log.Debug().Msg("using small native field, multiplication checks will be performed in extension field")
@@ -449,48 +437,4 @@ func (f *Field[T]) rangeCheck(v frontend.Variable, nbBits int) bool {
 	}
 	f.checker.Check(v, nbBits)
 	return true
-}
-
-// computeBitCacheKey computes a unique key for the element to use in the bit cache.
-// Returns the key and a boolean indicating whether the element can be cached
-// (elements with non-hashable limbs cannot be cached).
-func (f *Field[T]) computeBitCacheKey(a *Element[T]) (bitCacheKey, bool) {
-	if len(a.Limbs) == 0 || len(a.Limbs) > 8 {
-		// Don't cache elements with 0 limbs or more than 8 limbs
-		return bitCacheKey{}, false
-	}
-
-	key := bitCacheKey{
-		numLimbs: len(a.Limbs),
-		overflow: a.overflow,
-	}
-
-	for i, limb := range a.Limbs {
-		if h, ok := limb.(interface{ HashCode() [16]byte }); ok {
-			key.limbHashes[i] = h.HashCode()
-		} else if cv, ok := f.api.Compiler().ConstantValue(limb); ok {
-			// For constants, derive a hash from the constant value
-			key.limbHashes[i] = constantToHash(cv)
-		} else {
-			// Limb is neither hashable nor a constant, don't cache
-			return bitCacheKey{}, false
-		}
-	}
-
-	return key, true
-}
-
-// constantToHash converts a big.Int constant to a [16]byte hash for caching.
-// Uses a simple scheme: fill bytes from the big.Int, padded/truncated to 16 bytes.
-// The first byte is set to 0x01 to distinguish from variable hashes.
-func constantToHash(v *big.Int) [16]byte {
-	var h [16]byte
-	h[0] = 0x01 // marker to distinguish constants from variables
-	b := v.Bytes()
-	if len(b) >= 15 {
-		copy(h[1:], b[:15])
-	} else {
-		copy(h[16-len(b):], b)
-	}
-	return h
 }

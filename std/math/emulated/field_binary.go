@@ -1,8 +1,6 @@
 package emulated
 
 import (
-	"slices"
-
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/bits"
@@ -13,7 +11,7 @@ import (
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, use method [Field.ToBitsCanonical].
 //
-// The bit decomposition is cached in the Field to avoid redundant computation
+// The bit decomposition is cached in the Element to avoid redundant computation
 // when the same element is decomposed multiple times.
 func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	f.enforceWidthConditional(a)
@@ -27,11 +25,11 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	}
 
 	// Check if we have cached bits for this element
-	cacheKey, canCache := f.computeBitCacheKey(a)
-	if canCache {
-		if cached, ok := f.bitCache[cacheKey]; ok {
-			return slices.Clone(cached)
-		}
+	if a.bitsDecomposition != nil {
+		// Return a copy to prevent callers from mutating the cached bits
+		res := make([]frontend.Variable, len(a.bitsDecomposition))
+		copy(res, a.bitsDecomposition)
+		return res
 	}
 
 	var carry frontend.Variable = 0
@@ -46,10 +44,8 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	}
 	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
 
-	// Cache the bits for future use
-	if canCache {
-		f.bitCache[cacheKey] = fullBits
-	}
+	// Cache the bits in the element for future use
+	a.bitsDecomposition = fullBits
 
 	// Record operation for profiling
 	profile.RecordOperation("emulated.ToBits", 4*len(fullBits))
