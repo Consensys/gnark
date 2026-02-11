@@ -13,6 +13,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 type g2AffP struct {
@@ -192,7 +194,7 @@ func (p *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 	if n, ok := api.Compiler().ConstantValue(s); ok {
 		return p.constScalarMul(api, Q, n, opts...)
 	} else {
-		return p.scalarMulGLVAndFakeGLV(api, Q, s, opts...)
+		return p.varScalarMul(api, Q, s, opts...)
 	}
 }
 
@@ -596,48 +598,61 @@ func (p *g2AffP) scalarMulGLVAndFakeGLV(api frontend.API, P g2AffP, s frontend.V
 	// where (v1 + λ*v2)*s = u1 + λ*u2 mod r
 	// and u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL lattice reduction).
 	//
-	// The hint returns u1, u2, v1, v2 and the quotient q.
-	// In-circuit we check that (v1 + λ*v2)*s + u1 + λ*u2 = r*q
-	//
 	// The sub-scalars can be negative. So we return the absolute value in the
 	// hint and negate the corresponding points here when needed.
-	sd, err := api.NewHint(rationalReconstructExt, 10, _s, cc.lambda)
+	sd, err := api.NewHint(rationalReconstructExt, 8, _s, cc.lambda)
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
-	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
-	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
+	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
+	isNegu1, isNegu2, isNegv1, isNegv2 := sd[4], sd[5], sd[6], sd[7]
 
 	// We need to check that:
-	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
-	sv1 := api.Mul(_s, v1)
-	sλv2 := api.Mul(_s, api.Mul(cc.lambda, v2))
-	λu2 := api.Mul(cc.lambda, u2)
-	rq := api.Mul(cc.fr, q)
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 = 0 mod r
+	//
+	// We use emulated arithmetic over the BLS12-377 scalar field to avoid overflow.
+	// The native field (BW6-761 scalar field) is ~377 bits, but the products
+	// s*λ*v2 can exceed 400 bits, causing overflow in native arithmetic.
+	scalarApi, err := emulated.NewField[emparams.BLS12377Fr](api)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create scalar field: %v", err))
+	}
 
-	lhs1 := api.Select(isNegv1, 0, sv1)
-	lhs2 := api.Select(isNegv2, 0, sλv2)
-	lhs3 := api.Select(isNegu1, 0, u1)
-	lhs4 := api.Select(isNegu2, 0, λu2)
-	lhs5 := api.Select(isNegq, rq, 0)
-	lhs := api.Add(
-		api.Add(lhs1, lhs2),
-		api.Add(lhs3, lhs4),
+	// Convert to emulated elements
+	_sEmu := scalarApi.FromBits(api.ToBinary(_s, cc.fr.BitLen())...)
+	u1Emu := scalarApi.FromBits(api.ToBinary(u1, (cc.fr.BitLen()+3)/4+2)...)
+	u2Emu := scalarApi.FromBits(api.ToBinary(u2, (cc.fr.BitLen()+3)/4+2)...)
+	v1Emu := scalarApi.FromBits(api.ToBinary(v1, (cc.fr.BitLen()+3)/4+2)...)
+	v2Emu := scalarApi.FromBits(api.ToBinary(v2, (cc.fr.BitLen()+3)/4+2)...)
+	lambdaEmu := scalarApi.NewElement(cc.lambda)
+	zeroEmu := scalarApi.Zero()
+
+	// Compute s*v1, s*λ*v2, λ*u2 in emulated arithmetic
+	sv1Emu := scalarApi.Mul(_sEmu, v1Emu)
+	λv2Emu := scalarApi.Mul(lambdaEmu, v2Emu)
+	sλv2Emu := scalarApi.Mul(_sEmu, λv2Emu)
+	λu2Emu := scalarApi.Mul(lambdaEmu, u2Emu)
+
+	// Handle signs: positive terms go to lhs, negative terms go to rhs
+	lhs1Emu := scalarApi.Select(isNegv1, zeroEmu, sv1Emu)
+	lhs2Emu := scalarApi.Select(isNegv2, zeroEmu, sλv2Emu)
+	lhs3Emu := scalarApi.Select(isNegu1, zeroEmu, u1Emu)
+	lhs4Emu := scalarApi.Select(isNegu2, zeroEmu, λu2Emu)
+	lhsEmu := scalarApi.Add(
+		scalarApi.Add(lhs1Emu, lhs2Emu),
+		scalarApi.Add(lhs3Emu, lhs4Emu),
 	)
-	lhs = api.Add(lhs, lhs5)
 
-	rhs1 := api.Select(isNegv1, sv1, 0)
-	rhs2 := api.Select(isNegv2, sλv2, 0)
-	rhs3 := api.Select(isNegu1, u1, 0)
-	rhs4 := api.Select(isNegu2, λu2, 0)
-	rhs5 := api.Select(isNegq, 0, rq)
-	rhs := api.Add(
-		api.Add(rhs1, rhs2),
-		api.Add(rhs3, rhs4),
+	rhs1Emu := scalarApi.Select(isNegv1, sv1Emu, zeroEmu)
+	rhs2Emu := scalarApi.Select(isNegv2, sλv2Emu, zeroEmu)
+	rhs3Emu := scalarApi.Select(isNegu1, u1Emu, zeroEmu)
+	rhs4Emu := scalarApi.Select(isNegu2, λu2Emu, zeroEmu)
+	rhsEmu := scalarApi.Add(
+		scalarApi.Add(rhs1Emu, rhs2Emu),
+		scalarApi.Add(rhs3Emu, rhs4Emu),
 	)
-	rhs = api.Add(rhs, rhs5)
 
-	api.AssertIsEqual(lhs, rhs)
+	scalarApi.AssertIsEqual(lhsEmu, rhsEmu)
 
 	// Next we compute the hinted scalar mul Q = [s]P
 	point, err := api.NewHint(scalarMulGLVG2Hint, 4, P.X.A0, P.X.A1, P.Y.A0, P.Y.A1, s)

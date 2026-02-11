@@ -379,8 +379,8 @@ func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
-	if len(outputs) != 10 {
-		return errors.New("expecting ten outputs")
+	if len(outputs) != 8 {
+		return errors.New("expecting eight outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
 
@@ -411,45 +411,27 @@ func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*
 	outputs[2].Abs(z) // |v1| = |z|
 	outputs[3].Abs(t) // |v2| = |t|
 
-	// Compute overflow: q = (s*(v1 + λ*v2) + u1 + λ*u2) / r
-	// Using signed values for the computation
-	lambdaV2 := new(big.Int).Mul(inputs[1], t)
-	vSum := new(big.Int).Add(z, lambdaV2)
-	sTimesV := new(big.Int).Mul(inputs[0], vSum)
-	lambdaU2 := new(big.Int).Mul(inputs[1], y)
-	uSum := new(big.Int).Add(x, lambdaU2)
-	outputs[4].Add(sTimesV, uSum)
-	outputs[4].Div(outputs[4], cc.fr)
-	// Capture the sign of q before taking absolute value
-	qIsNeg := outputs[4].Sign() < 0
-	outputs[4].Abs(outputs[4])
-
 	// set the signs
-	outputs[5].SetUint64(0) // isNegu1
-	outputs[6].SetUint64(0) // isNegu2
-	outputs[7].SetUint64(0) // isNegv1
-	outputs[8].SetUint64(0) // isNegv2
-	outputs[9].SetUint64(0) // isNegq
+	outputs[4].SetUint64(0) // isNegu1
+	outputs[5].SetUint64(0) // isNegu2
+	outputs[6].SetUint64(0) // isNegv1
+	outputs[7].SetUint64(0) // isNegv2
 
 	// u1 = x is negative when x < 0
 	if x.Sign() < 0 {
-		outputs[5].SetUint64(1)
+		outputs[4].SetUint64(1)
 	}
 	// u2 = y is negative when y < 0
 	if y.Sign() < 0 {
-		outputs[6].SetUint64(1)
+		outputs[5].SetUint64(1)
 	}
 	// v1 = z is negative when z < 0
 	if z.Sign() < 0 {
-		outputs[7].SetUint64(1)
+		outputs[6].SetUint64(1)
 	}
 	// v2 = t is negative when t < 0
 	if t.Sign() < 0 {
-		outputs[8].SetUint64(1)
-	}
-	// q sign (captured earlier)
-	if qIsNeg {
-		outputs[9].SetUint64(1)
+		outputs[7].SetUint64(1)
 	}
 
 	return nil
