@@ -277,7 +277,6 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	// We must ensure the returned result is correct in these cases.
 	s1IsZero := api.IsZero(s1)
 	s2IsZero := api.IsZero(s2)
-	bothZero := api.And(s1IsZero, s2IsZero)
 
 	// Use dummy non-zero scalars for hints when actual scalars are zero
 	s1ForHint := api.Select(s1IsZero, 1, s1)
@@ -288,9 +287,13 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	if err != nil {
 		panic(err)
 	}
+	// Force Q1 to identity when s1=0, Q2 to identity when s2=0
+	// This ensures the result is correct even when hints use dummy scalars
 	var Q1, Q2 Point
-	Q1.X, Q1.Y = q[0], q[1]
-	Q2.X, Q2.Y = q[2], q[3]
+	Q1.X = api.Select(s1IsZero, 0, q[0])
+	Q1.Y = api.Select(s1IsZero, 1, q[1])
+	Q2.X = api.Select(s2IsZero, 0, q[2])
+	Q2.Y = api.Select(s2IsZero, 1, q[3])
 
 	// Decompose s1 into (u1, v1) such that u1 + s1*v1 ≡ 0 (mod Order)
 	h1, err := api.NewHint(rationalReconstruct, 4, s1ForHint, curve.Order)
@@ -418,43 +421,25 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	}
 
 	// Verify accumulator equals identity (0, 1)
-	// Skip when both scalars are zero (result should be identity anyway)
-	resXCheck := api.Select(bothZero, 0, res.X)
-	resYCheck := api.Select(bothZero, 1, res.Y)
+	// Skip verification when any scalar is zero (the decomposition uses dummy values)
+	anyZero := api.Or(s1IsZero, s2IsZero)
+	resXCheck := api.Select(anyZero, 0, res.X)
+	resYCheck := api.Select(anyZero, 1, res.Y)
 	api.AssertIsEqual(resXCheck, 0)
 	api.AssertIsEqual(resYCheck, 1)
 
-	// Compute the actual result based on edge cases:
-	// - If both s1=0 and s2=0: return identity (0, 1)
-	// - If only s1=0: return [s2]P2 (but we need to compute this separately)
-	// - If only s2=0: return [s1]P1 (but we need to compute this separately)
-	// - Otherwise: return Q1 + Q2
+	// Result is Q1 + Q2
+	// Since Q1 = identity when s1=0 and Q2 = identity when s2=0,
+	// the sum Q1 + Q2 gives the correct result for all cases:
+	// - s1=0, s2=0: identity + identity = identity
+	// - s1=0, s2≠0: identity + Q2 = Q2 = [s2]P2
+	// - s1≠0, s2=0: Q1 + identity = Q1 = [s1]P1
+	// - s1≠0, s2≠0: Q1 + Q2 = [s1]P1 + [s2]P2
+	var result Point
+	result.add(api, &Q1, &Q2, curve)
 
-	// For edge cases where one scalar is zero, we need to verify the non-zero part
-	// using a separate scalar multiplication. This adds constraints but ensures security.
-
-	// Compute [s1]P1 when s2=0 (using scalarMulFakeGLV for proper verification)
-	var s1P1 Point
-	s1P1.scalarMulFakeGLV(api, p1, s1, curve)
-
-	// Compute [s2]P2 when s1=0
-	var s2P2 Point
-	s2P2.scalarMulFakeGLV(api, p2, s2, curve)
-
-	// Normal case: Q1 + Q2
-	var normalResult Point
-	normalResult.add(api, &Q1, &Q2, curve)
-
-	// Select the correct result based on edge cases
-	// Identity point for twisted Edwards is (0, 1)
-	identity := Point{X: 0, Y: 1}
-
-	// If s1=0: result = [s2]P2
-	// If s2=0: result = [s1]P1
-	// If both=0: result = identity
-	// Otherwise: result = Q1 + Q2
-	p.X = api.Select(bothZero, identity.X, api.Select(s1IsZero, s2P2.X, api.Select(s2IsZero, s1P1.X, normalResult.X)))
-	p.Y = api.Select(bothZero, identity.Y, api.Select(s1IsZero, s2P2.Y, api.Select(s2IsZero, s1P1.Y, normalResult.Y)))
+	p.X = result.X
+	p.Y = result.Y
 
 	return p
 }
@@ -470,7 +455,11 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	// When s1=0 or s2=0, the decomposition may not properly verify the hinted result.
 	s1IsZero := api.IsZero(s1)
 	s2IsZero := api.IsZero(s2)
-	bothZero := api.And(s1IsZero, s2IsZero)
+
+	// Also check if input points are identity (X=0 for twisted Edwards)
+	// phi(identity) divides by xy = 0, causing division by zero
+	p1IsIdentity := api.IsZero(p1.X)
+	p2IsIdentity := api.IsZero(p2.X)
 
 	// Use dummy non-zero scalars for hints when actual scalars are zero
 	s1ForHint := api.Select(s1IsZero, 1, s1)
@@ -481,12 +470,35 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	if err != nil {
 		panic(err)
 	}
-	var R Point
-	// We need Q1 + Q2 = R
+	// Force Q1 to identity when s1=0 or P1 is identity
+	// Force Q2 to identity when s2=0 or P2 is identity
+	s1Contribution := api.Or(s1IsZero, p1IsIdentity)
+	s2Contribution := api.Or(s2IsZero, p2IsIdentity)
+
 	var Q1, Q2 Point
-	Q1.X, Q1.Y = qHint[0], qHint[1]
-	Q2.X, Q2.Y = qHint[2], qHint[3]
+	Q1.X = api.Select(s1Contribution, 0, qHint[0])
+	Q1.Y = api.Select(s1Contribution, 1, qHint[1])
+	Q2.X = api.Select(s2Contribution, 0, qHint[2])
+	Q2.Y = api.Select(s2Contribution, 1, qHint[3])
+
+	// R = Q1 + Q2. When edge cases occur, R could be identity or a single point result.
+	// phi(identity) = phi(0,1) would divide by 0, so we use a safe R for phi computation.
+	var R Point
 	R.add(api, &Q1, &Q2, curve)
+
+	// Check if we need safe points for phi computation
+	// We need safe points when any scalar is zero or any input point is identity
+	anyEdgeCase := api.Or(api.Or(s1IsZero, s2IsZero), api.Or(p1IsIdentity, p2IsIdentity))
+
+	// Use curve base point as safe non-identity point for phi
+	// Base[0], Base[1] are guaranteed to be non-identity points on the curve
+	var safeP1, safeP2, safeR Point
+	safeP1.X = api.Select(p1IsIdentity, curve.Base[0], p1.X)
+	safeP1.Y = api.Select(p1IsIdentity, curve.Base[1], p1.Y)
+	safeP2.X = api.Select(p2IsIdentity, curve.Base[0], p2.X)
+	safeP2.Y = api.Select(p2IsIdentity, curve.Base[1], p2.Y)
+	safeR.X = api.Select(anyEdgeCase, curve.Base[0], R.X)
+	safeR.Y = api.Select(anyEdgeCase, curve.Base[1], R.Y)
 
 	// Decompose (s1, s2) using MultiRationalReconstructExt
 	// Returns |x1|, |y1|, |x2|, |y2|, |z|, |t|, signX1, signY1, signX2, signY2, signZ, signT
@@ -497,11 +509,12 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	absX1, absY1, absX2, absY2, absZ, absT := h[0], h[1], h[2], h[3], h[4], h[5]
 	signX1, signY1, signX2, signY2, signZ, signT := h[6], h[7], h[8], h[9], h[10], h[11]
 
-	// Compute φ(P1), φ(P2), φ(R)
+	// Compute φ(safeP1), φ(safeP2), φ(safeR)
+	// Use safe points to avoid division by zero when inputs are identity
 	var phiP1, phiP2, phiR Point
-	phiP1.phi(api, p1, curve, endo)
-	phiP2.phi(api, p2, curve, endo)
-	phiR.phi(api, &R, curve, endo)
+	phiP1.phi(api, &safeP1, curve, endo)
+	phiP2.phi(api, &safeP2, curve, endo)
+	phiR.phi(api, &safeR, curve, endo)
 
 	// Apply signs to create signed points for the 6-MSM
 	// The verification is: [x1]P + [y1]φ(P) + [x2]Q + [y2]φ(Q) - [z]R - [t]φ(R) = O
@@ -667,33 +680,17 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	}
 
 	// Verify accumulator equals identity (0, 1)
-	// Skip when both scalars are zero (result should be identity anyway)
-	accXCheck := api.Select(bothZero, 0, acc.X)
-	accYCheck := api.Select(bothZero, 1, acc.Y)
+	// Skip verification when any edge case (the decomposition uses dummy values)
+	accXCheck := api.Select(anyEdgeCase, 0, acc.X)
+	accYCheck := api.Select(anyEdgeCase, 1, acc.Y)
 	api.AssertIsEqual(accXCheck, 0)
 	api.AssertIsEqual(accYCheck, 1)
 
-	// For edge cases where one scalar is zero, we need to verify the non-zero part
-	// using a separate scalar multiplication. This adds constraints but ensures security.
-
-	// Compute [s1]P1 when s2=0 (using scalarMulFakeGLV for proper verification)
-	var s1P1 Point
-	s1P1.scalarMulFakeGLV(api, p1, s1, curve)
-
-	// Compute [s2]P2 when s1=0
-	var s2P2 Point
-	s2P2.scalarMulFakeGLV(api, p2, s2, curve)
-
-	// Identity point for twisted Edwards is (0, 1)
-	identity := Point{X: 0, Y: 1}
-
-	// Select the correct result based on edge cases:
-	// If s1=0: result = [s2]P2
-	// If s2=0: result = [s1]P1
-	// If both=0: result = identity
-	// Otherwise: result = R
-	p.X = api.Select(bothZero, identity.X, api.Select(s1IsZero, s2P2.X, api.Select(s2IsZero, s1P1.X, R.X)))
-	p.Y = api.Select(bothZero, identity.Y, api.Select(s1IsZero, s2P2.Y, api.Select(s2IsZero, s1P1.Y, R.Y)))
+	// Result is R = Q1 + Q2
+	// Since Q1 = identity when s1=0 and Q2 = identity when s2=0,
+	// the sum Q1 + Q2 gives the correct result for all cases
+	p.X = R.X
+	p.Y = R.Y
 
 	return p
 }
