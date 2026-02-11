@@ -8,6 +8,7 @@ package gkr
 import (
 	"fmt"
 	"math/bits"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -20,6 +21,13 @@ import (
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
+
+func init() {
+	// Register GKR blueprint types for CBOR serialization
+	constraint.RegisterBlueprintType(reflect.TypeOf(BlueprintSolve{}))
+	constraint.RegisterBlueprintType(reflect.TypeOf(BlueprintProve{}))
+	constraint.RegisterBlueprintType(reflect.TypeOf(BlueprintGetAssignment{}))
+}
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
 type circuitEvaluator struct {
@@ -44,6 +52,11 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
+func (b *BlueprintSolve) setOutputWires() {
+	b.Circuit.OutputsList() // for side effects
+	b.outputWires = b.Circuit.Outputs()
+}
+
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
@@ -59,6 +72,8 @@ func (b *BlueprintSolve) Reset() {
 		}
 		return ce
 	}
+
+	b.setOutputWires()
 
 	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
@@ -140,8 +155,7 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
+	b.setOutputWires()
 	return len(b.outputWires)
 }
 

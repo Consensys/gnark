@@ -332,6 +332,14 @@ func (system *System) calldataFromBytes(buf []byte) error {
 	return nil
 }
 
+// registeredBlueprintTypes holds types registered by external packages.
+var registeredBlueprintTypes []reflect.Type
+
+// RegisterBlueprintType registers a blueprint type for CBOR serialization.
+func RegisterBlueprintType(t reflect.Type) {
+	registeredBlueprintTypes = append(registeredBlueprintTypes, t)
+}
+
 func getTagSet() cbor.TagSet {
 	// temporary for refactor
 	ts := cbor.NewTagSet()
@@ -365,6 +373,11 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(BlueprintSparseR1CMul[U64]{}))
 	addType(reflect.TypeOf(BlueprintSparseR1CBool[U64]{}))
 	addType(reflect.TypeOf(BlueprintLookupHint[U64]{}))
+
+	// Add types registered by external packages (e.g., GKR blueprints)
+	for _, t := range registeredBlueprintTypes {
+		addType(t)
+	}
 
 	return ts
 }
