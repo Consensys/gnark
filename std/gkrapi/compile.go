@@ -9,10 +9,7 @@ import (
 	gadget "github.com/consensys/gnark/internal/gkr"
 	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
 	gkrbls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	gkrbls24315 "github.com/consensys/gnark/internal/gkr/bls24-315"
-	gkrbls24317 "github.com/consensys/gnark/internal/gkr/bls24-317"
 	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	gkrbw6633 "github.com/consensys/gnark/internal/gkr/bw6-633"
 	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -98,12 +95,6 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
 		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BLS24_315:
-		res.blueprints = gkrbls24315.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BLS24_317:
-		res.blueprints = gkrbls24317.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BW6_633:
-		res.blueprints = gkrbw6633.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
 		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	default:
