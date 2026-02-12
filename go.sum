@@ -63,8 +63,8 @@ github.com/consensys/compress v0.3.0 h1:HRIcHvWkW9C9req0ZWg7mhYHzBarohXhcszIwHON
 github.com/consensys/compress v0.3.0/go.mod h1:pyM+ZXiNUh7/0+AUjUf9RKUM6vSH7T/fsn5LLS0j1Tk=
 github.com/consensys/gnark-crypto v0.19.3-0.20260210233638-4abc1c162a65 h1:uqG0l8Ou1qcqu2S+vRNn1ye7tw92x3R1UFzYiJemHI0=
 github.com/consensys/gnark-crypto v0.19.3-0.20260210233638-4abc1c162a65/go.mod h1:LlrRbe6b7BIune9Un5L6sRTUUWrAIIqGK+L0duYwpoM=
-github.com/consensys/gnark-solidity-checker v0.1.1-0.20260212085735-71e19fc0a7d8 h1:HGEzsmlL+yKd+EoYkYtucDkDvnrWF1r+pqdrXyiFzQc=
-github.com/consensys/gnark-solidity-checker v0.1.1-0.20260212085735-71e19fc0a7d8/go.mod h1:cEvl4g5AH+L4qGQLDOVZjqvn5IKZIAZdhSi8zAM6BiY=
+github.com/consensys/gnark-solidity-checker v0.2.0 h1:i5iUEzNOkUvpaKm23UEe0wajBMwj7NzyT4EI0T2N8WQ=
+github.com/consensys/gnark-solidity-checker v0.2.0/go.mod h1:cEvl4g5AH+L4qGQLDOVZjqvn5IKZIAZdhSi8zAM6BiY=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=

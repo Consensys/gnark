@@ -22,7 +22,7 @@ require (
 )
 
 require (
-	github.com/consensys/gnark-solidity-checker v0.1.1-0.20260212085735-71e19fc0a7d8 // indirect
+	github.com/consensys/gnark-solidity-checker v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
