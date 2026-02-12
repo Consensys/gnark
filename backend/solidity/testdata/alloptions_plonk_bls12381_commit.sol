@@ -195,7 +195,6 @@ contract PlonkVerifier is IVerifier {
   // -------- precompiles
   uint8 private constant SHA2 = 0x2;
   uint8 private constant MOD_EXP = 0x5;
-  uint8 private constant EC_ADD = 0x6;
   uint8 private constant BLS12_MSM_G1 = 0x0c;
   uint8 private constant BLS12_PAIR = 0x0f;
 
@@ -210,7 +209,7 @@ contract PlonkVerifier is IVerifier {
   /// @param proof serialised plonk proof (using gnark's MarshalSolidity)
   /// @param public_inputs (must be reduced)
   /// @return success true if the proof passes false otherwise
-  function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
+  function Verify(bytes calldata proof, uint256[] calldata public_inputs)
   public view returns(bool success) {
 
     assembly {
@@ -224,7 +223,7 @@ contract PlonkVerifier is IVerifier {
       check_proof_size(proof.length)
       check_proof_openings_size(proof.offset)
 
-    //   // compute the challenges
+      // compute the challenges
       let prev_challenge_non_reduced
       prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
       prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
@@ -251,7 +250,7 @@ contract PlonkVerifier is IVerifier {
       batch_verify_multi_points(proof.offset)
       success := mload(add(mem, STATE_SUCCESS))
 
-    //   // Beginning errors -------------------------------------------------
+      // Beginning errors -------------------------------------------------
 
       function error_nb_public_inputs() {
         let ptError := mload(0x40)
@@ -430,7 +429,7 @@ contract PlonkVerifier is IVerifier {
       }
       // end checks -------------------------------------------------
 
-    //   // Beginning challenges -------------------------------------------------
+      // Beginning challenges -------------------------------------------------
 
       /// Derive gamma as Sha256(<transcript>)
       /// @param aproof pointer to the proof
@@ -449,10 +448,21 @@ contract PlonkVerifier is IVerifier {
       /// [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
       /// Gamma reduced (the actual challenge) is stored at add(state, state_gamma)
       function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
-        
+
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
+        // Hash preimage layout (tightly packed):
+        //   "gamma" (5 bytes) || S1(96) || S2(96) || S3(96) || Ql(96) || Qr(96)
+        //   || Qm(96) || Qo(96) || Qk(96) || Qcp_i(96)... || PI(32*n) || LRO(96*3)
+        //
+        // Each G1 point = X(48 bytes) || Y(48 bytes), where each Fp is hi(16) || lo(32).
+        // 32-byte mstore writes overlap at 48-byte boundaries, so we write:
+        //   Pass 1: X_hi, Y_hi, X_lo per point (Y_hi before X_lo so X_lo overwrites Y_hi's padding)
+        //   Pass 2: Y_lo per point (deferred because each point's X_hi zeros the previous Y_lo tail)
+        // Finally, "gamma" label and infinity flag fixups.
+
+        // --- Pass 1: X_hi, Y_hi, X_lo per point ---
         
         mstore(add(mPtr, 0x10), VK_S1_COM_X_hi) 
         mstore(add(mPtr, 0x40), VK_S1_COM_Y_hi) 
@@ -496,8 +506,9 @@ contract PlonkVerifier is IVerifier {
         mstore(add(mPtr, 0x330), VK_QCP_0_X_lo) 
         mstore(add(mPtr, 0x360), VK_QCP_0_Y_lo) 
         
+
         // public inputs
-        let _mPtr := add(mPtr, 0x380 )
+        let _mPtr := add(mPtr, 0x380)
         let size_pi_in_bytes := mul(nb_pi, 0x20)
         calldatacopy(_mPtr, pi, size_pi_in_bytes)
         _mPtr := add(_mPtr, size_pi_in_bytes)
@@ -603,7 +614,7 @@ contract PlonkVerifier is IVerifier {
       }
       // END challenges -------------------------------------------------
 
-    //   // BEGINNING compute_pi -------------------------------------------------
+      // BEGINNING compute_pi -------------------------------------------------
 
       /// sum_pi_wo_api_commit computes the public inputs contributions,
       /// except for the public inputs coming from the custom gate
