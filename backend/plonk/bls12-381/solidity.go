@@ -199,7 +199,7 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
   /// @param proof serialised plonk proof (using gnark's MarshalSolidity)
   /// @param public_inputs (must be reduced)
   /// @return success true if the proof passes false otherwise
-  function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
+  function Verify(bytes calldata proof, uint256[] calldata public_inputs)
   public view returns(bool success) {
 
     assembly {
@@ -440,10 +440,21 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
       /// [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
       /// Gamma reduced (the actual challenge) is stored at add(state, state_gamma)
       function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
-        
+
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
+        // Hash preimage layout (tightly packed):
+        //   "gamma" (5 bytes) || S1(96) || S2(96) || S3(96) || Ql(96) || Qr(96)
+        //   || Qm(96) || Qo(96) || Qk(96) || Qcp_i(96)... || PI(32*n) || LRO(96*3)
+        //
+        // Each G1 point = X(48 bytes) || Y(48 bytes), where each Fp is hi(16) || lo(32).
+        // 32-byte mstore writes overlap at 48-byte boundaries, so we write:
+        //   Pass 1: X_hi, Y_hi, X_lo per point (Y_hi before X_lo so X_lo overwrites Y_hi's padding)
+        //   Pass 2: Y_lo per point (deferred because each point's X_hi zeros the previous Y_lo tail)
+        // Finally, "gamma" label and infinity flag fixups.
+
+        // --- Pass 1: X_hi, Y_hi, X_lo per point ---
         {{ $offset = 0x10 }}
         mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X_hi) {{ $offset = add $offset 0x30}}
         mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y_hi) {{ $offset = add $offset 0x30}}
@@ -487,8 +498,25 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
         mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X_lo) {{ $offset = add $offset 0x30}}
         mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo) {{ $offset = add $offset 0x30}}
         {{ end }}
+
+        // --- Infinity flag fixups ---
+        // Marshal() sets 0x40 in the first byte of X for identity points.
+        // The VK constants use raw coordinates (0 for infinity), so we patch here.
+        {{ $infOff := 0x20 }}
+        {{ if g1IsInfinity (index .Vk.S 0) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity (index .Vk.S 1) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity (index .Vk.S 2) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity .Vk.Ql }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity .Vk.Qr }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity .Vk.Qm }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity .Vk.Qo }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ if g1IsInfinity .Vk.Qk }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
+        {{ if g1IsInfinity (index $.Vk.Qcp $index) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
+        {{ end }}
+
         // public inputs
-        let _mPtr := add(mPtr, {{ hex ( sub $offset 0x10 ) }} )
+        let _mPtr := add(mPtr, {{ hex (add 0x20 (mul (add 8 (len .Vk.CommitmentConstraintIndexes)) 0x60)) }})
         let size_pi_in_bytes := mul(nb_pi, 0x20)
         calldatacopy(_mPtr, pi, size_pi_in_bytes)
         _mPtr := add(_mPtr, size_pi_in_bytes)

@@ -427,6 +427,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			bv.Rsh(bv, 256)
 			return bv.String()
 		},
+		"g1IsInfinity": func(p curve.G1Affine) bool {
+			return p.X.IsZero() && p.Y.IsZero()
+		},
 		{{- end }}
 	}
 
