@@ -56,7 +56,6 @@ func (api *API) NewInput() gkr.Variable {
 		Gate:   gkrtypes.Identity(),
 		Inputs: []int{},
 	})
-	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
 
