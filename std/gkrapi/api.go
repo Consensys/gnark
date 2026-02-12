@@ -9,8 +9,8 @@ import (
 )
 
 type API struct {
-	circuit     gkrtypes.RegisteredCircuit
-	parentApi   frontend.API
+	circuit   gkrtypes.RegisteredCircuit
+	parentApi frontend.API
 }
 
 func frontendVarToInt(a gkr.Variable) int {
