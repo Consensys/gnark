@@ -18,7 +18,6 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
 
@@ -404,7 +403,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BN254
-func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrtypes.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -423,7 +422,7 @@ func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compil
 	}
 	getAssignmentID := compiler.AddBlueprint(getAssignment)
 
-	return gadget.Blueprints{
+	return gkrtypes.Blueprints{
 		SolveID:         solveID,
 		Solve:           solve,
 		ProveID:         proveID,

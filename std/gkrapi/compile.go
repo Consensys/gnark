@@ -33,7 +33,7 @@ type Circuit struct {
 	api                  frontend.API // the parent API
 
 	// Blueprint-based fields
-	blueprints gadget.Blueprints
+	blueprints gkrtypes.Blueprints
 
 	// Metadata
 	hashName    string
