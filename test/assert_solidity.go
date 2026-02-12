@@ -64,7 +64,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 
 	// generate assets
 	// gnark-solidity-checker generate --dir tmpdir --solidity contract_g16.sol
-	cmd := exec.Command("gnark-solidity-checker", "generate", "--dir", tmpDir, "--solidity", "gnark_verifier.sol")
+	cmd := exec.Command("go", "tool", "gnark-solidity-checker", "generate", "--dir", tmpDir, "--solidity", "gnark_verifier.sol")
 	assert.Log("running ", cmd.String())
 	out, err := cmd.CombinedOutput()
 	assert.NoError(err, string(out))
@@ -83,7 +83,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 		panic("unsupported curve for solidity checker: " + c.String())
 	}
 
-	checkerOpts := []string{"verify", "--curve", curveName}
+	checkerOpts := []string{"tool", "gnark-solidity-checker", "verify", "--curve", curveName}
 	if b == backend.GROTH16 {
 		checkerOpts = append(checkerOpts, "--groth16")
 	} else if b == backend.PLONK {
@@ -121,7 +121,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 
 	// verify proof
 	// gnark-solidity-checker verify --dir tmdir --groth16 --nb-public-inputs 1 --proof 1234 --public-inputs dead
-	cmd = exec.Command("gnark-solidity-checker", checkerOpts...)
+	cmd = exec.Command("go", checkerOpts...)
 	assert.Log("running ", cmd.String())
 	out, err = cmd.CombinedOutput()
 	assert.NoError(err, string(out))
