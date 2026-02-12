@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -145,6 +146,11 @@ func (system *System) toBytes() ([]byte, error) {
 }
 
 const headerLen = 4 * 8
+
+// GkrTagBase is the base CBOR tag number for GKR blueprint types.
+// Tag numbers are computed as: GkrTagBase + ecc.ID*3 + offset
+// This ensures stable, non-overlapping tags across all curves.
+const GkrTagBase = 5309750
 
 type header struct {
 	// length in bytes of each sections
@@ -332,12 +338,19 @@ func (system *System) calldataFromBytes(buf []byte) error {
 	return nil
 }
 
-// registeredBlueprintTypes holds types registered by external packages.
-var registeredBlueprintTypes []reflect.Type
+// registeredBlueprintType holds a type and its explicit CBOR tag number.
+type registeredBlueprintType struct {
+	tagNum uint64
+	typ    reflect.Type
+}
 
-// RegisterBlueprintType registers a blueprint type for CBOR serialization.
-func RegisterBlueprintType(t reflect.Type) {
-	registeredBlueprintTypes = append(registeredBlueprintTypes, t)
+// registeredBlueprintTypes holds types registered by external packages.
+var registeredBlueprintTypes []registeredBlueprintType
+
+// RegisterBlueprintType registers a blueprint type for CBOR serialization with an explicit tag number.
+// Tag numbers must be unique and stable across versions to ensure serialization compatibility.
+func RegisterBlueprintType(tagNum uint64, t reflect.Type) {
+	registeredBlueprintTypes = append(registeredBlueprintTypes, registeredBlueprintType{tagNum: tagNum, typ: t})
 }
 
 func getTagSet() cbor.TagSet {
@@ -375,9 +388,23 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(BlueprintLookupHint[U64]{}))
 
 	// Add types registered by external packages (e.g., GKR blueprints)
-	for _, t := range registeredBlueprintTypes {
-		addType(t)
+	// These use explicit tag numbers to ensure stability regardless of init() order
+	var maxTag uint64
+	for _, rt := range registeredBlueprintTypes {
+		if rt.tagNum < tagNum {
+			panic(fmt.Sprintf("failed to register type %v: tag number %d already in use", rt.typ, rt.tagNum))
+		}
+		maxTag = max(maxTag, rt.tagNum)
+
+		if err := ts.Add(
+			cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired},
+			rt.typ,
+			rt.tagNum,
+		); err != nil {
+			panic(err)
+		}
 	}
+	tagNum = maxTag + 1
 
 	return ts
 }

@@ -17,6 +17,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	// imported to register GKR blueprint types for CBOR serialization
+	_ "github.com/consensys/gnark/internal/gkr/bls12-377"
 )
 
 type R1CS = system

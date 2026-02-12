@@ -1,7 +1,7 @@
 import (
 	"io"
 	"time"
-	
+
 	csolver "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
@@ -10,6 +10,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 
 	{{ template "import_fr" . }}
+
+	{{- if not .NoGKR }}
+	// imported to register GKR blueprint types for CBOR serialization
+	_ "github.com/consensys/gnark/internal/gkr/{{ toLower .Curve }}"
+	{{- end }}
 )
 
 type R1CS = system
