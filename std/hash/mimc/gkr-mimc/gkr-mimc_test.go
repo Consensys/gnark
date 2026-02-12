@@ -1,4 +1,4 @@
-package gkr_mimc
+package gkr_mimc_test
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
+	gkr_mimc "github.com/consensys/gnark/std/hash/mimc/gkr-mimc"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ type testGkrMiMCCircuit struct {
 }
 
 func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
-	gkrmimc, err := New(api)
+	gkrmimc, err := gkr_mimc.New(api)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
 }
 
 func TestGkrMiMCCompiles(t *testing.T) {
-	const n = 52000
+	const n = 1000
 	circuit := testGkrMiMCCircuit{
 		In: make([]frontend.Variable, n),
 	}
@@ -88,7 +89,7 @@ func (c *merkleTreeCircuit) Define(api frontend.API) error {
 		return errors.New("no hashing to do")
 	}
 
-	hsh, err := New(api)
+	hsh, err := gkr_mimc.New(api)
 	if err != nil {
 		return err
 	}

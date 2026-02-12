@@ -3,7 +3,6 @@ package gkrapi
 import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -11,7 +10,6 @@ import (
 
 type API struct {
 	circuit     gkrtypes.RegisteredCircuit
-	assignments gadget.WireAssignment
 	parentApi   frontend.API
 }
 
@@ -30,7 +28,6 @@ func (api *API) NamedGate(gateName gkr.GateName, in ...gkr.Variable) gkr.Variabl
 		Gate:   registeredGate,
 		Inputs: utils.Map(in, frontendVarToInt),
 	})
-	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(len(api.circuit) - 1)
 }
 
