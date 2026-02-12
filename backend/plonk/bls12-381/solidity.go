@@ -499,21 +499,42 @@ contract PlonkVerifier{{ .Cfg.InterfaceDeclaration }} {
         mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y_lo) {{ $offset = add $offset 0x30}}
         {{ end }}
 
+        {{- if or (g1IsInfinity (index .Vk.S 0)) (g1IsInfinity (index .Vk.S 1)) (g1IsInfinity (index .Vk.S 2)) (g1IsInfinity .Vk.Ql) (g1IsInfinity .Vk.Qr) (g1IsInfinity .Vk.Qm) (g1IsInfinity .Vk.Qo) (g1IsInfinity .Vk.Qk) }}
+
         // --- Infinity flag fixups ---
         // Marshal() sets 0x40 in the first byte of X for identity points.
         // The VK constants use raw coordinates (0 for infinity), so we patch here.
-        {{ $infOff := 0x20 }}
-        {{ if g1IsInfinity (index .Vk.S 0) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity (index .Vk.S 1) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity (index .Vk.S 2) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity .Vk.Ql }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity .Vk.Qr }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity .Vk.Qm }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity .Vk.Qo }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ if g1IsInfinity .Vk.Qk }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
-        {{ if g1IsInfinity (index $.Vk.Qcp $index) }}mstore8(add(mPtr, {{ hex $infOff }}), 0x40){{ end }}{{ $infOff = add $infOff 0x60 }}
-        {{ end }}
+        {{- end }}
+        {{- $infOff := 0x20 }}
+        {{- if g1IsInfinity (index .Vk.S 0) }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity (index .Vk.S 1) }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity (index .Vk.S 2) }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity .Vk.Ql }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity .Vk.Qr }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity .Vk.Qm }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity .Vk.Qo }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- if g1IsInfinity .Vk.Qk }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- range $index, $element := .Vk.CommitmentConstraintIndexes }}
+        {{- if g1IsInfinity (index $.Vk.Qcp $index) }}
+        mstore8(add(mPtr, {{ hex $infOff }}), 0x40)
+        {{- end }}{{ $infOff = add $infOff 0x60 }}
+        {{- end }}
 
         // public inputs
         let _mPtr := add(mPtr, {{ hex (add 0x20 (mul (add 8 (len .Vk.CommitmentConstraintIndexes)) 0x60)) }})
