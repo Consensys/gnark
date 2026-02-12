@@ -8,7 +8,6 @@ package gkr
 import (
 	"fmt"
 	"math/bits"
-	"reflect"
 	"slices"
 	"sync"
 
@@ -23,10 +22,7 @@ import (
 
 func init() {
 	// Register GKR blueprint types for CBOR serialization with explicit tag numbers
-	// Tags are computed as: GkrTagBase + ecc.ID*3 + offset
-	constraint.RegisterBlueprintType(constraint.GkrTagBase+uint64(ecc.BW6_761)*3+0, reflect.TypeOf(BlueprintSolve{}))
-	constraint.RegisterBlueprintType(constraint.GkrTagBase+uint64(ecc.BW6_761)*3+1, reflect.TypeOf(BlueprintProve{}))
-	constraint.RegisterBlueprintType(constraint.GkrTagBase+uint64(ecc.BW6_761)*3+2, reflect.TypeOf(BlueprintGetAssignment{}))
+	constraint.RegisterGkrBlueprintTypes(ecc.BW6_761, BlueprintSolve{}, BlueprintProve{}, BlueprintGetAssignment{})
 }
 
 // circuitEvaluator evaluates all gates in a circuit for one instance

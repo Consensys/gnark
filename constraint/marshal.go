@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/sync/errgroup"
@@ -347,10 +349,21 @@ type registeredBlueprintType struct {
 // registeredBlueprintTypes holds types registered by external packages.
 var registeredBlueprintTypes []registeredBlueprintType
 
-// RegisterBlueprintType registers a blueprint type for CBOR serialization with an explicit tag number.
+// RegisterGkrBlueprintTypes registers a blueprint type for CBOR serialization with an explicit tag number.
 // Tag numbers must be unique and stable across versions to ensure serialization compatibility.
-func RegisterBlueprintType(tagNum uint64, t reflect.Type) {
-	registeredBlueprintTypes = append(registeredBlueprintTypes, registeredBlueprintType{tagNum: tagNum, typ: t})
+func RegisterGkrBlueprintTypes(id ecc.ID, types ...any) {
+	const (
+		gkrTagBase              = 1 << 32
+		maxNbBlueprintsPerCurve = 16
+	)
+	if len(types) > maxNbBlueprintsPerCurve {
+		panic(fmt.Sprintf("too many blueprint types registered for curve %s: %d > %d", id, len(types), maxNbBlueprintsPerCurve))
+	}
+
+	registeredBlueprintTypes = slices.Grow(registeredBlueprintTypes, len(types))
+	for i := range uint64(len(types)) {
+		registeredBlueprintTypes = append(registeredBlueprintTypes, registeredBlueprintType{tagNum: i + maxNbBlueprintsPerCurve*uint64(id) + gkrTagBase, typ: reflect.TypeOf(types[i])})
+	}
 }
 
 func getTagSet() cbor.TagSet {
@@ -389,12 +402,10 @@ func getTagSet() cbor.TagSet {
 
 	// Add types registered by external packages (e.g., GKR blueprints)
 	// These use explicit tag numbers to ensure stability regardless of init() order
-	var maxTag uint64
 	for _, rt := range registeredBlueprintTypes {
 		if rt.tagNum < tagNum {
 			panic(fmt.Sprintf("failed to register type %v: tag number %d already in use", rt.typ, rt.tagNum))
 		}
-		maxTag = max(maxTag, rt.tagNum)
 
 		if err := ts.Add(
 			cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired},
@@ -404,7 +415,6 @@ func getTagSet() cbor.TagSet {
 			panic(err)
 		}
 	}
-	tagNum = maxTag + 1
 
 	return ts
 }

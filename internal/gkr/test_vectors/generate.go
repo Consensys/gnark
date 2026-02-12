@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -15,9 +16,19 @@ import (
 )
 
 func main() {
-	assertNoError(gkr.GenerateSumcheckVectors())
-	assertNoError(gkr.GenerateVectors())
-	assertNoError(generateSerializationTestData())
+	var wg sync.WaitGroup
+	wg.Add(3)
+	for _, f := range []func() error{
+		gkr.GenerateSumcheckVectors,
+		gkr.GenerateVectors,
+		generateSerializationTestData,
+	} {
+		go func() {
+			assertNoError(f())
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func assertNoError(err error) {
