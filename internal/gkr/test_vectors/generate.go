@@ -81,7 +81,7 @@ func generateSerializationTestData() error {
 	}
 
 	// Create testdata directory if needed
-	testDataDir := filepath.Join("testdata")
+	testDataDir := filepath.Join("../../gkr/test_vectors/testdata")
 	if err := os.MkdirAll(testDataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create testdata directory: %w", err)
 	}
