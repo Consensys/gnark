@@ -2,6 +2,7 @@ package gkrtypes
 
 import (
 	"math/big"
+	"reflect"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -170,29 +171,6 @@ func (c Circuit[GateExecutable]) OutputsList() [][]int {
 	return res
 }
 
-func (c Circuit[GateExecutable]) setNbUniqueOutputs() {
-
-	for i := range c {
-		c[i].NbUniqueOutputs = 0
-	}
-
-	curWireIn := make([]bool, len(c))
-	uniqueIns := make([]int, 0, len(c))
-	for i := range c {
-		// clear the caches
-		for j := range uniqueIns {
-			curWireIn[uniqueIns[j]] = false
-		}
-		uniqueIns = uniqueIns[:0]
-
-		// count!
-		for _, in := range c[i].Inputs {
-			if !curWireIn[in] {
-				c[in].NbUniqueOutputs++
-				curWireIn[in] = true
-				uniqueIns = append(uniqueIns, in)
-			}
-		}
 	}
 }
 
@@ -345,17 +323,38 @@ type Blueprints struct {
 
 // ToSerializableCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
 // It also sets the gate metadata (Degree, SolvableVar) for both the input and output circuits.
-func ToSerializableCircuit(mod *big.Int, c GadgetCircuit) SerializableCircuit {
+// Compile converts a gadget circuit to a serializable circuit by compiling the gate functions.
+// It also sets wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs) for both the input and output circuits.
+func (c GadgetCircuit) Compile(mod *big.Int) SerializableCircuit {
 
-	tester := gateTester{mod: mod}
+	for i := range c {
+	}
+	curWireIn := make([]bool, len(c)) // curWireIn[j] = true iff i takes j as input.
+	tester := gateTester{mod: mod}    // tester computes the gate's degree
 	res := make(SerializableCircuit, len(c))
 	var err error
 	for i := range c {
-		res[i].Inputs = c[i].Inputs
+		// Compute NbUniqueOutputs as we go.
+		for j := range curWireIn {
+			curWireIn[j] = false
+		}
+
+		// count!
+		for _, in := range c[i].Inputs {
+			if !curWireIn[in] {
+				c[in].NbUniqueOutputs++
+				curWireIn[in] = true
+			}
+		}
+
+		if c[i].IsInput() {
+			if !reflect.DeepEqual(c[i].Gate, GadgetGate{}) {
+				panic("empty gate expected for input wire")
+			}
+			break
+		}
 
 		c[i].Gate.NbIn = len(c[i].Inputs)
-		res[i].Gate.NbIn = c[i].Gate.NbIn
-
 		if res[i].Gate.Evaluate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn); err != nil {
 			panic(err)
 		}
@@ -366,17 +365,24 @@ func ToSerializableCircuit(mod *big.Int, c GadgetCircuit) SerializableCircuit {
 		if c[i].Gate.Degree == -1 {
 			panic("cannot find degree for gate")
 		}
-		res[i].Gate.Degree = c[i].Gate.Degree
 
-		res[i].Gate.SolvableVar = -1
+		c[i].Gate.SolvableVar = -1
 		for j := range c[i].Gate.NbIn {
 			if tester.isAdditive(j) {
-				res[i].Gate.SolvableVar = j
+				c[i].Gate.SolvableVar = j
 				break
 			}
 		}
-		c[i].Gate.SolvableVar = res[i].Gate.SolvableVar
-		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
 	}
+
+	// copy metadata from c to res
+	for i := range c {
+		res[i].Inputs = c[i].Inputs
+		res[i].NbUniqueOutputs = c[i].NbUniqueOutputs
+		res[i].Gate.Degree = c[i].Gate.Degree
+		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
+		res[i].Gate.NbIn = c[i].Gate.NbIn
+	}
+
 	return res
 }
