@@ -63,7 +63,6 @@ jobs:
 
       - name: install deps
         run: |
-          go install github.com/consensys/gnark-solidity-checker@v0.1.0
           go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
           sudo add-apt-repository ppa:ethereum/ethereum
           sudo apt-get update

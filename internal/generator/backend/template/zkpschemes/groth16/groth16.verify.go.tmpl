@@ -2,7 +2,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	{{- if eq .Curve "BN254"}}
+	{{- if or (eq .Curve "BN254") (eq .Curve "BLS12-381") }}
 	"math/big"
 	"text/template"
 	"bytes"
@@ -131,9 +131,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 }
 
 
-{{if eq .Curve "BN254"}}
+{{if or (eq .Curve "BN254") (eq .Curve "BLS12-381") }}
 // ExportSolidity writes a solidity Verifier contract on provided writer.
-// This is an experimental feature and gnark solidity generator as not been thoroughly tested.
+// This is an experimental feature and gnark solidity generator has not been thoroughly tested.
 //
 // See https://github.com/Consensys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
@@ -180,11 +180,31 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			}
 			return out
 		},
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
+		{{- if eq .Curve "BN254" }}
 		"fpstr": func(x fp.Element) string {
 			bv := new(big.Int)
 			x.BigInt(bv)
 			return bv.String()
 		},
+		{{- else }}
+		"fpstr_lo": func(x fp.Element) string {
+			bv := new(big.Int)
+			twoTo256 := new(big.Int)
+			twoTo256.SetString("115792089237316195423570985008687907853269984665640564039457584007913129639936", 10)
+			x.BigInt(bv)
+			bv.Mod(bv, twoTo256)
+			return bv.String()
+		},
+		"fpstr_hi": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			bv.Rsh(bv, 256)
+			return bv.String()
+		},
+		{{- end }}
 		"hashFnName": func() string {
 			return hashFnName
 		},

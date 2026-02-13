@@ -133,9 +133,9 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
-func makeInOutAssignment(c gkrtypes.Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) gkrtypes.WireAssignment {
+func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	sorted := c.TopologicalSort()
-	res := make(gkrtypes.WireAssignment, len(c))
+	res := make(WireAssignment, len(c))
 	inI, outI := 0, 0
 	for wI, w := range sorted {
 		if w.IsInput() {
@@ -156,7 +156,7 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit gkrtypes.Circuit
+	Circuit Circuit
 	Hash    HashDescription
 	Proof   Proof
 	Input   [][]frontend.Variable
@@ -191,7 +191,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			cse.Circuit = gkrtypes.ToGadget(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -304,12 +304,6 @@ func (m *MessageCounter) Reset() {
 func NewMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
 	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
 	return transcript
-}
-
-func NewMessageCounterGenerator(startState, step int) func(frontend.API) hash.FieldHasher {
-	return func(api frontend.API) hash.FieldHasher {
-		return NewMessageCounter(api, startState, step)
-	}
 }
 
 type constHashCircuit struct {
