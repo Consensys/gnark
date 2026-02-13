@@ -73,7 +73,9 @@ func TestMimc(t *testing.T) {
 }
 
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-	gCircuit := gkrtypes.GadgetCircuit{
+	// Construct SerializableCircuit directly, bypassing CompileCircuit
+	// which would reset NbUniqueOutputs based on actual topology
+	circuit := gkrtypes.SerializableCircuit{
 		{
 			NbUniqueOutputs: 2,
 		},
