@@ -14,6 +14,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/bavard"
+	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -21,6 +22,13 @@ import (
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/utils"
 )
+
+func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	// The properties of test gates are expected to be the same across all relevant fields.
+	// We can therefore use the gate testing functions for any curve rather that reimplementing
+	// for small_rational.
+	return gkrtypes.ToSerializableCircuit(ecc.BN254.ScalarField(), circuit)
+}
 
 func GenerateVectors() error {
 	testDirPath, err := filepath.Abs("../../gkr/test_vectors")
