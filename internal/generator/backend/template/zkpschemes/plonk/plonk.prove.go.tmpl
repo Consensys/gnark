@@ -372,6 +372,23 @@ func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne fr.Element, index 
 	return res
 }
 
+// commitToLRO commits to L, R, O polynomials using reduced-size MSMs.
+//
+// L, R, O live on a domain of size n = 2^k, but only offset = nbPublic + nbConstraints
+// entries carry actual values. The rest are s0 = witness[0] (first public input).
+// For R and O, the first nbPublic entries (placeholders) are also s0.
+//
+// Key identity: Σ_{i=0}^{n-1} KzgLagrange.G1[i] = [Σ L_i(τ)]₁ = [1]₁ = Kzg.G1[0]
+//
+// So we can rewrite the commitment as:
+//
+//   [P] = Σ P[i]·G1_lag[i]
+//       = Σ (P[i]-s0)·G1_lag[i] + s0·Σ G1_lag[i]
+//       = MSM((P[i]-s0), G1_lag[i])  + s0·Kzg.G1[0]
+//
+// The (P[i]-s0) terms are zero in the padding region, so the MSM only needs
+// the non-padding entries. For a 2.2M-constraint circuit on a 4M domain,
+// this nearly halves each MSM.
 func (s *instance) commitToLRO() error {
 	// wait for blinding polynomials to be initialized or context to be done
 	select {
@@ -380,20 +397,79 @@ func (s *instance) commitToLRO() error {
 	case <-s.chbp:
 	}
 
+	n := int(s.domain0.Cardinality)
+	nbPublic := len(s.spr.Public)
+	offset := nbPublic + s.spr.GetNbConstraints()
+
+	// s0 = witness[0] = first public input
+	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return witness.ErrInvalidWitness
+	}
+	s0 := wWitness[0]
+
+	// correctionPoint = s0 · [1]₁ = s0 · Kzg.G1[0]
+	var s0BigInt big.Int
+	s0.BigInt(&s0BigInt)
+	var correctionPoint curve.G1Affine
+	correctionPoint.ScalarMultiplication(&s.pk.Kzg.G1[0], &s0BigInt)
+
 	g := new(errgroup.Group)
 
+	// L: subtract s0, MSM on [0:offset], add correction + blinding, restore
 	g.Go(func() (err error) {
-		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl])
+		coeffs := s.x[id_L].Coefficients()
+		for i := 0; i < offset; i++ {
+			coeffs[i].Sub(&coeffs[i], &s0)
+		}
+		var commit curve.G1Affine
+		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[:offset], coeffs[:offset], ecc.MultiExpConfig{}); err != nil {
+			return
+		}
+		for i := 0; i < offset; i++ {
+			coeffs[i].Add(&coeffs[i], &s0)
+		}
+		commit.Add(&commit, &correctionPoint)
+		cb := commitBlindingFactor(n, s.bp[id_Bl], s.pk.Kzg)
+		s.proof.LRO[0].Add(&commit, &cb)
 		return
 	})
 
+	// R: subtract s0, MSM on [nbPublic:offset], add correction + blinding, restore
 	g.Go(func() (err error) {
-		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br])
+		coeffs := s.x[id_R].Coefficients()
+		for i := nbPublic; i < offset; i++ {
+			coeffs[i].Sub(&coeffs[i], &s0)
+		}
+		var commit curve.G1Affine
+		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[nbPublic:offset], coeffs[nbPublic:offset], ecc.MultiExpConfig{}); err != nil {
+			return
+		}
+		for i := nbPublic; i < offset; i++ {
+			coeffs[i].Add(&coeffs[i], &s0)
+		}
+		commit.Add(&commit, &correctionPoint)
+		cb := commitBlindingFactor(n, s.bp[id_Br], s.pk.Kzg)
+		s.proof.LRO[1].Add(&commit, &cb)
 		return
 	})
 
+	// O: same as R
 	g.Go(func() (err error) {
-		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo])
+		coeffs := s.x[id_O].Coefficients()
+		for i := nbPublic; i < offset; i++ {
+			coeffs[i].Sub(&coeffs[i], &s0)
+		}
+		var commit curve.G1Affine
+		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[nbPublic:offset], coeffs[nbPublic:offset], ecc.MultiExpConfig{}); err != nil {
+			return
+		}
+		for i := nbPublic; i < offset; i++ {
+			coeffs[i].Add(&coeffs[i], &s0)
+		}
+		commit.Add(&commit, &correctionPoint)
+		cb := commitBlindingFactor(n, s.bp[id_Bo], s.pk.Kzg)
+		s.proof.LRO[2].Add(&commit, &cb)
 		return
 	})
 
