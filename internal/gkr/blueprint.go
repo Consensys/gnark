@@ -1,16 +1,9 @@
 package gkr
 
-import "github.com/consensys/gnark/constraint"
+import "github.com/consensys/gnark/internal/gkr/gkrtypes"
 
-type BlueprintSolve interface {
-	constraint.Blueprint
-	SetNbInstances(nbInstances uint32)
-}
-
-// Blueprints holds all GKR-related blueprint IDs and references
-type Blueprints struct {
-	SolveID         constraint.BlueprintID
-	Solve           BlueprintSolve
-	ProveID         constraint.BlueprintID
-	GetAssignmentID constraint.BlueprintID
-}
+// Type aliases for backwards compatibility - types are now defined in gkrtypes
+type (
+	BlueprintSolve = gkrtypes.BlueprintSolve
+	Blueprints     = gkrtypes.Blueprints
+)

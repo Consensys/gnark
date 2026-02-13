@@ -17,9 +17,13 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
+
+func init() {
+	// Register GKR blueprint types for CBOR serialization with explicit tag numbers
+	constraint.RegisterGkrBlueprintTypes(ecc.BLS12_381, BlueprintSolve{}, BlueprintProve{}, BlueprintGetAssignment{})
+}
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
 type circuitEvaluator struct {
@@ -44,12 +48,14 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
+func (b *BlueprintSolve) setOutputWires() {
+	b.Circuit.OutputsList() // for side effects
+	b.outputWires = b.Circuit.Outputs()
+}
+
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
-	b.Circuit.OutputsList()
-	b.outputWires = b.Circuit.Outputs()
-
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
 			evaluators: make([]gateEvaluator, len(b.Circuit)),
@@ -62,6 +68,8 @@ func (b *BlueprintSolve) Reset() {
 		}
 		return ce
 	}
+
+	b.setOutputWires()
 
 	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
@@ -142,9 +150,8 @@ func (b *BlueprintSolve) NbConstraints() int {
 }
 
 // NbOutputs implements Blueprint
-func (b *BlueprintSolve) NbOutputs(constraint.Instruction) int {
-	b.Circuit.OutputsList()
-	b.outputWires = b.Circuit.Outputs()
+func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
+	b.setOutputWires()
 	return len(b.outputWires)
 }
 
@@ -392,7 +399,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BLS12_381
-func NewBlueprints(circuit gkrtypes.ExecutableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
+func NewBlueprints(circuit gkrtypes.ExecutableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrtypes.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -411,7 +418,7 @@ func NewBlueprints(circuit gkrtypes.ExecutableCircuit, hashName string, compiler
 	}
 	getAssignmentID := compiler.AddBlueprint(getAssignment)
 
-	return gadget.Blueprints{
+	return gkrtypes.Blueprints{
 		SolveID:         solveID,
 		Solve:           solve,
 		ProveID:         proveID,

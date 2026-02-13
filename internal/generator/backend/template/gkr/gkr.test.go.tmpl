@@ -326,7 +326,9 @@ func TestIsAdditive(t *testing.T) {
 	newTester := func(f gkr.GateFunction, nbIn int) *GateTester {
 		cg, err := gkrtypes.CompileGateFunction(f, nbIn)
 		assert.NoError(t, err)
-		return NewGateTester(cg, nbIn)
+		var gt GateTester
+		gt.SetGate(cg, nbIn)
+		return &gt
 	}
 
 	tester := newTester(f, 2)

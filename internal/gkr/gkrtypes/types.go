@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
@@ -433,4 +434,18 @@ func ToGadget(c RegisteredCircuit) GadgetCircuit {
 	return ConvertCircuit(c, func(e BothExecutables) gkr.GateFunction {
 		return e.SnarkFriendly
 	})
+}
+
+// BlueprintSolve is the interface for GKR solve blueprints
+type BlueprintSolve interface {
+	constraint.Blueprint
+	SetNbInstances(nbInstances uint32)
+}
+
+// Blueprints holds all GKR-related blueprint IDs and references
+type Blueprints struct {
+	SolveID         constraint.BlueprintID
+	Solve           BlueprintSolve
+	ProveID         constraint.BlueprintID
+	GetAssignmentID constraint.BlueprintID
 }
