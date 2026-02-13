@@ -171,9 +171,6 @@ func (c Circuit[GateExecutable]) OutputsList() [][]int {
 	return res
 }
 
-	}
-}
-
 // Inputs returns the list of input wire indices.
 func (c Circuit[GateExecutable]) Inputs() []int {
 	res := make([]int, 0, len(c))
@@ -321,14 +318,15 @@ type Blueprints struct {
 	GetAssignmentID constraint.BlueprintID
 }
 
-// ToSerializableCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
-// It also sets the gate metadata (Degree, SolvableVar) for both the input and output circuits.
 // Compile converts a gadget circuit to a serializable circuit by compiling the gate functions.
 // It also sets wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs) for both the input and output circuits.
 func (c GadgetCircuit) Compile(mod *big.Int) SerializableCircuit {
 
 	for i := range c {
+		c[i].NbUniqueOutputs = 0
 	}
+
+	// compile the gate and compute metadata
 	curWireIn := make([]bool, len(c)) // curWireIn[j] = true iff i takes j as input.
 	tester := gateTester{mod: mod}    // tester computes the gate's degree
 	res := make(SerializableCircuit, len(c))
