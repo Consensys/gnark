@@ -361,7 +361,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := gkrtypes.ToSerializable(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit := toSerializableCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err
