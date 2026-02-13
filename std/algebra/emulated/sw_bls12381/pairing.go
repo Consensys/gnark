@@ -436,12 +436,11 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 	if first {
 		// i = j, separately to avoid an E12 Square
 		// (Square(res) = 1² = 1)
+		// Batch lines within each pair using sparse×sparse optimization
 		for k := 0; k < n; k++ {
-			res = pr.MulBy02368(res,
+			res = pr.Mul02368By02368ThenMul(res,
 				pr.MulByElement(&lines[k][0][j].R1, yInv[k]),
 				pr.MulByElement(&lines[k][0][j].R0, xNegOverY[k]),
-			)
-			res = pr.MulBy02368(res,
 				pr.MulByElement(&lines[k][1][j].R1, yInv[k]),
 				pr.MulByElement(&lines[k][1][j].R0, xNegOverY[k]),
 			)
@@ -455,7 +454,19 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 		res = pr.Ext12.Square(res)
 
 		if loopCounter[i] == 0 {
-			for k := 0; k < n; k++ {
+			// For 0-bit: batch lines 2-by-2 across pairs using sparse×sparse optimization
+			k := 0
+			for ; k+1 < n; k += 2 {
+				// Batch lines[k] and lines[k+1] together
+				res = pr.Mul02368By02368ThenMul(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.MulByElement(&lines[k+1][0][i].R1, yInv[k+1]),
+					pr.MulByElement(&lines[k+1][0][i].R0, xNegOverY[k+1]),
+				)
+			}
+			// Handle odd remaining line
+			if k < n {
 				res = pr.MulBy02368(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
@@ -466,12 +477,29 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 				// multiply by init when bit=1
 				res = pr.Ext12.Mul(res, init)
 			}
-			for k := 0; k < n; k++ {
-				res = pr.MulBy02368(res,
+			// For 1-bit: batch the two lines within each pair, then batch pairs 2-by-2
+			k := 0
+			for ; k+1 < n; k += 2 {
+				// First pair: lines[k][0] × lines[k][1]
+				res = pr.Mul02368By02368ThenMul(res,
 					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
 				)
-				res = pr.MulBy02368(res,
+				// Second pair: lines[k+1][0] × lines[k+1][1]
+				res = pr.Mul02368By02368ThenMul(res,
+					pr.MulByElement(&lines[k+1][0][i].R1, yInv[k+1]),
+					pr.MulByElement(&lines[k+1][0][i].R0, xNegOverY[k+1]),
+					pr.MulByElement(&lines[k+1][1][i].R1, yInv[k+1]),
+					pr.MulByElement(&lines[k+1][1][i].R0, xNegOverY[k+1]),
+				)
+			}
+			// Handle odd remaining pair
+			if k < n {
+				res = pr.Mul02368By02368ThenMul(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
 					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
 				)
@@ -502,7 +530,17 @@ func (pr *Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	// Hard part (up to permutation)
 	// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	t0 = pr.Ext12.CyclotomicSquareGS(z)
+	z = pr.finalExpHardPart(z)
+
+	return z
+}
+
+// finalExpHardPart computes the hard part of the final exponentiation:
+// (p⁴-p²+1)/r with cofactor 3
+// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
+// https://eprint.iacr.org/2020/875.pdf
+func (pr *Pairing) finalExpHardPart(z *GTEl) *GTEl {
+	t0 := pr.Ext12.CyclotomicSquareGS(z)
 	t1 := pr.Ext12.ExptHalfGS(t0)
 	t2 := pr.Ext12.Conjugate(z)
 	t1 = pr.Ext12.Mul(t1, t2)

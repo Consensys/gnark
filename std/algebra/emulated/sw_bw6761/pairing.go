@@ -497,10 +497,21 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 			}
 		}
 
-		for k := 2; k < n; k++ {
-			result = pr.MulBy023(result,
+		// k >= 2: batch lines 2-by-2
+		for k := 3; k < n; k += 2 {
+			prodLines = pr.Mul023By023(
 				pr.curveF.Mul(&lines[k][0][j].R1, yInv[k]),
 				pr.curveF.Mul(&lines[k][0][j].R0, xNegOverY[k]),
+				pr.curveF.Mul(&lines[k-1][0][j].R1, yInv[k-1]),
+				pr.curveF.Mul(&lines[k-1][0][j].R0, xNegOverY[k-1]),
+			)
+			result = pr.MulBy02345(result, prodLines)
+		}
+		// Handle remaining line if (n-2) is odd
+		if n >= 3 && (n-2)%2 != 0 {
+			result = pr.MulBy023(result,
+				pr.curveF.Mul(&lines[n-1][0][j].R1, yInv[n-1]),
+				pr.curveF.Mul(&lines[n-1][0][j].R0, xNegOverY[n-1]),
 			)
 		}
 		j--
