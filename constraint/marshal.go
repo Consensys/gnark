@@ -19,7 +19,7 @@ import (
 // a "curve-typed" system (e.g. bls12-381.system)
 func (system *System) ToBytes() ([]byte, error) {
 	// we prepare and write 4 distinct blocks of data;
-	// that allow for a more efficient serialization/deserialization (+ parallelism)
+	// that allows for a more efficient serialization/deserialization (+ parallelism)
 	var calldata, instructions, levels []byte
 	var g errgroup.Group
 	g.Go(func() error {
