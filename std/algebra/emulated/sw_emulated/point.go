@@ -541,6 +541,17 @@ func (c *Curve[B, S]) Mux(sel frontend.Variable, inputs ...*AffinePoint[B]) *Aff
 	}
 }
 
+// muxY8Signed selects from 8 Y values using selector (0-7) and conditionally
+// negates based on signBit. This optimizes the common GLV pattern where Y[i] =
+// -Y[15-i], reducing a 16-to-1 Mux to an 8-to-1 Mux plus conditional negation.
+func (c *Curve[B, S]) muxY8Signed(signBit frontend.Variable, selector frontend.Variable, yValues ...*emulated.Element[B]) *emulated.Element[B] {
+	if len(yValues) != 8 {
+		panic("muxY8Signed requires exactly 8 Y values")
+	}
+	baseY := c.baseApi.Mux(selector, yValues...)
+	return c.baseApi.Select(signBit, c.baseApi.Neg(baseY), baseY)
+}
+
 // ScalarMul computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
@@ -669,9 +680,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// T = -Q - [3]Φ(Q)
 	// P = B2 and P' = B3
 	T7 := c.Neg(T4)
-	// T = -[3]Q - Φ(Q)
-	// P = B2 and P' = B4
-	T8 := c.Neg(T3)
 	// T = [3]Q - Φ(Q)
 	// P = B3 and P' = B1
 	T9 := c.Add(tableQ[2], tablePhiQ[0])
@@ -685,18 +693,12 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// T = -Φ(Q) + Q
 	// P = B3 and P' = B4
 	T12 := c.Add(tablePhiQ[0], tableQ[1])
-	// T = [3]Φ(Q) - Q
-	// P = B4 and P' = B1
-	T13 := c.Neg(T10)
 	// T = Φ(Q) - [3]Q
 	// P = B4 and P' = B2
 	T14 := c.Neg(T9)
 	// T = Φ(Q) - Q
 	// P = B4 and P' = B3
 	T15 := c.Neg(T12)
-	// T = [3](Φ(Q) - Q)
-	// P = B4 and P' = B4
-	T16 := c.Neg(T11)
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 
@@ -730,15 +732,14 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[i-1], 2))),
 			c.api.Mul(s2bits[i-1], 15),
 		)
-		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need a 8-to-1.
+		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 		T := &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
 				&T6.X, &T10.X, &T14.X, &T2.X, &T7.X, &T11.X, &T15.X, &T3.X,
 			),
-			Y: *c.baseApi.Mux(selectorY,
+			Y: *c.muxY8Signed(s2bits[i-1], selectorX,
 				&T6.Y, &T10.Y, &T14.Y, &T2.Y, &T7.Y, &T11.Y, &T15.Y, &T3.Y,
-				&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
 			),
 		}
 		// Acc = [4]Acc + T
@@ -1058,20 +1059,12 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	B7 := c.Add(tableS[2], tablePhiS[3])
 	// 		B8  = +Q - R - Φ(Q) - Φ(R)
 	B8 := c.Add(tableS[2], tablePhiS[0])
-	// 		B9  = -Q + R + Φ(Q) + Φ(R)
-	B9 := c.Neg(B8)
 	// 		B10 = -Q + R + Φ(Q) - Φ(R)
 	B10 := c.Neg(B7)
-	// 		B11 = -Q + R - Φ(Q) + Φ(R)
-	B11 := c.Neg(B6)
 	// 		B12 = -Q + R - Φ(Q) - Φ(R)
 	B12 := c.Neg(B5)
-	// 		B13 = -Q - R + Φ(Q) + Φ(R)
-	B13 := c.Neg(B4)
 	// 		B14 = -Q - R + Φ(Q) - Φ(R)
 	B14 := c.Neg(B3)
-	// 		B15 = -Q - R - Φ(Q) + Φ(R)
-	B15 := c.Neg(B2)
 	// 		B16 = -Q - R - Φ(Q) - Φ(R)
 	B16 := c.Neg(B1)
 	// note that half the points are negatives of the other half,
@@ -1093,15 +1086,14 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(t2bits[i], 2))),
 			c.api.Mul(t2bits[i], 15),
 		)
-		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need a 8-to-1.
+		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 		Bi = &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
 				&B16.X, &B8.X, &B14.X, &B6.X, &B12.X, &B4.X, &B10.X, &B2.X,
 			),
-			Y: *c.baseApi.Mux(selectorY,
+			Y: *c.muxY8Signed(t2bits[i], selectorX,
 				&B16.Y, &B8.Y, &B14.Y, &B6.Y, &B12.Y, &B4.Y, &B10.Y, &B2.Y,
-				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
 			),
 		}
 		// Acc = [2]Acc + Bi
@@ -1360,8 +1352,6 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// P = B2 and P' = B3
 	T7 := c.Neg(T4)
 	// T = -[3]Q - R
-	// P = B2 and P' = B4
-	T8 := c.Neg(T3)
 	// T = [3]Q - R
 	// P = B3 and P' = B1
 	T9 := addFn(tableQ[2], tableR[0])
@@ -1375,18 +1365,12 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// T = -R + Q
 	// P = B3 and P' = B4
 	T12 := addFn(tableR[0], tableQ[1])
-	// T = [3]R - Q
-	// P = B4 and P' = B1
-	T13 := c.Neg(T10)
 	// T = R - [3]Q
 	// P = B4 and P' = B2
 	T14 := c.Neg(T9)
 	// T = R - Q
 	// P = B4 and P' = B3
 	T15 := c.Neg(T12)
-	// T = [3](R - Q)
-	// P = B4 and P' = B4
-	T16 := c.Neg(T11)
 	// note that half of these points are negatives of the other half,
 	// hence have the same X coordinates.
 
@@ -1420,15 +1404,14 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[i-1], 2))),
 			c.api.Mul(s2bits[i-1], 15),
 		)
-		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need a 8-to-1.
+		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 		T := &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
 				&T6.X, &T10.X, &T14.X, &T2.X, &T7.X, &T11.X, &T15.X, &T3.X,
 			),
-			Y: *c.baseApi.Mux(selectorY,
+			Y: *c.muxY8Signed(s2bits[i-1], selectorX,
 				&T6.Y, &T10.Y, &T14.Y, &T2.Y, &T7.Y, &T11.Y, &T15.Y, &T3.Y,
-				&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
 			),
 		}
 		// Acc = [4]Acc + T
@@ -1453,15 +1436,14 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[1], 2))),
 		c.api.Mul(s2bits[1], 15),
 	)
-	// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-	// but only half of the Bi.X are distinct so we need a 8-to-1.
+	// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+	// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 	T := &AffinePoint[B]{
 		X: *c.baseApi.Mux(selectorX,
 			&T6.X, &T10.X, &T14.X, &T2.X, &T7.X, &T11.X, &T15.X, &T3.X,
 		),
-		Y: *c.baseApi.Mux(selectorY,
+		Y: *c.muxY8Signed(s2bits[1], selectorX,
 			&T6.Y, &T10.Y, &T14.Y, &T2.Y, &T7.Y, &T11.Y, &T15.Y, &T3.Y,
-			&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
 		),
 	}
 	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
@@ -1693,20 +1675,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	B7 := c.Add(tableS[2], tablePhiS[3])
 	// 		B8  = +P - Q - Φ(P) - Φ(Q)
 	B8 := c.Add(tableS[2], tablePhiS[0])
-	// 		B9  = -P + Q + Φ(P) + Φ(Q)
-	B9 := c.Neg(B8)
 	// 		B10 = -P + Q + Φ(P) - Φ(Q)
 	B10 := c.Neg(B7)
-	// 		B11 = -P + Q - Φ(P) + Φ(Q)
-	B11 := c.Neg(B6)
 	// 		B12 = -P + Q - Φ(P) - Φ(Q)
 	B12 := c.Neg(B5)
-	// 		B13 = -P - Q + Φ(P) + Φ(Q)
-	B13 := c.Neg(B4)
 	// 		B14 = -P - Q + Φ(P) - Φ(Q)
 	B14 := c.Neg(B3)
-	// 		B15 = -P - Q - Φ(P) + Φ(Q)
-	B15 := c.Neg(B2)
 	// 		B16 = -P - Q - Φ(P) - Φ(Q)
 	B16 := c.Neg(B1)
 	// note that half the points are negatives of the other half,
@@ -1728,15 +1702,14 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(v2bits[i], 2))),
 			c.api.Mul(v2bits[i], 15),
 		)
-		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need a 8-to-1.
+		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 		Bi = &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
 				&B16.X, &B8.X, &B14.X, &B6.X, &B12.X, &B4.X, &B10.X, &B2.X,
 			),
-			Y: *c.baseApi.Mux(selectorY,
+			Y: *c.muxY8Signed(v2bits[i], selectorX,
 				&B16.Y, &B8.Y, &B14.Y, &B6.Y, &B12.Y, &B4.Y, &B10.Y, &B2.Y,
-				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
 			),
 		}
 		// Acc = [2]Acc + Bi
