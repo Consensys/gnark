@@ -36,11 +36,6 @@ type (
 	// information through the circuit.
 	Wires[GateExecutable any] []*Wire[GateExecutable]
 
-	BothExecutables struct {
-		Bytecode      *GateBytecode
-		SnarkFriendly gkr.GateFunction
-	}
-
 	// Type aliases for different circuit instantiations
 
 	// Serializable types (bytecode only, for native proving)
@@ -55,14 +50,6 @@ type (
 	GadgetWire    = Wire[gkr.GateFunction]
 	GadgetWires   = Wires[gkr.GateFunction]
 )
-
-func (be BothExecutables) getGateFunction() gkr.GateFunction {
-	return be.SnarkFriendly
-}
-
-func (be BothExecutables) getByteCode() GateBytecode {
-	return *be.Bytecode
-}
 
 // IsInput returns whether the wire is an input wire.
 func (w Wire[GateExecutable]) IsInput() bool {

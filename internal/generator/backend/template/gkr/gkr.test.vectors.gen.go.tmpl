@@ -15,11 +15,11 @@ import (
     "reflect"
 )
 
-func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
     // The properties of test gates are expected to be the same across all relevant fields.
-    // We can therefore use the gate testing functions for any curve rather that reimplementing
+    // We can therefore use the gate testing functions for any curve rather than reimplementing
     // for small_rational.
-	return gkrtypes.ToSerializableCircuit(ecc.BN254.ScalarField(), circuit)
+	return circuit.Compile(ecc.BN254.ScalarField())
 }
 
 func GenerateVectors() error {

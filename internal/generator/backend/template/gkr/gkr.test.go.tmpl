@@ -20,8 +20,8 @@ import (
 	"time"
 )
 
-func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return gkrtypes.ToSerializableCircuit(ecc.{{.FieldID}}.ScalarField(), circuit)
+func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	return circuit.Compile(ecc.{{.FieldID}}.ScalarField())
 }
 
 func TestNoGateTwoInstances(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 			NbUniqueOutputs: 2,
 		},
 	}
-	circuit := toSerializableCircuit(gCircuit)
+	circuit := compileCircuit(gCircuit)
 
 	assignment := WireAssignment{[]{{ .ElementType }}{two, three}}
 	var o settings
@@ -130,7 +130,7 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
-	sCircuit := toSerializableCircuit(circuit)
+	sCircuit := compileCircuit(circuit)
 	wireRefs := utils.References(sCircuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -184,7 +184,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]{{ .ElementType }}) {
-	c := toSerializableCircuit(gkrtesting.NoGateCircuit())
+	c := compileCircuit(gkrtesting.NoGateCircuit())
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
@@ -265,7 +265,7 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	c := toSerializableCircuit(gkrtesting.MiMCCircuit(mimcDepth))
+	c := compileCircuit(gkrtesting.MiMCCircuit(mimcDepth))
 
 	in0 := make([]{{ .ElementType }}, nbInstances)
 	in1 := make([]{{ .ElementType }}, nbInstances)
