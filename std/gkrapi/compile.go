@@ -44,15 +44,14 @@ type Circuit struct {
 // New creates a new GKR API
 func New(api frontend.API) (*API, error) {
 	return &API{
-		parentApi:    api,
-		gateRegistry: newGateRegistry(utils.FieldToCurve(api.Compiler().Field())),
+		parentApi: api,
 	}, nil
 }
 
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, wire{})
+	api.circuit = append(api.circuit, gkrtypes.GadgetWire{Gate: &gkrtypes.Gate[gkr.GateFunction]{Evaluate: gkrtypes.Identity}})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -72,7 +71,7 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
 	res := Circuit{
-		circuit:     api.gateRegistry.toGadgetCircuit(api.circuit),
+		circuit:     api.circuit,
 		assignments: make(gadget.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
 		hashName:    fiatshamirHashName,
@@ -81,18 +80,17 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	// Dispatch to curve-specific factory
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
 	compiler := api.parentApi.Compiler()
-
-	eCircuit := api.gateRegistry.toSerializableCircuit(api.circuit)
+	serializableCircuit := gadget.ToSerializableCircuit(curveID, api.circuit)
 
 	switch curveID {
 	case ecc.BN254:
-		res.blueprints = gkrbn254.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_377:
-		res.blueprints = gkrbls12377.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
-		res.blueprints = gkrbls12381.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
-		res.blueprints = gkrbw6761.NewBlueprints(eCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}

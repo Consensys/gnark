@@ -15,12 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
@@ -28,11 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	identityGate = gkrtypes.ToSerializableGate(gkrtypes.Identity())
-	add2Gate     = gkrtypes.ToSerializableGate(gkrtypes.Add2())
-	mul2Gate     = gkrtypes.ToSerializableGate(gkrtypes.Mul2())
-)
+func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	return gadget.ToSerializableCircuit(ecc.BLS12_381, circuit)
+}
 
 func TestNoGateTwoInstances(t *testing.T) {
 	// Testing a single instance is not possible because the sumcheck implementation doesn't cover the trivial 0-variate case
@@ -40,126 +40,49 @@ func TestNoGateTwoInstances(t *testing.T) {
 }
 
 func TestNoGate(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-	})
+	test(t, gkrtesting.NoGateCircuit())
 }
 
 func TestSingleAddGate(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate:   add2Gate,
-			Inputs: []int{0, 1},
-		},
-	})
+	test(t, gkrtesting.SingleAddGateCircuit())
 }
 
 func TestSingleMulGate(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate:   mul2Gate,
-			Inputs: []int{0, 1},
-		},
-	})
+	test(t, gkrtesting.SingleMulGateCircuit())
 }
 
 func TestSingleInputTwoIdentityGates(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate:   identityGate,
-			Inputs: []int{0},
-		},
-		{
-			Gate:   identityGate,
-			Inputs: []int{0},
-		},
-	})
+	test(t, gkrtesting.SingleInputTwoIdentityGatesCircuit())
 }
 
 func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate:   identityGate,
-			Inputs: []int{0},
-		},
-		{
-			Gate:   identityGate,
-			Inputs: []int{1},
-		},
-	})
+	test(t, gkrtesting.SingleInputTwoIdentityGatesComposedCircuit())
 }
 
 func TestAPowNTimesBCircuit(t *testing.T) {
-	const N = 10
-
-	c := make(Circuit, N+2)
-
-	// Input wires
-	c[0] = Wire{
-		Gate: identityGate,
-	}
-	c[1] = Wire{
-		Gate: identityGate,
-	}
-
-	for i := 2; i < len(c); i++ {
-		c[i] = Wire{
-			Gate:   mul2Gate,
-			Inputs: []int{i - 1, 0},
-		}
-	}
-
-	test(t, c)
+	test(t, gkrtesting.APowNTimesBCircuit(10))
 }
 
 func TestSingleMimcCipherGate(t *testing.T) {
-	test(t, Circuit{
-		{
-			Gate: identityGate,
-		},
-		{
-			Gate: identityGate,
-		},
-		{
-			Inputs: []int{0, 1},
-			Gate:   gkrtypes.ToSerializableGate(cache.GetGate("mimc")),
-		},
-	})
+	test(t, gkrtesting.SingleMimcCipherGateCircuit())
 }
 
 func TestShallowMimcTwoInstances(t *testing.T) {
-	test(t, mimcCircuit(2))
+	test(t, gkrtesting.MiMCCircuit(2))
 }
 
 func TestMimc(t *testing.T) {
-	test(t, mimcCircuit(93))
+	test(t, gkrtesting.MiMCCircuit(93))
 }
 
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-	circuit := Circuit{Wire{
-		Gate:            identityGate,
+	gCircuit := gkrtypes.GadgetCircuit{{
+		Gate: &gkrtypes.GadgetGate{
+			Evaluate: gkrtypes.Identity,
+		},
 		NbUniqueOutputs: 2,
 	}}
+	circuit := toSerializableCircuit(gCircuit)
 
 	assignment := WireAssignment{[]fr.Element{two, three}}
 	var o settings
@@ -214,8 +137,9 @@ func getLogMaxInstances(t *testing.T) int {
 	return testManyInstancesLogMaxInstances
 }
 
-func test(t *testing.T, circuit Circuit) {
-	wireRefs := utils.References(circuit)
+func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
+	sCircuit := toSerializableCircuit(circuit)
+	wireRefs := utils.References(sCircuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
@@ -235,19 +159,19 @@ func test(t *testing.T, circuit Circuit) {
 
 		t.Log("Selected inputs for test")
 
-		proof, err := Prove(circuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		proof, err := Prove(sCircuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 		assert.NoError(t, err)
 
 		// Even though a hash is called here, the proof is empty
 
-		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 		assert.NoError(t, err, "proof rejected")
 
 		if proof.isEmpty() { // special case for TestNoGate:
 			continue // there's no way to make a trivial proof fail
 		}
 
-		err = Verify(circuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
+		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
 
@@ -270,7 +194,7 @@ func (p Proof) isEmpty() bool {
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	c := Circuit{
 		{
-			Gate: identityGate,
+			Gate: gkrtesting.IdentityGate,
 		},
 	}
 
@@ -283,26 +207,6 @@ func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 
 	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
-}
-
-func mimcCircuit(numRounds int) Circuit {
-	c := make(Circuit, numRounds+2)
-
-	// Input wires
-	c[0] = Wire{
-		Gate: identityGate,
-	}
-	c[1] = Wire{
-		Gate: identityGate,
-	}
-
-	for i := 2; i < len(c); i++ {
-		c[i] = Wire{
-			Gate:   gkrtypes.ToSerializableGate(cache.GetGate("mimc")),
-			Inputs: []int{i - 1, 0},
-		}
-	}
-	return c
 }
 
 func TestIsAdditive(t *testing.T) {
@@ -416,7 +320,8 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	c := mimcCircuit(mimcDepth)
+	gc := gkrtesting.MiMCCircuit(mimcDepth)
+	c := toSerializableCircuit(gc)
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
@@ -505,7 +410,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := gkrtypes.ToSerializable(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit := toSerializableCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

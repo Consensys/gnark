@@ -1,9 +1,6 @@
 package gkrtypes
 
 import (
-	"errors"
-
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -51,11 +48,13 @@ type (
 	RegisteredWires   = Wires[BothExecutables]
 
 	// Serializable types (bytecode only, for native proving)
+	SerializableGate = Gate[*GateBytecode]
 	SerializableCircuit = Circuit[*GateBytecode]
 	SerializableWire    = Wire[*GateBytecode]
 	SerializableWires   = Wires[*GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
+	GadgetGate    = Gate[gkr.GateFunction]
 	GadgetCircuit = Circuit[gkr.GateFunction]
 	GadgetWire    = Wire[gkr.GateFunction]
 	GadgetWires   = Wires[gkr.GateFunction]
@@ -328,63 +327,31 @@ func (c Circuit[GateExecutable]) TopologicalSort() Wires[GateExecutable] {
 	return sorted
 }
 
-var ErrZeroFunction = errors.New("detected a zero function")
-
 // some sample gates
 
 // Identity gate: x -> x
-func Identity() *RegisteredGate {
-	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return in[0]
-	}, &GateBytecode{}, 1, 1, 0, gnark.Curves())
+func Identity(_ gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return in[0]
 }
 
 // Add2 gate: (x, y) -> x + y
-func Add2() *RegisteredGate {
-	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return api.Add(in[0], in[1])
-	}, &GateBytecode{
-		Instructions: []GateInstruction{{
-			Op:     OpAdd,
-			Inputs: []uint16{0, 1},
-		}},
-	}, 2, 1, 0, gnark.Curves())
+func Add2(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return api.Add(in[0], in[1])
 }
 
 // Sub2 gate: (x, y) -> x - y
-func Sub2() *RegisteredGate {
-	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return api.Sub(in[0], in[1])
-	}, &GateBytecode{
-		Instructions: []GateInstruction{{
-			Op:     OpSub,
-			Inputs: []uint16{0, 1},
-		}},
-	}, 2, 1, 0, gnark.Curves())
+func Sub2(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return api.Sub(in[0], in[1])
 }
 
 // Neg gate: x -> -x
-func Neg() *RegisteredGate {
-	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return api.Neg(in[0])
-	}, &GateBytecode{
-		Instructions: []GateInstruction{{
-			Op:     OpNeg,
-			Inputs: []uint16{0},
-		}},
-	}, 1, 1, 0, gnark.Curves())
+func Neg(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return api.Neg(in[0])
 }
 
 // Mul2 gate: (x, y) -> x * y
-func Mul2() *RegisteredGate {
-	return NewGate(func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-		return api.Mul(in[0], in[1])
-	}, &GateBytecode{
-		Instructions: []GateInstruction{{
-			Op:     OpMul,
-			Inputs: []uint16{0, 1},
-		}},
-	}, 2, 2, -1, gnark.Curves())
+func Mul2(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+	return api.Mul(in[0], in[1])
 }
 
 func ConvertGate[GateExecutable, TargetGateExecutable any](g *Gate[GateExecutable], converter func(GateExecutable) TargetGateExecutable) *Gate[TargetGateExecutable] {

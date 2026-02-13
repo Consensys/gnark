@@ -7,9 +7,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
-	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to getID them
+	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
 	"github.com/consensys/gnark/test"
 )
 
@@ -98,7 +99,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	YOut := gkrApi.Gate(yGate, S, XOut, XX, YYYY) // 423 - 426
 
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
-	XOut = gkrApi.Gate(identityGate, XOut)
+	XOut = gkrApi.Gate(gkrtypes.Identity, XOut)
 
 	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {
@@ -124,11 +125,6 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 }
 
 // custom gates
-
-// identityGate x -> x
-func identityGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
-	return api.Add(input[0], 0)
-}
 
 // squareGate x -> x²
 func squareGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
