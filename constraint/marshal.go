@@ -149,11 +149,6 @@ func (system *System) toBytes() ([]byte, error) {
 
 const headerLen = 4 * 8
 
-// GkrTagBase is the base CBOR tag number for GKR blueprint types.
-// Tag numbers are computed as: GkrTagBase + ecc.ID*3 + offset
-// This ensures stable, non-overlapping tags across all curves.
-const GkrTagBase = 5309750
-
 type header struct {
 	// length in bytes of each sections
 	levelsLen       uint64
