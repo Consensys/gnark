@@ -2,11 +2,9 @@ package gkrtypes
 
 import (
 	"errors"
-	"slices"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
@@ -18,13 +16,19 @@ type (
 		InputInstance  int
 	}
 
+	GateID           uint16
+	SerializableWire struct {
+		Gate   GateID
+		Inputs []int
+	}
+	SerializableCircuit []SerializableWire
+
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
 		Evaluate    GateExecutable
-		NbIn        int      // number of inputs
-		Degree      int      // total Degree of the polynomial
-		SolvableVar int      // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-		Curves      []ecc.ID // Curves that the gate is allowed to be used over
+		NbIn        int // number of inputs
+		Degree      int // total Degree of the polynomial
+		SolvableVar int // if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
 	}
 
 	Wire[GateExecutable any] struct {
@@ -52,29 +56,16 @@ type (
 	RegisteredWire    = Wire[BothExecutables]
 	RegisteredWires   = Wires[BothExecutables]
 
-	// Serializable types (bytecode only, for native proving)
-	SerializableCircuit = Circuit[*GateBytecode]
-	SerializableWire    = Wire[*GateBytecode]
-	SerializableWires   = Wires[*GateBytecode]
+	// Executable types (bytecode only, for native proving)
+	ExecutableCircuit = Circuit[*GateBytecode]
+	ExecutableWire    = Wire[*GateBytecode]
+	ExecutableWires   = Wires[*GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
 	GadgetCircuit = Circuit[gkr.GateFunction]
 	GadgetWire    = Wire[gkr.GateFunction]
 	GadgetWires   = Wires[gkr.GateFunction]
 )
-
-// BlueprintSolve is the interface for GKR solve blueprints
-type BlueprintSolve interface {
-	SetNbInstances(nbInstances uint32)
-}
-
-// Blueprints holds all GKR-related blueprint IDs and references
-type Blueprints struct {
-	SolveID         constraint.BlueprintID
-	Solve           BlueprintSolve
-	ProveID         constraint.BlueprintID
-	GetAssignmentID constraint.BlueprintID
-}
 
 // NewGate creates a new gate function with the given parameters:
 // - f: the polynomial function defining the gate
@@ -93,17 +84,15 @@ func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, s
 		NbIn:        nbIn,
 		Degree:      degree,
 		SolvableVar: solvableVar,
-		Curves:      curves,
 	}
+}
+
+func (be BothExecutables) getGateFunction() gkr.GateFunction {
+	return be.SnarkFriendly
 }
 
 func (be BothExecutables) getByteCode() *GateBytecode {
 	return be.Bytecode
-}
-
-// SupportsCurve returns whether the gate can be used over the given curve.
-func (g *Gate[GateExecutable]) SupportsCurve(curve ecc.ID) bool {
-	return slices.Contains(g.Curves, curve)
 }
 
 // IsInput returns whether the wire is an input wire.
@@ -410,7 +399,6 @@ func ConvertGate[GateExecutable, TargetGateExecutable any](g *Gate[GateExecutabl
 		NbIn:        g.NbIn,
 		Degree:      g.Degree,
 		SolvableVar: g.SolvableVar,
-		Curves:      g.Curves,
 	}
 }
 
@@ -427,13 +415,17 @@ func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExec
 	return res
 }
 
-// ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
-func ToSerializable(c RegisteredCircuit) SerializableCircuit {
+// ToExecutable converts a registered circuit (with both executables) to an executable circuit (bytecode only).
+func ToExecutable(c RegisteredCircuit) ExecutableCircuit {
 	return ConvertCircuit(c, BothExecutables.getByteCode)
 }
 
-func ToSerializableGate(g *RegisteredGate) *Gate[*GateBytecode] {
+func ToExecutableGate(g *RegisteredGate) *Gate[*GateBytecode] {
 	return ConvertGate(g, BothExecutables.getByteCode)
+}
+
+func ToGadgetGate(g *RegisteredGate) *Gate[gkr.GateFunction] {
+	return ConvertGate(g, BothExecutables.getGateFunction)
 }
 
 // ToGadget converts a registered circuit (with both executables) to a gadget circuit (gate functions only, for in-circuit verification).

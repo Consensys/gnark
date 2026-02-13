@@ -1,19 +1,16 @@
 package gkr_poseidon2
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/permutation/poseidon2"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
 )
 
 // extKeyGate applies the external matrix mul, then adds the round key
@@ -182,11 +179,6 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	if err != nil {
 		return
 	}
-	gateNamer := newRoundGateNamer(&p, curve)
-
-	if err = registerGates(&p, curve); err != nil {
-		return
-	}
 
 	gkrApi, err := gkrapi.New(api)
 	if err != nil {
@@ -233,15 +225,14 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	// apply external matrix multiplication and round key addition
 	// round dependent due to the round key
 	extKeySBox := func(round, varI int, a, b gkr.Variable) gkr.Variable {
-		return sBox(gkrApi.NamedGate(gateNamer.linear(varI, round), a, b))
+		return sBox(gkrApi.Gate(extKeyGate(&p.RoundKeys[round][varI]), a, b))
 	}
 
-	// apply external matrix multiplication and round key addition
+	// apply internal matrix multiplication and round key addition
 	// then apply the s-Box
 	// for the second variable
-	// round independent due to the round key
 	intKeySBox2 := func(round int, a, b gkr.Variable) gkr.Variable {
-		return sBox(gkrApi.NamedGate(gateNamer.linear(yI, round), a, b))
+		return sBox(gkrApi.Gate(intKeyGate2(&p.RoundKeys[round][1]), a, b))
 	}
 
 	// apply a full round
@@ -289,99 +280,9 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	return
 }
 
-// RegisterGates registers the GKR gates corresponding to the given curves for the solver.
+// Deprecated: Gate registration now happens automatically via api.Gate().
 func RegisterGates(curves ...ecc.ID) error {
-	if len(curves) == 0 {
-		return errors.New("expected at least one curve")
-	}
-	for _, curve := range curves {
-		p, err := poseidon2.GetDefaultParameters(curve)
-		if err != nil {
-			return fmt.Errorf("failed to get default parameters for curve %s: %w", curve, err)
-		}
-		if err = registerGates(&p, curve); err != nil {
-			return fmt.Errorf("failed to register gates for curve %s: %w", curve, err)
-		}
-	}
 	return nil
-}
-
-func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
-	const (
-		x = iota
-		y
-	)
-
-	gateNames := newRoundGateNamer(p, curve)
-	halfRf := p.NbFullRounds / 2
-
-	extKeySBox := func(round int, varIndex int) error {
-		return gkrgates.Register(extKeyGate(&p.RoundKeys[round][varIndex]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(varIndex, round)), gkrgates.WithCurves(curve))
-	}
-
-	intKeySBox2 := func(round int) error {
-		return gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
-	}
-
-	fullRound := func(i int) error {
-		if err := extKeySBox(i, x); err != nil {
-			return err
-		}
-		return extKeySBox(i, y)
-	}
-
-	for round := range halfRf {
-		if err := fullRound(round); err != nil {
-			return err
-		}
-	}
-
-	{ // round = halfRf: first partial one
-		if err := extKeySBox(halfRf, x); err != nil {
-			return err
-		}
-	}
-
-	for round := halfRf + 1; round < halfRf+p.NbPartialRounds; round++ {
-		if err := extKeySBox(round, x); err != nil { // for x1, intKeySBox is identical to extKeySBox
-			return err
-		}
-	}
-
-	{
-		round := halfRf + p.NbPartialRounds
-		if err := extKeySBox(round, x); err != nil {
-			return err
-		}
-		if err := intKeySBox2(round); err != nil {
-			return err
-		}
-	}
-
-	for round := halfRf + p.NbPartialRounds + 1; round < p.NbPartialRounds+p.NbFullRounds; round++ {
-		if err := fullRound(round); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-type roundGateNamer string
-
-// newRoundGateNamer returns an object that returns standardized names for gates in the GKR circuit
-func newRoundGateNamer(p *poseidon2.Parameters, curve ecc.ID) roundGateNamer {
-	return roundGateNamer(fmt.Sprintf("Poseidon2-%s[t=%d,rF=%d,rP=%d,d=%d]", curve.String(), p.Width, p.NbFullRounds, p.NbPartialRounds, p.DegreeSBox))
-}
-
-// linear is the name of a gate where a polynomial of total degree 1 is applied to the input
-func (n roundGateNamer) linear(varIndex, round int) gkr.GateName {
-	return gkr.GateName(fmt.Sprintf("x%d-l-op-round=%d;%s", varIndex, round, n))
-}
-
-// integrated is the name of a gate where a polynomial of total degree 1 is applied to the input, followed by an S-box
-func (n roundGateNamer) integrated(varIndex, round int) gkr.GateName {
-	return gkr.GateName(fmt.Sprintf("x%d-i-op-round=%d;%s", varIndex, round, n))
 }
 
 type gkrPoseidon2Key struct{}

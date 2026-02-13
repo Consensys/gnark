@@ -46,6 +46,37 @@ func (g *GateBytecode) NbConstants() int {
 	return len(g.Constants)
 }
 
+// EstimateDegree returns an upper bound on the degree of the gate
+func (g *GateBytecode) EstimateDegree(nbIn int) int {
+	frameSize := len(g.Constants) + nbIn
+	deg := make([]int, frameSize+len(g.Instructions))
+	for i := range nbIn {
+		deg[i+len(g.Constants)] = 1
+	}
+	for i, inst := range g.Instructions {
+		var curr int
+		switch inst.Op {
+		case OpAdd, OpSub, OpNeg, OpSumExp17:
+			for _, in := range inst.Inputs {
+				curr = max(curr, deg[in])
+			}
+		case OpMul:
+			for _, in := range inst.Inputs {
+				curr += deg[in]
+			}
+		case OpMulAcc: // a + b*c
+			curr = max(deg[inst.Inputs[0]], deg[inst.Inputs[1]]+deg[inst.Inputs[2]])
+		default:
+			panic("unknown operation")
+		}
+		if inst.Op == OpSumExp17 {
+			curr *= 17
+		}
+		deg[frameSize+i] = curr
+	}
+	return deg[len(deg)-1]
+}
+
 // String returns a human-readable representation of the operation
 func (op GateOp) String() string {
 	switch op {

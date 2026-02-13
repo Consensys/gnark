@@ -17,13 +17,9 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
+	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 )
-
-func init() {
-	// Register GKR blueprint types for CBOR serialization with explicit tag numbers
-	constraint.RegisterGkrBlueprintTypes(ecc.BLS12_377, BlueprintSolve{}, BlueprintProve{}, BlueprintGetAssignment{})
-}
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
 type circuitEvaluator struct {
@@ -33,7 +29,7 @@ type circuitEvaluator struct {
 // BlueprintSolve is a BLS12_377-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
-	Circuit     gkrtypes.SerializableCircuit
+	Circuit     gkrtypes.ExecutableCircuit
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
@@ -48,14 +44,12 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) setOutputWires() {
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
-}
-
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
+	b.Circuit.OutputsList()
+	b.outputWires = b.Circuit.Outputs()
+
 	b.evaluatorPool.New = func() interface{} {
 		ce := &circuitEvaluator{
 			evaluators: make([]gateEvaluator, len(b.Circuit)),
@@ -68,8 +62,6 @@ func (b *BlueprintSolve) Reset() {
 		}
 		return ce
 	}
-
-	b.setOutputWires()
 
 	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
@@ -150,8 +142,9 @@ func (b *BlueprintSolve) NbConstraints() int {
 }
 
 // NbOutputs implements Blueprint
-func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.setOutputWires()
+func (b *BlueprintSolve) NbOutputs(constraint.Instruction) int {
+	b.Circuit.OutputsList()
+	b.outputWires = b.Circuit.Outputs()
 	return len(b.outputWires)
 }
 
@@ -399,7 +392,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BLS12_377
-func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrtypes.Blueprints {
+func NewBlueprints(circuit gkrtypes.ExecutableCircuit, hashName string, compiler constraint.CustomizableSystem) gadget.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -418,7 +411,7 @@ func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compil
 	}
 	getAssignmentID := compiler.AddBlueprint(getAssignment)
 
-	return gkrtypes.Blueprints{
+	return gadget.Blueprints{
 		SolveID:         solveID,
 		Solve:           solve,
 		ProveID:         proveID,

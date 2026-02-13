@@ -6,8 +6,6 @@
 package gkr
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 
@@ -23,11 +21,9 @@ type GateTester struct {
 	nbIn      int
 }
 
-func NewGateTester(g *gkrtypes.GateBytecode, nbIn int) *GateTester {
-	return &GateTester{
-		evaluator: newGateEvaluator(g, nbIn),
-		nbIn:      nbIn,
-	}
+func (t *GateTester) SetGate(g *gkrtypes.GateBytecode, nbIn int) {
+	t.evaluator = newGateEvaluator(g, nbIn)
+	t.nbIn = nbIn
 }
 
 // IsAdditive returns whether xᵢ occurs only in a monomial of total degree 1 in e
@@ -126,37 +122,8 @@ func (t *GateTester) fitPoly(degreeBound uint64) polynomial.Polynomial {
 }
 
 // FindDegree returns the degree of the gate function, or -1 if it fails.
-// Failure could be due to the degree being higher than max or the function not being a polynomial at all.
-func (t *GateTester) FindDegree(max int) (int, error) {
-	bound := uint64(max) + 1
-	for degreeBound := uint64(4); degreeBound <= bound; degreeBound *= 8 {
-		if p := t.fitPoly(degreeBound); p != nil {
-			if len(p) == 0 {
-				return -1, gkrtypes.ErrZeroFunction
-			}
-			return len(p) - 1, nil
-		}
-	}
-	return -1, fmt.Errorf("could not find a degree: tried up to %d", max)
-}
-
-func (t *GateTester) VerifyDegree(claimedDegree int) error {
-	if p := t.fitPoly(ecc.NextPowerOfTwo(uint64(claimedDegree) + 1)); p == nil {
-		return fmt.Errorf("detected a higher degree than %d", claimedDegree)
-	} else if len(p) == 0 {
-		return gkrtypes.ErrZeroFunction
-	} else if len(p)-1 != claimedDegree {
-		return fmt.Errorf("detected degree %d, claimed %d", len(p)-1, claimedDegree)
-	}
-	return nil
-}
-
-// Equal checks if two gate functions are equal, by testing the same at a random point.
-func (t *GateTester) Equal(g *gkrtypes.GateBytecode) bool {
-	x := make(fr.Vector, t.nbIn)
-	x.MustSetRandom()
-	fAt := t.evaluator.evaluate(x...)
-	gEval := newGateEvaluator(g, t.nbIn)
-	gAt := gEval.evaluate(x...)
-	return fAt.Equal(gAt)
+// Failure can be due to the function not being a polynomial at all, or being constantly zero.
+func (t *GateTester) FindDegree() int {
+	p := t.fitPoly(ecc.NextPowerOfTwo(uint64(t.evaluator.gate.EstimateDegree(t.nbIn)) + 1))
+	return len(p) - 1
 }
