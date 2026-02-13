@@ -75,9 +75,6 @@ func TestMimc(t *testing.T) {
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	gCircuit := gkrtypes.GadgetCircuit{
 		{
-			Gate: gkrtypes.GadgetGate{
-				Evaluate: gkrtypes.Identity,
-			},
 			NbUniqueOutputs: 2,
 		},
 	}

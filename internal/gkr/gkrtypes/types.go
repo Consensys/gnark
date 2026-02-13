@@ -336,7 +336,7 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) SerializableCircuit {
 			if !reflect.DeepEqual(c[i].Gate, GadgetGate{}) {
 				panic("empty gate expected for input wire")
 			}
-			break
+			continue
 		}
 
 		c[i].Gate.NbIn = len(c[i].Inputs)

@@ -51,7 +51,7 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrtypes.GadgetWire{Gate: gkrtypes.Gate[gkr.GateFunction]{Evaluate: gkrtypes.Identity}})
+	api.circuit = append(api.circuit, gkrtypes.GadgetWire{})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
