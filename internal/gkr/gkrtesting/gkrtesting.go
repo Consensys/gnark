@@ -3,16 +3,10 @@ package gkrtesting
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
-	gkrbls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
