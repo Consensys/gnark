@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	identityGate = gkrtypes.ToExecutableGate(gkrtypes.Identity())
-	add2Gate     = gkrtypes.ToExecutableGate(gkrtypes.Add2())
-	mul2Gate     = gkrtypes.ToExecutableGate(gkrtypes.Mul2())
+	identityGate = gkrtypes.ToSerializableGate(gkrtypes.Identity())
+	add2Gate     = gkrtypes.ToSerializableGate(gkrtypes.Add2())
+	mul2Gate     = gkrtypes.ToSerializableGate(gkrtypes.Mul2())
 )
 
 func TestNoGateTwoInstances(t *testing.T) {
@@ -142,7 +142,7 @@ func TestSingleMimcCipherGate(t *testing.T) {
 		},
 		{
 			Inputs: []int{0, 1},
-			Gate:   gkrtypes.ToExecutableGate(cache.GetGate("mimc")),
+			Gate:   gkrtypes.ToSerializableGate(cache.GetGate("mimc")),
 		},
 	})
 }
@@ -298,7 +298,7 @@ func mimcCircuit(numRounds int) Circuit {
 
 	for i := 2; i < len(c); i++ {
 		c[i] = Wire{
-			Gate:   gkrtypes.ToExecutableGate(cache.GetGate("mimc")),
+			Gate:   gkrtypes.ToSerializableGate(cache.GetGate("mimc")),
 			Inputs: []int{i - 1, 0},
 		}
 	}
@@ -476,7 +476,7 @@ func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gkrtypes.ExecutableCircuit
+	Circuit         gkrtypes.SerializableCircuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
@@ -505,7 +505,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := gkrtypes.ToExecutable(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit := gkrtypes.ToSerializable(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

@@ -52,7 +52,7 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrtypes.SerializableWire{})
+	api.circuit = append(api.circuit, wire{})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -82,7 +82,7 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
 	compiler := api.parentApi.Compiler()
 
-	eCircuit := api.gateRegistry.toExecutableCircuit(api.circuit)
+	eCircuit := api.gateRegistry.toSerializableCircuit(api.circuit)
 
 	switch curveID {
 	case ecc.BN254:

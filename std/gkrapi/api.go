@@ -3,24 +3,33 @@ package gkrapi
 import (
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
-type API struct {
-	circuit      gkrtypes.SerializableCircuit
-	assignments  gadget.WireAssignment
-	parentApi    frontend.API
-	gateRegistry gateRegistry
-}
+type (
+	gateID uint16
+	wire   struct {
+		Gate   gateID
+		Inputs []int
+	}
+
+	circuit []wire
+
+	API struct {
+		circuit      circuit
+		assignments  gadget.WireAssignment
+		parentApi    frontend.API
+		gateRegistry gateRegistry
+	}
+)
 
 func frontendVarToInt(a gkr.Variable) int {
 	return int(a)
 }
 
-func (api *API) gate(id gkrtypes.GateID, inputs ...gkr.Variable) gkr.Variable {
-	api.circuit = append(api.circuit, gkrtypes.SerializableWire{
+func (api *API) gate(id gateID, inputs ...gkr.Variable) gkr.Variable {
+	api.circuit = append(api.circuit, wire{
 		Gate:   id,
 		Inputs: utils.Map(inputs, frontendVarToInt),
 	})
@@ -33,7 +42,7 @@ func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable
 	return api.gate(api.gateRegistry.getID(gate, len(inputs)), inputs...)
 }
 
-func (api *API) gate2PlusIn(gate gkrtypes.GateID, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
+func (api *API) gate2PlusIn(gate gateID, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
 	inCombined := make([]gkr.Variable, 2+len(in))
 	inCombined[0] = in1
 	inCombined[1] = in2

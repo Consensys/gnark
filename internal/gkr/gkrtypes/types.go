@@ -17,13 +17,6 @@ type (
 		InputInstance  int
 	}
 
-	GateID           uint16
-	SerializableWire struct {
-		Gate   GateID
-		Inputs []int
-	}
-	SerializableCircuit []SerializableWire
-
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
 		Evaluate    GateExecutable
@@ -57,10 +50,10 @@ type (
 	RegisteredWire    = Wire[BothExecutables]
 	RegisteredWires   = Wires[BothExecutables]
 
-	// Executable types (bytecode only, for native proving)
-	ExecutableCircuit = Circuit[*GateBytecode]
-	ExecutableWire    = Wire[*GateBytecode]
-	ExecutableWires   = Wires[*GateBytecode]
+	// Serializable types (bytecode only, for native proving)
+	SerializableCircuit = Circuit[*GateBytecode]
+	SerializableWire    = Wire[*GateBytecode]
+	SerializableWires   = Wires[*GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
 	GadgetCircuit = Circuit[gkr.GateFunction]
@@ -416,12 +409,12 @@ func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExec
 	return res
 }
 
-// ToExecutable converts a registered circuit (with both executables) to an executable circuit (bytecode only).
-func ToExecutable(c RegisteredCircuit) ExecutableCircuit {
+// ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
+func ToSerializable(c RegisteredCircuit) SerializableCircuit {
 	return ConvertCircuit(c, BothExecutables.getByteCode)
 }
 
-func ToExecutableGate(g *RegisteredGate) *Gate[*GateBytecode] {
+func ToSerializableGate(g *RegisteredGate) *Gate[*GateBytecode] {
 	return ConvertGate(g, BothExecutables.getByteCode)
 }
 

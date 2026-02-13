@@ -16,14 +16,14 @@ import (
 
 type (
 	gateRegistry struct {
-		ids    map[uintptr][]gkrtypes.GateID // ids maps a gate function to gates defined using it.
+		ids    map[uintptr][]gateID // ids maps a gate function to gates defined using it.
 		gates  []*gkrtypes.RegisteredGate
 		tester gateTester
 	}
 )
 
 const (
-	idIdentity gkrtypes.GateID = iota
+	idIdentity gateID = iota
 	idAdd2
 	idSub2
 	idNeg
@@ -40,7 +40,7 @@ var builtinGates = [...]*gkrtypes.RegisteredGate{
 
 func newGateRegistry(curve ecc.ID) gateRegistry {
 	res := gateRegistry{
-		ids:   make(map[uintptr][]gkrtypes.GateID),
+		ids:   make(map[uintptr][]gateID),
 		gates: slices.Clone(builtinGates[:]),
 	}
 
@@ -62,7 +62,7 @@ func newGateRegistry(curve ecc.ID) gateRegistry {
 
 // getID looks up f in the cache, adding it if necessary.
 // Gate ID is returned.
-func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gkrtypes.GateID {
+func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gateID {
 	bytecode, err := gkrtypes.CompileGateFunction(f, nbIn)
 	if err != nil {
 		panic(err)
@@ -99,27 +99,27 @@ func (r *gateRegistry) getID(f gkr.GateFunction, nbIn int) gkrtypes.GateID {
 		panic("cannot find degree for gate")
 	}
 
-	id := gkrtypes.GateID(len(r.gates))
+	id := gateID(len(r.gates))
 	r.gates = append(r.gates, &g)
 	r.ids[ptr] = append(r.ids[ptr], id)
 
 	return id
 }
 
-func (r *gateRegistry) toExecutableCircuit(c gkrtypes.SerializableCircuit) gkrtypes.ExecutableCircuit {
-	res := make(gkrtypes.ExecutableCircuit, len(c))
+func (r *gateRegistry) toSerializableCircuit(c circuit) gkrtypes.SerializableCircuit {
+	res := make(gkrtypes.SerializableCircuit, len(c))
 	for i := range c {
 		res[i].Inputs = c[i].Inputs
-		res[i].Gate = gkrtypes.ToExecutableGate(r.gates[c[i].Gate])
+		res[i].Gate = gkrtypes.ToSerializableGate(r.gates[c[i].Gate])
 	}
 	return res
 }
 
-func (r *gateRegistry) getGateFunction(id gkrtypes.GateID) gkr.GateFunction {
+func (r *gateRegistry) getGateFunction(id gateID) gkr.GateFunction {
 	return r.gates[id].Evaluate.SnarkFriendly
 }
 
-func (r *gateRegistry) toGadgetCircuit(c gkrtypes.SerializableCircuit) gkrtypes.GadgetCircuit {
+func (r *gateRegistry) toGadgetCircuit(c circuit) gkrtypes.GadgetCircuit {
 	res := make(gkrtypes.GadgetCircuit, len(c))
 	for i := range c {
 		res[i].Inputs = c[i].Inputs

@@ -21,9 +21,9 @@ import (
 
 // Type aliases for bytecode-based GKR types
 type (
-	Wire    = gkrtypes.ExecutableWire
-	Wires   = gkrtypes.ExecutableWires
-	Circuit = gkrtypes.ExecutableCircuit
+	Wire    = gkrtypes.SerializableWire
+	Wires   = gkrtypes.SerializableWires
+	Circuit = gkrtypes.SerializableCircuit
 )
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
