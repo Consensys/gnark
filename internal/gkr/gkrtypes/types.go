@@ -1,6 +1,8 @@
 package gkrtypes
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -48,7 +50,7 @@ type (
 	RegisteredWires   = Wires[BothExecutables]
 
 	// Serializable types (bytecode only, for native proving)
-	SerializableGate = Gate[*GateBytecode]
+	SerializableGate    = Gate[*GateBytecode]
 	SerializableCircuit = Circuit[*GateBytecode]
 	SerializableWire    = Wire[*GateBytecode]
 	SerializableWires   = Wires[*GateBytecode]
@@ -408,4 +410,43 @@ type Blueprints struct {
 	Solve           BlueprintSolve
 	ProveID         constraint.BlueprintID
 	GetAssignmentID constraint.BlueprintID
+}
+
+// ToSerializableCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
+// It also sets the gate metadata (Degree, SolvableVar) for both the input and output circuits.
+func ToSerializableCircuit(mod *big.Int, c GadgetCircuit) SerializableCircuit {
+
+	tester := gateTester{mod: mod}
+
+	var err error
+	res := make(SerializableCircuit, len(c))
+	for i := range c {
+		res[i].Inputs = c[i].Inputs
+
+		c[i].Gate.NbIn = len(c[i].Inputs)
+		res[i].Gate.NbIn = c[i].Gate.NbIn
+
+		if res[i].Gate.Evaluate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn); err != nil {
+			panic(err)
+		}
+
+		tester.setGate(res[i].Gate.Evaluate, c[i].Gate.NbIn)
+
+		c[i].Gate.Degree = len(tester.fitPoly(res[i].Gate.Evaluate.EstimateDegree(len(c[i].Inputs)))) - 1
+		if c[i].Gate.Degree == -1 {
+			panic("cannot find degree for gate")
+		}
+		res[i].Gate.Degree = c[i].Gate.Degree
+
+		res[i].Gate.SolvableVar = -1
+		for j := range c[i].Gate.NbIn {
+			if tester.isAdditive(j) {
+				res[i].Gate.SolvableVar = j
+				break
+			}
+		}
+		c[i].Gate.SolvableVar = res[i].Gate.SolvableVar
+		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
+	}
+	return res
 }
