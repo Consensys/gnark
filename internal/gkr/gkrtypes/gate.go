@@ -229,7 +229,7 @@ func (gc *gateCompiler) remapIndices() {
 
 // CompileGateFunction compiles a gate function into a GateBytecode.
 // The gate function should be of type gkr.GateFunction.
-func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error) {
+func CompileGateFunction(f gkr.GateFunction, nbInputs int) (GateBytecode, error) {
 	// Create compiling API
 	compiler := gateCompiler{
 		constantIndex: make(map[string]uint16),
@@ -249,9 +249,9 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error
 		// If the output simply mirrors the last input, we can still represent
 		// it in bytecode, as the evaluator returns the last stack frame element.
 		if int(out.(compilationVar).id) == nbInputs-1 {
-			return &GateBytecode{}, nil
+			return GateBytecode{}, nil
 		}
-		return nil, errors.New("cannot compile no-op gate function")
+		return GateBytecode{}, errors.New("cannot compile no-op gate function")
 	}
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
@@ -262,7 +262,7 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error
 	// Remap indices from temporary layout to final layout
 	compiler.remapIndices()
 
-	return &GateBytecode{
+	return GateBytecode{
 		Instructions: compiler.GetInstructions(),
 		Constants:    compiler.constants,
 	}, nil
@@ -270,12 +270,12 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error
 
 type gateTester struct {
 	mod  *big.Int
-	gate *GateBytecode
+	gate GateBytecode
 	vars []*big.Int
 	nbIn int
 }
 
-func (t *gateTester) setGate(g *GateBytecode, nbIn int) {
+func (t *gateTester) setGate(g GateBytecode, nbIn int) {
 	t.gate = g
 	t.vars = make([]*big.Int, g.NbConstants()+nbIn+len(g.Instructions))
 	t.nbIn = nbIn

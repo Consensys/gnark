@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -52,7 +51,7 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrtypes.GadgetWire{Gate: &gkrtypes.Gate[gkr.GateFunction]{Evaluate: gkrtypes.Identity}})
+	api.circuit = append(api.circuit, gkrtypes.GadgetWire{Gate: gkrtypes.Gate[gkr.GateFunction]{Evaluate: gkrtypes.Identity}})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -71,20 +70,30 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // From this point on, the circuit cannot be modified,
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
-	compiler := api.parentApi.Compiler()
-	field := compiler.Field()
-
 	res := Circuit{
 		circuit:     api.circuit,
 		assignments: make(gadget.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
 		hashName:    fiatshamirHashName,
-		blueprints: [...]func(gkrtypes.SerializableCircuit, string, constraint.CustomizableSystem) gkrtypes.Blueprints{
-			ecc.BN254:     gkrbn254.NewBlueprints,
-			ecc.BLS12_377: gkrbls12377.NewBlueprints,
-			ecc.BLS12_381: gkrbls12381.NewBlueprints,
-			ecc.BW6_761:   gkrbw6761.NewBlueprints,
-		}[utils.FieldToCurve(field)](gkrtypes.ToSerializableCircuit(field, api.circuit), fiatshamirHashName, compiler),
+	}
+
+	// Dispatch to curve-specific factory
+	compiler := api.parentApi.Compiler()
+	field := compiler.Field()
+	curveID := utils.FieldToCurve(field)
+	serializableCircuit := gkrtypes.ToSerializableCircuit(field, api.circuit)
+
+	switch curveID {
+	case ecc.BN254:
+		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+	case ecc.BLS12_377:
+		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+	case ecc.BLS12_381:
+		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+	case ecc.BW6_761:
+		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+	default:
+		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
 
 	for _, opt := range options {

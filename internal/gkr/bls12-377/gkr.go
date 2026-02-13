@@ -745,7 +745,7 @@ func (p Proof) flatten() iter.Seq2[int, *fr.Element] {
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
 type gateEvaluator struct {
-	gate      *gkrtypes.GateBytecode
+	gate      gkrtypes.GateBytecode
 	vars      []fr.Element
 	frameSize int // number of constants plus currently pushed inputs
 	nbIn      int // number of inputs expected
@@ -753,7 +753,7 @@ type gateEvaluator struct {
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate *gkrtypes.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
+func newGateEvaluator(gate gkrtypes.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
 		gate:      gate,
 		nbIn:      nbIn,
@@ -845,14 +845,14 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
 // All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
-	gate        *gkrtypes.GateBytecode
+	gate        gkrtypes.GateBytecode
 	nbIn        int
 	lock        sync.Mutex
 	available   map[*gateEvaluator]struct{}
 	elementPool *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate *gkrtypes.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate gkrtypes.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
 		gate:        gate,
 		nbIn:        nbIn,

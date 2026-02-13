@@ -3,7 +3,6 @@ package gkrtypes
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -25,7 +24,7 @@ type (
 	}
 
 	Wire[GateExecutable any] struct {
-		Gate            *Gate[GateExecutable]
+		Gate            Gate[GateExecutable]
 		Inputs          []int
 		NbUniqueOutputs int
 	}
@@ -43,17 +42,11 @@ type (
 
 	// Type aliases for different circuit instantiations
 
-	// Registered types (with both bytecode and SNARK-friendly executables)
-	RegisteredGate    = Gate[BothExecutables]
-	RegisteredCircuit = Circuit[BothExecutables]
-	RegisteredWire    = Wire[BothExecutables]
-	RegisteredWires   = Wires[BothExecutables]
-
 	// Serializable types (bytecode only, for native proving)
-	SerializableGate    = Gate[*GateBytecode]
-	SerializableCircuit = Circuit[*GateBytecode]
-	SerializableWire    = Wire[*GateBytecode]
-	SerializableWires   = Wires[*GateBytecode]
+	SerializableGate    = Gate[GateBytecode]
+	SerializableCircuit = Circuit[GateBytecode]
+	SerializableWire    = Wire[GateBytecode]
+	SerializableWires   = Wires[GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
 	GadgetGate    = Gate[gkr.GateFunction]
@@ -62,32 +55,12 @@ type (
 	GadgetWires   = Wires[gkr.GateFunction]
 )
 
-// NewGate creates a new gate function with the given parameters:
-// - f: the polynomial function defining the gate
-// - compiled: the compiled form of the gate function
-// - NbIn: number of inputs to the gate
-// - Degree: total Degree of the polynomial. In case of multivariate polynomials, it is the maximum Degree over all terms.
-// - SolvableVar: if there is a variable whose value can be uniquely determined from the value of the gate and the other inputs, its index, -1 otherwise
-// - Curves: Curves that the gate is allowed to be used over
-func NewGate(f gkr.GateFunction, compiled *GateBytecode, nbIn int, degree int, solvableVar int, curves []ecc.ID) *RegisteredGate {
-
-	return &RegisteredGate{
-		Evaluate: BothExecutables{
-			Bytecode:      compiled,
-			SnarkFriendly: f,
-		},
-		NbIn:        nbIn,
-		Degree:      degree,
-		SolvableVar: solvableVar,
-	}
-}
-
 func (be BothExecutables) getGateFunction() gkr.GateFunction {
 	return be.SnarkFriendly
 }
 
-func (be BothExecutables) getByteCode() *GateBytecode {
-	return be.Bytecode
+func (be BothExecutables) getByteCode() GateBytecode {
+	return *be.Bytecode
 }
 
 // IsInput returns whether the wire is an input wire.
@@ -356,48 +329,6 @@ func Mul2(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 	return api.Mul(in[0], in[1])
 }
 
-func ConvertGate[GateExecutable, TargetGateExecutable any](g *Gate[GateExecutable], converter func(GateExecutable) TargetGateExecutable) *Gate[TargetGateExecutable] {
-	return &Gate[TargetGateExecutable]{
-		Evaluate:    converter(g.Evaluate),
-		NbIn:        g.NbIn,
-		Degree:      g.Degree,
-		SolvableVar: g.SolvableVar,
-	}
-}
-
-func ConvertCircuit[GateExecutable, TargetGateExecutable any](c Circuit[GateExecutable], gateConverter func(GateExecutable) TargetGateExecutable) Circuit[TargetGateExecutable] {
-	res := make(Circuit[TargetGateExecutable], len(c))
-	for i := range c {
-		res[i] = Wire[TargetGateExecutable]{
-			Gate:            ConvertGate(c[i].Gate, gateConverter),
-			Inputs:          c[i].Inputs,
-			NbUniqueOutputs: c[i].NbUniqueOutputs,
-		}
-	}
-
-	return res
-}
-
-// ToSerializable converts a registered circuit (with both executables) to a serializable circuit (bytecode only).
-func ToSerializable(c RegisteredCircuit) SerializableCircuit {
-	return ConvertCircuit(c, BothExecutables.getByteCode)
-}
-
-func ToSerializableGate(g *RegisteredGate) *Gate[*GateBytecode] {
-	return ConvertGate(g, BothExecutables.getByteCode)
-}
-
-func ToGadgetGate(g *RegisteredGate) *Gate[gkr.GateFunction] {
-	return ConvertGate(g, BothExecutables.getGateFunction)
-}
-
-// ToGadget converts a registered circuit (with both executables) to a gadget circuit (gate functions only, for in-circuit verification).
-func ToGadget(c RegisteredCircuit) GadgetCircuit {
-	return ConvertCircuit(c, func(e BothExecutables) gkr.GateFunction {
-		return e.SnarkFriendly
-	})
-}
-
 // BlueprintSolve is the interface for GKR solve blueprints
 type BlueprintSolve interface {
 	constraint.Blueprint
@@ -417,9 +348,8 @@ type Blueprints struct {
 func ToSerializableCircuit(mod *big.Int, c GadgetCircuit) SerializableCircuit {
 
 	tester := gateTester{mod: mod}
-
-	var err error
 	res := make(SerializableCircuit, len(c))
+	var err error
 	for i := range c {
 		res[i].Inputs = c[i].Inputs
 
