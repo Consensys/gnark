@@ -21,17 +21,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/frontend"
-	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/stretchr/testify/assert"
 )
 
 func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return gadget.ToSerializableCircuit(ecc.BLS12_381, circuit)
+	return gkrtypes.ToSerializableCircuit(ecc.BLS12_381.ScalarField(), circuit)
 }
 
 func TestNoGateTwoInstances(t *testing.T) {
@@ -207,49 +204,6 @@ func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 
 	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
-}
-
-func TestIsAdditive(t *testing.T) {
-
-	// f: x,y -> x² + xy
-	f := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		if len(x) != 2 {
-			panic("bivariate input needed")
-		}
-		res := api.Add(x[0], x[1])
-		return api.Mul(res, x[0])
-	}
-
-	// g: x,y -> x² + 3y
-	g := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		res := api.Mul(x[0], x[0])
-		y3 := api.Mul(x[1], 3)
-		return api.Add(res, y3)
-	}
-
-	// h: x -> 2x
-	h := func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-		return api.Add(x[0], x[0])
-	}
-
-	newTester := func(f gkr.GateFunction, nbIn int) *GateTester {
-		cg, err := gkrtypes.CompileGateFunction(f, nbIn)
-		assert.NoError(t, err)
-		var gt GateTester
-		gt.SetGate(cg, nbIn)
-		return &gt
-	}
-
-	tester := newTester(f, 2)
-	assert.False(t, tester.IsAdditive(1))
-	assert.False(t, tester.IsAdditive(0))
-
-	tester = newTester(g, 2)
-	assert.False(t, tester.IsAdditive(0))
-	assert.True(t, tester.IsAdditive(1))
-
-	tester = newTester(h, 1)
-	assert.True(t, tester.IsAdditive(0))
 }
 
 func generateTestProver(path string) func(t *testing.T) {

@@ -170,9 +170,9 @@ func TestIsAdditive(t *testing.T) {
 		true, false, false)
 
 	// x not additive (degree 2), y additive
-	testIsAdditive(t, "x²+y",
+	testIsAdditive(t, "x²+2y",
 		func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
-			return api.Add(api.Mul(in[0], in[0]), in[1])
+			return api.Add(api.Mul(in[0], in[0]), in[1], in[1])
 		},
 		false, true)
 
