@@ -126,8 +126,17 @@ func Build(api frontend.API, table Table, queries Table) error {
 			// For constant single-column tables with PlonkAPI, merge Sub+DivUnchecked
 			// into a single PLONK gate per table entry (2 gates instead of 3).
 			plonkAPI, useOptimizedTable := api.(frontend.PlonkAPI)
-			if useOptimizedTable {
-				useOptimizedTable = constTable && nbRow == 1
+			if useOptimizedTable && constTable && nbRow == 1 {
+				// verify all constant values fit in int (required by AddPlonkConstraint)
+				for i := range table {
+					cv, _ := api.Compiler().ConstantValue(table[i][0])
+					if cv == nil || !cv.IsInt64() {
+						useOptimizedTable = false
+						break
+					}
+				}
+			} else {
+				useOptimizedTable = false
 			}
 
 			if useOptimizedTable {
