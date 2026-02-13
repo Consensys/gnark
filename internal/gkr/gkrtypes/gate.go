@@ -245,7 +245,13 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error
 	// Execute the gate function to record operations
 	out := f(&compiler, inputs...)
 	if len(compiler.instructions) == 0 {
-		return nil, errors.New("every gate must perform a non-trivial operation")
+		// No operations recorded, but not all is lost.
+		// If the output simply mirrors the last input, we can still represent
+		// it in bytecode, as the evaluator returns the last stack frame element.
+		if int(out.(compilationVar).id) == nbInputs-1 {
+			return &GateBytecode{}, nil
+		}
+		return nil, errors.New("cannot compile no-op gate function")
 	}
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
@@ -263,17 +269,15 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error
 }
 
 type gateTester struct {
-	mod       *big.Int
-	gate      *GateBytecode
-	vars      []*big.Int
-	frameSize int
-	nbIn      int
+	mod  *big.Int
+	gate *GateBytecode
+	vars []*big.Int
+	nbIn int
 }
 
 func (t *gateTester) setGate(g *GateBytecode, nbIn int) {
 	t.gate = g
 	t.vars = make([]*big.Int, g.NbConstants()+nbIn+len(g.Instructions))
-	t.frameSize = g.NbConstants()
 	t.nbIn = nbIn
 	copy(t.vars, g.Constants)
 }
@@ -343,16 +347,19 @@ func (t *gateTester) evalPoly(p []*big.Int, x *big.Int) *big.Int {
 
 // evaluate executes the gate bytecode with the given inputs.
 func (t *gateTester) evaluate(inputs ...*big.Int) *big.Int {
+	frameSize := t.gate.NbConstants()
+
 	// Copy inputs into frame
-	copy(t.vars[t.frameSize:], inputs)
-	t.frameSize += len(inputs)
+	copy(t.vars[t.gate.NbConstants():], inputs)
+
+	frameSize += len(inputs)
 
 	// Execute instructions
-	for i, inst := range t.gate.Instructions {
-		dst := t.vars[t.frameSize+i]
+	for _, inst := range t.gate.Instructions {
+		dst := t.vars[frameSize]
 		if dst == nil {
 			dst = new(big.Int)
-			t.vars[t.frameSize+i] = dst
+			t.vars[frameSize] = dst
 		}
 		switch inst.Op {
 		case OpAdd:
@@ -383,11 +390,10 @@ func (t *gateTester) evaluate(inputs ...*big.Int) *big.Int {
 			panic("unknown operation")
 		}
 		dst.Mod(dst, t.mod)
+		frameSize++
 	}
 
-	// Get result and reset frame
-	t.frameSize = t.gate.NbConstants()
-	return new(big.Int).Set(t.vars[t.frameSize+len(t.gate.Instructions)-1])
+	return new(big.Int).Set(t.vars[frameSize-1])
 }
 
 // isAdditive returns whether xᵢ occurs only in a monomial of total degree 1
@@ -428,18 +434,18 @@ func (t *gateTester) isAdditive(i int) bool {
 	return t.equal(y2, y1)
 }
 
-// fitPoly tries to fit a polynomial of degree less than degreeBound to the gate.
+// fitPoly tries to fit a polynomial of degree no more than degreeBound to the gate.
 // It returns the polynomial if successful, nil otherwise.
-func (t *gateTester) fitPoly(degreeBound int) []*big.Int {
+func (t *gateTester) fitPoly(maxDegree int) []*big.Int {
 
 	// turn f univariate by defining p(x) as f(x, rx, ..., sx)
 	// where r, s, ... are random constants
 	fIn := make([]*big.Int, t.nbIn)
 	consts := t.randomElements(t.nbIn - 1)
 
-	p := make([]*big.Int, degreeBound)
+	p := make([]*big.Int, maxDegree+1)
 
-	x := t.randomElements(degreeBound)
+	x := t.randomElements(maxDegree + 1)
 	for i := range x {
 		fIn[0] = x[i]
 		for j := range consts {
@@ -454,7 +460,7 @@ func (t *gateTester) fitPoly(degreeBound int) []*big.Int {
 		panic(err)
 	}
 
-	// check if p is equal to f. This not being the case means that f is of a degree higher than degreeBound
+	// check if p is equal to f. This not being the case means that f is of a degree higher than maxDegree
 	fIn[0] = t.randomElement()
 	for i := range consts {
 		fIn[i+1] = t.mul(fIn[0], consts[i])
