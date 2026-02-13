@@ -73,12 +73,14 @@ func TestMimc(t *testing.T) {
 }
 
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-	gCircuit := gkrtypes.GadgetCircuit{{
-		Gate: &gkrtypes.GadgetGate{
-			Evaluate: gkrtypes.Identity,
+	gCircuit := gkrtypes.GadgetCircuit{
+		{
+			Gate: &gkrtypes.GadgetGate{
+				Evaluate: gkrtypes.Identity,
+			},
+			NbUniqueOutputs: 2,
 		},
-		NbUniqueOutputs: 2,
-	}}
+	}
 	circuit := toSerializableCircuit(gCircuit)
 
 	assignment := WireAssignment{[]fr.Element{two, three}}
@@ -189,11 +191,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := Circuit{
-		{
-			Gate: gkrtesting.IdentityGate,
-		},
-	}
+	c := toSerializableCircuit(gkrtesting.NoGateCircuit())
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
@@ -274,8 +272,7 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	gc := gkrtesting.MiMCCircuit(mimcDepth)
-	c := toSerializableCircuit(gc)
+	c := toSerializableCircuit(gkrtesting.MiMCCircuit(mimcDepth))
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
