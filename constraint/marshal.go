@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"reflect"
+	"slices"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/sync/errgroup"
@@ -16,7 +19,7 @@ import (
 // a "curve-typed" system (e.g. bls12-381.system)
 func (system *System) ToBytes() ([]byte, error) {
 	// we prepare and write 4 distinct blocks of data;
-	// that allow for a more efficient serialization/deserialization (+ parallelism)
+	// that allows for a more efficient serialization/deserialization (+ parallelism)
 	var calldata, instructions, levels []byte
 	var g errgroup.Group
 	g.Go(func() error {
@@ -332,6 +335,32 @@ func (system *System) calldataFromBytes(buf []byte) error {
 	return nil
 }
 
+// registeredBlueprintType holds a type and its explicit CBOR tag number.
+type registeredBlueprintType struct {
+	tagNum uint64
+	typ    reflect.Type
+}
+
+// registeredBlueprintTypes holds types registered by external packages.
+var registeredBlueprintTypes []registeredBlueprintType
+
+// RegisterGkrBlueprintTypes registers a blueprint type for CBOR serialization with an explicit tag number.
+// Tag numbers must be unique and stable across versions to ensure serialization compatibility.
+func RegisterGkrBlueprintTypes(id ecc.ID, types ...any) {
+	const (
+		gkrTagBase              = 1 << 32
+		maxNbBlueprintsPerCurve = 16
+	)
+	if len(types) > maxNbBlueprintsPerCurve {
+		panic(fmt.Sprintf("too many blueprint types registered for curve %s: %d > %d", id, len(types), maxNbBlueprintsPerCurve))
+	}
+
+	registeredBlueprintTypes = slices.Grow(registeredBlueprintTypes, len(types))
+	for i := range uint64(len(types)) {
+		registeredBlueprintTypes = append(registeredBlueprintTypes, registeredBlueprintType{tagNum: i + maxNbBlueprintsPerCurve*uint64(id) + gkrTagBase, typ: reflect.TypeOf(types[i])})
+	}
+}
+
 func getTagSet() cbor.TagSet {
 	// temporary for refactor
 	ts := cbor.NewTagSet()
@@ -365,6 +394,22 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(BlueprintSparseR1CMul[U64]{}))
 	addType(reflect.TypeOf(BlueprintSparseR1CBool[U64]{}))
 	addType(reflect.TypeOf(BlueprintLookupHint[U64]{}))
+
+	// Add types registered by external packages (e.g., GKR blueprints)
+	// These use explicit tag numbers to ensure stability regardless of init() order
+	for _, rt := range registeredBlueprintTypes {
+		if rt.tagNum < tagNum {
+			panic(fmt.Sprintf("failed to register type %v: tag number %d already in use", rt.typ, rt.tagNum))
+		}
+
+		if err := ts.Add(
+			cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired},
+			rt.typ,
+			rt.tagNum,
+		); err != nil {
+			panic(err)
+		}
+	}
 
 	return ts
 }

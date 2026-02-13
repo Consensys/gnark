@@ -87,6 +87,7 @@ func (m *modulus[E]) bigIntToElement(b *big.Int) E {
 // it is a separate type to avoid method collisions with the engine.
 type blueprintSolver[E constraint.Element] struct {
 	internalVariables []*big.Int
+	blueprints        []constraint.Blueprint
 	*modulus[E]
 }
 
@@ -109,6 +110,10 @@ func (s *blueprintSolver[E]) GetCoeff(cID uint32) E {
 
 func (s *blueprintSolver[E]) IsSolved(vID uint32) bool {
 	panic("not implemented in test.Engine")
+}
+
+func (s *blueprintSolver[E]) GetBlueprint(id constraint.BlueprintID) constraint.Blueprint {
+	return s.blueprints[id]
 }
 
 // implements constraint.Field
