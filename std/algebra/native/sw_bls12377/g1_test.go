@@ -617,9 +617,14 @@ func TestMultiScalarMul(t *testing.T) {
 }
 
 type g1JointScalarMulEdgeCases struct {
-	A, B, Inf  G1Affine
-	C          G1Affine `gnark:",public"`
-	R, S, Zero frontend.Variable
+	A, B, Inf       G1Affine
+	C               G1Affine `gnark:",public"`
+	R, S, Zero, One frontend.Variable
+	// Expected results for s=1 edge cases
+	ExpectedS1     G1Affine // A + [S]*B (when first scalar is 1)
+	ExpectedT1     G1Affine // [R]*A + B (when second scalar is 1)
+	ExpectedBoth1  G1Affine // A + B (when both scalars are 1)
+	ExpectedSameP1 G1Affine // 2*A (when Q=R=A and both scalars are 1)
 }
 
 func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
@@ -637,6 +642,27 @@ func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2.AssertIsEqual(api, circuit.Inf)
 	expected3.AssertIsEqual(api, _expected)
 	expected4.AssertIsEqual(api, _expected)
+
+	// Test s=1 edge cases (these exercise the AddUnified fix in table precomputation)
+	// When s=1, R=[s]*Q=Q, so tableS entries involve adding Q to itself (doubling)
+	expected5 := G1Affine{}
+	expected6 := G1Affine{}
+	expected7 := G1Affine{}
+	expected8 := G1Affine{}
+	// [1]*A + [S]*B = A + [S]*B
+	expected5.jointScalarMul(api, circuit.A, circuit.B, circuit.One, circuit.S, algopts.WithCompleteArithmetic())
+	// [R]*A + [1]*B = [R]*A + B
+	expected6.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.One, algopts.WithCompleteArithmetic())
+	// [1]*A + [1]*B = A + B
+	expected7.jointScalarMul(api, circuit.A, circuit.B, circuit.One, circuit.One, algopts.WithCompleteArithmetic())
+	// [1]*A + [1]*A = 2*A (same point, both scalars 1 - triggers point doubling in table)
+	expected8.jointScalarMul(api, circuit.A, circuit.A, circuit.One, circuit.One, algopts.WithCompleteArithmetic())
+
+	expected5.AssertIsEqual(api, circuit.ExpectedS1)
+	expected6.AssertIsEqual(api, circuit.ExpectedT1)
+	expected7.AssertIsEqual(api, circuit.ExpectedBoth1)
+	expected8.AssertIsEqual(api, circuit.ExpectedSameP1)
+
 	return nil
 }
 
@@ -669,6 +695,45 @@ func TestJointScalarMulG1EdgeCases(t *testing.T) {
 	witness.Inf.X = 0
 	witness.Inf.Y = 0
 	witness.Zero = 0
+	witness.One = 1
+
+	// Compute expected results for s=1 edge cases
+	// These test the AddUnified fix in table precomputation where R=[s]*Q
+	// When s=1, R=Q, so table entries like -Q-R become -2Q (doubling)
+
+	// ExpectedS1: [1]*A + [S]*B = A + [S]*B
+	var expectedS1 bls12377.G1Affine
+	var _expectedS1 bls12377.G1Jac
+	_expectedS1.FromAffine(&b)
+	_expectedS1.ScalarMultiplication(&_expectedS1, s.BigInt(new(big.Int)))
+	_expectedS1.AddMixed(&a)
+	expectedS1.FromJacobian(&_expectedS1)
+	witness.ExpectedS1.Assign(&expectedS1)
+
+	// ExpectedT1: [R]*A + [1]*B = [R]*A + B
+	var expectedT1 bls12377.G1Affine
+	var _expectedT1 bls12377.G1Jac
+	_expectedT1.FromAffine(&a)
+	_expectedT1.ScalarMultiplication(&_expectedT1, r.BigInt(new(big.Int)))
+	_expectedT1.AddMixed(&b)
+	expectedT1.FromJacobian(&_expectedT1)
+	witness.ExpectedT1.Assign(&expectedT1)
+
+	// ExpectedBoth1: [1]*A + [1]*B = A + B
+	var expectedBoth1 bls12377.G1Affine
+	var _expectedBoth1 bls12377.G1Jac
+	_expectedBoth1.FromAffine(&a)
+	_expectedBoth1.AddMixed(&b)
+	expectedBoth1.FromJacobian(&_expectedBoth1)
+	witness.ExpectedBoth1.Assign(&expectedBoth1)
+
+	// ExpectedSameP1: [1]*A + [1]*A = 2*A (same point, triggers doubling in table)
+	var expectedSameP1 bls12377.G1Affine
+	var _expectedSameP1 bls12377.G1Jac
+	_expectedSameP1.FromAffine(&a)
+	_expectedSameP1.Double(&_expectedSameP1)
+	expectedSameP1.FromJacobian(&_expectedSameP1)
+	witness.ExpectedSameP1.Assign(&expectedSameP1)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))

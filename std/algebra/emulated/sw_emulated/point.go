@@ -243,12 +243,13 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
 
 	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := c.baseApi.MulMod(&p.X, &q.X)
-	pxplusqx := c.baseApi.Add(&p.X, &q.X)
-	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
-	num = c.baseApi.Sub(num, pxqx)
+	// Note: (p.x+q.x)² - p.x*q.x = p.x² + 2*p.x*q.x + q.x² - p.x*q.x = p.x² + p.x*q.x + q.x²
+	// Use Eval to compute p.x² + p.x*q.x + q.x² in one shot (saves one MulMod)
+	var num *emulated.Element[B]
 	if c.addA {
-		num = c.baseApi.Add(num, &c.a)
+		num = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X}, {&p.X, &q.X}, {&q.X, &q.X}, {&c.a}}, []int{1, 1, 1, 1})
+	} else {
+		num = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X}, {&p.X, &q.X}, {&q.X, &q.X}}, []int{1, 1, 1})
 	}
 	denum := c.baseApi.Add(&p.Y, &q.Y)
 	// if p.y + q.y = 0, assign dummy 1 to denum and continue
@@ -256,14 +257,12 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
 	λ := c.baseApi.Div(num, denum)
 
-	// x = λ^2 - p.x - q.x
-	xr := c.baseApi.MulMod(λ, λ)
-	xr = c.baseApi.Sub(xr, pxplusqx)
+	// x = λ² - p.x - q.x
+	mone := c.baseApi.NewElement(-1)
+	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {mone, &p.X}, {mone, &q.X}}, []int{1, 1, 1})
 
-	// y = λ(p.x - xr) - p.y
-	yr := c.baseApi.Sub(&p.X, xr)
-	yr = c.baseApi.MulMod(yr, λ)
-	yr = c.baseApi.Sub(yr, &p.Y)
+	// y = λ(p.x - xr) - p.y = λ*p.x - λ*xr - p.y
+	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, &p.X}, {mone, λ, xr}, {mone, &p.Y}}, []int{1, 1, 1})
 	result := AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
 		Y: *c.baseApi.Reduce(yr),
@@ -406,6 +405,12 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return c.doubleAndAddGeneric(p, q, false)
+}
+
+// doubleAndAddUnified is the same as doubleAndAdd but handles the edge case where p.X == q.X.
+// ⚠️  The result is undefined when p == q or p == -q.
+func (c *Curve[B, S]) doubleAndAddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.doubleAndAddGeneric(p, q, true)
 }
 
 func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *AffinePoint[B] {
@@ -852,11 +857,27 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 // jointScalarMulFakeGLV computes [s1]p1 + [s2]p2. It doesn't modify p1, p2 nor s1, s2.
 //
+// For non-GLV curves, using two separate ScalarMul calls with the 2D half-GCD
+// decomposition (r^(1/2) sub-scalars) is more efficient than a 3D lattice approach
+// which produces r^(2/3) sub-scalars. Constraint comparison for P-256:
+//   - Two ScalarMul + Add: ~152k constraints (r^(1/2) ≈ 128 bits)
+//   - 3D Lattice: ~245k constraints (r^(2/3) ≈ 171 bits)
+//   - Shamir's trick: ~221k constraints (256 bits)
+//
 // ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulFakeGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	sm1 := c.scalarMulFakeGLV(p1, s1, opts...)
-	sm2 := c.scalarMulFakeGLV(p2, s2, opts...)
-	return c.AddUnified(sm1, sm2)
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	// Two separate ScalarMul with fakeGLV (r^(1/2) decomposition) + Add is most efficient.
+	// Each ScalarMul uses half-GCD to decompose the scalar into ~128-bit sub-scalars.
+	r1 := c.ScalarMul(p1, s1, opts...)
+	r2 := c.ScalarMul(p2, s2, opts...)
+	if cfg.CompleteArithmetic {
+		return c.AddUnified(r1, r2)
+	}
+	return c.Add(r1, r2)
 }
 
 // jointScalarMulGenericUnsafe computes [s1]p1 + [s2]p2 using Shamir's trick and returns it. It doesn't modify p1, p2 nor s1, s2.
@@ -907,6 +928,8 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	if cfg.CompleteArithmetic {
+		// Use optimized Shamir's trick for complete arithmetic
+		// This handles edge cases: zero scalars, zero points
 		res1 := c.scalarMulGLVAndFakeGLV(p1, s1, opts...)
 		res2 := c.scalarMulGLVAndFakeGLV(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
@@ -1244,18 +1267,24 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
-	var selector1 frontend.Variable
+	// Handle edge cases for complete arithmetic: s=0, s=-1, Q=(0,0)
+	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
-		selector1 = c.scalarApi.IsZero(s)
-		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
+		one := c.scalarApi.One()
+		// Check s=0 or s=-1 (both cause Q=±R which needs special handling)
+		selector0 = c.api.Or(
+			c.scalarApi.IsZero(s),
+			c.scalarApi.IsZero(c.scalarApi.Add(s, one)),
+		)
+		_s = c.scalarApi.Select(selector0, one, s)
 	}
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
 	// we also output the sign in case s2 is negative. In that case we compute _s2 = -s2 mod r.
-	sign, sd, err := c.scalarApi.NewHintGeneric(halfGCD, 1, 2, nil, []*emulated.Element[S]{_s})
+	sign, sd, err := c.scalarApi.NewHintGeneric(rationalReconstruct, 1, 2, nil, []*emulated.Element[S]{_s})
 	if err != nil {
-		panic(fmt.Sprintf("halfGCD hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstruct hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
@@ -1277,17 +1306,23 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	var selector2 frontend.Variable
-	one := c.baseApi.One()
-	dummy := &AffinePoint[B]{X: *one, Y: *one}
-	addFn := c.Add
+	// Handle Q=(0,0), s=0/s=-1, and s=±1 (where R=±Q) for complete arithmetic
+	var selector1, selector2 frontend.Variable
+	_Q := Q
 	if cfg.CompleteArithmetic {
-		addFn = c.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
-		selector2 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		Q = c.Select(selector2, dummy, Q)
-		r0 = c.baseApi.Select(selector2, c.baseApi.Zero(), r0)
-		r1 = c.baseApi.Select(selector2, &dummy.Y, r1)
+		// Use different dummy points for _Q and R to avoid _Q == ±R
+		dummyQ := c.Generator()
+		dummyR := &c.GeneratorMultiples()[3] // 8*G, different from G
+		// selector1: Q=(0,0)
+		selector1 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		_Q = c.Select(selector1, dummyQ, Q)
+		// selector2: R.X == Q.X (happens when s=±1, so R=±Q and Add would fail)
+		selector2 = c.baseApi.IsZero(c.baseApi.Sub(&Q.X, r0))
+		// When s=0/s=-1 (selector0), Q=(0,0) (selector1), or R.X==Q.X (selector2),
+		// the incomplete addition formula fails. Use dummy for R in these cases.
+		selectorAny := c.api.Or(c.api.Or(selector0, selector1), selector2)
+		r0 = c.baseApi.Select(selectorAny, &dummyR.X, r0)
+		r1 = c.baseApi.Select(selectorAny, &dummyR.Y, r1)
 	}
 
 	var st S
@@ -1303,26 +1338,28 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//   	tableR[1] = R or -R if s2 is negative
 	// 		tableR[2] = [3]R or [-3]R if s2 is negative
 	var tableQ, tableR [3]*AffinePoint[B]
-	tableQ[1] = Q
-	tableQ[0] = c.Neg(Q)
+	tableQ[1] = _Q
+	tableQ[0] = c.Neg(_Q)
 	tableQ[2] = c.triple(tableQ[1])
 	tableR[1] = &AffinePoint[B]{
 		X: *r0,
 		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(r1), r1),
 	}
 	tableR[0] = c.Neg(tableR[1])
-	if cfg.CompleteArithmetic {
-		tableR[2] = c.AddUnified(tableR[1], tableR[1])
-		tableR[2] = c.AddUnified(tableR[2], tableR[1])
-	} else {
-		tableR[2] = c.triple(tableR[1])
-	}
+	tableR[2] = c.triple(tableR[1])
 
 	// We should start the accumulator by the infinity point, but since affine
 	// formulae are incomplete we suppose that the first bits of the
 	// sub-scalars s1 and s2 are 1, and set:
 	// 		Acc = Q + R
-	Acc := addFn(tableQ[1], tableR[1])
+	// For complete arithmetic, we add a bias point G to avoid Acc == ±Bi during the loop.
+	// T2 = Q + R (without bias, used in table construction)
+	T2 := c.Add(tableQ[1], tableR[1])
+	Acc := T2
+	if cfg.CompleteArithmetic {
+		g := c.Generator()
+		Acc = c.Add(Acc, g)
+	}
 
 	// At each iteration we need to compute:
 	// 		[2]Acc ± Q ± R.
@@ -1340,16 +1377,13 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//
 	// T = [3](Q + R)
 	// P = B1 and P' = B1
-	T1 := addFn(tableQ[2], tableR[2])
-	// T = Q + R
-	// P = B1 and P' = B2
-	T2 := Acc
+	T1 := c.Add(tableQ[2], tableR[2])
 	// T = [3]Q + R
 	// P = B1 and P' = B3
-	T3 := addFn(tableQ[2], tableR[1])
+	T3 := c.Add(tableQ[2], tableR[1])
 	// T = Q + [3]R
 	// P = B1 and P' = B4
-	T4 := addFn(tableQ[1], tableR[2])
+	T4 := c.Add(tableQ[1], tableR[2])
 	// T  = -Q - R
 	// P = B2 and P' = B1
 	T5 := c.Neg(T2)
@@ -1364,17 +1398,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	T8 := c.Neg(T3)
 	// T = [3]Q - R
 	// P = B3 and P' = B1
-	T9 := addFn(tableQ[2], tableR[0])
+	T9 := c.Add(tableQ[2], tableR[0])
 	// T = Q - [3]R
 	// P = B3 and P' = B2
 	T11 := c.Neg(tableR[2])
-	T10 := addFn(tableQ[1], T11)
+	T10 := c.Add(tableQ[1], T11)
 	// T = [3](Q - R)
 	// P = B3 and P' = B3
-	T11 = addFn(tableQ[2], T11)
+	T11 = c.Add(tableQ[2], T11)
 	// T = -R + Q
 	// P = B3 and P' = B4
-	T12 := addFn(tableR[0], tableQ[1])
+	T12 := c.Add(tableR[0], tableQ[1])
 	// T = [3]R - Q
 	// P = B4 and P' = B1
 	T13 := c.Neg(T10)
@@ -1399,8 +1433,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		}
 		// We don't use doubleAndAdd here as it would involve edge cases
 		// when bits are 00 (T==-Acc) or 11 (T==Acc).
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-		Acc = addFn(Acc, T)
+		// With bias point, we can use regular double and Add.
+		Acc = c.double(Acc)
+		Acc = c.Add(Acc, T)
 	} else {
 		// when nbits is odd we start the main loop at normally nbits - 1
 		nbits++
@@ -1432,8 +1467,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			),
 		}
 		// Acc = [4]Acc + T
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-		Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+		// Bias point protects us from incomplete additions
+		Acc = c.double(Acc)
+		Acc = c.doubleAndAdd(Acc, T)
 	}
 
 	// i = 2
@@ -1466,24 +1502,27 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
 	// 		Acc = [4]Acc + T + [3]R
-	T = addFn(T, tableR[2])
-	Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-	Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+	T = c.Add(T, tableR[2])
+	Acc = c.double(Acc)
+	Acc = c.doubleAndAdd(Acc, T)
 
 	// i = 0
-	// subtract Q and R if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
-	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	tableQ[0] = addFn(tableQ[0], Acc)
+	// subtract Q and R if the first bits are 0
+	tableQ[0] = c.Add(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
-	tableR[0] = addFn(tableR[0], Acc)
+	tableR[0] = c.Add(tableR[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
+	// For complete arithmetic, subtract the bias [2^nbits]G and handle edge cases
 	if cfg.CompleteArithmetic {
-		Acc = c.Select(c.api.Or(selector1, selector2), tableR[2], Acc)
+		gm := c.GeneratorMultiples()[nbits-1]
+		Acc = c.Add(Acc, c.Neg(&gm))
+		// If s=0, s=-1, Q=(0,0), or R.X==Q.X (s=±1), use the precomputed [3]R as a fallback
+		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), selector2)
+		Acc = c.Select(selectorEdge, tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
-	// 		Acc = [s1]Q + [s2]R + [3]R
+	// 		Acc = [s1]Q + [s2]R + [3]R (+ [2^nbits]G - [2^nbits]G for complete arithmetic)
 	// 		    = [s1]Q + [s2*s]Q + [3]R
 	// 		    = [s1+s2*s]Q + [3]R
 	// 		    = [0]Q + [3]R
@@ -1533,33 +1572,26 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
-	// of the GLV endomorphism is a primitive cube root of unity.  If we write
-	// v, s and r as Eisenstein integers we can express the check as:
+	// of the GLV endomorphism is a primitive cube root of unity λ. Using this we can
+	// express the check as:
 	//
 	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
 	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
-	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
-	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// where (v1 + λ*v2)*s = u1 + λ*u2 mod r
+	// and u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL lattice reduction).
 	//
-	// This can be done as follows:
-	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted classical GLV decomposition).
-	// 		2. decompose r into r1 + λ*r2  s.t. r1, r2 < sqrt(r) (hardcoded half-GCD of λ mod r).
-	// 		3. find u1, u2, v1, v2 < c*r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
-	// 		   This can be done through a hinted half-GCD in the number field
-	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
-	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
+	// We use LLL-based lattice reduction to find small u1, u2, v1, v2 satisfying
+	// s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r).
 	//
 	// The hint returns u1, u2, v1, v2.
-	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) mod r
+	// In-circuit we check that (v1 + λ*v2)*s + u1 + λ*u2 = 0 mod r
 	//
-	//
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
-	signs, sd, err := c.scalarApi.NewHintGeneric(halfGCDEisenstein, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
+	// The sub-scalars can be negative. So we return the absolute value in the
+	// hint and negate the corresponding points here when needed.
+	signs, sd, err := c.scalarApi.NewHintGeneric(rationalReconstructExt, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
 	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
 	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
@@ -1668,10 +1700,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	g := c.Generator()
 	Acc = c.Add(Acc, g)
 
-	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is log_(3/sqrt(3)))(r).
-	// so we need to add 9 bits to r^{1/4}.nbits().
-	nbits := st.Modulus().BitLen()>>2 + 9
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25 (proven bound from LLL lattice reduction).
+	// We need ceil(r.BitLen()/4) + 2 bits to account for the constant factor.
+	nbits := (st.Modulus().BitLen()+3)/4 + 2
 	u1bits := c.scalarApi.ToBits(u1)
 	u2bits := c.scalarApi.ToBits(u2)
 	v1bits := c.scalarApi.ToBits(v1)
@@ -1740,7 +1771,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		// Use unified version for complete arithmetic to handle edge cases where
+		// Acc.X == Bi.X (can happen with dummy points in edge cases)
+		if cfg.CompleteArithmetic {
+			Acc = c.doubleAndAddUnified(Acc, Bi)
+		} else {
+			Acc = c.doubleAndAdd(Acc, Bi)
+		}
 	}
 
 	// i = 0

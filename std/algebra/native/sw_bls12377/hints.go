@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/algebra/eisenstein"
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint/solver"
@@ -16,7 +16,9 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Simple,
 		decomposeScalarG2,
 		scalarMulGLVG1Hint,
-		halfGCDEisenstein,
+		scalarMulGLVG2Hint,
+		jointScalarMulG1Hint,
+		rationalReconstructExt,
 		pairingCheckHint,
 		pairingCheckTorusHint,
 	}
@@ -304,67 +306,132 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 	return nil
 }
 
-func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 2 {
-		return errors.New("expecting two input")
+func jointScalarMulG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 6 {
+		return errors.New("expecting six inputs")
 	}
-	if len(outputs) != 10 {
-		return errors.New("expecting ten outputs")
+	if len(outputs) != 2 {
+		return errors.New("expecting two outputs")
+	}
+
+	// compute the resulting point [s]Q + [t]R
+	var Q, R, result bls12377.G1Affine
+	Q.X.SetBigInt(inputs[0])
+	Q.Y.SetBigInt(inputs[1])
+	R.X.SetBigInt(inputs[2])
+	R.Y.SetBigInt(inputs[3])
+
+	// handle infinity cases
+	QIsInfinity := Q.X.IsZero() && Q.Y.IsZero()
+	RIsInfinity := R.X.IsZero() && R.Y.IsZero()
+	sIsZero := inputs[4].Sign() == 0
+	tIsZero := inputs[5].Sign() == 0
+
+	switch {
+	case (QIsInfinity || sIsZero) && (RIsInfinity || tIsZero):
+		// both contributions are zero
+		outputs[0].SetInt64(0)
+		outputs[1].SetInt64(0)
+	case QIsInfinity || sIsZero:
+		// only R contributes
+		R.ScalarMultiplication(&R, inputs[5])
+		R.X.BigInt(outputs[0])
+		R.Y.BigInt(outputs[1])
+	case RIsInfinity || tIsZero:
+		// only Q contributes
+		Q.ScalarMultiplication(&Q, inputs[4])
+		Q.X.BigInt(outputs[0])
+		Q.Y.BigInt(outputs[1])
+	default:
+		// both contribute
+		Q.ScalarMultiplication(&Q, inputs[4])
+		R.ScalarMultiplication(&R, inputs[5])
+		result.Add(&Q, &R)
+		result.X.BigInt(outputs[0])
+		result.Y.BigInt(outputs[1])
+	}
+	return nil
+}
+
+func scalarMulGLVG2Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 5 {
+		return errors.New("expecting five inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+
+	// compute the resulting point [s]Q on G2
+	var Q bls12377.G2Affine
+	Q.X.A0.SetBigInt(inputs[0])
+	Q.X.A1.SetBigInt(inputs[1])
+	Q.Y.A0.SetBigInt(inputs[2])
+	Q.Y.A1.SetBigInt(inputs[3])
+	Q.ScalarMultiplication(&Q, inputs[4])
+	Q.X.A0.BigInt(outputs[0])
+	Q.X.A1.BigInt(outputs[1])
+	Q.Y.A0.BigInt(outputs[2])
+	Q.Y.A1.BigInt(outputs[3])
+	return nil
+}
+
+func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 2 {
+		return errors.New("expecting two inputs")
+	}
+	if len(outputs) != 8 {
+		return errors.New("expecting eight outputs")
 	}
 	cc := getInnerCurveConfig(scalarField)
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(cc.fr, inputs[1], glvBasis)
-	r := eisenstein.ComplexNumber{
-		A0: glvBasis.V1[0],
-		A1: glvBasis.V1[1],
-	}
-	sp := ecc.SplitScalar(inputs[0], glvBasis)
+
+	// Use lattice reduction to find (x, y, z, t) such that
+	// k ≡ (x + λ*y) / (z + λ*t) (mod r)
+	//
 	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-	// so here we return -s instead of s.
-	s := eisenstein.ComplexNumber{
-		A0: sp[0],
-		A1: sp[1],
-	}
-	s.Neg(&s)
-	res := eisenstein.HalfGCD(&r, &s)
-	outputs[0].Set(&res[0].A0)
-	outputs[1].Set(&res[0].A1)
-	outputs[2].Set(&res[1].A0)
-	outputs[3].Set(&res[1].A1)
-	outputs[4].Mul(&res[1].A1, inputs[1]).
-		Add(outputs[4], &res[1].A0).
-		Mul(outputs[4], inputs[0]).
-		Add(outputs[4], &res[0].A0)
-	s.A0.Mul(&res[0].A1, inputs[1])
-	outputs[4].Add(outputs[4], &s.A0).
-		Div(outputs[4], cc.fr)
+	// so here we use k = -s.
+	//
+	// With k = -s:
+	// -s ≡ (x + λ*y) / (z + λ*t) (mod r)
+	// s ≡ -(x + λ*y) / (z + λ*t) = (-x - λ*y) / (z + λ*t) (mod r)
+	//
+	// The circuit checks: s*(v1 + λ*v2) + u1 + λ*u2 ≡ 0 (mod r)
+	// Rearranging: s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r)
+	//
+	// Matching: (-x - λ*y) = -(u1 + λ*u2)
+	// So: u1 = x, u2 = y, v1 = z, v2 = t
+	k := new(big.Int).Neg(inputs[0])
+	k.Mod(k, cc.fr)
+	rc := lattice.NewReconstructor(cc.fr).SetLambda(inputs[1])
+	res := rc.RationalReconstructExt(k)
+	x, y, z, t := res[0], res[1], res[2], res[3]
+
+	// u1 = x, u2 = y, v1 = z, v2 = t
+	outputs[0].Abs(x) // |u1| = |x|
+	outputs[1].Abs(y) // |u2| = |y|
+	outputs[2].Abs(z) // |v1| = |z|
+	outputs[3].Abs(t) // |v2| = |t|
 
 	// set the signs
-	outputs[5].SetUint64(0)
-	outputs[6].SetUint64(0)
-	outputs[7].SetUint64(0)
-	outputs[8].SetUint64(0)
-	outputs[9].SetUint64(0)
+	outputs[4].SetUint64(0) // isNegu1
+	outputs[5].SetUint64(0) // isNegu2
+	outputs[6].SetUint64(0) // isNegv1
+	outputs[7].SetUint64(0) // isNegv2
 
-	if outputs[0].Sign() == -1 {
-		outputs[0].Neg(outputs[0])
+	// u1 = x is negative when x < 0
+	if x.Sign() < 0 {
+		outputs[4].SetUint64(1)
+	}
+	// u2 = y is negative when y < 0
+	if y.Sign() < 0 {
 		outputs[5].SetUint64(1)
 	}
-	if outputs[1].Sign() == -1 {
-		outputs[1].Neg(outputs[1])
+	// v1 = z is negative when z < 0
+	if z.Sign() < 0 {
 		outputs[6].SetUint64(1)
 	}
-	if outputs[2].Sign() == -1 {
-		outputs[2].Neg(outputs[2])
+	// v2 = t is negative when t < 0
+	if t.Sign() < 0 {
 		outputs[7].SetUint64(1)
-	}
-	if outputs[3].Sign() == -1 {
-		outputs[3].Neg(outputs[3])
-		outputs[8].SetUint64(1)
-	}
-	if outputs[4].Sign() == -1 {
-		outputs[4].Neg(outputs[4])
-		outputs[9].SetUint64(1)
 	}
 
 	return nil

@@ -15,7 +15,9 @@ import (
 	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/test"
 )
@@ -340,4 +342,129 @@ func testData(params *CurveParams, curveID twistededwards.ID, zero1, zero2 bool)
 func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
+}
+
+// Benchmarks for constraint counting
+
+type scalarMulCircuit struct {
+	curveID twistededwards.ID
+	P       Point
+	S       frontend.Variable
+	R       Point
+}
+
+func (circuit *scalarMulCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+	res := curve.ScalarMul(circuit.P, circuit.S)
+	api.AssertIsEqual(res.X, circuit.R.X)
+	api.AssertIsEqual(res.Y, circuit.R.Y)
+	return nil
+}
+
+func BenchmarkScalarMulTwistedEdwards(b *testing.B) {
+	var circuit scalarMulCircuit
+	circuit.curveID = twistededwards.BN254
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	}
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	b.Log("constraints:", ccs.GetNbConstraints())
+}
+
+// scalarOneEdgeCasesCircuit tests s=1 edge cases for ScalarMul and DoubleBaseScalarMul
+type scalarOneEdgeCasesCircuit struct {
+	curveID twistededwards.ID
+	P1, P2  Point
+	S       frontend.Variable // random scalar for mixed tests
+	// Expected results
+	ScalarMulOne        Point // [1]*P1 = P1
+	DoubleScalarMulBoth Point // [1]*P1 + [1]*P2 = P1 + P2
+	DoubleScalarMulS1   Point // [1]*P1 + [S]*P2
+	DoubleScalarMulS2   Point // [S]*P1 + [1]*P2
+	DoubleScalarMulSame Point // [1]*P1 + [1]*P1 = 2*P1
+}
+
+func (circuit *scalarOneEdgeCasesCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+
+	// Test [1]*P = P
+	res1 := curve.ScalarMul(circuit.P1, 1)
+	api.AssertIsEqual(res1.X, circuit.ScalarMulOne.X)
+	api.AssertIsEqual(res1.Y, circuit.ScalarMulOne.Y)
+
+	// Test [1]*P1 + [1]*P2 = P1 + P2
+	res2 := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, 1, 1)
+	api.AssertIsEqual(res2.X, circuit.DoubleScalarMulBoth.X)
+	api.AssertIsEqual(res2.Y, circuit.DoubleScalarMulBoth.Y)
+
+	// Test [1]*P1 + [S]*P2
+	res3 := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, 1, circuit.S)
+	api.AssertIsEqual(res3.X, circuit.DoubleScalarMulS1.X)
+	api.AssertIsEqual(res3.Y, circuit.DoubleScalarMulS1.Y)
+
+	// Test [S]*P1 + [1]*P2
+	res4 := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, circuit.S, 1)
+	api.AssertIsEqual(res4.X, circuit.DoubleScalarMulS2.X)
+	api.AssertIsEqual(res4.Y, circuit.DoubleScalarMulS2.Y)
+
+	// Test [1]*P1 + [1]*P1 = 2*P1 (same point, triggers doubling)
+	res5 := curve.DoubleBaseScalarMul(circuit.P1, circuit.P1, 1, 1)
+	api.AssertIsEqual(res5.X, circuit.DoubleScalarMulSame.X)
+	api.AssertIsEqual(res5.Y, circuit.DoubleScalarMulSame.Y)
+
+	return nil
+}
+
+// TestScalarOneEdgeCases tests s=1 edge cases which exercise the AddUnified fix
+// When s=1, the decomposition may result in points being equal, requiring complete addition
+func TestScalarOneEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// Test on BN254 twisted Edwards curve (Jubjub)
+	curveID := twistededwards.BN254
+	snarkField, err := GetSnarkField(curveID)
+	assert.NoError(err)
+	snarkCurve := utils.FieldToCurve(snarkField)
+
+	params, err := GetCurveParams(curveID)
+	assert.NoError(err)
+
+	// Generate random points and scalar
+	scalar := params.randomScalar()
+
+	var p1, p2, sum, double, scalarP2, scalarP1 tbn254.PointAffine
+	p1.X.SetBigInt(params.Base[0])
+	p1.Y.SetBigInt(params.Base[1])
+	p2.ScalarMultiplication(&p1, params.randomScalar()) // p2 = random multiple of generator
+
+	// Compute expected results
+	sum.Add(&p1, &p2)                          // P1 + P2
+	double.Double(&p1)                         // 2*P1
+	scalarP2.ScalarMultiplication(&p2, scalar) // [S]*P2
+	var res1 tbn254.PointAffine
+	res1.Add(&p1, &scalarP2)                   // P1 + [S]*P2
+	scalarP1.ScalarMultiplication(&p1, scalar) // [S]*P1
+	var res2 tbn254.PointAffine
+	res2.Add(&scalarP1, &p2) // [S]*P1 + P2
+
+	var circuit, witness scalarOneEdgeCasesCircuit
+	circuit.curveID = curveID
+
+	witness.P1 = Point{p1.X, p1.Y}
+	witness.P2 = Point{p2.X, p2.Y}
+	witness.S = scalar
+	witness.ScalarMulOne = Point{p1.X, p1.Y}
+	witness.DoubleScalarMulBoth = Point{sum.X, sum.Y}
+	witness.DoubleScalarMulS1 = Point{res1.X, res1.Y}
+	witness.DoubleScalarMulS2 = Point{res2.X, res2.Y}
+	witness.DoubleScalarMulSame = Point{double.X, double.Y}
+
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(snarkCurve))
 }

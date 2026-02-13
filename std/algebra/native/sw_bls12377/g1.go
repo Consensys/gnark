@@ -13,6 +13,8 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // G1Affine point in affine coords
@@ -409,7 +411,7 @@ func (p *G1Affine) AssertIsEqual(api frontend.API, other G1Affine) {
 	api.AssertIsEqual(p.Y, other.Y)
 }
 
-// DoubleAndAdd computes 2*p1+p in affine coords
+// DoubleAndAdd computes 2*p1+p2 in affine coords
 func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -422,6 +424,43 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 	// omit y3 computation
 	// compute lambda2 = lambda1+2*y1/(x3-x1)
 	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), api.Sub(x3, p1.X))
+	l2 = api.Add(l2, l1)
+
+	// compute x4 =lambda2**2-x1-x3
+	x4 := api.Mul(l2, l2)
+	x4 = api.Sub(x4, api.Add(p1.X, x3))
+
+	// compute y4 = lambda2*(x4 - x1)-y1
+	y4 := api.Sub(x4, p1.X)
+	y4 = api.Mul(l2, y4)
+	y4 = api.Sub(y4, p1.Y)
+
+	p.X = x4
+	p.Y = y4
+
+	return p
+}
+
+// DoubleAndAddUnified computes 2*p1+p2 in affine coords, handling edge cases where p1.X == p2.X.
+// When p1.X == p2.X, uses safe dummy values to avoid division by zero. The result is garbage
+// but the caller must handle this by selecting away from the result.
+func (p *G1Affine) DoubleAndAddUnified(api frontend.API, p1, p2 *G1Affine) *G1Affine {
+
+	// compute lambda1 = (y2-y1)/(x2-x1)
+	denom1 := api.Sub(p1.X, p2.X)
+	xEqual := api.IsZero(denom1)
+	denom1 = api.Select(xEqual, 1, denom1)
+	l1 := api.DivUnchecked(api.Sub(p1.Y, p2.Y), denom1)
+
+	// compute x3 = lambda1**2-x1-x2
+	x3 := api.Mul(l1, l1)
+	x3 = api.Sub(x3, api.Add(p1.X, p2.X))
+
+	// compute lambda2 = lambda1+2*y1/(x3-x1)
+	denom2 := api.Sub(x3, p1.X)
+	denom2Zero := api.IsZero(denom2)
+	denom2 = api.Select(denom2Zero, 1, denom2)
+	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), denom2)
 	l2 = api.Add(l2, l1)
 
 	// compute x4 =lambda2**2-x1-x3
@@ -455,13 +494,31 @@ func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 		panic(err)
 	}
 	if cfg.CompleteArithmetic {
-		var tmp G1Affine
-		p.ScalarMul(api, Q, s, opts...)
-		tmp.ScalarMul(api, R, t, opts...)
-		p.AddUnified(api, tmp)
+		p.jointScalarMulComplete(api, Q, R, s, t)
 	} else {
 		p.jointScalarMulUnsafe(api, Q, R, s, t)
 	}
+	return p
+}
+
+// jointScalarMulComplete computes [s]Q + [t]R using individual scalar multiplications.
+// It handles edge cases: Q=(0,0), R=(0,0), s=0, t=0.
+func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+	// Compute [s]Q and [t]R separately using varScalarMul with complete arithmetic.
+	// varScalarMul handles all edge cases (zero scalar, zero point) correctly.
+	var sQ, tR G1Affine
+	sQ.varScalarMul(api, Q, s, algopts.WithCompleteArithmetic())
+	tR.varScalarMul(api, R, t, algopts.WithCompleteArithmetic())
+
+	// Add the results using AddUnified which handles all cases including:
+	// - sQ = (0,0) (returns tR)
+	// - tR = (0,0) (returns sQ)
+	// - sQ = -tR (returns (0,0))
+	// - sQ = tR (doubles)
+	p.X = sQ.X
+	p.Y = sQ.Y
+	p.AddUnified(api, tR)
+
 	return p
 }
 
@@ -660,9 +717,6 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 	return p
 }
 
-// fake-GLV
-//
-// N.B.: this method is more expensive than classical GLV, but it is useful for testing purposes.
 func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -682,68 +736,77 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// Checking Q - [s]P = 0 is equivalent to [v]Q + [-s*v]P = 0 for some nonzero v.
 	//
 	// The GLV curves supported in gnark have j-invariant 0, which means the eigenvalue
-	// of the GLV endomorphism is a primitive cube root of unity.  If we write
-	// v, s and r as Eisenstein integers we can express the check as:
+	// of the GLV endomorphism is a primitive cube root of unity λ. Using this we can
+	// express the check as:
 	//
 	// 			[v1 + λ*v2]Q + [u1 + λ*u2]P = 0
 	// 			[v1]Q + [v2]phi(Q) + [u1]P + [u2]phi(P) = 0
 	//
-	// where (v1 + λ*v2)*(s1 + λ*s2) = u1 + λu2 mod (r1 + λ*r2)
-	// and u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
+	// where (v1 + λ*v2)*s = u1 + λ*u2 mod r
+	// and u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL lattice reduction).
 	//
-	// This can be done as follows:
-	// 		1. decompose s into s1 + λ*s2 mod r s.t. s1, s2 < sqrt(r) (hinted classical GLV decomposition).
-	// 		2. decompose r into r1 + λ*r2  s.t. r1, r2 < sqrt(r) (hardcoded half-GCD of λ mod r).
-	// 		3. find u1, u2, v1, v2 < c*r^{1/4} s.t. (v1 + λ*v2)*(s1 + λ*s2) = (u1 + λ*u2) mod (r1 + λ*r2).
-	// 		   This can be done through a hinted half-GCD in the number field
-	// 		   K=Q[w]/f(w).  This corresponds to K being the Eisenstein ring of
-	// 		   integers i.e. w is a primitive cube root of unity, f(w)=w^2+w+1=0.
+	// We use LLL-based lattice reduction to find small u1, u2, v1, v2 satisfying
+	// s ≡ -(u1 + λ*u2) / (v1 + λ*v2) (mod r).
 	//
-	// The hint returns u1, u2, v1, v2 and the quotient q.
-	// In-circuit we check that (v1 + λ*v2)*s = (u1 + λ*u2) + r*q
+	// The hint returns u1, u2, v1, v2.
+	// In-circuit we check that (v1 + λ*v2)*s + u1 + λ*u2 = 0 mod r
+	// using emulated arithmetic to avoid overflow in the native field.
 	//
-	// N.B.: this check may overflow. But we don't use this method anywhere but for testing purposes.
-	//
-	// Eisenstein integers real and imaginary parts can be negative. So we
-	// return the absolute value in the hint and negate the corresponding
-	// points here when needed.
-	sd, err := api.NewHint(halfGCDEisenstein, 10, _s, cc.lambda)
+	// The sub-scalars can be negative. So we return the absolute value in the
+	// hint and negate the corresponding points here when needed.
+	sd, err := api.NewHint(rationalReconstructExt, 8, _s, cc.lambda)
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
-	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
-	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
+	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
+	isNegu1, isNegu2, isNegv1, isNegv2 := sd[4], sd[5], sd[6], sd[7]
 
 	// We need to check that:
-	// 		s*(v1 + λ*v2) + u1 + λ*u2 - r * q = 0
-	sv1 := api.Mul(_s, v1)
-	sλv2 := api.Mul(_s, api.Mul(cc.lambda, v2))
-	λu2 := api.Mul(cc.lambda, u2)
-	rq := api.Mul(cc.fr, q)
+	// 		s*(v1 + λ*v2) + u1 + λ*u2 = 0 mod r
+	//
+	// We use emulated arithmetic over the BLS12-377 scalar field to avoid overflow.
+	// The native field (BW6-761 scalar field) is ~377 bits, but the products
+	// s*λ*v2 can exceed 400 bits, causing overflow in native arithmetic.
+	scalarApi, err := emulated.NewField[emparams.BLS12377Fr](api)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create scalar field: %v", err))
+	}
 
-	lhs1 := api.Select(isNegv1, 0, sv1)
-	lhs2 := api.Select(isNegv2, 0, sλv2)
-	lhs3 := api.Select(isNegu1, 0, u1)
-	lhs4 := api.Select(isNegu2, 0, λu2)
-	lhs5 := api.Select(isNegq, rq, 0)
-	lhs := api.Add(
-		api.Add(lhs1, lhs2),
-		api.Add(lhs3, lhs4),
+	// Convert to emulated elements
+	_sEmu := scalarApi.FromBits(api.ToBinary(_s, cc.fr.BitLen())...)
+	u1Emu := scalarApi.FromBits(api.ToBinary(u1, (cc.fr.BitLen()+3)/4+2)...)
+	u2Emu := scalarApi.FromBits(api.ToBinary(u2, (cc.fr.BitLen()+3)/4+2)...)
+	v1Emu := scalarApi.FromBits(api.ToBinary(v1, (cc.fr.BitLen()+3)/4+2)...)
+	v2Emu := scalarApi.FromBits(api.ToBinary(v2, (cc.fr.BitLen()+3)/4+2)...)
+	lambdaEmu := scalarApi.NewElement(cc.lambda)
+	zero := scalarApi.Zero()
+
+	// Compute s*v1, s*λ*v2, λ*u2 in emulated arithmetic
+	sv1Emu := scalarApi.Mul(_sEmu, v1Emu)
+	λv2Emu := scalarApi.Mul(lambdaEmu, v2Emu)
+	sλv2Emu := scalarApi.Mul(_sEmu, λv2Emu)
+	λu2Emu := scalarApi.Mul(lambdaEmu, u2Emu)
+
+	// Handle signs: positive terms go to lhs, negative terms go to rhs
+	lhs1Emu := scalarApi.Select(isNegv1, zero, sv1Emu)
+	lhs2Emu := scalarApi.Select(isNegv2, zero, sλv2Emu)
+	lhs3Emu := scalarApi.Select(isNegu1, zero, u1Emu)
+	lhs4Emu := scalarApi.Select(isNegu2, zero, λu2Emu)
+	lhsEmu := scalarApi.Add(
+		scalarApi.Add(lhs1Emu, lhs2Emu),
+		scalarApi.Add(lhs3Emu, lhs4Emu),
 	)
-	lhs = api.Add(lhs, lhs5)
 
-	rhs1 := api.Select(isNegv1, sv1, 0)
-	rhs2 := api.Select(isNegv2, sλv2, 0)
-	rhs3 := api.Select(isNegu1, u1, 0)
-	rhs4 := api.Select(isNegu2, λu2, 0)
-	rhs5 := api.Select(isNegq, 0, rq)
-	rhs := api.Add(
-		api.Add(rhs1, rhs2),
-		api.Add(rhs3, rhs4),
+	rhs1Emu := scalarApi.Select(isNegv1, sv1Emu, zero)
+	rhs2Emu := scalarApi.Select(isNegv2, sλv2Emu, zero)
+	rhs3Emu := scalarApi.Select(isNegu1, u1Emu, zero)
+	rhs4Emu := scalarApi.Select(isNegu2, λu2Emu, zero)
+	rhsEmu := scalarApi.Add(
+		scalarApi.Add(rhs1Emu, rhs2Emu),
+		scalarApi.Add(rhs3Emu, rhs4Emu),
 	)
-	rhs = api.Add(rhs, rhs5)
 
-	api.AssertIsEqual(lhs, rhs)
+	scalarApi.AssertIsEqual(lhsEmu, rhsEmu)
 
 	// Next we compute the hinted scalar mul Q = [s]P
 	point, err := api.NewHint(scalarMulGLVG1Hint, 2, P.X, P.Y, s)
@@ -822,10 +885,10 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	H := G1Affine{X: 0, Y: 1}
 	Acc.AddAssign(api, H)
 
-	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is log_(3/sqrt(3)))(r).
-	// so we need to add 9 bits to r^{1/4}.nbits().
-	nbits := cc.lambda.BitLen()>>1 + 9 // 72
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25 (proven bound from LLL lattice reduction).
+	// We need ceil(r.BitLen()/4) + 2 bits to account for the constant factor.
+	// For BLS12-377, r.BitLen() = 253, so nbits = 64 + 2 = 66.
+	nbits := (cc.fr.BitLen()+3)/4 + 2
 	u1bits := api.ToBinary(u1, nbits)
 	u2bits := api.ToBinary(u2, nbits)
 	v1bits := api.ToBinary(v1, nbits)
