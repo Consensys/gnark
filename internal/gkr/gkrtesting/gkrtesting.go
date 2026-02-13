@@ -111,11 +111,7 @@ func (c *Cache) GetGate(name string) gkr.GateFunction {
 
 func MiMCCircuit(numRounds int) gkrtypes.GadgetCircuit {
 	c := make(gkrtypes.GadgetCircuit, numRounds+2)
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	mimc := gkrtypes.GadgetGate{Evaluate: mimcGate}
-
-	c[0] = gkrtypes.GadgetWire{Gate: idGate}
-	c[1] = gkrtypes.GadgetWire{Gate: idGate}
 
 	for i := 2; i < len(c); i++ {
 		c[i] = gkrtypes.GadgetWire{Gate: mimc, Inputs: []int{i - 1, 0}}
@@ -153,26 +149,22 @@ func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error)
 
 func NoGateCircuit() gkrtypes.GadgetCircuit {
 	return gkrtypes.GadgetCircuit{
-		{
-			Gate: gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity},
-		},
+		{},
 	}
 }
 
 func SingleAddGateCircuit() gkrtypes.GadgetCircuit {
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	return gkrtypes.GadgetCircuit{
-		{Gate: idGate},
-		{Gate: idGate},
+		{},
+		{},
 		{Gate: gkrtypes.GadgetGate{Evaluate: gkrtypes.Add2}, Inputs: []int{0, 1}},
 	}
 }
 
 func SingleMulGateCircuit() gkrtypes.GadgetCircuit {
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	return gkrtypes.GadgetCircuit{
-		{Gate: idGate},
-		{Gate: idGate},
+		{},
+		{},
 		{Gate: gkrtypes.GadgetGate{Evaluate: gkrtypes.Mul2}, Inputs: []int{0, 1}},
 	}
 }
@@ -180,7 +172,7 @@ func SingleMulGateCircuit() gkrtypes.GadgetCircuit {
 func SingleInputTwoIdentityGatesCircuit() gkrtypes.GadgetCircuit {
 	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	return gkrtypes.GadgetCircuit{
-		{Gate: idGate},
+		{},
 		{Gate: idGate, Inputs: []int{0}},
 		{Gate: idGate, Inputs: []int{0}},
 	}
@@ -189,7 +181,7 @@ func SingleInputTwoIdentityGatesCircuit() gkrtypes.GadgetCircuit {
 func SingleInputTwoIdentityGatesComposedCircuit() gkrtypes.GadgetCircuit {
 	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	return gkrtypes.GadgetCircuit{
-		{Gate: idGate},
+		{},
 		{Gate: idGate, Inputs: []int{0}},
 		{Gate: idGate, Inputs: []int{1}},
 	}
@@ -197,11 +189,7 @@ func SingleInputTwoIdentityGatesComposedCircuit() gkrtypes.GadgetCircuit {
 
 func APowNTimesBCircuit(n int) gkrtypes.GadgetCircuit {
 	c := make(gkrtypes.GadgetCircuit, n+2)
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	mulGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Mul2}
-
-	c[0] = gkrtypes.GadgetWire{Gate: idGate}
-	c[1] = gkrtypes.GadgetWire{Gate: idGate}
 
 	for i := 2; i < len(c); i++ {
 		c[i] = gkrtypes.GadgetWire{Gate: mulGate, Inputs: []int{i - 1, 0}}
@@ -210,10 +198,9 @@ func APowNTimesBCircuit(n int) gkrtypes.GadgetCircuit {
 }
 
 func SingleMimcCipherGateCircuit() gkrtypes.GadgetCircuit {
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
 	return gkrtypes.GadgetCircuit{
-		{Gate: idGate},
-		{Gate: idGate},
+		{},
+		{},
 		{Gate: gkrtypes.GadgetGate{Evaluate: mimcGate}, Inputs: []int{0, 1}},
 	}
 }

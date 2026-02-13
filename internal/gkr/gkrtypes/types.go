@@ -305,9 +305,9 @@ type Blueprints struct {
 	GetAssignmentID constraint.BlueprintID
 }
 
-// Compile converts a gadget circuit to a serializable circuit by compiling the gate functions.
+// CompileCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
 // It also sets wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs) for both the input and output circuits.
-func (c GadgetCircuit) Compile(mod *big.Int) SerializableCircuit {
+func CompileCircuit(c GadgetCircuit, mod *big.Int) SerializableCircuit {
 
 	for i := range c {
 		c[i].NbUniqueOutputs = 0

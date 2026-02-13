@@ -19,7 +19,7 @@ func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit
     // The properties of test gates are expected to be the same across all relevant fields.
     // We can therefore use the gate testing functions for any curve rather than reimplementing
     // for small_rational.
-	return circuit.Compile(ecc.BN254.ScalarField())
+	return gkrtypes.CompileCircuit(circuit, ecc.BN254.ScalarField())
 }
 
 func GenerateVectors() error {

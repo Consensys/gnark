@@ -23,11 +23,11 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
 	// The properties of test gates are expected to be the same across all relevant fields.
-	// We can therefore use the gate testing functions for any curve rather that reimplementing
+	// We can therefore use the gate testing functions for any curve rather than reimplementing
 	// for small_rational.
-	return gkrtypes.ToSerializableCircuit(ecc.BN254.ScalarField(), circuit)
+	return gkrtypes.CompileCircuit(circuit, ecc.BN254.ScalarField())
 }
 
 func GenerateVectors() error {
@@ -224,7 +224,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := toSerializableCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit := compileCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

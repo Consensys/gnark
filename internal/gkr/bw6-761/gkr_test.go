@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func toSerializableCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return gkrtypes.ToSerializableCircuit(ecc.BW6_761.ScalarField(), circuit)
+func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	return gkrtypes.CompileCircuit(circuit, ecc.BW6_761.ScalarField())
 }
 
 func TestNoGateTwoInstances(t *testing.T) {
@@ -81,7 +81,7 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 			NbUniqueOutputs: 2,
 		},
 	}
-	circuit := toSerializableCircuit(gCircuit)
+	circuit := compileCircuit(gCircuit)
 
 	assignment := WireAssignment{[]fr.Element{two, three}}
 	var o settings
@@ -137,7 +137,7 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
-	sCircuit := toSerializableCircuit(circuit)
+	sCircuit := compileCircuit(circuit)
 	wireRefs := utils.References(sCircuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -191,7 +191,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := toSerializableCircuit(gkrtesting.NoGateCircuit())
+	c := compileCircuit(gkrtesting.NoGateCircuit())
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
@@ -272,7 +272,7 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	c := toSerializableCircuit(gkrtesting.MiMCCircuit(mimcDepth))
+	c := compileCircuit(gkrtesting.MiMCCircuit(mimcDepth))
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
@@ -361,7 +361,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := toSerializableCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit := compileCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

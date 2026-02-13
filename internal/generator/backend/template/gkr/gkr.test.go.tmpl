@@ -21,7 +21,7 @@ import (
 )
 
 func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return circuit.Compile(ecc.{{.FieldID}}.ScalarField())
+	return gkrtypes.CompileCircuit(circuit, ecc.{{.FieldID}}.ScalarField())
 }
 
 func TestNoGateTwoInstances(t *testing.T) {

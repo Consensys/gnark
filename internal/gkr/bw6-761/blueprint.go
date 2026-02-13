@@ -48,11 +48,6 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) setOutputWires() {
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
-}
-
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
@@ -69,7 +64,7 @@ func (b *BlueprintSolve) Reset() {
 		return ce
 	}
 
-	b.setOutputWires()
+	b.outputWires = b.Circuit.Outputs()
 
 	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
@@ -151,7 +146,9 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.setOutputWires()
+	if b.outputWires == nil {
+		b.outputWires = b.Circuit.Outputs()
+	}
 	return len(b.outputWires)
 }
 
