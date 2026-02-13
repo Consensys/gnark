@@ -35,7 +35,7 @@ func selectInput3Gate(_ gkr.GateAPI, in ...frontend.Variable) frontend.Variable 
 
 func NewCache() *Cache {
 	gates := make(map[string]gkr.GateFunction, 7)
-	gates[""] = gkrtypes.Identity
+	gates[""] = nil
 	gates["identity"] = gkrtypes.Identity
 	gates["add2"] = gkrtypes.Add2
 	gates["sub2"] = gkrtypes.Sub2

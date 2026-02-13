@@ -370,6 +370,9 @@ func newClaimsManager(wires []*Wire, assignment WireAssignment, o settings) (man
 
 	for i, wire := range wires {
 
+		if wire.IsInput() {
+			wire.Gate.Degree = 1
+		}
 		manager.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
 			wireI:              i,
 			evaluationPoints:   make([][]fr.Element, 0, wire.NbClaims()),

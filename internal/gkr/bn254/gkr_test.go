@@ -78,7 +78,6 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 			NbUniqueOutputs: 2,
 		},
 	}
-	circuit := compileCircuit(gCircuit)
 
 	assignment := WireAssignment{[]fr.Element{two, three}}
 	var o settings
