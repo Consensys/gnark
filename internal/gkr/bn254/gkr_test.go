@@ -78,6 +78,7 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	circuit := gkrtypes.SerializableCircuit{
 		{
 			NbUniqueOutputs: 2,
+			Gate:            gkrtypes.SerializableGate{Degree: 1},
 		},
 	}
 
