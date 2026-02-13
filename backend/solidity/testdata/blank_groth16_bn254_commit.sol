@@ -3,16 +3,14 @@
 
 pragma solidity ^0.8.0;
 
-import { A } from "a.sol";
-import { B } from "b.sol";
-
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
 /// @notice Supports verifying Groth16 proofs. Proofs can be in uncompressed
-/// (256 bytes) and compressed (128 bytes) format. A view function is provided
-/// to compress proofs.
+/// (256 bytes + optional commitments) and compressed (128 bytes) format.
+/// Uncompressed proofs are passed as bytes calldata matching the output of
+/// MarshalSolidity(). A view function is provided to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
-contract Verifier is IVerifier {
+contract Verifier {
 
     /// Some of the provided public input values are larger than the field modulus.
     /// @dev Public input elements are not automatically reduced, as this is can be
@@ -24,6 +22,11 @@ contract Verifier is IVerifier {
     /// curves, that pairing equation fails, or that the proof is not for the
     /// provided public input.
     error ProofInvalid();
+    /// The commitment is invalid
+    /// @dev This can mean that provided commitment points and/or proof of knowledge are not on their
+    /// curves, that pairing equation fails, or that the commitment and/or proof of knowledge is not for the
+    /// commitment key.
+    error CommitmentInvalid();
 
     // Addresses of precompiles
     uint256 constant PRECOMPILE_MODEXP = 0x05;
@@ -56,42 +59,49 @@ contract Verifier is IVerifier {
     uint256 constant EXP_SQRT_FP = 0xC19139CB84C680A6E14116DA060561765E05AA45A1C72A34F082305B61F3F52; // (P + 1) / 4;
 
     // Groth16 alpha point in G1
-    uint256 constant ALPHA_X = 15275138465222268075688167023256986621143795978980984973528354613794178277552;
-    uint256 constant ALPHA_Y = 4256178492919615555831689546236043579358329306076277614215811428074744755299;
+    uint256 constant ALPHA_X = 4168088897957812790266126392305546991407976834969126969649151575664006049287;
+    uint256 constant ALPHA_Y = 10198379651767130916408681077094603952482809303318525399510898974541913766069;
 
     // Groth16 beta point in G2 in powers of i
-    uint256 constant BETA_NEG_X_0 = 1263968980062400593261648229004557971887738225571621134367455459491228678284;
-    uint256 constant BETA_NEG_X_1 = 13017293726012653666231735700816227377700488663068027867506700543963126530739;
-    uint256 constant BETA_NEG_Y_0 = 463539242419840207397911122385016180701735732628451181160363407439515466810;
-    uint256 constant BETA_NEG_Y_1 = 14078050393361600965169705090105052448741284397579038544184640600674965922681;
+    uint256 constant BETA_NEG_X_0 = 14430030179890575149080841932660106127623479315982080603149611200761189247304;
+    uint256 constant BETA_NEG_X_1 = 819420150350460903670969320686024674978450240550979170911454028986995770571;
+    uint256 constant BETA_NEG_Y_0 = 13902404393392985208905044200347738298112724117660032273953804562963629358915;
+    uint256 constant BETA_NEG_Y_1 = 750657563921385583949517975804011477880291770044730273288281709980169712577;
 
     // Groth16 gamma point in G2 in powers of i
-    uint256 constant GAMMA_NEG_X_0 = 4192492175063876753008763534121827656978349907119722965541672409634844710582;
-    uint256 constant GAMMA_NEG_X_1 = 11093144019532515445779296452732154142824133322812911415156390407781888451557;
-    uint256 constant GAMMA_NEG_Y_0 = 17411712677845408440788592061743959365092989741439027343206284997785288033237;
-    uint256 constant GAMMA_NEG_Y_1 = 9260893730434736049074127584749460669716977307801664536904273131058936352244;
+    uint256 constant GAMMA_NEG_X_0 = 17995818414924910123501761914994026099250889666352029817730976254357772519081;
+    uint256 constant GAMMA_NEG_X_1 = 7393989088254567177046124201815912327643821269661779830077341630088209291484;
+    uint256 constant GAMMA_NEG_Y_0 = 15683022478799655126477985860872908624324502452393275345484375540740750069451;
+    uint256 constant GAMMA_NEG_Y_1 = 17487140601721339648388743667432588985439212786323827873826491111312651724181;
 
     // Groth16 delta point in G2 in powers of i
-    uint256 constant DELTA_NEG_X_0 = 19701361679588962813404603786625210698229184359823816133013890146003877850911;
-    uint256 constant DELTA_NEG_X_1 = 8610605697496790254073037669885257085251676297861691882661279963113598445778;
-    uint256 constant DELTA_NEG_Y_0 = 8238948094095111020558383386154480006889441547265951725331970613733801765972;
-    uint256 constant DELTA_NEG_Y_1 = 6724220789440547186657079876966090827814650711348900419509822137359728565844;
+    uint256 constant DELTA_NEG_X_0 = 639613958791287145379951146176213635764040449641035870424191341512569397073;
+    uint256 constant DELTA_NEG_X_1 = 15500463297842106913511293274389876880081939523188453720906302504861708674837;
+    uint256 constant DELTA_NEG_Y_0 = 9962083143153938537809714189018639226499079348886946047793166527526677806574;
+    uint256 constant DELTA_NEG_Y_1 = 4954080567056970791336845579716779471522351107235569901443040486823427231817;
+    // Pedersen G point in G2 in powers of i
+    uint256 constant PEDERSEN_G_X_0 = 18493247542585565776745323258312724450139420039850948351251628081187893320199;
+    uint256 constant PEDERSEN_G_X_1 = 5003008321481450760750713447711574821243088038989177350509144414549815502336;
+    uint256 constant PEDERSEN_G_Y_0 = 9618912493610487091730954971459762071312209480642045982481147428675044896088;
+    uint256 constant PEDERSEN_G_Y_1 = 8455700382049054628913710000766760186425344408075695062591160275064901141580;
+
+    // Pedersen GSigmaNeg point in G2 in powers of i
+    uint256 constant PEDERSEN_GSIGMANEG_X_0 = 3569967469961768489629942912985397282432301993215580749683011909364249308811;
+    uint256 constant PEDERSEN_GSIGMANEG_X_1 = 12224395597839733115731768335378200545618215383902092190643910321820665448214;
+    uint256 constant PEDERSEN_GSIGMANEG_Y_0 = 2160463708538706527736362510479614169178649526411766422570812540334672394277;
+    uint256 constant PEDERSEN_GSIGMANEG_Y_1 = 5029839044774911112086311899107010067839820997944832758244978694546523307854;
 
     // Constant and public input points
-    uint256 constant CONSTANT_X = 7429130152180629240426301649629313466013567950287125629095765510207179998940;
-    uint256 constant CONSTANT_Y = 3733277600023707941578749672331256573081492669083426945263136487798543806894;
-    uint256 constant PUB_0_X = 13458802420957674336569187726799627041673649107596888420476085154855733653944;
-    uint256 constant PUB_0_Y = 21467066256484667342862470576518259533146650576371356605342062991720970330065;
-    uint256 constant PUB_1_X = 10834652275482411277958761939954701094796036566520748144399540871990098808314;
-    uint256 constant PUB_1_Y = 687002451258774021381811802418530120135896919990173366661928006331204037575;
-    uint256 constant PUB_2_X = 238451497374524437861713847406560379659184404276257977234734727204672461768;
-    uint256 constant PUB_2_Y = 3720089603828145656901780258756276990624925199990344107236088469401522242243;
-
-	bytes32 private immutable CHAIN_CONFIG;
-
-	constructor(bytes32 config) {
-		CHAIN_CONFIG = config;
-  }
+    uint256 constant CONSTANT_X = 1639178264568766992985400269072817781086633557929671902629297762337615215927;
+    uint256 constant CONSTANT_Y = 17653321303403203416201186430425254102432069038437683459611485219497356805515;
+    uint256 constant PUB_0_X = 6429582049730346695186857769041876252412361627265404946552153255754993796351;
+    uint256 constant PUB_0_Y = 5997392415295351454433413194455496146584168025677680904626906730070753552935;
+    uint256 constant PUB_1_X = 19637824434165461361074940626691559028462676683386128382157720595389207220663;
+    uint256 constant PUB_1_Y = 972159037635682098477742444908217492949673986822466952892102476559564088211;
+    uint256 constant PUB_2_X = 21568538132775523850979063861484783371799492761615818043561558576135723814764;
+    uint256 constant PUB_2_Y = 17492915101932886600254993025875017851493258309575706344734734391010971982944;
+    uint256 constant PUB_3_X = 3211224741581598735827956391096329983621433541191507867006560461144040898318;
+    uint256 constant PUB_3_Y = 18590992930318279969339648445373838764307972331322940358977833457152577183895;
 
     /// Negation in Fp.
     /// @notice Returns a number x such that a + x = 0 in Fp.
@@ -366,9 +376,15 @@ contract Verifier is IVerifier {
     /// @notice Computes the multi-scalar-multiplication of the public input
     /// elements and the verification key including the constant term.
     /// @param input The public inputs. These are elements of the scalar field Fr.
+    /// @param publicCommitments public inputs generated from pedersen commitments.
+    /// @param commitments The Pedersen commitments from the proof.
     /// @return x The X coordinate of the resulting G1 point.
     /// @return y The Y coordinate of the resulting G1 point.
-    function publicInputMSM(uint256[3] calldata input)
+    function publicInputMSM(
+        uint256[3] calldata input,
+        uint256[1] memory publicCommitments,
+        uint256[2] memory commitments
+    )
     internal view returns (uint256 x, uint256 y) {
         // Note: The ECMUL precompile does not reject unreduced values, so we check this.
         // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
@@ -385,6 +401,9 @@ contract Verifier is IVerifier {
             let s
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
+            mstore(g, mload(commitments))
+            mstore(add(g, 0x20), mload(add(commitments, 0x20)))
+            success := and(success,  staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
             mstore(g, PUB_0_X)
             mstore(add(g, 0x20), PUB_0_Y)
             s :=  calldataload(input)
@@ -406,6 +425,13 @@ contract Verifier is IVerifier {
             success := and(success, lt(s, R))
             success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
             success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
+            mstore(g, PUB_3_X)
+            mstore(add(g, 0x20), PUB_3_Y)
+            s := mload(publicCommitments)
+            mstore(add(g, 0x40), s)
+            success := and(success, lt(s, R))
+            success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
+            success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
 
             x := mload(f)
             y := mload(add(f, 0x20))
@@ -420,15 +446,54 @@ contract Verifier is IVerifier {
     /// Compress a proof.
     /// @notice Will revert with InvalidProof if the curve points are invalid,
     /// but does not verify the proof itself.
-    /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
-    /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
+    /// @param proof The uncompressed Groth16 proof. Points (A, B, C) encoded as in EIP-197
+    /// (256 bytes total).
+    /// Followed by Pedersen commitments (1 × 64 bytes) and proof of knowledge
+    /// (64 bytes) = 384 bytes total.
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
-    function compressProof(uint256[8] calldata proof)
-    public view returns (uint256[4] memory compressed) {
-        compressed[0] = compress_g1(proof[0], proof[1]);
-        (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
-        compressed[3] = compress_g1(proof[6], proof[7]);
+    /// @return compressedCommitments compressed Pedersen commitments from the proof.
+    /// @return compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
+    function compressProof(bytes calldata proof)
+    public view returns (
+        uint256[4] memory compressed,
+        uint256[1] memory compressedCommitments,
+        uint256 compressedCommitmentPok
+    ) {
+        require(proof.length == 384, "invalid proof length");
+        uint256 a0;
+        uint256 a1;
+        assembly ("memory-safe") {
+            a0 := calldataload(proof.offset)
+            a1 := calldataload(add(proof.offset, 0x20))
+        }
+        compressed[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x60))
+            a1 := calldataload(add(proof.offset, 0x40))
+        }
+        uint256 b0;
+        uint256 b1;
+        assembly ("memory-safe") {
+            b0 := calldataload(add(proof.offset, 0xa0))
+            b1 := calldataload(add(proof.offset, 0x80))
+        }
+        (compressed[2], compressed[1]) = compress_g2(a0, a1, b0, b1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0xc0))
+            a1 := calldataload(add(proof.offset, 0xe0))
+        }
+        compressed[3] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x100))
+            a1 := calldataload(add(proof.offset, 0x120))
+        }
+        compressedCommitments[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x140))
+            a1 := calldataload(add(proof.offset, 0x160))
+        }
+        compressedCommitmentPok = compress_g1(a0, a1);
     }
 
     /// Verify a Groth16 proof with compressed points.
@@ -438,19 +503,70 @@ contract Verifier is IVerifier {
     /// proof was successfully verified.
     /// @param compressedProof the points (A, B, C) in compressed format
     /// matching the output of compressProof.
+    /// @param compressedCommitments compressed Pedersen commitments from the proof.
+    /// @param compressedCommitmentPok compressed proof of knowledge for the Pedersen commitments.
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
+        uint256[1] calldata compressedCommitments,
+        uint256 compressedCommitmentPok,
         uint256[3] calldata input
     ) public view {
+        uint256[1] memory publicCommitments;
+        uint256[2] memory commitments;
         uint256[24] memory pairings;
+        {
+            (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
+            (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
+
+            uint256[] memory publicAndCommitmentCommitted;
+
+            publicCommitments[0] = uint256(
+                keccak256(
+                    abi.encodePacked(
+                        commitments[0],
+                        commitments[1],
+                        publicAndCommitmentCommitted
+                    )
+                )
+            ) % R;
+            // Commitments
+            pairings[ 0] = commitments[0];
+            pairings[ 1] = commitments[1];
+            pairings[ 2] = PEDERSEN_GSIGMANEG_X_1;
+            pairings[ 3] = PEDERSEN_GSIGMANEG_X_0;
+            pairings[ 4] = PEDERSEN_GSIGMANEG_Y_1;
+            pairings[ 5] = PEDERSEN_GSIGMANEG_Y_0;
+            pairings[ 6] = Px;
+            pairings[ 7] = Py;
+            pairings[ 8] = PEDERSEN_G_X_1;
+            pairings[ 9] = PEDERSEN_G_X_0;
+            pairings[10] = PEDERSEN_G_Y_1;
+            pairings[11] = PEDERSEN_G_Y_0;
+
+            // Verify pedersen commitments
+            bool success;
+            assembly ("memory-safe") {
+                let f := mload(0x40)
+
+                success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x180, f, 0x20)
+                success := and(success, mload(f))
+            }
+            if (!success) {
+                revert CommitmentInvalid();
+            }
+        }
 
         {
             (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
             (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(compressedProof[2], compressedProof[1]);
             (uint256 Cx, uint256 Cy) = decompress_g1(compressedProof[3]);
-            (uint256 Lx, uint256 Ly) = publicInputMSM(input);
+            (uint256 Lx, uint256 Ly) = publicInputMSM(
+                input,
+                publicCommitments,
+                commitments
+            );
 
             // Verify the pairing
             // Note: The precompile expects the F2 coefficients in big-endian order.
@@ -503,25 +619,72 @@ contract Verifier is IVerifier {
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was successfully verified.
-    /// @param proof the points (A, B, C) in EIP-197 format matching the output
-    /// of compressProof.
+    /// @param proof the serialized proof, containing the points (A, B, C) in EIP-197 format
+    /// (256 bytes total).
+    /// Followed by Pedersen commitments (1 × 64 bytes) and proof of knowledge
+    /// (64 bytes) = 384 bytes total.
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
-        uint256[8] calldata proof,
+        bytes calldata proof,
         uint256[3] calldata input
     ) public view {
-        (uint256 x, uint256 y) = publicInputMSM(input);
+        require(proof.length == 384, "invalid proof length");
+        // Copy commitment points from proof bytes into memory for publicInputMSM
+        uint256[2] memory commitments;
+        assembly ("memory-safe") {
+            calldatacopy(commitments, add(proof.offset, 0x100), 64)
+        }
+
+        // HashToField
+        uint256[1] memory publicCommitments;
+        uint256[] memory publicAndCommitmentCommitted;
+
+        {
+            bytes memory hashInput = abi.encodePacked(
+                proof[0x100:0x140],
+                publicAndCommitmentCommitted
+            );
+            publicCommitments[0] = uint256(keccak256(hashInput)) % R;
+        }
+
+        // Verify pedersen commitments
+        bool success;
+        assembly ("memory-safe") {
+            let f := mload(0x40)
+
+            calldatacopy(f, add(proof.offset, 0x100), 0x40) // Copy first commitment
+            mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
+            mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
+            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
+            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
+            calldatacopy(add(f, 0xc0), add(proof.offset, 0x140), 0x40) // Copy PoK
+            mstore(add(f, 0x100), PEDERSEN_G_X_1)
+            mstore(add(f, 0x120), PEDERSEN_G_X_0)
+            mstore(add(f, 0x140), PEDERSEN_G_Y_1)
+            mstore(add(f, 0x160), PEDERSEN_G_Y_0)
+
+            success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x180, f, 0x20)
+            success := and(success, mload(f))
+        }
+        if (!success) {
+            revert CommitmentInvalid();
+        }
+
+        (uint256 x, uint256 y) = publicInputMSM(
+            input,
+            publicCommitments,
+            commitments
+        );
 
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-        bool success;
         assembly ("memory-safe") {
             let f := mload(0x40) // Free memory pointer.
 
             // Copy points (A, B, C) to memory. They are already in correct encoding.
             // This is pairing e(A, B) and G1 of e(C, -δ).
-            calldatacopy(f, proof, 0x100)
+            calldatacopy(f, proof.offset, 0x100)
 
             // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
             // OPT: This could be better done using a single codecopy, but
@@ -555,8 +718,4 @@ contract Verifier is IVerifier {
             revert ProofInvalid();
         }
     }
-
-	function getConfig() external view returns (bytes32) {
-		return CHAIN_CONFIG;
-  }
 }
