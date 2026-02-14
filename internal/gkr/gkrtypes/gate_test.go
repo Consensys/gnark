@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/stretchr/testify/assert"
@@ -107,4 +108,78 @@ func TestConstantDeduplication(t *testing.T) {
 
 	t.Logf("Successfully deduplicated constants: %d unique constant(s)",
 		len(compiled.Constants))
+}
+
+func testFitPoly(t *testing.T, name string, f gkr.GateFunction, nbIn, degree, maxDegree int) {
+	t.Run(name, func(t *testing.T) {
+		tester := gateTester{mod: ecc.BN254.ScalarField()}
+		g, err := CompileGateFunction(f, nbIn)
+		require.NoError(t, err)
+		tester.setGate(g, nbIn)
+		require.Equal(t, degree, len(tester.fitPoly(maxDegree))-1)
+	})
+}
+
+func TestFitPoly(t *testing.T) {
+	testFitPoly(t, "identity", Identity, 1, 1, 3)
+	testFitPoly(t, "add", Add2, 2, 1, 2)
+	testFitPoly(t, "sub", Sub2, 2, 1, 4)
+	testFitPoly(t, "mul", Mul2, 2, 2, 2)
+
+	// x * y * z has degree 3
+	mul3 := func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Mul(api.Mul(in[0], in[1]), in[2])
+	}
+	testFitPoly(t, "mul3", mul3, 3, 3, 4)
+
+	// x + y + z has degree 1
+	add3 := func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Add(api.Add(in[0], in[1]), in[2])
+	}
+	testFitPoly(t, "add3", add3, 3, 1, 4)
+
+	// (x + y) * z has degree 2
+	addMul := func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+		return api.Mul(api.Add(in[0], in[1]), in[2])
+	}
+	testFitPoly(t, "addMul", addMul, 3, 2, 4)
+}
+
+func testIsAdditive(t *testing.T, name string, f gkr.GateFunction, isAdditive ...bool) {
+	t.Run(name, func(t *testing.T) {
+		tester := gateTester{mod: ecc.BN254.ScalarField()}
+		g, err := CompileGateFunction(f, len(isAdditive))
+		require.NoError(t, err)
+		tester.setGate(g, len(isAdditive))
+		for i := range isAdditive {
+			assert.Equal(t, isAdditive[i], tester.isAdditive(i))
+		}
+	})
+}
+
+func TestIsAdditive(t *testing.T) {
+	testIsAdditive(t, "x+y", Add2, true, true)
+	testIsAdditive(t, "x-y", Sub2, true, true)
+	testIsAdditive(t, "x*y", Mul2, false, false) // neither additive (degree 2 monomial)
+
+	// x additive, y and z not
+	testIsAdditive(t, "x+y*z",
+		func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+			return api.Add(in[0], api.Mul(in[1], in[2]))
+		},
+		true, false, false)
+
+	// x not additive (degree 2), y additive
+	testIsAdditive(t, "x²+2y",
+		func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+			return api.Add(api.Mul(in[0], in[0]), in[1], in[1])
+		},
+		false, true)
+
+	// y appears in both degree-1 and degree-2 terms, so not additive
+	testIsAdditive(t, "x*y+y",
+		func(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
+			return api.Add(api.Mul(in[0], in[1]), in[1])
+		},
+		false, false)
 }

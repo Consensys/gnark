@@ -15,7 +15,6 @@ import (
 // Type aliases for gadget circuit types
 type (
 	Wire    = gkrtypes.GadgetWire
-	Wires   = gkrtypes.GadgetWires
 	Circuit = gkrtypes.GadgetCircuit
 )
 
@@ -72,8 +71,8 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
-	return e.manager.wires[e.wireI]
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() Wire {
+	return e.manager.circuit[e.wireI]
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -107,7 +106,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 	} else {
 
 		injection, injectionLeftInv :=
-			e.manager.wires.ClaimPropagationInfo(e.wireI)
+			e.manager.circuit.ClaimPropagationInfo(e.wireI)
 
 		if len(injection) != len(uniqueInputEvaluations) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
@@ -150,20 +149,23 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
 type claimsManager struct {
 	claims     []*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
-	wires      Wires
+	circuit    Circuit
 }
 
-func newClaimsManager(wires Wires, assignment WireAssignment) (claims claimsManager) {
+func newClaimsManager(circuit Circuit, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
-	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
-	claims.wires = wires
+	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(circuit))
+	claims.circuit = circuit
 
-	for i := range wires {
-		wire := wires[i]
+	for i := range circuit {
+		if circuit[i].IsInput() {
+			circuit[i].Gate.Degree = 1
+			circuit[i].Gate.Evaluate = gkrtypes.Identity
+		}
 		claims.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
 			wireI:              i,
-			evaluationPoints:   make([][]frontend.Variable, 0, wire.NbClaims()),
-			claimedEvaluations: make(polynomial.Polynomial, wire.NbClaims()),
+			evaluationPoints:   make([][]frontend.Variable, 0, circuit[i].NbClaims()),
+			claimedEvaluations: make(polynomial.Polynomial, circuit[i].NbClaims()),
 			manager:            &claims,
 		}
 	}
@@ -187,19 +189,12 @@ func (m *claimsManager) deleteClaim(wire int) {
 }
 
 type settings struct {
-	sorted           []*Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
 }
 
 type Option func(*settings)
-
-func WithSortedCircuit(sorted []*Wire) Option {
-	return func(options *settings) {
-		options.sorted = sorted
-	}
-}
 
 func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
@@ -214,12 +209,8 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 		return o, errors.New("number of instances must be power of 2")
 	}
 
-	if o.sorted == nil {
-		o.sorted = c.TopologicalSort()
-	}
-
 	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNames(o.sorted, o.nbVars, transcriptSettings.Prefix)
+		challengeNames := ChallengeNames(c, o.nbVars, transcriptSettings.Prefix)
 		o.transcript = fiatshamir.NewTranscript(api, transcriptSettings.Hash, challengeNames)
 		if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges); err != nil {
 			return o, err
@@ -231,35 +222,22 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	return o, err
 }
 
-// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
-func ProofSize(c Circuit, logNbInstances int) int {
-	nbUniqueInputs := 0
-	nbPartialEvalPolys := 0
-	for i := range c {
-		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		if !c[i].NoProof() {
-			nbPartialEvalPolys += c[i].Gate.Degree + 1
-		}
-	}
-	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
-}
-
-func ChallengeNames(sorted Wires, logNbInstances int, prefix string) []string {
+func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
 
-	for _, w := range sorted {
-		if w.NoProof() { // no proof, no challenge
+	for i := range c {
+		if c[i].NoProof() { // no proof, no challenge
 			continue
 		}
-		if w.NbClaims() > 1 { //combine the claims
+		if c[i].NbClaims() > 1 { //combine the claims
 			size++
 		}
 		size += logNbInstances // full run of sumcheck on logNbInstances variables
 	}
 
-	nums := make([]string, max(len(sorted), logNbInstances))
+	nums := make([]string, max(len(c), logNbInstances))
 	for i := range nums {
 		nums[i] = strconv.Itoa(i)
 	}
@@ -272,13 +250,13 @@ func ChallengeNames(sorted Wires, logNbInstances int, prefix string) []string {
 		challenges[j] = firstChallengePrefix + nums[j]
 	}
 	j := logNbInstances
-	for i := len(sorted) - 1; i >= 0; i-- {
-		if sorted[i].NoProof() {
+	for i := len(c) - 1; i >= 0; i-- {
+		if c[i].NoProof() {
 			continue
 		}
 		wirePrefix := prefix + "w" + nums[i] + "."
 
-		if sorted[i].NbClaims() > 1 {
+		if c[i].NbClaims() > 1 {
 			challenges[j] = wirePrefix + "comb"
 			j++
 		}
@@ -319,7 +297,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		return err
 	}
 
-	claims := newClaimsManager(o.sorted, assignment)
+	claims := newClaimsManager(c, assignment)
 
 	var firstChallenge []frontend.Variable
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -330,7 +308,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	wirePrefix := o.transcriptPrefix + "w"
 	var baseChallenge []frontend.Variable
 	for i := len(c) - 1; i >= 0; i-- {
-		wire := o.sorted[i]
+		wire := c[i]
 
 		if wire.IsOutput() {
 			claims.add(i, firstChallenge, assignment[i].Evaluate(api, firstChallenge))
@@ -361,8 +339,6 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	return nil
 }
 
-// TODO: Have this use algo_utils.TopologicalSort underneath
-
 func (p Proof) Serialize() []frontend.Variable {
 	size := 0
 	for i := range p {
@@ -387,16 +363,20 @@ func (p Proof) Serialize() []frontend.Variable {
 
 // ComputeLogNbInstances derives n such that the number of instances is 2ⁿ
 // from the size of the proof and the circuit structure.
+// The number actually computed is that of rounds in each ZeroCheck instance, which is equal
+// to the desired result.
 // It is used in proof deserialization.
-func ComputeLogNbInstances(wires Wires, serializedProofLen int) int {
+func ComputeLogNbInstances(circuit Circuit, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
-	for _, w := range wires {
-		if !w.NoProof() {
-			partialEvalElemsPerVar += w.Gate.Degree + 1
-		}
+	for _, w := range circuit {
+		partialEvalElemsPerVar += w.ProofPolyLength()
 		serializedProofLen -= w.NbUniqueOutputs
 	}
-	return serializedProofLen / partialEvalElemsPerVar
+	res := serializedProofLen / partialEvalElemsPerVar
+	if res*partialEvalElemsPerVar != serializedProofLen {
+		panic("cannot compute logNbInstances")
+	}
+	return res
 }
 
 type variablesReader []frontend.Variable
@@ -411,16 +391,16 @@ func (r *variablesReader) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof(sorted Wires, serializedProof []frontend.Variable) (Proof, error) {
-	proof := make(Proof, len(sorted))
-	logNbInstances := ComputeLogNbInstances(sorted, len(serializedProof))
+func DeserializeProof(circuit Circuit, serializedProof []frontend.Variable) (Proof, error) {
+	proof := make(Proof, len(circuit))
+	logNbInstances := ComputeLogNbInstances(circuit, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
-	for i, wI := range sorted {
+	for i, wI := range circuit {
 		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree + 1)
+				proof[i].PartialSumPolys[j] = reader.nextN(wI.ProofPolyLength())
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())

@@ -6,8 +6,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
@@ -19,17 +19,6 @@ func Example() {
 	// The two curves form a "cycle", meaning the scalar field of one is the base field of the other.
 	// The implementation is based on the function DoubleAssign() of type G1Jac in gnark-crypto v0.17.0.
 	// github.com/consensys/gnark-crypto/ecc/bls12-377
-
-	// register the gates: Doing so is not needed here because
-	// the proof is being computed in the same session as the
-	// SNARK circuit being compiled.
-	// But in production applications it would be necessary.
-
-	assertNoError(gkrgates.Register(squareGate, 1))
-	assertNoError(gkrgates.Register(sGate, 4))
-	assertNoError(gkrgates.Register(zGate, 4))
-	assertNoError(gkrgates.Register(xGate, 2))
-	assertNoError(gkrgates.Register(yGate, 4))
 
 	const nbInstances = 2
 	// create instances
@@ -110,7 +99,7 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	YOut := gkrApi.Gate(yGate, S, XOut, XX, YYYY) // 423 - 426
 
 	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
-	XOut = gkrApi.NamedGate(gkr.Identity, XOut)
+	XOut = gkrApi.Gate(gkrtypes.Identity, XOut)
 
 	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {

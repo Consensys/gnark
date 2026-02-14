@@ -15,7 +15,7 @@ import (
 
 func init() {
 	// Register GKR blueprint types for CBOR serialization with explicit tag numbers
-    constraint.RegisterGkrBlueprintTypes(ecc.{{.FieldID}}, BlueprintSolve{}, BlueprintProve{}, BlueprintGetAssignment{})
+	constraint.RegisterGkrBlueprintTypes(ecc.{{.FieldID}}, BlueprintSolve{}, BlueprintProve{}, BlueprintGetAssignment{})
 }
 
 // circuitEvaluator evaluates all gates in a circuit for one instance
@@ -41,11 +41,6 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) setOutputWires() {
-	b.Circuit.OutputsList() // for side effects
-    b.outputWires = b.Circuit.Outputs()
-}
-
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
 func (b *BlueprintSolve) Reset() {
@@ -62,9 +57,9 @@ func (b *BlueprintSolve) Reset() {
 		return ce
 	}
 
-    b.setOutputWires()
+	b.outputWires = b.Circuit.Outputs()
 
-    assignments := make(WireAssignment, len(b.Circuit))
+	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
 	for i := range assignments {
 		assignments[i] = make(polynomial.MultiLin, nbPaddedInstances)
@@ -109,7 +104,7 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 			// Push gate inputs
 			for _, inWI := range w.Inputs {
-				evaluator.pushInput(&b.assignments[inWI][instanceI])
+				evaluator.pushInput(b.assignments[inWI][instanceI])
 			}
 
 			// Evaluate the gate
@@ -144,7 +139,9 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-    b.setOutputWires()
+    if b.outputWires == nil {
+        b.outputWires = b.Circuit.Outputs()
+    }
 	return len(b.outputWires)
 }
 
@@ -177,7 +174,7 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 		tree.InsertWire(uint32(i+int(inst.WireOffset)), outputLevel)
 	}
 
-    b.maxOutputLevel = max(b.maxOutputLevel, outputLevel)
+	b.maxOutputLevel = max(b.maxOutputLevel, outputLevel)
 
 	return outputLevel
 }
@@ -208,28 +205,28 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("no assignments available for proving")
 	}
 
-    nbPaddedInstances := uint32(ecc.NextPowerOfTwo(uint64(solveBlueprint.NbInstances)))
-    if nbPaddedInstances != uint32(len(assignments[0])) {   // test engine path
-	    nbPadding := nbPaddedInstances - solveBlueprint.NbInstances
+	nbPaddedInstances := uint32(ecc.NextPowerOfTwo(uint64(solveBlueprint.NbInstances)))
+	if nbPaddedInstances != uint32(len(assignments[0])) { // test engine path
+		nbPadding := nbPaddedInstances - solveBlueprint.NbInstances
 		for wI := range assignments {
-            assignments[wI] = slices.Grow(assignments[wI], int(nbPadding))
-            toRepeat := assignments[wI][solveBlueprint.NbInstances-1]
-            for range nbPadding {
-                assignments[wI] = append(assignments[wI], toRepeat)
-            }
+			assignments[wI] = slices.Grow(assignments[wI], int(nbPadding))
+			toRepeat := assignments[wI][solveBlueprint.NbInstances-1]
+			for range nbPadding {
+				assignments[wI] = append(assignments[wI], toRepeat)
+			}
 		}
 	} else {
-	    for wI := range assignments {
-	        for i := solveBlueprint.NbInstances; i < nbPaddedInstances; i++ {
-	            assignments[wI][i] = assignments[wI][i-1]
-	        }
-        }
+		for wI := range assignments {
+			for i := solveBlueprint.NbInstances; i < nbPaddedInstances; i++ {
+				assignments[wI][i] = assignments[wI][i-1]
+			}
+		}
 	}
 
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
 	// Format: [0]=totalSize, [1...]=challenge linear expressions
 	insBytes := make([][]byte, 0) // first challenges
-	calldata := inst.Calldata[1:]  // skip size prefix
+	calldata := inst.Calldata[1:] // skip size prefix
 	for len(calldata) != 0 {
 		val, delta := s.Read(calldata)
 		calldata = calldata[delta:]
@@ -250,11 +247,11 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		return fmt.Errorf("{{toLower .FieldID}} prove failed: %w", err)
 	}
 
-    for i, elem := range proof.flatten() {
+	for i, elem := range proof.flatten() {
 		var val constraint.U64
 		copy(val[:], (*elem)[:])
 		s.SetValue(uint32(i+int(inst.WireOffset)), val)
-    }
+	}
 
 	return nil
 }
@@ -273,7 +270,7 @@ func (b *BlueprintProve) proofSize() int {
 	if b.SolveBlueprint.NbInstances < 2 {
 		return 0
 	}
-    nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
+	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
 	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
 }
