@@ -35,11 +35,13 @@ type (
 	// Type aliases for different circuit instantiations
 
 	// Serializable types (bytecode only, for native proving)
+
 	SerializableGate    = Gate[GateBytecode]
 	SerializableCircuit = Circuit[GateBytecode]
 	SerializableWire    = Wire[GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
+
 	GadgetGate    = Gate[gkr.GateFunction]
 	GadgetCircuit = Circuit[gkr.GateFunction]
 	GadgetWire    = Wire[gkr.GateFunction]

@@ -865,9 +865,6 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
 
-	// Reset evaluator state (but keep the vars slice for reuse)
-	e.frameSize = gep.gate.NbConstants()
-
 	// Return evaluator to pool (it keeps its vars slice from polynomial pool)
 	gep.available[e] = struct{}{}
 }

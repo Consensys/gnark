@@ -24,8 +24,8 @@ type Cache struct {
 }
 
 type circuits struct {
-	proverCircuit   gkrtypes.SerializableCircuit
-	verifierCircuit gkrtypes.GadgetCircuit
+	serializable gkrtypes.SerializableCircuit
+	gadget       gkrtypes.GadgetCircuit
 }
 
 func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
@@ -83,7 +83,7 @@ func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.
 		panic(err)
 	}
 	if circuit, ok := c.circuits[path]; ok {
-		return circuit.proverCircuit, circuit.verifierCircuit
+		return circuit.serializable, circuit.gadget
 	}
 
 	var bytes []byte
@@ -98,23 +98,23 @@ func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.
 	}
 
 	// Convert JSON format to GadgetCircuit
-	circuit := make(gkrtypes.GadgetCircuit, len(jsonCircuit))
+	gCircuit := make(gkrtypes.GadgetCircuit, len(jsonCircuit))
 	for i, wJSON := range jsonCircuit {
 		gate := c.GetGate(wJSON.Gate)
 
-		circuit[i] = gkrtypes.GadgetWire{
+		gCircuit[i] = gkrtypes.GadgetWire{
 			Gate:   gkrtypes.Gate[gkr.GateFunction]{Evaluate: gate},
 			Inputs: wJSON.Inputs,
 		}
 	}
-	pCircuit := gkrtypes.CompileCircuit(circuit, c.field)
+	sCircuit := gkrtypes.CompileCircuit(gCircuit, c.field)
 
 	c.circuits[path] = circuits{
-		proverCircuit:   pCircuit,
-		verifierCircuit: circuit,
+		serializable: sCircuit,
+		gadget:       gCircuit,
 	}
 
-	return pCircuit, circuit
+	return sCircuit, gCircuit
 }
 
 func (c *Cache) RegisterGate(name string, gate gkr.GateFunction) {
