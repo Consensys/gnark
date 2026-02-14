@@ -106,7 +106,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []small_rational.S
 
 		evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 		for _, uniqueI := range injectionLeftInv { // map from all to unique
-			evaluator.pushInput(&uniqueInputEvaluations[uniqueI])
+			evaluator.pushInput(uniqueInputEvaluations[uniqueI])
 		}
 
 		gateEvaluation.Set(evaluator.evaluate())
@@ -273,7 +273,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() polynomial.Polynomial {
 			for d := range degGJ {
 				// Push gate inputs
 				for i := range nbGateIn {
-					evaluator.pushInput(&mlEvals[eIndex+1+i])
+					evaluator.pushInput(mlEvals[eIndex+1+i])
 				}
 				summand := evaluator.evaluate()
 				summand.Mul(summand, &mlEvals[eIndex])
@@ -681,7 +681,7 @@ func (a WireAssignment) Complete(circuit Circuit) WireAssignment {
 		for wI := range circuit {
 			if !circuit[wI].IsInput() {
 				for _, in := range circuit[wI].Inputs {
-					evaluators[wI].pushInput(&a[in][i])
+					evaluators[wI].pushInput(a[in][i])
 				}
 				a[wI][i].Set(evaluators[wI].evaluate())
 			}
@@ -735,25 +735,24 @@ func (p Proof) flatten() iter.Seq2[int, *small_rational.SmallRational] {
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
 type gateEvaluator struct {
-	gate      gkrtypes.GateBytecode
-	vars      []small_rational.SmallRational
-	frameSize int // number of constants plus currently pushed inputs
-	nbIn      int // number of inputs expected
+	gate gkrtypes.GateBytecode
+	vars []small_rational.SmallRational
+	nbIn int // number of inputs expected
 }
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
 func newGateEvaluator(gate gkrtypes.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
-		gate:      gate,
-		nbIn:      nbIn,
-		frameSize: gate.NbConstants(),
+		gate: gate,
+		nbIn: nbIn,
 	}
 	if len(elementPool) > 0 {
 		e.vars = elementPool[0].Make(gate.NbConstants() + nbIn + len(gate.Instructions))
 	} else {
 		e.vars = make([]small_rational.SmallRational, gate.NbConstants()+nbIn+len(gate.Instructions))
 	}
+	e.vars = e.vars[:gate.NbConstants()]
 	for i, constVal := range gate.Constants {
 		e.vars[i].SetBigInt(constVal)
 	}
@@ -762,9 +761,8 @@ func newGateEvaluator(gate gkrtypes.GateBytecode, nbIn int, elementPool ...*poly
 
 // pushInput adds an input to the evaluator's input buffer.
 // Inputs must be added in order, and the number of inputs must match the gate's NbInputs.
-func (e *gateEvaluator) pushInput(input *small_rational.SmallRational) {
-	e.vars[e.frameSize].Set(input)
-	e.frameSize++
+func (e *gateEvaluator) pushInput(input small_rational.SmallRational) {
+	e.vars = append(e.vars, input)
 }
 
 // evaluate adds top to the top of the stack, executes the gate on it and returns the result.
@@ -772,19 +770,19 @@ func (e *gateEvaluator) pushInput(input *small_rational.SmallRational) {
 // making the evaluator ready for the next evaluation.
 // NB! The result is short-lived. It will be overwritten the next time evaluate is called.
 func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rational.SmallRational {
-	for i := range top {
-		e.pushInput(&top[i])
-	}
+	e.vars = append(e.vars, top...)
 
-	if e.frameSize != e.nbIn+e.gate.NbConstants() {
-		panic(fmt.Sprintf("expected a stack size of %d representing %d constants and %d inputs, got %d", e.nbIn+e.gate.NbConstants(), e.gate.NbConstants(), e.nbIn, e.frameSize))
+	if len(e.vars) != e.nbIn+e.gate.NbConstants() {
+		panic(fmt.Sprintf("expected a stack size of %d representing %d constants and %d inputs, got %d", e.nbIn+e.gate.NbConstants(), e.gate.NbConstants(), e.nbIn, len(e.vars)))
 	}
 
 	// Execute instructions, appending results to stack
 	// The stack grows to: [constants | inputs | results]
 	for i := range e.gate.Instructions {
 		inst := &e.gate.Instructions[i]
-		dst := &e.vars[i+e.frameSize]
+		// Grow len by 1 within the pre-allocated capacity
+		e.vars = e.vars[:len(e.vars)+1]
+		dst := &e.vars[len(e.vars)-1]
 
 		// Use switch instead of function pointer for better inlining
 		switch inst.Op {
@@ -824,10 +822,10 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 		}
 	}
 
-	res := &e.vars[e.frameSize+len(e.gate.Instructions)-1]
+	res := &e.vars[len(e.vars)-1]
 
 	// Reset for next evaluation
-	e.frameSize = e.gate.NbConstants()
+	e.vars = e.vars[:e.gate.NbConstants()]
 
 	return res
 }
