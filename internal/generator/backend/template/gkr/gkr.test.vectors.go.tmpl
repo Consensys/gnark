@@ -40,10 +40,8 @@ type TestCase struct {
 	{{if .GenerateTestVectors}}Info gkrtesting.TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it{{end}}
 }
 
-var (
-	testCases = make(map[string]*TestCase)
-	cache = gkrtesting.NewCache()
-)
+var testCases = make(map[string]*TestCase)
+
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)
@@ -62,7 +60,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := compileCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit, _ := cache.GetCircuit(filepath.Join(dir, info.Circuit))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

@@ -27,9 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return gkrtypes.CompileCircuit(circuit, ecc.BLS12_377.ScalarField())
-}
+var cache = gkrtesting.NewCache(ecc.BLS12_377.ScalarField())
 
 func TestNoGateTwoInstances(t *testing.T) {
 	// Testing a single instance is not possible because the sumcheck implementation doesn't cover the trivial 0-variate case
@@ -136,7 +134,7 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
-	sCircuit := compileCircuit(circuit)
+	sCircuit := cache.Compile(circuit)
 	wireRefs := utils.References(sCircuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -190,7 +188,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := compileCircuit(gkrtesting.NoGateCircuit())
+	c := cache.Compile(gkrtesting.NoGateCircuit())
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
@@ -271,7 +269,7 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	c := compileCircuit(gkrtesting.MiMCCircuit(mimcDepth))
+	c := cache.Compile(gkrtesting.MiMCCircuit(mimcDepth))
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
@@ -338,10 +336,7 @@ type TestCase struct {
 	InOutAssignment WireAssignment
 }
 
-var (
-	testCases = make(map[string]*TestCase)
-	cache     = gkrtesting.NewCache()
-)
+var testCases = make(map[string]*TestCase)
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)
@@ -360,7 +355,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := compileCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit, _ := cache.GetCircuit(filepath.Join(dir, info.Circuit))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err

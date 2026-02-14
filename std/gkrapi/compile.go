@@ -269,9 +269,7 @@ func (c *Circuit) verify(api frontend.API, circuit gkrtypes.GadgetCircuit, initi
 		err   error
 	)
 
-	forSnarkSorted := utils.SliceOfRefs(circuit)
-
-	if proof, err = gadget.DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
+	if proof, err = gadget.DeserializeProof(circuit, proofSerialized); err != nil {
 		return err
 	}
 
@@ -280,7 +278,7 @@ func (c *Circuit) verify(api frontend.API, circuit gkrtypes.GadgetCircuit, initi
 		return err
 	}
 
-	return gadget.Verify(api, circuit, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), gadget.WithSortedCircuit(forSnarkSorted))
+	return gadget.Verify(api, circuit, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...))
 }
 
 // GetValue is a debugging utility returning the value of variable v at instance i.

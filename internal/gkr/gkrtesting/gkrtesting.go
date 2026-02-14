@@ -69,6 +69,11 @@ type JSONWire struct {
 // JSONCircuit is the JSON serialization format for circuits
 type JSONCircuit []JSONWire
 
+// Compile compiles a programmatic GadgetCircuit into a SerializableCircuit.
+func (c *Cache) Compile(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	return gkrtypes.CompileCircuit(circuit, c.field)
+}
+
 func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.GadgetCircuit) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

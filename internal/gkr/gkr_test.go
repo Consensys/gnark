@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
@@ -115,8 +114,6 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	compile(testCase.Circuit)
-
 	if proof, err = DeserializeProof(testCase.Circuit, c.SerializedProof); err != nil {
 		return err
 	}
@@ -192,7 +189,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			_, cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -244,7 +241,6 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			compile(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := ComputeLogNbInstances(testCase.Circuit, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
@@ -329,14 +325,4 @@ func TestConstHash(t *testing.T) {
 	)
 }
 
-var cache *gkrtesting.Cache
-
-func init() {
-	cache = gkrtesting.NewCache()
-}
-
-func compile(circuit Circuit) {
-	// The gate testing process needs a field.
-	// The simple gates used in these tests have the same properties across all curve scalar fields.
-	gkrtypes.CompileCircuit(circuit, ecc.BN254.ScalarField())
-}
+var cache = gkrtesting.NewCache(ecc.BN254.ScalarField())

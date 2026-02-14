@@ -23,12 +23,10 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-func compileCircuit(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	// The properties of test gates are expected to be the same across all relevant fields.
-	// We can therefore use the gate testing functions for any curve rather than reimplementing
-	// for small_rational.
-	return gkrtypes.CompileCircuit(circuit, ecc.BN254.ScalarField())
-}
+// The properties of test gates are expected to be the same across all relevant fields.
+// We can therefore use the gate testing functions for any curve rather than reimplementing
+// for small_rational.
+var cache = gkrtesting.NewCache(ecc.BN254.ScalarField())
 
 func GenerateVectors() error {
 	testDirPath, err := filepath.Abs("../../gkr/test_vectors")
@@ -202,10 +200,7 @@ type TestCase struct {
 	Info            gkrtesting.TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
 }
 
-var (
-	testCases = make(map[string]*TestCase)
-	cache     = gkrtesting.NewCache()
-)
+var testCases = make(map[string]*TestCase)
 
 func newTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)
@@ -224,7 +219,7 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 
-	circuit := compileCircuit(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+	circuit, _ := cache.GetCircuit(filepath.Join(dir, info.Circuit))
 	var _hash hash.Hash
 	if _hash, err = hashFromDescription(info.Hash); err != nil {
 		return nil, err
