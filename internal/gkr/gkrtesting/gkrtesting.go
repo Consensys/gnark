@@ -3,8 +3,10 @@ package gkrtesting
 import (
 	"encoding/json"
 	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -15,8 +17,15 @@ import (
 // The main functionality is to cache whole circuits, but this package needs to use its own gate registry, in order to avoid import cycles.
 // Cache is used in tests for the per-curve GKR packages, but they in turn provide gate degree discovery functions to the gkrgates package.
 type Cache struct {
-	circuits map[string]gkrtypes.GadgetCircuit
+	field    *big.Int
+	circuits map[string]circuits
 	gates    map[string]gkr.GateFunction
+	lock     sync.Mutex
+}
+
+type circuits struct {
+	proverCircuit   gkrtypes.SerializableCircuit
+	verifierCircuit gkrtypes.GadgetCircuit
 }
 
 func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
@@ -33,7 +42,7 @@ func selectInput3Gate(_ gkr.GateAPI, in ...frontend.Variable) frontend.Variable 
 	return in[2]
 }
 
-func NewCache() *Cache {
+func NewCache(field *big.Int) *Cache {
 	gates := make(map[string]gkr.GateFunction, 7)
 	gates[""] = nil
 	gates["identity"] = gkrtypes.Identity
@@ -45,7 +54,8 @@ func NewCache() *Cache {
 	gates["select-input-3"] = selectInput3Gate
 
 	return &Cache{
-		circuits: make(map[string]gkrtypes.GadgetCircuit),
+		field:    field,
+		circuits: make(map[string]circuits),
 		gates:    gates,
 	}
 }
@@ -59,13 +69,16 @@ type JSONWire struct {
 // JSONCircuit is the JSON serialization format for circuits
 type JSONCircuit []JSONWire
 
-func (c *Cache) GetCircuit(path string) gkrtypes.GadgetCircuit {
+func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.GadgetCircuit) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	path, err := filepath.Abs(path)
 	if err != nil {
 		panic(err)
 	}
 	if circuit, ok := c.circuits[path]; ok {
-		return circuit
+		return circuit.proverCircuit, circuit.verifierCircuit
 	}
 
 	var bytes []byte
@@ -89,10 +102,14 @@ func (c *Cache) GetCircuit(path string) gkrtypes.GadgetCircuit {
 			Inputs: wJSON.Inputs,
 		}
 	}
+	pCircuit := gkrtypes.CompileCircuit(circuit, c.field)
 
-	c.circuits[path] = circuit
+	c.circuits[path] = circuits{
+		proverCircuit:   pCircuit,
+		verifierCircuit: circuit,
+	}
 
-	return circuit
+	return pCircuit, circuit
 }
 
 func (c *Cache) RegisterGate(name string, gate gkr.GateFunction) {

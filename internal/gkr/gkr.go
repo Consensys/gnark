@@ -377,16 +377,20 @@ func (p Proof) Serialize() []frontend.Variable {
 
 // ComputeLogNbInstances derives n such that the number of instances is 2ⁿ
 // from the size of the proof and the circuit structure.
+// The number actually computed is that of rounds in each ZeroCheck instance, which is equal
+// to the desired result.
 // It is used in proof deserialization.
-func ComputeLogNbInstances(wires Wires, serializedProofLen int) int {
+func ComputeLogNbInstances(circuit Circuit, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
-	for _, w := range wires {
-		if !w.NoProof() {
-			partialEvalElemsPerVar += w.Gate.Degree + 1
-		}
+	for _, w := range circuit {
+		partialEvalElemsPerVar += w.ProofPolyLength()
 		serializedProofLen -= w.NbUniqueOutputs
 	}
-	return serializedProofLen / partialEvalElemsPerVar
+	res := serializedProofLen / partialEvalElemsPerVar
+	if res*partialEvalElemsPerVar != serializedProofLen {
+		panic("cannot compute logNbInstances")
+	}
+	return res
 }
 
 type variablesReader []frontend.Variable
@@ -401,16 +405,16 @@ func (r *variablesReader) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof(sorted Wires, serializedProof []frontend.Variable) (Proof, error) {
-	proof := make(Proof, len(sorted))
-	logNbInstances := ComputeLogNbInstances(sorted, len(serializedProof))
+func DeserializeProof(circuit Circuit, serializedProof []frontend.Variable) (Proof, error) {
+	proof := make(Proof, len(circuit))
+	logNbInstances := ComputeLogNbInstances(circuit, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
-	for i, wI := range sorted {
+	for i, wI := range circuit {
 		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree + 1)
+				proof[i].PartialSumPolys[j] = reader.nextN(wI.ProofPolyLength())
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())
