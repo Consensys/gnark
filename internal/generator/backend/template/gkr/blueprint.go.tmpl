@@ -104,7 +104,7 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 			// Push gate inputs
 			for _, inWI := range w.Inputs {
-				evaluator.pushInput(&b.assignments[inWI][instanceI])
+				evaluator.pushInput(b.assignments[inWI][instanceI])
 			}
 
 			// Evaluate the gate
