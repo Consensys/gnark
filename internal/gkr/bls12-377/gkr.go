@@ -780,7 +780,7 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 	// The stack grows to: [constants | inputs | results]
 	for i := range e.gate.Instructions {
 		inst := &e.gate.Instructions[i]
-		// Grow len by 1 within the pre-allocated capacity (safe because cap was set in newGateEvaluator)
+		// Grow len by 1 within the pre-allocated capacity
 		e.vars = e.vars[:len(e.vars)+1]
 		dst := &e.vars[len(e.vars)-1]
 
