@@ -122,7 +122,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// for each valid witness, run the prover and verifier
 					for _, w := range validWitnesses {
 						assert.Run(func(assert *Assert) {
-							checkSolidity := opt.checkSolidity && curve == ecc.BN254
+							checkSolidity := opt.checkSolidity && (curve == ecc.BN254 || curve == ecc.BLS12_381)
 							proverOpts := opt.proverOpts
 							verifierOpts := opt.verifierOpts
 							if b == backend.GROTH16 {
@@ -147,7 +147,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 								// check that the proof can be verified by gnark-solidity-checker
 								if _vk, ok := vk.(solidity.VerifyingKey); ok {
 									assert.Run(func(assert *Assert) {
-										assert.solidityVerification(b, _vk, proof, w.public, opt.solidityOpts)
+										assert.solidityVerification(b, curve, _vk, proof, w.public, opt.solidityOpts)
 									}, "solidity")
 								}
 							}

@@ -10,22 +10,18 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-
+	"text/template"
 	"time"
 
-	"github.com/consensys/gnark/backend/solidity"
-
 	"github.com/consensys/gnark-crypto/ecc"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/hash_to_field"
-
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -382,7 +378,72 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	return r, nil
 }
 
-// ExportSolidity not implemented for BLS12-381
+// ExportSolidity exports the verifying key to a solidity smart contract.
+//
+// See https://github.com/Consensys/gnark-tests for example usage.
+//
+// Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
-	return errors.New("not implemented")
+	funcMap := template.FuncMap{
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"inc": func(i int) int {
+			return i + 1
+		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
+		},
+		"frstr": func(x fr.Element) string {
+			// we use big.Int to always get a positive string.
+			// not the most efficient hack, but it works better for .sol generation.
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
+		},
+		"fpstr_lo": func(x fp.Element) string {
+			bv := new(big.Int)
+			twoTo256 := new(big.Int)
+			twoTo256.SetString("115792089237316195423570985008687907853269984665640564039457584007913129639936", 10)
+			x.BigInt(bv)
+			bv.Mod(bv, twoTo256)
+			return bv.String()
+		},
+		"fpstr_hi": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			bv.Rsh(bv, 256)
+			return bv.String()
+		},
+		"g1IsInfinity": func(p curve.G1Affine) bool {
+			return p.X.IsZero() && p.Y.IsZero()
+		},
+	}
+
+	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	if err != nil {
+		return err
+	}
+	if cfg.HashToFieldFn != nil {
+		return fmt.Errorf("setting hash to field function is not supported for PLONK Solidity export. Hash function is hardcoded to RFC9380")
+	}
+
+	return t.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
 }
