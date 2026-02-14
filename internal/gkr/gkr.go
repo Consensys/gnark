@@ -158,8 +158,11 @@ func newClaimsManager(wires Wires, assignment WireAssignment) (claims claimsMana
 	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
 	claims.wires = wires
 
-	for i := range wires {
-		wire := wires[i]
+	for i, wire := range wires {
+		if wire.IsInput() {
+			wire.Gate.Degree = 1
+			wire.Gate.Evaluate = gkrtypes.Identity
+		}
 		claims.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
 			wireI:              i,
 			evaluationPoints:   make([][]frontend.Variable, 0, wire.NbClaims()),
@@ -229,19 +232,6 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	}
 
 	return o, err
-}
-
-// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set
-func ProofSize(c Circuit, logNbInstances int) int {
-	nbUniqueInputs := 0
-	nbPartialEvalPolys := 0
-	for i := range c {
-		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		if !c[i].NoProof() {
-			nbPartialEvalPolys += c[i].Gate.Degree + 1
-		}
-	}
-	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
 func ChallengeNames(sorted Wires, logNbInstances int, prefix string) []string {

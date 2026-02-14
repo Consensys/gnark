@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
@@ -191,7 +190,7 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			cse.Circuit = gkrtypes.ToGadget(cache.GetCircuit(filepath.Join(dir, info.Circuit)))
+			cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
 
 			cse.Proof = unmarshalProof(info.Proof)
 
