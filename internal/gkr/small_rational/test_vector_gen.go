@@ -20,7 +20,6 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
-	"github.com/consensys/gnark/internal/utils"
 )
 
 // The properties of test gates are expected to be the same across all relevant fields.
@@ -232,18 +231,16 @@ func newTestCase(path string) (*TestCase, error) {
 	fullAssignment := make(WireAssignment, len(circuit))
 	inOutAssignment := make(WireAssignment, len(circuit))
 
-	sorted := circuit.TopologicalSort()
-
 	inI, outI := 0, 0
-	for i, w := range sorted {
+	for i := range circuit {
 		var assignmentRaw []interface{}
-		if w.IsInput() {
+		if circuit[i].IsInput() {
 			if inI == len(info.Input) {
 				return nil, fmt.Errorf("fewer input in vector than in circuit")
 			}
 			assignmentRaw = info.Input[inI]
 			inI++
-		} else if w.IsOutput() {
+		} else if circuit[i].IsOutput() {
 			if outI == len(info.Output) {
 				return nil, fmt.Errorf("fewer output in vector than in circuit")
 			}
@@ -261,10 +258,10 @@ func newTestCase(path string) (*TestCase, error) {
 		}
 	}
 
-	fullAssignment.Complete(utils.References(circuit))
+	fullAssignment.Complete(circuit)
 
-	for i, w := range sorted {
-		if w.IsOutput() {
+	for i := range circuit {
+		if circuit[i].IsOutput() {
 			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
 				return nil, fmt.Errorf("assignment mismatch: %v", err)
 			}

@@ -132,15 +132,14 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
-	sorted := c.TopologicalSort()
 	res := make(WireAssignment, len(c))
 	inI, outI := 0, 0
-	for wI, w := range sorted {
-		if w.IsInput() {
-			res[wI] = inputValues[inI]
+	for i := range c {
+		if c[i].IsInput() {
+			res[i] = inputValues[inI]
 			inI++
-		} else if w.IsOutput() {
-			res[wI] = outputValues[outI]
+		} else if c[i].IsOutput() {
+			res[i] = outputValues[outI]
 			outI++
 		}
 	}

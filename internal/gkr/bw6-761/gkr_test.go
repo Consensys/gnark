@@ -23,7 +23,6 @@ import (
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	"github.com/consensys/gnark/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -88,7 +87,7 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	o.workers = workers
 
 	claimsManagerGen := func() *claimsManager {
-		manager := newClaimsManager(utils.References(circuit), assignment, o)
+		manager := newClaimsManager(circuit, assignment, o)
 		manager.add(0, []fr.Element{three}, five)
 		manager.add(0, []fr.Element{four}, six)
 		return &manager
@@ -135,7 +134,6 @@ func getLogMaxInstances(t *testing.T) int {
 
 func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
 	sCircuit := cache.Compile(circuit)
-	wireRefs := utils.References(sCircuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
@@ -151,7 +149,7 @@ func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
 			fullAssignment[ins[i]] = insAssignment[i][:numEvals]
 		}
 
-		fullAssignment.Complete(wireRefs)
+		fullAssignment.Complete(sCircuit)
 
 		t.Log("Selected inputs for test")
 
@@ -278,7 +276,7 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 
 	fmt.Println("evaluating circuit")
 	start := time.Now().UnixMicro()
-	assignment := WireAssignment{in0, in1}.Complete(utils.References(c))
+	assignment := WireAssignment{in0, in1}.Complete(c)
 	solved := time.Now().UnixMicro() - start
 	fmt.Println("solved in", solved, "μs")
 
@@ -368,18 +366,16 @@ func newTestCase(path string) (*TestCase, error) {
 	fullAssignment := make(WireAssignment, len(circuit))
 	inOutAssignment := make(WireAssignment, len(circuit))
 
-	sorted := circuit.TopologicalSort()
-
 	inI, outI := 0, 0
-	for i, w := range sorted {
+	for i := range circuit {
 		var assignmentRaw []interface{}
-		if w.IsInput() {
+		if circuit[i].IsInput() {
 			if inI == len(info.Input) {
 				return nil, fmt.Errorf("fewer input in vector than in circuit")
 			}
 			assignmentRaw = info.Input[inI]
 			inI++
-		} else if w.IsOutput() {
+		} else if circuit[i].IsOutput() {
 			if outI == len(info.Output) {
 				return nil, fmt.Errorf("fewer output in vector than in circuit")
 			}
@@ -397,10 +393,10 @@ func newTestCase(path string) (*TestCase, error) {
 		}
 	}
 
-	fullAssignment.Complete(utils.References(circuit))
+	fullAssignment.Complete(circuit)
 
-	for i, w := range sorted {
-		if w.IsOutput() {
+	for i := range circuit {
+		if circuit[i].IsOutput() {
 			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
 				return nil, fmt.Errorf("assignment mismatch: %v", err)
 			}

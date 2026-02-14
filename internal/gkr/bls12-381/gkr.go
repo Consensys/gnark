@@ -22,7 +22,6 @@ import (
 // Type aliases for bytecode-based GKR types
 type (
 	Wire    = gkrtypes.SerializableWire
-	Wires   = gkrtypes.SerializableWires
 	Circuit = gkrtypes.SerializableCircuit
 )
 
@@ -43,8 +42,8 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() *Wire {
-	return e.manager.wires[e.wireI]
+func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() Wire {
+	return e.manager.circuit[e.wireI]
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
@@ -62,7 +61,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(a fr.Element) fr.Element
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
-	return 1 + e.manager.wires[e.wireI].Gate.Degree
+	return 1 + e.manager.circuit[e.wireI].Gate.Degree
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -87,7 +86,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		evaluation.Add(&evaluation, &eq)
 	}
 
-	wire := e.manager.wires[e.wireI]
+	wire := e.manager.circuit[e.wireI]
 
 	// the w(...) term
 	var gateEvaluation fr.Element
@@ -95,7 +94,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(r []fr.Element, comb
 		gateEvaluation = e.manager.assignment[e.wireI].Evaluate(r, e.manager.memPool)
 	} else { // proof contains the evaluations of the inputs, but avoids repetition in case multiple inputs come from the same wire
 		injection, injectionLeftInv :=
-			e.manager.wires.ClaimPropagationInfo(e.wireI)
+			e.manager.circuit.ClaimPropagationInfo(e.wireI)
 
 		if len(injection) != len(uniqueInputEvaluations) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(uniqueInputEvaluations), len(injection))
@@ -137,8 +136,8 @@ type eqTimesGateEvalSumcheckClaims struct {
 	gateEvaluatorPool *gateEvaluatorPool
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) getWire() *Wire {
-	return c.manager.wires[c.wireI]
+func (c *eqTimesGateEvalSumcheckClaims) getWire() Wire {
+	return c.manager.circuit[c.wireI]
 }
 
 // combine the multiple claims into one claim using a random combination (combinationCoeff or c).
@@ -338,7 +337,7 @@ func (c *eqTimesGateEvalSumcheckClaims) claimsNum() int {
 func (c *eqTimesGateEvalSumcheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
 	//defer the proof, return list of claims
 
-	injection, _ := c.manager.wires.ClaimPropagationInfo(c.wireI) // TODO @Tabaie: Instead of doing this last, we could just have fewer input in the first place; not that likely to happen with single gates, but more so with layers.
+	injection, _ := c.manager.circuit.ClaimPropagationInfo(c.wireI) // TODO @Tabaie: Instead of doing this last, we could just have fewer input in the first place; not that likely to happen with single gates, but more so with layers.
 	evaluations := make([]fr.Element, len(injection))
 	for i, gateInputI := range injection {
 		wI := c.input[gateInputI]
@@ -358,25 +357,24 @@ type claimsManager struct {
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *utils.WorkerPool
-	wires      Wires
+	circuit    Circuit
 }
 
-func newClaimsManager(wires []*Wire, assignment WireAssignment, o settings) (manager claimsManager) {
+func newClaimsManager(circuit Circuit, assignment WireAssignment, o settings) (manager claimsManager) {
 	manager.assignment = assignment
-	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(wires))
+	manager.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(circuit))
 	manager.memPool = o.pool
 	manager.workers = o.workers
-	manager.wires = wires
+	manager.circuit = circuit
 
-	for i, wire := range wires {
-
-		if wire.IsInput() {
-			wire.Gate.Degree = 1
+	for i := range circuit {
+		if circuit[i].IsInput() {
+			circuit[i].Gate.Degree = 1
 		}
 		manager.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
 			wireI:              i,
-			evaluationPoints:   make([][]fr.Element, 0, wire.NbClaims()),
-			claimedEvaluations: manager.memPool.Make(wire.NbClaims()),
+			evaluationPoints:   make([][]fr.Element, 0, circuit[i].NbClaims()),
+			claimedEvaluations: manager.memPool.Make(circuit[i].NbClaims()),
 			manager:            &manager,
 		}
 	}
@@ -396,7 +394,7 @@ func (m *claimsManager) getLazyClaim(wire int) *eqTimesGateEvalSumcheckLazyClaim
 
 func (m *claimsManager) getClaim(wireI int) *eqTimesGateEvalSumcheckClaims {
 	lazy := m.claims[wireI]
-	wire := m.wires[wireI]
+	wire := m.circuit[wireI]
 	res := &eqTimesGateEvalSumcheckClaims{
 		wireI:              wireI,
 		evaluationPoints:   lazy.evaluationPoints,
@@ -426,7 +424,6 @@ func (m *claimsManager) deleteClaim(wire int) {
 
 type settings struct {
 	pool             *polynomial.Pool
-	sorted           []*Wire
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -438,12 +435,6 @@ type Option func(*settings)
 func WithPool(pool *polynomial.Pool) Option {
 	return func(options *settings) {
 		options.pool = pool
-	}
-}
-
-func WithSortedCircuit(sorted []*Wire) Option {
-	return func(options *settings) {
-		options.sorted = sorted
 	}
 }
 
@@ -475,12 +466,8 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 		o.workers = utils.NewWorkerPool()
 	}
 
-	if o.sorted == nil {
-		o.sorted = c.TopologicalSort()
-	}
-
 	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNames(o.sorted, o.nbVars, transcriptSettings.Prefix)
+		challengeNames := ChallengeNames(c, o.nbVars, transcriptSettings.Prefix)
 		o.transcript = fiatshamir.NewTranscript(transcriptSettings.Hash, challengeNames...)
 		for i := range transcriptSettings.BaseChallenges {
 			if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges[i]); err != nil {
@@ -494,22 +481,22 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	return o, err
 }
 
-func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string {
+func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
 
-	for _, w := range sorted {
-		if w.NoProof() { // no proof, no challenge
+	for i := range c {
+		if c[i].NoProof() { // no proof, no challenge
 			continue
 		}
-		if w.NbClaims() > 1 { //combine the claims
+		if c[i].NbClaims() > 1 { //combine the claims
 			size++
 		}
 		size += logNbInstances // full run of sumcheck on logNbInstances variables
 	}
 
-	nums := make([]string, max(len(sorted), logNbInstances))
+	nums := make([]string, max(len(c), logNbInstances))
 	for i := range nums {
 		nums[i] = strconv.Itoa(i)
 	}
@@ -522,13 +509,13 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 		challenges[j] = firstChallengePrefix + nums[j]
 	}
 	j := logNbInstances
-	for i := len(sorted) - 1; i >= 0; i-- {
-		if sorted[i].NoProof() {
+	for i := len(c) - 1; i >= 0; i-- {
+		if c[i].NoProof() {
 			continue
 		}
 		wirePrefix := prefix + "w" + nums[i] + "."
 
-		if sorted[i].NbClaims() > 1 {
+		if c[i].NbClaims() > 1 {
 			challenges[j] = wirePrefix + "comb"
 			j++
 		}
@@ -571,7 +558,7 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(o.sorted, assignment, o)
+	claims := newClaimsManager(c, assignment, o)
 
 	proof := make(Proof, len(c))
 	// firstChallenge called rho in the paper
@@ -585,7 +572,7 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	var baseChallenge [][]byte
 	for i := len(c) - 1; i >= 0; i-- {
 
-		wire := o.sorted[i]
+		wire := c[i]
 
 		if wire.IsOutput() {
 			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
@@ -625,7 +612,7 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(o.sorted, assignment, o)
+	claims := newClaimsManager(c, assignment, o)
 
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -636,7 +623,7 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 	wirePrefix := o.transcriptPrefix + "w"
 	var baseChallenge [][]byte
 	for i := len(c) - 1; i >= 0; i-- {
-		wire := o.sorted[i]
+		wire := c[i]
 
 		if wire.IsOutput() {
 			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
@@ -676,24 +663,24 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 }
 
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(wires Wires) WireAssignment {
+func (a WireAssignment) Complete(circuit Circuit) WireAssignment {
 
 	nbInstances := a.NumInstances()
-	evaluators := make([]gateEvaluator, len(wires))
+	evaluators := make([]gateEvaluator, len(circuit))
 
-	for i := range wires {
+	for i := range circuit {
 		if len(a[i]) != nbInstances {
 			a[i] = make([]fr.Element, nbInstances)
 		}
-		if !wires[i].IsInput() {
-			evaluators[i] = newGateEvaluator(wires[i].Gate.Evaluate, len(wires[i].Inputs))
+		if !circuit[i].IsInput() {
+			evaluators[i] = newGateEvaluator(circuit[i].Gate.Evaluate, len(circuit[i].Inputs))
 		}
 	}
 
 	for i := range nbInstances {
-		for wI, w := range wires {
-			if !w.IsInput() {
-				for _, in := range w.Inputs {
+		for wI := range circuit {
+			if !circuit[wI].IsInput() {
+				for _, in := range circuit[wI].Inputs {
 					evaluators[wI].pushInput(&a[in][i])
 				}
 				a[wI][i].Set(evaluators[wI].evaluate())

@@ -32,23 +32,17 @@ type (
 
 	Circuit[GateExecutable any] []Wire[GateExecutable]
 
-	// Wires is a slice of pointers to Wire. It is used for propagating claim
-	// information through the circuit.
-	Wires[GateExecutable any] []*Wire[GateExecutable]
-
 	// Type aliases for different circuit instantiations
 
 	// Serializable types (bytecode only, for native proving)
 	SerializableGate    = Gate[GateBytecode]
 	SerializableCircuit = Circuit[GateBytecode]
 	SerializableWire    = Wire[GateBytecode]
-	SerializableWires   = Wires[GateBytecode]
 
 	// Gadget types (gate functions only, for in-circuit verification)
 	GadgetGate    = Gate[gkr.GateFunction]
 	GadgetCircuit = Circuit[gkr.GateFunction]
 	GadgetWire    = Wire[gkr.GateFunction]
-	GadgetWires   = Wires[gkr.GateFunction]
 )
 
 // IsInput returns whether the wire is an input wire.
@@ -87,15 +81,26 @@ func (w Wire[GateExecutable]) NbUniqueInputs() int {
 	return len(set)
 }
 
+// ProofPolyLength returns the size (degree+1) of each polynomial in the ZeroCheck subproof associated with w.
+func (w Wire[GateExecutable]) ProofPolyLength() int {
+	if w.NoProof() {
+		return 0
+	}
+	if w.IsInput() {
+		return 2 // Input gate with multiple claims treated as a degree 1 gate.
+	}
+	return w.Gate.Degree + 1
+}
+
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
 // the former a subsequence of the latter.
 // injection are the indices of the unique evaluations in the original evaluation list.
 // injectionRightInverse are the indices of the original evaluations in the unique evaluations list.
 // There are no guarantees on the non-unique choice of the semi-inverse map.
-func (wires Wires[GateExecutable]) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
-	w := wires[wireIndex]
-	indexInProof := makeNeg1Slice(len(wires)) // O(n); use a map instead if it caused performance issues
+func (c Circuit[GateExecutable]) ClaimPropagationInfo(wireIndex int) (injection, injectionLeftInverse []int) {
+	w := c[wireIndex]
+	indexInProof := makeNeg1Slice(len(c)) // O(n); use a map instead if it caused performance issues
 	injection = make([]int, 0, len(w.Inputs))
 	injectionLeftInverse = make([]int, len(w.Inputs))
 
@@ -132,17 +137,6 @@ func (c Circuit[GateExecutable]) MemoryRequirements(nbInstances int) []int {
 	}
 
 	return res
-}
-
-// ProofPolyLength returns the size (degree+1) of each polynomial in the ZeroCheck subproof associated with w.
-func (w Wire[GateExecutable]) ProofPolyLength() int {
-	if w.NoProof() {
-		return 0
-	}
-	if w.IsInput() {
-		return 2 // Input gate with multiple claims treated as a degree 1 gate.
-	}
-	return w.Gate.Degree + 1
 }
 
 // OutputsList for each wire, returns the set of indexes of wires it is input to.
@@ -219,58 +213,6 @@ func makeNeg1Slice(n int) []int {
 		res[i] = -1
 	}
 	return res
-}
-
-type topSortData struct {
-	outputs    [][]int
-	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	leastReady int
-}
-
-func (d *topSortData) markDone(i int) {
-
-	d.status[i] = -1
-
-	for _, outI := range d.outputs[i] {
-		d.status[outI]--
-		if d.status[outI] == 0 && outI < d.leastReady {
-			d.leastReady = outI
-		}
-	}
-
-	for d.leastReady < len(d.status) && d.status[d.leastReady] != 0 {
-		d.leastReady++
-	}
-}
-
-func (c Circuit[GateExecutable]) statusList() []int {
-	res := make([]int, len(c))
-	for i := range c {
-		res[i] = len(c[i].Inputs)
-	}
-	return res
-}
-
-// TopologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
-// occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
-// It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
-// Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
-// Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func (c Circuit[GateExecutable]) TopologicalSort() Wires[GateExecutable] {
-	var data topSortData
-	data.outputs = c.OutputsList()
-	data.status = c.statusList()
-	sorted := make(Wires[GateExecutable], len(c))
-
-	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
-	}
-
-	for i := range c {
-		sorted[i] = &c[data.leastReady]
-		data.markDone(data.leastReady)
-	}
-
-	return sorted
 }
 
 // some sample gates
