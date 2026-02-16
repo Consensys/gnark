@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -12,6 +13,7 @@ import (
 	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	gkrkoalabear "github.com/consensys/gnark/internal/gkr/koalabear"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -83,21 +85,24 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	// Convert registered circuit to serializable circuit (bytecode only) for blueprints
 	serializableCircuit := gkrtypes.ToSerializable(api.circuit)
 
-	// Dispatch to curve-specific factory
-	curveID := utils.FieldToCurve(api.parentApi.Compiler().Field())
+	// Dispatch to field-specific factory
+	field := api.parentApi.Compiler().Field()
+	curveID := utils.FieldToCurve(field)
 	compiler := api.parentApi.Compiler()
 
-	switch curveID {
-	case ecc.BN254:
+	switch {
+	case curveID == ecc.BN254:
 		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BLS12_377:
+	case curveID == ecc.BLS12_377:
 		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BLS12_381:
+	case curveID == ecc.BLS12_381:
 		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
-	case ecc.BW6_761:
+	case curveID == ecc.BW6_761:
 		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+	case field.Cmp(koalabear.Modulus()) == 0:
+		res.blueprints = gkrkoalabear.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
 	default:
-		return nil, fmt.Errorf("unsupported curve: %s", curveID)
+		return nil, fmt.Errorf("unsupported field for GKR: modulus=%s", field.Text(16))
 	}
 
 	for _, opt := range options {
@@ -208,10 +213,12 @@ func (c *Circuit) finalize(api frontend.API) error {
 	// Convert registered circuit to gadget circuit (using GateFunction)
 	gadgetCircuit := gkrtypes.ToGadget(c.circuit)
 
-	// Check curve support
-	for i := range gadgetCircuit {
-		if !gadgetCircuit[i].Gate.SupportsCurve(curve) {
-			return fmt.Errorf("gate not usable over curve \"%s\"", curve)
+	// Check curve support (skip for non-curve fields where FieldToCurve returns UNKNOWN)
+	if curve != ecc.UNKNOWN {
+		for i := range gadgetCircuit {
+			if !gadgetCircuit[i].Gate.SupportsCurve(curve) {
+				return fmt.Errorf("gate not usable over curve \"%s\"", curve)
+			}
 		}
 	}
 

@@ -72,7 +72,7 @@ func main() {
 		CurveID:     "UNKNOWN",
 		OnlyField:   true,
 		noBackend:   true,
-		NoGKR:       true,
+		NoGKR:       false,
 		ElementType: "U32",
 	}
 
@@ -136,13 +136,33 @@ func main() {
 			if !d.NoGKR {
 				curvePackageName := strings.ToLower(d.Curve)
 
-				cfg := gkrConfig{
-					ElementType:      "fr.Element",
-					FieldPackageName: "fr",
-					FieldPackagePath: "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
-					FieldID:          d.CurveID,
-					GkrPackageName:   curvePackageName,
-					CanUseFFT:        true,
+				var cfg gkrConfig
+				if d.OnlyField {
+					// Small field (e.g. koalabear) — uses field/ import path and U32 element type
+					cfg = gkrConfig{
+						ElementType:           curvePackageName + ".Element",
+						ElementConstraintType: d.ElementType,
+						FieldPackageName:      curvePackageName,
+						FieldPackagePath:      "github.com/consensys/gnark-crypto/field/" + curvePackageName,
+						FieldID:               strings.ToUpper(curvePackageName),
+						ECCID:                 "UNKNOWN",
+						GkrPackageName:        curvePackageName,
+						CanUseFFT:             true,
+						HasMiMC:               false,
+					}
+				} else {
+					// Elliptic curve field — uses ecc/{curve}/fr import path and U64 element type
+					cfg = gkrConfig{
+						ElementType:           "fr.Element",
+						ElementConstraintType: d.ElementType,
+						FieldPackageName:      "fr",
+						FieldPackagePath:      "github.com/consensys/gnark-crypto/ecc/" + curvePackageName + "/fr",
+						FieldID:               d.CurveID,
+						ECCID:                 d.CurveID,
+						GkrPackageName:        curvePackageName,
+						CanUseFFT:             true,
+						HasMiMC:               true,
+					}
 				}
 
 				assertNoError(generateGkrBackend(cfg))
@@ -319,14 +339,17 @@ func generateGkrBackend(cfg gkrConfig) error {
 }
 
 type gkrConfig struct {
-	ElementType         string
-	FieldPackagePath    string
-	FieldPackageName    string
-	GkrPackageName      string // the GKR package, relative to the repo root
-	FieldID             string // e.g. BLS12_377, BABYBEAR, etc.
-	CanUseFFT           bool
-	GenerateTestVectors bool
-	NoGkrTests          bool
+	ElementType           string
+	ElementConstraintType string // "U64" or "U32"
+	FieldPackagePath      string
+	FieldPackageName      string
+	GkrPackageName        string // the GKR package, relative to the repo root
+	FieldID               string // e.g. BLS12_377, KOALABEAR, etc. Used for hash name construction
+	ECCID                 string // e.g. BN254, UNKNOWN, etc. Used for ecc.ID in blueprint registration
+	CanUseFFT             bool
+	HasMiMC               bool // whether the field has a MiMC hash implementation
+	GenerateTestVectors   bool
+	NoGkrTests            bool
 }
 
 func assertNoError(err error) {

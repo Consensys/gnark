@@ -17,6 +17,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 
 	fr "github.com/consensys/gnark-crypto/field/koalabear"
+	// imported to register GKR blueprint types for CBOR serialization
+	_ "github.com/consensys/gnark/internal/gkr/koalabear"
 )
 
 type R1CS = system
