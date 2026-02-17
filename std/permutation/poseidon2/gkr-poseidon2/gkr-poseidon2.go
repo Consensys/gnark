@@ -338,6 +338,15 @@ func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
 	if err := gkrgates.Register(pow2TimesGate, 2); err != nil {
 		return fmt.Errorf("failed to register pow2TimesGate: %w", err)
 	}
+	if err := gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
+		return fmt.Errorf("failed to register extGate2: %w", err)
+	}
+	if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
+		return fmt.Errorf("failed to register intGate2: %w", err)
+	}
+	if err := gkrgates.Register(extAddGate, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
+		return fmt.Errorf("failed to register extAddGate: %w", err)
+	}
 
 	fullRound := func(i int) error {
 		if err := extKeySBox(i, x); err != nil {
