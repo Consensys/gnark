@@ -24,7 +24,7 @@ const (
 // GateInstruction represents a single operation in a compiled gate.
 // Each instruction produces a new variable (no explicit dst field).
 // Index space layout:
-//   - [0, nbConsts): constant values (from CompiledGate.Constants)
+//   - [0, nbConsts): constant values (from GateBytecode.Constants)
 //   - [nbConsts, nbConsts+nbInputs): gate inputs
 //   - [nbConsts+nbInputs, ...): instruction results
 type GateInstruction struct {
@@ -32,17 +32,17 @@ type GateInstruction struct {
 	Inputs []uint16 // indices into the unified value space
 }
 
-// CompiledGate represents a gate function compiled into a sequence of instructions.
+// GateBytecode represents a gate executable compiled into a sequence of instructions.
 // The compiled form is independent of curve-specific types and can be serialized.
 // The index space is unified: constants (0..nbConsts-1), inputs (nbConsts..nbConsts+nbInputs-1),
 // then instruction results.
-type CompiledGate struct {
+type GateBytecode struct {
 	Instructions []GateInstruction // sequence of operations
 	Constants    []*big.Int        // constant values at indices [0, nbConsts)
 }
 
 // NbConstants returns the number of constants in the gate
-func (g *CompiledGate) NbConstants() int {
+func (g *GateBytecode) NbConstants() int {
 	return len(g.Constants)
 }
 
@@ -194,9 +194,9 @@ func (gc *gateCompiler) remapIndices() {
 	}
 }
 
-// CompileGateFunction compiles a gate function into a CompiledGate.
+// CompileGateFunction compiles a gate function into a GateBytecode.
 // The gate function should be of type gkr.GateFunction.
-func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*CompiledGate, error) {
+func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*GateBytecode, error) {
 	// Create compiling API
 	compiler := gateCompiler{
 		constantIndex: make(map[string]uint16),
@@ -223,7 +223,7 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (*CompiledGate, error
 	// Remap indices from temporary layout to final layout
 	compiler.remapIndices()
 
-	return &CompiledGate{
+	return &GateBytecode{
 		Instructions: compiler.GetInstructions(),
 		Constants:    compiler.constants,
 	}, nil

@@ -37,6 +37,10 @@ type Solver[E Element] interface {
 	// Read interprets input calldata as a LinearExpression,
 	// evaluates it and return the result and the number of uint32 word read.
 	Read(calldata []uint32) (E, int)
+
+	// GetBlueprint returns the blueprint with the given ID.
+	// This allows blueprints to query other blueprints by ID.
+	GetBlueprint(id BlueprintID) Blueprint
 }
 
 // BlueprintSolvable represents a blueprint that knows how to solve itself.
