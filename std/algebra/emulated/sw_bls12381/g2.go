@@ -274,8 +274,8 @@ func (g2 G2) neg(p *G2Affine) *G2Affine {
 // negates based on signBit. This optimizes the common GLV pattern where Y[i] =
 // -Y[15-i], reducing a 16-to-1 Mux to an 8-to-1 Mux plus conditional negation.
 func (g2 *G2) muxE2Y8Signed(signBit frontend.Variable, selector frontend.Variable, yA0, yA1 [8]*emulated.Element[BaseField]) *fields_bls12381.E2 {
-	baseA0 := g2.fp.Mux(selector, yA0[0], yA0[1], yA0[2], yA0[3], yA0[4], yA0[5], yA0[6], yA0[7])
-	baseA1 := g2.fp.Mux(selector, yA1[0], yA1[1], yA1[2], yA1[3], yA1[4], yA1[5], yA1[6], yA1[7])
+	baseA0 := g2.fp.Mux(selector, yA0[:]...)
+	baseA1 := g2.fp.Mux(selector, yA1[:]...)
 	negA0 := g2.fp.Neg(baseA0)
 	negA1 := g2.fp.Neg(baseA1)
 	return &fields_bls12381.E2{
