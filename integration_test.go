@@ -27,6 +27,10 @@ func TestIntegrationAPI(t *testing.T) {
 		name := keys[i]
 		tData := circuits.Circuits[name]
 
+		if testing.Short() && name != "add" && name != "mul" && name != "commit" {
+			continue
+		}
+
 		assert.Run(func(assert *test.Assert) {
 
 			opts := []test.TestingOption{

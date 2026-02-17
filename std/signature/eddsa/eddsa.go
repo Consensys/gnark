@@ -13,10 +13,7 @@ import (
 
 	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edwardsbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 )
 
@@ -123,9 +120,6 @@ func parseSignature(curveID tedwards.ID, buf []byte) ([]byte, []byte, []byte, er
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
 	var pointbw6761 edwardsbw6761.PointAffine
-	var pointbls24315 edwardsbls24315.PointAffine
-	var pointbls24317 edwardsbls24317.PointAffine
-	var pointbw6633 edwardsbw6633.PointAffine
 
 	switch curveID {
 	case tedwards.BN254:
@@ -168,36 +162,6 @@ func parseSignature(curveID tedwards.ID, buf []byte) ([]byte, []byte, []byte, er
 		}
 		s := buf[48:]
 		return a, b, s, nil
-	case tedwards.BLS24_317:
-		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
-			return nil, nil, nil, err
-		}
-		a, b, err := parsePoint(curveID, buf)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		s := buf[32:]
-		return a, b, s, nil
-	case tedwards.BLS24_315:
-		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
-			return nil, nil, nil, err
-		}
-		a, b, err := parsePoint(curveID, buf)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		s := buf[32:]
-		return a, b, s, nil
-	case tedwards.BW6_633:
-		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
-			return nil, nil, nil, err
-		}
-		a, b, err := parsePoint(curveID, buf)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		s := buf[40:]
-		return a, b, s, nil
 	default:
 		panic("not implemented")
 	}
@@ -209,9 +173,6 @@ func parsePoint(curveID tedwards.ID, buf []byte) ([]byte, []byte, error) {
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
 	var pointbw6761 edwardsbw6761.PointAffine
-	var pointbls24315 edwardsbls24315.PointAffine
-	var pointbls24317 edwardsbls24317.PointAffine
-	var pointbw6633 edwardsbw6633.PointAffine
 	switch curveID {
 	case tedwards.BN254:
 		if _, err := pointbn254.SetBytes(buf[:32]); err != nil {
@@ -240,27 +201,6 @@ func parsePoint(curveID tedwards.ID, buf []byte) ([]byte, []byte, error) {
 		}
 		a := pointbw6761.X.Bytes()
 		b := pointbw6761.Y.Bytes()
-		return a[:], b[:], nil
-	case tedwards.BLS24_317:
-		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
-			return nil, nil, err
-		}
-		a := pointbls24317.X.Bytes()
-		b := pointbls24317.Y.Bytes()
-		return a[:], b[:], nil
-	case tedwards.BLS24_315:
-		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
-			return nil, nil, err
-		}
-		a := pointbls24315.X.Bytes()
-		b := pointbls24315.Y.Bytes()
-		return a[:], b[:], nil
-	case tedwards.BW6_633:
-		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
-			return nil, nil, err
-		}
-		a := pointbw6633.X.Bytes()
-		b := pointbw6633.Y.Bytes()
 		return a[:], b[:], nil
 	default:
 		panic("not implemented")

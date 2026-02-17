@@ -19,7 +19,6 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/frontendtype"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -747,8 +746,4 @@ func (builder *builder[E]) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR,
 
 func (*builder[E]) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
-}
-
-func (builder *builder[E]) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return builder.cs.NewGkr()
 }

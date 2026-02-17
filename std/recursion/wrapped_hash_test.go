@@ -9,8 +9,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	cryptofs "github.com/consensys/gnark-crypto/fiat-shamir"
@@ -18,7 +16,6 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
@@ -139,23 +136,6 @@ func TestHashMarshalG1(t *testing.T) {
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
-	assert.Run(func(assert *test.Assert) {
-		var g bls24315.G1Affine
-		var s fr_bls24315.Element
-		s.SetRandom()
-		g.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
-		h, err := recursion.NewShort(ecc.BW6_633.ScalarField(), ecc.BLS24_315.ScalarField())
-		assert.NoError(err)
-		marshalled := g.Marshal()
-		h.Write(marshalled)
-		hashed := h.Sum(nil)
-		circuit := &hashMarshalG1Circuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
-		assignment := &hashMarshalG1Circuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
-			Point:    sw_bls24315.NewG1Affine(g),
-			Expected: hashed,
-		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
-	})
 }
 
 type hashMarshalScalarCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
@@ -212,21 +192,6 @@ func TestHashMarshalScalar(t *testing.T) {
 			Expected: hashed,
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
-	})
-	assert.Run(func(assert *test.Assert) {
-		var s fr_bls24315.Element
-		s.SetRandom()
-		h, err := recursion.NewShort(ecc.BW6_633.ScalarField(), ecc.BLS24_315.ScalarField())
-		assert.NoError(err)
-		marshalled := s.Marshal()
-		h.Write(marshalled)
-		hashed := h.Sum(nil)
-		circuit := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
-		assignment := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
-			Scalar:   sw_bls24315.NewScalar(s),
-			Expected: hashed,
-		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 }
 

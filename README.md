@@ -5,115 +5,82 @@
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 [![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5819104.svg)](https://doi.org/10.5281/zenodo.5819104)
 
-`gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open-source and developed under the Apache 2.0 license.
+High-performance zk-SNARKs in Go.
 
-`gnark` uses [`gnark-crypto`] for the finite-field arithmetic and out-circuit implementation of cryptographic algorithms.
+`gnark` provides a high-level API to define circuits, then compile, prove, and verify with production-grade proving systems. It is open-source under Apache 2.0 and uses [`gnark-crypto`] for field arithmetic and cryptographic primitives.
 
-`gnark` powers [`Linea zk-rollup`](https://linea.build). Include your project in the [known users](docs/KNOWN_USERS.md) section by opening a PR.
+`gnark` powers [`Linea zk-rollup`](https://linea.build). Include your project in [known users](docs/KNOWN_USERS.md) by opening a PR.
+
+## Why `gnark`
+
+- Circuit development in idiomatic Go
+- Fast proving and verification backends
+- Reusable standard gadgets in `std/`
+- Active security and regression testing culture
 
 ## Useful Links
 
-* [`gnark` User Documentation]
-* [`gnark` Playground]
-* [`gnark` Issues]
-* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
-* [`gnark-announce`] - Announcement list for new releases and security patches
+- [`gnark` User Documentation]
+- [`gnark` Playground]
+- [`gnark` Issues]
+- [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
+- [`gnark-announce`] - release and security announcements
 
+## Quick Start
 
-## `gnark` Users
+### Requirements
 
-To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
+- Go `1.25+` (module target: `go 1.25.6`)
 
-Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
+### Install
 
+```bash
+go get github.com/consensys/gnark@latest
+```
 
-## Security
+### Run an example
 
-**`gnark` and [`gnark-crypto`] have been [extensively audited](#audits), but are provided as-is, we make no guarantees or warranties to their safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+```bash
+go run ./examples/cubic
+```
 
-**To report a security bug, please refer to [`gnark` Security Policy](SECURITY.md).**
+To design your first circuit, follow the tutorial in [`gnark` User Documentation].
 
-Refer to [known security advisories](https://github.com/Consensys/gnark/security/advisories?state=published) for a list of known security issues.
+## Supported Proving Systems and Curves
 
-## Testing
+`gnark` currently supports:
 
-`gnark` employs the following testing procedures:
-* unit testing - we test the primitives in unit tests
-* circuit testing - we test the circuit implementation against several targets:
-  - test engine - instead of running the full prover and verifier stack, we run the computations only to ensure the completeness of the circuits
-  - proof engines - we compile the circuits, run the setup, prove and verify using native implementation
-  - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-checker`]
-* regression testing - we have implemented [tests for reported issues](internal/regression_tests) to avoid regressions
-* constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions
-* serialization testing - we check that [serialization round-trip is complete](io/roundtrip.go)
-* side-effect testing - we check that circuit [compilation is deterministic](test/assert.go)
-* fuzz testing:
-  - circuit input fuzzing - we provide random inputs to the circuit to cause solver error
-  - native input fuzzing - we provide random inputs to various native methods to cause errors. We have also stored initial fuzzing corpus for regression tests.
-  - circuit definition fuzzing - we cooperate with Consensys Diligence to fuzz the circuit definitions to find bugs in the `gnark` circuit compiler.
+- Groth16
+- PLONK
 
-The tests are automatically run during every PR and merge commit. We run full test suite only for the Linux on `amd64` target, but run short tests both for Windows target (`amd64`) and macOS target (`arm64`).
+on the following curves:
 
-## Performance
+- BN254
+- BLS12-381
+- BLS12-377
+- BW6-761
 
-`gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) using assembly operations. We have a generic implementation of the same arithmetic algorithms for ARM backends (`arm64`). We do not implement vector operations.
+Notes:
 
-## Backwards compatibility
+- Solidity verifier export support is curve-dependent (BN254 is the primary target).
+- Serialized formats are not guaranteed to be stable across versions.
 
-`gnark` tries to be backwards compatible when possible, however we do not guarantee that serialized object formats are static over different versions of `gnark`. Particularly - we do not have versioning implemented in the serialized formats, so using files between different versions of gnark may lead to undefined behaviour or even crash the program.
+## GPU Acceleration (Experimental)
 
-## Issues
+`gnark` includes experimental GPU acceleration through Ingonyama's ICICLE backend for Groth16 on:
 
-`gnark` issues are tracked [in the GitHub issues tab][`gnark` Issues].
+- BN254
+- BLS12-377
+- BLS12-381
+- BW6-761
 
-**To report a security bug, please refer to [`gnark` Security Policy](SECURITY.md).**
+See [accelerated backend documentation](backend/accelerated/icicle/doc.go) and the [ICICLE repository](https://github.com/ingonyama-zk/icicle-gnark).
 
-If you have any questions, queries or comments, [GitHub discussions] is the place to find us.
+## Example Circuit
 
-You can also get in touch directly: gnark@consensys.net
+The circuit below encodes `x**3 + x + 5 == y`.
 
-## Release Notes
-
-[Release Notes](CHANGELOG.md)
-
-## Audits
-
-* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
-* [Sigma Prime - May 2023 - gnark-crypto KZG (contracted by Ethereum Foundation)](audits/2024-05%20-%20Sigma%20Prime%20-%20kzg.pdf)
-* [Consensys Diligence - June 2023 - gnark PLONK Solidity verifier](https://consensys.io/diligence/audits/2023/06/linea-plonk-verifier/)
-* [LeastAuthority - August 2023 - gnark Groth16 Solidity verifier template (contracted by Worldcoin)](https://leastauthority.com/wp-content/uploads/2023/08/Worldcoin_Groth16_Verifier_in_EVM_Smart_Contract_Final_Audit_Report.pdf)
-* [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
-* [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
-* [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
-* [LeastAuthority - September 2024 - gnark general and GKR](audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
-* [LeastAuthority - November 2024 - Linea zkEVM](audits/2024-11%20-%20Least%20Authority%20-%20Linea%20zkEVM.pdf)
-
-## Proving schemes and curves
-
-Refer to [Proving schemes and curves] for more details.
-
-`gnark` support the following zk-SNARKs:
-
-- [x] [Groth16](https://eprint.iacr.org/2016/260)
-- [x] [PlonK](https://eprint.iacr.org/2019/953)
-
-which can be instantiated with the following curves
-
-- [x] BN254
-- [x] BLS12-381
-- [x] BLS12-377
-- [x] BW6-761
-- [x] BLS24-315
-- [x] BW6-633
-- [x] BLS24-317
-
-### Example
-
-Refer to the [`gnark` User Documentation]
-
-Here is what `x**3 + x + 5 = y` looks like
-
-```golang
+```go
 package main
 
 import (
@@ -123,17 +90,14 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
-// CubicCircuit defines a simple circuit
+// CubicCircuit defines a simple circuit.
 // x**3 + x + 5 == y
 type CubicCircuit struct {
-	// struct tags on a variable is optional
-	// default uses variable name and secret visibility.
 	X frontend.Variable `gnark:"x"`
 	Y frontend.Variable `gnark:",public"`
 }
 
-// Define declares the circuit constraints
-// x**3 + x + 5 == y
+// Define declares the circuit constraints.
 func (circuit *CubicCircuit) Define(api frontend.API) error {
 	x3 := api.Mul(circuit.X, circuit.X, circuit.X)
 	api.AssertIsEqual(circuit.Y, api.Add(x3, circuit.X, 5))
@@ -141,46 +105,61 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 }
 
 func main() {
-	// compiles our circuit into a R1CS
 	var circuit CubicCircuit
 	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 
-	// groth16 zkSNARK: Setup
 	pk, vk, _ := groth16.Setup(ccs)
 
-	// witness definition
 	assignment := CubicCircuit{X: 3, Y: 35}
 	witness, _ := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	publicWitness, _ := witness.Public()
 
-	// groth16: Prove & Verify
 	proof, _ := groth16.Prove(ccs, pk, witness)
-	groth16.Verify(proof, vk, publicWitness)
+	_ = groth16.Verify(proof, vk, publicWitness)
 }
-
 ```
 
-### GPU Support
+## Security
 
-#### ICICLE Library
+**`gnark` and [`gnark-crypto`] have been [extensively audited](#audits), but are provided as-is with no guarantees or warranties. In particular, `gnark` does not guarantee constant-time implementations or side-channel resistance.**
 
-The following schemes and curves support experimental use of Ingonyama's ICICLE GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
+Report vulnerabilities via [Security Policy](SECURITY.md). Do **not** open public issues for security reports.
 
-- [x] [Groth16](https://eprint.iacr.org/2016/260)
+Published advisories are listed [here](https://github.com/Consensys/gnark/security/advisories?state=published).
 
-instantiated with the following curve(s)
+## Testing
 
-- [x] BN254
-- [x] BLS12-377
-- [x] BLS12-381
-- [x] BW6-761
+CI runs formatting, generated-file, lint, and test checks on pull requests and pushes.
 
-For usage instructions see [accelerated backend documentation](backend/accelerated/icicle/doc.go) and [ICICLE repo](https://github.com/ingonyama-zk/icicle-gnark).
+Common local commands:
+
+```bash
+go test -short ./...
+go test -tags=release_checks,solccheck .
+go test -tags=prover_checks ./test/... ./examples/...
+go test -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
+go generate ./...
+```
+
+## Audits
+
+- [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
+- [Sigma Prime - May 2024 - gnark-crypto KZG (contracted by Ethereum Foundation)](audits/2024-05%20-%20Sigma%20Prime%20-%20kzg.pdf)
+- [Consensys Diligence - June 2023 - gnark PLONK Solidity verifier](https://consensys.io/diligence/audits/2023/06/linea-plonk-verifier/)
+- [LeastAuthority - August 2023 - gnark Groth16 Solidity verifier template (contracted by Worldcoin)](https://leastauthority.com/wp-content/uploads/2023/08/Worldcoin_Groth16_Verifier_in_EVM_Smart_Contract_Final_Audit_Report.pdf)
+- [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
+- [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
+- [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
+- [LeastAuthority - September 2024 - gnark general and GKR](audits/2024-09%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
+- [LeastAuthority - November 2024 - Linea zkEVM](audits/2024-11%20-%20Least%20Authority%20-%20Linea%20zkEVM.pdf)
+
+## Release Notes
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Citing
 
-If you use `gnark` in your research a citation would be appreciated.
-Please use the following BibTeX to cite the most recent release.
+If you use `gnark` in research, please cite the latest release:
 
 ```bib
 @software{gnark-v0.14.0,
@@ -201,22 +180,18 @@ Please use the following BibTeX to cite the most recent release.
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our [code of conduct](CODE_OF_CONDUCT.md), and the process for submitting pull requests to us.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/Consensys/gnark/tags).
+`gnark` follows [SemVer](http://semver.org/). Available versions are in [tags](https://github.com/Consensys/gnark/tags).
 
 ## License
 
-This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE) file for details
+Licensed under Apache 2.0 (see [LICENSE](LICENSE)).
 
 [`gnark` Issues]: https://github.com/Consensys/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/
-[GitHub discussions]: https://github.com/Consensys/gnark/discussions
-[Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
-[@gnark_team]: https://twitter.com/gnark_team
 [`gnark-crypto`]: https://github.com/Consensys/gnark-crypto
-[`gnark-solidity-checker`]: https://github.com/Consensys/gnark-solidity-checker

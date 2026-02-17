@@ -7,8 +7,6 @@ import (
 	ped_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	ped_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	ped_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/pedersen"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	ped_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
@@ -18,7 +16,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 )
 
 // ValueOfVerifyingKey returns a VerifyingKey from a native Pedersen verifying
@@ -42,13 +39,6 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 		}
 		s.G = sw_bls12381.NewG2Affine(tVk.G)
 		s.GSigmaNeg = sw_bls12381.NewG2Affine(tVk.GSigmaNeg)
-	case *VerifyingKey[sw_bls24315.G2Affine]:
-		tVk, ok := vk.(*ped_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("expected *ped_bls24315.VerifyingKey, got %T", vk)
-		}
-		s.G = sw_bls24315.NewG2Affine(tVk.G)
-		s.GSigmaNeg = sw_bls24315.NewG2Affine(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*ped_bw6761.VerifyingKey)
 		if !ok {
@@ -90,13 +80,6 @@ func ValueOfVerifyingKeyFixed[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2E
 		}
 		s.G = sw_bls12381.NewG2AffineFixed(tVk.G)
 		s.GSigmaNeg = sw_bls12381.NewG2AffineFixed(tVk.GSigmaNeg)
-	case *VerifyingKey[sw_bls24315.G2Affine]:
-		tVk, ok := vk.(*ped_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("expected *ped_bls24315.VerifyingKey, got %T", vk)
-		}
-		s.G = sw_bls24315.NewG2AffineFixed(tVk.G)
-		s.GSigmaNeg = sw_bls24315.NewG2AffineFixed(tVk.GSigmaNeg)
 	case *VerifyingKey[sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*ped_bw6761.VerifyingKey)
 		if !ok {
@@ -157,12 +140,6 @@ func valueOfG1El[G1El algebra.G1ElementT](el any) (G1El, error) {
 			return ret, fmt.Errorf("expected bls12381.G1Affine, got %T", el)
 		}
 		*s = sw_bls12381.NewG1Affine(tEl)
-	case *sw_bls24315.G1Affine:
-		tEl, ok := el.(bls24315.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("expected bls24315.G1Affine, got %T", el)
-		}
-		*s = sw_bls24315.NewG1Affine(tEl)
 	case *sw_bw6761.G1Affine:
 		tEl, ok := el.(bw6761.G1Affine)
 		if !ok {

@@ -11,10 +11,7 @@ import (
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	edbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
@@ -92,14 +89,8 @@ func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {
 		params = newEdBLS12_381()
 	case twistededwards.BLS12_381_BANDERSNATCH:
 		params = newEdBLS12_381_BANDERSNATCH()
-	case twistededwards.BLS24_317:
-		params = newEdBLS24_317()
-	case twistededwards.BLS24_315:
-		params = newEdBLS24_315()
 	case twistededwards.BW6_761:
 		params = newEdBW6_761()
-	case twistededwards.BW6_633:
-		params = newEdBW6_633()
 	default:
 		return nil, errors.New("unknown twisted edwards curve id")
 	}
@@ -115,14 +106,8 @@ func GetSnarkField(id twistededwards.ID) (*big.Int, error) {
 		return ecc.BLS12_377.ScalarField(), nil
 	case twistededwards.BLS12_381, twistededwards.BLS12_381_BANDERSNATCH:
 		return ecc.BLS12_381.ScalarField(), nil
-	case twistededwards.BLS24_315:
-		return ecc.BLS24_315.ScalarField(), nil
-	case twistededwards.BLS24_317:
-		return ecc.BLS24_317.ScalarField(), nil
 	case twistededwards.BW6_761:
 		return ecc.BW6_761.ScalarField(), nil
-	case twistededwards.BW6_633:
-		return ecc.BW6_633.ScalarField(), nil
 	default:
 		return nil, errors.New("unknown twisted edwards curve id")
 	}
@@ -200,54 +185,9 @@ func newEdBLS12_377() *CurveParams {
 
 }
 
-func newEdBW6_633() *CurveParams {
-
-	edcurve := edbw6633.GetEdwardsCurve()
-
-	r := newCurveParams()
-	edcurve.A.BigInt(r.A)
-	edcurve.D.BigInt(r.D)
-	edcurve.Cofactor.BigInt(r.Cofactor)
-	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.BigInt(r.Base[0])
-	edcurve.Base.Y.BigInt(r.Base[1])
-	return r
-
-}
-
 func newEdBW6_761() *CurveParams {
 
 	edcurve := edbw6761.GetEdwardsCurve()
-
-	r := newCurveParams()
-	edcurve.A.BigInt(r.A)
-	edcurve.D.BigInt(r.D)
-	edcurve.Cofactor.BigInt(r.Cofactor)
-	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.BigInt(r.Base[0])
-	edcurve.Base.Y.BigInt(r.Base[1])
-	return r
-
-}
-
-func newEdBLS24_317() *CurveParams {
-
-	edcurve := edbls24317.GetEdwardsCurve()
-
-	r := newCurveParams()
-	edcurve.A.BigInt(r.A)
-	edcurve.D.BigInt(r.D)
-	edcurve.Cofactor.BigInt(r.Cofactor)
-	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.BigInt(r.Base[0])
-	edcurve.Base.Y.BigInt(r.Base[1])
-	return r
-
-}
-
-func newEdBLS24_315() *CurveParams {
-
-	edcurve := edbls24315.GetEdwardsCurve()
 
 	r := newCurveParams()
 	edcurve.A.BigInt(r.A)

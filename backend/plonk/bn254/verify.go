@@ -13,19 +13,15 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/consensys/gnark/backend/solidity"
-
 	"github.com/consensys/gnark-crypto/ecc"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -398,6 +394,12 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		"inc": func(i int) int {
 			return i + 1
 		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
+		},
 		"frstr": func(x fr.Element) string {
 			// we use big.Int to always get a positive string.
 			// not the most efficient hack, but it works better for .sol generation.
@@ -409,9 +411,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			bv := new(big.Int)
 			x.BigInt(bv)
 			return bv.String()
-		},
-		"add": func(i, j int) int {
-			return i + j
 		},
 	}
 

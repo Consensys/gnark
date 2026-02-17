@@ -15,8 +15,6 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
-
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -117,18 +115,6 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
-
-	// XXX(@ivokub): commented out - this seems to match the implementation of native solver,
-	// but we always create new test engine when calling `IsSolved`, so this slice is always empty.
-	// Skipping this allows us to avoid making test engine generic.
-	/*
-		// first we reset the stateful blueprints
-		for i := range e.blueprints {
-			if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
-				b.Reset()
-			}
-		}
-	*/
 
 	var apiEngine frontend.API
 	if smallfields.IsSmallField(e.modulus()) && !e.noSmallFieldCompatibility {
@@ -737,6 +723,7 @@ func addInstructionGeneric[E constraint.Element](e *engine, bID constraint.Bluep
 	// solve the blueprint synchronously
 	s := blueprintSolver[E]{
 		internalVariables: e.internalVariables,
+		blueprints:        e.blueprints,
 		modulus:           newModulus[E](e.q),
 	}
 	if err := blueprint.Solve(&s, inst); err != nil {
@@ -770,7 +757,16 @@ func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
 			panic("unsupported blueprint in test engine")
 		}
 	}
+
 	e.blueprints = append(e.blueprints, b)
+
+	if stateful, ok := b.(constraint.BlueprintStateful[constraint.U32]); ok {
+		stateful.Reset()
+	}
+	if stateful, ok := b.(constraint.BlueprintStateful[constraint.U64]); ok {
+		stateful.Reset()
+	}
+
 	return constraint.BlueprintID(len(e.blueprints) - 1)
 }
 
@@ -792,10 +788,6 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 		return wrappedBigInt[constraint.U32]{Int: r, modulus: newModulus[constraint.U32](e.q)}
 	}
 	return wrappedBigInt[constraint.U64]{Int: r, modulus: newModulus[constraint.U64](e.q)}
-}
-
-func (e *engine) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return new(gkrinfo.StoringInfo), 0 // the index is not used in the solver
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -122,25 +121,6 @@ func initSnippets() {
 		_, _ = sw_bls12377.Pair(api, []sw_bls12377.G1Affine{dummyG1}, []sw_bls12377.G2Affine{dummyG2})
 
 	}, ecc.BW6_761)
-
-	registerSnippet("pairing_bls24315", func(api frontend.API, newVariable func() frontend.Variable) {
-
-		var dummyG1 sw_bls24315.G1Affine
-		var dummyG2 sw_bls24315.G2Affine
-		dummyG1.X = newVariable()
-		dummyG1.Y = newVariable()
-		dummyG2.P.X.B0.A0 = newVariable()
-		dummyG2.P.X.B0.A1 = newVariable()
-		dummyG2.P.X.B1.A0 = newVariable()
-		dummyG2.P.X.B1.A1 = newVariable()
-		dummyG2.P.Y.B0.A0 = newVariable()
-		dummyG2.P.Y.B0.A1 = newVariable()
-		dummyG2.P.Y.B1.A0 = newVariable()
-		dummyG2.P.Y.B1.A1 = newVariable()
-
-		_, _ = sw_bls24315.Pair(api, []sw_bls24315.G1Affine{dummyG1}, []sw_bls24315.G2Affine{dummyG2})
-
-	}, ecc.BW6_633)
 
 	registerSnippet("pairing_bls12381", func(api frontend.API, newVariable func() frontend.Variable) {
 

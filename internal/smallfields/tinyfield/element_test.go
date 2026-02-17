@@ -182,8 +182,8 @@ func BenchmarkElementSquare(b *testing.B) {
 
 func BenchmarkElementSqrt(b *testing.B) {
 	var a Element
-	a.SetUint64(4)
-	a.Neg(&a)
+	a.MustSetRandom()
+	a.Square(&a)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		benchResElement.Sqrt(&a)

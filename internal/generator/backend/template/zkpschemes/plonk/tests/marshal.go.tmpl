@@ -1,6 +1,7 @@
 
 import (
     {{ template "import_curve" . }}
+	"bytes"
     {{ template "import_fr" . }}
 	"testing"
 	"math/big"
@@ -34,6 +35,23 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	assert.NoError(t, io.RoundTripCheck(&vk, func() interface{} { return new(VerifyingKey) }))
 }
 
+func TestVerifyingKeyLegacySerialization(t *testing.T) {
+	var vk VerifyingKey
+	vk.randomize()
+
+	encoded, err := writeLegacyVerifyingKey(&vk)
+	assert.NoError(t, err)
+
+	var decoded VerifyingKey
+	n, err := decoded.ReadFrom(bytes.NewReader(encoded))
+	assert.NoError(t, err)
+	assert.Equal(t, int64(len(encoded)), n)
+	assert.Equal(t, KeyVersionLegacy, decoded.Version())
+
+	vk.version = KeyVersionLegacy
+	assert.Equal(t, vk, decoded)
+}
+
 func (pk *ProvingKey) randomize() {
 
 	var vk VerifyingKey
@@ -50,6 +68,7 @@ func (pk *ProvingKey) randomize() {
 }
 
 func (vk *VerifyingKey) randomize() {
+	vk.version = currentKeyVersion
 	vk.Size = rand.Uint64() //#nosec G404 weak rng is fine here
 	vk.SizeInv.SetRandom()
 	vk.Generator.SetRandom()
@@ -119,4 +138,39 @@ func randomScalars(n int) []fr.Element {
 		}
 	}
 	return v
+}
+
+func writeLegacyVerifyingKey(vk *VerifyingKey) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := curve.NewEncoder(&buf)
+
+	toEncode := []interface{}{
+		vk.Size,
+		&vk.SizeInv,
+		&vk.Generator,
+		vk.NbPublicVariables,
+		&vk.CosetShift,
+		&vk.S[0],
+		&vk.S[1],
+		&vk.S[2],
+		&vk.Ql,
+		&vk.Qr,
+		&vk.Qm,
+		&vk.Qo,
+		&vk.Qk,
+		vk.Qcp,
+		&vk.Kzg.G1,
+		&vk.Kzg.G2[0],
+		&vk.Kzg.G2[1],
+		&vk.Kzg.Lines,
+		vk.CommitmentConstraintIndexes,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
 }

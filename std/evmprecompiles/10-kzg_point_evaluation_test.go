@@ -192,6 +192,9 @@ func runFailureCircuit16(_ *test.Assert, evaluationPoint fr.Element, claimedValu
 }
 
 func TestKzgPointEvaluationPrecompileFailure16(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	assert := test.NewAssert(t)
 
 	// setup loading

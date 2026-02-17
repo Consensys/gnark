@@ -20,9 +20,6 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
@@ -36,7 +33,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
@@ -71,12 +67,6 @@ func ValueOfScalar[FR emulated.FieldParams](scalar any) (emulated.Element[FR], e
 			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
 		}
 		*s = sw_bw6761.NewScalar(tScalar)
-	case *emulated.Element[sw_bls24315.ScalarField]:
-		tScalar, ok := scalar.(fr_bls24315.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
-		}
-		*s = sw_bls24315.NewScalar(tScalar)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -119,12 +109,6 @@ func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], erro
 			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
 		}
 		s.G1El = sw_bw6761.NewG1Affine(tCmt)
-	case *Commitment[sw_bls24315.G1Affine]:
-		tCmt, ok := cmt.(bls24315.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bls24315.NewG1Affine(tCmt)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -173,13 +157,6 @@ func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](proof
 		}
 		s.Quotient = sw_bw6761.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
-	case *OpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
-		tProof, ok := proof.(kzg_bls24315.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		s.Quotient = sw_bls24315.NewG1Affine(tProof.H)
-		s.ClaimedValue = sw_bls24315.NewScalar(tProof.ClaimedValue)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -234,16 +211,6 @@ func ValueOfBatchOpeningProof[FR emulated.FieldParams, G1El any](proof any) (Bat
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bw6761.NewScalar(tProof.ClaimedValues[i])
 		}
-	case *BatchOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
-		tProof, ok := proof.(kzg_bls24315.BatchOpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		s.Quotient = sw_bls24315.NewG1Affine(tProof.H)
-		s.ClaimedValues = make([]emulated.Element[sw_bls24315.ScalarField], len(tProof.ClaimedValues))
-		for i := 0; i < len(s.ClaimedValues); i++ {
-			s.ClaimedValues[i] = sw_bls24315.NewScalar(tProof.ClaimedValues[i])
-		}
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -274,9 +241,6 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]()
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
 		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-		s.G2[0] = sw_bls24315.NewG2AffineFixedPlaceholder()
-		s.G2[1] = sw_bls24315.NewG2AffineFixedPlaceholder()
 	default:
 		panic("not supported")
 	}
@@ -321,14 +285,6 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk an
 		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
 		s.G2[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
 		s.G2[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-		s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-		s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -376,14 +332,6 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
 		s.G2[0] = sw_bw6761.NewG2AffineFixed(tVk.G2[0])
 		s.G2[1] = sw_bw6761.NewG2AffineFixed(tVk.G2[1])
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-		s.G2[0] = sw_bls24315.NewG2AffineFixed(tVk.G2[0])
-		s.G2[1] = sw_bls24315.NewG2AffineFixed(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("precomputation not supported")
 	}

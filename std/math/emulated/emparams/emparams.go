@@ -363,34 +363,6 @@ type BW6761Fr struct{ sixLimbPrimeField }
 
 func (BW6761Fr) Modulus() *big.Int { return ecc.BW6_761.ScalarField() }
 
-// BLS24315Fp provides type parametrization for field emulation:
-//   - limbs: 5
-//   - limb width: 64 bits
-//
-// The prime modulus for type parametrisation is:
-//
-//	0x4c23a02b586d650d3f7498be97c5eafdec1d01aa27a1ae0421ee5da52bde5026fe802ff40300001 (base 16)
-//	39705142709513438335025689890408969744933502416914749335064285505637884093126342347073617133569 (base 10)
-//
-// This is the base field of the BLS24-315 curve.
-type BLS24315Fp struct{ fiveLimbPrimeField }
-
-func (BLS24315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
-
-// BLS24315Fr provides type parametrization for field emulation:
-//   - limbs: 4
-//   - limb width: 64 bits
-//
-// The prime modulus for type parametrisation is:
-//
-//	11502027791375260645628074404575422495959608200132055716665986169834464870401 (base 16)
-//	0x196deac24a9da12b25fc7ec9cf927a98c8c480ece644e36419d0c5fd00c00001 (base 10)
-//
-// This is the scalar field of the BLS24-315 curve.
-type BLS24315Fr struct{ fourLimbPrimeField }
-
-func (BLS24315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
-
 // STARKCurveFp provides type parametrization for field emulation:
 //   - limbs: 4
 //   - limb width: 64 bits

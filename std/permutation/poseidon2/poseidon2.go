@@ -8,10 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	poseidonbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	poseidonbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/poseidon2"
-	poseidonbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/poseidon2"
-	poseidonbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/poseidon2"
 	poseidonbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
-	poseidonbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/poseidon2"
 	poseidonbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
@@ -110,54 +107,6 @@ func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
 			}
 		}
 		return res, nil
-	case ecc.BW6_633:
-		p := poseidonbw6633.GetDefaultParameters()
-		res := Parameters{
-			Width:           p.Width,
-			DegreeSBox:      poseidonbw6633.DegreeSBox(),
-			NbFullRounds:    p.NbFullRounds,
-			NbPartialRounds: p.NbPartialRounds,
-			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
-		}
-		for i := range res.RoundKeys {
-			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
-			for j := range res.RoundKeys[i] {
-				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
-			}
-		}
-		return res, nil
-	case ecc.BLS24_315:
-		p := poseidonbls24315.GetDefaultParameters()
-		res := Parameters{
-			Width:           p.Width,
-			DegreeSBox:      poseidonbls24315.DegreeSBox(),
-			NbFullRounds:    p.NbFullRounds,
-			NbPartialRounds: p.NbPartialRounds,
-			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
-		}
-		for i := range res.RoundKeys {
-			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
-			for j := range res.RoundKeys[i] {
-				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
-			}
-		}
-		return res, nil
-	case ecc.BLS24_317:
-		p := poseidonbls24317.GetDefaultParameters()
-		res := Parameters{
-			Width:           p.Width,
-			DegreeSBox:      poseidonbls24317.DegreeSBox(),
-			NbFullRounds:    p.NbFullRounds,
-			NbPartialRounds: p.NbPartialRounds,
-			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
-		}
-		for i := range res.RoundKeys {
-			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
-			for j := range res.RoundKeys[i] {
-				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
-			}
-		}
-		return res, nil
 	default:
 		return Parameters{}, fmt.Errorf("curve %s not supported", curve)
 	}
@@ -216,36 +165,6 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 	case ecc.BW6_761:
 		params.DegreeSBox = poseidonbw6761.DegreeSBox()
 		concreteParams := poseidonbw6761.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.RoundKeys {
-			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.RoundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
-			}
-		}
-	case ecc.BW6_633:
-		params.DegreeSBox = poseidonbw6633.DegreeSBox()
-		concreteParams := poseidonbw6633.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.RoundKeys {
-			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.RoundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
-			}
-		}
-	case ecc.BLS24_315:
-		params.DegreeSBox = poseidonbls24315.DegreeSBox()
-		concreteParams := poseidonbls24315.NewParameters(width, nbFullRounds, nbPartialRounds)
-		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
-		for i := range params.RoundKeys {
-			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
-			for j := range params.RoundKeys[i] {
-				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
-			}
-		}
-	case ecc.BLS24_317:
-		params.DegreeSBox = poseidonbls24317.DegreeSBox()
-		concreteParams := poseidonbls24317.NewParameters(width, nbFullRounds, nbPartialRounds)
 		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
 		for i := range params.RoundKeys {
 			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))

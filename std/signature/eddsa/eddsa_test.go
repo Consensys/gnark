@@ -58,12 +58,6 @@ func forge(id tedwards.ID, sig []byte) ([]byte, error) {
 		offset = 32
 	case tedwards.BW6_761:
 		offset = 48
-	case tedwards.BLS24_317:
-		offset = 32
-	case tedwards.BLS24_315:
-		offset = 32
-	case tedwards.BW6_633:
-		offset = 40
 	default:
 		panic("not implemented")
 	}
@@ -98,9 +92,6 @@ func TestEddsa(t *testing.T) {
 		// {hash.MIMC_BLS12_381, tedwards.BLS12_381_BANDERSNATCH},
 		{hash.MIMC_BLS12_377, tedwards.BLS12_377},
 		{hash.MIMC_BW6_761, tedwards.BW6_761},
-		// {hash.MIMC_BLS24_315, tedwards.BLS24_315},
-		// {hash.MIMC_BLS24_317, tedwards.BLS24_317},
-		// {hash.MIMC_BW6_633, tedwards.BW6_633},
 	}
 
 	seed := time.Now().Unix()

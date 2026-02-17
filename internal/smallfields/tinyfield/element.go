@@ -368,8 +368,8 @@ func (z *Element) Double(x *Element) *Element {
 
 // Sub z = x - y (mod q)
 func (z *Element) Sub(x, y *Element) *Element {
-	t, b := bits.Sub32(x[0], y[0], 0)
-	if b != 0 {
+	t := x[0] - y[0]
+	if t > q { // underflow occurred
 		t += q
 	}
 	z[0] = t

@@ -12,12 +12,13 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/gkr/gkrinfo"
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	// imported to register GKR blueprint types for CBOR serialization
+	_ "github.com/consensys/gnark/internal/gkr/bn254"
 )
 
 type R1CS = system
@@ -287,8 +288,4 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	a, err = t.O.ReadFrom(r)
 	n += a
 	return n, err
-}
-
-func (cs *system) NewGkr() (*gkrinfo.StoringInfo, int) {
-	return cs.System.NewGkr()
 }

@@ -17,17 +17,9 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
-const nbCurves = 7
-
-func init() {
-	if nbCurves != len(gnark.Curves()) {
-		panic("expected nbCurves == len(gnark.Curves())")
-	}
-}
-
 func NewGlobalStats() *globalStats {
 	return &globalStats{
-		Stats: make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats),
+		Stats: make(map[string]map[backend.ID]map[ecc.ID]snippetStats),
 	}
 }
 
@@ -50,18 +42,12 @@ func (s *globalStats) WriteTo(w io.Writer) (int64, error) {
 	// write data
 	for _, circuitName := range circuitNames {
 		innerStats := s.Stats[circuitName]
-		for backendID, s := range innerStats {
-			if backendID == 0 {
-				continue
-			}
-			backend := backend.ID(backendID).String()
-			for curveIdx, stats := range s {
-				if curveIdx == 0 {
-					continue
-				}
-				curve := ecc.ID(curveIdx).String()
-
-				if err := csvWriter.Write([]string{circuitName, curve, backend, strconv.Itoa(stats.NbConstraints), strconv.Itoa(stats.NbInternalWires)}); err != nil {
+		for _, backendID := range backend.Implemented() {
+			backendName := backendID.String()
+			for _, curveID := range gnark.Curves() {
+				curveName := curveID.String()
+				snippet := innerStats[backendID][curveID]
+				if err := csvWriter.Write([]string{circuitName, curveName, backendName, strconv.Itoa(snippet.NbConstraints), strconv.Itoa(snippet.NbInternalWires)}); err != nil {
 					return 0, err
 				}
 			}
@@ -86,9 +72,12 @@ func (s *globalStats) Load(path string) error {
 		return err
 	}
 
-	s.Stats = make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats)
+	s.Stats = make(map[string]map[backend.ID]map[ecc.ID]snippetStats)
 
-	for _, record := range records {
+	for i, record := range records {
+		if i == 0 && len(record) == 5 && record[0] == "circuit" {
+			continue
+		}
 		// we don't do validation here, we assume the file is correct;;
 		circuitName := record[0]
 		curveID, _ := ecc.IDFromString(record[1])
@@ -96,9 +85,13 @@ func (s *globalStats) Load(path string) error {
 		nbConstraints, _ := strconv.Atoi(record[3])
 		nbWires, _ := strconv.Atoi(record[4])
 
-		rs := s.Stats[circuitName]
-		rs[backendID][curveID] = snippetStats{nbConstraints, nbWires}
-		s.Stats[circuitName] = rs
+		if _, ok := s.Stats[circuitName]; !ok {
+			s.Stats[circuitName] = make(map[backend.ID]map[ecc.ID]snippetStats)
+		}
+		if _, ok := s.Stats[circuitName][backendID]; !ok {
+			s.Stats[circuitName][backendID] = make(map[ecc.ID]snippetStats)
+		}
+		s.Stats[circuitName][backendID][curveID] = snippetStats{nbConstraints, nbWires}
 	}
 
 	return nil
@@ -131,9 +124,13 @@ func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs snippetStats, circuitName string) {
 	s.Lock()
 	defer s.Unlock()
-	rs := s.Stats[circuitName]
-	rs[backendID][curve] = cs
-	s.Stats[circuitName] = rs
+	if _, ok := s.Stats[circuitName]; !ok {
+		s.Stats[circuitName] = make(map[backend.ID]map[ecc.ID]snippetStats)
+	}
+	if _, ok := s.Stats[circuitName][backendID]; !ok {
+		s.Stats[circuitName][backendID] = make(map[ecc.ID]snippetStats)
+	}
+	s.Stats[circuitName][backendID][curve] = cs
 }
 
 type Circuit struct {
@@ -143,7 +140,7 @@ type Circuit struct {
 
 type globalStats struct {
 	sync.RWMutex
-	Stats map[string][backend.PLONK + 1][nbCurves + 1]snippetStats
+	Stats map[string]map[backend.ID]map[ecc.ID]snippetStats
 }
 
 type snippetStats struct {

@@ -51,7 +51,11 @@ func testInstance(edgeCases bool, base, exp, modulus, result *big.Int) error {
 
 func TestRandomInstance(t *testing.T) {
 	assert := test.NewAssert(t)
-	for _, bits := range []int{256, 512, 1024, 2048, 4096} {
+	expBits := []int{256, 512, 1024, 2048, 4096}
+	if testing.Short() {
+		expBits = []int{256, 512}
+	}
+	for _, bits := range expBits {
 		assert.Run(func(assert *test.Assert) {
 			modulus := new(big.Int).Lsh(big.NewInt(1), uint(bits))
 			base, _ := rand.Int(rand.Reader, modulus)
@@ -75,7 +79,9 @@ func TestEdgeCases(t *testing.T) {
 		{big.NewInt(123), big.NewInt(123), big.NewInt(0), big.NewInt(0)}, // 123^123 = 0 mod 1
 		{big.NewInt(0), big.NewInt(123), big.NewInt(123), big.NewInt(0)}, // 0^123 = 0 mod 123
 		{big.NewInt(123), big.NewInt(0), big.NewInt(123), big.NewInt(1)}, // 123^0 = 1 mod 123
-
+	}
+	if testing.Short() {
+		testCases = testCases[:2]
 	}
 	for i, tc := range testCases {
 		assert.Run(func(assert *test.Assert) {

@@ -22,34 +22,22 @@ import (
 
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
-	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
-	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
-	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 
 	fft_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	fft_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
-	fft_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
-	fft_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	fft_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	fft_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 	fft_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 )
 
@@ -172,12 +160,6 @@ func newSRS(curveID ecc.ID, size uint64, tau *big.Int) (kzg.SRS, kzg.SRS, error)
 		srs, err = kzg_bls12377.NewSRS(size, tau)
 	case ecc.BW6_761:
 		srs, err = kzg_bw6761.NewSRS(size, tau)
-	case ecc.BLS24_317:
-		srs, err = kzg_bls24317.NewSRS(size, tau)
-	case ecc.BLS24_315:
-		srs, err = kzg_bls24315.NewSRS(size, tau)
-	case ecc.BW6_633:
-		srs, err = kzg_bw6633.NewSRS(size, tau)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -281,75 +263,6 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 		// bath scalar mul
 		_, _, g1gen, _ := bw6761.Generators()
 		newSRS.Pk.G1 = bw6761.BatchScalarMultiplicationG1(&g1gen, pAlpha)
-
-		lagrangeSRS = newSRS
-	case *kzg_bls24317.SRS:
-		ttau := new(fr_bls24317.Element).SetBigInt(tau)
-		newSRS := &kzg_bls24317.SRS{Vk: srs.Vk}
-		size := uint64(len(srs.Pk.G1)) - 3
-
-		// instead of using ToLagrangeG1 we can directly do a fft on the powers of alpha
-		// since we know the randomness in test.
-		pAlpha := make([]fr_bls24317.Element, size)
-		pAlpha[0].SetUint64(1)
-		for i := 1; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], ttau)
-		}
-
-		// do a fft on this.
-		d := fft_bls24317.NewDomain(size)
-		d.FFTInverse(pAlpha, fft_bls24317.DIF)
-		fft_bls24317.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
-
-		// bath scalar mul
-		_, _, g1gen, _ := bls24317.Generators()
-		newSRS.Pk.G1 = bls24317.BatchScalarMultiplicationG1(&g1gen, pAlpha)
-
-		lagrangeSRS = newSRS
-	case *kzg_bls24315.SRS:
-		ttau := new(fr_bls24315.Element).SetBigInt(tau)
-		newSRS := &kzg_bls24315.SRS{Vk: srs.Vk}
-		size := uint64(len(srs.Pk.G1)) - 3
-
-		// instead of using ToLagrangeG1 we can directly do a fft on the powers of alpha
-		// since we know the randomness in test.
-		pAlpha := make([]fr_bls24315.Element, size)
-		pAlpha[0].SetUint64(1)
-		for i := 1; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], ttau)
-		}
-
-		// do a fft on this.
-		d := fft_bls24315.NewDomain(size)
-		d.FFTInverse(pAlpha, fft_bls24315.DIF)
-		fft_bls24315.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
-
-		// bath scalar mul
-		_, _, g1gen, _ := bls24315.Generators()
-		newSRS.Pk.G1 = bls24315.BatchScalarMultiplicationG1(&g1gen, pAlpha)
-
-		lagrangeSRS = newSRS
-	case *kzg_bw6633.SRS:
-		ttau := new(fr_bw6633.Element).SetBigInt(tau)
-		newSRS := &kzg_bw6633.SRS{Vk: srs.Vk}
-		size := uint64(len(srs.Pk.G1)) - 3
-
-		// instead of using ToLagrangeG1 we can directly do a fft on the powers of alpha
-		// since we know the randomness in test.
-		pAlpha := make([]fr_bw6633.Element, size)
-		pAlpha[0].SetUint64(1)
-		for i := 1; i < len(pAlpha); i++ {
-			pAlpha[i].Mul(&pAlpha[i-1], ttau)
-		}
-
-		// do a fft on this.
-		d := fft_bw6633.NewDomain(size)
-		d.FFTInverse(pAlpha, fft_bw6633.DIF)
-		fft_bw6633.BitReverse(pAlpha) //nolint:staticcheck // method is backwards compatible
-
-		// bath scalar mul
-		_, _, g1gen, _ := bw6633.Generators()
-		newSRS.Pk.G1 = bw6633.BatchScalarMultiplicationG1(&g1gen, pAlpha)
 
 		lagrangeSRS = newSRS
 	default:
