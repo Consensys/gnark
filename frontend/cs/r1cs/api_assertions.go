@@ -175,7 +175,7 @@ func (builder *builder[E]) MustBeLessOrEqCst(aBits []frontend.Variable, bound *b
 		panic("more input bits than field bit length")
 	}
 	for i := len(aBits); i < nbBits; i++ {
-		aBits = append(aBits, 0)
+		aBits = append(aBits, builder.toVariable(0))
 	}
 
 	// ensure the bound is positive, it's bit-len doesn't matter

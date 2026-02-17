@@ -17,7 +17,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"github.com/consensys/gnark/std/math/cmp"
 )
 
 func init() {
@@ -87,8 +86,13 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 		return BinaryMux(api, selBits, inputs)
 	}
 
-	bcmp := cmp.NewBoundedComparator(api, big.NewInt((1<<nbBits)-1), false)
-	bcmp.AssertIsLessEq(sel, n-1)
+	if cmper, ok := api.Compiler().(interface {
+		MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable)
+	}); ok {
+		cmper.MustBeLessOrEqCst(selBits, big.NewInt(int64(n-1)), sel)
+	} else {
+		panic("builder does not expose comparison to constant")
+	}
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
 	return muxRecursive(api, selBits, inputs)

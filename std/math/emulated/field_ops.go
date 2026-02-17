@@ -9,7 +9,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
 	mathbits "github.com/consensys/gnark/std/math/bits"
-	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -360,8 +359,13 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 	paddedSize := 1 << nbBits
 	if bits.OnesCount(n) != 1 {
 		// Non-power of 2: need additional bound check sel <= n-1
-		bcmp := cmp.NewBoundedComparator(f.api, big.NewInt((1<<nbBits)-1), false)
-		bcmp.AssertIsLessEq(sel, n-1)
+		if cmper, ok := f.api.Compiler().(interface {
+			MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable)
+		}); ok {
+			cmper.MustBeLessOrEqCst(selBits, big.NewInt(int64(n-1)), sel)
+		} else {
+			panic("builder does not expose comparison to constant")
+		}
 		// Pad each limb slice to next power of 2 with constant 0
 		for i := range nbLimbs {
 			padded := make([]frontend.Variable, paddedSize)
