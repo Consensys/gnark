@@ -661,7 +661,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	//
 	// T = [3](Q + Φ(Q))
 	// P = B1 and P' = B1
-	T1 := c.Add(tableQ[2], tablePhiQ[2])
+	t1 := c.Add(tableQ[2], tablePhiQ[2])
 	// T = Q + Φ(Q)
 	// P = B1 and P' = B2
 	T2 := Acc
@@ -670,32 +670,32 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	T3 := c.Add(tableQ[2], tablePhiQ[1])
 	// T = Q + [3]Φ(Q)
 	// P = B1 and P' = B4
-	T4 := c.Add(tableQ[1], tablePhiQ[2])
+	t4 := c.Add(tableQ[1], tablePhiQ[2])
 	// T  = -Q - Φ(Q)
 	// P = B2 and P' = B1
 	T5 := c.Neg(T2)
 	// T  = -[3](Q + Φ(Q))
 	// P = B2 and P' = B2
-	T6 := c.Neg(T1)
+	T6 := c.Neg(t1)
 	// T = -Q - [3]Φ(Q)
 	// P = B2 and P' = B3
-	T7 := c.Neg(T4)
+	T7 := c.Neg(t4)
 	// T = [3]Q - Φ(Q)
 	// P = B3 and P' = B1
-	T9 := c.Add(tableQ[2], tablePhiQ[0])
+	t9 := c.Add(tableQ[2], tablePhiQ[0])
 	// T = Q - [3]Φ(Q)
 	// P = B3 and P' = B2
-	T11 := c.Neg(tablePhiQ[2])
-	T10 := c.Add(tableQ[1], T11)
+	t := c.Neg(tablePhiQ[2])
+	T10 := c.Add(tableQ[1], t)
 	// T = [3](Q - Φ(Q))
 	// P = B3 and P' = B3
-	T11 = c.Add(tableQ[2], T11)
+	T11 := c.Add(tableQ[2], t)
 	// T = -Φ(Q) + Q
 	// P = B3 and P' = B4
 	T12 := c.Add(tablePhiQ[0], tableQ[1])
 	// T = Φ(Q) - [3]Q
 	// P = B4 and P' = B2
-	T14 := c.Neg(T9)
+	T14 := c.Neg(t9)
 	// T = Φ(Q) - Q
 	// P = B4 and P' = B3
 	T15 := c.Neg(T12)
@@ -1012,7 +1012,7 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// we suppose that the first bits of the sub-scalars are 1 and set:
 	// 		Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
-	B1 := Acc
+	b1 := Acc
 	// then we conditionally add to Acc either G (the base point) or
 	// conditionally Φ²(G) (if Acc==-G) to avoid incomplete additions in the
 	// loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it might
@@ -1047,26 +1047,26 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// 		B1  = +Q + R + Φ(Q) + Φ(R)
 	// 		B2  = +Q + R + Φ(Q) - Φ(R)
 	B2 := c.Add(tableS[1], tablePhiS[2])
-	// 		B3  = +Q + R - Φ(Q) + Φ(R)
-	B3 := c.Add(tableS[1], tablePhiS[3])
+	// 		b3  = +Q + R - Φ(Q) + Φ(R)
+	b3 := c.Add(tableS[1], tablePhiS[3])
 	// 		B4  = +Q + R - Φ(Q) - Φ(R)
 	B4 := c.Add(tableS[1], tablePhiS[0])
-	// 		B5  = +Q - R + Φ(Q) + Φ(R)
-	B5 := c.Add(tableS[2], tablePhiS[1])
+	// 		b5  = +Q - R + Φ(Q) + Φ(R)
+	b5 := c.Add(tableS[2], tablePhiS[1])
 	// 		B6  = +Q - R + Φ(Q) - Φ(R)
 	B6 := c.Add(tableS[2], tablePhiS[2])
-	// 		B7  = +Q - R - Φ(Q) + Φ(R)
-	B7 := c.Add(tableS[2], tablePhiS[3])
+	// 		b7  = +Q - R - Φ(Q) + Φ(R)
+	b7 := c.Add(tableS[2], tablePhiS[3])
 	// 		B8  = +Q - R - Φ(Q) - Φ(R)
 	B8 := c.Add(tableS[2], tablePhiS[0])
 	// 		B10 = -Q + R + Φ(Q) - Φ(R)
-	B10 := c.Neg(B7)
+	B10 := c.Neg(b7)
 	// 		B12 = -Q + R - Φ(Q) - Φ(R)
-	B12 := c.Neg(B5)
+	B12 := c.Neg(b5)
 	// 		B14 = -Q - R + Φ(Q) - Φ(R)
-	B14 := c.Neg(B3)
+	B14 := c.Neg(b3)
 	// 		B16 = -Q - R - Φ(Q) - Φ(R)
-	B16 := c.Neg(B1)
+	B16 := c.Neg(b1)
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 
@@ -1332,7 +1332,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	//
 	// T = [3](Q + R)
 	// P = B1 and P' = B1
-	T1 := addFn(tableQ[2], tableR[2])
+	t1 := addFn(tableQ[2], tableR[2])
 	// T = Q + R
 	// P = B1 and P' = B2
 	T2 := Acc
@@ -1341,33 +1341,33 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	T3 := addFn(tableQ[2], tableR[1])
 	// T = Q + [3]R
 	// P = B1 and P' = B4
-	T4 := addFn(tableQ[1], tableR[2])
+	t4 := addFn(tableQ[1], tableR[2])
 	// T  = -Q - R
 	// P = B2 and P' = B1
 	T5 := c.Neg(T2)
 	// T  = -[3](Q + R)
 	// P = B2 and P' = B2
-	T6 := c.Neg(T1)
+	T6 := c.Neg(t1)
 	// T = -Q - [3]R
 	// P = B2 and P' = B3
-	T7 := c.Neg(T4)
+	T7 := c.Neg(t4)
 	// T = -[3]Q - R
 	// T = [3]Q - R
 	// P = B3 and P' = B1
-	T9 := addFn(tableQ[2], tableR[0])
+	t9 := addFn(tableQ[2], tableR[0])
 	// T = Q - [3]R
 	// P = B3 and P' = B2
-	T11 := c.Neg(tableR[2])
-	T10 := addFn(tableQ[1], T11)
+	t := c.Neg(tableR[2])
+	T10 := addFn(tableQ[1], t)
 	// T = [3](Q - R)
 	// P = B3 and P' = B3
-	T11 = addFn(tableQ[2], T11)
+	T11 := addFn(tableQ[2], t)
 	// T = -R + Q
 	// P = B3 and P' = B4
 	T12 := addFn(tableR[0], tableQ[1])
 	// T = R - [3]Q
 	// P = B4 and P' = B2
-	T14 := c.Neg(T9)
+	T14 := c.Neg(t9)
 	// T = R - Q
 	// P = B4 and P' = B3
 	T15 := c.Neg(T12)
@@ -1639,7 +1639,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// we suppose that the first bits of the sub-scalars are 1 and set:
 	// 		Acc = P + Q + Φ(P) + Φ(Q)
 	Acc := c.Add(tableS[1], tablePhiS[1])
-	B1 := Acc
+	b1 := Acc
 	// then we add G (the base point) to Acc to avoid incomplete additions in
 	// the loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it
 	// might happen that Acc==Bi or Acc==-Bi. But now we force Acc to be
@@ -1663,26 +1663,26 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
 	// 		B2  = +P + Q + Φ(P) - Φ(Q)
 	B2 := c.Add(tableS[1], tablePhiS[2])
-	// 		B3  = +P + Q - Φ(P) + Φ(Q)
-	B3 := c.Add(tableS[1], tablePhiS[3])
+	// 		b3  = +P + Q - Φ(P) + Φ(Q)
+	b3 := c.Add(tableS[1], tablePhiS[3])
 	// 		B4  = +P + Q - Φ(P) - Φ(Q)
 	B4 := c.Add(tableS[1], tablePhiS[0])
-	// 		B5  = +P - Q + Φ(P) + Φ(Q)
-	B5 := c.Add(tableS[2], tablePhiS[1])
+	// 		b5  = +P - Q + Φ(P) + Φ(Q)
+	b5 := c.Add(tableS[2], tablePhiS[1])
 	// 		B6  = +P - Q + Φ(P) - Φ(Q)
 	B6 := c.Add(tableS[2], tablePhiS[2])
-	// 		B7  = +P - Q - Φ(P) + Φ(Q)
-	B7 := c.Add(tableS[2], tablePhiS[3])
+	// 		b7  = +P - Q - Φ(P) + Φ(Q)
+	b7 := c.Add(tableS[2], tablePhiS[3])
 	// 		B8  = +P - Q - Φ(P) - Φ(Q)
 	B8 := c.Add(tableS[2], tablePhiS[0])
 	// 		B10 = -P + Q + Φ(P) - Φ(Q)
-	B10 := c.Neg(B7)
+	B10 := c.Neg(b7)
 	// 		B12 = -P + Q - Φ(P) - Φ(Q)
-	B12 := c.Neg(B5)
+	B12 := c.Neg(b5)
 	// 		B14 = -P - Q + Φ(P) - Φ(Q)
-	B14 := c.Neg(B3)
+	B14 := c.Neg(b3)
 	// 		B16 = -P - Q - Φ(P) - Φ(Q)
-	B16 := c.Neg(B1)
+	B16 := c.Neg(b1)
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 

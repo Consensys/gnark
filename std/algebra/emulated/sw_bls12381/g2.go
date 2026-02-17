@@ -696,7 +696,7 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	//
 	// T = [3](Q + Φ(Q))
 	// P = B1 and P' = B1
-	T1 := g2.add(tableQ[2], tablePhiQ[2])
+	t1 := g2.add(tableQ[2], tablePhiQ[2])
 	// T = Q + Φ(Q)
 	// P = B1 and P' = B2
 	T2 := Acc
@@ -705,29 +705,29 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	T3 := g2.add(tableQ[2], tablePhiQ[1])
 	// T = Q + [3]Φ(Q)
 	// P = B1 and P' = B4
-	T4 := g2.add(tableQ[1], tablePhiQ[2])
+	t4 := g2.add(tableQ[1], tablePhiQ[2])
 	// T  = -[3](Q + Φ(Q))
 	// P = B2 and P' = B2
-	T6 := g2.neg(T1)
+	T6 := g2.neg(t1)
 	// T = -Q - [3]Φ(Q)
 	// P = B2 and P' = B3
-	T7 := g2.neg(T4)
+	T7 := g2.neg(t4)
 	// T = [3]Q - Φ(Q)
 	// P = B3 and P' = B1
-	T9 := g2.add(tableQ[2], tablePhiQ[0])
+	t9 := g2.add(tableQ[2], tablePhiQ[0])
 	// T = Q - [3]Φ(Q)
 	// P = B3 and P' = B2
-	T11 := g2.neg(tablePhiQ[2])
-	T10 := g2.add(tableQ[1], T11)
+	t := g2.neg(tablePhiQ[2])
+	T10 := g2.add(tableQ[1], t)
 	// T = [3](Q - Φ(Q))
 	// P = B3 and P' = B3
-	T11 = g2.add(tableQ[2], T11)
+	T11 := g2.add(tableQ[2], t)
 	// T = -Φ(Q) + Q
 	// P = B3 and P' = B4
 	T12 := g2.add(tablePhiQ[0], tableQ[1])
 	// T = Φ(Q) - [3]Q
 	// P = B4 and P' = B2
-	T14 := g2.neg(T9)
+	T14 := g2.neg(t9)
 	// T = Φ(Q) - Q
 	// P = B4 and P' = B3
 	T15 := g2.neg(T12)
