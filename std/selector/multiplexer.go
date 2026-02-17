@@ -83,35 +83,34 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits)) // binary decomposition ensures sel < 2^nbBits
 
 	// We use BinaryMux when len(inputs) is a power of 2.
-	// Use Unchecked variant since ToBinary already constrains bits to be boolean.
 	if binary.OnesCount(n) == 1 {
-		return BinaryMuxUnchecked(api, selBits, inputs)
+		return BinaryMux(api, selBits, inputs)
 	}
 
 	bcmp := cmp.NewBoundedComparator(api, big.NewInt((1<<nbBits)-1), false)
 	bcmp.AssertIsLessEq(sel, n-1)
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
-	return muxRecursiveUnchecked(api, selBits, inputs)
+	return muxRecursive(api, selBits, inputs)
 }
 
-// muxRecursiveUnchecked uses BinaryMuxUnchecked
-// since the bits are already constrained.
-func muxRecursiveUnchecked(api frontend.API,
+// muxRecursive splits non-power-of-2 inputs into a power-of-2 left part
+// and a smaller right part, recursing until both parts are powers of 2.
+func muxRecursive(api frontend.API,
 	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
 
 	nbBits := len(selBits)
 	leftCount := uint(1 << (nbBits - 1))
-	left := BinaryMuxUnchecked(api, selBits[:nbBits-1], inputs[:leftCount])
+	left := BinaryMux(api, selBits[:nbBits-1], inputs[:leftCount])
 
 	rightCount := uint(len(inputs)) - leftCount
 	nbRightBits := binary.Len(rightCount)
 
 	var right frontend.Variable
 	if binary.OnesCount(rightCount) == 1 {
-		right = BinaryMuxUnchecked(api, selBits[:nbRightBits-1], inputs[leftCount:])
+		right = BinaryMux(api, selBits[:nbRightBits-1], inputs[leftCount:])
 	} else {
-		right = muxRecursiveUnchecked(api, selBits[:nbRightBits], inputs[leftCount:])
+		right = muxRecursive(api, selBits[:nbRightBits], inputs[leftCount:])
 	}
 
 	msb := selBits[nbBits-1]

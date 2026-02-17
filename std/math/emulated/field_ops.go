@@ -353,24 +353,28 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 
 	// Optimization: decompose sel into bits once and reuse for all limbs
 	// instead of decomposing inside each selector.Mux call.
-	// ToBinary already constrains bits to be boolean, so we use the Unchecked
-	// variants to avoid redundant boolean assertions.
 	n := uint(nbInputs)
 	nbBits := bits.Len(n - 1) // we use n-1 as sel is 0-indexed
 	selBits := mathbits.ToBinary(f.api, sel, mathbits.WithNbDigits(nbBits))
 
-	if bits.OnesCount(n) == 1 {
-		// Power of 2: binary decomposition guarantees sel < 2^nbBits = n
-		for i := range nbLimbs {
-			e.Limbs[i] = selector.BinaryMuxUnchecked(f.api, selBits, normLimbsTransposed[i])
-		}
-	} else {
+	paddedSize := 1 << nbBits
+	if bits.OnesCount(n) != 1 {
 		// Non-power of 2: need additional bound check sel <= n-1
 		bcmp := cmp.NewBoundedComparator(f.api, big.NewInt((1<<nbBits)-1), false)
 		bcmp.AssertIsLessEq(sel, n-1)
+		// Pad each limb slice to next power of 2 with constant 0
 		for i := range nbLimbs {
-			e.Limbs[i] = selector.GeneralMuxUnchecked(f.api, selBits, normLimbsTransposed[i])
+			padded := make([]frontend.Variable, paddedSize)
+			copy(padded, normLimbsTransposed[i])
+			for j := nbInputs; j < paddedSize; j++ {
+				padded[j] = 0
+			}
+			normLimbsTransposed[i] = padded
 		}
+	}
+
+	for i := range nbLimbs {
+		e.Limbs[i] = selector.BinaryMux(f.api, selBits, normLimbsTransposed[i])
 	}
 
 	// Record operation for profiling
