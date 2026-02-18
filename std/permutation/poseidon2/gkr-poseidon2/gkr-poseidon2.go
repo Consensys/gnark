@@ -103,14 +103,6 @@ func intGate2(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	return api.Add(api.Mul(x[1], 3), x[0])
 }
 
-// extGate applies the first row of the external matrix
-func extGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("expected 2 inputs")
-	}
-	return api.Add(api.Mul(x[0], 2), x[1])
-}
-
 // extAddGate applies the first row of the external matrix to the first two elements and adds the third
 func extAddGate(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 	if len(x) != 3 {
