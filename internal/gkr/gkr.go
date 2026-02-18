@@ -7,7 +7,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 )
@@ -18,25 +17,8 @@ type (
 	Circuit = gkrtypes.GadgetCircuit
 )
 
-// Permutations describes how to reorder wires and instances
-type Permutations struct {
-	SortedInstances      []int
-	SortedWires          []int
-	InstancesPermutation []int
-	WiresPermutation     []int
-}
-
-// WireAssignment is assignment of values to the same wire across many instances of the circuit
+// WireAssignment is an assignment of values to the same wire across many instances of the circuit
 type WireAssignment []polynomial.MultiLin
-
-func (a WireAssignment) Permute(p Permutations) {
-	utils.Permute(a, p.WiresPermutation)
-	for i := range a {
-		if a[i] != nil {
-			utils.Permute(a[i], p.InstancesPermutation)
-		}
-	}
-}
 
 func (a WireAssignment) NbInstances() int {
 	for _, aW := range a {
