@@ -323,19 +323,19 @@ func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
 		return gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
 	}
 
-	if err := gkrgates.Register(pow4Gate, 1); err != nil {
+	if err := gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4)); err != nil {
 		return fmt.Errorf("failed to register pow4Gate: %w", err)
 	}
-	if err := gkrgates.Register(pow4TimesGate, 2); err != nil {
+	if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5)); err != nil {
 		return fmt.Errorf("failed to register pow4TimesGate: %w", err)
 	}
-	if err := gkrgates.Register(pow3Gate, 1); err != nil {
+	if err := gkrgates.Register(pow3Gate, 1, gkrgates.WithUnverifiedDegree(3)); err != nil {
 		return fmt.Errorf("failed to register pow3Gate: %w", err)
 	}
-	if err := gkrgates.Register(pow2Gate, 1); err != nil {
+	if err := gkrgates.Register(pow2Gate, 1, gkrgates.WithUnverifiedDegree(2)); err != nil {
 		return fmt.Errorf("failed to register pow2Gate: %w", err)
 	}
-	if err := gkrgates.Register(pow2TimesGate, 2); err != nil {
+	if err := gkrgates.Register(pow2TimesGate, 2, gkrgates.WithUnverifiedDegree(3)); err != nil {
 		return fmt.Errorf("failed to register pow2TimesGate: %w", err)
 	}
 	if err := gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1)); err != nil {
