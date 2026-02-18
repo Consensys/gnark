@@ -3,10 +3,12 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
+	mathbits "github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -309,6 +311,10 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 		return nil
 	}
 	nbInputs := len(inputs)
+	if nbInputs == 1 {
+		f.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
 	overflow := uint(0)
 	nbLimbs := 0
 	for i := range inputs {
@@ -341,9 +347,38 @@ func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T]
 			normLimbsTransposed[i][j] = normLimbs[j][i]
 		}
 	}
+
 	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
+
+	// Optimization: decompose sel into bits once and reuse for all limbs
+	// instead of decomposing inside each selector.Mux call.
+	n := uint(nbInputs)
+	nbBits := bits.Len(n - 1) // we use n-1 as sel is 0-indexed
+	selBits := mathbits.ToBinary(f.api, sel, mathbits.WithNbDigits(nbBits))
+
+	paddedSize := 1 << nbBits
+	if bits.OnesCount(n) != 1 {
+		// Non-power of 2: need additional bound check sel <= n-1
+		if cmper, ok := f.api.Compiler().(interface {
+			MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable)
+		}); ok {
+			cmper.MustBeLessOrEqCst(selBits, big.NewInt(int64(n-1)), sel)
+		} else {
+			panic("builder does not expose comparison to constant")
+		}
+		// Pad each limb slice to next power of 2 with constant 0
+		for i := range nbLimbs {
+			padded := make([]frontend.Variable, paddedSize)
+			copy(padded, normLimbsTransposed[i])
+			for j := nbInputs; j < paddedSize; j++ {
+				padded[j] = 0
+			}
+			normLimbsTransposed[i] = padded
+		}
+	}
+
 	for i := range nbLimbs {
-		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
+		e.Limbs[i] = selector.BinaryMux(f.api, selBits, normLimbsTransposed[i])
 	}
 
 	// Record operation for profiling
