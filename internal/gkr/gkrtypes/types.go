@@ -83,13 +83,19 @@ func (w Wire[GateExecutable]) NbUniqueInputs() int {
 	return len(set)
 }
 
-// ProofPolyLength returns the size (degree+1) of each polynomial in the ZeroCheck subproof associated with w.
-func (w Wire[GateExecutable]) ProofPolyLength() int {
-	if w.NoProof() {
-		return 0
-	}
+// ZeroCheckDegree returns the degree in each variable of the zero-check polynomial
+// associated with this gate, if any. If this wire is not subject to zero-check, it will return 0.
+func (w Wire[GateExecutable]) ZeroCheckDegree() int {
 	if w.IsInput() {
-		return 2 // Input gate with multiple claims treated as a degree 1 gate.
+		switch w.NbClaims() {
+		case 0:
+			panic("should be unreachable")
+		case 1:
+			return 0
+		default:
+			// Input gate with multiple claims treated as a degree 1 gate.
+			return 2
+		}
 	}
 	return w.Gate.Degree + 1
 }
@@ -203,7 +209,7 @@ func (c Circuit[GateExecutable]) ProofSize(logNbInstances int) int {
 	nbPartialEvalPolys := 0
 	for i := range c {
 		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		nbPartialEvalPolys += c[i].ProofPolyLength()
+		nbPartialEvalPolys += c[i].ZeroCheckDegree()
 	}
 	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }

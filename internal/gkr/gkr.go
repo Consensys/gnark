@@ -369,7 +369,7 @@ func (p Proof) Serialize() []frontend.Variable {
 func ComputeLogNbInstances(circuit Circuit, serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range circuit {
-		partialEvalElemsPerVar += w.ProofPolyLength()
+		partialEvalElemsPerVar += w.ZeroCheckDegree()
 		serializedProofLen -= w.NbUniqueOutputs
 	}
 	res := serializedProofLen / partialEvalElemsPerVar
@@ -400,7 +400,7 @@ func DeserializeProof(circuit Circuit, serializedProof []frontend.Variable) (Pro
 		if !wI.NoProof() {
 			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.ProofPolyLength())
+				proof[i].PartialSumPolys[j] = reader.nextN(wI.ZeroCheckDegree())
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.NbUniqueInputs())

@@ -25,8 +25,8 @@ import (
 )
 
 // compressThreshold → if linear expressions are larger than this, the frontend will introduce
-// intermediate constraints. The lower this number is, the faster compile time should be (to a point)
-// but resulting circuit will have more constraints (slower proving time).
+// intermediate constraints. The lower this number is, the faster compile time should be (to a point).
+// However, the resulting circuit will have more constraints (slower proving time).
 const compressThreshold = 1000
 
 type doubleNoDependencyCircuit struct {
