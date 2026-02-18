@@ -61,23 +61,24 @@ func (a WireAssignment) NbVars() int {
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
-// eqTimesGateEvalSumcheckLazyClaims is a lazy claim for sumcheck (verifier side).
-// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// zeroCheckLazyClaims is a lazy claim for sumcheck (verifier side).
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) w(-) sums up to the expected multilinear
+// extension of the values of w across all instances.
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
-type eqTimesGateEvalSumcheckLazyClaims struct {
+type zeroCheckLazyClaims struct {
 	wireI              int
 	evaluationPoints   [][]frontend.Variable
 	claimedEvaluations []frontend.Variable
 	manager            *claimsManager // WARNING: Circular references
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() Wire {
+func (e *zeroCheckLazyClaims) getWire() Wire {
 	return e.manager.circuit[e.wireI]
 }
 
 // verifyFinalEval finalizes the verification of w.
 // The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
-// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is combinationCoeff )
+// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is foldingCoeff )
 // Both purportedValue and the vector r have been randomized during the sumcheck protocol.
 // By taking the w term out of the sum we get the equivalent claim that
 // for E := ∑ eq(xᵢ, r), it must be that E w(r) = purportedValue.
@@ -87,12 +88,12 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) getWire() Wire {
 // The claims are communicated through the proof parameter.
 // The verifier checks here if the claimed evaluations of wᵢ(r) are consistent with
 // the main claim, by checking E w(wᵢ(r)...) = purportedValue.
-func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
+func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, foldingCoeff, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
 	// the eq terms ( E )
 	numClaims := len(e.evaluationPoints)
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
 	for i := numClaims - 2; i >= 0; i-- {
-		evaluation = api.Mul(evaluation, combinationCoeff)
+		evaluation = api.Mul(evaluation, foldingCoeff)
 		eq := polynomial.EvalEq(api, e.evaluationPoints[i], r)
 		evaluation = api.Add(evaluation, eq)
 	}
@@ -129,32 +130,32 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) verifyFinalEval(api frontend.API, r 
 	return nil
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) claimsNum() int {
+func (e *zeroCheckLazyClaims) claimsNum() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) varsNum() int {
+func (e *zeroCheckLazyClaims) varsNum() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) combinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
+func (e *zeroCheckLazyClaims) foldedSum(api frontend.API, a frontend.Variable) frontend.Variable {
 	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(api, a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaims) degree(int) int {
+func (e *zeroCheckLazyClaims) degree(int) int {
 	return 1 + e.getWire().Gate.Degree
 }
 
 type claimsManager struct {
-	claims     []*eqTimesGateEvalSumcheckLazyClaims
+	claims     []*zeroCheckLazyClaims
 	assignment WireAssignment
 	circuit    Circuit
 }
 
 func newClaimsManager(circuit Circuit, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
-	claims.claims = make([]*eqTimesGateEvalSumcheckLazyClaims, len(circuit))
+	claims.claims = make([]*zeroCheckLazyClaims, len(circuit))
 	claims.circuit = circuit
 
 	for i := range circuit {
@@ -162,7 +163,7 @@ func newClaimsManager(circuit Circuit, assignment WireAssignment) (claims claims
 			circuit[i].Gate.Degree = 1
 			circuit[i].Gate.Evaluate = gkrtypes.Identity
 		}
-		claims.claims[i] = &eqTimesGateEvalSumcheckLazyClaims{
+		claims.claims[i] = &zeroCheckLazyClaims{
 			wireI:              i,
 			evaluationPoints:   make([][]frontend.Variable, 0, circuit[i].NbClaims()),
 			claimedEvaluations: make(polynomial.Polynomial, circuit[i].NbClaims()),
@@ -179,7 +180,7 @@ func (m *claimsManager) add(wire int, evaluationPoint []frontend.Variable, evalu
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManager) getLazyClaim(wire int) *eqTimesGateEvalSumcheckLazyClaims {
+func (m *claimsManager) getLazyClaim(wire int) *zeroCheckLazyClaims {
 	return m.claims[wire]
 }
 
@@ -231,7 +232,7 @@ func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
 		if c[i].NoProof() { // no proof, no challenge
 			continue
 		}
-		if c[i].NbClaims() > 1 { //combine the claims
+		if c[i].NbClaims() > 1 { //fold the claims
 			size++
 		}
 		size += logNbInstances // full run of sumcheck on logNbInstances variables

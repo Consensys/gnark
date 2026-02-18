@@ -15,7 +15,7 @@ import (
 type sumcheckLazyClaims interface {
 	claimsNum() int                                                      // claimsNum = m
 	varsNum() int                                                        // varsNum = n
-	combinedSum(api frontend.API, a frontend.Variable) frontend.Variable // combinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
+	foldedSum(api frontend.API, a frontend.Variable) frontend.Variable // foldedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
 	degree(i int) int                                                    // degree of the total claim in the i'th variable
 	verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof []frontend.Variable) error
 }
@@ -84,7 +84,7 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 	}
 
 	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.varsNum()
-	gJR := claims.combinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	gJR := claims.foldedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < claims.varsNum(); j++ {
 		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)

@@ -33,7 +33,8 @@ type WireAssignment []polynomial.MultiLin
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 // zeroCheckLazyClaims is a lazy claim for sumcheck (verifier side).
-// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) w(-) sums up to the expected multilinear
+// extension of the values of w across all instances.
 // Its purpose is to batch the checking of multiple evaluations of the same wire.
 type zeroCheckLazyClaims struct {
 	wireI              int            // the wire for which we are making the claim, with value w
@@ -121,7 +122,8 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, foldingCoeff, purp
 }
 
 // zeroCheckClaims is a claim for sumcheck (prover side).
-// eqTimesGateEval is a polynomial consisting of ∑ᵢ cⁱ eq(-, xᵢ) w(-).
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) w(-) sums up to the expected multilinear
+// extension of the values of w across all instances.
 // Its purpose is to batch the proving of multiple evaluations of the same wire.
 type zeroCheckClaims struct {
 	wireI              int            // the wire for which we are making the claim, with value w
