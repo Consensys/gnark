@@ -67,7 +67,7 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 
 // verifyFinalEval finalizes the verification of w.
 // The prover's claims w(xᵢ) = yᵢ have already been reduced to verifying
-// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. ( c is foldingCoeff )
+// ∑ cⁱ eq(xᵢ, r) w(r) = purportedValue. (c is foldingCoeff)
 // Both purportedValue and the vector r have been randomized during the sumcheck protocol.
 // By taking the w term out of the sum we get the equivalent claim that
 // for E := ∑ eq(xᵢ, r), it must be that E w(r) = purportedValue.
