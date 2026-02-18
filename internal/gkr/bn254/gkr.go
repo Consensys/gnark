@@ -518,7 +518,7 @@ func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
 		wirePrefix := prefix + "w" + nums[i] + "."
 
 		if c[i].NbClaims() > 1 {
-			challenges[j] = wirePrefix + "comb"
+			challenges[j] = wirePrefix + "fold"
 			j++
 		}
 

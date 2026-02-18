@@ -24,7 +24,7 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []{{.ElementType}}{sum}
 }
 
-func (c singleMultilinClaim) combine({{.ElementType}}) polynomial.Polynomial {
+func (c singleMultilinClaim) fold({{.ElementType}}) polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
@@ -38,7 +38,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum {{.ElementType}}
 }
 
-func (c singleMultilinLazyClaim) verifyFinalEval(r []{{.ElementType}}, combinationCoeff {{.ElementType}}, purportedValue {{.ElementType}}, proof []{{.ElementType}}) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []{{.ElementType}}, _ {{.ElementType}}, purportedValue {{.ElementType}}, proof []{{.ElementType}}) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -46,7 +46,7 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []{{.ElementType}}, combinati
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) combinedSum(combinationCoeffs {{.ElementType}}) {{.ElementType}} {
+func (c singleMultilinLazyClaim) foldedSum(_ {{.ElementType}}) {{.ElementType}} {
 	return c.claimedSum
 }
 

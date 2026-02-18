@@ -49,7 +49,7 @@ func setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.Settings) 
 	}
 	challengeNames = make([]string, numChallenges)
 	if claimsNum >= 2 {
-		challengeNames[0] = settings.Prefix + "comb"
+		challengeNames[0] = settings.Prefix + "fold"
 	}
 	prefix := settings.Prefix + "pSP."
 	for i := 0; i < varsNum; i++ {
