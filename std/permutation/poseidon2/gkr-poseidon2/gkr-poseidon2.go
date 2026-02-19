@@ -116,8 +116,7 @@ type compressor struct {
 
 // NewCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
 // which consists of a permutation along with the input fed forward.
-// The correctness of the compression functions is proven using GKR.
-// Note that the solver will need the function RegisterGates to be called with the desired curves
+// The correctness of the compression functions is proved using GKR.
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
 	store, ok := api.Compiler().(kvstore.Store)
 	if !ok {
@@ -182,7 +181,7 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 
 	in1, in2 = x, y // save to feed forward at the end
 
-	// *** helper functions to register and apply gates ***
+	// *** shorthands for gate functions ***
 
 	// Poseidon2 is a sequence of additions, exponentiations (s-Box), and linear operations
 	// but here we group the operations so that every round consists of a degree-1 operation followed by the s-Box
