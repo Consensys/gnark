@@ -81,7 +81,10 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 	compiler := api.parentApi.Compiler()
 	field := compiler.Field()
 	curveID := utils.FieldToCurve(field)
-	serializableCircuit := gkrtypes.CompileCircuit(api.circuit, field)
+	serializableCircuit, err := gkrtypes.CompileCircuit(api.circuit, field)
+	if err != nil {
+		return nil, err
+	}
 
 	switch curveID {
 	case ecc.BN254:

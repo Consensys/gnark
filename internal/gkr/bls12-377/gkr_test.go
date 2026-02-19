@@ -133,7 +133,7 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gkrtypes.GadgetCircuit) {
-	sCircuit := cache.Compile(circuit)
+	sCircuit := cache.Compile(t, circuit)
 	ins := circuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
@@ -186,7 +186,7 @@ func (p Proof) isEmpty() bool {
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
-	c := cache.Compile(gkrtesting.NoGateCircuit())
+	c := cache.Compile(t, gkrtesting.NoGateCircuit())
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
@@ -267,7 +267,7 @@ func proofEquals(expected Proof, seen Proof) error {
 
 func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
-	c := cache.Compile(gkrtesting.MiMCCircuit(mimcDepth))
+	c := cache.Compile(b, gkrtesting.MiMCCircuit(mimcDepth))
 
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)

@@ -1,6 +1,7 @@
 package gkrtypes
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
 
@@ -266,7 +267,7 @@ type Blueprints struct {
 
 // CompileCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
 // It also sets wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs) for both the input and output circuits.
-func CompileCircuit(c GadgetCircuit, mod *big.Int) SerializableCircuit {
+func CompileCircuit(c GadgetCircuit, mod *big.Int) (SerializableCircuit, error) {
 
 	for i := range c {
 		c[i].NbUniqueOutputs = 0
@@ -279,35 +280,34 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) SerializableCircuit {
 	var err error
 	for i := range c {
 		// Compute NbUniqueOutputs as we go.
-		for j := range curWireIn {
-			curWireIn[j] = false
-		}
-
-		// count!
 		for _, in := range c[i].Inputs {
 			if !curWireIn[in] {
 				c[in].NbUniqueOutputs++
 				curWireIn[in] = true
 			}
 		}
+		// clear curWireIn
+		for _, in := range c[i].Inputs {
+			curWireIn[in] = false
+		}
 
 		if c[i].IsInput() {
 			if !reflect.DeepEqual(c[i].Gate, GadgetGate{}) {
-				panic("empty gate expected for input wire")
+				return nil, errors.New("empty gate expected for input wire")
 			}
 			continue
 		}
 
 		c[i].Gate.NbIn = len(c[i].Inputs)
 		if res[i].Gate.Evaluate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn); err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		tester.setGate(res[i].Gate.Evaluate, c[i].Gate.NbIn)
 
 		c[i].Gate.Degree = len(tester.fitPoly(res[i].Gate.Evaluate.EstimateDegree(len(c[i].Inputs)))) - 1
 		if c[i].Gate.Degree == -1 {
-			panic("cannot find degree for gate")
+			return nil, errors.New("cannot find degree for gate")
 		}
 
 		c[i].Gate.SolvableVar = -1
@@ -328,5 +328,5 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) SerializableCircuit {
 		res[i].Gate.NbIn = c[i].Gate.NbIn
 	}
 
-	return res
+	return res, nil
 }

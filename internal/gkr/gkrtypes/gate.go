@@ -244,19 +244,23 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (GateBytecode, error)
 
 	// Execute the gate function to record operations
 	out := f(&compiler, inputs...)
+	outVar, ok := out.(compilationVar)
+	if !ok {
+		return GateBytecode{}, errors.New("gate function must return a variable; constant values must be hard-coded into the gates that use them")
+	}
 	if len(compiler.instructions) == 0 {
-		// No operations recorded, but not all is lost.
+		// No operations recorded, but not all is lost yet.
 		// If the output simply mirrors the last input, we can still represent
 		// it in bytecode, as the evaluator returns the last stack frame element.
-		if int(out.(compilationVar).id) == nbInputs-1 {
+		if int(outVar.id) == len(compiler.constants)+nbInputs-1 {
 			return GateBytecode{}, nil
 		}
-		return GateBytecode{}, errors.New("cannot compile no-op gate function")
+		return GateBytecode{}, errors.New("only non-trivial or last-reflective gate functions supported")
 	}
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
-	// Henceforth we guarantee that the variable with the highest index is the gate output.
-	lastEffectiveInstructionIndex := int(out.(compilationVar).id) - compiler.nbInputs
+	// Henceforth, we guarantee that the variable with the highest index is the gate output.
+	lastEffectiveInstructionIndex := int(outVar.id) - compiler.nbInputs
 	compiler.instructions = compiler.instructions[:lastEffectiveInstructionIndex+1]
 
 	// Remap indices from temporary layout to final layout

@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
+	"github.com/stretchr/testify/require"
 )
 
 // Cache for circuits and gates.
@@ -70,8 +71,10 @@ type JSONWire struct {
 type JSONCircuit []JSONWire
 
 // Compile compiles a programmatic GadgetCircuit into a SerializableCircuit.
-func (c *Cache) Compile(circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	return gkrtypes.CompileCircuit(circuit, c.field)
+func (c *Cache) Compile(t require.TestingT, circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
+	res, err := gkrtypes.CompileCircuit(circuit, c.field)
+	require.NoError(t, err)
+	return res
 }
 
 func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.GadgetCircuit) {
@@ -107,7 +110,10 @@ func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.
 			Inputs: wJSON.Inputs,
 		}
 	}
-	sCircuit := gkrtypes.CompileCircuit(gCircuit, c.field)
+	sCircuit, err := gkrtypes.CompileCircuit(gCircuit, c.field)
+	if err != nil {
+		panic(err)
+	}
 
 	c.circuits[path] = circuits{
 		serializable: sCircuit,
