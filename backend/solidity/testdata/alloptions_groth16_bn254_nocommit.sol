@@ -3,13 +3,17 @@
 
 pragma solidity ^0.8.0;
 
+import { A } from "a.sol";
+import { B } from "b.sol";
+
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
 /// @notice Supports verifying Groth16 proofs. Proofs can be in uncompressed
-/// (256 bytes) and compressed (128 bytes) format. A view function is provided
-/// to compress proofs.
+/// (256 bytes + optional commitments) and compressed (128 bytes) format.
+/// Uncompressed proofs are passed as bytes calldata matching the output of
+/// MarshalSolidity(). A view function is provided to compress proofs.
 /// @notice See <https://2π.com/23/bn254-compression> for further explanation.
-contract Verifier {
+contract Verifier is IVerifier {
 
     /// Some of the provided public input values are larger than the field modulus.
     /// @dev Public input elements are not automatically reduced, as this is can be
@@ -83,6 +87,12 @@ contract Verifier {
     uint256 constant PUB_1_Y = 687002451258774021381811802418530120135896919990173366661928006331204037575;
     uint256 constant PUB_2_X = 238451497374524437861713847406560379659184404276257977234734727204672461768;
     uint256 constant PUB_2_Y = 3720089603828145656901780258756276990624925199990344107236088469401522242243;
+
+	bytes32 private immutable CHAIN_CONFIG;
+
+	constructor(bytes32 config) {
+		CHAIN_CONFIG = config;
+  }
 
     /// Negation in Fp.
     /// @notice Returns a number x such that a + x = 0 in Fp.
@@ -411,15 +421,36 @@ contract Verifier {
     /// Compress a proof.
     /// @notice Will revert with InvalidProof if the curve points are invalid,
     /// but does not verify the proof itself.
-    /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
-    /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
+    /// @param proof The uncompressed Groth16 proof. Points (A, B, C) encoded as in EIP-197
+    /// (256 bytes total).
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
-    function compressProof(uint256[8] calldata proof)
+    function compressProof(bytes calldata proof)
     public view returns (uint256[4] memory compressed) {
-        compressed[0] = compress_g1(proof[0], proof[1]);
-        (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
-        compressed[3] = compress_g1(proof[6], proof[7]);
+        require(proof.length == 256, "invalid proof length");
+        uint256 a0;
+        uint256 a1;
+        assembly ("memory-safe") {
+            a0 := calldataload(proof.offset)
+            a1 := calldataload(add(proof.offset, 0x20))
+        }
+        compressed[0] = compress_g1(a0, a1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0x60))
+            a1 := calldataload(add(proof.offset, 0x40))
+        }
+        uint256 b0;
+        uint256 b1;
+        assembly ("memory-safe") {
+            b0 := calldataload(add(proof.offset, 0xa0))
+            b1 := calldataload(add(proof.offset, 0x80))
+        }
+        (compressed[2], compressed[1]) = compress_g2(a0, a1, b0, b1);
+        assembly ("memory-safe") {
+            a0 := calldataload(add(proof.offset, 0xc0))
+            a1 := calldataload(add(proof.offset, 0xe0))
+        }
+        compressed[3] = compress_g1(a0, a1);
     }
 
     /// Verify a Groth16 proof with compressed points.
@@ -494,14 +525,15 @@ contract Verifier {
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was successfully verified.
-    /// @param proof the points (A, B, C) in EIP-197 format matching the output
-    /// of compressProof.
+    /// @param proof the serialized proof, containing the points (A, B, C) in EIP-197 format
+    /// (256 bytes total).
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
-        uint256[8] calldata proof,
+        bytes calldata proof,
         uint256[3] calldata input
     ) public view {
+        require(proof.length == 256, "invalid proof length");
         (uint256 x, uint256 y) = publicInputMSM(input);
 
         // Note: The precompile expects the F2 coefficients in big-endian order.
@@ -512,7 +544,7 @@ contract Verifier {
 
             // Copy points (A, B, C) to memory. They are already in correct encoding.
             // This is pairing e(A, B) and G1 of e(C, -δ).
-            calldatacopy(f, proof, 0x100)
+            calldatacopy(f, proof.offset, 0x100)
 
             // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
             // OPT: This could be better done using a single codecopy, but
@@ -546,4 +578,8 @@ contract Verifier {
             revert ProofInvalid();
         }
     }
+
+	function getConfig() external view returns (bytes32) {
+		return CHAIN_CONFIG;
+  }
 }

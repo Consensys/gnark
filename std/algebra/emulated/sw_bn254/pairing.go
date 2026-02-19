@@ -626,14 +626,22 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 		}
 
 		if n >= 3 {
-			// k >= 2
-			for k := 2; k < n; k++ {
-				// line evaluation at P[k]
-				// ℓ × res
-				res = pr.MulBy01379(
-					res,
+			// k >= 2: batch lines 2-by-2
+			for k := 3; k < n; k += 2 {
+				prodLines = pr.Mul01379By01379(
 					pr.Ext2.MulByElement(&lines[k][0][j].R0, xNegOverY[k]),
 					pr.Ext2.MulByElement(&lines[k][0][j].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k-1][0][j].R0, xNegOverY[k-1]),
+					pr.Ext2.MulByElement(&lines[k-1][0][j].R1, yInv[k-1]),
+				)
+				res = pr.Ext12.MulBy012346789(res, prodLines)
+			}
+			// Handle remaining line if (n-2) is odd
+			if (n-2)%2 != 0 {
+				res = pr.MulBy01379(
+					res,
+					pr.Ext2.MulByElement(&lines[n-1][0][j].R0, xNegOverY[n-1]),
+					pr.Ext2.MulByElement(&lines[n-1][0][j].R1, yInv[n-1]),
 				)
 			}
 		}
@@ -645,11 +653,22 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 
 		switch loopCounter[i] {
 		case 0:
-			for k := 0; k < n; k++ {
-				res = pr.MulBy01379(
-					res,
+			// Batch lines 2-by-2 across pairs using sparse×sparse multiplication
+			for k := 1; k < n; k += 2 {
+				prodLines = pr.Mul01379By01379(
 					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+					pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+				)
+				res = pr.Ext12.MulBy012346789(res, prodLines)
+			}
+			// Handle odd remaining line
+			if n%2 != 0 {
+				res = pr.MulBy01379(
+					res,
+					pr.Ext2.MulByElement(&lines[n-1][0][i].R0, xNegOverY[n-1]),
+					pr.Ext2.MulByElement(&lines[n-1][0][i].R1, yInv[n-1]),
 				)
 			}
 		case 1:

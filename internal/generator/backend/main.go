@@ -306,7 +306,7 @@ func generateGkrBackend(cfg gkrConfig) error {
 		}...)
 	} else {
 		entries = append(entries, []bavard.Entry{
-			{File: filepath.Join(packageDir, "solver_hints.go"), Templates: []string{"solver_hints.go.tmpl"}},
+			{File: filepath.Join(packageDir, "blueprint.go"), Templates: []string{"blueprint.go.tmpl"}},
 			{File: filepath.Join(packageDir, "gate_testing.go"), Templates: []string{"gate_testing.go.tmpl"}},
 		}...)
 	}

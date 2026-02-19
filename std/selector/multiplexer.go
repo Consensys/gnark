@@ -17,7 +17,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"github.com/consensys/gnark/std/math/cmp"
 )
 
 func init() {
@@ -63,6 +62,22 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 		api.AssertIsEqual(sel, 0)
 		return inputs[0]
 	}
+
+	// Fast path: if selector is a constant, return the selected input directly
+	if s, ok := api.Compiler().ConstantValue(sel); ok {
+		idx := int(s.Int64())
+		if idx < 0 || idx >= len(inputs) {
+			panic(fmt.Sprintf("constant selector %d out of bounds [0, %d)", idx, len(inputs)))
+		}
+		return inputs[idx]
+	}
+
+	// Special case for n=2: use Select directly (most efficient)
+	if n == 2 {
+		api.AssertIsBoolean(sel)
+		return api.Select(sel, inputs[1], inputs[0])
+	}
+
 	nbBits := binary.Len(n - 1)                                   // we use n-1 as sel is 0-indexed
 	selBits := bits.ToBinary(api, sel, bits.WithNbDigits(nbBits)) // binary decomposition ensures sel < 2^nbBits
 
@@ -71,13 +86,20 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 		return BinaryMux(api, selBits, inputs)
 	}
 
-	bcmp := cmp.NewBoundedComparator(api, big.NewInt((1<<nbBits)-1), false)
-	bcmp.AssertIsLessEq(sel, n-1)
+	if cmper, ok := api.Compiler().(interface {
+		MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable)
+	}); ok {
+		cmper.MustBeLessOrEqCst(selBits, big.NewInt(int64(n-1)), sel)
+	} else {
+		panic("builder does not expose comparison to constant")
+	}
 
 	// Otherwise, we split inputs into two sub-arrays, such that the first part's length is 2's power
 	return muxRecursive(api, selBits, inputs)
 }
 
+// muxRecursive splits non-power-of-2 inputs into a power-of-2 left part
+// and a smaller right part, recursing until both parts are powers of 2.
 func muxRecursive(api frontend.API,
 	selBits []frontend.Variable, inputs []frontend.Variable) frontend.Variable {
 

@@ -2,6 +2,8 @@ package solidity_test
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -176,168 +178,148 @@ func newPlonkOptions() []solidity.ExportOption {
 func TestWriteContractsGroth16Options(t *testing.T) {
 	t.Skip("temporary test to write out existing contracts")
 	assert := test.NewAssert(t)
-	// temporary test to write out existing contracts
-	// groth16 no commitment
-	vk := groth16.NewVerifyingKey(ecc.BN254)
-	vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
-	assert.NoError(err)
-	defer vkf.Close()
-	_, err = vk.ReadFrom(vkf)
-	assert.NoError(err)
-	solf, err := os.Create("testdata/alloptions_groth16_nocommit.sol")
-	assert.NoError(err)
-	defer solf.Close()
-	err = vk.ExportSolidity(solf, newGroth16Options()...)
-	assert.NoError(err)
-	// groth16 single commitment
-	vk = groth16.NewVerifyingKey(ecc.BN254)
-	vkf2, err := os.Open("testdata/blank_groth16_commit.vk")
-	assert.NoError(err)
-	defer vkf2.Close()
-	_, err = vk.ReadFrom(vkf2)
-	assert.NoError(err)
-	solf2, err := os.Create("testdata/alloptions_groth16_commit.sol")
-	assert.NoError(err)
-	defer solf2.Close()
-	err = vk.ExportSolidity(solf2, newGroth16Options()...)
-	assert.NoError(err)
+	for _, curve := range []ecc.ID{ecc.BN254, ecc.BLS12_381} {
+		cn := curveShortName(curve)
+		// groth16 no commitment
+		vk := groth16.NewVerifyingKey(curve)
+		vkf, err := os.Open("testdata/blank_groth16_" + cn + "_nocommit.vk")
+		assert.NoError(err)
+		_, err = vk.ReadFrom(vkf)
+		vkf.Close()
+		assert.NoError(err)
+		solf, err := os.Create("testdata/alloptions_groth16_" + cn + "_nocommit.sol")
+		assert.NoError(err)
+		err = vk.ExportSolidity(solf, newGroth16Options()...)
+		solf.Close()
+		assert.NoError(err)
+		// groth16 single commitment
+		vk = groth16.NewVerifyingKey(curve)
+		vkf, err = os.Open("testdata/blank_groth16_" + cn + "_commit.vk")
+		assert.NoError(err)
+		_, err = vk.ReadFrom(vkf)
+		vkf.Close()
+		assert.NoError(err)
+		solf, err = os.Create("testdata/alloptions_groth16_" + cn + "_commit.sol")
+		assert.NoError(err)
+		err = vk.ExportSolidity(solf, newGroth16Options()...)
+		solf.Close()
+		assert.NoError(err)
+	}
 }
 
 func TestWriteContractsPlonkOptions(t *testing.T) {
 	t.Skip("temporary test to write out existing contracts")
 	assert := test.NewAssert(t)
-	// temporary test to write out existing contracts
-	// plonk no commitment
-	vk := plonk.NewVerifyingKey(ecc.BN254)
-	vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
-	assert.NoError(err)
-	defer vkf.Close()
-	_, err = vk.ReadFrom(vkf)
-	assert.NoError(err)
-	solf, err := os.Create("testdata/alloptions_plonk_nocommit.sol")
-	assert.NoError(err)
-	defer solf.Close()
-	err = vk.ExportSolidity(solf, newPlonkOptions()...)
-	assert.NoError(err)
-	// plonk single commitment
-	vk = plonk.NewVerifyingKey(ecc.BN254)
-	vkf2, err := os.Open("testdata/blank_plonk_commit.vk")
-	assert.NoError(err)
-	defer vkf2.Close()
-	_, err = vk.ReadFrom(vkf2)
-	assert.NoError(err)
-	solf2, err := os.Create("testdata/alloptions_plonk_commit.sol")
-	assert.NoError(err)
-	defer solf2.Close()
-	err = vk.ExportSolidity(solf2, newPlonkOptions()...)
-	assert.NoError(err)
+	for _, curve := range []ecc.ID{ecc.BN254, ecc.BLS12_381} {
+		cn := curveShortName(curve)
+		// plonk no commitment
+		vk := plonk.NewVerifyingKey(curve)
+		vkf, err := os.Open("testdata/blank_plonk_" + cn + "_nocommit.vk")
+		assert.NoError(err)
+		_, err = vk.ReadFrom(vkf)
+		vkf.Close()
+		assert.NoError(err)
+		solf, err := os.Create("testdata/alloptions_plonk_" + cn + "_nocommit.sol")
+		assert.NoError(err)
+		err = vk.ExportSolidity(solf, newPlonkOptions()...)
+		solf.Close()
+		assert.NoError(err)
+		// plonk single commitment
+		vk = plonk.NewVerifyingKey(curve)
+		vkf, err = os.Open("testdata/blank_plonk_" + cn + "_commit.vk")
+		assert.NoError(err)
+		_, err = vk.ReadFrom(vkf)
+		vkf.Close()
+		assert.NoError(err)
+		solf, err = os.Create("testdata/alloptions_plonk_" + cn + "_commit.sol")
+		assert.NoError(err)
+		err = vk.ExportSolidity(solf, newPlonkOptions()...)
+		solf.Close()
+		assert.NoError(err)
+	}
 }
 
 func TestOutput(t *testing.T) {
 	assert := test.NewAssert(t)
-	// this test ensures that exporting a Solidity contract with and without options does
-	// not change the existing contract output (snapshot test).
 
-	// we read everything in memory as the contracts are not large (50 KB)
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381}
+
+	// helper to run snapshot comparison for a given VK file
+	testSnapshot := func(assert *test.Assert, vk interface {
+		io.ReaderFrom
+		solidity.VerifyingKey
+	}, vkFile, blankFile, optionsFile string, optsFn func() []solidity.ExportOption) {
+		vkf, err := os.Open(vkFile)
+		assert.NoError(err)
+		_, err = vk.ReadFrom(vkf)
+		vkf.Close()
+		assert.NoError(err)
+		assert.Run(func(assert *test.Assert) {
+			existing, err := os.ReadFile(blankFile)
+			assert.NoError(err)
+			var b bytes.Buffer
+			err = vk.ExportSolidity(&b)
+			assert.NoError(err)
+			assert.Equal(existing, b.Bytes())
+		}, "blank")
+		assert.Run(func(assert *test.Assert) {
+			existing, err := os.ReadFile(optionsFile)
+			assert.NoError(err)
+			var b bytes.Buffer
+			err = vk.ExportSolidity(&b, optsFn()...)
+			assert.NoError(err)
+			assert.Equal(existing, b.Bytes())
+		}, "options")
+	}
+
 	assert.Run(func(assert *test.Assert) {
-		assert.Run(func(assert *test.Assert) {
-			vk := groth16.NewVerifyingKey(ecc.BN254)
-			vkf, err := os.Open("testdata/blank_groth16_nocommit.vk")
-			assert.NoError(err)
-			defer vkf.Close()
-			_, err = vk.ReadFrom(vkf)
-			assert.NoError(err)
+		for _, curve := range curves {
+			cn := curveShortName(curve)
 			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/blank_groth16_nocommit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "blank")
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/alloptions_groth16_nocommit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b, newGroth16Options()...)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "options")
-		}, "nocommit")
-		assert.Run(func(assert *test.Assert) {
-			vk := groth16.NewVerifyingKey(ecc.BN254)
-			vkf, err := os.Open("testdata/blank_groth16_commit.vk")
-			assert.NoError(err)
-			defer vkf.Close()
-			_, err = vk.ReadFrom(vkf)
-			assert.NoError(err)
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/blank_groth16_commit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "blank")
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/alloptions_groth16_commit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b, newGroth16Options()...)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "options")
-		}, "commit")
+				assert.Run(func(assert *test.Assert) {
+					vk := groth16.NewVerifyingKey(curve)
+					testSnapshot(assert, vk,
+						fmt.Sprintf("testdata/blank_groth16_%s_nocommit.vk", cn),
+						fmt.Sprintf("testdata/blank_groth16_%s_nocommit.sol", cn),
+						fmt.Sprintf("testdata/alloptions_groth16_%s_nocommit.sol", cn),
+						newGroth16Options,
+					)
+				}, "nocommit")
+				assert.Run(func(assert *test.Assert) {
+					vk := groth16.NewVerifyingKey(curve)
+					testSnapshot(assert, vk,
+						fmt.Sprintf("testdata/blank_groth16_%s_commit.vk", cn),
+						fmt.Sprintf("testdata/blank_groth16_%s_commit.sol", cn),
+						fmt.Sprintf("testdata/alloptions_groth16_%s_commit.sol", cn),
+						newGroth16Options,
+					)
+				}, "commit")
+			}, cn)
+		}
 	}, "groth16")
 	assert.Run(func(assert *test.Assert) {
-		assert.Run(func(assert *test.Assert) {
-			vk := plonk.NewVerifyingKey(ecc.BN254)
-			vkf, err := os.Open("testdata/blank_plonk_nocommit.vk")
-			assert.NoError(err)
-			defer vkf.Close()
-			_, err = vk.ReadFrom(vkf)
-			assert.NoError(err)
+		for _, curve := range curves {
+			cn := curveShortName(curve)
 			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/blank_plonk_nocommit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "blank")
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/alloptions_plonk_nocommit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b, newPlonkOptions()...)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "options")
-		}, "nocommit")
-		assert.Run(func(assert *test.Assert) {
-			vk := plonk.NewVerifyingKey(ecc.BN254)
-			vkf, err := os.Open("testdata/blank_plonk_commit.vk")
-			assert.NoError(err)
-			defer vkf.Close()
-			_, err = vk.ReadFrom(vkf)
-			assert.NoError(err)
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/blank_plonk_commit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "blank")
-			assert.Run(func(assert *test.Assert) {
-				existing, err := os.ReadFile("testdata/alloptions_plonk_commit.sol")
-				assert.NoError(err)
-				var b bytes.Buffer
-				err = vk.ExportSolidity(&b, newPlonkOptions()...)
-				assert.NoError(err)
-				assert.Equal(existing, b.Bytes())
-			}, "options")
-		}, "commit")
+				assert.Run(func(assert *test.Assert) {
+					vk := plonk.NewVerifyingKey(curve)
+					testSnapshot(assert, vk,
+						fmt.Sprintf("testdata/blank_plonk_%s_nocommit.vk", cn),
+						fmt.Sprintf("testdata/blank_plonk_%s_nocommit.sol", cn),
+						fmt.Sprintf("testdata/alloptions_plonk_%s_nocommit.sol", cn),
+						newPlonkOptions,
+					)
+				}, "nocommit")
+				assert.Run(func(assert *test.Assert) {
+					vk := plonk.NewVerifyingKey(curve)
+					testSnapshot(assert, vk,
+						fmt.Sprintf("testdata/blank_plonk_%s_commit.vk", cn),
+						fmt.Sprintf("testdata/blank_plonk_%s_commit.sol", cn),
+						fmt.Sprintf("testdata/alloptions_plonk_%s_commit.sol", cn),
+						newPlonkOptions,
+					)
+				}, "commit")
+			}, cn)
+		}
 	}, "plonk")
-
 }
