@@ -2,7 +2,6 @@ package gkr_poseidon2
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
