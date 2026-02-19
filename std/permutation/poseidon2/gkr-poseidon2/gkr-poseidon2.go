@@ -3,6 +3,7 @@ package gkr_poseidon2
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/internal/kvstore"
@@ -176,6 +177,7 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 	}
 	gateNamer := newRoundGateNamer(&p, curve)
 
+	registerStaticGates()
 	if err = registerGates(&p, curve); err != nil {
 		return
 	}
@@ -286,6 +288,7 @@ func RegisterGates(curves ...ecc.ID) error {
 	if len(curves) == 0 {
 		return errors.New("expected at least one curve")
 	}
+	registerStaticGates()
 	for _, curve := range curves {
 		p, err := poseidon2.GetDefaultParameters(curve)
 		if err != nil {
@@ -296,6 +299,37 @@ func RegisterGates(curves ...ecc.ID) error {
 		}
 	}
 	return nil
+}
+
+var staticGatesOnce sync.Once
+
+func registerStaticGates() {
+	staticGatesOnce.Do(func() {
+		if err := gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(pow3Gate, 1, gkrgates.WithUnverifiedDegree(3)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(pow2Gate, 1, gkrgates.WithUnverifiedDegree(2)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(pow2TimesGate, 2, gkrgates.WithUnverifiedDegree(3)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1)); err != nil {
+			panic(err)
+		}
+		if err := gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1)); err != nil {
+			panic(err)
+		}
+	})
 }
 
 func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
@@ -313,31 +347,6 @@ func registerGates(p *poseidon2.Parameters, curve ecc.ID) error {
 
 	intKeySBox2 := func(round int) error {
 		return gkrgates.Register(intKeyGate2(&p.RoundKeys[round][1]), 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithUnverifiedSolvableVar(0), gkrgates.WithName(gateNames.linear(y, round)), gkrgates.WithCurves(curve))
-	}
-
-	if err := gkrgates.Register(pow4Gate, 1, gkrgates.WithUnverifiedDegree(4), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register pow4Gate: %w", err)
-	}
-	if err := gkrgates.Register(pow4TimesGate, 2, gkrgates.WithUnverifiedDegree(5), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register pow4TimesGate: %w", err)
-	}
-	if err := gkrgates.Register(pow3Gate, 1, gkrgates.WithUnverifiedDegree(3), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register pow3Gate: %w", err)
-	}
-	if err := gkrgates.Register(pow2Gate, 1, gkrgates.WithUnverifiedDegree(2), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register pow2Gate: %w", err)
-	}
-	if err := gkrgates.Register(pow2TimesGate, 2, gkrgates.WithUnverifiedDegree(3), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register pow2TimesGate: %w", err)
-	}
-	if err := gkrgates.Register(extGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register extGate2: %w", err)
-	}
-	if err := gkrgates.Register(intGate2, 2, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register intGate2: %w", err)
-	}
-	if err := gkrgates.Register(extAddGate, 3, gkrgates.WithUnverifiedDegree(1), gkrgates.WithCurves(curve)); err != nil {
-		return fmt.Errorf("failed to register extAddGate: %w", err)
 	}
 
 	fullRound := func(i int) error {
