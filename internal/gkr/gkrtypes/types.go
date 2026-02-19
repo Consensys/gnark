@@ -29,6 +29,7 @@ type (
 		Gate            Gate[GateExecutable]
 		Inputs          []int
 		NbUniqueOutputs int
+		Exported        bool
 	}
 
 	Circuit[GateExecutable any] []Wire[GateExecutable]
@@ -56,17 +57,18 @@ func (w Wire[GateExecutable]) IsInput() bool {
 // IsOutput returns whether the wire is an output wire. A wire is an output wire
 // if it is not input to any other wire.
 func (w Wire[GateExecutable]) IsOutput() bool {
-	return w.NbUniqueOutputs == 0
+	return w.NbUniqueOutputs == 0 || w.Exported
 }
 
 // NbClaims returns the number of claims to be proven about this wire. The number
-// of claims is the number of Wires it is input to. For output wires, there is always
-// one claim to be made.
+// of claims is the number of Wires it is input to, except for an output wire, which
+// has an extra claim.
 func (w Wire[GateExecutable]) NbClaims() int {
+	res := w.NbUniqueOutputs
 	if w.IsOutput() {
-		return 1
+		res++
 	}
-	return w.NbUniqueOutputs
+	return res
 }
 
 // NoProof returns whether no proof is needed for this wire. This corresponds
@@ -322,10 +324,11 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) (SerializableCircuit, error) 
 	// copy metadata from c to res
 	for i := range c {
 		res[i].Inputs = c[i].Inputs
+		res[i].Exported = c[i].Exported
 		res[i].NbUniqueOutputs = c[i].NbUniqueOutputs
 		res[i].Gate.Degree = c[i].Gate.Degree
-		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
 		res[i].Gate.NbIn = c[i].Gate.NbIn
+		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
 	}
 
 	return res, nil

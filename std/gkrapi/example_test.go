@@ -7,7 +7,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	_ "github.com/consensys/gnark/std/hash/all" // import all hash functions to register them
@@ -98,8 +97,8 @@ func (c *exampleCircuit) Define(api frontend.API) error {
 	XOut := gkrApi.Gate(xGate, XX, S)             // 419-422
 	YOut := gkrApi.Gate(yGate, S, XOut, XX, YYYY) // 423 - 426
 
-	// have to duplicate X for it to be considered an output variable; this is an implementation detail and will be fixed in the future [https://github.com/Consensys/gnark/issues/1452]
-	XOut = gkrApi.Gate(gkrtypes.Identity, XOut)
+	// Mark XOut as an output, even though it is fed into another wire (YOut)
+	gkrApi.Export(XOut)
 
 	gkrCircuit, err := gkrApi.Compile("MIMC")
 	if err != nil {

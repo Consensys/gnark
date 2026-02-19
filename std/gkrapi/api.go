@@ -61,3 +61,11 @@ func (api *API) Sub(i1, i2 gkr.Variable) gkr.Variable {
 func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
 	return api.gate2PlusIn(gkrtypes.Mul2, i1, i2)
 }
+
+// Export explicitly designates a wire as output.
+// Wires that are not used as input to another are considered output by default.
+func (api *API) Export(in ...gkr.Variable) {
+	for _, v := range in {
+		api.circuit[v].Exported = true
+	}
+}
