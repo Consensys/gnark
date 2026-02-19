@@ -57,7 +57,7 @@ func init() {
 
 // GetHints returns all hints used in this package
 func GetHints() []solver.Hint {
-	return []solver.Hint{countHint}
+	return []solver.Hint{countHint, batchDivBySubHint}
 }
 
 // Table is a vector of vectors.
@@ -122,9 +122,50 @@ func Build(api frontend.API, table Table, queries Table) error {
 		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 			rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
 			var lp frontend.Variable = 0
-			for i := range table {
-				tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
-				lp = api.Add(lp, tmp)
+
+			// For constant single-column tables with PlonkAPI, merge Sub+DivUnchecked
+			// into a single PLONK gate per table entry (2 gates instead of 3).
+			plonkAPI, useOptimizedTable := api.(frontend.PlonkAPI)
+			if useOptimizedTable && constTable && nbRow == 1 {
+				// verify all constant values fit in int (required by AddPlonkConstraint)
+				for i := range table {
+					cv, _ := api.Compiler().ConstantValue(table[i][0])
+					if cv == nil || !cv.IsInt64() {
+						useOptimizedTable = false
+						break
+					}
+				}
+			} else {
+				useOptimizedTable = false
+			}
+
+			if useOptimizedTable {
+				n := len(table)
+				hintInputs := make([]frontend.Variable, 1+2*n)
+				hintInputs[0] = challenge
+				for i := range table {
+					hintInputs[1+i] = exps[i]
+					hintInputs[1+n+i] = table[i][0]
+				}
+				quotients, err := api.NewHint(batchDivBySubHint, n, hintInputs...)
+				if err != nil {
+					return fmt.Errorf("batch div hint: %w", err)
+				}
+				for i := range table {
+					constVal, _ := api.Compiler().ConstantValue(table[i][0])
+					c := int(constVal.Int64())
+					// Verify quotient[i] * (challenge - c) == exps[i] in one PLONK gate:
+					// qM*q*ch + qL*q + qR*ch + qO*exps + qC = 0
+					// 1*q*ch + (-c)*q + 0*ch + (-1)*exps + 0 = 0
+					// => q*(ch - c) = exps
+					plonkAPI.AddPlonkConstraint(quotients[i], challenge, exps[i], -c, 0, -1, 1, 0)
+					lp = api.Add(lp, quotients[i])
+				}
+			} else {
+				for i := range table {
+					tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
+					lp = api.Add(lp, tmp)
+				}
 			}
 			var rp frontend.Variable = 0
 
@@ -243,6 +284,32 @@ func randLinearCombinationExt(extapi fieldextension.Field, rowCoeffs []fieldexte
 		res = extapi.Add(res, term)
 	}
 	return res
+}
+
+// batchDivBySubHint computes outputs[i] = inputs[1+i] / (inputs[0] - inputs[1+n+i])
+// where n = len(outputs).
+// inputs: [challenge, numerator_0, ..., numerator_{n-1}, denomOffset_0, ..., denomOffset_{n-1}]
+// outputs: [quotient_0, ..., quotient_{n-1}]
+func batchDivBySubHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	n := len(outputs)
+	if len(inputs) != 1+2*n {
+		return fmt.Errorf("expected %d inputs, got %d", 1+2*n, len(inputs))
+	}
+	challenge := inputs[0]
+	diff := new(big.Int)
+	for i := 0; i < n; i++ {
+		numerator := inputs[1+i]
+		tableVal := inputs[1+n+i]
+		diff.Sub(challenge, tableVal)
+		diff.Mod(diff, m)
+		diffInv := new(big.Int).ModInverse(diff, m)
+		if diffInv == nil {
+			return fmt.Errorf("no modular inverse at index %d", i)
+		}
+		outputs[i].Mul(numerator, diffInv)
+		outputs[i].Mod(outputs[i], m)
+	}
+	return nil
 }
 
 func countHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
