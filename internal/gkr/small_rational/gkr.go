@@ -62,7 +62,7 @@ func (e *zeroCheckLazyClaims) foldedSum(a small_rational.SmallRational) small_ra
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return 1 + e.manager.circuit[e.wireI].Gate.Degree
+	return e.manager.circuit[e.wireI].ZeroCheckDegree()
 }
 
 // verifyFinalEval finalizes the verification of w.
@@ -226,7 +226,7 @@ func (c *zeroCheckClaims) eqAcc(e, m polynomial.MultiLin, q []small_rational.Sma
 func (c *zeroCheckClaims) computeGJ() polynomial.Polynomial {
 
 	wire := c.getWire()
-	degGJ := 1 + wire.Gate.Degree // guaranteed to be no smaller than the actual deg(gⱼ)
+	degGJ := wire.ZeroCheckDegree() // guaranteed to be no smaller than the actual deg(gⱼ)
 	nbGateIn := len(c.input)
 
 	// Both E and wᵢ (the input wires and the eq table) are multilinear, thus
@@ -370,9 +370,6 @@ func newClaimsManager(circuit Circuit, assignment WireAssignment, o settings) (m
 	manager.circuit = circuit
 
 	for i := range circuit {
-		if circuit[i].IsInput() {
-			circuit[i].Gate.Degree = 1
-		}
 		manager.claims[i] = &zeroCheckLazyClaims{
 			wireI:              i,
 			evaluationPoints:   make([][]small_rational.SmallRational, 0, circuit[i].NbClaims()),
