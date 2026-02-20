@@ -255,7 +255,7 @@ func Mul2(api gkr.GateAPI, in ...frontend.Variable) frontend.Variable {
 
 // BlueprintSolve is the interface for GKR solve blueprints
 type BlueprintSolve interface {
-	constraint.Blueprint
+	constraint.BlueprintStateful[constraint.U64]
 	SetNbInstances(nbInstances uint32)
 }
 
@@ -277,7 +277,6 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) (SerializableCircuit, error) 
 
 	// compile the gate and compute metadata
 	curWireIn := make([]bool, len(c)) // curWireIn[j] = true iff i takes j as input.
-	tester := gateTester{mod: mod}    // tester computes the gate's degree
 	res := make(SerializableCircuit, len(c))
 	var err error
 	for i := range c {
@@ -301,24 +300,11 @@ func CompileCircuit(c GadgetCircuit, mod *big.Int) (SerializableCircuit, error) 
 		}
 
 		c[i].Gate.NbIn = len(c[i].Inputs)
-		if res[i].Gate.Evaluate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn); err != nil {
+		if res[i].Gate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn, mod); err != nil {
 			return nil, err
 		}
-
-		tester.setGate(res[i].Gate.Evaluate, c[i].Gate.NbIn)
-
-		c[i].Gate.Degree = len(tester.fitPoly(res[i].Gate.Evaluate.EstimateDegree(len(c[i].Inputs)))) - 1
-		if c[i].Gate.Degree == -1 {
-			return nil, errors.New("cannot find degree for gate")
-		}
-
-		c[i].Gate.SolvableVar = -1
-		for j := range c[i].Gate.NbIn {
-			if tester.isAdditive(j) {
-				c[i].Gate.SolvableVar = j
-				break
-			}
-		}
+		c[i].Gate.Degree = res[i].Gate.Degree
+		c[i].Gate.SolvableVar = res[i].Gate.SolvableVar
 	}
 
 	// copy metadata from c to res
