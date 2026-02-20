@@ -227,9 +227,10 @@ func (gc *gateCompiler) remapIndices() {
 	}
 }
 
-// CompileGateFunction compiles a gate function into a GateBytecode.
-// The gate function should be of type gkr.GateFunction.
-func CompileGateFunction(f gkr.GateFunction, nbInputs int) (GateBytecode, error) {
+// CompileGateFunction converts a gate function into a SerializableGate.
+// This consists of compiling into bytecode as well as computing gate metadata
+// such as degree and solvable var index for the given field.
+func CompileGateFunction(f gkr.GateFunction, nbInputs int, field *big.Int) (SerializableGate, error) {
 	// Create compiling API
 	compiler := gateCompiler{
 		constantIndex: make(map[string]uint16),
@@ -246,16 +247,22 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (GateBytecode, error)
 	out := f(&compiler, inputs...)
 	outVar, ok := out.(compilationVar)
 	if !ok {
-		return GateBytecode{}, errors.New("gate function must return a variable; constant values must be hard-coded into the gates that use them")
+		return SerializableGate{}, errors.New("gate function must return a variable; constant values must be hard-coded into the gates that use them")
 	}
 	if len(compiler.instructions) == 0 {
 		// No operations recorded, but not all is lost yet.
 		// If the output simply mirrors the last input, we can still represent
 		// it in bytecode, as the evaluator returns the last stack frame element.
 		if int(outVar.id) == len(compiler.constants)+nbInputs-1 {
-			return GateBytecode{}, nil
+			// Identity-like gate: returns last input unchanged
+			// Degree is 1, and the returned variable is solvable
+			return SerializableGate{
+				NbIn:        nbInputs,
+				Degree:      1,
+				SolvableVar: nbInputs - 1,
+			}, nil
 		}
-		return GateBytecode{}, errors.New("only non-trivial or last-reflective gate functions supported")
+		return SerializableGate{}, errors.New("only non-trivial or last-reflective gate functions supported")
 	}
 
 	// All instructions after the output are no-ops. Prune them and the corresponding variables.
@@ -266,9 +273,33 @@ func CompileGateFunction(f gkr.GateFunction, nbInputs int) (GateBytecode, error)
 	// Remap indices from temporary layout to final layout
 	compiler.remapIndices()
 
-	return GateBytecode{
+	bytecode := GateBytecode{
 		Instructions: compiler.GetInstructions(),
 		Constants:    compiler.constants,
+	}
+
+	// Compute degree and solvable variable
+	tester := gateTester{mod: field}
+	tester.setGate(bytecode, nbInputs)
+
+	degree := len(tester.fitPoly(bytecode.EstimateDegree(nbInputs))) - 1
+	if degree == -1 {
+		return SerializableGate{}, errors.New("cannot find degree for gate")
+	}
+
+	solvableVar := -1
+	for j := range nbInputs {
+		if tester.isAdditive(j) {
+			solvableVar = j
+			break
+		}
+	}
+
+	return SerializableGate{
+		Evaluate:    bytecode,
+		NbIn:        nbInputs,
+		Degree:      degree,
+		SolvableVar: solvableVar,
 	}, nil
 }
 

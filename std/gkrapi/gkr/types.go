@@ -42,3 +42,8 @@ type GateAPI interface {
 // using the given GateAPI.
 // It is used to define custom gates in GKR circuits.
 type GateFunction func(GateAPI, ...frontend.Variable) frontend.Variable
+
+// GateName is a string representing a (human-readable) name for a GKR gate.
+//
+// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
+type GateName string

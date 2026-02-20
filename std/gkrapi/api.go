@@ -1,6 +1,7 @@
 package gkrapi
 
 import (
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
@@ -9,12 +10,6 @@ import (
 )
 
 type (
-	gateID uint16
-	wire   struct {
-		Gate   gateID
-		Inputs []int
-	}
-
 	API struct {
 		circuit     gkrtypes.GadgetCircuit
 		assignments gadget.WireAssignment
@@ -34,6 +29,13 @@ func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable
 	})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(len(api.circuit) - 1)
+}
+
+// NamedGate adds a gate looked up by name from the registry.
+//
+// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
+func (api *API) NamedGate(gate gkr.GateName, inputs ...gkr.Variable) gkr.Variable {
+	return api.Gate(gkrgates.Get(gate), inputs...)
 }
 
 func (api *API) gate2PlusIn(gate gkr.GateFunction, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
