@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -42,9 +42,6 @@ func (c *gkrCubeCircuit) Define(api frontend.API) error {
 }
 
 func init() {
-	// GKR only supported on these curves
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761}
-
 	circuit := &gkrCubeCircuit{
 		X:      make([]frontend.Variable, 2),
 		Square: make([]frontend.Variable, 2),
@@ -53,5 +50,5 @@ func init() {
 	good := &gkrCubeCircuit{X: []frontend.Variable{3, 5}, Square: []frontend.Variable{9, 25}, Cube: []frontend.Variable{27, 125}}
 	bad := &gkrCubeCircuit{X: []frontend.Variable{3, 5}, Square: []frontend.Variable{9, 25}, Cube: []frontend.Variable{27, 126}}
 
-	addEntry("gkr_cube", circuit, good, bad, curves)
+	addEntry("gkr_cube", circuit, good, bad, gnark.Curves())
 }
