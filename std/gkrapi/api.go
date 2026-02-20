@@ -1,7 +1,7 @@
 package gkrapi
 
 import (
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/constraint/solver/gkrgates" // nolint SA1019
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"

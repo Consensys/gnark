@@ -17,7 +17,7 @@ import (
 type registerSettings struct {
 	solvableVar int
 	degree      int
-	name        gkr.GateName
+	name        gkr.GateName // nolint SA1019
 	curves      []ecc.ID
 }
 
@@ -31,16 +31,10 @@ func newRegisterSettings() registerSettings {
 }
 
 // RegisterOption is a functional option for Register.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 type RegisterOption func(*registerSettings) error
-
-func noopRegisterOption(*registerSettings) error { return nil }
 
 // WithSolvableVar gives the index of a variable whose value can be uniquely determined
 // from that of the other variables along with the gate's output.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 func WithSolvableVar(solvableVar int) RegisterOption {
 	return func(s *registerSettings) error {
 		if s.solvableVar != unset {
@@ -53,8 +47,6 @@ func WithSolvableVar(solvableVar int) RegisterOption {
 
 // WithUnverifiedSolvableVar sets the index of a variable whose value can be uniquely determined
 // from that of the other variables along with the gate's output.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 // This now functions identically to WithSolvableVar.
 func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
 	return WithSolvableVar(solvableVar)
@@ -62,23 +54,17 @@ func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
 
 // WithNoSolvableVar sets the gate as having no variable whose value can be uniquely determined
 // from that of the other variables along with the gate's output.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 func WithNoSolvableVar() RegisterOption {
 	return WithSolvableVar(-1)
 }
 
 // WithUnverifiedDegree sets the degree of the gate.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 // This now functions identically to WithDegree.
 func WithUnverifiedDegree(degree int) RegisterOption {
 	return WithDegree(degree)
 }
 
 // WithDegree sets the degree of the gate.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 func WithDegree(degree int) RegisterOption {
 	return func(s *registerSettings) error {
 		if s.degree != unset {
@@ -90,9 +76,7 @@ func WithDegree(degree int) RegisterOption {
 }
 
 // WithName can be used to set a human-readable name for the gate.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
-func WithName(name gkr.GateName) RegisterOption {
+func WithName(name gkr.GateName) RegisterOption { // nolint SA1019
 	return func(s *registerSettings) error {
 		if name == "" {
 			return errors.New("gate name must not be empty")
@@ -106,8 +90,6 @@ func WithName(name gkr.GateName) RegisterOption {
 }
 
 // WithCurves determines on which curves the gate is validated and allowed to be used.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 func WithCurves(curves ...ecc.ID) RegisterOption {
 	return func(s *registerSettings) error {
 		if s.curves != nil {
@@ -118,12 +100,9 @@ func WithCurves(curves ...ecc.ID) RegisterOption {
 	}
 }
 
-// gates is the deprecated gate registry.
-var gates = make(map[gkr.GateName]gkr.GateFunction)
+var gates = make(map[gkr.GateName]gkr.GateFunction) // nolint SA1019
 
 // Register creates a gate object and stores it in the gates registry.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 	s := newRegisterSettings()
 	for _, opt := range options {
@@ -166,9 +145,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 
 // Get returns a registered gate function by name.
 // If not found, it panics.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
-func Get(name gkr.GateName) gkr.GateFunction {
+func Get(name gkr.GateName) gkr.GateFunction { // nolint SA1019
 	if f, ok := gates[name]; ok {
 		return f
 	}
@@ -177,9 +154,7 @@ func Get(name gkr.GateName) gkr.GateFunction {
 
 // GetDefaultGateName provides a standardized name for a gate function, depending on its package and name.
 // NB: For anonymous functions, the name is the same no matter the implicit arguments provided.
-//
-// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
-func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName {
+func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName { // nolint SA1019
 	fnptr := reflect.ValueOf(fn).Pointer()
-	return gkr.GateName(runtime.FuncForPC(fnptr).Name())
+	return gkr.GateName(runtime.FuncForPC(fnptr).Name()) // nolint SA1019
 }
