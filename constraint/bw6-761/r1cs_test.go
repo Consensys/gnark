@@ -69,7 +69,13 @@ func TestSerialization(t *testing.T) {
 				}
 
 				// compare original and reconstructed
+				// Blueprint implementations may have unexported fields that are not serialized
+				// (e.g., sync.Mutex, lazy-initialized caches). Compare by type only.
+				blueprintComparer := cmp.Comparer(func(a, b constraint.Blueprint) bool {
+					return reflect.TypeOf(a) == reflect.TypeOf(b)
+				})
 				if diff := cmp.Diff(r1cs1, &reconstructed,
+					blueprintComparer,
 					cmpopts.IgnoreFields(cs.R1CS{},
 						"System.q",
 						"field",
