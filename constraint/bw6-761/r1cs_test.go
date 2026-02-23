@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -32,9 +31,6 @@ func TestSerialization(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
-			if !tc.SupportsCurve(ecc.BW6_761) {
-				t.Skip("circuit does not support this curve")
-			}
 			if testing.Short() && name != "reference_small" {
 				return
 			}
