@@ -15,6 +15,20 @@ type TestCircuit struct {
 	Curves                               []ecc.ID
 }
 
+// SupportsCurve returns true if the test circuit supports the given curve.
+// If no curves are specified, all curves are supported.
+func (tc TestCircuit) SupportsCurve(curve ecc.ID) bool {
+	if len(tc.Curves) == 0 {
+		return true
+	}
+	for _, c := range tc.Curves {
+		if c == curve {
+			return true
+		}
+	}
+	return false
+}
+
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 var Circuits map[string]TestCircuit
 

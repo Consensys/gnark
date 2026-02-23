@@ -8,6 +8,7 @@ package gkr
 import (
 	"fmt"
 	"math/bits"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -47,6 +48,19 @@ type BlueprintSolve struct {
 
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
+
+// Equal returns true if the serialized fields of two BlueprintSolve are equal.
+// Used for testing serialization round-trips.
+func (b *BlueprintSolve) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintSolve)
+	if !ok {
+		return false
+	}
+	return b.NbInstances == o.NbInstances && reflect.DeepEqual(b.Circuit, o.Circuit) && reflect.DeepEqual(b.assignments, o.assignments)
+}
 
 // Reset implements BlueprintStateful.
 // It is used to initialize the blueprint for the current circuit.
@@ -198,6 +212,18 @@ type BlueprintProve struct {
 // Ensures BlueprintProve implements BlueprintSolvable
 var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintProve)(nil)
 
+// Equal returns true if the serialized fields of two BlueprintProve are equal.
+func (b *BlueprintProve) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintProve)
+	if !ok {
+		return false
+	}
+	return b.SolveBlueprintID == o.SolveBlueprintID && b.HashName == o.HashName
+}
+
 // Solve implements the BlueprintSolvable interface for proving.
 func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
 	b.lock.Lock()
@@ -331,6 +357,18 @@ type BlueprintGetAssignment struct {
 
 // Ensures BlueprintGetAssignment implements BlueprintSolvable
 var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintGetAssignment)(nil)
+
+// Equal returns true if the serialized fields of two BlueprintGetAssignment are equal.
+func (b *BlueprintGetAssignment) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintGetAssignment)
+	if !ok {
+		return false
+	}
+	return b.SolveBlueprintID == o.SolveBlueprintID
+}
 
 // Solve implements the BlueprintSolvable interface for getting assignments.
 func (b *BlueprintGetAssignment) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
