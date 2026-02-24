@@ -478,7 +478,12 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 
 	if transcriptSettings.Transcript == nil {
 		challengeNames := ChallengeNames(o.sorted, o.nbVars, transcriptSettings.Prefix)
-		o.transcript = fiatshamir.NewTranscript(transcriptSettings.Hash, challengeNames...)
+		o.transcript = fiatshamir.NewTranscript(transcriptSettings.Hash)
+		for _, name := range challengeNames {
+			if err = o.transcript.NewChallenge(name); err != nil {
+				return o, err
+			}
+		}
 		for i := range transcriptSettings.BaseChallenges {
 			if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges[i]); err != nil {
 				return o, err

@@ -206,6 +206,12 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	if opts.HashToFieldFn == nil {
 		opts.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 	}
+	fs := fiatshamir.NewTranscript(opts.ChallengeHash)
+	for _, challenge := range []string{"gamma", "beta", "alpha", "zeta"} {
+		if err := fs.NewChallenge(challenge); err != nil {
+			return nil, err
+		}
+	}
 	s := instance{
 		ctx:                    ctx,
 		pk:                     pk,
@@ -214,7 +220,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		opt:                    opts,
 		fullWitness:            fullWitness,
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
+		fs:                     fs,
 		kzgFoldingHash:         opts.KZGFoldingHash,
 		htfFunc:                opts.HashToFieldFn,
 		chLRO:                  make(chan struct{}, 1),

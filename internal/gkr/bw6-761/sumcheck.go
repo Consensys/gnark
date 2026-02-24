@@ -56,7 +56,12 @@ func setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.Settings) 
 		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
 	}
 	if settings.Transcript == nil {
-		transcript := fiatshamir.NewTranscript(settings.Hash, challengeNames...)
+		transcript := fiatshamir.NewTranscript(settings.Hash)
+		for _, name := range challengeNames {
+			if err = transcript.NewChallenge(name); err != nil {
+				return
+			}
+		}
 		settings.Transcript = transcript
 	}
 

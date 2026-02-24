@@ -55,7 +55,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var proof Proof
 
 	// 0 - Fiat Shamir
-	fs := fiatshamir.NewTranscript(opt.ChallengeHash, "gamma", "beta", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(opt.ChallengeHash)
+	for _, challenge := range []string{"gamma", "beta", "alpha", "zeta"} {
+		if err := fs.NewChallenge(challenge); err != nil {
+			return nil, err
+		}
+	}
 
 	// 1 - solve the system
 	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
