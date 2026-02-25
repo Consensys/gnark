@@ -103,6 +103,20 @@ func (w Wire[GateExecutable]) ZeroCheckDegree() int {
 	return w.Gate.Degree + 1
 }
 
+// UnhashedFinalEvalProofIndex returns the index in finalEvalProof that should be
+// excluded from Fiat-Shamir hashing because it corresponds to a solvable variable.
+// Returns -1 if no variable is solvable or if the wire is an input wire.
+// A solvable variable's evaluation can be derived by the verifier from the gate
+// equation and other inputs, so it doesn't need to be hashed as a "genuine" prover message.
+func (c Circuit[GateExecutable]) UnhashedFinalEvalProofIndex(wireIndex int) int {
+	w := c[wireIndex]
+	if w.IsInput() || w.Gate.SolvableVar == -1 {
+		return -1
+	}
+	_, injectionLeftInverse := c.ClaimPropagationInfo(wireIndex)
+	return injectionLeftInverse[w.Gate.SolvableVar]
+}
+
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
 // the former a subsequence of the latter.

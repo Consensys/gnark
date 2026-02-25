@@ -8,11 +8,29 @@ func AppendRefs[T any](s []any, v []T) []any {
 	return s
 }
 
-// References returns a slice of references to the elements of v.
-func References[T any](v []T) []*T {
-	res := make([]*T, len(v))
-	for i := range v {
-		res[i] = &v[i]
+// Exclude returns a copy of s with the element at index excluded.
+// If index is negative or out of bounds, returns s unchanged.
+func Exclude[T any](s []T, index int) []T {
+	if index < 0 || index >= len(s) {
+		return s
+	}
+	res := make([]T, 0, len(s)-1)
+	for i := range s {
+		if i != index {
+			res = append(res, s[i])
+		}
+	}
+	return res
+}
+
+// CloneExcludeF returns [f(s[i])]ᵢ for all i ≠ index in range.
+// If index is negative or out of bounds, returns s unchanged.
+func CloneExcludeF[T, S any](s []T, index int, f func(*T) S) []S {
+	res := make([]S, 0, len(s))
+	for i := range s {
+		if i != index {
+			res = append(res, f(&s[i]))
+		}
 	}
 	return res
 }

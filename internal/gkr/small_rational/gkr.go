@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
+	gnarkUtils "github.com/consensys/gnark/internal/utils"
 )
 
 // Type aliases for bytecode-based GKR types
@@ -589,11 +590,7 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 			); err != nil {
 				return proof, err
 			}
-
-			baseChallenge = make([][]byte, len(proof[i].finalEvalProof))
-			for j := range proof[i].finalEvalProof {
-				baseChallenge[j] = proof[i].finalEvalProof[j].Marshal()
-			}
+			baseChallenge = gnarkUtils.CloneExcludeF(proof[i].finalEvalProof, c.UnhashedFinalEvalProofIndex(i), (*small_rational.SmallRational).Marshal)
 		}
 		// the verifier checks a single claim about input wires itself
 		claims.deleteClaim(i)
@@ -648,11 +645,8 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 			}
 		} else if err = sumcheckVerify(
 			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-		); err == nil { // incorporate prover claims about w's input into the transcript
-			baseChallenge = make([][]byte, len(proofW.finalEvalProof))
-			for j := range baseChallenge {
-				baseChallenge[j] = proofW.finalEvalProof[j].Marshal()
-			}
+		); err == nil {
+			baseChallenge = gnarkUtils.CloneExcludeF(proofW.finalEvalProof, c.UnhashedFinalEvalProofIndex(i), (*small_rational.SmallRational).Marshal)
 		} else {
 			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
 		}

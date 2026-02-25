@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 )
@@ -313,7 +314,9 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		} else if err = verifySumcheck(
 			api, claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
 		); err == nil {
-			baseChallenge = proofW.FinalEvalProof
+			// Build baseChallenge, skipping the solvable variable's evaluation
+			// since it can be derived by the verifier and isn't a "genuine" prover message
+			baseChallenge = utils.Exclude(proofW.FinalEvalProof, c.UnhashedFinalEvalProofIndex(i))
 		} else {
 			return err
 		}
