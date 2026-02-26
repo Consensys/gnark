@@ -1,6 +1,7 @@
 package gkr_poseidon2
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -76,8 +77,12 @@ func BenchmarkGkrCompressions(b *testing.B) {
 	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	require.NoError(b, err)
 
-	_, err = cs.Solve(witness)
-	require.NoError(b, err)
+	b.ResetTimer()
+
+	for b.Loop() {
+		_, err = cs.Solve(witness)
+		require.NoError(b, err)
+	}
 }
 
 // directPoseidon2Circuit uses direct poseidon2 calls (no GKR)
@@ -110,6 +115,69 @@ func (c *gkrPoseidon2Circuit) Define(api frontend.API) error {
 		_ = gkr.Compress(c.Ins[i][0], c.Ins[i][1])
 	}
 	return nil
+}
+
+type poseidon2MerkleTreeCircuit struct {
+	Leaves []frontend.Variable
+}
+
+func (c *poseidon2MerkleTreeCircuit) Define(api frontend.API) error {
+	if len(c.Leaves) == 0 {
+		return errors.New("no hashing to do")
+	}
+
+	comp, err := NewCompressor(api)
+	if err != nil {
+		return err
+	}
+
+	layer := make([]frontend.Variable, len(c.Leaves)/2)
+	for i := range layer {
+		layer[i] = comp.Compress(c.Leaves[2*i], c.Leaves[2*i+1])
+	}
+
+	for len(layer) > 1 {
+		if len(layer)%2 == 1 {
+			layer = append(layer, 0) // pad with zero
+		}
+
+		for i := range len(layer) / 2 {
+			layer[i] = comp.Compress(layer[2*i], layer[2*i+1])
+		}
+
+		layer = layer[:len(layer)/2]
+	}
+
+	api.AssertIsDifferent(layer[0], 0)
+	return nil
+}
+
+func BenchmarkGkrPoseidon2(b *testing.B) {
+	const size = 1 << 15 // about 2 ^ 16 total hashes
+
+	circuit := poseidon2MerkleTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+	assignment := poseidon2MerkleTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+
+	for i := range assignment.Leaves {
+		assignment.Leaves[i] = i
+	}
+
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
+	require.NoError(b, err)
+
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		_, err = cs.Solve(w)
+		require.NoError(b, err)
+	}
 }
 
 // BenchmarkConstraintComparison compares constraint counts between direct poseidon2 and GKR-based poseidon2
