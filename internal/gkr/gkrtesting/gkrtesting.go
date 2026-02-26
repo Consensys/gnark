@@ -70,11 +70,11 @@ type JSONWire struct {
 // JSONCircuit is the JSON serialization format for circuits
 type JSONCircuit []JSONWire
 
-// Compile compiles a programmatic GadgetCircuit into a SerializableCircuit.
-func (c *Cache) Compile(t require.TestingT, circuit gkrtypes.GadgetCircuit) gkrtypes.SerializableCircuit {
-	res, err := gkrtypes.CompileCircuit(circuit, c.field)
+// Compile compiles a RawCircuit into a SerializableCircuit.
+func (c *Cache) Compile(t require.TestingT, circuit gkrtypes.RawCircuit) (gkrtypes.GadgetCircuit, gkrtypes.SerializableCircuit) {
+	gadget, serializable, err := circuit.Compile(c.field)
 	require.NoError(t, err)
-	return res
+	return gadget, serializable
 }
 
 func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.GadgetCircuit) {
@@ -100,17 +100,15 @@ func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.
 		panic(err)
 	}
 
-	// Convert JSON format to GadgetCircuit
-	gCircuit := make(gkrtypes.GadgetCircuit, len(jsonCircuit))
+	// Convert JSON format to RawCircuit
+	rawCircuit := make(gkrtypes.RawCircuit, len(jsonCircuit))
 	for i, wJSON := range jsonCircuit {
-		gate := c.GetGate(wJSON.Gate)
-
-		gCircuit[i] = gkrtypes.GadgetWire{
-			Gate:   gkrtypes.Gate[gkr.GateFunction]{Evaluate: gate},
+		rawCircuit[i] = gkrtypes.RawWire{
+			Gate:   c.GetGate(wJSON.Gate),
 			Inputs: wJSON.Inputs,
 		}
 	}
-	sCircuit, err := gkrtypes.CompileCircuit(gCircuit, c.field)
+	gCircuit, sCircuit, err := rawCircuit.Compile(c.field)
 	if err != nil {
 		panic(err)
 	}
@@ -137,12 +135,10 @@ func (c *Cache) GetGate(name string) gkr.GateFunction {
 	panic("gate not found: " + name)
 }
 
-func MiMCCircuit(numRounds int) gkrtypes.GadgetCircuit {
-	c := make(gkrtypes.GadgetCircuit, numRounds+2)
-	mimc := gkrtypes.GadgetGate{Evaluate: mimcGate}
-
+func MiMCCircuit(numRounds int) gkrtypes.RawCircuit {
+	c := make(gkrtypes.RawCircuit, numRounds+2)
 	for i := 2; i < len(c); i++ {
-		c[i] = gkrtypes.GadgetWire{Gate: mimc, Inputs: []int{i - 1, 0}}
+		c[i] = gkrtypes.RawWire{Gate: mimcGate, Inputs: []int{i - 1, 0}}
 	}
 	return c
 }
@@ -175,60 +171,56 @@ func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error)
 	return
 }
 
-func NoGateCircuit() gkrtypes.GadgetCircuit {
-	return gkrtypes.GadgetCircuit{
+func NoGateCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
 	}
 }
 
-func SingleAddGateCircuit() gkrtypes.GadgetCircuit {
-	return gkrtypes.GadgetCircuit{
+func SingleAddGateCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
 		{},
-		{Gate: gkrtypes.GadgetGate{Evaluate: gkrtypes.Add2}, Inputs: []int{0, 1}},
+		{Gate: gkrtypes.Add2, Inputs: []int{0, 1}},
 	}
 }
 
-func SingleMulGateCircuit() gkrtypes.GadgetCircuit {
-	return gkrtypes.GadgetCircuit{
+func SingleMulGateCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
 		{},
-		{Gate: gkrtypes.GadgetGate{Evaluate: gkrtypes.Mul2}, Inputs: []int{0, 1}},
+		{Gate: gkrtypes.Mul2, Inputs: []int{0, 1}},
 	}
 }
 
-func SingleInputTwoIdentityGatesCircuit() gkrtypes.GadgetCircuit {
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
-	return gkrtypes.GadgetCircuit{
+func SingleInputTwoIdentityGatesCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
-		{Gate: idGate, Inputs: []int{0}},
-		{Gate: idGate, Inputs: []int{0}},
+		{Gate: gkrtypes.Identity, Inputs: []int{0}},
+		{Gate: gkrtypes.Identity, Inputs: []int{0}},
 	}
 }
 
-func SingleInputTwoIdentityGatesComposedCircuit() gkrtypes.GadgetCircuit {
-	idGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Identity}
-	return gkrtypes.GadgetCircuit{
+func SingleInputTwoIdentityGatesComposedCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
-		{Gate: idGate, Inputs: []int{0}},
-		{Gate: idGate, Inputs: []int{1}},
+		{Gate: gkrtypes.Identity, Inputs: []int{0}},
+		{Gate: gkrtypes.Identity, Inputs: []int{1}},
 	}
 }
 
-func APowNTimesBCircuit(n int) gkrtypes.GadgetCircuit {
-	c := make(gkrtypes.GadgetCircuit, n+2)
-	mulGate := gkrtypes.GadgetGate{Evaluate: gkrtypes.Mul2}
-
+func APowNTimesBCircuit(n int) gkrtypes.RawCircuit {
+	c := make(gkrtypes.RawCircuit, n+2)
 	for i := 2; i < len(c); i++ {
-		c[i] = gkrtypes.GadgetWire{Gate: mulGate, Inputs: []int{i - 1, 0}}
+		c[i] = gkrtypes.RawWire{Gate: gkrtypes.Mul2, Inputs: []int{i - 1, 0}}
 	}
 	return c
 }
 
-func SingleMimcCipherGateCircuit() gkrtypes.GadgetCircuit {
-	return gkrtypes.GadgetCircuit{
+func SingleMimcCipherGateCircuit() gkrtypes.RawCircuit {
+	return gkrtypes.RawCircuit{
 		{},
 		{},
-		{Gate: gkrtypes.GadgetGate{Evaluate: mimcGate}, Inputs: []int{0, 1}},
+		{Gate: mimcGate, Inputs: []int{0, 1}},
 	}
 }

@@ -3,7 +3,6 @@ package gkrtypes
 import (
 	"errors"
 	"math/big"
-	"reflect"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -16,6 +15,17 @@ type (
 		OutputInstance int
 		InputInstance  int
 	}
+
+	// RawWire is a minimal wire representation with only inputs and gate function.
+	RawWire struct {
+		Gate     gkr.GateFunction
+		Inputs   []int
+		Exported bool
+	}
+
+	// RawCircuit is a minimal circuit representation for API-level circuit construction.
+	// It contains only the essential topology (inputs) and gate functions.
+	RawCircuit []RawWire
 
 	// A Gate is a low-degree multivariate polynomial
 	Gate[GateExecutable any] struct {
@@ -267,55 +277,61 @@ type Blueprints struct {
 	GetAssignmentID constraint.BlueprintID
 }
 
-// CompileCircuit converts a gadget circuit to a serializable circuit by compiling the gate functions.
-// It also sets wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs) for both the input and output circuits.
-func CompileCircuit(c GadgetCircuit, mod *big.Int) (SerializableCircuit, error) {
+// Compile compiles a raw circuit into both a gadget circuit and a serializable circuit.
+// It computes all wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs).
+func (c RawCircuit) Compile(mod *big.Int) (GadgetCircuit, SerializableCircuit, error) {
+	gadget := make(GadgetCircuit, len(c))
+	serializable := make(SerializableCircuit, len(c))
 
+	// First pass: copy inputs, gates, and exported flags, compute NbUniqueOutputs
+	curWireIn := make([]bool, len(c))
 	for i := range c {
-		c[i].NbUniqueOutputs = 0
-	}
+		gadget[i].Inputs = c[i].Inputs
+		gadget[i].Exported = c[i].Exported
+		serializable[i].Inputs = c[i].Inputs
+		serializable[i].Exported = c[i].Exported
 
-	// compile the gate and compute metadata
-	curWireIn := make([]bool, len(c)) // curWireIn[j] = true iff i takes j as input.
-	res := make(SerializableCircuit, len(c))
-	var err error
-	for i := range c {
-		// Compute NbUniqueOutputs as we go.
+		// Compute NbUniqueOutputs for input wires
 		for _, in := range c[i].Inputs {
 			if !curWireIn[in] {
-				c[in].NbUniqueOutputs++
+				gadget[in].NbUniqueOutputs++
+				serializable[in].NbUniqueOutputs++
 				curWireIn[in] = true
 			}
 		}
-		// clear curWireIn
+		// clear curWireIn for next iteration
 		for _, in := range c[i].Inputs {
 			curWireIn[in] = false
 		}
+	}
 
-		if c[i].IsInput() {
-			if !reflect.DeepEqual(c[i].Gate, GadgetGate{}) {
-				return nil, errors.New("empty gate expected for input wire")
+	// Second pass: compile gates and set metadata
+	for i := range c {
+		if len(c[i].Inputs) == 0 { // input wire
+			if c[i].Gate != nil {
+				return nil, nil, errors.New("nil gate expected for input wire")
 			}
 			continue
 		}
 
-		c[i].Gate.NbIn = len(c[i].Inputs)
-		if res[i].Gate, err = CompileGateFunction(c[i].Gate.Evaluate, c[i].Gate.NbIn, mod); err != nil {
-			return nil, err
+		if c[i].Gate == nil {
+			return nil, nil, errors.New("gate function required for non-input wire")
 		}
-		c[i].Gate.Degree = res[i].Gate.Degree
-		c[i].Gate.SolvableVar = res[i].Gate.SolvableVar
+
+		nbIn := len(c[i].Inputs)
+		compiledGate, err := CompileGateFunction(c[i].Gate, nbIn, mod)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		gadget[i].Gate = GadgetGate{
+			Evaluate:    c[i].Gate,
+			NbIn:        nbIn,
+			Degree:      compiledGate.Degree,
+			SolvableVar: compiledGate.SolvableVar,
+		}
+		serializable[i].Gate = compiledGate
 	}
 
-	// copy metadata from c to res
-	for i := range c {
-		res[i].Inputs = c[i].Inputs
-		res[i].Exported = c[i].Exported
-		res[i].NbUniqueOutputs = c[i].NbUniqueOutputs
-		res[i].Gate.Degree = c[i].Gate.Degree
-		res[i].Gate.NbIn = c[i].Gate.NbIn
-		res[i].Gate.SolvableVar = c[i].Gate.SolvableVar
-	}
-
-	return res, nil
+	return gadget, serializable, nil
 }

@@ -11,7 +11,7 @@ import (
 
 type (
 	API struct {
-		circuit     gkrtypes.GadgetCircuit
+		circuit     gkrtypes.RawCircuit
 		assignments gadget.WireAssignment
 		parentApi   frontend.API
 	}
@@ -23,8 +23,8 @@ func frontendVarToInt(a gkr.Variable) int {
 
 // Gate adds the given gate with the given inputs and returns its output wire.
 func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable {
-	api.circuit = append(api.circuit, gkrtypes.GadgetWire{
-		Gate:   gkrtypes.GadgetGate{Evaluate: gate},
+	api.circuit = append(api.circuit, gkrtypes.RawWire{
+		Gate:   gate,
 		Inputs: utils.Map(inputs, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)

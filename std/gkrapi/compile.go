@@ -51,7 +51,7 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrtypes.GadgetWire{})
+	api.circuit = append(api.circuit, gkrtypes.RawWire{})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -70,20 +70,21 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // From this point on, the circuit cannot be modified,
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
-	res := Circuit{
-		circuit:     api.circuit,
-		assignments: make(gadget.WireAssignment, len(api.circuit)),
-		api:         api.parentApi,
-		hashName:    fiatshamirHashName,
-	}
-
 	// Dispatch to curve-specific factory
 	compiler := api.parentApi.Compiler()
 	field := compiler.Field()
 	curveID := utils.FieldToCurve(field)
-	serializableCircuit, err := gkrtypes.CompileCircuit(api.circuit, field)
+
+	gadgetCircuit, serializableCircuit, err := api.circuit.Compile(field)
 	if err != nil {
 		return nil, err
+	}
+
+	res := Circuit{
+		circuit:     gadgetCircuit,
+		assignments: make(gadget.WireAssignment, len(api.circuit)),
+		api:         api.parentApi,
+		hashName:    fiatshamirHashName,
 	}
 
 	switch curveID {
