@@ -11,7 +11,7 @@ import (
 	gkrbls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
 	gkrbn254 "github.com/consensys/gnark/internal/gkr/bn254"
 	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -25,8 +25,8 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	circuit              gkrtypes.GadgetCircuit
-	gates                []gkrtypes.GateBytecode
+	circuit              gkrcore.GadgetCircuit
+	gates                []gkrcore.GateBytecode
 	assignments          gadget.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
 	ins                  []gkr.Variable
@@ -34,7 +34,7 @@ type Circuit struct {
 	api                  frontend.API // the parent API
 
 	// Blueprint-based fields
-	blueprints gkrtypes.Blueprints
+	blueprints gkrcore.Blueprints
 
 	// Metadata
 	hashName    string
@@ -51,7 +51,7 @@ func New(api frontend.API) (*API, error) {
 // NewInput creates a new input variable.
 func (api *API) NewInput() gkr.Variable {
 	i := len(api.circuit)
-	api.circuit = append(api.circuit, gkrtypes.RawWire{})
+	api.circuit = append(api.circuit, gkrcore.RawWire{})
 	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(i)
 }
@@ -242,7 +242,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 	return nil
 }
 
-func (c *Circuit) verify(api frontend.API, circuit gkrtypes.GadgetCircuit, initialChallenges []frontend.Variable) error {
+func (c *Circuit) verify(api frontend.API, circuit gkrcore.GadgetCircuit, initialChallenges []frontend.Variable) error {
 
 	compiler := api.Compiler()
 

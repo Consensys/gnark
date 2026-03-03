@@ -4,14 +4,14 @@ import (
 	"github.com/consensys/gnark/constraint/solver/gkrgates" // nolint SA1019
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
 type (
 	API struct {
-		circuit     gkrtypes.RawCircuit
+		circuit     gkrcore.RawCircuit
 		assignments gadget.WireAssignment
 		parentApi   frontend.API
 	}
@@ -23,7 +23,7 @@ func frontendVarToInt(a gkr.Variable) int {
 
 // Gate adds the given gate with the given inputs and returns its output wire.
 func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable {
-	api.circuit = append(api.circuit, gkrtypes.RawWire{
+	api.circuit = append(api.circuit, gkrcore.RawWire{
 		Gate:   gate,
 		Inputs: utils.Map(inputs, frontendVarToInt),
 	})
@@ -49,19 +49,19 @@ func (api *API) gate2PlusIn(gate gkr.GateFunction, in1, in2 gkr.Variable, in ...
 }
 
 func (api *API) Add(i1, i2 gkr.Variable) gkr.Variable {
-	return api.gate2PlusIn(gkrtypes.Add2, i1, i2)
+	return api.gate2PlusIn(gkrcore.Add2, i1, i2)
 }
 
 func (api *API) Neg(i1 gkr.Variable) gkr.Variable {
-	return api.Gate(gkrtypes.Neg, i1)
+	return api.Gate(gkrcore.Neg, i1)
 }
 
 func (api *API) Sub(i1, i2 gkr.Variable) gkr.Variable {
-	return api.gate2PlusIn(gkrtypes.Sub2, i1, i2)
+	return api.gate2PlusIn(gkrcore.Sub2, i1, i2)
 }
 
 func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
-	return api.gate2PlusIn(gkrtypes.Mul2, i1, i2)
+	return api.gate2PlusIn(gkrcore.Mul2, i1, i2)
 }
 
 // Export explicitly designates a wire as output.

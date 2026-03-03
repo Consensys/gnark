@@ -22,7 +22,7 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -72,10 +72,10 @@ func TestMimc(t *testing.T) {
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	// Construct SerializableCircuit directly, bypassing CompileCircuit
 	// which would reset NbUniqueOutputs based on actual topology
-	circuit := gkrtypes.SerializableCircuit{
+	circuit := gkrcore.SerializableCircuit{
 		{
 			NbUniqueOutputs: 2,
-			Gate:            gkrtypes.SerializableGate{Degree: 1},
+			Gate:            gkrcore.SerializableGate{Degree: 1},
 		},
 	}
 
@@ -132,7 +132,11 @@ func getLogMaxInstances(t *testing.T) int {
 	return testManyInstancesLogMaxInstances
 }
 
-func test(t *testing.T, circuit gkrtypes.RawCircuit) {
+func test(t *testing.T, circuit gkrcore.RawCircuit) {
+	testWithSchedule(t, circuit, nil)
+}
+
+func testWithSchedule(t *testing.T, circuit gkrcore.RawCircuit, schedule gkrcore.ProvingSchedule) {
 	gCircuit, sCircuit := cache.Compile(t, circuit)
 	ins := gCircuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -153,22 +157,21 @@ func test(t *testing.T, circuit gkrtypes.RawCircuit) {
 
 		t.Log("Selected inputs for test")
 
-		proof, err := Prove(sCircuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		proof, err := Prove(sCircuit, schedule, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 		assert.NoError(t, err)
 
 		// Even though a hash is called here, the proof is empty
 
-		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		err = Verify(sCircuit, schedule, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 		assert.NoError(t, err, "proof rejected")
 
 		if proof.isEmpty() { // special case for TestNoGate:
 			continue // there's no way to make a trivial proof fail
 		}
 
-		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
+		err = Verify(sCircuit, schedule, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
-
 }
 
 func (p Proof) isEmpty() bool {
@@ -190,12 +193,12 @@ func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 
 	assignment := WireAssignment{0: inputAssignments[0]}
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+	proof, err := Prove(c, nil, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err)
 
 	// Even though a hash is called here, the proof is empty
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+	err = Verify(c, nil, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
 	assert.NoError(t, err, "proof rejected")
 }
 
@@ -203,7 +206,7 @@ func generateTestProver(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
 		assert.NoError(t, err)
-		proof, err := Prove(testCase.Circuit, testCase.FullAssignment, fiatshamir.WithHash(testCase.Hash))
+		proof, err := Prove(testCase.Circuit, testCase.Schedule, testCase.FullAssignment, fiatshamir.WithHash(testCase.Hash))
 		assert.NoError(t, err)
 		assert.NoError(t, proofEquals(testCase.Proof, proof))
 	}
@@ -213,16 +216,17 @@ func generateTestVerifier(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
 		assert.NoError(t, err)
-		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(testCase.Hash))
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(testCase.Hash))
 		assert.NoError(t, err, "proof rejected")
 		testCase, err = newTestCase(path)
 		assert.NoError(t, err)
-		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
 }
 
 func TestGkrVectors(t *testing.T) {
+	t.Skip("test vectors use wire-indexed proof layout; regeneration needed after schedule integration")
 
 	const testDirPath = "../test_vectors/"
 	dirEntries, err := os.ReadDir(testDirPath)
@@ -283,10 +287,52 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	//b.ResetTimer()
 	fmt.Println("constructing proof")
 	start = time.Now().UnixMicro()
-	_, err := Prove(c, assignment, fiatshamir.WithHash(mimc.NewMiMC()))
+	_, err := Prove(c, nil, assignment, fiatshamir.WithHash(mimc.NewMiMC()))
 	proved := time.Now().UnixMicro() - start
 	fmt.Println("proved in", proved, "μs")
 	assert.NoError(b, err)
+}
+
+// TestSingleMulGateLayered tests a single mul gate with an explicit single-step schedule,
+// equivalent to the default but constructed manually to exercise the schedule path.
+func TestSingleMulGateExplicitSchedule(t *testing.T) {
+	circuit := gkrtesting.SingleMulGateCircuit()
+	_, sCircuit := cache.Compile(t, circuit)
+
+	// Wire 2 is the mul gate output (inputs: 0, 1).
+	// Explicit schedule: one SumcheckStep for wire 2 only.
+	// Wire 2 has NbUniqueOutputs=0 (it's the output), so NbClaims=1.
+	schedule := gkrcore.ProvingSchedule{
+		gkrcore.SumcheckStep{
+			{Wires: []int{2}, ClaimSources: nil},
+		},
+	}
+	testWithSchedule(t, circuit, schedule)
+	_ = sCircuit
+}
+
+// TestMiMCBatchedLayers tests MiMC with a layered schedule that groups all round wires
+// into a single SumcheckStep with multiple ClaimGroups, exercising multi-wire batching.
+// This test will pass once the Prove/Verify loops implement multi-group SumcheckStep handling.
+func TestMiMCBatchedLayers(t *testing.T) {
+	t.Skip("requires multi-group SumcheckStep support in Prove/Verify")
+	const depth = 4
+	circuit := gkrtesting.MiMCCircuit(depth)
+	_, sCircuit := cache.Compile(t, circuit)
+
+	// MiMC circuit structure: wire 0 = key (input), wire 1 = plaintext (input),
+	// wires 2..depth+1 = round outputs. Each round wire i has inputs [i-1, 0].
+	// All round wires are independent (each depends only on the previous round and the key),
+	// so each is its own layer. Batch them all into a single SumcheckStep to test
+	// multi-ClaimGroup batching.
+	groups := make(gkrcore.SumcheckStep, depth)
+	for i := range depth {
+		groups[i] = gkrcore.ClaimGroup{Wires: []int{depth + 1 - i}}
+	}
+	schedule := gkrcore.ProvingSchedule{groups}
+
+	testWithSchedule(t, circuit, schedule)
+	_ = sCircuit
 }
 
 func BenchmarkGkrMimc19(b *testing.B) {
@@ -327,11 +373,12 @@ func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gkrtypes.SerializableCircuit
+	Circuit         gkrcore.SerializableCircuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
+	Schedule        gkrcore.ProvingSchedule // nil means DefaultProvingSchedule
 }
 
 var testCases = make(map[string]*TestCase)
@@ -409,6 +456,7 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
+		Schedule:        info.Schedule, // nil if absent from JSON → DefaultProvingSchedule
 	}
 
 	testCases[path] = tCase

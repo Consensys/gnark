@@ -18,7 +18,7 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 )
 
 func init() {
@@ -34,7 +34,7 @@ type circuitEvaluator struct {
 // BlueprintSolve is a BLS12_377-specific blueprint for solving GKR circuit instances.
 type BlueprintSolve struct {
 	// Circuit structure (serialized)
-	Circuit     gkrtypes.SerializableCircuit
+	Circuit     gkrcore.SerializableCircuit
 	NbInstances uint32
 
 	// Not serialized - recreated lazily at solve time
@@ -434,7 +434,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BLS12_377
-func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrtypes.Blueprints {
+func NewBlueprints(circuit gkrcore.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrcore.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -453,7 +453,7 @@ func NewBlueprints(circuit gkrtypes.SerializableCircuit, hashName string, compil
 	}
 	getAssignmentID := compiler.AddBlueprint(getAssignment)
 
-	return gkrtypes.Blueprints{
+	return gkrcore.Blueprints{
 		SolveID:         solveID,
 		Solve:           solve,
 		ProveID:         proveID,

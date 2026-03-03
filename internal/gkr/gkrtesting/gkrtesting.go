@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/stretchr/testify/require"
 )
@@ -25,8 +25,8 @@ type Cache struct {
 }
 
 type circuits struct {
-	serializable gkrtypes.SerializableCircuit
-	gadget       gkrtypes.GadgetCircuit
+	serializable gkrcore.SerializableCircuit
+	gadget       gkrcore.GadgetCircuit
 }
 
 func mimcGate(api gkr.GateAPI, input ...frontend.Variable) frontend.Variable {
@@ -46,11 +46,11 @@ func selectInput3Gate(_ gkr.GateAPI, in ...frontend.Variable) frontend.Variable 
 func NewCache(field *big.Int) *Cache {
 	gates := make(map[string]gkr.GateFunction, 7)
 	gates[""] = nil
-	gates["identity"] = gkrtypes.Identity
-	gates["add2"] = gkrtypes.Add2
-	gates["sub2"] = gkrtypes.Sub2
-	gates["neg"] = gkrtypes.Neg
-	gates["mul2"] = gkrtypes.Mul2
+	gates["identity"] = gkrcore.Identity
+	gates["add2"] = gkrcore.Add2
+	gates["sub2"] = gkrcore.Sub2
+	gates["neg"] = gkrcore.Neg
+	gates["mul2"] = gkrcore.Mul2
 	gates["mimc"] = mimcGate
 	gates["select-input-3"] = selectInput3Gate
 
@@ -71,13 +71,13 @@ type JSONWire struct {
 type JSONCircuit []JSONWire
 
 // Compile compiles a RawCircuit into a SerializableCircuit.
-func (c *Cache) Compile(t require.TestingT, circuit gkrtypes.RawCircuit) (gkrtypes.GadgetCircuit, gkrtypes.SerializableCircuit) {
+func (c *Cache) Compile(t require.TestingT, circuit gkrcore.RawCircuit) (gkrcore.GadgetCircuit, gkrcore.SerializableCircuit) {
 	gadget, serializable, err := circuit.Compile(c.field)
 	require.NoError(t, err)
 	return gadget, serializable
 }
 
-func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.GadgetCircuit) {
+func (c *Cache) GetCircuit(path string) (gkrcore.SerializableCircuit, gkrcore.GadgetCircuit) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -101,9 +101,9 @@ func (c *Cache) GetCircuit(path string) (gkrtypes.SerializableCircuit, gkrtypes.
 	}
 
 	// Convert JSON format to RawCircuit
-	rawCircuit := make(gkrtypes.RawCircuit, len(jsonCircuit))
+	rawCircuit := make(gkrcore.RawCircuit, len(jsonCircuit))
 	for i, wJSON := range jsonCircuit {
-		rawCircuit[i] = gkrtypes.RawWire{
+		rawCircuit[i] = gkrcore.RawWire{
 			Gate:   c.GetGate(wJSON.Gate),
 			Inputs: wJSON.Inputs,
 		}
@@ -135,10 +135,10 @@ func (c *Cache) GetGate(name string) gkr.GateFunction {
 	panic("gate not found: " + name)
 }
 
-func MiMCCircuit(numRounds int) gkrtypes.RawCircuit {
-	c := make(gkrtypes.RawCircuit, numRounds+2)
+func MiMCCircuit(numRounds int) gkrcore.RawCircuit {
+	c := make(gkrcore.RawCircuit, numRounds+2)
 	for i := 2; i < len(c); i++ {
-		c[i] = gkrtypes.RawWire{Gate: mimcGate, Inputs: []int{i - 1, 0}}
+		c[i] = gkrcore.RawWire{Gate: mimcGate, Inputs: []int{i - 1, 0}}
 	}
 	return c
 }
@@ -151,12 +151,115 @@ type PrintableSumcheckProof struct {
 }
 
 type HashDescription map[string]interface{}
+type testCaseInfoJSON struct {
+	Hash     HashDescription `json:"hash"`
+	Circuit  string          `json:"circuit"`
+	Input    [][]interface{} `json:"input"`
+	Output   [][]interface{} `json:"output"`
+	Proof    PrintableProof  `json:"proof"`
+	Schedule *jsonSchedule   `json:"schedule,omitempty"` // nil means DefaultProvingSchedule
+}
+
 type TestCaseInfo struct {
-	Hash    HashDescription `json:"hash"`
-	Circuit string          `json:"circuit"`
-	Input   [][]interface{} `json:"input"`
-	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
+	Hash     HashDescription
+	Circuit  string
+	Input    [][]interface{}
+	Output   [][]interface{}
+	Proof    PrintableProof
+	Schedule gkrcore.ProvingSchedule // nil means DefaultProvingSchedule
+}
+
+func (t *TestCaseInfo) UnmarshalJSON(data []byte) error {
+	var raw testCaseInfoJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	t.Hash = raw.Hash
+	t.Circuit = raw.Circuit
+	t.Input = raw.Input
+	t.Output = raw.Output
+	t.Proof = raw.Proof
+	if raw.Schedule != nil {
+		t.Schedule = raw.Schedule.ProvingSchedule
+	}
+	return nil
+}
+
+func (t TestCaseInfo) MarshalJSON() ([]byte, error) {
+	raw := testCaseInfoJSON{
+		Hash:    t.Hash,
+		Circuit: t.Circuit,
+		Input:   t.Input,
+		Output:  t.Output,
+		Proof:   t.Proof,
+	}
+	if t.Schedule != nil {
+		raw.Schedule = &jsonSchedule{t.Schedule}
+	}
+	return json.Marshal(raw)
+}
+
+// provingStepJSON is the JSON representation of a ProvingStep with a type discriminator.
+type provingStepJSON struct {
+	Type   string                `json:"type"`
+	Groups []gkrcore.ClaimGroup `json:"groups,omitempty"` // for SumcheckStep
+	Wires  []int                 `json:"wires,omitempty"`  // for SkipStep
+	Claims []int                 `json:"claimSources,omitempty"` // for SkipStep
+}
+
+// marshalSchedule marshals a ProvingSchedule to JSON.
+func marshalSchedule(s gkrcore.ProvingSchedule) ([]byte, error) {
+	steps := make([]provingStepJSON, len(s))
+	for i, step := range s {
+		switch v := step.(type) {
+		case gkrcore.SumcheckStep:
+			steps[i] = provingStepJSON{Type: "sumcheck", Groups: []gkrcore.ClaimGroup(v)}
+		case gkrcore.SkipStep:
+			steps[i] = provingStepJSON{Type: "skip", Wires: v.Wires, Claims: v.ClaimSources}
+		default:
+			return nil, errors.New("unknown ProvingStep type")
+		}
+	}
+	return json.Marshal(steps)
+}
+
+// unmarshalSchedule unmarshals a ProvingSchedule from JSON.
+func unmarshalSchedule(data []byte) (gkrcore.ProvingSchedule, error) {
+	var steps []provingStepJSON
+	if err := json.Unmarshal(data, &steps); err != nil {
+		return nil, err
+	}
+	s := make(gkrcore.ProvingSchedule, len(steps))
+	for i, step := range steps {
+		switch step.Type {
+		case "sumcheck":
+			groups := step.Groups
+			if groups == nil {
+				groups = []gkrcore.ClaimGroup{}
+			}
+			s[i] = gkrcore.SumcheckStep(groups)
+		case "skip":
+			s[i] = gkrcore.SkipStep{Wires: step.Wires, ClaimSources: step.Claims}
+		default:
+			return nil, errors.New("unknown ProvingStep type: " + step.Type)
+		}
+	}
+	return s, nil
+}
+
+// jsonSchedule is a local wrapper enabling custom JSON marshaling for ProvingSchedule
+// within TestCaseInfo, since methods cannot be defined on non-local types.
+type jsonSchedule struct {
+	gkrcore.ProvingSchedule
+}
+
+func (j jsonSchedule) MarshalJSON() ([]byte, error) {
+	return marshalSchedule(j.ProvingSchedule)
+}
+
+func (j *jsonSchedule) UnmarshalJSON(data []byte) (err error) {
+	j.ProvingSchedule, err = unmarshalSchedule(data)
+	return
 }
 
 func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error) {
@@ -171,54 +274,54 @@ func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error)
 	return
 }
 
-func NoGateCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func NoGateCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
 	}
 }
 
-func SingleAddGateCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func SingleAddGateCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
 		{},
-		{Gate: gkrtypes.Add2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Add2, Inputs: []int{0, 1}},
 	}
 }
 
-func SingleMulGateCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func SingleMulGateCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
 		{},
-		{Gate: gkrtypes.Mul2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
 	}
 }
 
-func SingleInputTwoIdentityGatesCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func SingleInputTwoIdentityGatesCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
-		{Gate: gkrtypes.Identity, Inputs: []int{0}},
-		{Gate: gkrtypes.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
 	}
 }
 
-func SingleInputTwoIdentityGatesComposedCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func SingleInputTwoIdentityGatesComposedCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
-		{Gate: gkrtypes.Identity, Inputs: []int{0}},
-		{Gate: gkrtypes.Identity, Inputs: []int{1}},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Identity, Inputs: []int{1}},
 	}
 }
 
-func APowNTimesBCircuit(n int) gkrtypes.RawCircuit {
-	c := make(gkrtypes.RawCircuit, n+2)
+func APowNTimesBCircuit(n int) gkrcore.RawCircuit {
+	c := make(gkrcore.RawCircuit, n+2)
 	for i := 2; i < len(c); i++ {
-		c[i] = gkrtypes.RawWire{Gate: gkrtypes.Mul2, Inputs: []int{i - 1, 0}}
+		c[i] = gkrcore.RawWire{Gate: gkrcore.Mul2, Inputs: []int{i - 1, 0}}
 	}
 	return c
 }
 
-func SingleMimcCipherGateCircuit() gkrtypes.RawCircuit {
-	return gkrtypes.RawCircuit{
+func SingleMimcCipherGateCircuit() gkrcore.RawCircuit {
+	return gkrcore.RawCircuit{
 		{},
 		{},
 		{Gate: mimcGate, Inputs: []int{0, 1}},

@@ -6,15 +6,15 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
 // Type aliases for gadget circuit types
 type (
-	Wire    = gkrtypes.GadgetWire
-	Circuit = gkrtypes.GadgetCircuit
+	Wire    = gkrcore.GadgetWire
+	Circuit = gkrcore.GadgetCircuit
 )
 
 // WireAssignment is an assignment of values to the same wire across many instances of the circuit
@@ -143,7 +143,7 @@ func newClaimsManager(circuit Circuit, assignment WireAssignment) (claims claims
 	for i := range circuit {
 		if circuit[i].IsInput() {
 			circuit[i].Gate.Degree = 1
-			circuit[i].Gate.Evaluate = gkrtypes.Identity
+			circuit[i].Gate.Evaluate = gkrcore.Identity
 		}
 		claims.claims[i] = &zeroCheckLazyClaims{
 			wireI:              i,

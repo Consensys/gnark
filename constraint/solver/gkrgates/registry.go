@@ -10,7 +10,7 @@ import (
 	"runtime"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
@@ -119,7 +119,7 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 	}
 
 	for _, curve := range s.curves {
-		compiled, err := gkrtypes.CompileGateFunction(f, nbIn, curve.ScalarField())
+		compiled, err := gkrcore.CompileGateFunction(f, nbIn, curve.ScalarField())
 		if err != nil {
 			return err
 		}

@@ -16,13 +16,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 )
 
 // Type aliases for bytecode-based GKR types
 type (
-	Wire    = gkrtypes.SerializableWire
-	Circuit = gkrtypes.SerializableCircuit
+	Wire    = gkrcore.SerializableWire
+	Circuit = gkrcore.SerializableCircuit
 )
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
@@ -427,6 +427,7 @@ type settings struct {
 	transcriptPrefix string
 	nbVars           int
 	workers          *utils.WorkerPool
+	schedule         gkrcore.ProvingSchedule
 }
 
 type Option func(*settings)
@@ -443,12 +444,17 @@ func WithWorkers(workers *utils.WorkerPool) Option {
 	}
 }
 
-func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
 		option(&o)
 	}
+
+	if schedule == nil {
+		schedule = gkrcore.DefaultProvingSchedule(c)
+	}
+	o.schedule = schedule
 
 	o.nbVars = assignment.NumVars()
 	nbInstances := assignment.NumInstances()
@@ -466,7 +472,7 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	}
 
 	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNames(c, o.nbVars, transcriptSettings.Prefix)
+		challengeNames := ChallengeNames(c, o.schedule, o.nbVars, transcriptSettings.Prefix)
 		o.transcript = fiatshamir.NewTranscript(transcriptSettings.Hash, challengeNames...)
 		for i := range transcriptSettings.BaseChallenges {
 			if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges[i]); err != nil {
@@ -480,19 +486,29 @@ func setup(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 	return o, err
 }
 
-func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
+func ChallengeNames(c Circuit, schedule gkrcore.ProvingSchedule, logNbInstances int, prefix string) []string {
+	if schedule == nil {
+		schedule = gkrcore.DefaultProvingSchedule(c)
+	}
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
 
-	for i := range c {
-		if c[i].NoProof() { // no proof, no challenge
+	for _, step := range schedule {
+		s, ok := step.(gkrcore.SumcheckStep)
+		if !ok {
 			continue
 		}
-		if c[i].NbClaims() > 1 { //fold the claims
-			size++
+		nbClaims := 0
+		for _, g := range s {
+			for _, w := range g.Wires {
+				nbClaims += c[w].NbClaims()
+			}
 		}
-		size += logNbInstances // full run of sumcheck on logNbInstances variables
+		if nbClaims > 1 {
+			size++ // fold challenge
+		}
+		size += logNbInstances // sumcheck rounds
 	}
 
 	nums := make([]string, max(len(c), logNbInstances))
@@ -508,18 +524,25 @@ func ChallengeNames(c Circuit, logNbInstances int, prefix string) []string {
 		challenges[j] = firstChallengePrefix + nums[j]
 	}
 	j := logNbInstances
-	for i := len(c) - 1; i >= 0; i-- {
-		if c[i].NoProof() {
+	for stepI, step := range schedule {
+		s, ok := step.(gkrcore.SumcheckStep)
+		if !ok {
 			continue
 		}
-		wirePrefix := prefix + "w" + nums[i] + "."
+		stepPrefix := prefix + "s" + nums[stepI] + "."
 
-		if c[i].NbClaims() > 1 {
-			challenges[j] = wirePrefix + "fold"
+		nbClaims := 0
+		for _, g := range s {
+			for _, w := range g.Wires {
+				nbClaims += c[w].NbClaims()
+			}
+		}
+		if nbClaims > 1 {
+			challenges[j] = stepPrefix + "fold"
 			j++
 		}
 
-		partialSumPrefix := wirePrefix + "pSP."
+		partialSumPrefix := stepPrefix + "pSP."
 		for k := 0; k < logNbInstances; k++ {
 			challenges[j] = partialSumPrefix + nums[k]
 			j++
@@ -550,8 +573,8 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Elem
 }
 
 // Prove consistency of the claimed assignment
-func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
-	o, err := setup(c, assignment, transcriptSettings, options...)
+func Prove(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
+	o, err := setup(c, schedule, assignment, transcriptSettings, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +582,7 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 
 	claims := newClaimsManager(c, assignment, o)
 
-	proof := make(Proof, len(c))
+	proof := make(Proof, len(o.schedule))
 	// firstChallenge called rho in the paper
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -567,36 +590,48 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 		return nil, err
 	}
 
-	wirePrefix := o.transcriptPrefix + "w"
+	stepPrefix := o.transcriptPrefix + "s"
 	var baseChallenge [][]byte
-	for i := len(c) - 1; i >= 0; i-- {
+	for stepI, step := range o.schedule {
+		switch s := step.(type) {
+		case gkrcore.SkipStep:
+			// No sumcheck; claims propagate at existing evaluation points.
+			// TODO: implement claim passthrough for SkipStep
+			_ = s
+		case gkrcore.SumcheckStep:
+			// Currently only single-wire single-group steps are supported.
+			// Multi-wire batching is future work.
+			// Seed output claims for all wires in this step.
+			for _, g := range s {
+				for _, wireI := range g.Wires {
+					if c[wireI].IsOutput() {
+						claims.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, claims.memPool))
+					}
+				}
+			}
 
-		wire := c[i]
-
-		if wire.IsOutput() {
-			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
+			// For the default schedule each step has exactly one group with one wire.
+			wireI := s[0].Wires[0]
+			wire := c[wireI]
+			claim := claims.getClaim(wireI)
+			if wire.NoProof() {
+				proof[stepI] = sumcheckProof{
+					partialSumPolys: []polynomial.Polynomial{},
+					finalEvalProof:  []fr.Element{},
+				}
+			} else {
+				if proof[stepI], err = sumcheckProve(
+					claim, fiatshamir.WithTranscript(o.transcript, stepPrefix+strconv.Itoa(stepI)+".", baseChallenge...),
+				); err != nil {
+					return proof, err
+				}
+				baseChallenge = make([][]byte, len(proof[stepI].finalEvalProof))
+				for j := range proof[stepI].finalEvalProof {
+					baseChallenge[j] = proof[stepI].finalEvalProof[j].Marshal()
+				}
+			}
+			claims.deleteClaim(wireI)
 		}
-
-		claim := claims.getClaim(i)
-		if wire.NoProof() { // input wires with one claim only
-			proof[i] = sumcheckProof{
-				partialSumPolys: []polynomial.Polynomial{},
-				finalEvalProof:  []fr.Element{},
-			}
-		} else {
-			if proof[i], err = sumcheckProve(
-				claim, fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-			); err != nil {
-				return proof, err
-			}
-
-			baseChallenge = make([][]byte, len(proof[i].finalEvalProof))
-			for j := range proof[i].finalEvalProof {
-				baseChallenge[j] = proof[i].finalEvalProof[j].Marshal()
-			}
-		}
-		// the verifier checks a single claim about input wires itself
-		claims.deleteClaim(i)
 	}
 
 	return proof, nil
@@ -604,8 +639,8 @@ func Prove(c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.S
 
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
-func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
-	o, err := setup(c, assignment, transcriptSettings, options...)
+func Verify(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
+	o, err := setup(c, schedule, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
 	}
@@ -619,44 +654,53 @@ func Verify(c Circuit, assignment WireAssignment, proof Proof, transcriptSetting
 		return err
 	}
 
-	wirePrefix := o.transcriptPrefix + "w"
+	stepPrefix := o.transcriptPrefix + "s"
 	var baseChallenge [][]byte
-	for i := len(c) - 1; i >= 0; i-- {
-		wire := c[i]
-
-		if wire.IsOutput() {
-			claims.add(i, firstChallenge, assignment[i].Evaluate(firstChallenge, claims.memPool))
-		}
-
-		proofW := proof[i]
-		claim := claims.getLazyClaim(i)
-		if wire.NoProof() { // input wires with one claim only
-			// make sure the proof is empty
-			if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
-				return errors.New("no proof allowed for input wire with a single claim")
-			}
-
-			if wire.NbClaims() == 1 { // input wire
-				// simply evaluate and see if it matches
-				if len(claim.evaluationPoints) == 0 || len(claim.claimedEvaluations) == 0 {
-					return errors.New("missing input wire claim")
-				}
-				evaluation := assignment[i].Evaluate(claim.evaluationPoints[0], claims.memPool)
-				if !claim.claimedEvaluations[0].Equal(&evaluation) {
-					return errors.New("incorrect input wire claim")
+	for stepI, step := range o.schedule {
+		switch s := step.(type) {
+		case gkrcore.SkipStep:
+			// TODO: implement claim passthrough for SkipStep
+			_ = s
+		case gkrcore.SumcheckStep:
+			// Seed output claims for all wires in this step.
+			for _, g := range s {
+				for _, wireI := range g.Wires {
+					if c[wireI].IsOutput() {
+						claims.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, claims.memPool))
+					}
 				}
 			}
-		} else if err = sumcheckVerify(
-			claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-		); err == nil { // incorporate prover claims about w's input into the transcript
-			baseChallenge = make([][]byte, len(proofW.finalEvalProof))
-			for j := range baseChallenge {
-				baseChallenge[j] = proofW.finalEvalProof[j].Marshal()
+
+			// For the default schedule each step has exactly one group with one wire.
+			wireI := s[0].Wires[0]
+			wire := c[wireI]
+			proofW := proof[stepI]
+			claim := claims.getLazyClaim(wireI)
+			if wire.NoProof() {
+				if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
+					return errors.New("no proof allowed for input wire with a single claim")
+				}
+				if wire.NbClaims() == 1 {
+					if len(claim.evaluationPoints) == 0 || len(claim.claimedEvaluations) == 0 {
+						return errors.New("missing input wire claim")
+					}
+					evaluation := assignment[wireI].Evaluate(claim.evaluationPoints[0], claims.memPool)
+					if !claim.claimedEvaluations[0].Equal(&evaluation) {
+						return errors.New("incorrect input wire claim")
+					}
+				}
+			} else if err = sumcheckVerify(
+				claim, proof[stepI], fiatshamir.WithTranscript(o.transcript, stepPrefix+strconv.Itoa(stepI)+".", baseChallenge...),
+			); err == nil {
+				baseChallenge = make([][]byte, len(proofW.finalEvalProof))
+				for j := range baseChallenge {
+					baseChallenge[j] = proofW.finalEvalProof[j].Marshal()
+				}
+			} else {
+				return fmt.Errorf("sumcheck proof rejected: %v", err)
 			}
-		} else {
-			return fmt.Errorf("sumcheck proof rejected: %v", err) //TODO: Any polynomials to dump?
+			claims.deleteClaim(wireI)
 		}
-		claims.deleteClaim(i)
 	}
 	return nil
 }
@@ -734,14 +778,14 @@ func (p Proof) flatten() iter.Seq2[int, *fr.Element] {
 // It manages the stack internally and handles input buffering, making it easy to
 // evaluate the same gate multiple times with different inputs.
 type gateEvaluator struct {
-	gate gkrtypes.GateBytecode
+	gate gkrcore.GateBytecode
 	vars []fr.Element
 	nbIn int // number of inputs expected
 }
 
 // newGateEvaluator creates an evaluator for the given compiled gate.
 // The stack is preloaded with constants and ready for evaluation.
-func newGateEvaluator(gate gkrtypes.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
+func newGateEvaluator(gate gkrcore.GateBytecode, nbIn int, elementPool ...*polynomial.Pool) gateEvaluator {
 	e := gateEvaluator{
 		gate: gate,
 		nbIn: nbIn,
@@ -785,28 +829,28 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 
 		// Use switch instead of function pointer for better inlining
 		switch inst.Op {
-		case gkrtypes.OpAdd:
+		case gkrcore.OpAdd:
 			dst.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Add(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpMul:
+		case gkrcore.OpMul:
 			dst.Mul(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Mul(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpSub:
+		case gkrcore.OpSub:
 			dst.Sub(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
 			for j := 2; j < len(inst.Inputs); j++ {
 				dst.Sub(dst, &e.vars[inst.Inputs[j]])
 			}
-		case gkrtypes.OpNeg:
+		case gkrcore.OpNeg:
 			dst.Neg(&e.vars[inst.Inputs[0]])
-		case gkrtypes.OpMulAcc:
+		case gkrcore.OpMulAcc:
 			var prod fr.Element
 			prod.Mul(&e.vars[inst.Inputs[1]], &e.vars[inst.Inputs[2]])
 			dst.Add(&e.vars[inst.Inputs[0]], &prod)
-		case gkrtypes.OpSumExp17:
+		case gkrcore.OpSumExp17:
 			// result = (x[0] + x[1] + x[2])^17
 			var sum fr.Element
 			sum.Add(&e.vars[inst.Inputs[0]], &e.vars[inst.Inputs[1]])
@@ -832,14 +876,14 @@ func (e *gateEvaluator) evaluate(top ...fr.Element) *fr.Element {
 // gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
 // All evaluators share the same underlying polynomial.Pool for element slices
 type gateEvaluatorPool struct {
-	gate        gkrtypes.GateBytecode
+	gate        gkrcore.GateBytecode
 	nbIn        int
 	lock        sync.Mutex
 	available   map[*gateEvaluator]struct{}
 	elementPool *polynomial.Pool
 }
 
-func newGateEvaluatorPool(gate gkrtypes.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
+func newGateEvaluatorPool(gate gkrcore.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
 	gep := &gateEvaluatorPool{
 		gate:        gate,
 		nbIn:        nbIn,

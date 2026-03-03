@@ -22,7 +22,7 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -72,10 +72,10 @@ func TestMimc(t *testing.T) {
 func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	// Construct SerializableCircuit directly, bypassing CompileCircuit
 	// which would reset NbUniqueOutputs based on actual topology
-	circuit := gkrtypes.SerializableCircuit{
+	circuit := gkrcore.SerializableCircuit{
 		{
 			NbUniqueOutputs: 2,
-			Gate:            gkrtypes.SerializableGate{Degree: 1},
+			Gate:            gkrcore.SerializableGate{Degree: 1},
 		},
 	}
 
@@ -132,7 +132,7 @@ func getLogMaxInstances(t *testing.T) int {
 	return testManyInstancesLogMaxInstances
 }
 
-func test(t *testing.T, circuit gkrtypes.RawCircuit) {
+func test(t *testing.T, circuit gkrcore.RawCircuit) {
 	gCircuit, sCircuit := cache.Compile(t, circuit)
 	ins := gCircuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
@@ -327,7 +327,7 @@ func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gkrtypes.SerializableCircuit
+	Circuit         gkrcore.SerializableCircuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
