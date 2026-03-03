@@ -122,13 +122,13 @@ func computeP384Table() [][2]*big.Int {
 	gx, gy := p384.Params().Gx, p384.Params().Gy
 	tmpx, tmpy := new(big.Int).Set(gx), new(big.Int).Set(gy)
 	for i := 1; i < 384; i++ {
-		tmpx, tmpy = p384.Double(tmpx, tmpy)
+		tmpx, tmpy = p384.Double(tmpx, tmpy) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 		switch i {
 		case 1, 2:
-			xx, yy := p384.Add(tmpx, tmpy, gx, gy)
+			xx, yy := p384.Add(tmpx, tmpy, gx, gy) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			table[i-1] = [2]*big.Int{xx, yy}
 		case 3:
-			xx, yy := p384.Add(tmpx, tmpy, gx, new(big.Int).Sub(p384.Params().P, gy))
+			xx, yy := p384.Add(tmpx, tmpy, gx, new(big.Int).Sub(p384.Params().P, gy)) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			table[i-1] = [2]*big.Int{xx, yy}
 			fallthrough
 		default:

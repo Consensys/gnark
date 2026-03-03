@@ -110,7 +110,7 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 		} else if baseModulus.Cmp(elliptic.P384().Params().P) == 0 {
 			curve := elliptic.P384()
 			// compute the resulting point [s]P
-			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
+			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes()) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			baseOutputs[0].Set(Qx)
 			baseOutputs[1].Set(Qy)
 		} else if baseModulus.Cmp(stark_fp.Modulus()) == 0 {
