@@ -277,6 +277,82 @@ type Blueprints struct {
 	GetAssignmentID constraint.BlueprintID
 }
 
+// ProvingSchedule types for GKR proving
+// These define how claims are grouped and processed during the proving protocol.
+
+type (
+	// ClaimGroup represents a set of wires with their claim sources.
+	// It is agnostic of the protocol - it only describes which wires have claims
+	// from which sources, not what to do with them.
+	ClaimGroup struct {
+		Wires        []int `json:"wires"`
+		ClaimSources []int `json:"claimSources"` // indices of steps that produced these claims
+	}
+
+	// ProvingStep is the interface for a single step in the proving schedule.
+	// A step is either a SkipStep or a SumcheckStep.
+	ProvingStep interface {
+
+	}
+
+	// SkipStep represents a step where zerocheck is skipped.
+	// Claims propagate through at their existing evaluation points.
+	SkipStep ClaimGroup
+
+	// SumcheckStep represents a step where one or more zerochecks are batched
+	// together in a single sumcheck. Each ClaimGroup within may have different
+	// claim sources (sumcheck-level batching), or the same source (enabling
+	// zerocheck-level batching with shared eq tables).
+	SumcheckStep []ClaimGroup
+
+	// ProvingSchedule is a sequence of steps defining how to prove a GKR circuit.
+	ProvingSchedule []ProvingStep
+)
+
+// DefaultProvingSchedule generates a simple schedule for a circuit where each non-input
+// wire gets its own sumcheck step, processed in reverse topological order.
+// This matches the original GKR prover behavior before schedule support was added.
+func DefaultProvingSchedule[T any](c Circuit[T]) ProvingSchedule {
+	var steps ProvingSchedule
+	wireToStep := make(map[int]int) // wire -> step index that processes it
+
+	// Process wires in reverse order (outputs first)
+	for i := len(c) - 1; i >= 0; i-- {
+		if c[i].IsInput() {
+			continue
+		}
+
+		stepI := len(steps)
+
+		// Collect claim sources from input wires
+		var claimSources []int
+		seen := make(map[int]bool)
+		for _, inputWire := range c[i].Inputs {
+			if srcStep, ok := wireToStep[inputWire]; ok && !seen[srcStep] {
+				claimSources = append(claimSources, srcStep)
+				seen[srcStep] = true
+			}
+		}
+
+		// For output wires, the initial claim comes from step -1 (the verifier's initial challenge)
+		// We represent this as having no claim sources for output wires
+		if c[i].IsOutput() && len(claimSources) == 0 {
+			claimSources = nil // initial challenge, no prior step
+		}
+
+		steps = append(steps, SumcheckStep{
+			ClaimGroup{
+				Wires:        []int{i},
+				ClaimSources: claimSources,
+			},
+		})
+
+		wireToStep[i] = stepI
+	}
+
+	return steps
+}
+
 // Compile compiles a raw circuit into both a gadget circuit and a serializable circuit.
 // It computes all wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs).
 func (c RawCircuit) Compile(mod *big.Int) (GadgetCircuit, SerializableCircuit, error) {
