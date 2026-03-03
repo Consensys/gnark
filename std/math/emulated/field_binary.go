@@ -84,38 +84,12 @@ func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
 	modPrev := f.modulusPrev()
 	modPrevBits := f.ToBits(modPrev)
 
-	// Now perform the less-or-equal check using the bits we already have.
+	// Assert that the reduced element is less than the modulus (ca <= modulus-1).
 	// This avoids calling ToBits again on the same element (which is what
 	// the original ReduceStrict + AssertIsInRange path would do).
-	padBits := func(xbits, ybits []frontend.Variable) []frontend.Variable {
-		diff := len(xbits) - len(ybits)
-		ybits = append(ybits, make([]frontend.Variable, diff)...)
-		for i := len(ybits) - diff; i < len(ybits); i++ {
-			ybits[i] = 0
-		}
-		return ybits
-	}
-	eBits := caBits
-	aBits := modPrevBits
-	if len(eBits) > len(aBits) {
-		aBits = padBits(eBits, aBits)
-	} else {
-		eBits = padBits(aBits, eBits)
-	}
+	f.assertIsLessOrEqualBits(caBits, modPrevBits)
 
-	// Perform the comparison: assert ca <= modulusPrev
-	p := make([]frontend.Variable, len(eBits)+1)
-	p[len(eBits)] = 1
-	for i := len(eBits) - 1; i >= 0; i-- {
-		v := f.api.Mul(p[i+1], eBits[i])
-		p[i] = f.api.Select(aBits[i], v, p[i+1])
-		t := f.api.Select(aBits[i], 0, p[i+1])
-		l := f.api.Sub(1, t, eBits[i])
-		ll := f.api.Mul(l, eBits[i])
-		f.api.AssertIsEqual(ll, 0)
-	}
-
-	profile.RecordOperation("emulated.ToBitsCanonical", 4*(len(eBits)+len(aBits)))
+	profile.RecordOperation("emulated.ToBitsCanonical", 4*(len(caBits)+len(modPrevBits)))
 	return caBits[:nbBits]
 }
 
