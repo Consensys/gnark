@@ -3,6 +3,7 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
 	"slices"
@@ -878,6 +879,11 @@ type multivariate[T FieldParams] struct {
 func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
+	}
+	for _, c := range coefs {
+		if c == math.MinInt {
+			panic("coefficient math.MinInt overflows on negation")
+		}
 	}
 	// it is the obvious case - when we don't have any inputs then we need to
 	// evaluate the zero polynomial which is always zero.
