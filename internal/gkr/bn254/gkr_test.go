@@ -21,8 +21,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	gcUtils "github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,8 +86,8 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 	o.pool = &pool
 	o.workers = workers
 
-	claimsManagerGen := func() *claimsManager {
-		manager := newClaimsManager(circuit, assignment, o)
+	resourcesGen := func() *resources {
+		manager := newResources(circuit, assignment, o, nil)
 		manager.add(0, []fr.Element{three}, five)
 		manager.add(0, []fr.Element{four}, six)
 		return &manager
@@ -95,9 +95,9 @@ func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
 
 	transcriptGen := newMessageCounterGenerator(4, 1)
 
-	proof, err := sumcheckProve(claimsManagerGen().getClaim(0), fiatshamir.WithHash(transcriptGen(), nil))
+	proof, err := sumcheckProve(resourcesGen().getClaim(0), fiatshamir.WithHash(transcriptGen(), nil))
 	assert.NoError(t, err)
-	err = sumcheckVerify(claimsManagerGen().getLazyClaim(0), proof, fiatshamir.WithHash(transcriptGen(), nil))
+	err = sumcheckVerify(resourcesGen().getLazyClaim(0), proof, fiatshamir.WithHash(transcriptGen(), nil))
 	assert.NoError(t, err)
 }
 
@@ -226,8 +226,6 @@ func generateTestVerifier(path string) func(t *testing.T) {
 }
 
 func TestGkrVectors(t *testing.T) {
-	t.Skip("test vectors use wire-indexed proof layout; regeneration needed after schedule integration")
-
 	const testDirPath = "../test_vectors/"
 	dirEntries, err := os.ReadDir(testDirPath)
 	assert.NoError(t, err)
@@ -300,10 +298,10 @@ func TestSingleMulGateExplicitSchedule(t *testing.T) {
 	_, sCircuit := cache.Compile(t, circuit)
 
 	// Wire 2 is the mul gate output (inputs: 0, 1).
-	// Explicit schedule: one SumcheckStep for wire 2 only.
+	// Explicit schedule: one SumcheckLevel for wire 2 only.
 	// Wire 2 has NbUniqueOutputs=0 (it's the output), so NbClaims=1.
 	schedule := gkrcore.ProvingSchedule{
-		gkrcore.SumcheckStep{
+		gkrcore.SumcheckLevel{
 			{Wires: []int{2}, ClaimSources: nil},
 		},
 	}
@@ -312,10 +310,9 @@ func TestSingleMulGateExplicitSchedule(t *testing.T) {
 }
 
 // TestMiMCBatchedLayers tests MiMC with a layered schedule that groups all round wires
-// into a single SumcheckStep with multiple ClaimGroups, exercising multi-wire batching.
-// This test will pass once the Prove/Verify loops implement multi-group SumcheckStep handling.
+// into a single SumcheckLevel with multiple ClaimGroups, exercising multi-wire batching.
+// This test will pass once the Prove/Verify loops implement multi-group SumcheckLevel handling.
 func TestMiMCBatchedLayers(t *testing.T) {
-	t.Skip("requires multi-group SumcheckStep support in Prove/Verify")
 	const depth = 4
 	circuit := gkrtesting.MiMCCircuit(depth)
 	_, sCircuit := cache.Compile(t, circuit)
@@ -323,9 +320,9 @@ func TestMiMCBatchedLayers(t *testing.T) {
 	// MiMC circuit structure: wire 0 = key (input), wire 1 = plaintext (input),
 	// wires 2..depth+1 = round outputs. Each round wire i has inputs [i-1, 0].
 	// All round wires are independent (each depends only on the previous round and the key),
-	// so each is its own layer. Batch them all into a single SumcheckStep to test
+	// so each is its own layer. Batch them all into a single SumcheckLevel to test
 	// multi-ClaimGroup batching.
-	groups := make(gkrcore.SumcheckStep, depth)
+	groups := make(gkrcore.SumcheckLevel, depth)
 	for i := range depth {
 		groups[i] = gkrcore.ClaimGroup{Wires: []int{depth + 1 - i}}
 	}
@@ -343,13 +340,13 @@ func BenchmarkGkrMimc17(b *testing.B) {
 	benchmarkGkrMiMC(b, 1<<17, 91)
 }
 
-func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
-	proof := make(Proof, len(printable))
-	for i := range printable {
+func unmarshalProof(info gkrtesting.PrintableProof) (Proof, error) {
+	proof := make(Proof, len(info))
+	for i := range info {
 		finalEvalProof := []fr.Element(nil)
 
-		if printable[i].FinalEvalProof != nil {
-			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
+		if info[i].FinalEvalProof != nil {
+			finalEvalSlice := reflect.ValueOf(info[i].FinalEvalProof)
 			finalEvalProof = make([]fr.Element, finalEvalSlice.Len())
 			for k := range finalEvalProof {
 				if _, err := setElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
@@ -359,12 +356,12 @@ func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 		}
 
 		proof[i] = sumcheckProof{
-			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
+			partialSumPolys: make([]polynomial.Polynomial, len(info[i].PartialSumPolys)),
 			finalEvalProof:  finalEvalProof,
 		}
-		for k := range printable[i].PartialSumPolys {
+		for k := range info[i].PartialSumPolys {
 			var err error
-			if proof[i].partialSumPolys[k], err = sliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = sliceToElementSlice(info[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}
@@ -378,7 +375,7 @@ type TestCase struct {
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
-	Schedule        gkrcore.ProvingSchedule // nil means DefaultProvingSchedule
+	Schedule        gkrcore.ProvingSchedule // nil means BasicProvingSchedule
 }
 
 var testCases = make(map[string]*TestCase)
@@ -407,6 +404,10 @@ func newTestCase(path string) (*TestCase, error) {
 	}
 	var proof Proof
 	if proof, err = unmarshalProof(info.Proof); err != nil {
+		return nil, err
+	}
+	var schedule gkrcore.ProvingSchedule
+	if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
 		return nil, err
 	}
 
@@ -456,7 +457,7 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
-		Schedule:        info.Schedule, // nil if absent from JSON → DefaultProvingSchedule
+		Schedule:        schedule, // nil if absent from JSON → BasicProvingSchedule
 	}
 
 	testCases[path] = tCase

@@ -151,115 +151,51 @@ type PrintableSumcheckProof struct {
 }
 
 type HashDescription map[string]interface{}
-type testCaseInfoJSON struct {
+
+// TestCaseInfo is the serializable form of a GKR test case, matching the JSON file format.
+// Schedule is nil when absent from JSON, which means BasicProvingSchedule.
+type TestCaseInfo struct {
 	Hash     HashDescription `json:"hash"`
 	Circuit  string          `json:"circuit"`
 	Input    [][]interface{} `json:"input"`
 	Output   [][]interface{} `json:"output"`
 	Proof    PrintableProof  `json:"proof"`
-	Schedule *jsonSchedule   `json:"schedule,omitempty"` // nil means DefaultProvingSchedule
+	Schedule ScheduleInfo    `json:"schedule,omitempty"`
 }
 
-type TestCaseInfo struct {
-	Hash     HashDescription
-	Circuit  string
-	Input    [][]interface{}
-	Output   [][]interface{}
-	Proof    PrintableProof
-	Schedule gkrcore.ProvingSchedule // nil means DefaultProvingSchedule
+// ScheduleStepInfo is the JSON representation of a ProvingLevel with a type discriminator.
+type ScheduleStepInfo struct {
+	Type   string               `json:"type"`
+	Groups []gkrcore.ClaimGroup `json:"groups,omitempty"`       // for SumcheckLevel
+	Wires  []int                `json:"wires,omitempty"`        // for SkipLevel
+	Claims []int                `json:"claimSources,omitempty"` // for SkipLevel
 }
 
-func (t *TestCaseInfo) UnmarshalJSON(data []byte) error {
-	var raw testCaseInfoJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	t.Hash = raw.Hash
-	t.Circuit = raw.Circuit
-	t.Input = raw.Input
-	t.Output = raw.Output
-	t.Proof = raw.Proof
-	if raw.Schedule != nil {
-		t.Schedule = raw.Schedule.ProvingSchedule
-	}
-	return nil
-}
+// ScheduleInfo is the JSON-serializable form of a ProvingSchedule.
+type ScheduleInfo []ScheduleStepInfo
 
-func (t TestCaseInfo) MarshalJSON() ([]byte, error) {
-	raw := testCaseInfoJSON{
-		Hash:    t.Hash,
-		Circuit: t.Circuit,
-		Input:   t.Input,
-		Output:  t.Output,
-		Proof:   t.Proof,
+// ToProvingSchedule converts a ScheduleInfo to a gkrcore.ProvingSchedule.
+// A nil ScheduleInfo returns nil, which callers should interpret as BasicProvingSchedule.
+func (p ScheduleInfo) ToProvingSchedule() (gkrcore.ProvingSchedule, error) {
+	if p == nil {
+		return nil, nil
 	}
-	if t.Schedule != nil {
-		raw.Schedule = &jsonSchedule{t.Schedule}
-	}
-	return json.Marshal(raw)
-}
-
-// provingStepJSON is the JSON representation of a ProvingStep with a type discriminator.
-type provingStepJSON struct {
-	Type   string                `json:"type"`
-	Groups []gkrcore.ClaimGroup `json:"groups,omitempty"` // for SumcheckStep
-	Wires  []int                 `json:"wires,omitempty"`  // for SkipStep
-	Claims []int                 `json:"claimSources,omitempty"` // for SkipStep
-}
-
-// marshalSchedule marshals a ProvingSchedule to JSON.
-func marshalSchedule(s gkrcore.ProvingSchedule) ([]byte, error) {
-	steps := make([]provingStepJSON, len(s))
-	for i, step := range s {
-		switch v := step.(type) {
-		case gkrcore.SumcheckStep:
-			steps[i] = provingStepJSON{Type: "sumcheck", Groups: []gkrcore.ClaimGroup(v)}
-		case gkrcore.SkipStep:
-			steps[i] = provingStepJSON{Type: "skip", Wires: v.Wires, Claims: v.ClaimSources}
-		default:
-			return nil, errors.New("unknown ProvingStep type")
-		}
-	}
-	return json.Marshal(steps)
-}
-
-// unmarshalSchedule unmarshals a ProvingSchedule from JSON.
-func unmarshalSchedule(data []byte) (gkrcore.ProvingSchedule, error) {
-	var steps []provingStepJSON
-	if err := json.Unmarshal(data, &steps); err != nil {
-		return nil, err
-	}
-	s := make(gkrcore.ProvingSchedule, len(steps))
-	for i, step := range steps {
+	s := make(gkrcore.ProvingSchedule, len(p))
+	for i, step := range p {
 		switch step.Type {
 		case "sumcheck":
 			groups := step.Groups
 			if groups == nil {
 				groups = []gkrcore.ClaimGroup{}
 			}
-			s[i] = gkrcore.SumcheckStep(groups)
+			s[i] = gkrcore.SumcheckLevel(groups)
 		case "skip":
-			s[i] = gkrcore.SkipStep{Wires: step.Wires, ClaimSources: step.Claims}
+			s[i] = gkrcore.SkipLevel{Wires: step.Wires, ClaimSources: step.Claims}
 		default:
-			return nil, errors.New("unknown ProvingStep type: " + step.Type)
+			return nil, errors.New("unknown ProvingLevel type: " + step.Type)
 		}
 	}
 	return s, nil
-}
-
-// jsonSchedule is a local wrapper enabling custom JSON marshaling for ProvingSchedule
-// within TestCaseInfo, since methods cannot be defined on non-local types.
-type jsonSchedule struct {
-	gkrcore.ProvingSchedule
-}
-
-func (j jsonSchedule) MarshalJSON() ([]byte, error) {
-	return marshalSchedule(j.ProvingSchedule)
-}
-
-func (j *jsonSchedule) UnmarshalJSON(data []byte) (err error) {
-	j.ProvingSchedule, err = unmarshalSchedule(data)
-	return
 }
 
 func (c *Cache) ReadTestCaseInfo(filePath string) (info TestCaseInfo, err error) {
@@ -326,4 +262,91 @@ func SingleMimcCipherGateCircuit() gkrcore.RawCircuit {
 		{},
 		{Gate: mimcGate, Inputs: []int{0, 1}},
 	}
+}
+
+// poseidon2ExtLinear0 computes 2*x[0] + x[1] (external matrix, state[0] row).
+func poseidon2ExtLinear0(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[0], x[1])
+}
+
+// poseidon2ExtLinear1 computes x[0] + 2*x[1] (external matrix, state[1] row).
+func poseidon2ExtLinear1(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[1], x[1])
+}
+
+// poseidon2IntLinear1 computes x[0] + 3*x[1] (internal matrix, state[1] row; state[0] row = external).
+func poseidon2IntLinear1(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[1], x[1], x[1])
+}
+
+// poseidon2SBox computes x[0]^2 (simplified s-box).
+func poseidon2SBox(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Mul(x[0], x[0])
+}
+
+// poseidon2FeedForward computes 2*x[0] + x[1] + x[2] (external matrix row with feed-forward).
+func poseidon2FeedForward(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[0], x[1], x[2])
+}
+
+// Poseidon2Circuit returns a 2-state Poseidon2-like GKR circuit with the given number of
+// full and partial rounds, followed by a feed-forward output wire.
+// Each full round applies the external linear layer (degree 1, skip) to both state elements
+// followed by the s-box x^2 (degree 2, sumcheck) to both.
+// Each partial round applies the external linear layer to state[0] and the internal linear
+// layer to state[1] (both skip), then the s-box to state[0] only (sumcheck).
+// The final output wire is 2*s0 + s1 + in1 (external matrix row with the second input fed forward).
+//
+// Wire layout per full round (wires s0, s1 are the current state):
+//
+//	+0 = 2*s0 + s1   external linear, state[0]  (skip)
+//	+1 = s0 + 2*s1   external linear, state[1]  (skip)
+//	+2 = lin0^2      s-box, state[0]             (sumcheck)
+//	+3 = lin1^2      s-box, state[1]             (sumcheck)
+//
+// Wire layout per partial round:
+//
+//	+0 = 2*s0 + s1   external linear, state[0]  (skip)
+//	+1 = s0 + 3*s1   internal linear, state[1]  (skip)
+//	+2 = lin0^2      s-box, state[0] only        (sumcheck)
+//
+// Final wire: 2*s0 + s1 + in1 (feed-forward, sumcheck output)
+func Poseidon2Circuit(nbFullRounds, nbPartialRounds int) gkrcore.RawCircuit {
+	// 2 inputs + 4 wires per full round + 3 wires per partial round + 1 feed-forward output
+	nbWires := 2 + 4*nbFullRounds + 3*nbPartialRounds + 1
+	c := make(gkrcore.RawCircuit, nbWires)
+	// wires 0, 1 are inputs
+	s0, s1 := 0, 1
+
+	w := 2
+	appendFullRound := func() {
+		c[w] = gkrcore.RawWire{Gate: poseidon2ExtLinear0, Inputs: []int{s0, s1}}
+		c[w+1] = gkrcore.RawWire{Gate: poseidon2ExtLinear1, Inputs: []int{s0, s1}}
+		c[w+2] = gkrcore.RawWire{Gate: poseidon2SBox, Inputs: []int{w}}
+		c[w+3] = gkrcore.RawWire{Gate: poseidon2SBox, Inputs: []int{w + 1}}
+		s0, s1 = w+2, w+3
+		w += 4
+	}
+	appendPartialRound := func() {
+		c[w] = gkrcore.RawWire{Gate: poseidon2ExtLinear0, Inputs: []int{s0, s1}}
+		c[w+1] = gkrcore.RawWire{Gate: poseidon2IntLinear1, Inputs: []int{s0, s1}}
+		c[w+2] = gkrcore.RawWire{Gate: poseidon2SBox, Inputs: []int{w}}
+		s0, s1 = w+2, w+1
+		w += 3
+	}
+
+	for range nbFullRounds / 2 {
+		appendFullRound()
+	}
+	for range nbPartialRounds {
+		appendPartialRound()
+	}
+	for range nbFullRounds - nbFullRounds/2 {
+		appendFullRound()
+	}
+
+	// feed-forward: 2*s0 + s1 + in1
+	c[w] = gkrcore.RawWire{Gate: poseidon2FeedForward, Inputs: []int{s0, s1, 1}}
+
+	return c
 }

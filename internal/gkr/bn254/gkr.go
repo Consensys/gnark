@@ -40,7 +40,7 @@ type zeroCheckLazyClaims struct {
 	wireI              int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ), allegedly
-	manager            *claimsManager // WARNING: Circular references
+	manager            *resources     // WARNING: Circular references
 }
 
 func (e *zeroCheckLazyClaims) getWire() Wire {
@@ -129,7 +129,7 @@ type zeroCheckClaims struct {
 	wireI              int            // the wire for which we are making the claim, with value w
 	evaluationPoints   [][]fr.Element // xᵢ: the points at which the prover has made claims about the evaluation of w
 	claimedEvaluations []fr.Element   // yᵢ = w(xᵢ)
-	manager            *claimsManager
+	manager            *resources
 
 	input []polynomial.MultiLin // input[i](h₁, ..., hₘ₋ⱼ) = wᵢ(r₁, r₂, ..., rⱼ₋₁, h₁, ..., hₘ₋ⱼ)
 
@@ -354,20 +354,22 @@ func (c *zeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
 	return evaluations
 }
 
-type claimsManager struct {
+type resources struct {
 	claims     []*zeroCheckLazyClaims
 	assignment WireAssignment
 	memPool    *polynomial.Pool
 	workers    *utils.WorkerPool
 	circuit    Circuit
+	schedule   gkrcore.ProvingSchedule
 }
 
-func newClaimsManager(circuit Circuit, assignment WireAssignment, o settings) (manager claimsManager) {
+func newResources(circuit Circuit, assignment WireAssignment, o settings, schedule gkrcore.ProvingSchedule) (manager resources) {
 	manager.assignment = assignment
 	manager.claims = make([]*zeroCheckLazyClaims, len(circuit))
 	manager.memPool = o.pool
 	manager.workers = o.workers
 	manager.circuit = circuit
+	manager.schedule = schedule
 
 	for i := range circuit {
 		manager.claims[i] = &zeroCheckLazyClaims{
@@ -380,18 +382,18 @@ func newClaimsManager(circuit Circuit, assignment WireAssignment, o settings) (m
 	return
 }
 
-func (m *claimsManager) add(wire int, evaluationPoint []fr.Element, evaluation fr.Element) {
+func (m *resources) add(wire int, evaluationPoint []fr.Element, evaluation fr.Element) {
 	claim := m.claims[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManager) getLazyClaim(wire int) *zeroCheckLazyClaims {
+func (m *resources) getLazyClaim(wire int) *zeroCheckLazyClaims {
 	return m.claims[wire]
 }
 
-func (m *claimsManager) getClaim(wireI int) *zeroCheckClaims {
+func (m *resources) getClaim(wireI int) *zeroCheckClaims {
 	lazy := m.claims[wireI]
 	wire := m.circuit[wireI]
 	res := &zeroCheckClaims{
@@ -416,7 +418,7 @@ func (m *claimsManager) getClaim(wireI int) *zeroCheckClaims {
 	return res
 }
 
-func (m *claimsManager) deleteClaim(wire int) {
+func (m *resources) deleteClaim(wire int) {
 	m.claims[wire].manager = nil
 	m.claims[wire] = nil
 }
@@ -427,7 +429,6 @@ type settings struct {
 	transcriptPrefix string
 	nbVars           int
 	workers          *utils.WorkerPool
-	schedule         gkrcore.ProvingSchedule
 }
 
 type Option func(*settings)
@@ -444,7 +445,7 @@ func WithWorkers(workers *utils.WorkerPool) Option {
 	}
 }
 
-func setup(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, error) {
+func setup(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (settings, gkrcore.ProvingSchedule, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -452,14 +453,15 @@ func setup(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignmen
 	}
 
 	if schedule == nil {
-		schedule = gkrcore.DefaultProvingSchedule(c)
+		if schedule, err = gkrcore.BasicProvingSchedule(c); err != nil {
+			return o, nil, err
+		}
 	}
-	o.schedule = schedule
 
 	o.nbVars = assignment.NumVars()
 	nbInstances := assignment.NumInstances()
 	if 1<<o.nbVars != nbInstances {
-		return o, errors.New("number of instances must be power of 2")
+		return o, nil, errors.New("number of instances must be power of 2")
 	}
 
 	if o.pool == nil {
@@ -472,30 +474,33 @@ func setup(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignmen
 	}
 
 	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNames(c, o.schedule, o.nbVars, transcriptSettings.Prefix)
+		challengeNames := ChallengeNames(c, schedule, o.nbVars, transcriptSettings.Prefix)
 		o.transcript = fiatshamir.NewTranscript(transcriptSettings.Hash, challengeNames...)
 		for i := range transcriptSettings.BaseChallenges {
 			if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges[i]); err != nil {
-				return o, err
+				return o, nil, err
 			}
 		}
 	} else {
 		o.transcript, o.transcriptPrefix = transcriptSettings.Transcript, transcriptSettings.Prefix
 	}
 
-	return o, err
+	return o, schedule, err
 }
 
 func ChallengeNames(c Circuit, schedule gkrcore.ProvingSchedule, logNbInstances int, prefix string) []string {
 	if schedule == nil {
-		schedule = gkrcore.DefaultProvingSchedule(c)
+		var err error
+		if schedule, err = gkrcore.BasicProvingSchedule(c); err != nil {
+			panic(err)
+		}
 	}
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
 
 	for _, step := range schedule {
-		s, ok := step.(gkrcore.SumcheckStep)
+		s, ok := step.(gkrcore.SumcheckLevel)
 		if !ok {
 			continue
 		}
@@ -525,7 +530,7 @@ func ChallengeNames(c Circuit, schedule gkrcore.ProvingSchedule, logNbInstances 
 	}
 	j := logNbInstances
 	for stepI, step := range schedule {
-		s, ok := step.(gkrcore.SumcheckStep)
+		s, ok := step.(gkrcore.SumcheckLevel)
 		if !ok {
 			continue
 		}
@@ -574,15 +579,15 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) ([]fr.Elem
 
 // Prove consistency of the claimed assignment
 func Prove(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...Option) (Proof, error) {
-	o, err := setup(c, schedule, assignment, transcriptSettings, options...)
+	o, schedule, err := setup(c, schedule, assignment, transcriptSettings, options...)
 	if err != nil {
 		return nil, err
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(c, assignment, o)
+	res := newResources(c, assignment, o, schedule)
 
-	proof := make(Proof, len(o.schedule))
+	proof := make(Proof, len(res.schedule))
 	// firstChallenge called rho in the paper
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -592,28 +597,28 @@ func Prove(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignmen
 
 	stepPrefix := o.transcriptPrefix + "s"
 	var baseChallenge [][]byte
-	for stepI, step := range o.schedule {
+	for stepI, step := range res.schedule {
 		switch s := step.(type) {
-		case gkrcore.SkipStep:
+		case gkrcore.SkipLevel:
 			// No sumcheck; claims propagate at existing evaluation points.
-			// TODO: implement claim passthrough for SkipStep
+			// TODO: implement claim passthrough for SkipLevel
 			_ = s
-		case gkrcore.SumcheckStep:
-			// Currently only single-wire single-group steps are supported.
-			// Multi-wire batching is future work.
+		case gkrcore.SumcheckLevel:
+			if len(s) > 1 {
+				return nil, errors.New("batching multiple claim groups in one SumcheckLevel is not yet implemented")
+			}
 			// Seed output claims for all wires in this step.
 			for _, g := range s {
 				for _, wireI := range g.Wires {
 					if c[wireI].IsOutput() {
-						claims.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, claims.memPool))
+						res.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, res.memPool))
 					}
 				}
 			}
 
-			// For the default schedule each step has exactly one group with one wire.
 			wireI := s[0].Wires[0]
 			wire := c[wireI]
-			claim := claims.getClaim(wireI)
+			claim := res.getClaim(wireI)
 			if wire.NoProof() {
 				proof[stepI] = sumcheckProof{
 					partialSumPolys: []polynomial.Polynomial{},
@@ -630,7 +635,7 @@ func Prove(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignmen
 					baseChallenge[j] = proof[stepI].finalEvalProof[j].Marshal()
 				}
 			}
-			claims.deleteClaim(wireI)
+			res.deleteClaim(wireI)
 		}
 	}
 
@@ -640,13 +645,13 @@ func Prove(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignmen
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
 func Verify(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignment, proof Proof, transcriptSettings fiatshamir.Settings, options ...Option) error {
-	o, err := setup(c, schedule, assignment, transcriptSettings, options...)
+	o, schedule, err := setup(c, schedule, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
 	}
 	defer o.workers.Stop()
 
-	claims := newClaimsManager(c, assignment, o)
+	res := newResources(c, assignment, o, schedule)
 
 	var firstChallenge []fr.Element
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
@@ -656,26 +661,28 @@ func Verify(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignme
 
 	stepPrefix := o.transcriptPrefix + "s"
 	var baseChallenge [][]byte
-	for stepI, step := range o.schedule {
+	for stepI, step := range res.schedule {
 		switch s := step.(type) {
-		case gkrcore.SkipStep:
-			// TODO: implement claim passthrough for SkipStep
+		case gkrcore.SkipLevel:
+			// TODO: implement claim passthrough for SkipLevel
 			_ = s
-		case gkrcore.SumcheckStep:
+		case gkrcore.SumcheckLevel:
+			if len(s) > 1 {
+				return fmt.Errorf("batching multiple claim groups in one SumcheckLevel is not yet implemented")
+			}
 			// Seed output claims for all wires in this step.
 			for _, g := range s {
 				for _, wireI := range g.Wires {
 					if c[wireI].IsOutput() {
-						claims.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, claims.memPool))
+						res.add(wireI, firstChallenge, assignment[wireI].Evaluate(firstChallenge, res.memPool))
 					}
 				}
 			}
 
-			// For the default schedule each step has exactly one group with one wire.
 			wireI := s[0].Wires[0]
 			wire := c[wireI]
 			proofW := proof[stepI]
-			claim := claims.getLazyClaim(wireI)
+			claim := res.getLazyClaim(wireI)
 			if wire.NoProof() {
 				if len(proofW.finalEvalProof) != 0 || len(proofW.partialSumPolys) != 0 {
 					return errors.New("no proof allowed for input wire with a single claim")
@@ -684,7 +691,7 @@ func Verify(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignme
 					if len(claim.evaluationPoints) == 0 || len(claim.claimedEvaluations) == 0 {
 						return errors.New("missing input wire claim")
 					}
-					evaluation := assignment[wireI].Evaluate(claim.evaluationPoints[0], claims.memPool)
+					evaluation := assignment[wireI].Evaluate(claim.evaluationPoints[0], res.memPool)
 					if !claim.claimedEvaluations[0].Equal(&evaluation) {
 						return errors.New("incorrect input wire claim")
 					}
@@ -699,7 +706,7 @@ func Verify(c Circuit, schedule gkrcore.ProvingSchedule, assignment WireAssignme
 			} else {
 				return fmt.Errorf("sumcheck proof rejected: %v", err)
 			}
-			claims.deleteClaim(wireI)
+			res.deleteClaim(wireI)
 		}
 	}
 	return nil
