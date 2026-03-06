@@ -188,6 +188,36 @@ func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
 		Mod(r, s.modulus.q)
 	return s.bigIntToElement(r), true
 }
+
+func (s *blueprintSolver[E]) BatchInverse(a []E) {
+	n := len(a)
+	if n == 0 {
+		return
+	}
+	// Montgomery batch inversion with big.Int: one ModInverse + O(n) multiplications.
+	// prefix[i] = canonical product a[0]*...*a[i-1] (nil marks a zero input).
+	var zero E
+	prefix := make([]*big.Int, n)
+	accumulator := big.NewInt(1)
+	for i := 0; i < n; i++ {
+		if a[i] == zero {
+			continue
+		}
+		prefix[i] = new(big.Int).Set(accumulator)
+		accumulator.Mul(accumulator, s.ToBigInt(a[i])).Mod(accumulator, s.modulus.q)
+	}
+	accumulator.ModInverse(accumulator, s.modulus.q)
+	for i := n - 1; i >= 0; i-- {
+		if prefix[i] == nil {
+			continue // a[i] was zero; leave it as zero
+		}
+		v := s.ToBigInt(a[i])
+		prefix[i].Mul(prefix[i], accumulator).Mod(prefix[i], s.modulus.q)
+		accumulator.Mul(accumulator, v).Mod(accumulator, s.modulus.q)
+		a[i] = s.bigIntToElement(prefix[i])
+	}
+}
+
 func (s *blueprintSolver[E]) One() E {
 	b := new(big.Int).SetUint64(1)
 	return s.bigIntToElement(b)
