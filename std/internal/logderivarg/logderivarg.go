@@ -166,19 +166,6 @@ func Build(api frontend.API, table Table, queries Table) error {
 					lp[i] = api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
 				}
 			}
-			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
-			for len(lp) > 1 {
-				for i := range len(lp) / 2 {
-					lp[i] = api.Add(lp[2*i], lp[2*i+1])
-				}
-				if len(lp)%2 == 1 {
-					lp[len(lp)/2] = lp[len(lp)-1]
-				}
-				lp = lp[:(len(lp)+1)/2]
-			}
-			if len(lp) == 0 {
-				lp = []frontend.Variable{0}
-			}
 
 			rp := make([]frontend.Variable, len(queries))
 			for i := range queries {
@@ -192,20 +179,10 @@ func Build(api frontend.API, table Table, queries Table) error {
 					rp[i] = api.Inverse(rp[i])
 				}
 			}
-			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
-			for len(rp) > 1 {
-				for i := range len(rp) / 2 {
-					rp[i] = api.Add(rp[2*i], rp[2*i+1])
-				}
-				if len(rp)%2 == 1 {
-					rp[len(rp)/2] = rp[len(rp)-1]
-				}
-				rp = rp[:(len(rp)+1)/2]
-			}
-			if len(rp) == 0 {
-				rp = []frontend.Variable{0}
-			}
-			api.AssertIsEqual(lp[0], rp[0])
+
+			lpSum := sumVariables(api, lp)
+			rpSum := sumVariables(api, rp)
+			api.AssertIsEqual(lpSum, rpSum)
 			return nil
 		}, toCommit...)
 	} else {
@@ -228,19 +205,6 @@ func Build(api frontend.API, table Table, queries Table) error {
 				expEntryExt := extapi.AsExtensionVariable(exps[i])
 				lpTerms[i] = extapi.Mul(expEntryExt, denom)
 			}
-			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
-			for len(lpTerms) > 1 {
-				for i := range len(lpTerms) / 2 {
-					lpTerms[i] = extapi.Add(lpTerms[2*i], lpTerms[2*i+1])
-				}
-				if len(lpTerms)%2 == 1 {
-					lpTerms[len(lpTerms)/2] = lpTerms[len(lpTerms)-1]
-				}
-				lpTerms = lpTerms[:(len(lpTerms)+1)/2]
-			}
-			if len(lpTerms) == 0 {
-				lpTerms = []fieldextension.Element{extapi.Zero()}
-			}
 
 			rpTerms := make([]fieldextension.Element, len(queries))
 			queryEntryExts := make([]fieldextension.Element, nbRow)
@@ -253,20 +217,9 @@ func Build(api frontend.API, table Table, queries Table) error {
 				denom = extapi.Inverse(denom)
 				rpTerms[i] = denom
 			}
-			// add using a tree to reduce levels (searchstring for grepping "add-using-tree")
-			for len(rpTerms) > 1 {
-				for i := range len(rpTerms) / 2 {
-					rpTerms[i] = extapi.Add(rpTerms[2*i], rpTerms[2*i+1])
-				}
-				if len(rpTerms)%2 == 1 {
-					rpTerms[len(rpTerms)/2] = rpTerms[len(rpTerms)-1]
-				}
-				rpTerms = rpTerms[:(len(rpTerms)+1)/2]
-			}
-			if len(rpTerms) == 0 {
-				rpTerms = []fieldextension.Element{extapi.Zero()}
-			}
-			extapi.AssertIsEqual(lpTerms[0], rpTerms[0])
+			lpTermsSum := sumVariablesExt(extapi, lpTerms)
+			rpTermsSum := sumVariablesExt(extapi, rpTerms)
+			extapi.AssertIsEqual(lpTermsSum, rpTermsSum)
 			return nil
 		}, extapi.Degree(), toCommit...)
 	}
@@ -413,4 +366,38 @@ func countHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		outputs[i].Set(big.NewInt(histo[string(buf)]))
 	}
 	return nil
+}
+
+// sumVariables sums the variables in vars using a tree to reduce levels (searchstring for grepping "add-using-tree").
+func sumVariables(api frontend.API, vars []frontend.Variable) frontend.Variable {
+	for len(vars) > 1 {
+		for i := range len(vars) / 2 {
+			vars[i] = api.Add(vars[2*i], vars[2*i+1])
+		}
+		if len(vars)%2 == 1 {
+			vars[len(vars)/2] = vars[len(vars)-1]
+		}
+		vars = vars[:(len(vars)+1)/2]
+	}
+	if len(vars) == 0 {
+		return 0
+	}
+	return vars[0]
+}
+
+// sumVariablesExt sums the variables in vars using a tree to reduce levels (searchstring for grepping "add-using-tree").
+func sumVariablesExt(extapi fieldextension.Field, vars []fieldextension.Element) fieldextension.Element {
+	for len(vars) > 1 {
+		for i := range len(vars) / 2 {
+			vars[i] = extapi.Add(vars[2*i], vars[2*i+1])
+		}
+		if len(vars)%2 == 1 {
+			vars[len(vars)/2] = vars[len(vars)-1]
+		}
+		vars = vars[:(len(vars)+1)/2]
+	}
+	if len(vars) == 0 {
+		return extapi.Zero()
+	}
+	return vars[0]
 }
