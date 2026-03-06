@@ -121,7 +121,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 		// handle the commitment over large fields directly
 		multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 			rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
-			var lp []frontend.Variable
+			var leftQuotients []frontend.Variable
 
 			// For constant single-column tables with PlonkAPI, merge Sub+DivUnchecked
 			// into a single PLONK gate per table entry (2 gates instead of 3).
@@ -147,7 +147,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 					hintInputs[1+i] = exps[i]
 					hintInputs[1+n+i] = table[i][0]
 				}
-				lp, err = api.NewHint(batchDivBySubHint, n, hintInputs...)
+				leftQuotients, err = api.NewHint(batchDivBySubHint, n, hintInputs...)
 				if err != nil {
 					return fmt.Errorf("batch div hint: %w", err)
 				}
@@ -158,31 +158,31 @@ func Build(api frontend.API, table Table, queries Table) error {
 					// qM*q*ch + qL*q + qR*ch + qO*exps + qC = 0
 					// 1*q*ch + (-c)*q + 0*ch + (-1)*exps + 0 = 0
 					// => q*(ch - c) = exps
-					plonkAPI.AddPlonkConstraint(lp[i], challenge, exps[i], -c, 0, -1, 1, 0)
+					plonkAPI.AddPlonkConstraint(leftQuotients[i], challenge, exps[i], -c, 0, -1, 1, 0)
 				}
 			} else {
-				lp = make([]frontend.Variable, len(table))
+				leftQuotients = make([]frontend.Variable, len(table))
 				for i := range table {
-					lp[i] = api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
+					leftQuotients[i] = api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
 				}
 			}
 
-			rp := make([]frontend.Variable, len(queries))
+			rightInverses := make([]frontend.Variable, len(queries))
 			for i := range queries {
-				rp[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
+				rightInverses[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
 			}
 
 			if bapi, ok := api.(frontend.BatchInverter); ok {
-				rp = bapi.BatchInvert(rp)
+				rightInverses = bapi.BatchInvert(rightInverses)
 			} else {
-				for i := range rp {
-					rp[i] = api.Inverse(rp[i])
+				for i := range rightInverses {
+					rightInverses[i] = api.Inverse(rightInverses[i])
 				}
 			}
 
-			lpSum := sumVariables(api, lp)
-			rpSum := sumVariables(api, rp)
-			api.AssertIsEqual(lpSum, rpSum)
+			leftQuotientSum := sumVariables(api, leftQuotients)
+			rightInversesSum := sumVariables(api, rightInverses)
+			api.AssertIsEqual(leftQuotientSum, rightInversesSum)
 			return nil
 		}, toCommit...)
 	} else {
@@ -193,7 +193,7 @@ func Build(api frontend.API, table Table, queries Table) error {
 		}
 		multicommit.WithWideCommitment(api, func(api frontend.API, commitment []frontend.Variable) error {
 			rowCoeffs, challenge := randLinearCofficientsExt(extapi, nbRow, fieldextension.Element(commitment))
-			lpTerms := make([]fieldextension.Element, len(table))
+			leftQuotientsTerms := make([]fieldextension.Element, len(table))
 			tableEntriesExts := make([]fieldextension.Element, nbRow)
 			for i := range table {
 				for j := range tableEntriesExts {
@@ -203,10 +203,10 @@ func Build(api frontend.API, table Table, queries Table) error {
 				denom := extapi.Sub(challenge, tableComb)
 				denom = extapi.Inverse(denom)
 				expEntryExt := extapi.AsExtensionVariable(exps[i])
-				lpTerms[i] = extapi.Mul(expEntryExt, denom)
+				leftQuotientsTerms[i] = extapi.Mul(expEntryExt, denom)
 			}
 
-			rpTerms := make([]fieldextension.Element, len(queries))
+			rightInversesTerms := make([]fieldextension.Element, len(queries))
 			queryEntryExts := make([]fieldextension.Element, nbRow)
 			for i := range queries {
 				for j := range queryEntryExts {
@@ -215,11 +215,11 @@ func Build(api frontend.API, table Table, queries Table) error {
 				queryEntryExt := randLinearCombinationExt(extapi, rowCoeffs, queryEntryExts)
 				denom := extapi.Sub(challenge, queryEntryExt)
 				denom = extapi.Inverse(denom)
-				rpTerms[i] = denom
+				rightInversesTerms[i] = denom
 			}
-			lpTermsSum := sumVariablesExt(extapi, lpTerms)
-			rpTermsSum := sumVariablesExt(extapi, rpTerms)
-			extapi.AssertIsEqual(lpTermsSum, rpTermsSum)
+			leftQuotientsTermsSum := sumVariablesExt(extapi, leftQuotientsTerms)
+			rightInversesTermsSum := sumVariablesExt(extapi, rightInversesTerms)
+			extapi.AssertIsEqual(leftQuotientsTermsSum, rightInversesTermsSum)
 			return nil
 		}, extapi.Degree(), toCommit...)
 	}
