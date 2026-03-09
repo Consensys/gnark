@@ -29,6 +29,7 @@ import (
 	bls12381r1cs "github.com/consensys/gnark/constraint/bls12-381"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
+	grumpkinr1cs "github.com/consensys/gnark/constraint/grumpkin"
 	koalabearr1cs "github.com/consensys/gnark/constraint/koalabear"
 	"github.com/consensys/gnark/constraint/solver"
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
@@ -93,6 +94,8 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 			bldrT.cs = bn254r1cs.NewR1CS(config.Capacity)
 		case ecc.BW6_761:
 			bldrT.cs = bw6761r1cs.NewR1CS(config.Capacity)
+		case ecc.GRUMPKIN:
+			bldrT.cs = grumpkinr1cs.NewR1CS(config.Capacity)
 		default:
 			panic("not implemented")
 		}

@@ -10,6 +10,7 @@ import (
 	poseidonbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/poseidon2"
 	poseidonbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
 	poseidonbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/poseidon2"
+	poseidongrumpkin "github.com/consensys/gnark-crypto/ecc/grumpkin/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -107,6 +108,22 @@ func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
 			}
 		}
 		return res, nil
+	case ecc.GRUMPKIN:
+		p := poseidongrumpkin.NewParameters(2, 6, 50)
+		res := Parameters{
+			Width:           p.Width,
+			DegreeSBox:      poseidongrumpkin.DegreeSBox(),
+			NbFullRounds:    p.NbFullRounds,
+			NbPartialRounds: p.NbPartialRounds,
+			RoundKeys:       make([][]big.Int, len(p.RoundKeys)),
+		}
+		for i := range res.RoundKeys {
+			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
+			for j := range res.RoundKeys[i] {
+				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		return res, nil
 	default:
 		return Parameters{}, fmt.Errorf("curve %s not supported", curve)
 	}
@@ -165,6 +182,16 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 	case ecc.BW6_761:
 		params.DegreeSBox = poseidonbw6761.DegreeSBox()
 		concreteParams := poseidonbw6761.NewParameters(width, nbFullRounds, nbPartialRounds)
+		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
+		for i := range params.RoundKeys {
+			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
+			for j := range params.RoundKeys[i] {
+				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
+			}
+		}
+	case ecc.GRUMPKIN:
+		params.DegreeSBox = poseidongrumpkin.DegreeSBox()
+		concreteParams := poseidongrumpkin.NewParameters(width, nbFullRounds, nbPartialRounds)
 		params.RoundKeys = make([][]big.Int, len(concreteParams.RoundKeys))
 		for i := range params.RoundKeys {
 			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
