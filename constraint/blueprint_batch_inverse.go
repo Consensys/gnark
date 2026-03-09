@@ -55,20 +55,46 @@ func (b *BlueprintBatchInverse[E]) Solve(s Solver[E], inst Instruction) error {
 		return nil
 	}
 
-	// Read input values: each input is a linear expression evaluated by s.Read.
-	inputs := make([]E, n)
-	calldata := inst.Calldata[2:]
+	// Montgomery batch inversion: one field inversion + O(n) multiplications.
+	// We store prefix products in a []E slice and track calldata offsets so
+	// we can re-read inputs in the backward pass without a separate []E for
+	// inputs. This eliminates the BatchInverse method from the Field interface.
+	wireOffset := inst.WireOffset
+
+	// Forward pass: evaluate each input LE, build prefix products, record
+	// calldata offsets for the backward pass.
+	prefix := make([]E, n) // prefix[i] = product of non-zero inputs before i
+	offsets := make([]uint32, n)
+	calldataBase := inst.Calldata[2:]
+	calldata := calldataBase
+	acc := s.One()
+	var zero E
 	for i := 0; i < n; i++ {
-		var nRead int
-		inputs[i], nRead = s.Read(calldata)
+		offsets[i] = uint32(len(calldataBase) - len(calldata))
+		val, nRead := s.Read(calldata)
 		calldata = calldata[nRead:]
+		if val == zero {
+			// prefix[i] stays zero (sentinel for zero input)
+			continue
+		}
+		prefix[i] = acc
+		acc = s.Mul(acc, val)
 	}
 
-	// Native batch inversion: modifies inputs in place (zero inputs become zero).
-	s.BatchInverse(inputs)
+	// Invert the accumulated product.
+	invAcc, _ := s.Inverse(acc)
 
-	for i := 0; i < n; i++ {
-		s.SetValue(inst.WireOffset+uint32(i), inputs[i])
+	// Backward pass: re-read each input, combine with prefix product and
+	// running inverse accumulator to produce the final inverse.
+	for i := n - 1; i >= 0; i-- {
+		if prefix[i] == zero {
+			s.SetValue(wireOffset+uint32(i), zero)
+			continue
+		}
+		val, _ := s.Read(calldataBase[offsets[i]:])
+		result := s.Mul(prefix[i], invAcc)
+		invAcc = s.Mul(invAcc, val)
+		s.SetValue(wireOffset+uint32(i), result)
 	}
 	return nil
 }
