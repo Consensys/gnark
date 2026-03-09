@@ -122,9 +122,6 @@ type Field[E Element] interface {
 	Sub(a, b E) E
 	Neg(a E) E
 	Inverse(a E) (E, bool)
-	// BatchInverse sets each a[i] to its modular inverse in place.
-	// By convention, the inverse of zero is zero.
-	BatchInverse(a []E)
 	One() E
 	IsOne(E) bool
 	String(E) string

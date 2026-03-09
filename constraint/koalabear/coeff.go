@@ -194,39 +194,6 @@ func (engine *field) Inverse(a constraint.U32) (constraint.U32, bool) {
 	return a, true
 }
 
-// BatchInverse sets each a[i] to its modular inverse in place using the
-// Montgomery batch-inversion trick (one field inversion + O(n) multiplications).
-// By convention, the inverse of zero is zero.
-// An internal prefix-product slice of length n is allocated.
-func (engine *field) BatchInverse(a []constraint.U32) {
-	n := len(a)
-	if n == 0 {
-		return
-	}
-	// prefix[i] = a[0] * ... * a[i-1] (product of non-zero elements before index i).
-	// Zero inputs leave prefix[i] as zero (from make), acting as a sentinel.
-	// Stored as fr.Element to avoid the padding overhead of constraint.U32.
-	prefix := make([]fr.Element, n)
-	accumulator := fr.One()
-	for i := 0; i < n; i++ {
-		e := (*fr.Element)(a[i][:])
-		if e.IsZero() {
-			continue
-		}
-		prefix[i] = accumulator
-		accumulator.Mul(&accumulator, e)
-	}
-	accumulator.Inverse(&accumulator)
-	for i := n - 1; i >= 0; i-- {
-		if prefix[i].IsZero() {
-			continue // a[i] was zero; leave it as zero
-		}
-		prefix[i].Mul(&prefix[i], &accumulator)
-		accumulator.Mul(&accumulator, (*fr.Element)(a[i][:]))
-		*(*fr.Element)(a[i][:]) = prefix[i]
-	}
-}
-
 func (engine *field) IsOne(a constraint.U32) bool {
 	e := (*fr.Element)(a[:])
 	return e.IsOne()
