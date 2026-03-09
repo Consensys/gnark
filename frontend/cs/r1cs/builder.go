@@ -59,7 +59,8 @@ type builder[E constraint.Element] struct {
 	mbuf1 expr.LinearExpression[E]
 	mbuf2 expr.LinearExpression[E]
 
-	genericGate constraint.BlueprintID
+	genericGate      constraint.BlueprintID
+	batchInverseGate constraint.BlueprintID
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -121,6 +122,7 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 	bldr.cs.AddPublicVariable("1")
 
 	bldr.genericGate = bldr.cs.AddBlueprint(&constraint.BlueprintGenericR1C{})
+	bldr.batchInverseGate = bldr.cs.AddBlueprint(&constraint.BlueprintBatchInverse[E]{})
 
 	var zero E
 	bldr.eZero = expr.NewLinearExpression(0, zero)
