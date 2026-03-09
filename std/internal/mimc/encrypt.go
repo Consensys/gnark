@@ -9,7 +9,6 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
-
 	"github.com/consensys/gnark/frontend"
 )
 
