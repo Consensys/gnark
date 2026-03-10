@@ -204,6 +204,7 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 type BlueprintProve struct {
 	SolveBlueprintID constraint.BlueprintID
 	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
+	Schedule         constraint.GkrProvingSchedule
 	HashName         string
 
 	lock sync.Mutex
@@ -275,7 +276,7 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
 
 	// Call the BN254-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(solveBlueprint.Circuit, nil, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, b.Schedule, assignments, fsSettings)
 	if err != nil {
 		return fmt.Errorf("bn254 prove failed: %w", err)
 	}
@@ -305,7 +306,7 @@ func (b *BlueprintProve) proofSize() int {
 	}
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
-	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
+	return gkrcore.ProofSize(b.Schedule, b.SolveBlueprint.Circuit, logNbInstances)
 }
 
 // NbOutputs implements Blueprint
@@ -434,7 +435,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BN254
-func NewBlueprints(circuit gkrcore.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrcore.Blueprints {
+func NewBlueprints(circuit gkrcore.SerializableCircuit, schedule constraint.GkrProvingSchedule, hashName string, compiler constraint.CustomizableSystem) gkrcore.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -443,6 +444,7 @@ func NewBlueprints(circuit gkrcore.SerializableCircuit, hashName string, compile
 	prove := &BlueprintProve{
 		SolveBlueprintID: solveID,
 		SolveBlueprint:   solve,
+		Schedule:         schedule,
 		HashName:         hashName,
 	}
 	proveID := compiler.AddBlueprint(prove)

@@ -36,10 +36,9 @@ type (
 	}
 
 	Wire[GateExecutable any] struct {
-		Gate            Gate[GateExecutable]
-		Inputs          []int
-		NbUniqueOutputs int
-		Exported        bool
+		Gate     Gate[GateExecutable]
+		Inputs   []int
+		Exported bool
 	}
 
 	Circuit[GateExecutable any] []Wire[GateExecutable]
@@ -62,55 +61,6 @@ type (
 // IsInput returns whether the wire is an input wire.
 func (w Wire[GateExecutable]) IsInput() bool {
 	return len(w.Inputs) == 0
-}
-
-// IsOutput returns whether the wire is an output wire. A wire is an output wire
-// if it is not input to any other wire.
-func (w Wire[GateExecutable]) IsOutput() bool {
-	return w.NbUniqueOutputs == 0 || w.Exported
-}
-
-// NbClaims returns the number of claims to be proven about this wire. The number
-// of claims is the number of Wires it is input to, except for an output wire, which
-// has an extra claim.
-func (w Wire[GateExecutable]) NbClaims() int {
-	res := w.NbUniqueOutputs
-	if w.IsOutput() {
-		res++
-	}
-	return res
-}
-
-// NoProof returns whether no proof is needed for this wire. This corresponds
-// to input wires without any claims to be made about them.
-func (w Wire[GateExecutable]) NoProof() bool {
-	return w.IsInput() && w.NbClaims() == 1
-}
-
-// NbUniqueInputs returns the number of unique input wires to this wire.
-func (w Wire[GateExecutable]) NbUniqueInputs() int {
-	set := make(map[int]struct{}, len(w.Inputs))
-	for _, in := range w.Inputs {
-		set[in] = struct{}{}
-	}
-	return len(set)
-}
-
-// ZeroCheckDegree returns the degree in each variable of the zero-check polynomial
-// associated with this gate, if any. If this wire is not subject to zero-check, it will return 0.
-func (w Wire[GateExecutable]) ZeroCheckDegree() int {
-	if w.IsInput() {
-		switch w.NbClaims() {
-		case 0:
-			panic("should be unreachable")
-		case 1:
-			return 0
-		default:
-			// Input gate with multiple claims treated as a degree 1 gate.
-			return 2
-		}
-	}
-	return w.Gate.Degree + 1
 }
 
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
@@ -160,30 +110,6 @@ func (c Circuit[GateExecutable]) MemoryRequirements(nbInstances int) []int {
 	return res
 }
 
-// OutputsList for each wire, returns the set of indexes of wires it is input to.
-// It also sets the NbUniqueOutputs fields.
-func (c Circuit[GateExecutable]) OutputsList() [][]int {
-	res := make([][]int, len(c))
-	for i := range c {
-		res[i] = make([]int, 0)
-		c[i].NbUniqueOutputs = 0
-	}
-	ins := make(map[int]struct{}, len(c))
-	for i := range c {
-		for k := range ins { // clear map
-			delete(ins, k)
-		}
-		for _, in := range c[i].Inputs {
-			res[in] = append(res[in], i)
-			if _, ok := ins[in]; !ok {
-				c[in].NbUniqueOutputs++
-				ins[in] = struct{}{}
-			}
-		}
-	}
-	return res
-}
-
 // Inputs returns the list of input wire indices.
 func (c Circuit[GateExecutable]) Inputs() []int {
 	res := make([]int, 0, len(c))
@@ -196,11 +122,16 @@ func (c Circuit[GateExecutable]) Inputs() []int {
 }
 
 // Outputs returns the list of output wire indices.
-// It requires the NbUniqueOutput values to have been set.
 func (c Circuit[GateExecutable]) Outputs() []int {
+	isOutput := make([]bool, len(c))
+	for i := range c {
+		for _, in := range c[i].Inputs {
+			isOutput[in] = true
+		}
+	}
 	res := make([]int, 0, len(c))
 	for i := range c {
-		if c[i].IsOutput() {
+		if !isOutput[i] {
 			res = append(res, i)
 		}
 	}
@@ -214,17 +145,6 @@ func (c Circuit[GateExecutable]) MaxGateNbIn() int {
 		res = max(res, len(c[i].Inputs))
 	}
 	return res
-}
-
-// ProofSize computes how large the proof for a circuit would be. It needs NbUniqueOutputs to be set.
-func (c Circuit[GateExecutable]) ProofSize(logNbInstances int) int {
-	nbUniqueInputs := 0
-	nbPartialEvalPolys := 0
-	for i := range c {
-		nbUniqueInputs += c[i].NbUniqueOutputs // each unique output is manifest in a finalEvalProof entry
-		nbPartialEvalPolys += c[i].ZeroCheckDegree()
-	}
-	return nbUniqueInputs + nbPartialEvalPolys*logNbInstances
 }
 
 // makeNeg1Slice returns a slice of size n with all elements set to -1.
@@ -278,48 +198,18 @@ type Blueprints struct {
 }
 
 // Compile compiles a raw circuit into both a gadget circuit and a serializable circuit.
-// It computes all wire and gate metadata (Degree, SolvableVar, NbUniqueOutputs).
+// It computes all wire and gate metadata (Degree, SolvableVar).
 func (c RawCircuit) Compile(mod *big.Int) (GadgetCircuit, SerializableCircuit, error) {
 	gadget := make(GadgetCircuit, len(c))
 	serializable := make(SerializableCircuit, len(c))
 
-	// First pass: copy inputs, gates, and exported flags, compute NbUniqueOutputs
-	curWireIn := make([]bool, len(c))
 	for i := range c {
 		gadget[i].Inputs = c[i].Inputs
 		gadget[i].Exported = c[i].Exported
 		serializable[i].Inputs = c[i].Inputs
 		serializable[i].Exported = c[i].Exported
 
-		// Compute NbUniqueOutputs for input wires
-		for _, in := range c[i].Inputs {
-			if !curWireIn[in] {
-				gadget[in].NbUniqueOutputs++
-				serializable[in].NbUniqueOutputs++
-				curWireIn[in] = true
-			}
-		}
-		// clear curWireIn for next iteration
-		for _, in := range c[i].Inputs {
-			curWireIn[in] = false
-		}
-	}
-
-	// Compile identity gate for input wires.
-	compiledIdentity, err := CompileGateFunction(Identity, 1, mod)
-	if err != nil {
-		return nil, nil, err
-	}
-	identityGadgetGate := GadgetGate{Evaluate: Identity, NbIn: 1, Degree: compiledIdentity.Degree, SolvableVar: compiledIdentity.SolvableVar}
-
-	// Second pass: compile gates and set metadata
-	for i := range c {
-		if len(c[i].Inputs) == 0 { // input wire
-			if c[i].Gate != nil {
-				return nil, nil, errors.New("nil gate expected for input wire")
-			}
-			gadget[i].Gate = identityGadgetGate
-			serializable[i].Gate = compiledIdentity
+		if gadget[i].IsInput() {
 			continue
 		}
 

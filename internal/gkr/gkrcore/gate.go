@@ -43,6 +43,12 @@ type GateBytecode struct {
 	Constants    []*big.Int        // constant values at indices [0, nbConsts)
 }
 
+// IdentityBytecode returns the compiled form of the identity gate (x → x).
+// A GateBytecode with no instructions returns its sole input directly.
+func IdentityBytecode() GateBytecode {
+	return GateBytecode{}
+}
+
 // NbConstants returns the number of constants in the gate
 func (g *GateBytecode) NbConstants() int {
 	return len(g.Constants)

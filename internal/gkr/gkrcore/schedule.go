@@ -3,39 +3,107 @@ package gkrcore
 import (
 	"fmt"
 	"slices"
+
+	"github.com/consensys/gnark/constraint"
 )
 
-type (
-	// ClaimGroup represents a set of wires with their claim sources.
-	// It is agnostic of the protocol - it only describes which wires have claims
-	// from which sources, not what to do with them.
-	//
-	// ClaimSources contains step indices that produced evaluation claims for these wires.
-	// The special value len(schedule) is a virtual step index representing the verifier's
-	// initial challenge (rho). It is never an actual index into the schedule slice.
-	ClaimGroup struct {
-		Wires        []int `json:"wires"`
-		ClaimSources []int `json:"claimSourcesCache"` // step indices; len(schedule) = initial challenge
+// UniqueGateInputs returns the unique gate input wire indices for all wires in the level,
+// deduplicated in batch-then-wire-then-input order (first occurrence wins).
+// For input wires (no gate inputs), the wire itself is returned.
+func UniqueGateInputs[G any](level constraint.GkrProvingLevel, c Circuit[G]) []int {
+	uniqueInputs, _ := InputMapping(level, c)
+	return uniqueInputs
+}
+
+// InputMapping computes the unique gate inputs and the per-wire index mapping in a single pass.
+// inputIndices[wireInLevel][gateInputJ] → position in uniqueInputs.
+// For input wires: inputIndices[i] = []int{position of wI in uniqueInputs}.
+func InputMapping[G any](level constraint.GkrProvingLevel, c Circuit[G]) (uniqueInputs []int, inputIndices [][]int) {
+	var groups []constraint.GkrClaimGroup
+	switch l := level.(type) {
+	case constraint.GkrSumcheckLevel:
+		groups = l
+	case constraint.GkrSkipLevel:
+		groups = []constraint.GkrClaimGroup{constraint.GkrClaimGroup(l)}
 	}
 
-	// ProvingLevel is the interface for a single level in the proving schedule.
-	// A level is either a SkipLevel or a SumcheckLevel.
-	ProvingLevel interface {
+	seen := make(map[int]int) // wire index → position in uniqueInputs
+	for _, group := range groups {
+		for _, wI := range group.Wires {
+			wire := c[wI]
+			inputs := wire.Inputs
+			if wire.IsInput() {
+				inputs = []int{wI}
+			}
+
+			indices := make([]int, len(inputs))
+			for inWI, inW := range inputs {
+				pos, ok := seen[inW]
+				if !ok {
+					pos = len(uniqueInputs)
+					seen[inW] = pos
+					uniqueInputs = append(uniqueInputs, inW)
+				}
+				indices[inWI] = pos
+			}
+			inputIndices = append(inputIndices, indices)
+		}
 	}
+	return
+}
 
-	// SkipLevel represents a level where zerocheck is skipped.
-	// Claims propagate through at their existing evaluation points.
-	SkipLevel ClaimGroup
+// ReduplicateInputs expands unique evaluations to per-wire gate input evaluation lists.
+func ReduplicateInputs[G, F any](level constraint.GkrProvingLevel, c Circuit[G], uniqueEvals []F) [][]F {
+	_, inputIndices := InputMapping(level, c)
+	result := make([][]F, len(inputIndices))
+	for wireInLevel := range inputIndices {
+		wireInputs := make([]F, len(inputIndices[wireInLevel]))
+		for gateInputJ, uniqueI := range inputIndices[wireInLevel] {
+			wireInputs[gateInputJ] = uniqueEvals[uniqueI]
+		}
+		result[wireInLevel] = wireInputs
+	}
+	return result
+}
 
-	// SumcheckLevel represents a level where one or more zerochecks are batched
-	// together in a single sumcheck. Each ClaimGroup within may have different
-	// claim sources (sumcheck-level batching), or the same source (enabling
-	// zerocheck-level batching with shared eq tables).
-	SumcheckLevel []ClaimGroup
+// Degree returns max(Gate.Degree across all wires in all groups) + 1.
+func Degree[G any](level constraint.GkrSumcheckLevel, c Circuit[G]) int {
+	maxDeg := 0
+	for _, group := range level {
+		for _, wI := range group.Wires {
+			w := &c[wI]
+			curr := 1
+			if !w.IsInput() {
+				curr = w.Gate.Degree
+			}
+			maxDeg = max(maxDeg, curr)
+		}
+	}
+	return maxDeg + 1
+}
 
-	// ProvingSchedule is a sequence of levels defining how to prove a GKR circuit.
-	ProvingSchedule []ProvingLevel
-)
+// NbClaims returns the total number of claims in a sumcheck level.
+func NbClaims(level constraint.GkrSumcheckLevel) int {
+	n := 0
+	for _, g := range level {
+		n += len(g.Wires) * len(g.ClaimSources)
+	}
+	return n
+}
+
+// ProofSize returns the total number of field elements in a GKR proof.
+func ProofSize[G any](schedule constraint.GkrProvingSchedule, c Circuit[G], logNbInstances int) int {
+	size := 0
+	for _, step := range schedule {
+		s, ok := step.(constraint.GkrSumcheckLevel)
+		if !ok {
+			continue
+		}
+		size += logNbInstances * Degree(s, c) // partialSumPolys
+		size += len(UniqueGateInputs(s, c))   // finalEvalProof
+	}
+	return size
+}
 
 // scheduleBuilder accumulates topology and per-wire claim sources while a schedule is being built.
 // Steps are appended in out-to-in (topological) order and reversed by finalize.
@@ -49,7 +117,7 @@ type scheduleBuilder struct {
 	wireProcessed        []bool
 	claimSourcesCache    [][]int // claimSourcesCache[i] is the result of claimSourcesCache(i), or nil if not yet computed.
 	firstUnprocessedWire int
-	levels               ProvingSchedule
+	levels               constraint.GkrProvingSchedule
 }
 
 // newScheduleBuilder initialises a builder for the given circuit.
@@ -76,7 +144,7 @@ func newScheduleBuilder(c SerializableCircuit) scheduleBuilder {
 	return b
 }
 
-// addSumcheckLevel appends a SumcheckLevel to the schedule. Each batch is a set of wire indices
+// addSumcheckLevel appends a GkrSumcheckLevel to the schedule. Each batch is a set of wire indices
 // to be proven together in a single zerocheck; all wires in a batch must share the same claim sources.
 // All wires across all batches must be ready.
 func (b *scheduleBuilder) addSumcheckLevel(batches ...[]int) error {
@@ -84,27 +152,27 @@ func (b *scheduleBuilder) addSumcheckLevel(batches ...[]int) error {
 	if err != nil {
 		return err
 	}
-	b.levels = append(b.levels, SumcheckLevel(claimGroups))
+	b.levels = append(b.levels, constraint.GkrSumcheckLevel(claimGroups))
 	return nil
 }
 
-// addSkipLevel appends a SkipLevel to the schedule for a single set of wire indices.
+// addSkipLevel appends a GkrSkipLevel to the schedule for a single set of wire indices.
 // All wires in the batch must share the same claim sources and must be ready.
 func (b *scheduleBuilder) addSkipLevel(wireIndices []int) error {
 	claimGroups, err := b.buildClaimGroups([][]int{wireIndices})
 	if err != nil {
 		return err
 	}
-	b.levels = append(b.levels, SkipLevel(claimGroups[0]))
+	b.levels = append(b.levels, constraint.GkrSkipLevel(claimGroups[0]))
 	return nil
 }
 
 // buildClaimGroups processes a set of batches, validates claim source consistency within each
-// batch, updates wireLevels and wireProcessed, and returns the resulting ClaimGroups.
+// batch, updates wireLevels and wireProcessed, and returns the resulting GkrClaimGroups.
 // Every ClaimSources slice is sorted. The user may reorder it to optimize eq handling.
-func (b *scheduleBuilder) buildClaimGroups(batches [][]int) ([]ClaimGroup, error) {
+func (b *scheduleBuilder) buildClaimGroups(batches [][]int) ([]constraint.GkrClaimGroup, error) {
 	levelIdx := len(b.levels)
-	claimGroups := make([]ClaimGroup, len(batches))
+	claimGroups := make([]constraint.GkrClaimGroup, len(batches))
 	for i, wireIndices := range batches {
 		var claimSources []int
 		for j, wI := range wireIndices {
@@ -124,14 +192,11 @@ func (b *scheduleBuilder) buildClaimGroups(batches [][]int) ([]ClaimGroup, error
 				}
 			}
 		}
-		claimGroups[i] = ClaimGroup{Wires: slices.Clone(wireIndices), ClaimSources: claimSources}
+		claimGroups[i] = constraint.GkrClaimGroup{Wires: slices.Clone(wireIndices), ClaimSources: claimSources}
 	}
 	return claimGroups, nil
 }
 
-// nextReady returns the largest i such that wires [i, len(circuit)) are all ready,
-// along with their claim sources. Wires are considered in reverse index order (high-to-low).
-// Returns len(circuit) if no wires are ready.
 // nextReady returns the highest wire index in the contiguous ready suffix starting at
 // firstUnprocessedWire, along with each wire's claim sources in wire-index order.
 // Returns firstUnprocessedWire, nil if no wires are ready.
@@ -150,7 +215,7 @@ func (b *scheduleBuilder) nextReady() (highestWireI int, sources [][]int) {
 	return b.firstUnprocessedWire, sources
 }
 
-// claimSourcesCache checks whether all consumers of wire wI have already been processed.
+// claimSources checks whether all consumers of wire wI have already been processed.
 // If so, it returns the deduplicated sorted claim sources for wI and true.
 // If not, it returns nil and false. Results are cached.
 func (b *scheduleBuilder) claimSources(wI int) ([]int, bool) {
@@ -166,7 +231,7 @@ func (b *scheduleBuilder) claimSources(wI int) ([]int, bool) {
 			return nil, false
 		}
 		consumerLevel := b.wireLevels[consumerWI]
-		if skip, ok := b.levels[consumerLevel].(SkipLevel); ok {
+		if skip, ok := b.levels[consumerLevel].(constraint.GkrSkipLevel); ok {
 			wireClaims = append(wireClaims, skip.ClaimSources...)
 		} else {
 			wireClaims = append(wireClaims, consumerLevel)
@@ -180,7 +245,7 @@ func (b *scheduleBuilder) claimSources(wI int) ([]int, bool) {
 
 // finalize reverses the schedule into in-to-out order and returns the completed schedule.
 // It errors if any wire has not been processed, meaning the caller did not schedule a layer for every wire.
-func (b *scheduleBuilder) finalize() (ProvingSchedule, error) {
+func (b *scheduleBuilder) finalize() (constraint.GkrProvingSchedule, error) {
 	for i, processed := range b.wireProcessed {
 		if !processed {
 			return nil, fmt.Errorf("wire %d has not been processed", i)
@@ -189,13 +254,13 @@ func (b *scheduleBuilder) finalize() (ProvingSchedule, error) {
 
 	n := len(b.levels)
 	slices.Reverse(b.levels)
-	// Fix up ClaimSources in every ClaimGroup: pre-reversal index src maps to n-1-src,
+	// Fix up ClaimSources in every GkrClaimGroup: pre-reversal index src maps to n-1-src,
 	// and the initial-challenge sentinel -1 maps to n.
 	for _, layer := range b.levels {
 		switch l := layer.(type) {
-		case SkipLevel:
+		case constraint.GkrSkipLevel:
 			mirror(l.ClaimSources, n)
-		case SumcheckLevel:
+		case constraint.GkrSumcheckLevel:
 			for _, cg := range l {
 				mirror(cg.ClaimSources, n)
 			}
@@ -214,9 +279,9 @@ func mirror(s []int, n int) {
 }
 
 // DefaultProvingSchedule generates a schedule that greedily batches input wires with the same
-// single claim source into the same SkipLevel. Non-input wires, and input wires with multiple
-// claim sources, each get their own SumcheckLevel.
-func DefaultProvingSchedule(c SerializableCircuit) (ProvingSchedule, error) {
+// single claim source into the same GkrSkipLevel. Non-input wires, and input wires with multiple
+// claim sources, each get their own GkrSumcheckLevel.
+func DefaultProvingSchedule(c SerializableCircuit) (constraint.GkrProvingSchedule, error) {
 	b := newScheduleBuilder(c)
 
 	for b.firstUnprocessedWire >= 0 {
@@ -239,7 +304,7 @@ func DefaultProvingSchedule(c SerializableCircuit) (ProvingSchedule, error) {
 			}
 			batch = append(batch, highWI-len(batch))
 		}
-		if w.Gate.Degree == 1 && len(batchClaimSources) == 1 {	// certain that skipping won't cause a claim blowup
+		if w.Gate.Degree == 1 && len(batchClaimSources) == 1 { // certain that skipping won't cause a claim blowup
 			if err := b.addSkipLevel(batch); err != nil {
 				return nil, err
 			}
@@ -253,9 +318,9 @@ func DefaultProvingSchedule(c SerializableCircuit) (ProvingSchedule, error) {
 }
 
 // BasicProvingSchedule generates a schedule for a circuit where every wire gets its own level:
-// Non-input wires get a SumcheckLevel. Input wires with multiple consumers get a SumcheckLevel
-// to consolidate claims; input wires with a single consumer get a SkipLevel.
-func BasicProvingSchedule(c SerializableCircuit) (ProvingSchedule, error) {
+// Non-input wires get a GkrSumcheckLevel. Input wires with multiple consumers get a GkrSumcheckLevel
+// to consolidate claims; input wires with a single consumer get a GkrSkipLevel.
+func BasicProvingSchedule(c SerializableCircuit) (constraint.GkrProvingSchedule, error) {
 	b := newScheduleBuilder(c)
 	for wI := len(c) - 1; wI >= 0; wI-- {
 		src, ready := b.claimSources(wI)
