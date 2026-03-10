@@ -15,7 +15,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
@@ -257,9 +256,11 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
+	// Create hasher and write base challenges
+	hsh := hash.NewHash(b.HashName + "_BN254")
+
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
 	// Format: [0]=totalSize, [1...]=challenge linear expressions
-	insBytes := make([][]byte, 0) // first challenges
 	calldata := inst.Calldata[1:] // skip size prefix
 	for len(calldata) != 0 {
 		val, delta := s.Read(calldata)
@@ -268,15 +269,12 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
 		var challenge fr.Element
 		copy(challenge[:], val[:])
-		insBytes = append(insBytes, challenge.Marshal())
+		challengeBytes := challenge.Bytes()
+		hsh.Write(challengeBytes[:])
 	}
 
-	// Create Fiat-Shamir settings
-	hsh := hash.NewHash(b.HashName + "_BN254")
-	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
-
 	// Call the BN254-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(solveBlueprint.Circuit, b.Schedule, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, b.Schedule, assignments, hsh)
 	if err != nil {
 		return fmt.Errorf("bn254 prove failed: %w", err)
 	}
