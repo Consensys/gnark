@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
@@ -166,7 +167,7 @@ type TestCaseInfo struct {
 // ScheduleStepInfo is the JSON representation of a ProvingLevel with a type discriminator.
 type ScheduleStepInfo struct {
 	Type   string               `json:"type"`
-	Groups []gkrcore.ClaimGroup `json:"groups,omitempty"`       // for SumcheckLevel
+	Groups []constraint.GkrClaimGroup `json:"groups,omitempty"`       // for SumcheckLevel
 	Wires  []int                `json:"wires,omitempty"`        // for SkipLevel
 	Claims []int                `json:"claimSources,omitempty"` // for SkipLevel
 }
@@ -176,21 +177,21 @@ type ScheduleInfo []ScheduleStepInfo
 
 // ToProvingSchedule converts a ScheduleInfo to a gkrcore.ProvingSchedule.
 // A nil ScheduleInfo returns nil, which callers should interpret as BasicProvingSchedule.
-func (p ScheduleInfo) ToProvingSchedule() (gkrcore.ProvingSchedule, error) {
+func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error) {
 	if p == nil {
 		return nil, nil
 	}
-	s := make(gkrcore.ProvingSchedule, len(p))
+	s := make(constraint.GkrProvingSchedule, len(p))
 	for i, step := range p {
 		switch step.Type {
 		case "sumcheck":
 			groups := step.Groups
 			if groups == nil {
-				groups = []gkrcore.ClaimGroup{}
+				groups = []constraint.GkrClaimGroup{}
 			}
-			s[i] = gkrcore.SumcheckLevel(groups)
+			s[i] = constraint.GkrSumcheckLevel(groups)
 		case "skip":
-			s[i] = gkrcore.SkipLevel{Wires: step.Wires, ClaimSources: step.Claims}
+			s[i] = constraint.GkrSkipLevel{Wires: step.Wires, ClaimSources: step.Claims}
 		default:
 			return nil, errors.New("unknown ProvingLevel type: " + step.Type)
 		}
