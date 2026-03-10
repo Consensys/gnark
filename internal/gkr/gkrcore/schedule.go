@@ -278,6 +278,26 @@ func mirror(s []int, n int) {
 	}
 }
 
+// BuildFinalEvalPositions returns, for each wire, its position in each source level's
+// UniqueGateInputs. Indexed as [wireI][evalI] → position in finalEvalProof.
+// Claim sources referencing the initial challenge (index len(schedule)) have no entry;
+// they are always first in descending ClaimSources and handled separately by the verifier.
+// NB! This function assumes all ClaimSources slices are in decreasing order.
+func BuildFinalEvalPositions[G any](schedule constraint.GkrProvingSchedule, c Circuit[G]) [][]int {
+	positions := make([][]int, len(c))
+	for i := len(schedule) - 1; i >= 0; i-- {
+		sc, ok := schedule[i].(constraint.GkrSumcheckLevel)
+		if !ok {
+			continue
+		}
+		uniqueInputs := UniqueGateInputs(sc, c)
+		for j, wI := range uniqueInputs {
+			positions[wI] = append(positions[wI], j)
+		}
+	}
+	return positions
+}
+
 // DefaultProvingSchedule generates a schedule that greedily batches input wires with the same
 // single claim source into the same GkrSkipLevel. Non-input wires, and input wires with multiple
 // claim sources, each get their own GkrSumcheckLevel.
