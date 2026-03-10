@@ -44,21 +44,6 @@ type GateAPI interface {
 type GateFunction func(GateAPI, ...frontend.Variable) frontend.Variable
 
 // GateName is a string representing a (human-readable) name for a GKR gate.
+//
+// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 type GateName string
-
-const (
-	// Identity gate: x -> x
-	Identity GateName = "identity"
-
-	// Add2 gate: (x, y) -> x + y
-	Add2 GateName = "add2"
-
-	// Sub2 gate: (x, y) -> x - y
-	Sub2 GateName = "sub2"
-
-	// Neg gate: x -> -x
-	Neg GateName = "neg"
-
-	// Mul2 gate: (x, y) -> x * y
-	Mul2 GateName = "mul2"
-)

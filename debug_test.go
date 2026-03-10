@@ -111,7 +111,7 @@ func TestTraceDivBy0(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Not Equal
+// Not equal
 type notEqualTrace struct {
 	A, B, C frontend.Variable
 }

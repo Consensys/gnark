@@ -2,7 +2,6 @@ package gkr_mimc
 
 import (
 	"errors"
-	"slices"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -25,7 +24,10 @@ func (c merkleTreeCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	layer := slices.Clone(c.Leaves)
+	layer := make([]frontend.Variable, len(c.Leaves)/2)
+	for i := range layer {
+		layer[i] = hsh.Compress(c.Leaves[2*i], c.Leaves[2*i+1])
+	}
 
 	for len(layer) > 1 {
 		if len(layer)%2 == 1 {

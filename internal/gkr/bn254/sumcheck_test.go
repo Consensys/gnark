@@ -113,7 +113,7 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []fr.Element{sum}
 }
 
-func (c singleMultilinClaim) combine(fr.Element) polynomial.Polynomial {
+func (c singleMultilinClaim) fold(fr.Element) polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
@@ -127,7 +127,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum fr.Element
 }
 
-func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, combinationCoeff fr.Element, purportedValue fr.Element, proof []fr.Element) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, _ fr.Element, purportedValue fr.Element, proof []fr.Element) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -135,7 +135,7 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, combinationCoef
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) combinedSum(combinationCoeffs fr.Element) fr.Element {
+func (c singleMultilinLazyClaim) foldedSum(_ fr.Element) fr.Element {
 	return c.claimedSum
 }
 
