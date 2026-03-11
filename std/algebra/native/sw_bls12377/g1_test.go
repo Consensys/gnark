@@ -674,6 +674,48 @@ func TestJointScalarMulG1EdgeCases(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type g1JointScalarMulOppositePoints struct {
+	A, NegA G1Affine
+	C       G1Affine `gnark:",public"`
+	R, S    frontend.Variable
+}
+
+func (circuit *g1JointScalarMulOppositePoints) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.jointScalarMul(api, circuit.A, circuit.NegA, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestJointScalarMulG1OppositePoints(t *testing.T) {
+	_a := randomPointG1()
+	negAJac := _a
+	var a, negA, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+	negAJac.Neg(&negAJac)
+	negA.FromJacobian(&negAJac)
+
+	var circuit, witness g1JointScalarMulOppositePoints
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	witness.A.Assign(&a)
+	witness.NegA.Assign(&negA)
+
+	var ar, as big.Int
+	var ra, sa, sum bls12377.G1Jac
+	ra.ScalarMultiplication(&_a, r.BigInt(&ar))
+	sa.ScalarMultiplication(&negAJac, s.BigInt(&as))
+	sum.Set(&ra).AddAssign(&sa)
+	c.FromJacobian(&sum)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
 type g1JointScalarMul struct {
 	A, B G1Affine
 	C    G1Affine `gnark:",public"`

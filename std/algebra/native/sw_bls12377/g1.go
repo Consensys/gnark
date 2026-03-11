@@ -541,10 +541,10 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
 	var tableS, tablePhiS [4]G1Affine
 	tableS[0] = tableQ[0]
-	tableS[0].AddAssign(api, tableR[0])
+	tableS[0].AddUnified(api, tableR[0])
 	tableS[1].Neg(api, tableS[0])
 	tableS[2] = _Q
-	tableS[2].AddAssign(api, tableR[0])
+	tableS[2].AddUnified(api, tableR[0])
 	tableS[3].Neg(api, tableS[2])
 	cc.phi1(api, &tablePhiS[0], &tableS[0])
 	cc.phi1(api, &tablePhiS[1], &tableS[1])
