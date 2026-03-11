@@ -13,11 +13,11 @@ import (
 
 // sumcheckLazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
 type sumcheckLazyClaims interface {
-	claimsNum() int                                                      // claimsNum = m
-	varsNum() int                                                        // varsNum = n
-	combinedSum(api frontend.API, a frontend.Variable) frontend.Variable // combinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
-	degree(i int) int                                                    // degree of the total claim in the i'th variable
-	verifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof []frontend.Variable) error
+	claimsNum() int                                                    // claimsNum = m
+	varsNum() int                                                      // varsNum = n
+	foldedSum(api frontend.API, a frontend.Variable) frontend.Variable // foldedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
+	degree(i int) int                                                  // degree of the total claim in the i'th variable
+	verifyFinalEval(api frontend.API, r []frontend.Variable, foldingCoeff, purportedValue frontend.Variable, proof []frontend.Variable) error
 }
 
 // sumcheckProof of a multi-sumcheck statement.
@@ -33,7 +33,7 @@ func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fia
 	}
 	challengeNames := make([]string, numChallenges)
 	if claimsNum >= 2 {
-		challengeNames[0] = settings.Prefix + "comb"
+		challengeNames[0] = settings.Prefix + "fold"
 	}
 	prefix := settings.Prefix + "pSP."
 	for i := 0; i < varsNum; i++ {
@@ -65,10 +65,10 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 		return err
 	}
 
-	var combinationCoeff frontend.Variable
+	var foldingCoeff frontend.Variable
 
 	if claims.claimsNum() >= 2 {
-		if combinationCoeff, err = next(transcript, []frontend.Variable{}, &remainingChallengeNames); err != nil {
+		if foldingCoeff, err = next(transcript, []frontend.Variable{}, &remainingChallengeNames); err != nil {
 			return err
 		}
 	}
@@ -83,8 +83,8 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 		}
 	}
 
-	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.varsNum()
-	gJR := claims.combinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.varsNum()
+	gJR := claims.foldedSum(api, foldingCoeff)     // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < claims.varsNum(); j++ {
 		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
@@ -103,6 +103,6 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.degree(j)+1)])
 	}
 
-	return claims.verifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof)
+	return claims.verifyFinalEval(api, r, foldingCoeff, gJR, proof.FinalEvalProof)
 
 }

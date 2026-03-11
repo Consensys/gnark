@@ -32,6 +32,9 @@ func TestSerialization(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
+			if tc.U64Only {
+				t.Skip("circuit does not support small fields")
+			}
 			builder := r1cs.NewBuilder[constraint.U32]
 			if name == "commit" {
 				// smallfield builders do not support commitment. We use the wrapper which has the methods
@@ -71,7 +74,16 @@ func TestSerialization(t *testing.T) {
 				}
 
 				// compare original and reconstructed
+				// Some blueprints have unexported fields that are not serialized
+				// (e.g., sync.Mutex, lazy-initialized caches). Use Equal method if available.
+				blueprintComparer := cmp.Comparer(func(a, b constraint.BlueprintComparable) bool {
+					if a == nil {
+						return b == nil
+					}
+					return a.Equal(b)
+				})
 				if diff := cmp.Diff(r1cs1, &reconstructed,
+					blueprintComparer,
 					cmpopts.IgnoreFields(cs.R1CS{},
 						"System.q",
 						"field",

@@ -1,4 +1,6 @@
 // Package gkrgates contains the registry of GKR gates.
+//
+// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
 package gkrgates
 
 import (
@@ -6,144 +8,105 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"sync"
 
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-
-	bls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
-	bls12381 "github.com/consensys/gnark/internal/gkr/bls12-381"
-	bn254 "github.com/consensys/gnark/internal/gkr/bn254"
-	bw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
-
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
-var (
-	gates     = make(map[gkr.GateName]*gkrtypes.RegisteredGate)
-	gatesLock sync.Mutex
-)
-
 type registerSettings struct {
-	solvableVar               int
-	noSolvableVarVerification bool
-	noDegreeVerification      bool
-	degree                    int
-	name                      gkr.GateName
-	curves                    []ecc.ID
+	solvableVar int
+	degree      int
+	name        gkr.GateName // nolint SA1019
+	curves      []ecc.ID
 }
 
+const unset = -2
+
+func newRegisterSettings() registerSettings {
+	return registerSettings{
+		solvableVar: unset,
+		degree:      unset,
+	}
+}
+
+// RegisterOption is a functional option for Register.
 type RegisterOption func(*registerSettings) error
 
-// WithSolvableVar gives the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
-// RegisterGate will return an error if it cannot verify that this claim is correct.
+// WithSolvableVar gives the index of a variable whose value can be uniquely determined
+// from that of the other variables along with the gate's output.
 func WithSolvableVar(solvableVar int) RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.solvableVar != -1 {
-			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
+	return func(s *registerSettings) error {
+		if s.solvableVar != unset {
+			return fmt.Errorf("solvable variable already set to %d", s.solvableVar)
 		}
-		if settings.noSolvableVarVerification {
-			return errors.New("solvable variable already set to NONE")
-		}
-		settings.solvableVar = solvableVar
+		s.solvableVar = solvableVar
 		return nil
 	}
 }
 
-// WithUnverifiedSolvableVar sets the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
-// RegisterGate will not verify that the given index is correct.
+// WithUnverifiedSolvableVar sets the index of a variable whose value can be uniquely determined
+// from that of the other variables along with the gate's output.
+// This now functions identically to WithSolvableVar.
 func WithUnverifiedSolvableVar(solvableVar int) RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.solvableVar != -1 {
-			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
-		}
-		if settings.noSolvableVarVerification {
-			return errors.New("solvable variable already set to NONE")
-		}
-		settings.noSolvableVarVerification = true
-		settings.solvableVar = solvableVar
-		return nil
-	}
+	return WithSolvableVar(solvableVar)
 }
 
-// WithNoSolvableVar sets the gate as having no variable whose value can be uniquely determined from that of the other variables along with the gate's output.
-// RegisterGate will not check the correctness of this claim.
+// WithNoSolvableVar sets the gate as having no variable whose value can be uniquely determined
+// from that of the other variables along with the gate's output.
 func WithNoSolvableVar() RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.solvableVar != -1 {
-			return fmt.Errorf("solvable variable already set to %d", settings.solvableVar)
-		}
-		if settings.noSolvableVarVerification {
-			return errors.New("solvable variable already set to NONE")
-		}
-		settings.solvableVar = -1
-		settings.noSolvableVarVerification = true
-		return nil
-	}
+	return WithSolvableVar(-1)
 }
 
-// WithUnverifiedDegree sets the degree of the gate. RegisterGate will not verify that the given degree is correct.
+// WithUnverifiedDegree sets the degree of the gate.
+// This now functions identically to WithDegree.
 func WithUnverifiedDegree(degree int) RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.degree != -1 {
-			return fmt.Errorf("gate degree already set to %d", settings.degree)
-		}
-		settings.noDegreeVerification = true
-		settings.degree = degree
-		return nil
-	}
+	return WithDegree(degree)
 }
 
-// WithDegree sets the degree of the gate. RegisterGate will return an error if the degree is not correct.
+// WithDegree sets the degree of the gate.
 func WithDegree(degree int) RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.degree != -1 {
-			return fmt.Errorf("gate degree already set to %d", settings.degree)
+	return func(s *registerSettings) error {
+		if s.degree != unset {
+			return fmt.Errorf("gate degree already set to %d", s.degree)
 		}
-		settings.degree = degree
+		s.degree = degree
 		return nil
 	}
 }
 
 // WithName can be used to set a human-readable name for the gate.
-func WithName(name gkr.GateName) RegisterOption {
-	return func(settings *registerSettings) error {
+func WithName(name gkr.GateName) RegisterOption { // nolint SA1019
+	return func(s *registerSettings) error {
 		if name == "" {
 			return errors.New("gate name must not be empty")
 		}
-		if settings.name != "" {
-			return fmt.Errorf("gate name already set to \"%s\"", settings.name)
+		if s.name != "" {
+			return fmt.Errorf("gate name already set to %q", s.name)
 		}
-		settings.name = name
+		s.name = name
 		return nil
 	}
 }
 
 // WithCurves determines on which curves the gate is validated and allowed to be used.
-// By default, the gate can be used on any curve, and is only validated on BN254.
-// This works for most gates, unless the leading coefficient is divided by
-// the curve's order, in which case the degree will be computed incorrectly.
 func WithCurves(curves ...ecc.ID) RegisterOption {
-	return func(settings *registerSettings) error {
-		if settings.curves != nil {
+	return func(s *registerSettings) error {
+		if s.curves != nil {
 			return errors.New("gate curves already set")
 		}
-		settings.curves = curves
+		s.curves = curves
 		return nil
 	}
 }
 
+var gates = make(map[gkr.GateName]gkr.GateFunction) // nolint SA1019
+
 // Register creates a gate object and stores it in the gates registry.
-// - name is a human-readable name for the gate.
-// - f is the polynomial function defining the gate.
-// - nbIn is the number of inputs to the gate.
-//
-// If the gate is already registered, it will return false and no error.
 func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
-	s := registerSettings{degree: -1, solvableVar: -1}
-	for _, option := range options {
-		if err := option(&s); err != nil {
+	s := newRegisterSettings()
+	for _, opt := range options {
+		if err := opt(&s); err != nil {
 			return err
 		}
 	}
@@ -151,149 +114,47 @@ func Register(f gkr.GateFunction, nbIn int, options ...RegisterOption) error {
 		s.name = GetDefaultGateName(f)
 	}
 
-	curvesForTesting := s.curves
-	allowedCurves := s.curves
-	if len(curvesForTesting) == 0 {
-		// no restriction on curves, but only test on BN254
-		curvesForTesting = []ecc.ID{ecc.BN254}
-		allowedCurves = gnark.Curves()
+	if s.curves == nil {
+		s.curves = []ecc.ID{ecc.BN254}
 	}
 
-	compiled, err := gkrtypes.CompileGateFunction(f, nbIn)
-	if err != nil {
-		return err
-	}
-
-	gatesLock.Lock()
-	defer gatesLock.Unlock()
-
-	if g, ok := gates[s.name]; ok {
-		// gate already registered
-		if g.NbIn != nbIn {
-			return fmt.Errorf("gate \"%s\" already registered with a different number of inputs (%d != %d)", s.name, g.NbIn, nbIn)
-		}
-
-		for _, curve := range curvesForTesting {
-			gateVer, err := newGateTester(g.Evaluate.Bytecode, g.NbIn, curve)
-			if err != nil {
-				return err
-			}
-			if !gateVer.Equal(compiled) {
-				return fmt.Errorf("mismatch with already registered gate \"%s\" (degree %d) over curve %s", s.name, g.Degree, curve)
-			}
-		}
-
-		return nil // gate already registered
-	}
-
-	for _, curve := range curvesForTesting {
-		t, err := newGateTester(compiled, nbIn, curve)
+	for _, curve := range s.curves {
+		compiled, err := gkrtypes.CompileGateFunction(f, nbIn, curve.ScalarField())
 		if err != nil {
 			return err
 		}
 
-		if s.degree == -1 { // find a degree
-			if s.noDegreeVerification {
-				panic("invalid settings")
-			}
-			const maxAutoDegreeBound = 32
-			if s.degree, err = t.FindDegree(maxAutoDegreeBound); err != nil {
-				return fmt.Errorf("for gate \"%s\": %v", s.name, err)
-			}
-		} else {
-			if !s.noDegreeVerification { // check that the given degree is correct
-				if err = t.VerifyDegree(s.degree); err != nil {
-					return fmt.Errorf("for gate \"%s\": %v", s.name, err)
-				}
-			}
+		if s.degree == unset {
+			s.degree = compiled.Degree
+		}
+		if s.degree != compiled.Degree {
+			return fmt.Errorf("gate degree mismatch: expected %d, got %d on %s", s.degree, compiled.Degree, curve)
 		}
 
-		if s.solvableVar == -1 {
-			if !s.noSolvableVarVerification { // find a solvable variable
-				s.solvableVar = findSolvableVar(t, nbIn)
-			}
-		} else {
-			// solvable variable given
-			if !s.noSolvableVarVerification && !isVarSolvable(t, s.solvableVar, nbIn) {
-				return fmt.Errorf("cannot verify the solvability of variable %d in gate \"%s\"", s.solvableVar, s.name)
-			}
+		if s.solvableVar == unset {
+			s.solvableVar = compiled.SolvableVar
 		}
-
+		if s.solvableVar != compiled.SolvableVar {
+			return fmt.Errorf("solvable variable mismatch: expected %d, got %d on %s", s.solvableVar, compiled.SolvableVar, curve)
+		}
 	}
 
-	gates[s.name] = gkrtypes.NewGate(f, compiled, nbIn, s.degree, s.solvableVar, allowedCurves)
+	gates[s.name] = f
 	return nil
 }
 
-// Get returns a registered gate of the given name.
-// If not found, it will panic.
-// Gates can be added to the registry through Register.
-func Get(name gkr.GateName) *gkrtypes.RegisteredGate {
-	gatesLock.Lock()
-	defer gatesLock.Unlock()
-	if gate, ok := gates[name]; ok {
-		return gate
+// Get returns a registered gate function by name.
+// If not found, it panics.
+func Get(name gkr.GateName) gkr.GateFunction { // nolint SA1019
+	if f, ok := gates[name]; ok {
+		return f
 	}
-	panic(fmt.Sprintf("gate \"%s\" not found", name))
-}
-
-type gateTester interface {
-	IsAdditive(varIndex int) bool
-	FindDegree(max int) (int, error)
-	VerifyDegree(claimedDegree int) error
-	Equal(other *gkrtypes.GateBytecode) bool
-}
-
-func newGateTester(g *gkrtypes.GateBytecode, nbIn int, curve ecc.ID) (gateTester, error) {
-
-	switch curve {
-	case ecc.BLS12_377:
-		return bls12377.NewGateTester(g, nbIn), nil
-	case ecc.BLS12_381:
-		return bls12381.NewGateTester(g, nbIn), nil
-	case ecc.BN254:
-		return bn254.NewGateTester(g, nbIn), nil
-	case ecc.BW6_761:
-		return bw6761.NewGateTester(g, nbIn), nil
-	}
-	return nil, fmt.Errorf("unsupported curve %s", curve)
+	panic("gate not found: " + string(name))
 }
 
 // GetDefaultGateName provides a standardized name for a gate function, depending on its package and name.
 // NB: For anonymous functions, the name is the same no matter the implicit arguments provided.
-func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName {
+func GetDefaultGateName(fn gkr.GateFunction) gkr.GateName { // nolint SA1019
 	fnptr := reflect.ValueOf(fn).Pointer()
-	return gkr.GateName(runtime.FuncForPC(fnptr).Name())
-}
-
-// findSolvableVar returns the index of a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
-// It returns -1 if it fails to find one.
-// nbIn is the number of inputs to the gate
-func findSolvableVar(t gateTester, nbIn int) int {
-	for i := range nbIn {
-		if t.IsAdditive(i) {
-			return i
-		}
-	}
-	return -1
-}
-
-// isVarSolvable returns whether claimedSolvableVar is a variable whose value can be uniquely determined from that of the other variables along with the gate's output.
-// It returns false if it fails to verify this claim.
-// nbIn is the number of inputs to the gate.
-func isVarSolvable(t gateTester, claimedSolvableVar, nbIn int) bool {
-	return t.IsAdditive(claimedSolvableVar)
-}
-
-func init() {
-	// register some basic gates
-	gatesLock.Lock()
-
-	gates[gkr.Identity] = gkrtypes.Identity()
-	gates[gkr.Add2] = gkrtypes.Add2()
-	gates[gkr.Sub2] = gkrtypes.Sub2()
-	gates[gkr.Neg] = gkrtypes.Neg()
-	gates[gkr.Mul2] = gkrtypes.Mul2()
-
-	gatesLock.Unlock()
+	return gkr.GateName(runtime.FuncForPC(fnptr).Name()) // nolint SA1019
 }

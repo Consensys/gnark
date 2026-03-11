@@ -8,6 +8,7 @@ package gkr
 import (
 	"fmt"
 	"math/bits"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -48,9 +49,17 @@ type BlueprintSolve struct {
 // Ensures BlueprintSolve implements BlueprintStateful
 var _ constraint.BlueprintStateful[constraint.U64] = (*BlueprintSolve)(nil)
 
-func (b *BlueprintSolve) setOutputWires() {
-	b.Circuit.OutputsList() // for side effects
-	b.outputWires = b.Circuit.Outputs()
+// Equal returns true if the serialized fields of two BlueprintSolve are equal.
+// Used for testing serialization round-trips.
+func (b *BlueprintSolve) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintSolve)
+	if !ok {
+		return false
+	}
+	return b.NbInstances == o.NbInstances && reflect.DeepEqual(b.Circuit, o.Circuit) && reflect.DeepEqual(b.assignments, o.assignments)
 }
 
 // Reset implements BlueprintStateful.
@@ -69,7 +78,7 @@ func (b *BlueprintSolve) Reset() {
 		return ce
 	}
 
-	b.setOutputWires()
+	b.outputWires = b.Circuit.Outputs()
 
 	assignments := make(WireAssignment, len(b.Circuit))
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.NbInstances))
@@ -116,7 +125,7 @@ func (b *BlueprintSolve) Solve(s constraint.Solver[constraint.U64], inst constra
 
 			// Push gate inputs
 			for _, inWI := range w.Inputs {
-				evaluator.pushInput(&b.assignments[inWI][instanceI])
+				evaluator.pushInput(b.assignments[inWI][instanceI])
 			}
 
 			// Evaluate the gate
@@ -151,7 +160,9 @@ func (b *BlueprintSolve) NbConstraints() int {
 
 // NbOutputs implements Blueprint
 func (b *BlueprintSolve) NbOutputs(inst constraint.Instruction) int {
-	b.setOutputWires()
+	if b.outputWires == nil {
+		b.outputWires = b.Circuit.Outputs()
+	}
 	return len(b.outputWires)
 }
 
@@ -200,6 +211,18 @@ type BlueprintProve struct {
 
 // Ensures BlueprintProve implements BlueprintSolvable
 var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintProve)(nil)
+
+// Equal returns true if the serialized fields of two BlueprintProve are equal.
+func (b *BlueprintProve) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintProve)
+	if !ok {
+		return false
+	}
+	return b.SolveBlueprintID == o.SolveBlueprintID && b.HashName == o.HashName
+}
 
 // Solve implements the BlueprintSolvable interface for proving.
 func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
@@ -334,6 +357,18 @@ type BlueprintGetAssignment struct {
 
 // Ensures BlueprintGetAssignment implements BlueprintSolvable
 var _ constraint.BlueprintSolvable[constraint.U64] = (*BlueprintGetAssignment)(nil)
+
+// Equal returns true if the serialized fields of two BlueprintGetAssignment are equal.
+func (b *BlueprintGetAssignment) Equal(other constraint.BlueprintComparable) bool {
+	if other == nil {
+		return false
+	}
+	o, ok := other.(*BlueprintGetAssignment)
+	if !ok {
+		return false
+	}
+	return b.SolveBlueprintID == o.SolveBlueprintID
+}
 
 // Solve implements the BlueprintSolvable interface for getting assignments.
 func (b *BlueprintGetAssignment) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {

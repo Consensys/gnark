@@ -1,65 +1,73 @@
 package gkrapi
 
 import (
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	"github.com/consensys/gnark/constraint/solver/gkrgates" // nolint SA1019
 	"github.com/consensys/gnark/frontend"
+	gadget "github.com/consensys/gnark/internal/gkr"
 	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 )
 
-type API struct {
-	circuit   gkrtypes.RegisteredCircuit
-	parentApi frontend.API
-}
+type (
+	API struct {
+		circuit     gkrtypes.GadgetCircuit
+		assignments gadget.WireAssignment
+		parentApi   frontend.API
+	}
+)
 
 func frontendVarToInt(a gkr.Variable) int {
 	return int(a)
 }
 
-func (api *API) NamedGate(gateName gkr.GateName, in ...gkr.Variable) gkr.Variable {
-	// Get the registered gate (with both executables)
-	registeredGate := gkrgates.Get(gateName)
-	if registeredGate == nil {
-		panic("gate not found: " + gateName)
-	}
-
-	api.circuit = append(api.circuit, gkrtypes.RegisteredWire{
-		Gate:   registeredGate,
-		Inputs: utils.Map(in, frontendVarToInt),
+// Gate adds the given gate with the given inputs and returns its output wire.
+func (api *API) Gate(gate gkr.GateFunction, inputs ...gkr.Variable) gkr.Variable {
+	api.circuit = append(api.circuit, gkrtypes.GadgetWire{
+		Gate:   gkrtypes.GadgetGate{Evaluate: gate},
+		Inputs: utils.Map(inputs, frontendVarToInt),
 	})
+	api.assignments = append(api.assignments, nil)
 	return gkr.Variable(len(api.circuit) - 1)
 }
 
-func (api *API) Gate(gate gkr.GateFunction, in ...gkr.Variable) gkr.Variable {
-	if err := gkrgates.Register(gate, len(in)); err != nil {
-		panic(err)
-	}
-	return api.NamedGate(gkrgates.GetDefaultGateName(gate), in...)
+// NamedGate adds a gate looked up by name from the registry.
+//
+// Deprecated: Named gates are no longer needed. Pass GateFunction directly to API.Gate().
+func (api *API) NamedGate(gate gkr.GateName, inputs ...gkr.Variable) gkr.Variable {
+	return api.Gate(gkrgates.Get(gate), inputs...)
 }
 
-func (api *API) namedGate2PlusIn(gate gkr.GateName, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
+func (api *API) gate2PlusIn(gate gkr.GateFunction, in1, in2 gkr.Variable, in ...gkr.Variable) gkr.Variable {
 	inCombined := make([]gkr.Variable, 2+len(in))
 	inCombined[0] = in1
 	inCombined[1] = in2
 	for i := range in {
 		inCombined[i+2] = in[i]
 	}
-	return api.NamedGate(gate, inCombined...)
+	return api.Gate(gate, inCombined...)
 }
 
 func (api *API) Add(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gkr.Add2, i1, i2)
+	return api.gate2PlusIn(gkrtypes.Add2, i1, i2)
 }
 
 func (api *API) Neg(i1 gkr.Variable) gkr.Variable {
-	return api.NamedGate("neg", i1)
+	return api.Gate(gkrtypes.Neg, i1)
 }
 
 func (api *API) Sub(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gkr.Sub2, i1, i2)
+	return api.gate2PlusIn(gkrtypes.Sub2, i1, i2)
 }
 
 func (api *API) Mul(i1, i2 gkr.Variable) gkr.Variable {
-	return api.namedGate2PlusIn(gkr.Mul2, i1, i2)
+	return api.gate2PlusIn(gkrtypes.Mul2, i1, i2)
+}
+
+// Export explicitly designates a wire as output.
+// Wires that are not used as input to another are considered output by default.
+func (api *API) Export(in ...gkr.Variable) {
+	for _, v := range in {
+		api.circuit[v].Exported = true
+	}
 }

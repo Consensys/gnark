@@ -3,6 +3,7 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
 	"slices"
@@ -891,31 +892,27 @@ type multivariate[T FieldParams] struct {
 // are multiplied together and then summed together with the corresponding
 // coefficient.
 //
-// NB! This is experimental API. It does not support negative coefficients. It
-// does not check that computing the term wouldn't overflow the field.
+// NB! This is experimental API. It does not check that computing the term
+// wouldn't overflow the field.
 //
 // For example, for computing the expression x^2 + 2xy + y^2 we would call
 //
 //	f.Eval([][]*Element[T]{{x,x}, {x,y}, {y,y}}, []int{1, 2, 1})
 //
 // The method returns the result of the evaluation.
-//
-// To overcome the problem of not supporting negative coefficients, we can use a
-// constant non-native element -1 as one of the inputs.
 func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
+	}
+	for _, c := range coefs {
+		if c == math.MinInt {
+			panic("coefficient math.MinInt overflows on negation")
+		}
 	}
 	// it is the obvious case - when we don't have any inputs then we need to
 	// evaluate the zero polynomial which is always zero.
 	if len(at) == 0 {
 		return f.Zero()
-	}
-	// omit the negative coefficients for now. We don't support it for now.
-	for i := range coefs {
-		if coefs[i] < 0 {
-			panic("negative coefficient")
-		}
 	}
 	// initialize the multivariate struct from the inputs. The current method
 	// takes as input references to the elements. However, the hint function
@@ -966,7 +963,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 
 	// we call the hint to compute the result. The hint returns the reduced
 	// result, the quotient and the carries.
-	k, r, c, err := f.callPolyMvHint(mv, allElems)
+	k, r, c, kNeg, err := f.callPolyMvHint(mv, allElems)
 	if err != nil {
 		panic(err)
 	}
@@ -981,6 +978,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		r:    r,
 		k:    k,
 		c:    c,
+		kNeg: kNeg,
 	}
 
 	f.deferredChecks = append(f.deferredChecks, &mvc)
@@ -999,7 +997,7 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 // returns the remainder (reduced result), the quotient and the carries. The
 // computation is performed inside a hint, so it is the callers responsibility to
 // perform the deferred multiplication check.
-func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], err error) {
+func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], kNeg frontend.Variable, err error) {
 	// first compute the length of the result so that we know how many bits we need for the quotient.
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
@@ -1011,21 +1009,33 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 	nbRemLimbs := nbLimbs
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
-	nbHintInputs := 7 + len(at)*len(mv.Terms) + len(mv.Coefficients) + len(f.Modulus().Limbs)
+	nbHintInputs := 6 + len(mv.Coefficients) + len(at)*len(mv.Terms) + len(mv.Coefficients) + len(f.Modulus().Limbs)
 	for i := range at {
 		nbHintInputs += len(at[i].Limbs) + 1
 	}
 	hintInputs := make([]frontend.Variable, 0, nbHintInputs)
 	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbCarryLimbs)
+	// store per-coefficient signs: 0 = positive, 1 = negative
+	for _, c := range mv.Coefficients {
+		if c < 0 {
+			hintInputs = append(hintInputs, 1)
+		} else {
+			hintInputs = append(hintInputs, 0)
+		}
+	}
 	// store the terms in the hint input. First the exponents
 	for i := range mv.Terms {
 		for j := range mv.Terms[i] {
 			hintInputs = append(hintInputs, mv.Terms[i][j])
 		}
 	}
-	// and now the coefficients
+	// and now the coefficients (absolute values)
 	for i := range mv.Coefficients {
-		hintInputs = append(hintInputs, mv.Coefficients[i])
+		c := mv.Coefficients[i]
+		if c < 0 {
+			c = -c
+		}
+		hintInputs = append(hintInputs, c)
 	}
 	// finally, we store the modulus and all the inputs
 	hintInputs = append(hintInputs, f.Modulus().Limbs...)
@@ -1035,15 +1045,18 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 		hintInputs = append(hintInputs, len(at[i].Limbs))
 		hintInputs = append(hintInputs, at[i].Limbs...)
 	}
-	ret, err := f.api.NewHint(polyMvHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
+	nbOutputs := int(nbQuoLimbs) + int(nbRemLimbs) + int(nbCarryLimbs) + 1
+	ret, err := f.api.NewHint(polyMvHint, nbOutputs, hintInputs...)
 	if err != nil {
 		err = fmt.Errorf("call hint: %w", err)
 		return
 	}
 	quo = f.packLimbs(ret[:nbQuoLimbs], false)
 	rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
-	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:], 0)
-	return quo, rem, carries, nil
+	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:nbQuoLimbs+nbRemLimbs+uint(nbCarryLimbs)], 0)
+	kNeg = ret[nbQuoLimbs+nbRemLimbs+uint(nbCarryLimbs)]
+	f.api.AssertIsBoolean(kNeg)
+	return quo, rem, carries, kNeg, nil
 }
 
 // mvCheck is a deferred check for multivariate polynomial evaluation. It
@@ -1054,13 +1067,14 @@ type mvCheck[T FieldParams] struct {
 	f    *Field[T]
 	mv   *multivariate[T]
 	vals []*Element[T]
-	r    *Element[T] // reduced result
-	k    *Element[T] // quotient
-	c    *Element[T] // carry
+	r    *Element[T]       // reduced result
+	k    *Element[T]       // quotient (absolute value)
+	c    *Element[T]       // carry
+	kNeg frontend.Variable // 1 if quotient is negative, 0 otherwise
 }
 
 func (mc *mvCheck[T]) toCommit() []frontend.Variable {
-	nbToCommit := len(mc.r.Limbs) + len(mc.k.Limbs) + len(mc.c.Limbs)
+	nbToCommit := len(mc.r.Limbs) + len(mc.k.Limbs) + len(mc.c.Limbs) + 1
 	for j := range mc.vals {
 		nbToCommit += len(mc.vals[j].Limbs)
 	}
@@ -1068,6 +1082,7 @@ func (mc *mvCheck[T]) toCommit() []frontend.Variable {
 	toCommit = append(toCommit, mc.r.Limbs...)
 	toCommit = append(toCommit, mc.k.Limbs...)
 	toCommit = append(toCommit, mc.c.Limbs...)
+	toCommit = append(toCommit, mc.kNeg)
 	for j := range mc.vals {
 		toCommit = append(toCommit, mc.vals[j].Limbs...)
 	}
@@ -1103,6 +1118,13 @@ func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 	// we either have to perform the equality check in the native field or in
 	// the extension field. It was already determined at the [Field]
 	// initialization time which kind of check needs to be done.
+	//
+	// The hint returns |k| and a boolean kNeg ∈ {0,1} indicating whether the
+	// quotient is negative. We define the sign factor s = 1 - 2·kNeg which
+	// maps kNeg=0 → s=1 (positive quotient) and kNeg=1 → s=-1 (negative
+	// quotient). The checked equation is then:
+	//
+	//   lhs(ch) = r(ch) + s·|k(ch)|·p(ch) + (2^t - ch)·c(ch)
 	if mc.f.extensionApi == nil {
 		ls := frontend.Variable(0)
 		for i, term := range mc.mv.Terms {
@@ -1114,7 +1136,9 @@ func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 			}
 			ls = api.Add(ls, termProd)
 		}
-		rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
+		kp := api.Mul(mc.k.evaluation, peval)
+		s := api.Sub(1, api.Mul(2, mc.kNeg))
+		rs := api.Add(mc.r.evaluation, api.Mul(s, kp), api.Mul(mc.c.evaluation, coef))
 		api.AssertIsEqual(ls, rs)
 	} else {
 		// here we use the fact that [frontend.Variable] is defined as any, but
@@ -1140,10 +1164,11 @@ func (mc *mvCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 		cext := mc.c.evaluation.(fieldextension.Element)
 		coefext := coef.(fieldextension.Element)
 
-		pkext := mc.f.extensionApi.Mul(pevalext, kext)
-		ccoefext := mc.f.extensionApi.Mul(coefext, cext)
+		kpext := mc.f.extensionApi.Mul(pevalext, kext)
+		sext := mc.f.extensionApi.AsExtensionVariable(api.Sub(1, api.Mul(2, mc.kNeg)))
 
-		rs := mc.f.extensionApi.Add(rext, pkext)
+		ccoefext := mc.f.extensionApi.Mul(coefext, cext)
+		rs := mc.f.extensionApi.Add(rext, mc.f.extensionApi.Mul(sext, kpext))
 		rs = mc.f.extensionApi.Add(rs, ccoefext)
 
 		mc.f.extensionApi.AssertIsEqual(ls, rs)
@@ -1183,7 +1208,11 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 				lengths = append(lengths, uint(len(at[j].Limbs))*f.fParams.BitsPerLimb()+at[j].overflow)
 			}
 		}
-		lengths = append(lengths, uint(bits.Len(uint(mv.Coefficients[i]))))
+		coef := mv.Coefficients[i]
+		if coef < 0 {
+			coef = -coef
+		}
+		lengths = append(lengths, uint(bits.Len(uint(coef))))
 		if lengthSum := sum(lengths...); lengthSum > 0 {
 			// in edge case when inputs are zeros and coefficient is zero, we
 			// would have a underflow otherwise.
@@ -1212,7 +1241,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		nbRemLimbs   = nbLimbs
 		nbCarryLimbs = int(inputs[5].Int64())
 	)
-	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs {
+	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs+1 {
 		return errors.New("output length mismatch")
 	}
 	outPtr := 0
@@ -1221,8 +1250,16 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	remLimbs := outputs[outPtr : outPtr+nbRemLimbs]
 	outPtr += nbRemLimbs
 	carryLimbs := outputs[outPtr : outPtr+nbCarryLimbs]
-	terms := make([][]int, nbTerms)
+	outPtr += nbCarryLimbs
+	kNegOut := outputs[outPtr]
+	// read per-coefficient signs: 0 = positive, 1 = negative
 	ptr := 6
+	signs := make([]int, nbTerms)
+	for i := range signs {
+		signs[i] = int(inputs[ptr].Int64())
+		ptr++
+	}
+	terms := make([][]int, nbTerms)
 	// read the terms
 	for i := range terms {
 		terms[i] = make([]int, nbVars)
@@ -1231,7 +1268,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 			ptr++
 		}
 	}
-	// read the coefficients
+	// read the coefficients (absolute values from hint inputs)
 	coeffs := make([]*big.Int, nbTerms)
 	for i := range coeffs {
 		coeffs[i] = inputs[ptr]
@@ -1281,10 +1318,14 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 				termRes.Mul(termRes, vars[i])
 			}
 		}
-		fullLhs.Add(fullLhs, termRes)
+		if signs[i] != 0 {
+			fullLhs.Sub(fullLhs, termRes)
+		} else {
+			fullLhs.Add(fullLhs, termRes)
+		}
 	}
 
-	// compute the result as r + k*p for now
+	// compute the result as r + k*p using Euclidean division (r >= 0)
 	var (
 		quo = bigIntPool.Get().(*big.Int)
 		rem = bigIntPool.Get().(*big.Int)
@@ -1293,9 +1334,16 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	defer bigIntPool.Put(quo)
 	quo.SetInt64(0)
 	rem.SetInt64(0)
-	if p.Sign() != 0 {
-		quo.QuoRem(fullLhs, p, rem)
+	if p.Cmp(new(big.Int)) != 0 {
+		quo.DivMod(fullLhs, p, rem)
 	}
+	// if quotient is negative, output |k| and set kNeg = 1
+	var kNegVal int
+	if quo.Sign() < 0 {
+		kNegVal = 1
+		quo.Neg(quo)
+	}
+	kNegOut.SetInt64(int64(kNegVal))
 	// write the remainder and quotient to output
 	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
@@ -1327,29 +1375,34 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		}
 		// add current term to the result. Increase the length of necessary when
 		// required.
-		for i := len(lhs); i < len(termRes); i++ {
+		for j := len(lhs); j < len(termRes); j++ {
 			sfx := bigIntPool.Get().(*big.Int)
 			defer bigIntPool.Put(sfx)
 			sfx.SetInt64(0)
 			lhs = append(lhs, sfx)
 		}
-		for i := range termRes {
-			lhs[i].Add(lhs[i], termRes[i])
+		if signs[i] != 0 {
+			for j := range termRes {
+				lhs[j].Sub(lhs[j], termRes[j])
+			}
+		} else {
+			for j := range termRes {
+				lhs[j].Add(lhs[j], termRes[j])
+			}
 		}
 	}
 
-	// compute the result as r + k*p on limbs
-	rhs := make([]*big.Int, max(nbLimbs, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs)))
-	for i := range rhs {
-		rhs[i] = bigIntPool.Get().(*big.Int)
-		defer bigIntPool.Put(rhs[i])
-		rhs[i].SetInt64(0)
+	// compute k*p on limbs
+	kpLimbs := make([]*big.Int, max(1, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs)))
+	for i := range kpLimbs {
+		kpLimbs[i] = bigIntPool.Get().(*big.Int)
+		defer bigIntPool.Put(kpLimbs[i])
+		kpLimbs[i].SetInt64(0)
 	}
 	for i := 0; i < nbLimbs; i++ {
-		rhs[i].Add(rhs[i], remLimbs[i])
 		for j := 0; j < nbQuoLimbs; j++ {
 			tmp.Mul(quoLimbs[j], plimbs[i])
-			rhs[i+j].Add(rhs[i+j], tmp)
+			kpLimbs[i+j].Add(kpLimbs[i+j], tmp)
 		}
 	}
 
@@ -1361,8 +1414,15 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		if i < len(lhs) {
 			carry.Add(carry, lhs[i])
 		}
-		if i < len(rhs) {
-			carry.Sub(carry, rhs[i])
+		if i < nbRemLimbs {
+			carry.Sub(carry, remLimbs[i])
+		}
+		if i < len(kpLimbs) {
+			if kNegVal == 0 {
+				carry.Sub(carry, kpLimbs[i])
+			} else {
+				carry.Add(carry, kpLimbs[i])
+			}
 		}
 		carry.Rsh(carry, uint(nbBits))
 		carryLimbs[i].Set(carry)

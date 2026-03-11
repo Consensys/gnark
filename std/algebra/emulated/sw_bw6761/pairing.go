@@ -648,7 +648,6 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineE
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
-	mone := pr.curveF.NewElement(-1)
 
 	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
 	var n *emulated.Element[BaseField]
@@ -661,13 +660,13 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineE
 	l1 := pr.curveF.Div(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x3 := pr.curveF.Eval([][]*baseEl{{l1, l1}, {mone, &p1.X}, {mone, &p2.X}}, []int{1, 1, 1})
+	x3 := pr.curveF.Eval([][]*baseEl{{l1, l1}, {&p1.X}, {&p2.X}}, []int{1, -1, -1})
 
 	// omit y3 computation
 
 	// compute line1
 	line1.R0 = *l1
-	line1.R1 = *pr.curveF.Eval([][]*baseEl{{l1, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
+	line1.R1 = *pr.curveF.Eval([][]*baseEl{{l1, &p1.X}, {&p1.Y}}, []int{1, -1})
 
 	// compute -λ2 = λ1+2y1/(x3-x1)
 	ypyp := pr.curveF.MulConst(&p1.Y, big.NewInt(2))
@@ -676,17 +675,17 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineE
 	l2 = pr.curveF.Add(l1, l2)
 
 	// compute x4 = (-λ2)²-x1-x3
-	x4 := pr.curveF.Eval([][]*baseEl{{l2, l2}, {mone, &p1.X}, {mone, x3}}, []int{1, 1, 1})
+	x4 := pr.curveF.Eval([][]*baseEl{{l2, l2}, {&p1.X}, {x3}}, []int{1, -1, -1})
 
 	// compute y4 = -λ2(-x1 + x4)-y1
-	y4 := pr.curveF.Eval([][]*baseEl{{l2, pr.curveF.Sub(x4, &p1.X)}, {mone, &p1.Y}}, []int{1, 1})
+	y4 := pr.curveF.Eval([][]*baseEl{{l2, pr.curveF.Sub(x4, &p1.X)}, {&p1.Y}}, []int{1, -1})
 
 	p.X = *x4
 	p.Y = *y4
 
 	// compute line2
 	line2.R0 = *pr.curveF.Neg(l2)
-	line2.R1 = *pr.curveF.Eval([][]*baseEl{{mone, l2, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
+	line2.R1 = *pr.curveF.Eval([][]*baseEl{{l2, &p1.X}, {&p1.Y}}, []int{-1, -1})
 
 	return &p, &line1, &line2
 }
@@ -697,7 +696,6 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var p g2AffP
 	var line lineEvaluation
-	mone := pr.curveF.NewElement(-1)
 
 	// λ = 3x²/2y
 	n := pr.curveF.Mul(&p1.X, &p1.X)
@@ -706,16 +704,16 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 	λ := pr.curveF.Div(n, d)
 
 	// xr = λ²-2x
-	xr := pr.curveF.Eval([][]*baseEl{{λ, λ}, {mone, &p1.X}}, []int{1, 2})
+	xr := pr.curveF.Eval([][]*baseEl{{λ, λ}, {&p1.X}}, []int{1, -2})
 
 	// yr = λ(x-xr)-y
-	yr := pr.curveF.Eval([][]*baseEl{{λ, pr.curveF.Sub(&p1.X, xr)}, {mone, &p1.Y}}, []int{1, 1})
+	yr := pr.curveF.Eval([][]*baseEl{{λ, pr.curveF.Sub(&p1.X, xr)}, {&p1.Y}}, []int{1, -1})
 
 	p.X = *xr
 	p.Y = *yr
 
 	line.R0 = *λ
-	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {mone, &p1.Y}}, []int{1, 1})
+	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {&p1.Y}}, []int{1, -1})
 
 	return &p, &line
 
@@ -732,7 +730,7 @@ func (pr *Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	var line lineEvaluation
 	line.R0 = *λ
-	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {pr.curveF.NewElement(-1), &p1.Y}}, []int{1, 1})
+	line.R1 = *pr.curveF.Eval([][]*baseEl{{λ, &p1.X}, {&p1.Y}}, []int{1, -1})
 
 	return &line
 

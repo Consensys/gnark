@@ -170,7 +170,7 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []small_rational.SmallRational{sum}
 }
 
-func (c singleMultilinClaim) combine(small_rational.SmallRational) polynomial.Polynomial {
+func (c singleMultilinClaim) fold(small_rational.SmallRational) polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
@@ -184,7 +184,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum small_rational.SmallRational
 }
 
-func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -192,7 +192,7 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRationa
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) combinedSum(combinationCoeffs small_rational.SmallRational) small_rational.SmallRational {
+func (c singleMultilinLazyClaim) foldedSum(_ small_rational.SmallRational) small_rational.SmallRational {
 	return c.claimedSum
 }
 
