@@ -337,25 +337,3 @@ func DefaultProvingSchedule(c SerializableCircuit) (constraint.GkrProvingSchedul
 	return b.finalize()
 }
 
-// BasicProvingSchedule generates a schedule for a circuit where every wire gets its own level:
-// Non-input wires get a GkrSumcheckLevel. Input wires with multiple consumers get a GkrSumcheckLevel
-// to consolidate claims; input wires with a single consumer get a GkrSkipLevel.
-func BasicProvingSchedule(c SerializableCircuit) (constraint.GkrProvingSchedule, error) {
-	b := newScheduleBuilder(c)
-	for wI := len(c) - 1; wI >= 0; wI-- {
-		src, ready := b.claimSources(wI)
-		if !ready {
-			return nil, fmt.Errorf("circuit is not topologically sorted: wire %d not ready", wI)
-		}
-		var err error
-		if !c[wI].IsInput() || len(src) > 1 {
-			err = b.addSumcheckLevel([]int{wI})
-		} else {
-			err = b.addSkipLevel([]int{wI})
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-	return b.finalize()
-}

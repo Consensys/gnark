@@ -471,8 +471,8 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 	}
 	r.levelPoints[len(schedule)] = firstChallenge
 
-	for levelI, level := range schedule {
-		switch s := level.(type) {
+	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
+		switch s := schedule[levelI].(type) {
 		case constraint.GkrSkipLevel:
 			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
 
@@ -502,8 +502,8 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 	}
 	r.levelPoints[len(schedule)] = firstChallenge
 
-	for levelI, level := range schedule {
-		switch s := level.(type) {
+	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
+		switch s := schedule[levelI].(type) {
 		case constraint.GkrSkipLevel:
 			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
 

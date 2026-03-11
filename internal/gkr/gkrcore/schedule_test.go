@@ -81,9 +81,9 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 	require.Equal(t, expected, schedule)
 }
 
-func TestBasicProvingSchedule(t *testing.T) {
+func TestDefaultProvingSchedule(t *testing.T) {
 	_, c := scheduleTestCache.Compile(t, gkrtesting.SingleMulGateCircuit())
-	schedule, err := gkrcore.BasicProvingSchedule(c)
+	schedule, err := gkrcore.DefaultProvingSchedule(c)
 	require.NoError(t, err)
 
 	// SingleMulGateCircuit has wires 0, 1 (inputs) and 2 (mul gate).

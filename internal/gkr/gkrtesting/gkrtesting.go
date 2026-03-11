@@ -154,7 +154,7 @@ type PrintableSumcheckProof struct {
 type HashDescription map[string]interface{}
 
 // TestCaseInfo is the serializable form of a GKR test case, matching the JSON file format.
-// Schedule is nil when absent from JSON, which means BasicProvingSchedule.
+// Schedule is nil when absent from JSON, which means DefaultProvingSchedule.
 type TestCaseInfo struct {
 	Hash     HashDescription `json:"hash"`
 	Circuit  string          `json:"circuit"`
@@ -176,7 +176,7 @@ type ScheduleStepInfo struct {
 type ScheduleInfo []ScheduleStepInfo
 
 // ToProvingSchedule converts a ScheduleInfo to a gkrcore.ProvingSchedule.
-// A nil ScheduleInfo returns nil, which callers should interpret as BasicProvingSchedule.
+// A nil ScheduleInfo returns nil, which callers should interpret as DefaultProvingSchedule.
 func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error) {
 	if p == nil {
 		return nil, nil
