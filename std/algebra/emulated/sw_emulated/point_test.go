@@ -566,7 +566,7 @@ func TestScalarMulBase4(t *testing.T) {
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	px, py := p256.ScalarBaseMult(s.Bytes())
+	px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := ScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{
@@ -585,7 +585,7 @@ func TestScalarMulBase5(t *testing.T) {
 	p384 := elliptic.P384()
 	s, err := rand.Int(rand.Reader, p384.Params().N)
 	assert.NoError(err)
-	px, py := p384.ScalarBaseMult(s.Bytes())
+	px, py := p384.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulBaseTest[emulated.P384Fp, emulated.P384Fr]{}
 	witness := ScalarMulBaseTest[emulated.P384Fp, emulated.P384Fr]{
@@ -719,7 +719,7 @@ func TestScalarMul4(t *testing.T) {
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	px, py := p256.ScalarBaseMult(s.Bytes())
+	px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := ScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
@@ -742,7 +742,7 @@ func TestScalarMul5(t *testing.T) {
 	p384 := elliptic.P384()
 	s, err := rand.Int(rand.Reader, p384.Params().N)
 	assert.NoError(err)
-	px, py := p384.ScalarBaseMult(s.Bytes())
+	px, py := p384.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulTest[emulated.P384Fp, emulated.P384Fr]{}
 	witness := ScalarMulTest[emulated.P384Fp, emulated.P384Fr]{
@@ -1051,10 +1051,10 @@ func TestJointScalarMulBase4(t *testing.T) {
 	assert.NoError(err)
 	s2, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
-	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes())
-	tmpx, tmpy := p256.ScalarBaseMult(s2.Bytes())
-	resx, resy = p256.Add(resx, resy, tmpx, tmpy)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())         //nolint:staticcheck // compatibility test only
+	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes()) //nolint:staticcheck // compatibility test only
+	tmpx, tmpy := p256.ScalarBaseMult(s2.Bytes())       //nolint:staticcheck // compatibility test only
+	resx, resy = p256.Add(resx, resy, tmpx, tmpy)       //nolint:staticcheck // compatibility test only
 
 	circuit := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{
@@ -1548,11 +1548,11 @@ func TestJointScalarMul4(t *testing.T) {
 	assert.NoError(err)
 	s2, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
-	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())
-	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes())
-	tmpx, tmpy := p256.ScalarMult(p2x, p2y, s2.Bytes())
-	resx, resy = p256.Add(resx, resy, tmpx, tmpy)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())         //nolint:staticcheck // compatibility test only
+	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())         //nolint:staticcheck // compatibility test only
+	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes()) //nolint:staticcheck // compatibility test only
+	tmpx, tmpy := p256.ScalarMult(p2x, p2y, s2.Bytes()) //nolint:staticcheck // compatibility test only
+	resx, resy = p256.Add(resx, resy, tmpx, tmpy)       //nolint:staticcheck // compatibility test only
 
 	circuit := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
@@ -1781,10 +1781,10 @@ func TestJointScalarMulEdgeCases4(t *testing.T) {
 	assert.NoError(err)
 	s2, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
-	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())
-	res1x, res1y := p256.ScalarMult(p1x, p1y, s1.Bytes())
-	res2x, res2y := p256.ScalarMult(p2x, p2y, s2.Bytes())
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())           //nolint:staticcheck // compatibility test only
+	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())           //nolint:staticcheck // compatibility test only
+	res1x, res1y := p256.ScalarMult(p1x, p1y, s1.Bytes()) //nolint:staticcheck // compatibility test only
+	res2x, res2y := p256.ScalarMult(p2x, p2y, s2.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := JointScalarMulEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{}
 	// s1*(0,0) + s2*(0,0) == (0,0)
@@ -1976,7 +1976,7 @@ func TestScalarMulJoye(t *testing.T) {
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	px, py := p256.ScalarBaseMult(s.Bytes())
+	px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulJoyeTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := ScalarMulJoyeTest[emulated.P256Fp, emulated.P256Fr]{
@@ -2041,7 +2041,7 @@ func TestScalarMulFakeGLV(t *testing.T) {
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	px, py := p256.ScalarBaseMult(s.Bytes())
+	px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{
@@ -2064,7 +2064,7 @@ func TestScalarMulFakeGLV2(t *testing.T) {
 	p384 := elliptic.P384()
 	s, err := rand.Int(rand.Reader, p384.Params().N)
 	assert.NoError(err)
-	px, py := p384.ScalarBaseMult(s.Bytes())
+	px, py := p384.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulFakeGLVTest[emulated.P384Fp, emulated.P384Fr]{}
 	witness := ScalarMulFakeGLVTest[emulated.P384Fp, emulated.P384Fr]{
@@ -2128,8 +2128,8 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
 	assert.NoError(err)
-	px, py := p256.ScalarBaseMult(s.Bytes())
-	_, _ = p256.ScalarMult(px, py, s.Bytes())
+	px, py := p256.ScalarBaseMult(s.Bytes())  //nolint:staticcheck // compatibility test only
+	_, _ = p256.ScalarMult(px, py, s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{}
 
@@ -2184,8 +2184,8 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 	p384 := elliptic.P384()
 	s, err := rand.Int(rand.Reader, p384.Params().N)
 	assert.NoError(err)
-	px, py := p384.ScalarBaseMult(s.Bytes())
-	_, _ = p384.ScalarMult(px, py, s.Bytes())
+	px, py := p384.ScalarBaseMult(s.Bytes())  //nolint:staticcheck // compatibility test only
+	_, _ = p384.ScalarMult(px, py, s.Bytes()) //nolint:staticcheck // compatibility test only
 
 	circuit := ScalarMulFakeGLVEdgeCasesTest[emulated.P384Fp, emulated.P384Fr]{}
 
