@@ -8,6 +8,10 @@
 ### CI
 - enable security code scanner ([#1655](https://github.com/Consensys/gnark/issues/1655))
 ### Chore
+- go generate
+- update version in docs.go
+- case fix
+- generat CHANGELOG
 - update gnark-crypto to released version
 - target Go 1.25.7
 - update chglog config
