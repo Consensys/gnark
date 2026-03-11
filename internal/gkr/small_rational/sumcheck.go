@@ -20,7 +20,7 @@ import (
 // sumcheckClaims to a multi-sumcheck statement. i.e. one of the form ∑_{0≤i<2ⁿ} fⱼ(i) = cⱼ for 1 ≤ j ≤ m.
 // Later evolving into a claim of the form gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...)
 type sumcheckClaims interface {
-	combine(a small_rational.SmallRational) polynomial.Polynomial                   // combine into the 0ᵗʰ sumcheck subclaim. Create g := ∑_{1≤j≤m} aʲ⁻¹fⱼ for which now we seek to prove ∑_{0≤i<2ⁿ} g(i) = c := ∑_{1≤j≤m} aʲ⁻¹cⱼ. Return g₁.
+	fold(a small_rational.SmallRational) polynomial.Polynomial                      // fold into the 0ᵗʰ sumcheck subclaim. Create g := ∑_{1≤j≤m} aʲ⁻¹fⱼ for which now we seek to prove ∑_{0≤i<2ⁿ} g(i) = c := ∑_{1≤j≤m} aʲ⁻¹cⱼ. Return g₁.
 	next(small_rational.SmallRational) polynomial.Polynomial                        // Return the evaluations gⱼ(k) for 1 ≤ k < degⱼ(g). Update the claim to gⱼ₊₁ for the input value as rⱼ
 	varsNum() int                                                                   // number of variables
 	claimsNum() int                                                                 // number of claims
@@ -29,11 +29,11 @@ type sumcheckClaims interface {
 
 // sumcheckLazyClaims is the sumcheckClaims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
 type sumcheckLazyClaims interface {
-	claimsNum() int                                                          // claimsNum = m
-	varsNum() int                                                            // varsNum = n
-	combinedSum(a small_rational.SmallRational) small_rational.SmallRational // combinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
-	degree(i int) int                                                        // degree of the total claim in the i'th variable
-	verifyFinalEval(r []small_rational.SmallRational, combinationCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error
+	claimsNum() int                                                        // claimsNum = m
+	varsNum() int                                                          // varsNum = n
+	foldedSum(a small_rational.SmallRational) small_rational.SmallRational // foldedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
+	degree(i int) int                                                      // degree of the total claim in the i'th variable
+	verifyFinalEval(r []small_rational.SmallRational, foldingCoeff small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error
 }
 
 // sumcheckProof of a multi-statement.
@@ -49,7 +49,7 @@ func setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.Settings) 
 	}
 	challengeNames = make([]string, numChallenges)
 	if claimsNum >= 2 {
-		challengeNames[0] = settings.Prefix + "comb"
+		challengeNames[0] = settings.Prefix + "fold"
 	}
 	prefix := settings.Prefix + "pSP."
 	for i := 0; i < varsNum; i++ {
@@ -95,16 +95,16 @@ func sumcheckProve(claims sumcheckClaims, transcriptSettings fiatshamir.Settings
 		return proof, err
 	}
 
-	var combinationCoeff small_rational.SmallRational
+	var foldingCoeff small_rational.SmallRational
 	if claims.claimsNum() >= 2 {
-		if combinationCoeff, err = next(transcript, []small_rational.SmallRational{}, &remainingChallengeNames); err != nil {
+		if foldingCoeff, err = next(transcript, []small_rational.SmallRational{}, &remainingChallengeNames); err != nil {
 			return proof, err
 		}
 	}
 
 	varsNum := claims.varsNum()
 	proof.partialSumPolys = make([]polynomial.Polynomial, varsNum)
-	proof.partialSumPolys[0] = claims.combine(combinationCoeff)
+	proof.partialSumPolys[0] = claims.fold(foldingCoeff)
 	challenges := make([]small_rational.SmallRational, varsNum)
 
 	for j := 0; j+1 < varsNum; j++ {
@@ -130,10 +130,10 @@ func sumcheckVerify(claims sumcheckLazyClaims, proof sumcheckProof, transcriptSe
 		return err
 	}
 
-	var combinationCoeff small_rational.SmallRational
+	var foldingCoeff small_rational.SmallRational
 
 	if claims.claimsNum() >= 2 {
-		if combinationCoeff, err = next(transcript, []small_rational.SmallRational{}, &remainingChallengeNames); err != nil {
+		if foldingCoeff, err = next(transcript, []small_rational.SmallRational{}, &remainingChallengeNames); err != nil {
 			return err
 		}
 	}
@@ -148,7 +148,7 @@ func sumcheckVerify(claims sumcheckLazyClaims, proof sumcheckProof, transcriptSe
 		}
 	}
 	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.varsNum()
-	gJR := claims.combinedSum(combinationCoeff)    // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	gJR := claims.foldedSum(foldingCoeff)          // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := range claims.varsNum() {
 		if len(proof.partialSumPolys[j]) != claims.degree(j) {
@@ -167,5 +167,5 @@ func sumcheckVerify(claims sumcheckLazyClaims, proof sumcheckProof, transcriptSe
 		gJR = gJCoeffs.Eval(&r[j])
 	}
 
-	return claims.verifyFinalEval(r, combinationCoeff, gJR, proof.finalEvalProof)
+	return claims.verifyFinalEval(r, foldingCoeff, gJR, proof.finalEvalProof)
 }

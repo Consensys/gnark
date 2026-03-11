@@ -84,3 +84,10 @@ type Compressible interface {
 	// Compress interprets the objects as a LinearExpression and encodes it as a []uint32.
 	Compress(to *[]uint32)
 }
+
+// BlueprintComparable is implemented by blueprints that support equality comparison
+// for serialization round-trip testing.
+type BlueprintComparable interface {
+	Blueprint
+	Equal(BlueprintComparable) bool
+}

@@ -629,7 +629,6 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
-	mone := pr.curveF.NewElement(-1)
 
 	// compute λ1 = (y2-y1)/(x2-x1)
 	n := pr.Ext2.Sub(&p1.Y, &p2.Y)
@@ -637,16 +636,16 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 	λ1 := pr.Ext2.DivUnchecked(n, d)
 
 	// compute x3 =λ1²-x1-x2
-	x30 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p1.X.A0}, {mone, &p2.X.A0}}, []int{1, 1, 1, 1})
-	x31 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p1.X.A1}, {mone, &p2.X.A1}}, []int{2, 1, 1})
+	x30 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {&λ1.A1, &λ1.A1}, {&p1.X.A0}, {&p2.X.A0}}, []int{1, -1, -1, -1})
+	x31 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {&p1.X.A1}, {&p2.X.A1}}, []int{2, -1, -1})
 	x3 := &fields_bls12381.E2{A0: *x30, A1: *x31}
 
 	// omit y3 computation
 
 	// compute line1
 	line1.R0 = *λ1
-	line1.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A0}, {mone, &λ1.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line1.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A1}, {&λ1.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	line1.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A0}, {&λ1.A1, &p1.X.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	line1.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A1}, {&λ1.A1, &p1.X.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
 	n = pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
@@ -656,14 +655,14 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 	λ2 = pr.Ext2.Neg(λ2)
 
 	// compute x4 = λ2²-x1-x3
-	x40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p1.X.A0}, {mone, x30}}, []int{1, 1, 1, 1})
-	x41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p1.X.A1}, {mone, x31}}, []int{2, 1, 1})
+	x40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {&λ2.A1, &λ2.A1}, {&p1.X.A0}, {x30}}, []int{1, -1, -1, -1})
+	x41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {&p1.X.A1}, {x31}}, []int{2, -1, -1})
 	x4 := &fields_bls12381.E2{A0: *x40, A1: *x41}
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.Ext2.Sub(&p1.X, x4)
-	y40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A0}, {mone, &λ2.A1, &y4.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	y41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A1}, {&λ2.A1, &y4.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	y40 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A0}, {&λ2.A1, &y4.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	y41 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &y4.A1}, {&λ2.A1, &y4.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 	y4 = &fields_bls12381.E2{A0: *y40, A1: *y41}
 
 	p.X = *x4
@@ -671,8 +670,8 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 
 	// compute line2
 	line2.R0 = *λ2
-	line2.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A0}, {mone, &λ2.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line2.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A1}, {&λ2.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	line2.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A0}, {&λ2.A1, &p1.X.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	line2.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A1}, {&λ2.A1, &p1.X.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
 	return &p, &line1, &line2
 }
@@ -683,7 +682,6 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	var p g2AffP
 	var line lineEvaluation
-	mone := pr.curveF.NewElement(-1)
 
 	// λ = 3x²/2y
 	n := pr.Ext2.Square(&p1.X)
@@ -692,22 +690,22 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 	λ := pr.Ext2.DivUnchecked(n, d)
 
 	// xr = λ²-2x
-	xr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {mone, &λ.A1, &λ.A1}, {mone, &p1.X.A0}}, []int{1, 1, 2})
-	xr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {mone, &p1.X.A1}}, []int{2, 2})
+	xr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p1.X.A0}}, []int{1, -1, -2})
+	xr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {&p1.X.A1}}, []int{2, -2})
 	xr := &fields_bls12381.E2{A0: *xr0, A1: *xr1}
 
 	// yr = λ(x-xr)-y
 	yr := pr.Ext2.Sub(&p1.X, xr)
-	yr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {mone, &λ.A1, &yr.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	yr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	yr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {&λ.A1, &yr.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	yr1 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 	yr = &fields_bls12381.E2{A0: *yr0, A1: *yr1}
 
 	p.X = *xr
 	p.Y = *yr
 
 	line.R0 = *λ
-	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {mone, &λ.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	line.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A0}, {&λ.A1, &p1.X.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	line.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ.A0, &p1.X.A1}, {&λ.A1, &p1.X.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
 	return &p, &line
 
@@ -718,7 +716,6 @@ func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvalua
 
 	var line1, line2 lineEvaluation
 	var res g2AffP
-	mone := pr.curveF.NewElement(-1)
 
 	// λ1 = 3x²/2y
 	n := pr.Ext2.Square(&p1.X)
@@ -729,12 +726,12 @@ func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvalua
 
 	// compute line1
 	line1.R0 = *λ1
-	line1.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A0}, {mone, &λ1.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line1.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A1}, {&λ1.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	line1.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A0}, {&λ1.A1, &p1.X.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	line1.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ1.A0, &p1.X.A1}, {&λ1.A1, &p1.X.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
 	// x2 = λ1²-2x
-	x20 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p1.X.A0}}, []int{1, 1, 2})
-	x21 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p1.X.A1}}, []int{2, 2})
+	x20 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {&λ1.A1, &λ1.A1}, {&p1.X.A0}}, []int{1, -1, -2})
+	x21 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {&p1.X.A1}}, []int{2, -2})
 	x2 := &fields_bls12381.E2{A0: *x20, A1: *x21}
 
 	// omit yr computation, and
@@ -745,18 +742,18 @@ func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvalua
 
 	// compute line2
 	line2.R0 = *λ2
-	line2.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A0}, {mone, &λ2.A1, &p1.X.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	line2.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A1}, {&λ2.A1, &p1.X.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	line2.R1.A0 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A0}, {&λ2.A1, &p1.X.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	line2.R1.A1 = *pr.curveF.Eval([][]*baseEl{{&λ2.A0, &p1.X.A1}, {&λ2.A1, &p1.X.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
 	// xr = λ²-x1-x2
-	xr0 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p1.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
-	xr1 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p1.X.A1}, {mone, x21}}, []int{2, 1, 1})
+	xr0 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {&λ2.A1, &λ2.A1}, {&p1.X.A0}, {x20}}, []int{1, -1, -1, -1})
+	xr1 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {&p1.X.A1}, {x21}}, []int{2, -1, -1})
 	xr := &fields_bls12381.E2{A0: *xr0, A1: *xr1}
 
 	// yr = λ(x1-xr) - y1
 	yr := pr.Ext2.Sub(&p1.X, xr)
-	yr0 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &yr.A0}, {mone, &λ2.A1, &yr.A1}, {mone, &p1.Y.A0}}, []int{1, 1, 1})
-	yr1 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &yr.A1}, {&λ2.A1, &yr.A0}, {mone, &p1.Y.A1}}, []int{1, 1, 1})
+	yr0 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &yr.A0}, {&λ2.A1, &yr.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	yr1 := pr.curveF.Eval([][]*baseEl{{&λ2.A0, &yr.A1}, {&λ2.A1, &yr.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 	yr = &fields_bls12381.E2{A0: *yr0, A1: *yr1}
 
 	res.X = *xr

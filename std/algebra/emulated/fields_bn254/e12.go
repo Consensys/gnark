@@ -262,28 +262,27 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 
 	// d0  =  c0  - 82 * c12 - 1476 * c18
 	//     =  a0 b0  - 82 * (a1 b11 + a2 b10 + a3 b9 + a4 b8 + a5 b7 + a6 b6 + a7 b5 + a8 b4 + a9 b3 + a10 b2 + a11 b1) - 1476 * (a7 b11 + a8 b10 + a9 b9 + a10 b8 + a11 b7)
-	mone := e.fp.NewElement(-1)
-	d0 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A0}, {mone, &a.A1, &b.A11}, {mone, &a.A2, &b.A10}, {mone, &a.A3, &b.A9}, {mone, &a.A4, &b.A8}, {mone, &a.A5, &b.A7}, {mone, &a.A6, &b.A6}, {mone, &a.A7, &b.A5}, {mone, &a.A8, &b.A4}, {mone, &a.A9, &b.A3}, {mone, &a.A10, &b.A2}, {mone, &a.A11, &b.A1}, {mone, &a.A7, &b.A11}, {mone, &a.A8, &b.A10}, {mone, &a.A9, &b.A9}, {mone, &a.A10, &b.A8}, {mone, &a.A11, &b.A7}}, []int{1, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 1476, 1476, 1476, 1476, 1476})
+	d0 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A0}, {&a.A1, &b.A11}, {&a.A2, &b.A10}, {&a.A3, &b.A9}, {&a.A4, &b.A8}, {&a.A5, &b.A7}, {&a.A6, &b.A6}, {&a.A7, &b.A5}, {&a.A8, &b.A4}, {&a.A9, &b.A3}, {&a.A10, &b.A2}, {&a.A11, &b.A1}, {&a.A7, &b.A11}, {&a.A8, &b.A10}, {&a.A9, &b.A9}, {&a.A10, &b.A8}, {&a.A11, &b.A7}}, []int{1, -82, -82, -82, -82, -82, -82, -82, -82, -82, -82, -82, -1476, -1476, -1476, -1476, -1476})
 
 	// d1  =  c1  - 82 * c13 - 1476 * c19
 	//     =  a0 b1 + a1 b0  - 82 * (a2 b11 + a3 b10 + a4 b9 + a5 b8 + a6 b7 + a7 b6 + a8 b5 + a9 b4 + a10 b3 + a11 b2) - 1476 * (a8 b11 + a9 b10 + a10 b9 + a11 b8)
-	d1 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A1}, {&a.A1, &b.A0}, {mone, &a.A2, &b.A11}, {mone, &a.A3, &b.A10}, {mone, &a.A4, &b.A9}, {mone, &a.A5, &b.A8}, {mone, &a.A6, &b.A7}, {mone, &a.A7, &b.A6}, {mone, &a.A8, &b.A5}, {mone, &a.A9, &b.A4}, {mone, &a.A10, &b.A3}, {mone, &a.A11, &b.A2}, {mone, &a.A8, &b.A11}, {mone, &a.A9, &b.A10}, {mone, &a.A10, &b.A9}, {mone, &a.A11, &b.A8}}, []int{1, 1, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 1476, 1476, 1476, 1476})
+	d1 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A1}, {&a.A1, &b.A0}, {&a.A2, &b.A11}, {&a.A3, &b.A10}, {&a.A4, &b.A9}, {&a.A5, &b.A8}, {&a.A6, &b.A7}, {&a.A7, &b.A6}, {&a.A8, &b.A5}, {&a.A9, &b.A4}, {&a.A10, &b.A3}, {&a.A11, &b.A2}, {&a.A8, &b.A11}, {&a.A9, &b.A10}, {&a.A10, &b.A9}, {&a.A11, &b.A8}}, []int{1, 1, -82, -82, -82, -82, -82, -82, -82, -82, -82, -82, -1476, -1476, -1476, -1476})
 
 	// d2  =  c2  - 82 * c14 - 1476 * c20
 	//     =  a0 b2 + a1 b1 + a2 b0  - 82 * (a3 b11 + a4 b10 + a5 b9 + a6 b8 + a7 b7 + a8 b6 + a9 b5 + a10 b4 + a11 b3) - 1476 * (a9 b11 + a10 b10 + a11 b9)
-	d2 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A2}, {&a.A1, &b.A1}, {&a.A2, &b.A0}, {mone, &a.A3, &b.A11}, {mone, &a.A4, &b.A10}, {mone, &a.A5, &b.A9}, {mone, &a.A6, &b.A8}, {mone, &a.A7, &b.A7}, {mone, &a.A8, &b.A6}, {mone, &a.A9, &b.A5}, {mone, &a.A10, &b.A4}, {mone, &a.A11, &b.A3}, {mone, &a.A9, &b.A11}, {mone, &a.A10, &b.A10}, {mone, &a.A11, &b.A9}}, []int{1, 1, 1, 82, 82, 82, 82, 82, 82, 82, 82, 82, 1476, 1476, 1476})
+	d2 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A2}, {&a.A1, &b.A1}, {&a.A2, &b.A0}, {&a.A3, &b.A11}, {&a.A4, &b.A10}, {&a.A5, &b.A9}, {&a.A6, &b.A8}, {&a.A7, &b.A7}, {&a.A8, &b.A6}, {&a.A9, &b.A5}, {&a.A10, &b.A4}, {&a.A11, &b.A3}, {&a.A9, &b.A11}, {&a.A10, &b.A10}, {&a.A11, &b.A9}}, []int{1, 1, 1, -82, -82, -82, -82, -82, -82, -82, -82, -82, -1476, -1476, -1476})
 
 	// d3  =  c3  - 82 * c15 - 1476 * c21
 	//     =  a0 b3 + a1 b2 + a2 b1 + a3 b0  - 82 * (a4 b11 + a5 b10 + a6 b9 + a7 b8 + a8 b7 + a9 b6 + a10 b5 + a11 b4) - 1476 * (a10 b11 + a11 b10)
-	d3 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A3}, {&a.A1, &b.A2}, {&a.A2, &b.A1}, {&a.A3, &b.A0}, {mone, &a.A4, &b.A11}, {mone, &a.A5, &b.A10}, {mone, &a.A6, &b.A9}, {mone, &a.A7, &b.A8}, {mone, &a.A8, &b.A7}, {mone, &a.A9, &b.A6}, {mone, &a.A10, &b.A5}, {mone, &a.A11, &b.A4}, {mone, &a.A10, &b.A11}, {mone, &a.A11, &b.A10}}, []int{1, 1, 1, 1, 82, 82, 82, 82, 82, 82, 82, 82, 1476, 1476})
+	d3 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A3}, {&a.A1, &b.A2}, {&a.A2, &b.A1}, {&a.A3, &b.A0}, {&a.A4, &b.A11}, {&a.A5, &b.A10}, {&a.A6, &b.A9}, {&a.A7, &b.A8}, {&a.A8, &b.A7}, {&a.A9, &b.A6}, {&a.A10, &b.A5}, {&a.A11, &b.A4}, {&a.A10, &b.A11}, {&a.A11, &b.A10}}, []int{1, 1, 1, 1, -82, -82, -82, -82, -82, -82, -82, -82, -1476, -1476})
 
 	// d4  =  c4  - 82 * c16 - 1476 * c22
 	//     =  a0 b4 + a1 b3 + a2 b2 + a3 b1 + a4 b0  - 82 * (a5 b11 + a6 b10 + a7 b9 + a8 b8 + a9 b7 + a10 b6 + a11 b5) - 1476 * a11 b11
-	d4 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A4}, {&a.A1, &b.A3}, {&a.A2, &b.A2}, {&a.A3, &b.A1}, {&a.A4, &b.A0}, {mone, &a.A5, &b.A11}, {mone, &a.A6, &b.A10}, {mone, &a.A7, &b.A9}, {mone, &a.A8, &b.A8}, {mone, &a.A9, &b.A7}, {mone, &a.A10, &b.A6}, {mone, &a.A11, &b.A5}, {mone, &a.A11, &b.A11}}, []int{1, 1, 1, 1, 1, 82, 82, 82, 82, 82, 82, 82, 1476})
+	d4 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A4}, {&a.A1, &b.A3}, {&a.A2, &b.A2}, {&a.A3, &b.A1}, {&a.A4, &b.A0}, {&a.A5, &b.A11}, {&a.A6, &b.A10}, {&a.A7, &b.A9}, {&a.A8, &b.A8}, {&a.A9, &b.A7}, {&a.A10, &b.A6}, {&a.A11, &b.A5}, {&a.A11, &b.A11}}, []int{1, 1, 1, 1, 1, -82, -82, -82, -82, -82, -82, -82, -1476})
 
 	// d5  =  c5  - 82 * c17
 	//     =  a0 b5 + a1 b4 + a2 b3 + a3 b2 + a4 b1 + a5 b0  - 82 * (a6 b11 + a7 b10 + a8 b9 + a9 b8 + a10 b7 + a11 b6)
-	d5 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A5}, {&a.A1, &b.A4}, {&a.A2, &b.A3}, {&a.A3, &b.A2}, {&a.A4, &b.A1}, {&a.A5, &b.A0}, {mone, &a.A6, &b.A11}, {mone, &a.A7, &b.A10}, {mone, &a.A8, &b.A9}, {mone, &a.A9, &b.A8}, {mone, &a.A10, &b.A7}, {mone, &a.A11, &b.A6}}, []int{1, 1, 1, 1, 1, 1, 82, 82, 82, 82, 82, 82})
+	d5 := e.fp.Eval([][]*baseEl{{&a.A0, &b.A5}, {&a.A1, &b.A4}, {&a.A2, &b.A3}, {&a.A3, &b.A2}, {&a.A4, &b.A1}, {&a.A5, &b.A0}, {&a.A6, &b.A11}, {&a.A7, &b.A10}, {&a.A8, &b.A9}, {&a.A9, &b.A8}, {&a.A10, &b.A7}, {&a.A11, &b.A6}}, []int{1, 1, 1, 1, 1, 1, -82, -82, -82, -82, -82, -82})
 
 	// d6  =  c6  + 18 * c12 + 242 * c18
 	//     =  a0 b6 + a1 b5 + a2 b4 + a3 b3 + a4 b2 + a5 b1 + a6 b0  + 18 * (a1 b11 + a2 b10 + a3 b9 + a4 b8 + a5 b7 + a6 b6 + a7 b5 + a8 b4 + a9 b3 + a10 b2 + a11 b1) + 242 * (a7 b11 + a8 b10 + a9 b9 + a10 b8 + a11 b7)
@@ -331,24 +330,23 @@ func (e Ext12) Square(x *E12) *E12 {
 
 func (e Ext12) squareDirect(a *E12) *E12 {
 
-	mone := e.fp.NewElement(-1)
 	//  d0  =  a0 a0  - 82 * (2 a1 a11 + 2 a2 a10 + 2 a3 a9 + 2 a4 a8 + 2 a5 a7 + a6 a6) - 1476 * (2 a7 a11 + 2 a8 a10 + a9 a9)
-	d0 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A0}, {mone, &a.A1, &a.A11}, {mone, &a.A2, &a.A10}, {mone, &a.A3, &a.A9}, {mone, &a.A4, &a.A8}, {mone, &a.A5, &a.A7}, {mone, &a.A6, &a.A6}, {mone, &a.A7, &a.A11}, {mone, &a.A8, &a.A10}, {mone, &a.A9, &a.A9}}, []int{1, 164, 164, 164, 164, 164, 82, 2952, 2952, 1476})
+	d0 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A0}, {&a.A1, &a.A11}, {&a.A2, &a.A10}, {&a.A3, &a.A9}, {&a.A4, &a.A8}, {&a.A5, &a.A7}, {&a.A6, &a.A6}, {&a.A7, &a.A11}, {&a.A8, &a.A10}, {&a.A9, &a.A9}}, []int{1, -164, -164, -164, -164, -164, -82, -2952, -2952, -1476})
 
 	// d1  =  2 a0 a1  - 164 * (2 a2 a11 + a3 a10 + a4 a9 + a5 a8 + a6 a7) - 2952 * (a8 a11 + a9 a10)
-	d1 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A1}, {mone, &a.A2, &a.A11}, {mone, &a.A3, &a.A10}, {mone, &a.A4, &a.A9}, {mone, &a.A5, &a.A8}, {mone, &a.A6, &a.A7}, {mone, &a.A8, &a.A11}, {mone, &a.A9, &a.A10}}, []int{2, 164, 164, 164, 164, 164, 2952, 2952})
+	d1 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A1}, {&a.A2, &a.A11}, {&a.A3, &a.A10}, {&a.A4, &a.A9}, {&a.A5, &a.A8}, {&a.A6, &a.A7}, {&a.A8, &a.A11}, {&a.A9, &a.A10}}, []int{2, -164, -164, -164, -164, -164, -2952, -2952})
 
 	// d2  =  2 a0 a2 + a1 a1  - 82 * (2 a3 a11 + 2 a4 a10 + 2 a5 a9 + 2 a6 a8 + a7 a7) - 1476 * (2 a9 a11 + a10 a10)
-	d2 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A2}, {&a.A1, &a.A1}, {mone, &a.A3, &a.A11}, {mone, &a.A4, &a.A10}, {mone, &a.A5, &a.A9}, {mone, &a.A6, &a.A8}, {mone, &a.A7, &a.A7}, {mone, &a.A9, &a.A11}, {mone, &a.A10, &a.A10}}, []int{2, 1, 164, 164, 164, 164, 82, 2952, 1476})
+	d2 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A2}, {&a.A1, &a.A1}, {&a.A3, &a.A11}, {&a.A4, &a.A10}, {&a.A5, &a.A9}, {&a.A6, &a.A8}, {&a.A7, &a.A7}, {&a.A9, &a.A11}, {&a.A10, &a.A10}}, []int{2, 1, -164, -164, -164, -164, -82, -2952, -1476})
 
 	// d3  =  2 a0 a3 + 2 a1 a2  - 164 * (a4 a11 + a5 a10 + a6 a9 + a7 a8) - 2952 * a10 a11
-	d3 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A3}, {&a.A1, &a.A2}, {mone, &a.A4, &a.A11}, {mone, &a.A5, &a.A10}, {mone, &a.A6, &a.A9}, {mone, &a.A7, &a.A8}, {mone, &a.A10, &a.A11}}, []int{2, 2, 164, 164, 164, 164, 2952})
+	d3 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A3}, {&a.A1, &a.A2}, {&a.A4, &a.A11}, {&a.A5, &a.A10}, {&a.A6, &a.A9}, {&a.A7, &a.A8}, {&a.A10, &a.A11}}, []int{2, 2, -164, -164, -164, -164, -2952})
 
 	// d4  =  2 a0 a4 + 2 a1 a3 + a2 a2  - 82 * (2 a5 a11 + 2 a6 a10 + 2 a7 a9 + a8 a8) - 1476 * a11 a11
-	d4 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A4}, {&a.A1, &a.A3}, {&a.A2, &a.A2}, {mone, &a.A5, &a.A11}, {mone, &a.A6, &a.A10}, {mone, &a.A7, &a.A9}, {mone, &a.A8, &a.A8}, {mone, &a.A11, &a.A11}}, []int{2, 2, 1, 164, 164, 164, 82, 1476})
+	d4 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A4}, {&a.A1, &a.A3}, {&a.A2, &a.A2}, {&a.A5, &a.A11}, {&a.A6, &a.A10}, {&a.A7, &a.A9}, {&a.A8, &a.A8}, {&a.A11, &a.A11}}, []int{2, 2, 1, -164, -164, -164, -82, -1476})
 
 	// d5  =  2 (a0 a5 + a1 a4 + a2 a3) - 164 * (a6 a11 + a7 a10 + a8 a9)
-	d5 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A5}, {&a.A1, &a.A4}, {&a.A2, &a.A3}, {mone, &a.A6, &a.A11}, {mone, &a.A7, &a.A10}, {mone, &a.A8, &a.A9}}, []int{2, 2, 2, 164, 164, 164})
+	d5 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A5}, {&a.A1, &a.A4}, {&a.A2, &a.A3}, {&a.A6, &a.A11}, {&a.A7, &a.A10}, {&a.A8, &a.A9}}, []int{2, 2, 2, -164, -164, -164})
 
 	// d6  =  2 a0 a6 + 2 a1 a5 + 2 a2 a4 + a3 a3  + 18 * (2 a1 a11 + 2 a2 a10 + 2 a3 a9 + 2 a4 a8 + 2 a5 a7 + a6 a6) + 242 * (2 a7 a11 + 2 a8 a10 + a9 a9)
 	d6 := e.fp.Eval([][]*baseEl{{&a.A0, &a.A6}, {&a.A1, &a.A5}, {&a.A2, &a.A4}, {&a.A3, &a.A3}, {&a.A1, &a.A11}, {&a.A2, &a.A10}, {&a.A3, &a.A9}, {&a.A4, &a.A8}, {&a.A5, &a.A7}, {&a.A6, &a.A6}, {&a.A7, &a.A11}, {&a.A8, &a.A10}, {&a.A9, &a.A9}}, []int{2, 2, 2, 1, 36, 36, 36, 36, 36, 18, 484, 484, 242})
@@ -389,18 +387,17 @@ func (e Ext12) squareDirect(a *E12) *E12 {
 func (e Ext12) CyclotomicSquareGS(x *E12) *E12 {
 	tower := e.ToTower(x)
 
-	mone := e.fp.NewElement(-1)
-	z000 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {mone, tower[9], tower[9]}, {mone, tower[8], tower[9]}, {tower[0], tower[0]}, {mone, tower[1], tower[1]}, {mone, tower[0]}}, []int{27, 27, 6, 3, 3, 2})
-	z001 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {mone, tower[9], tower[9]}, {tower[8], tower[9]}, {tower[0], tower[1]}, {mone, tower[1]}}, []int{3, 3, 54, 6, 2})
-	z010 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {mone, tower[5], tower[5]}, {mone, tower[4], tower[5]}, {tower[6], tower[6]}, {mone, tower[7], tower[7]}, {mone, tower[2]}}, []int{27, 27, 6, 3, 3, 2})
-	z011 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {mone, tower[5], tower[5]}, {tower[4], tower[5]}, {tower[6], tower[7]}, {mone, tower[3]}}, []int{3, 3, 54, 6, 2})
-	z020 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {mone, tower[11], tower[11]}, {mone, tower[10], tower[11]}, {tower[2], tower[2]}, {mone, tower[3], tower[3]}, {mone, tower[4]}}, []int{27, 27, 6, 3, 3, 2})
-	z021 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {mone, tower[11], tower[11]}, {tower[10], tower[11]}, {tower[2], tower[3]}, {mone, tower[5]}}, []int{3, 3, 54, 6, 2})
-	z100 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {mone, tower[3], tower[11]}, {mone, tower[2], tower[11]}, {mone, tower[3], tower[10]}, {tower[6]}}, []int{54, 54, 6, 6, 2})
-	z101 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {mone, tower[3], tower[11]}, {tower[2], tower[11]}, {tower[3], tower[10]}, {tower[7]}}, []int{6, 6, 54, 54, 2})
-	z110 := e.fp.Eval([][]*baseEl{{tower[0], tower[8]}, {mone, tower[1], tower[9]}, {tower[8]}}, []int{6, 6, 2})
+	z000 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {tower[9], tower[9]}, {tower[8], tower[9]}, {tower[0], tower[0]}, {tower[1], tower[1]}, {tower[0]}}, []int{27, -27, -6, 3, -3, -2})
+	z001 := e.fp.Eval([][]*baseEl{{tower[8], tower[8]}, {tower[9], tower[9]}, {tower[8], tower[9]}, {tower[0], tower[1]}, {tower[1]}}, []int{3, -3, 54, 6, -2})
+	z010 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {tower[5], tower[5]}, {tower[4], tower[5]}, {tower[6], tower[6]}, {tower[7], tower[7]}, {tower[2]}}, []int{27, -27, -6, 3, -3, -2})
+	z011 := e.fp.Eval([][]*baseEl{{tower[4], tower[4]}, {tower[5], tower[5]}, {tower[4], tower[5]}, {tower[6], tower[7]}, {tower[3]}}, []int{3, -3, 54, 6, -2})
+	z020 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {tower[11], tower[11]}, {tower[10], tower[11]}, {tower[2], tower[2]}, {tower[3], tower[3]}, {tower[4]}}, []int{27, -27, -6, 3, -3, -2})
+	z021 := e.fp.Eval([][]*baseEl{{tower[10], tower[10]}, {tower[11], tower[11]}, {tower[10], tower[11]}, {tower[2], tower[3]}, {tower[5]}}, []int{3, -3, 54, 6, -2})
+	z100 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {tower[3], tower[11]}, {tower[2], tower[11]}, {tower[3], tower[10]}, {tower[6]}}, []int{54, -54, -6, -6, 2})
+	z101 := e.fp.Eval([][]*baseEl{{tower[2], tower[10]}, {tower[3], tower[11]}, {tower[2], tower[11]}, {tower[3], tower[10]}, {tower[7]}}, []int{6, -6, 54, 54, 2})
+	z110 := e.fp.Eval([][]*baseEl{{tower[0], tower[8]}, {tower[1], tower[9]}, {tower[8]}}, []int{6, -6, 2})
 	z111 := e.fp.Eval([][]*baseEl{{tower[0], tower[9]}, {tower[1], tower[8]}, {tower[9]}}, []int{6, 6, 2})
-	z120 := e.fp.Eval([][]*baseEl{{tower[4], tower[6]}, {mone, tower[5], tower[7]}, {tower[10]}}, []int{6, 6, 2})
+	z120 := e.fp.Eval([][]*baseEl{{tower[4], tower[6]}, {tower[5], tower[7]}, {tower[10]}}, []int{6, -6, 2})
 	z121 := e.fp.Eval([][]*baseEl{{tower[4], tower[7]}, {tower[5], tower[6]}, {tower[11]}}, []int{6, 6, 2})
 
 	direct := e.FromTower([12]*baseEl{z000, z001, z010, z011, z020, z021, z100, z101, z110, z111, z120, z121})

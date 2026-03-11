@@ -165,7 +165,6 @@ func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 }
 
 func (g2 G2) add(p, q *G2Affine) *G2Affine {
-	mone := g2.fp.NewElement(-1)
 
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := g2.Ext2.Sub(&q.P.Y, &p.P.Y)
@@ -173,14 +172,14 @@ func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	λ := g2.Ext2.DivUnchecked(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
-	xr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {mone, &λ.A1, &λ.A1}, {mone, &p.P.X.A0}, {mone, &q.P.X.A0}}, []int{1, 1, 1, 1})
-	xr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {mone, &p.P.X.A1}, {mone, &q.P.X.A1}}, []int{2, 1, 1})
+	xr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p.P.X.A0}, {&q.P.X.A0}}, []int{1, -1, -1, -1})
+	xr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {&p.P.X.A1}, {&q.P.X.A1}}, []int{2, -1, -1})
 	xr := &fields_bn254.E2{A0: *xr0, A1: *xr1}
 
 	// p.y = λ(p.x-r.x) - p.y
 	yr := g2.Ext2.Sub(&p.P.X, xr)
-	yr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {mone, &λ.A1, &yr.A1}, {mone, &p.P.Y.A0}}, []int{1, 1, 1})
-	yr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {mone, &p.P.Y.A1}}, []int{1, 1, 1})
+	yr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {&λ.A1, &yr.A1}, {&p.P.Y.A0}}, []int{1, -1, -1})
+	yr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {&p.P.Y.A1}}, []int{1, 1, -1})
 	yr = &fields_bn254.E2{A0: *yr0, A1: *yr1}
 
 	return &G2Affine{
@@ -208,7 +207,6 @@ func (g2 G2) sub(p, q *G2Affine) *G2Affine {
 }
 
 func (g2 *G2) double(p *G2Affine) *G2Affine {
-	mone := g2.fp.NewElement(-1)
 
 	// compute λ = (3p.x²)/2*p.y
 	xx3a := g2.Square(&p.P.X)
@@ -217,14 +215,14 @@ func (g2 *G2) double(p *G2Affine) *G2Affine {
 	λ := g2.DivUnchecked(xx3a, y2)
 
 	// xr = λ²-2p.x
-	xr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {mone, &λ.A1, &λ.A1}, {mone, &p.P.X.A0}}, []int{1, 1, 2})
-	xr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {mone, &p.P.X.A1}}, []int{2, 2})
+	xr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p.P.X.A0}}, []int{1, -1, -2})
+	xr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {&p.P.X.A1}}, []int{2, -2})
 	xr := &fields_bn254.E2{A0: *xr0, A1: *xr1}
 
 	// yr = λ(p-xr) - p.y
 	yr := g2.Ext2.Sub(&p.P.X, xr)
-	yr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {mone, &λ.A1, &yr.A1}, {mone, &p.P.Y.A0}}, []int{1, 1, 1})
-	yr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {mone, &p.P.Y.A1}}, []int{1, 1, 1})
+	yr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A0}, {&λ.A1, &yr.A1}, {&p.P.Y.A0}}, []int{1, -1, -1})
+	yr1 := g2.fp.Eval([][]*baseEl{{&λ.A0, &yr.A1}, {&λ.A1, &yr.A0}, {&p.P.Y.A1}}, []int{1, 1, -1})
 	yr = &fields_bn254.E2{A0: *yr0, A1: *yr1}
 
 	return &G2Affine{
@@ -244,7 +242,6 @@ func (g2 *G2) doubleN(p *G2Affine, n int) *G2Affine {
 }
 
 func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
-	mone := g2.fp.NewElement(-1)
 
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := g2.Ext2.Sub(&q.P.Y, &p.P.Y)
@@ -252,8 +249,8 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	λ1 := g2.Ext2.DivUnchecked(yqyp, xqxp)
 
 	// compute x2 = λ1²-p.x-q.x
-	x20 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p.P.X.A0}, {mone, &q.P.X.A0}}, []int{1, 1, 1, 1})
-	x21 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p.P.X.A1}, {mone, &q.P.X.A1}}, []int{2, 1, 1})
+	x20 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {&λ1.A1, &λ1.A1}, {&p.P.X.A0}, {&q.P.X.A0}}, []int{1, -1, -1, -1})
+	x21 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {&p.P.X.A1}, {&q.P.X.A1}}, []int{2, -1, -1})
 	x2 := &fields_bn254.E2{A0: *x20, A1: *x21}
 
 	// omit y2 computation
@@ -264,14 +261,14 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	λ2 = g2.Ext2.Add(λ1, λ2)
 
 	// compute x3 = (-λ2)²-p.x-x2
-	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p.P.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
-	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p.P.X.A1}, {mone, x21}}, []int{2, 1, 1})
+	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {&λ2.A1, &λ2.A1}, {&p.P.X.A0}, {x20}}, []int{1, -1, -1, -1})
+	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {&p.P.X.A1}, {x21}}, []int{2, -1, -1})
 	x3 := &fields_bn254.E2{A0: *x30, A1: *x31}
 
 	// compute y3 = -λ2*(x3 - p.x)-p.y
 	y3 := g2.Ext2.Sub(x3, &p.P.X)
-	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {mone, &λ2.A1, &y3.A1}, {mone, &p.P.Y.A0}}, []int{1, 1, 1})
-	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {mone, &p.P.Y.A1}}, []int{1, 1, 1})
+	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {&λ2.A1, &y3.A1}, {&p.P.Y.A0}}, []int{1, -1, -1})
+	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {&p.P.Y.A1}}, []int{1, 1, -1})
 	y3 = &fields_bn254.E2{A0: *y30, A1: *y31}
 
 	return &G2Affine{
