@@ -162,17 +162,18 @@ See [CHANGELOG.md](CHANGELOG.md).
 If you use `gnark` in research, please cite the latest release:
 
 ```bib
-@software{gnark-v0.14.0,
+@software{gnark-v0.15.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
-                  Arya Tabaie},
-  title        = {Consensys/gnark: v0.14.0},
-  month        = jun,
-  year         = 2025,
+                  Arya Tabaie and
+                  Yao J. Galteland},
+  title        = {Consensys/gnark: v0.15.0},
+  month        = mar,
+  year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.14.0},
+  version      = {v0.15.0},
   doi          = {10.5281/zenodo.5819104},
   url          = {https://doi.org/10.5281/zenodo.5819104}
 }
