@@ -1334,7 +1334,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	defer bigIntPool.Put(quo)
 	quo.SetInt64(0)
 	rem.SetInt64(0)
-	if p.Cmp(new(big.Int)) != 0 {
+	if p.Sign() != 0 {
 		quo.DivMod(fullLhs, p, rem)
 	}
 	// if quotient is negative, output |k| and set kNeg = 1
