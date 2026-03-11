@@ -1,7 +1,7 @@
 # `gnark` zk-SNARK library
 
 [![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/gnark_team.svg?style=social&label=Follow%20%40gnark_team)](https://twitter.com/gnark_team) [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ConsenSys/gnark)](https://goreportcard.com/badge/github.com/ConsenSys/gnark)
+[![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark)
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 [![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5819104.svg)](https://doi.org/10.5281/zenodo.5819104)
 
@@ -30,7 +30,7 @@ High-performance zk-SNARKs in Go.
 
 ### Requirements
 
-- Go `1.25+` (module target: `go 1.25.6`)
+- Go `1.25+` (module target: `go 1.25.7`)
 
 ### Install
 
@@ -162,17 +162,18 @@ See [CHANGELOG.md](CHANGELOG.md).
 If you use `gnark` in research, please cite the latest release:
 
 ```bib
-@software{gnark-v0.14.0,
+@software{gnark-v0.15.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
-                  Arya Tabaie},
-  title        = {Consensys/gnark: v0.14.0},
-  month        = jun,
-  year         = 2025,
+                  Arya Tabaie and
+                  Yao J. Galteland},
+  title        = {Consensys/gnark: v0.15.0},
+  month        = mar,
+  year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.14.0},
+  version      = {v0.15.0},
   doi          = {10.5281/zenodo.5819104},
   url          = {https://doi.org/10.5281/zenodo.5819104}
 }
