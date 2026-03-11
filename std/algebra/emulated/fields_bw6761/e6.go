@@ -850,8 +850,8 @@ func (e Ext6) cyclotomicSquareGSEval(x *E6) *E6 {
 	//					6*x0*x4 + 2*x4,
 	//					3*x5²*u + 3*x1² - 2*x2,
 	//					6*x2*x3 + 2*x5,
-	u := e.fp.NewElement(-4)
-	mone := e.fp.NewElement(-1)
+	// we know that u = -4, so we can pre-multiply the coefficients by 3*u=-12 to avoid multiplications by u.
+	// We also reorder the output to be in the standard order (x0,x1,x2,x3,x4,x5) instead of (x0,x3,x1,x4,x2,x5).
 	g0 := x.A0
 	g1 := x.A2
 	g2 := x.A4
@@ -859,13 +859,13 @@ func (e Ext6) cyclotomicSquareGSEval(x *E6) *E6 {
 	g4 := x.A3
 	g5 := x.A5
 	// h0 = 3*x4²*u + 3*x0² - 2*x0
-	h0 := e.fp.Eval([][]*baseEl{{u, &g4, &g4}, {&g0, &g0}, {mone, &g0}}, []int{3, 3, 2})
+	h0 := e.fp.Eval([][]*baseEl{{&g4, &g4}, {&g0, &g0}, {&g0}}, []int{-12, 3, -2})
 	// h1 = 3*x2²*u + 3*x3² - 2*x1
-	h1 := e.fp.Eval([][]*baseEl{{u, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	h1 := e.fp.Eval([][]*baseEl{{&g2, &g2}, {&g3, &g3}, {&g1}}, []int{-12, 3, -2})
 	// h2 = 3*x5²*u + 3*x1² - 2*x2
-	h2 := e.fp.Eval([][]*baseEl{{u, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	h2 := e.fp.Eval([][]*baseEl{{&g5, &g5}, {&g1, &g1}, {&g2}}, []int{-12, 3, -2})
 	// h3 = 6*x1*x5*u + 2*x3
-	h3 := e.fp.Eval([][]*baseEl{{u, &g1, &g5}, {&g3}}, []int{6, 2})
+	h3 := e.fp.Eval([][]*baseEl{{&g1, &g5}, {&g3}}, []int{-24, 2})
 	// h4 = 6*x0*x4 + 2*x4
 	h4 := e.fp.Eval([][]*baseEl{{&g0, &g4}, {&g4}}, []int{6, 2})
 	// h5 = 6*x2*x3 + 2*x5
@@ -890,21 +890,28 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 // cyclotomicSquareKarabina12345Eval computes
 // [Ext6.cyclotomicSquareKarabina12345] but with the non-native Eval method.
 func (e Ext6) cyclotomicSquareKarabina12345Eval(x *E6) *E6 {
-	c := e.fp.NewElement(-4)
-	mone := e.fp.NewElement(-1)
+	// x=(x0,x2,x4,x1,x3,x5) in E6
+	// cyclosquare(x) = 3((x3+x5)(x1+c*x2)-x1x5-c*x3x2)-x4,
+	//					2(x3+3c*x1x5),
+	//					3((x1+x5)(x1+c*x5)-(c+1)*x1x5)-2*x2,
+	//					3((x3+x2)(x3+c*x2)-(c+1)*x3x2)-2*x1,
+	//					6*x0*x4 + 2*x4,
+	//					6*x2*x3 + 2*x5,
+	// we know that c = -4, so we can pre-multiply the coefficients by 3*c=-12 to avoid multiplications by c.
+	// We also reorder the output to be in the standard order (x0,x1,x2,x3,x4,x5) instead of (x0,x3,x1,x4,x2,x5).
 	g1 := x.A2
 	g2 := x.A4
 	g3 := x.A1
 	g4 := x.A3
 	g5 := x.A5
 	// h1 = 3*c*g2^2 + 3*g3^2 - 2*g1
-	h1 := e.fp.Eval([][]*baseEl{{c, &g2, &g2}, {&g3, &g3}, {mone, &g1}}, []int{3, 3, 2})
+	h1 := e.fp.Eval([][]*baseEl{{&g2, &g2}, {&g3, &g3}, {&g1}}, []int{-12, 3, -2})
 	// h2 = 3*c*g5^2 + 3*g1^2 - 2*g2
-	h2 := e.fp.Eval([][]*baseEl{{c, &g5, &g5}, {&g1, &g1}, {mone, &g2}}, []int{3, 3, 2})
+	h2 := e.fp.Eval([][]*baseEl{{&g5, &g5}, {&g1, &g1}, {&g2}}, []int{-12, 3, -2})
 	// h3 = 6*c*g1*g5 + 2*g3
-	h3 := e.fp.Eval([][]*baseEl{{c, &g1, &g5}, {&g3}}, []int{6, 2})
+	h3 := e.fp.Eval([][]*baseEl{{&g1, &g5}, {&g3}}, []int{-24, 2})
 	// h4 = 3*c*g2*g5 + 3*g1*g3 - g4
-	h4 := e.fp.Eval([][]*baseEl{{c, &g2, &g5}, {&g1, &g3}, {mone, &g4}}, []int{3, 3, 1})
+	h4 := e.fp.Eval([][]*baseEl{{&g2, &g5}, {&g1, &g3}, {&g4}}, []int{-12, 3, -1})
 	// h5 = 6*g2*g3 + 2*g5
 	h5 := e.fp.Eval([][]*baseEl{{&g2, &g3}, {&g5}}, []int{6, 2})
 
@@ -988,14 +995,22 @@ func (e Ext6) DecompressKarabina12345(x *E6) *E6 {
 
 // decompressKarabina12345Eval computes [Ext6.DecompressKarabina12345] but with the non-native Eval method.
 func (e Ext6) decompressKarabina12345Eval(x *E6) *E6 {
-	c := e.fp.NewElement(-4)
+	// x=(x0,x2,x4,x1,x3,x5) in E6
+	// decompress(x) = (2c*g4^2 + 3*g1*g3 - 3*g2*g5)*c + 1,
+	//					g3,
+	//					g1,
+	//					3*c*g2*g4 + 3*g1*g5 + g3,
+	//					g2,
+	//					g5,
+	// where c=-4, so we can pre-multiply the coefficients by c=-4 to avoid multiplications by c.
+	// We also reorder the input to be in the standard order (x0,x1,x2,x3,x4,x5) instead of (x0,x3,x1,x4,x2,x5).
 	g1 := x.A2
 	g2 := x.A4
 	g3 := x.A1
 	g4 := x.A3
 	g5 := x.A5
 	// h0 = -3*c*g1*g2 + 2*c*g4^2 + c*g3*g5 + 1
-	h0 := e.fp.Eval([][]*baseEl{{&g1, &g2}, {c, &g4, &g4}, {c, &g3, &g5}, {e.fp.One()}}, []int{12, 2, 1, 1})
+	h0 := e.fp.Eval([][]*baseEl{{&g1, &g2}, {&g4, &g4}, {&g3, &g5}, {e.fp.One()}}, []int{12, -8, -4, 1})
 	return &E6{
 		A0: *h0,
 		A1: g3,
