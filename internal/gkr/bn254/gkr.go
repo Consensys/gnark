@@ -53,7 +53,7 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
 // The sumcheck protocol has already reduced the per-wire claims w(xᵢ) = yᵢ to verifying
 // ∑ cⁱ eq(xᵢ, r) · gateᵥ(r) = purportedValue, where the sum runs over all
-// (wire v, claim source s) pairs and c is foldingCoeff.
+// claims on each wire and c is foldingCoeff.
 // Both purportedValue and the vector r have been randomized during sumcheck.
 //
 // For input wires, gateᵥ(r) is computed directly from the assignment.
@@ -74,7 +74,7 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 
 			var gateEval fr.Element
 			if wire.IsInput() {
-				gateEval = e.resources.assignment[wI].Evaluate(r, e.resources.memPool)
+				gateEval = e.resources.assignment[wI].Evaluate(r, &e.resources.memPool)
 			} else {
 				evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 				for _, v := range perWireInputEvals[flatW] {
@@ -294,34 +294,42 @@ type resources struct {
 	evalPositions [][]int // [wireI][evalI] → position in source level's finalEvalProof
 	nbVars        int
 	assignment    WireAssignment
-	memPool       *polynomial.Pool
+	memPool       polynomial.Pool
 	workers       *utils.WorkerPool
 	circuit       Circuit
 	schedule      constraint.GkrProvingSchedule
+	transcript    transcript
 }
 
-func newResources(circuit Circuit, assignment WireAssignment, o settings, schedule constraint.GkrProvingSchedule) resources {
+func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (resources, error) {
+	nbVars := assignment.NumVars()
+	nbInstances := assignment.NumInstances()
+	if 1<<nbVars != nbInstances {
+		return resources{}, errors.New("number of instances must be power of 2")
+	}
+
 	return resources{
 		levelPoints:   make([][]fr.Element, len(schedule)+1),
-		evalPositions: gkrcore.BuildFinalEvalPositions(schedule, circuit),
-		nbVars:        o.nbVars,
+		evalPositions: gkrcore.BuildFinalEvalPositions(schedule, c),
+		nbVars:        nbVars,
 		assignment:    assignment,
-		memPool:       o.pool,
-		workers:       o.workers,
-		circuit:       circuit,
+		memPool:       polynomial.NewPool(c.MemoryRequirements(nbInstances)...),
+		workers:       utils.NewWorkerPool(),
+		circuit:       c,
 		schedule:      schedule,
-	}
+		transcript:    transcript{h: hasher},
+	}, nil
 }
 
 // proveLevel runs the sumcheck for a SumcheckLevel: derives the fold challenge,
 // builds per-wire eq tables, constructs zeroCheckClaims, and calls sumcheckProve.
-func (r *resources) proveLevel(levelI int, t *transcript) sumcheckProof {
+func (r *resources) proveLevel(levelI int) sumcheckProof {
 	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
 
 	nbClaims := gkrcore.NbClaims(level)
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
-		foldingCoeff = t.getChallenge()
+		foldingCoeff = r.transcript.getChallenge()
 	}
 
 	uniqueInputs, inputIndices := gkrcore.InputMapping(level, r.circuit)
@@ -344,7 +352,7 @@ func (r *resources) proveLevel(levelI int, t *transcript) sumcheckProof {
 			if wire.IsInput() {
 				gate = gkrcore.IdentityBytecode()
 			}
-			pools[flatW] = newGateEvaluatorPool(gate, len(inputIndices[flatW]), r.memPool)
+			pools[flatW] = newGateEvaluatorPool(gate, len(inputIndices[flatW]), &r.memPool)
 			flatW++
 		}
 	}
@@ -403,19 +411,19 @@ func (r *resources) proveLevel(levelI int, t *transcript) sumcheckProof {
 		eqs:                eqs,
 		gateEvaluatorPools: pools,
 	}
-	return sumcheckProve(claims, t)
+	return sumcheckProve(claims, &r.transcript)
 }
 
 // verifyLevel runs the sumcheck verification for a SumcheckLevel: derives the fold challenge,
 // computes the claimed sum, and calls sumcheckVerify.
-func (r *resources) verifyLevel(levelI int, proof Proof, t *transcript) error {
+func (r *resources) verifyLevel(levelI int, proof Proof) error {
 	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
 	initialChallengeI := len(r.schedule)
 
 	nbClaims := gkrcore.NbClaims(level)
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
-		foldingCoeff = t.getChallenge()
+		foldingCoeff = r.transcript.getChallenge()
 	}
 
 	var ys []fr.Element
@@ -425,7 +433,7 @@ func (r *resources) verifyLevel(levelI int, proof Proof, t *transcript) error {
 			for _, src := range group.ClaimSources {
 				var y fr.Element
 				if src == initialChallengeI {
-					y = r.assignment[wI].Evaluate(r.levelPoints[src], r.memPool)
+					y = r.assignment[wI].Evaluate(r.levelPoints[src], &r.memPool)
 				} else {
 					y = proof[src].finalEvalProof[r.evalPositions[wI][evalI]]
 					evalI++
@@ -443,82 +451,35 @@ func (r *resources) verifyLevel(levelI int, proof Proof, t *transcript) error {
 		resources:    r,
 		levelI:       levelI,
 	}
-	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, gkrcore.Degree(level, r.circuit), t)
-}
-
-type settings struct {
-	pool    *polynomial.Pool
-	nbVars  int
-	workers *utils.WorkerPool
-}
-
-type Option func(*settings)
-
-func WithPool(pool *polynomial.Pool) Option {
-	return func(options *settings) {
-		options.pool = pool
-	}
-}
-
-func WithWorkers(workers *utils.WorkerPool) Option {
-	return func(options *settings) {
-		options.workers = workers
-	}
-}
-
-func setup(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash, options ...Option) (settings, error) {
-	var o settings
-	for _, option := range options {
-		option(&o)
-	}
-
-	o.nbVars = assignment.NumVars()
-	nbInstances := assignment.NumInstances()
-	if 1<<o.nbVars != nbInstances {
-		return o, errors.New("number of instances must be power of 2")
-	}
-
-	if o.pool == nil {
-		pool := polynomial.NewPool(c.MemoryRequirements(nbInstances)...)
-		o.pool = &pool
-	}
-
-	if o.workers == nil {
-		o.workers = utils.NewWorkerPool()
-	}
-
-	return o, nil
+	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, gkrcore.Degree(level, r.circuit), &r.transcript)
 }
 
 // Prove consistency of the claimed assignment
-func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash, options ...Option) (Proof, error) {
-	o, err := setup(c, schedule, assignment, hasher, options...)
+func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (Proof, error) {
+	r, err := newResources(c, schedule, assignment, hasher)
 	if err != nil {
 		return nil, err
 	}
-	defer o.workers.Stop()
-
-	res := newResources(c, assignment, o, schedule)
-	t := transcript{h: hasher}
+	defer r.workers.Stop()
 
 	proof := make(Proof, len(schedule))
 
 	// Derive initial challenge point
-	firstChallenge := make([]fr.Element, o.nbVars)
-	for j := range o.nbVars {
-		firstChallenge[j] = t.getChallenge()
+	firstChallenge := make([]fr.Element, r.nbVars)
+	for j := range r.nbVars {
+		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	res.levelPoints[len(schedule)] = firstChallenge
+	r.levelPoints[len(schedule)] = firstChallenge
 
 	for levelI, level := range schedule {
 		switch s := level.(type) {
 		case constraint.GkrSkipLevel:
-			res.levelPoints[levelI] = res.levelPoints[s.ClaimSources[0]]
+			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
 
 		case constraint.GkrSumcheckLevel:
-			proof[levelI] = res.proveLevel(levelI, &t)
+			proof[levelI] = r.proveLevel(levelI)
 			// Bind finalEvalProof for next level's challenge derivation
-			t.bind(proof[levelI].finalEvalProof...)
+			r.transcript.bind(proof[levelI].finalEvalProof...)
 		}
 	}
 
@@ -527,34 +488,31 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 
 // Verify the consistency of the claimed output with the claimed input.
 // Unlike in Prove, the assignment argument need not be complete.
-func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, proof Proof, hasher hash.Hash, options ...Option) error {
-	o, err := setup(c, schedule, assignment, hasher, options...)
+func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, proof Proof, hasher hash.Hash) error {
+	r, err := newResources(c, schedule, assignment, hasher)
 	if err != nil {
 		return err
 	}
-	defer o.workers.Stop()
-
-	res := newResources(c, assignment, o, schedule)
-	t := transcript{h: hasher}
+	defer r.workers.Stop()
 
 	// Derive initial challenge point
-	firstChallenge := make([]fr.Element, o.nbVars)
-	for j := range o.nbVars {
-		firstChallenge[j] = t.getChallenge()
+	firstChallenge := make([]fr.Element, r.nbVars)
+	for j := range r.nbVars {
+		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	res.levelPoints[len(schedule)] = firstChallenge
+	r.levelPoints[len(schedule)] = firstChallenge
 
 	for levelI, level := range schedule {
 		switch s := level.(type) {
 		case constraint.GkrSkipLevel:
-			res.levelPoints[levelI] = res.levelPoints[s.ClaimSources[0]]
+			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
 
 		case constraint.GkrSumcheckLevel:
-			if err = res.verifyLevel(levelI, proof, &t); err != nil {
+			if err = r.verifyLevel(levelI, proof); err != nil {
 				return fmt.Errorf("sumcheck proof rejected: %v", err)
 			}
 			// Bind finalEvalProof for next level's challenge derivation
-			t.bind(proof[levelI].finalEvalProof...)
+			r.transcript.bind(proof[levelI].finalEvalProof...)
 		}
 	}
 	return nil
