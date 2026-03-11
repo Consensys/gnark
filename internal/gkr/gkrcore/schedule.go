@@ -336,4 +336,3 @@ func DefaultProvingSchedule(c SerializableCircuit) (constraint.GkrProvingSchedul
 	}
 	return b.finalize()
 }
-

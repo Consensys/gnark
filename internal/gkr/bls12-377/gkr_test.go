@@ -19,10 +19,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	gcUtils "github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,36 +68,86 @@ func TestMimc(t *testing.T) {
 	test(t, gkrtesting.MiMCCircuit(93))
 }
 
-func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-	// Construct SerializableCircuit directly, bypassing CompileCircuit
-	// which would reset NbUniqueOutputs based on actual topology
-	circuit := gkrcore.SerializableCircuit{
+// testLevel exercises proveLevel/verifyLevel for a single sumcheck level.
+func testLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrSumcheckLevel) {
+	t.Helper()
+	_, sCircuit := cache.Compile(t, circuit)
+
+	ins := sCircuit.Inputs()
+	assignment := make(WireAssignment, len(sCircuit))
+	for _, i := range ins {
+		assignment[i] = make([]fr.Element, 2)
+		fr.Vector(assignment[i]).MustSetRandom()
+	}
+
+	assignment.Complete(sCircuit)
+
+	schedule := constraint.GkrProvingSchedule{level}
+	challenge := []fr.Element{five}
+
+	// Prove
+	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer proveR.workers.Stop()
+
+	proveR.levelPoints[1] = challenge
+	proof := Proof{proveR.proveLevel(0)}
+
+	// Verify
+	verifyR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer verifyR.workers.Stop()
+
+	verifyR.levelPoints[1] = challenge
+	assert.NoError(t, verifyR.verifyLevel(0, proof))
+}
+
+func TestLevel(t *testing.T) {
+	// Wires 0,1 = inputs; wires 2,3,4 = mul(0,1). All gates are independent outputs.
+	circuit := gkrcore.RawCircuit{
+		{},
+		{},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+	}
+	// All levels have initial challenge at index 1 (len(schedule) = 1).
+	tests := []struct {
+		name  string
+		level constraint.GkrSumcheckLevel
+	}{
 		{
-			NbUniqueOutputs: 2,
-			Gate:            gkrcore.SerializableGate{Degree: 1},
+			name: "single wire",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []int{1}},
+			},
+		},
+		{
+			name: "two groups",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []int{1}},
+				{Wires: []int{3}, ClaimSources: []int{1}},
+			},
+		},
+		{
+			name: "one group with two wires",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4, 3}, ClaimSources: []int{1}},
+			},
+		},
+		{
+			name: "mixed: single + multi-wire group",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []int{1}},
+				{Wires: []int{3, 2}, ClaimSources: []int{1}},
+			},
 		},
 	}
-
-	assignment := WireAssignment{[]fr.Element{two, three}}
-	var o settings
-	pool := polynomial.NewPool(256, 1<<11)
-	workers := gcUtils.NewWorkerPool()
-	o.pool = &pool
-	o.workers = workers
-
-	claimsManagerGen := func() *claimsManager {
-		manager := newClaimsManager(circuit, assignment, o)
-		manager.add(0, []fr.Element{three}, five)
-		manager.add(0, []fr.Element{four}, six)
-		return &manager
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testLevel(t, circuit, tc.level)
+		})
 	}
-
-	transcriptGen := newMessageCounterGenerator(4, 1)
-
-	proof, err := sumcheckProve(claimsManagerGen().getClaim(0), fiatshamir.WithHash(transcriptGen(), nil))
-	assert.NoError(t, err)
-	err = sumcheckVerify(claimsManagerGen().getLazyClaim(0), proof, fiatshamir.WithHash(transcriptGen(), nil))
-	assert.NoError(t, err)
 }
 
 var one, two, three, four, five, six fr.Element
@@ -133,7 +182,16 @@ func getLogMaxInstances(t *testing.T) int {
 }
 
 func test(t *testing.T, circuit gkrcore.RawCircuit) {
+	testWithSchedule(t, circuit, nil)
+}
+
+func testWithSchedule(t *testing.T, circuit gkrcore.RawCircuit, schedule constraint.GkrProvingSchedule) {
 	gCircuit, sCircuit := cache.Compile(t, circuit)
+	if schedule == nil {
+		var err error
+		schedule, err = gkrcore.DefaultProvingSchedule(sCircuit)
+		assert.NoError(t, err)
+	}
 	ins := gCircuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
 	maxSize := 1 << getLogMaxInstances(t)
@@ -153,22 +211,21 @@ func test(t *testing.T, circuit gkrcore.RawCircuit) {
 
 		t.Log("Selected inputs for test")
 
-		proof, err := Prove(sCircuit, fullAssignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		proof, err := Prove(sCircuit, schedule, fullAssignment, newMessageCounter(1, 1))
 		assert.NoError(t, err)
 
 		// Even though a hash is called here, the proof is empty
 
-		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+		err = Verify(sCircuit, schedule, fullAssignment, proof, newMessageCounter(1, 1))
 		assert.NoError(t, err, "proof rejected")
 
 		if proof.isEmpty() { // special case for TestNoGate:
 			continue // there's no way to make a trivial proof fail
 		}
 
-		err = Verify(sCircuit, fullAssignment, proof, fiatshamir.WithHash(newMessageCounter(0, 1)))
+		err = Verify(sCircuit, schedule, fullAssignment, proof, newMessageCounter(0, 1))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
-
 }
 
 func (p Proof) isEmpty() bool {
@@ -188,14 +245,17 @@ func (p Proof) isEmpty() bool {
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
 	_, c := cache.Compile(t, gkrtesting.NoGateCircuit())
 
+	schedule, err := gkrcore.DefaultProvingSchedule(c)
+	assert.NoError(t, err)
+
 	assignment := WireAssignment{0: inputAssignments[0]}
 
-	proof, err := Prove(c, assignment, fiatshamir.WithHash(newMessageCounter(1, 1)))
+	proof, err := Prove(c, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 
 	// Even though a hash is called here, the proof is empty
 
-	err = Verify(c, assignment, proof, fiatshamir.WithHash(newMessageCounter(1, 1)))
+	err = Verify(c, schedule, assignment, proof, newMessageCounter(1, 1))
 	assert.NoError(t, err, "proof rejected")
 }
 
@@ -203,7 +263,7 @@ func generateTestProver(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
 		assert.NoError(t, err)
-		proof, err := Prove(testCase.Circuit, testCase.FullAssignment, fiatshamir.WithHash(testCase.Hash))
+		proof, err := Prove(testCase.Circuit, testCase.Schedule, testCase.FullAssignment, testCase.Hash)
 		assert.NoError(t, err)
 		assert.NoError(t, proofEquals(testCase.Proof, proof))
 	}
@@ -213,17 +273,16 @@ func generateTestVerifier(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 		testCase, err := newTestCase(path)
 		assert.NoError(t, err)
-		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(testCase.Hash))
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, testCase.Hash)
 		assert.NoError(t, err, "proof rejected")
 		testCase, err = newTestCase(path)
 		assert.NoError(t, err)
-		err = Verify(testCase.Circuit, testCase.InOutAssignment, testCase.Proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, newMessageCounter(2, 0))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
 }
 
 func TestGkrVectors(t *testing.T) {
-
 	const testDirPath = "../test_vectors/"
 	dirEntries, err := os.ReadDir(testDirPath)
 	assert.NoError(t, err)
@@ -269,6 +328,9 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	fmt.Println("creating circuit structure")
 	_, c := cache.Compile(b, gkrtesting.MiMCCircuit(mimcDepth))
 
+	schedule, err := gkrcore.DefaultProvingSchedule(c)
+	assert.NoError(b, err)
+
 	in0 := make([]fr.Element, nbInstances)
 	in1 := make([]fr.Element, nbInstances)
 	fr.Vector(in0).MustSetRandom()
@@ -283,10 +345,28 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	//b.ResetTimer()
 	fmt.Println("constructing proof")
 	start = time.Now().UnixMicro()
-	_, err := Prove(c, assignment, fiatshamir.WithHash(mimc.NewMiMC()))
+	_, err = Prove(c, schedule, assignment, mimc.NewMiMC())
 	proved := time.Now().UnixMicro() - start
 	fmt.Println("proved in", proved, "μs")
 	assert.NoError(b, err)
+}
+
+// TestSingleMulGateExplicitSchedule tests a single mul gate with an explicit single-step schedule,
+// equivalent to the default but constructed manually to exercise the schedule path.
+func TestSingleMulGateExplicitSchedule(t *testing.T) {
+	circuit := gkrtesting.SingleMulGateCircuit()
+	_, sCircuit := cache.Compile(t, circuit)
+
+	// Wire 2 is the mul gate output (inputs: 0, 1).
+	// Explicit schedule: one SumcheckLevel for wire 2 only.
+	// ClaimSources: [1] = initial challenge (index len(schedule) = 1).
+	schedule := constraint.GkrProvingSchedule{
+		constraint.GkrSumcheckLevel{
+			{Wires: []int{2}, ClaimSources: []int{1}},
+		},
+	}
+	testWithSchedule(t, circuit, schedule)
+	_ = sCircuit
 }
 
 func BenchmarkGkrMimc19(b *testing.B) {
@@ -332,6 +412,7 @@ type TestCase struct {
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
+	Schedule        constraint.GkrProvingSchedule
 }
 
 var testCases = make(map[string]*TestCase)
@@ -362,6 +443,20 @@ func newTestCase(path string) (*TestCase, error) {
 	if proof, err = unmarshalProof(info.Proof); err != nil {
 		return nil, err
 	}
+	var schedule constraint.GkrProvingSchedule
+	if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
+		return nil, err
+	}
+	if schedule == nil {
+		if schedule, err = gkrcore.DefaultProvingSchedule(circuit); err != nil {
+			return nil, err
+		}
+	}
+
+	outputSet := make(map[int]bool, len(circuit))
+	for _, o := range circuit.Outputs() {
+		outputSet[o] = true
+	}
 
 	fullAssignment := make(WireAssignment, len(circuit))
 	inOutAssignment := make(WireAssignment, len(circuit))
@@ -375,7 +470,7 @@ func newTestCase(path string) (*TestCase, error) {
 			}
 			assignmentRaw = info.Input[inI]
 			inI++
-		} else if circuit[i].IsOutput() {
+		} else if outputSet[i] {
 			if outI == len(info.Output) {
 				return nil, fmt.Errorf("fewer output in vector than in circuit")
 			}
@@ -396,7 +491,7 @@ func newTestCase(path string) (*TestCase, error) {
 	fullAssignment.Complete(circuit)
 
 	for i := range circuit {
-		if circuit[i].IsOutput() {
+		if outputSet[i] {
 			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
 				return nil, fmt.Errorf("assignment mismatch: %v", err)
 			}
@@ -409,6 +504,7 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
+		Schedule:        schedule,
 	}
 
 	testCases[path] = tCase

@@ -117,8 +117,10 @@ func TestLevel(t *testing.T) {
 		level constraint.GkrSumcheckLevel
 	}{
 		{
-			name:  "single wire",
-			level: constraint.GkrSumcheckLevel{{Wires: []int{4}, ClaimSources: []int{1}}},
+			name: "single wire",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []int{1}},
+			},
 		},
 		{
 			name: "two groups",
@@ -128,8 +130,10 @@ func TestLevel(t *testing.T) {
 			},
 		},
 		{
-			name:  "one group with two wires",
-			level: constraint.GkrSumcheckLevel{{Wires: []int{4, 3}, ClaimSources: []int{1}}},
+			name: "one group with two wires",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4, 3}, ClaimSources: []int{1}},
+			},
 		},
 		{
 			name: "mixed: single + multi-wire group",
@@ -347,7 +351,7 @@ func benchmarkGkrMiMC(b *testing.B, nbInstances, mimcDepth int) {
 	assert.NoError(b, err)
 }
 
-// TestSingleMulGateLayered tests a single mul gate with an explicit single-step schedule,
+// TestSingleMulGateExplicitSchedule tests a single mul gate with an explicit single-step schedule,
 // equivalent to the default but constructed manually to exercise the schedule path.
 func TestSingleMulGateExplicitSchedule(t *testing.T) {
 	circuit := gkrtesting.SingleMulGateCircuit()
@@ -373,13 +377,13 @@ func BenchmarkGkrMimc17(b *testing.B) {
 	benchmarkGkrMiMC(b, 1<<17, 91)
 }
 
-func unmarshalProof(info gkrtesting.PrintableProof) (Proof, error) {
-	proof := make(Proof, len(info))
-	for i := range info {
+func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
+	proof := make(Proof, len(printable))
+	for i := range printable {
 		finalEvalProof := []fr.Element(nil)
 
-		if info[i].FinalEvalProof != nil {
-			finalEvalSlice := reflect.ValueOf(info[i].FinalEvalProof)
+		if printable[i].FinalEvalProof != nil {
+			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof = make([]fr.Element, finalEvalSlice.Len())
 			for k := range finalEvalProof {
 				if _, err := setElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
@@ -389,12 +393,12 @@ func unmarshalProof(info gkrtesting.PrintableProof) (Proof, error) {
 		}
 
 		proof[i] = sumcheckProof{
-			partialSumPolys: make([]polynomial.Polynomial, len(info[i].PartialSumPolys)),
+			partialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
 			finalEvalProof:  finalEvalProof,
 		}
-		for k := range info[i].PartialSumPolys {
+		for k := range printable[i].PartialSumPolys {
 			var err error
-			if proof[i].partialSumPolys[k], err = sliceToElementSlice(info[i].PartialSumPolys[k]); err != nil {
+			if proof[i].partialSumPolys[k], err = sliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
 				return nil, err
 			}
 		}

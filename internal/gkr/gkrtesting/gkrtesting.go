@@ -166,10 +166,10 @@ type TestCaseInfo struct {
 
 // ScheduleStepInfo is the JSON representation of a ProvingLevel with a type discriminator.
 type ScheduleStepInfo struct {
-	Type   string               `json:"type"`
+	Type   string                     `json:"type"`
 	Groups []constraint.GkrClaimGroup `json:"groups,omitempty"`       // for SumcheckLevel
-	Wires  []int                `json:"wires,omitempty"`        // for SkipLevel
-	Claims []int                `json:"claimSources,omitempty"` // for SkipLevel
+	Wires  []int                      `json:"wires,omitempty"`        // for SkipLevel
+	Claims []int                      `json:"claimSources,omitempty"` // for SkipLevel
 }
 
 // ScheduleInfo is the JSON-serializable form of a ProvingSchedule.

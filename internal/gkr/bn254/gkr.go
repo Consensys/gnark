@@ -33,7 +33,7 @@ type WireAssignment []polynomial.MultiLin
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 // zeroCheckLazyClaims is a lazy claim for sumcheck (verifier side).
-// It checks that the polynomial ∑ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
 // where the sum runs over all wᵢ and evaluation point xᵢ in the level.
 // Its purpose is to batch the checking of multiple wire evaluations at evaluation points.
 type zeroCheckLazyClaims struct {
@@ -52,11 +52,11 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
 // The sumcheck protocol has already reduced the per-wire claims w(xᵢ) = yᵢ to verifying
-// ∑ cⁱ eq(xᵢ, r) · gateᵥ(r) = purportedValue, where the sum runs over all
+// ∑ᵢ cⁱ eq(xᵢ, r) · wᵢ(r) = purportedValue, where the sum runs over all
 // claims on each wire and c is foldingCoeff.
 // Both purportedValue and the vector r have been randomized during sumcheck.
 //
-// For input wires, gateᵥ(r) is computed directly from the assignment.
+// For input wires, w(r) is computed directly from the assignment.
 // For non-input wires, the prover claims evaluations of the input wires at r,
 // communicated through uniqueInputEvaluations; those claims are verified later.
 // The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
@@ -101,7 +101,7 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 }
 
 // zeroCheckClaims is a claim for sumcheck (prover side).
-// It checks that the polynomial ∑ cⁱ eq(-, xᵢ) gateᵥ(-) sums to the expected value,
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
 // where the sum runs over all (wire v, claim source s) pairs in the level.
 // Each wire has its own eq table with the batching coefficients baked in.
 type zeroCheckClaims struct {
@@ -110,7 +110,7 @@ type zeroCheckClaims struct {
 	resources          *resources
 	input              []polynomial.MultiLin // UniqueGateInputs order
 	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
-	eqs                []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at the challenge point
+	eqs                []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
 	gateEvaluatorPools []*gateEvaluatorPool
 }
 
@@ -118,7 +118,7 @@ func (c *zeroCheckClaims) varsNum() int {
 	return len(c.resources.levelPoints[c.level[0].ClaimSources[0]])
 }
 
-// roundPolynomial computes gⱼ = ∑_h ∑_w eqs[w](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
+// roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
 // The polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.

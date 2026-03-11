@@ -3,7 +3,7 @@ import (
     "fmt"
     "github.com/consensys/bavard"
     "github.com/consensys/gnark-crypto/ecc"
-    fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+    "github.com/consensys/gnark/constraint"
     "github.com/consensys/gnark/internal/small_rational"
     "github.com/consensys/gnark/internal/small_rational/polynomial"
     "github.com/consensys/gnark/internal/gkr/gkrtesting"
@@ -56,10 +56,8 @@ func run(absPath string) error {
          return err
     }
 
-    transcriptSetting := fiatshamir.WithHash(testCase.Hash)
-
 	var proof Proof
-    proof, err = Prove(testCase.Circuit, testCase.FullAssignment, transcriptSetting)
+    proof, err = Prove(testCase.Circuit, testCase.Schedule, testCase.FullAssignment, testCase.Hash)
     if err != nil {
 		return err
     }
@@ -81,7 +79,7 @@ func run(absPath string) error {
 		return err
     }
 
-    err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, transcriptSetting)
+    err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, proof, testCase.Hash)
 	if err != nil {
         return err
     }
@@ -91,7 +89,7 @@ func run(absPath string) error {
         return err
     }
 
-    err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
+    err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, proof, newMessageCounter(2, 0))
     if err == nil {
 	    return fmt.Errorf("bad proof accepted")
     }
@@ -116,7 +114,7 @@ func toPrintableProof(proof Proof) (gkrtesting.PrintableProof, error) {
 	return res, nil
 }
 
-func elementToInterface(x *{{.ElementType}}) interface{} {
+func elementToInterface(x *{{ .ElementType }}) interface{} {
 	if i := x.BigInt(nil); i != nil {
 		return i
 	}
@@ -132,7 +130,7 @@ func elementSliceToInterfaceSlice(x interface{}) []interface{} {
 
 	res := make([]interface{}, X.Len())
 	for i := range res {
-		xI := X.Index(i).Interface().({{.ElementType}})
+		xI := X.Index(i).Interface().({{ .ElementType }})
 		res[i] = elementToInterface(&xI)
 	}
 	return res
@@ -153,4 +151,4 @@ func elementSliceSliceToInterfaceSliceSlice(x interface{}) [][]interface{} {
 	return res
 }
 
-{{template "gkrTestVectors" .}}
+{{ template "gkrTestVectors" .}}

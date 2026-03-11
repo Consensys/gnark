@@ -15,7 +15,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
@@ -204,6 +203,7 @@ func (b *BlueprintSolve) UpdateInstructionTree(inst constraint.Instruction, tree
 type BlueprintProve struct {
 	SolveBlueprintID constraint.BlueprintID
 	SolveBlueprint   *BlueprintSolve `cbor:"-"` // not serialized, set at compile time
+	Schedule         constraint.GkrProvingSchedule
 	HashName         string
 
 	lock sync.Mutex
@@ -256,9 +256,11 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		}
 	}
 
+	// Create hasher and write base challenges
+	hsh := hash.NewHash(b.HashName + "_BW6_761")
+
 	// Read initial challenges from instruction calldata (parse dynamically, no metadata)
 	// Format: [0]=totalSize, [1...]=challenge linear expressions
-	insBytes := make([][]byte, 0) // first challenges
 	calldata := inst.Calldata[1:] // skip size prefix
 	for len(calldata) != 0 {
 		val, delta := s.Read(calldata)
@@ -267,17 +269,14 @@ func (b *BlueprintProve) Solve(s constraint.Solver[constraint.U64], inst constra
 		// Copy directly from constraint.U64 to fr.Element (both in Montgomery form)
 		var challenge fr.Element
 		copy(challenge[:], val[:])
-		insBytes = append(insBytes, challenge.Marshal())
+		challengeBytes := challenge.Bytes()
+		hsh.Write(challengeBytes[:])
 	}
 
-	// Create Fiat-Shamir settings
-	hsh := hash.NewHash(b.HashName + "_BW6_761")
-	fsSettings := fiatshamir.WithHash(hsh, insBytes...)
-
 	// Call the BW6_761-specific Prove function (assignments already WireAssignment type)
-	proof, err := Prove(solveBlueprint.Circuit, assignments, fsSettings)
+	proof, err := Prove(solveBlueprint.Circuit, b.Schedule, assignments, hsh)
 	if err != nil {
-		return fmt.Errorf("bw6_761 prove failed: %w", err)
+		return fmt.Errorf("BW6_761 prove failed: %w", err)
 	}
 
 	for i, elem := range proof.flatten() {
@@ -305,7 +304,7 @@ func (b *BlueprintProve) proofSize() int {
 	}
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
-	return b.SolveBlueprint.Circuit.ProofSize(logNbInstances)
+	return gkrcore.ProofSize(b.Schedule, b.SolveBlueprint.Circuit, logNbInstances)
 }
 
 // NbOutputs implements Blueprint
@@ -434,7 +433,7 @@ func (b *BlueprintGetAssignment) UpdateInstructionTree(inst constraint.Instructi
 }
 
 // NewBlueprints creates and registers all GKR blueprints for BW6_761
-func NewBlueprints(circuit gkrcore.SerializableCircuit, hashName string, compiler constraint.CustomizableSystem) gkrcore.Blueprints {
+func NewBlueprints(circuit gkrcore.SerializableCircuit, schedule constraint.GkrProvingSchedule, hashName string, compiler constraint.CustomizableSystem) gkrcore.Blueprints {
 	// Create and register solve blueprint
 	solve := &BlueprintSolve{Circuit: circuit}
 	solveID := compiler.AddBlueprint(solve)
@@ -443,6 +442,7 @@ func NewBlueprints(circuit gkrcore.SerializableCircuit, hashName string, compile
 	prove := &BlueprintProve{
 		SolveBlueprintID: solveID,
 		SolveBlueprint:   solve,
+		Schedule:         schedule,
 		HashName:         hashName,
 	}
 	proveID := compiler.AddBlueprint(prove)
