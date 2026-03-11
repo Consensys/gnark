@@ -462,7 +462,12 @@ func (proof *Proof) MarshalSolidity() []byte {
 
 	// If there are no commitments, we can return only Ar | Bs | Krs
 	if len(proof.Commitments) > 0 {
-		return buf.Bytes()
+		raw := buf.Bytes()
+		base := 8 * fp.Bytes // 384
+		result := make([]byte, 0, len(raw)-4)
+		result = append(result, raw[:base]...)
+		result = append(result, raw[base+4:]...)
+		return result
 	} else {
 		return buf.Bytes()[:8*fp.Bytes]
 	}
