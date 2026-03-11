@@ -232,6 +232,16 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
+	if p == nil {
+		// fast path - constant multiplication can be folded directly without
+		// creating a hinted reduction or carrying synthetic overflow metadata.
+		if ba, aConst := f.constantValue(a); aConst {
+			if bb, bConst := f.constantValue(b); bConst {
+				ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+				return newConstElement[T](f.api.Compiler().Field(), ba, false)
+			}
+		}
+	}
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
 
