@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -117,4 +118,59 @@ func TestIssue1021(t *testing.T) {
 	assert := test.NewAssert(t)
 	err := test.IsSolved(&testIssue1021Circuit{}, &testIssue1021Circuit{A: ValueOf[BN254Fp](10)}, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+// testIssueNNExpOneCircuit is a minimized regression for a fuzz-discovered bug
+// in small-field emulation. The original reproducer showed that Exp(x, 1)
+// could panic during compilation because repeated squaring kept the value equal
+// to the constant one while still growing the overflow metadata.
+type testIssueNNExpOneCircuit struct {
+	X Element[emparams.Goldilocks]
+}
+
+func (c *testIssueNNExpOneCircuit) Define(api frontend.API) error {
+	f, err := NewField[emparams.Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Exp(&c.X, f.One())
+	f.AssertIsEqual(res, &c.X)
+	return nil
+}
+
+func TestRegressionExpOneKeepsVariable(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := &testIssueNNExpOneCircuit{}
+	witness := &testIssueNNExpOneCircuit{X: ValueOf[emparams.Goldilocks](42)}
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+}
+
+// testIssueNNMulOneCircuit isolates the lower-level invariant break behind the
+// Exp(x, 1) failure. In small-field mode, Mul(1, 1) used to return an element
+// that was still recognized as a constant but carried non-zero overflow. A
+// subsequent multiplication then tried to reduce that "constant with overflow"
+// and panicked.
+type testIssueNNMulOneCircuit struct{}
+
+func (c *testIssueNNMulOneCircuit) Define(api frontend.API) error {
+	f, err := NewField[emparams.Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	x := f.Mul(f.One(), f.One())
+	if x.overflow != 0 {
+		return fmt.Errorf("Mul(1,1) returned overflow %d", x.overflow)
+	}
+	if _, ok := f.constantValue(x); !ok {
+		return fmt.Errorf("Mul(1,1) should stay constant")
+	}
+	y := f.Mul(x, x)
+	f.AssertIsEqual(y, f.One())
+	return nil
+}
+
+func TestRegressionMulOneReductionPath(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := &testIssueNNMulOneCircuit{}
+	assert.CheckCircuit(circuit, test.WithValidAssignment(&testIssueNNMulOneCircuit{}))
 }
