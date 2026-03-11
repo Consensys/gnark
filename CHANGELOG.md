@@ -1,17 +1,123 @@
+
+<a name="v0.15.0"></a>
+## [v0.15.0] - 2026-03-11
+### Build
+- updated to latest gnark crypto api change (code gen) ([#1668](https://github.com/Consensys/gnark/issues/1668))
+- **deps:** bump golang.org/x/crypto from 0.41.0 to 0.45.0 in the go_modules group across 1 directory ([#1652](https://github.com/Consensys/gnark/issues/1652))
+- **deps:** bump github.com/consensys/gnark-crypto from 0.19.0 to 0.19.1 in the go_modules group across 1 directory ([#1636](https://github.com/Consensys/gnark/issues/1636))
+### CI
+- enable security code scanner ([#1655](https://github.com/Consensys/gnark/issues/1655))
+### Chore
+- update gnark-crypto to released version
+- target Go 1.25.7
+- update chglog config
+- add dependabot configuration for GitHub Actions updates ([#1714](https://github.com/Consensys/gnark/issues/1714))
+- update CI workflows to go 1.25 ([#1710](https://github.com/Consensys/gnark/issues/1710))
+- regenerate tinyfield ([#1602](https://github.com/Consensys/gnark/issues/1602))
+- use self hosted runners ([#1633](https://github.com/Consensys/gnark/issues/1633))
+- small cleanup in pairings ([#1621](https://github.com/Consensys/gnark/issues/1621))
+- use standard lib testing environment detection ([#1631](https://github.com/Consensys/gnark/issues/1631))
+- collect small contributions for next release v0.15 ([#1606](https://github.com/Consensys/gnark/issues/1606))
+### Docs
+- update citaton
+- update README.md ([#1712](https://github.com/Consensys/gnark/issues/1712))
+- added zkBTC to gnark known users ([#1658](https://github.com/Consensys/gnark/issues/1658))
+### Feat
+- Test engine to store elements in Montgomery format ([#1695](https://github.com/Consensys/gnark/issues/1695))
+- add new api to profile package to capture virtual constraints ([#1696](https://github.com/Consensys/gnark/issues/1696))
+- add PointEval precompiles for 16-bit limbs ([#1689](https://github.com/Consensys/gnark/issues/1689))
+- emulated arithmetic bound optimization ([#1688](https://github.com/Consensys/gnark/issues/1688))
+- Compiled Gates for GKR ([#1676](https://github.com/Consensys/gnark/issues/1676))
+- clean up interface assertions in circuits ([#1685](https://github.com/Consensys/gnark/issues/1685))
+- better emulation for small fields in large fields ([#1682](https://github.com/Consensys/gnark/issues/1682))
+- implement log-derivative argument over small fields ([#1673](https://github.com/Consensys/gnark/issues/1673))
+- add internal Koalabear E4 extension for field emulation and logderivative argument ([#1672](https://github.com/Consensys/gnark/issues/1672))
+- Enable multiple GKR sub-circuits ([#1661](https://github.com/Consensys/gnark/issues/1661))
+- add example for printing constraints ([#1643](https://github.com/Consensys/gnark/issues/1643))
+- EIP-7951 for ECDSA on P-256 curve ([#1649](https://github.com/Consensys/gnark/issues/1649))
+- implement flag based recursive groth16 and EdDSA check ([#1647](https://github.com/Consensys/gnark/issues/1647))
+- add BLS12-377, BLS12-381 and BW6-761 GPU acceleration support for Groth16 ([#1625](https://github.com/Consensys/gnark/issues/1625))
+- add Grumpkin elliptic curve (native 2-cycle with BN254) ([#1409](https://github.com/Consensys/gnark/issues/1409))
+- allow taking benchmarking instance in NewAssert ([#1607](https://github.com/Consensys/gnark/issues/1607))
+- implement BLS signature verification (minimal public key) ([#1473](https://github.com/Consensys/gnark/issues/1473))
+- pointeval precompile circuit for failing inputs  ([#1572](https://github.com/Consensys/gnark/issues/1572))
+- correct curve names in error messages and vector type ([#1587](https://github.com/Consensys/gnark/issues/1587))
+- GKR-Hashers ([#1512](https://github.com/Consensys/gnark/issues/1512))
+### Fix
+- register gates in GKR Poseidon ([#1719](https://github.com/Consensys/gnark/issues/1719))
+- fix cursor bot comments ([#1713](https://github.com/Consensys/gnark/issues/1713))
+- EdDSA strict equality check for s ([#1684](https://github.com/Consensys/gnark/issues/1684))
+- handle uints8 Long addition even in small field ([#1674](https://github.com/Consensys/gnark/issues/1674))
+- avoid MulAcc overwriting constants ([#1632](https://github.com/Consensys/gnark/issues/1632))
+- handle OR call for constant inputs ([#1592](https://github.com/Consensys/gnark/issues/1592))
+- use the little-endian representation for serialized values in KZG Pointeval precompile ([#1614](https://github.com/Consensys/gnark/issues/1614))
+- bit/byte shift in random bound ([#1590](https://github.com/Consensys/gnark/issues/1590))
+- add G1 membership for ML and FE in bls precompile ([#1591](https://github.com/Consensys/gnark/issues/1591))
+- KZG proof verification for edge cases ([#1567](https://github.com/Consensys/gnark/issues/1567))
+### ICICLE
+- MSM chunking, safety on proof generation and GPU memory reduction ([#1665](https://github.com/Consensys/gnark/issues/1665))
+### Perf
+- optimize scs constraints for bls12377 poseidon2 permutation ([#1690](https://github.com/Consensys/gnark/issues/1690))
+- use known base length for small field emulation ([#1693](https://github.com/Consensys/gnark/issues/1693))
+- use generic hint mechanism for bls12-381 map to G1/G2 hints ([#1653](https://github.com/Consensys/gnark/issues/1653))
+- save 1 inverse in P256Verify circuit ([#1656](https://github.com/Consensys/gnark/issues/1656))
+- optimize emulated multi-miller loops via sparse×sparse line multiplications for 0-bits ([#1701](https://github.com/Consensys/gnark/issues/1701))
+- windowed-4 ModExp precompile ([#1700](https://github.com/Consensys/gnark/issues/1700))
+- optimize LogUp for constant single-column tables (range checks) ([#1717](https://github.com/Consensys/gnark/issues/1717))
+- optimize smallmul zero check ([#1694](https://github.com/Consensys/gnark/issues/1694))
+- optimize range checks for small number of small field ops ([#1699](https://github.com/Consensys/gnark/issues/1699))
+- optimize emulated `ToBits` and `ToBitsCanonical` ([#1707](https://github.com/Consensys/gnark/issues/1707))
+- improve compile time by 20% ([#1686](https://github.com/Consensys/gnark/issues/1686))
+- optimize rangecheck recomposition for PlonK backend ([#1683](https://github.com/Consensys/gnark/issues/1683))
+- deduplicate commitment copy constraints in PLONK ([#1670](https://github.com/Consensys/gnark/issues/1670))
+- **Mux:** shared selector decomposition and ±Y symmetry optimization in emulated MSM ([#1704](https://github.com/Consensys/gnark/issues/1704))
+- **plonk:** reduce LRO commitment MSM size via s0-padding identity ([#1716](https://github.com/Consensys/gnark/issues/1716))
+### Refactor
+- remove bls24-315, bls24-317, and bw6-633 ([#1708](https://github.com/Consensys/gnark/issues/1708))
+- support dynamic emulation parameters for ecrec ([#1660](https://github.com/Consensys/gnark/issues/1660))
+- PLONK commitment input and output registration ([#1642](https://github.com/Consensys/gnark/issues/1642))
+### Test
+- add small field test in checkcircuit ([#1671](https://github.com/Consensys/gnark/issues/1671))
+- handle gnark-crypto not returning malleable signatures anymore ([#1601](https://github.com/Consensys/gnark/issues/1601))
+- refactor crumb test to standard path ([#1648](https://github.com/Consensys/gnark/issues/1648))
+<a name="v0.14.0"></a>
+## [v0.14.0] - 2025-08-22
+### Chore
+- update to latest gnark-crypto ([#1586](https://github.com/Consensys/gnark/issues/1586))
+### Docs
+- add doctest examples ([#1569](https://github.com/Consensys/gnark/issues/1569))
+- add AlgoPlonk to KNOWN_USERS.md
+- add reclaim protocol ([#1537](https://github.com/Consensys/gnark/issues/1537))
+### Feat
+- addition of Trace constructor of plonk on koalabear ([#1514](https://github.com/Consensys/gnark/issues/1514))
+- add conversion utility to convert between bytes and elements ([#1542](https://github.com/Consensys/gnark/issues/1542))
+- add separate Bytes API in `std/math/uints` package for handling bytes (U8) directly ([#1541](https://github.com/Consensys/gnark/issues/1541))
+### Fix
+- bls12-381 edge cases ([#1559](https://github.com/Consensys/gnark/issues/1559))
+- prevent early return in RegisterHint causing missing registrations ([#1552](https://github.com/Consensys/gnark/issues/1552))
+- scalarmul by 0 on twisted edwards curves ([#1551](https://github.com/Consensys/gnark/issues/1551))
+- single constraint unsafe KZG SRS in tests ([#1544](https://github.com/Consensys/gnark/issues/1544))
+- optimize zero constant detection and assignment ([#1545](https://github.com/Consensys/gnark/issues/1545))
+- update Zcash protocol specification link ([#1535](https://github.com/Consensys/gnark/issues/1535))
+- update broken Ethereum precompile contract links ([#1532](https://github.com/Consensys/gnark/issues/1532))
+- enable fuzzing for multi-output-hint test by improving dvHint validation ([#1517](https://github.com/Consensys/gnark/issues/1517))
+### Refactor
+- BLS EVM precompile integration ([#1515](https://github.com/Consensys/gnark/issues/1515))
+- crossfield hints in non-native ([#1539](https://github.com/Consensys/gnark/issues/1539))
+### Release
+- prepare for v0.14.0 release
+- v0.13.0 ([#1516](https://github.com/Consensys/gnark/issues/1516))
 <a name="v0.13.0"></a>
 ## [v0.13.0] - 2025-06-12
 ### Build
 - upgrade gnark-crypto to v0.18.0 and minor upgrades in go.mod
 - **deps:** bump golang.org/x/crypto from 0.33.0 to 0.35.0 ([#1478](https://github.com/Consensys/gnark/issues/1478))
-
 ### Chore
 - remove useless github workflow
 - add not-accepted github workflow
-
 ### Docs
 - up comments ([#1503](https://github.com/Consensys/gnark/issues/1503))
 - notify undefined result ([#1488](https://github.com/Consensys/gnark/issues/1488))
-
 ### Feat
 - constant value binary decomposition ([#1510](https://github.com/Consensys/gnark/issues/1510))
 - implement field emulation over small fields ([#1495](https://github.com/Consensys/gnark/issues/1495))
@@ -25,34 +131,24 @@
 - use OSS ICICLE for GPU acceleration (version v3.2.2) ([#1451](https://github.com/Consensys/gnark/issues/1451))
 - merkle damgard and poseidon2 ([#1407](https://github.com/Consensys/gnark/issues/1407))
 - **wires:** implements GetWiresConstraintExact as a draft proposal ([#1462](https://github.com/Consensys/gnark/issues/1462))
-
-### Feat
 - implement FixedLengthSum function for sha3 ([#1379](https://github.com/Consensys/gnark/issues/1379))
-
 ### Fix
 - don't use assignment to compile ([#1508](https://github.com/Consensys/gnark/issues/1508))
 - range over all limbs in normalized form for lookup ([#1505](https://github.com/Consensys/gnark/issues/1505))
 - fake glv neg scalars ([#1487](https://github.com/Consensys/gnark/issues/1487))
 - Ratio Verification on Groth16 MPC - Phase 1 ([#1465](https://github.com/Consensys/gnark/issues/1465))
 - non-native zero IsZero edge case ([#1413](https://github.com/Consensys/gnark/issues/1413))
-
-### Fix
 - make GetWiresConstraint(Exact) deterministic ([#1485](https://github.com/Consensys/gnark/issues/1485))
-
 ### Perf
 - optimize selector.Mux with recursive BinaryMux for various sizes ([#1420](https://github.com/Consensys/gnark/issues/1420))
 - Poseidon2 GKR circuit ([#1410](https://github.com/Consensys/gnark/issues/1410))
-
 ### Style
 - `goimports` ([#1491](https://github.com/Consensys/gnark/issues/1491))
-
-
 <a name="v0.12.0"></a>
 ## [v0.12.0] - 2025-01-24
 ### Build
 - modify workflows for new CI slack bot ([#1277](https://github.com/Consensys/gnark/issues/1277))
 - **deps:** bump golang.org/x/crypto from 0.26.0 to 0.31.0 ([#1346](https://github.com/Consensys/gnark/issues/1346))
-
 ### Chore
 - fix some struct names in comment ([#1370](https://github.com/Consensys/gnark/issues/1370))
 - fix typos ([#1371](https://github.com/Consensys/gnark/issues/1371))
@@ -66,28 +162,21 @@
 - Pedersen verification key reference field ([#1295](https://github.com/Consensys/gnark/issues/1295))
 - lint generated files ([#1289](https://github.com/Consensys/gnark/issues/1289))
 - up gnark-crypto ([#1274](https://github.com/Consensys/gnark/issues/1274))
-
-### Doc
-- add audit report ([#1342](https://github.com/Consensys/gnark/issues/1342))
-
 ### Docs
+- add audit report ([#1342](https://github.com/Consensys/gnark/issues/1342))
 - Change copyright year to 2025 (not autogenerated) ([#1388](https://github.com/Consensys/gnark/issues/1388))
 - less verbose Apache 2 header, latest bavard ([#1344](https://github.com/Consensys/gnark/issues/1344))
 - add input packing example ([#1311](https://github.com/Consensys/gnark/issues/1311))
 - update api doc following audit suggestions ([#1291](https://github.com/Consensys/gnark/issues/1291))
 - final audit report from LA ([#1283](https://github.com/Consensys/gnark/issues/1283))
-
 ### Feat
 - settable hasher for MiMC ([#1345](https://github.com/Consensys/gnark/issues/1345))
 - 4-dimensional fake GLV ([#1296](https://github.com/Consensys/gnark/issues/1296))
-
-### Feat
 - add ripemd160 hash function with permutation ([#1120](https://github.com/Consensys/gnark/issues/1120))
 - direct multivariate polynomial evaluation in non-native ([#1299](https://github.com/Consensys/gnark/issues/1299))
 - update to latest gnark-crypto
 - replace stats gob format with csv for easier diffs ([#1276](https://github.com/Consensys/gnark/issues/1276))
 - **bls12-381:** pairing using direct Fp12 + non-native `Eval()` ([#1349](https://github.com/Consensys/gnark/issues/1349))
-
 ### Fix
 - stashed typo fixes for v0.12 ([#1398](https://github.com/Consensys/gnark/issues/1398))
 - add G2 membership check for constant points ([#1397](https://github.com/Consensys/gnark/issues/1397))
@@ -103,14 +192,10 @@
 - expmod precompile if modulus is 1 ([#1294](https://github.com/Consensys/gnark/issues/1294))
 - allow only v=0 or v=1 ([#1293](https://github.com/Consensys/gnark/issues/1293))
 - fix slice init length ([#1288](https://github.com/Consensys/gnark/issues/1288))
-
 ### Optim
 - avoid div in millerLoopAndFinalExpResult ([#1363](https://github.com/Consensys/gnark/issues/1363))
-
 ### Perf
 - Pairing on BN254 using direct Fp12 extension and non-native `Eval()` ([#1339](https://github.com/Consensys/gnark/issues/1339))
-
-### Perf
 - `PairingCheck` for BN254, BLS12-381, BLS12-377 and BW6-761 ([#1365](https://github.com/Consensys/gnark/issues/1365))
 - G1/2 membership using Eval ([#1356](https://github.com/Consensys/gnark/issues/1356))
 - using non-native Eval for curve arithmetic ([#1331](https://github.com/Consensys/gnark/issues/1331))
@@ -119,25 +204,19 @@
 - fast path operations for small non-native values ([#1326](https://github.com/Consensys/gnark/issues/1326))
 - **bn254:** include G2 membership check in ML ([#1387](https://github.com/Consensys/gnark/issues/1387))
 - **emulated:** small perf on doubleAndAdd ([#1386](https://github.com/Consensys/gnark/issues/1386))
-
 ### Refactor
 - move poseidon2 to permutation package ([#1353](https://github.com/Consensys/gnark/issues/1353))
-
 ### Release
 - v0.12.0 ([#1399](https://github.com/Consensys/gnark/issues/1399))
-
 ### Test
 - add scalar mul to stats ([#1275](https://github.com/Consensys/gnark/issues/1275))
 
 ### Pull Requests
 - Merge pull request [#1298](https://github.com/Consensys/gnark/issues/1298) from Consensys/build/gnark-crypto
-
-
 <a name="v0.11.0"></a>
 ## [v0.11.0] - 2024-09-06
 ### Build
 - update runner and go version ([#1260](https://github.com/Consensys/gnark/issues/1260))
-
 ### Chore
 - explicit IO methods in interfaces ([#1266](https://github.com/Consensys/gnark/issues/1266))
 - update gnark-crypto module
@@ -145,7 +224,6 @@
 - generate
 - define interface for solidity-supported VK
 - make function comments match function names ([#1163](https://github.com/Consensys/gnark/issues/1163))
-
 ### Docs
 - update README ([#1255](https://github.com/Consensys/gnark/issues/1255))
 - update reference
@@ -154,7 +232,6 @@
 - add documentation
 - update documentation for ecdsa and eddsa
 - update TODOs ([#1109](https://github.com/Consensys/gnark/issues/1109))
-
 ### Feat
 - use offset variable in derive_gamma
 - handle invalid signature failures in ECRecover precompile ([#1101](https://github.com/Consensys/gnark/issues/1101))
@@ -187,14 +264,9 @@
 - addition of export options for solidity verifiers
 - simplify loop constraint index
 - **bw6:** Fp6 as a direct extension using Montgomery-6
-
-### Feat
 - implement FixedLengthSum of sha2 ([#821](https://github.com/Consensys/gnark/issues/821))
-
 ### Fix
 - Build on 32-bit arch would raise int overflow https://github.com/Consensys/gnark/issues/1192 ([#1195](https://github.com/Consensys/gnark/issues/1195))
-
-### Fix
 - remove redundant select
 - variable modulus subtraction padding ([#1200](https://github.com/Consensys/gnark/issues/1200))
 - branch with unchecked cast could panic at compile time ([#1234](https://github.com/Consensys/gnark/issues/1234))
@@ -252,7 +324,6 @@
 - **bw6:** pairing using direct sextic extension
 - **pairing:** fix benchmarks
 - **uints:** constrain valueOf ([#1139](https://github.com/Consensys/gnark/issues/1139))
-
 ### Perf
 - eliminate final exp in bls12-381 optimized
 - eliminate final exp in bls12-377
@@ -283,7 +354,6 @@
 - **bw6-761:** eliminate finalexp
 - **bw6-761:** use Karabina even for 1 square
 - **bw6-761:** push ML to cyclo-group before FE elimination
-
 ### Refactor
 - clean code
 - revert to old line computation and adjust gnark-crypto instead
@@ -304,10 +374,8 @@
 - **bw6:** remove benchmark
 - **bw6:** remove benchmark
 - **bw6:** apply review suggestion
-
 ### Release
 - v0.11.0 ([#1272](https://github.com/Consensys/gnark/issues/1272))
-
 ### Style
 - fixed wrong EcMul comment
 - fixed comment
@@ -327,7 +395,6 @@
 - fixed typo
 - clean code
 - remove old todos ([#1106](https://github.com/Consensys/gnark/issues/1106))
-
 ### Test
 - update stats
 - update stats
@@ -341,7 +408,6 @@
 - update stats
 - add PLONK test for public input mapping ([#1123](https://github.com/Consensys/gnark/issues/1123))
 - update stats
-
 ### Wip
 - toom-cook-3x
 
@@ -377,8 +443,6 @@
 - Merge pull request [#1126](https://github.com/Consensys/gnark/issues/1126) from Consensys/perf/direct-extensions
 - Merge pull request [#1110](https://github.com/Consensys/gnark/issues/1110) from Consensys/perf/field-extensions
 - Merge pull request [#1113](https://github.com/Consensys/gnark/issues/1113) from Consensys/docs/signatures
-
-
 <a name="v0.10.0"></a>
 ## [v0.10.0] - 2024-04-22
 ### Bench
@@ -388,31 +452,29 @@
 - 26KB
 - huffman decoding
 - awful
-
 ### Bls12377
 - faster e6 MulBy01
 - test e6 MulBy01
 - test mul 01 by 01
-
 ### Bls12381
 - faster e6 MulBy01
-
 ### Bls24315
 - faster e12 MulBy01
 - test e12 MulBy01
-
 ### Bn254
 - faster e6 MulBy01
 - test mul 01 by 01
-
 ### Build
 - update compress to v0.2.3 ([#1032](https://github.com/Consensys/gnark/issues/1032))
 - get gopter
-
 ### Bw6761
 - faster e3 MulBy01
 - test mul 01 by 01
-
+### CI
+- don't run redundant release checks
+- run more tests when doing PR
+- remove github bot
+- make macOS and win do minimal tests only
 ### Chore
 - remove prints and all huffman code
 - comments/cleanup for lzss compression
@@ -446,19 +508,8 @@
 - clean up test cases
 - improved analytics
 - **deps:** bump golang.org/x/crypto from 0.12.0 to 0.17.0 ([#973](https://github.com/Consensys/gnark/issues/973))
-
-### Ci
-- don't run redundant release checks
-- run more tests when doing PR
-- remove github bot
-- make macOS and win do minimal tests only
-
 ### Clean
 - rm solidity.tmpl
-
-### Doc
-- add docs to NewR1CS and NewSparseR1CS in system.go [#985](https://github.com/Consensys/gnark/issues/985)
-
 ### Docs
 - clean comments
 - add hint definition for native inputs
@@ -472,10 +523,9 @@
 - define that addition is now unsafe
 - add method documentation
 - BestCompression vs BestSnarkDecomposition
-
+- add docs to NewR1CS and NewSparseR1CS in system.go [#985](https://github.com/Consensys/gnark/issues/985)
 ### FEAT
 - Add experimental support for Icicle GPU acceleration behind build tag ([#844](https://github.com/Consensys/gnark/issues/844))
-
 ### Feat
 - register hints in std/ also when have no circuit
 - change sign in comment
@@ -576,7 +626,6 @@
 - **emulated bw6 pairing:** optimal tate version working
 - **sw_bls12377:** Add DoubleFixedQPairing
 - **sw_bls24315:** Add DoubleFixedQPairing
-
 ### Fix
 - test final exp without gnark-crypto hack
 - JointScalarMulBase without GLV (for ecdsa package)
@@ -682,7 +731,6 @@
 - **bw6:** fix Expt test
 - **bw6:** DecompressKarabina edge cases
 - **linter:** ineffectual assignment
-
 ### Perf
 - add lazy match look ahead 1
 - adjustement
@@ -776,11 +824,9 @@
 - **kzg:** use MSM instead of two SM in CheckOpeningProof
 - **plonkVerif:** manually reduce wrong-field elements here and there
 - **sw_emulated:** optimize jointScalarMulGeneric
-
 ### Refac
 - compression modes
 - remove useless functions
-
 ### Refactor
 - some refactoring
 - address PR review
@@ -835,7 +881,6 @@
 - **bw6-761:** use revisited Ate pairing instead of Tate
 - **emulated:** use gnark-crytpo fixed-arg pairing
 - **kzg:** lazy precomputation of lines
-
 ### Revert
 - kill IsNonZero
 - map.keys/values to be private as before
@@ -843,7 +888,6 @@
 - remove TestCompressWithContext
 - strange uppercase
 - dfa search was counterproductive
-
 ### Style
 - code cleaning
 - code cleaning
@@ -851,7 +895,6 @@
 - remove prints
 - clean and document the code
 - remove redundant checks
-
 ### Test
 - decompression works; must go about packing differently
 - plonk verifier with precomputed lines
@@ -922,16 +965,9 @@
 - Merge pull request [#868](https://github.com/Consensys/gnark/issues/868) from Consensys/fix/decompressKarabina
 - Merge pull request [#866](https://github.com/Consensys/gnark/issues/866) from Consensys/feat/bw6761-kzg
 - Merge pull request [#846](https://github.com/Consensys/gnark/issues/846) from Consensys/feat/bw6761-pairing
-
-
 <a name="v0.9.1"></a>
 ## [v0.9.1] - 2023-10-16
-### Chore
-- go.mod tidy
-- update import paths
-- remove excessive comment
-
-### Ci
+### CI
 - update mod download tpl for prettier errors
 - remove gotestfmt for push to master workflow
 - new attempt to fix push to master workflow
@@ -940,13 +976,15 @@
 - fix ubuntu ref
 - fix push workflow
 - fix push workflow
-
+### Chore
+- go.mod tidy
+- update import paths
+- remove excessive comment
 ### Docs
 - add example docs
 - add example docs
 - add package documentation
 - add package documentation
-
 ### Feat
 - add BLS12-381 and BLS24-315 support to Groth16 gadget
 - add one more type parameter for witness initialisation
@@ -960,14 +998,11 @@
 - add MSM and GT equality to generic interfaces
 - add generic KZG polynomial commitment verification
 - add generic Curve and Pairing interfaces
-
 ### Fix
 - cast bls12377 GT element coords to bw6 fr
 - fixed fold_state
-
 ### Perf
 - a special case for mulacc ([#859](https://github.com/Consensys/gnark/issues/859))
-
 ### Refactor
 - remove typed KZG and Groth16 verifiers
 - rename KZG tests
@@ -978,7 +1013,6 @@
 - fix types
 - implement generic pairing and curve for bls12377
 - add Add to emulated SW
-
 ### Test
 - rename subtests
 - add ValueOf tests
@@ -992,25 +1026,20 @@
 ### Pull Requests
 - Merge pull request [#840](https://github.com/Consensys/gnark/issues/840) from Consensys/refactor/generic-kzg
 - Merge pull request [#820](https://github.com/Consensys/gnark/issues/820) from Consensys/fix/fold_state
-
-
 <a name="v0.9.0"></a>
 ## [v0.9.0] - 2023-09-19
 ### Build
 - fix linter warning
 - update PR template and CI actions
 - generify bsb22 comm fs move
-
-### Ci
+### CI
 - cosmetic change
 - remove ubuntu specifics from windows / macOS path
 - adjust test on non-ubuntu target
 - avoid running std/ test on macOS CI
-
 ### Feat
 - add bounded comparator functions ([#530](https://github.com/Consensys/gnark/issues/530))
 - add sha3 primitive ([#817](https://github.com/Consensys/gnark/issues/817))
-
 ### Fix
 - assert that the binary decomposition of a variable is less than the modulus ([#835](https://github.com/Consensys/gnark/issues/835))
 - remove panic when iterating constraints
@@ -1018,24 +1047,19 @@
 - move bsb22 comm fs in plonk prover
 - fs bsb22 commitment fs right before needed
 - plonk must commit to Qcp
-
 ### Perf
 - improve plonk prover memory footprint ([#815](https://github.com/Consensys/gnark/issues/815))
-
 ### Refactor
 - **pairing:** remove bls24 bench + remove bn254 duplicate line
 
 ### Pull Requests
 - Merge pull request [#816](https://github.com/Consensys/gnark/issues/816) from Consensys/perf/pairing-neg
 - Merge pull request [#812](https://github.com/Consensys/gnark/issues/812) from Consensys/fix/plonk-bsb-challenge
-
-
 <a name="v0.9.0-alpha"></a>
 ## [v0.9.0-alpha] - 2023-08-18
 ### Bench
 - gkr inefficient
 - merkle tree
-
 ### Build
 - update direct dependencies
 - go gen
@@ -1075,7 +1099,9 @@
 - generify bn254/gkr changes
 - reran go generate
 - make linter happy
-
+### CI
+- allow weak rng in marshaling tests
+- ensure linter runs on generated files + adjustements ([#677](https://github.com/Consensys/gnark/issues/677))
 ### Chore
 - update gnark-crypto dependency ([#790](https://github.com/Consensys/gnark/issues/790))
 - make staticcheck happy
@@ -1093,26 +1119,15 @@
 - update gnark-crypto dependency for exported towers
 - remove heavy profiling and compiling
 - some efforts from before christmas break
-
-### Ci
-- allow weak rng in marshaling tests
-- ensure linter runs on generated files + adjustements ([#677](https://github.com/Consensys/gnark/issues/677))
-
 ### Clean
 - removed dead code + double comments
 - removed dead code
 - even more deadcode
 - removed more dead code
 - removed dead code
-
 ### Dep
 - newer gnark-crypto
 - gnark-crypto
-
-### Doc
-- explain commitment constraint
-- explain committed constraint
-
 ### Docs
 - clarify some comments
 - fix select description in field emulation
@@ -1142,7 +1157,8 @@
 - add comments to sw_emulated
 - add package documentation and example
 - **fixed-emulated-pairing:** add some comments
-
+- explain commitment constraint
+- explain committed constraint
 ### Feat
 - hint name options
 - use AssertIsOnG2 for ECPAIR precompile + comments
@@ -1261,10 +1277,7 @@
 - **sw_emulated:** AddSafe for input points equal or not
 - **sw_emulated:** infinity as (0,0) edge-cases in UnifiedAdd
 - **sw_emulated:** infinity as (0,0) edge-cases in ScalarMul
-
-### Feat
 - Export multicommit ([#789](https://github.com/Consensys/gnark/issues/789))
-
 ### Fix
 - use jacobain double for test
 - fixed [#761](https://github.com/Consensys/gnark/issues/761)
@@ -1409,7 +1422,6 @@
 - **add-only scalarMul:** handle 0-scalar and (0,0) edge-cases
 - **ecadd:** add y1+y2=0 edge case
 - **sw_bn254:** fix size of 2-naf table of the seed
-
 ### Perf
 - ScalarMulBase for sw_bls12377 on G2
 - ELM03+Joye07 for emulated scalarMul
@@ -1455,10 +1467,7 @@
 - **sw_bn254:** use 2-NAF for fixed scalar Mul on G2
 - **sw_bn254:** optim of fixed scalar Mul on G2
 - **sw_bn254:** use addchain/doubleAndAdd for fixed scalar mul
-
-### Perf
 - Improve MultiLin.Eval number of constraints ([#788](https://github.com/Consensys/gnark/issues/788))
-
 ### Refactor
 - use select instead of lookup2
 - renaming as per robot overlords
@@ -1550,14 +1559,10 @@
 - **pairing-bn254:** remove dead code (fields_e2)
 - **pairing-bn254:** remove dead code (E2 Halve)
 - **pairing-bn254:** remove dead code
-
-### Refactor
 - std/algebra ([#526](https://github.com/Consensys/gnark/issues/526))
-
 ### Remove
 - unused func
 - some unused code
-
 ### Revert
 - special case for empty slice
 - forced conversion
@@ -1566,7 +1571,6 @@
 - unnecessary stylistic change
 - unnecessary stylistic changes
 - bn254/gkr changes
-
 ### Style
 - remove prints
 - remove comment
@@ -1584,7 +1588,6 @@
 - **fields_bn254:** clean hints
 - **pairing-bn254:** add comments
 - **pairing-bn254:** add comments
-
 ### Test
 - product of pairings on bls12-381
 - print some linpoly arguments
@@ -1685,8 +1688,6 @@
 - Merge pull request [#503](https://github.com/Consensys/gnark/issues/503) from ConsenSys/docs/emulated-select
 - Merge pull request [#481](https://github.com/Consensys/gnark/issues/481) from ConsenSys/refactor/commit-interface
 - Merge pull request [#480](https://github.com/Consensys/gnark/issues/480) from ConsenSys/feat/kvstore
-
-
 <a name="v0.8.1"></a>
 ## [v0.8.1] - 2023-07-11
 ### Chore
@@ -1696,8 +1697,6 @@
 
 ### Pull Requests
 - Merge pull request [#771](https://github.com/Consensys/gnark/issues/771) from Consensys/release/v0.8.1
-
-
 <a name="v0.8.0"></a>
 ## [v0.8.0] - 2023-02-14
 ### Build
@@ -1708,13 +1707,10 @@
 - test only on go 1.18 for now
 - re-ran go generate
 - update CI ([#318](https://github.com/Consensys/gnark/issues/318))
-
-### Ci
+### CI
 - fix slack integration + adds golanglint-ci ([#316](https://github.com/Consensys/gnark/issues/316))
-
 ### Clean
 - remove deadcode and kill `api.Tag` and `api.Counter` ([#353](https://github.com/Consensys/gnark/issues/353))
-
 ### Docs
 - updated README.md
 - remove logo references
@@ -1724,7 +1720,6 @@
 - add explainer
 - comments
 - add method docs
-
 ### Feat
 - added serialization header to CS and debug info to all constraints with -tags=debug ([#347](https://github.com/Consensys/gnark/issues/347))
 - checkpoint 3, computations are correct, some commitments are failing
@@ -1791,7 +1786,6 @@
 - **hint:** allow registering multiple hints
 - **plonk:** addition of skeleton prover with non homomorphic PCS
 - **std:** KZG verifier gadget bls24-315 (with static witness)
-
 ### Fix
 - mark and output boolean ([#459](https://github.com/Consensys/gnark/issues/459))
 - mimc pow7
@@ -1864,10 +1858,7 @@
 - **emulated:** enforce widths of packed limbs ([#368](https://github.com/Consensys/gnark/issues/368))
 - **nonnative:** off by one error
 - **plonk:** fixed generic verifier
-
-### Fix
 - minor typo ([#360](https://github.com/Consensys/gnark/issues/360))
-
 ### Perf
 - more precomputation in plonk/iop ([#471](https://github.com/Consensys/gnark/issues/471))
 - mimc on bls12-377/fr uses x^17 as a permutation
@@ -1878,7 +1869,6 @@
 - lazy reduction
 - constrain main bits in equality diff to be only zeros
 - optimize equality check
-
 ### Refactor
 - update to latest gnark crypto
 - keeping up
@@ -1893,10 +1883,7 @@
 - use field in schema leaf handler
 - Compile(ecc.ID) -> Compile(field *big.Int) ([#328](https://github.com/Consensys/gnark/issues/328))
 - VerifyFri -> Verify
-
-### Refactor
 - remove geth dependency ([#440](https://github.com/Consensys/gnark/issues/440))
-
 ### Style
 - clean up unused functions
 - remove questions
@@ -1919,7 +1906,6 @@
 - removed dead debug printings
 - uncomment verify.go in generic plonk
 - removed printing functions
-
 ### Test
 - add four-instance test case
 - all pass except "two_input_single_identity_gate_two_instances"
@@ -1963,151 +1949,41 @@
 - Merge pull request [#320](https://github.com/Consensys/gnark/issues/320) from ConsenSys/perf/nonnative
 - Merge pull request [#307](https://github.com/Consensys/gnark/issues/307) from ConsenSys/feat/std/kzg-verifier
 - Merge pull request [#302](https://github.com/Consensys/gnark/issues/302) from ConsenSys/feat/nonnative-ff
-
-
 <a name="v0.7.1"></a>
 ## [v0.7.1] - 2022-04-14
-### Build
-- fix gosec warnings
-- updated to gnark-crypto v0.7.0
-
-### Ci
-- updated github actions
-- test against go1.17 and go1.18 ([#288](https://github.com/Consensys/gnark/issues/288))
-
 ### Clean
 - std/groth16 uses same notation as out-of-circuit groth16 ([#304](https://github.com/Consensys/gnark/issues/304))
-- remove PairingContext and Extension objects from api calls in std/.../pairing ([#286](https://github.com/Consensys/gnark/issues/286))
-
 ### Docs
 - added security policy, gnark-announce and twitter link
 - updated DOI
-- updated README.md with same warning as in docs
-- added Deprecated comments in front of APIs moved to Compiler interface
-- clean up hint interface comment
-- updated DOI
-
 ### Feat
-- implement PR suggestions in std/math/bits
-- disable logger in tests by default, unless debug tag present
-- adds std/math/bits/ToNAF
 - added VerifyingKey.Assign methods in std/groth16 ([#306](https://github.com/Consensys/gnark/issues/306))
-- add gnark/logger
-- remove offset shifts in plonk compile
-- remove post-compile offset id in R1CS builder
-- added internal/stats package
-- hint.NbOuputs should not be used at solve time, only at compile time
-- added ivokub suggestion on logging duration values
-- adds gnark logger. closes [#202](https://github.com/Consensys/gnark/issues/202)
-- added ToTernary closes [#269](https://github.com/Consensys/gnark/issues/269)
-- moved api.FromBinary to std/math/bits
-- add ToBinary in std/math/bits
-- added std.GetHints for convenience. fixes [#264](https://github.com/Consensys/gnark/issues/264). error message when hint is missing now has hint name
-- added NBits hint
-- make nboutputs of a hint explicit at compile time
-- **std:** added AssertIsTrit
-
 ### Fix
-- move init() behind sync.Once. remove verbose option in stats binary
 - fix previous commit
-- err instead of panic when recursively solving hints
-- add whitespace between vars in test.Println
-- closes [#293](https://github.com/Consensys/gnark/issues/293) and enables recursive hints solving
-- replace stats snippet signature with newVariable() instead of fixed variable
 - restored logger format
-- re generated stats
-- fixes [#266](https://github.com/Consensys/gnark/issues/266) by adding constant path in Lookup2 and Select
-- incorrect handling of nbBits == 1 in api.ToBinary
-- gosec errors
-- uncomment fuzz part of test
-- std.GetHints() return bits.NNAF
-- **stats:** fix pairing stats. added run flag for stats binary to filter with regexp
-
-### Perf
-- restored frontend.WithCapacity option...
-- **plonk:** IsConstant -> ConstantValue
-- **sw:** no need for Lookup2 in constScalarMul
-- **tEd:** Add -1C
-
+- err instead of panic when recursively solving hints
 ### Refactor
 - delete dead code (TripleMillerLoop)
-- std/pairing have more consistent apis
-- std/pairing bls12377 api more coherent
-- remove StaticHint wrapper, log duplicate hints ([#289](https://github.com/Consensys/gnark/issues/289))
-- backend.WithOutput -> backend.WithCircuitLogger
-- remove all internal circuits from stats, keep important snippets only
-- move circuit_stats_test.go into internal/stats
-- move NBits hint to math/bits
-- move ntrits hint to std/math/bits
-- make api.ToBinary point to math/bits/ToBinary
-- revert Builder -> Compiler internal name change
-- compiler -> r1cs and scs internally
-- start moving api.ToBinary to std/math/bits/
-- compiled.Variable -> compiled.LinearExpression
-- factorize coeff table initialization
-- frontend/cs subpackages to match new interfaces
-- split compiler, api and builder interface into interfaces
-- remove IsBoolean from R1CS variables
-- preparing frontend.Compiler interface
-- frontend.Compile now takes a builder instead of backendID as parameter
-- moved internal/compiled to frontend/compiled
-- remove nb inputs from hint declaration
-
 ### Style
 - code cleaning in std/pairing
-- code cleaning
-- added clearer error message for groth16 verifier missing init in circuit
-- remove dead code
-- remove duplicate import in template
-- code cleaning
-- remove dead code
-- code cleaning
-
-### Test
-- add failing test for [#293](https://github.com/Consensys/gnark/issues/293)
 
 ### Pull Requests
 - Merge pull request [#298](https://github.com/Consensys/gnark/issues/298) from ConsenSys/fix/hint-panic
-- Merge pull request [#295](https://github.com/Consensys/gnark/issues/295) from ConsenSys/fix/test-println
-- Merge pull request [#294](https://github.com/Consensys/gnark/issues/294) from ConsenSys/fix/recursivehhints
-- Merge pull request [#291](https://github.com/Consensys/gnark/issues/291) from ConsenSys/refactor/std/pairing
-- Merge pull request [#281](https://github.com/Consensys/gnark/issues/281) from ConsenSys/feat/logger
-- Merge pull request [#280](https://github.com/Consensys/gnark/issues/280) from ConsenSys/simplify-r1cs-compile
-- Merge pull request [#279](https://github.com/Consensys/gnark/issues/279) from ConsenSys/feat/statistics
-- Merge pull request [#276](https://github.com/Consensys/gnark/issues/276) from ConsenSys/feat-math-bits
-- Merge pull request [#278](https://github.com/Consensys/gnark/issues/278) from ConsenSys/perf-constant-lookup2
-- Merge pull request [#272](https://github.com/Consensys/gnark/issues/272) from ConsenSys/refactor-hint
-- Merge pull request [#275](https://github.com/Consensys/gnark/issues/275) from ConsenSys/refactor-compiler-builder
-- Merge pull request [#271](https://github.com/Consensys/gnark/issues/271) from ConsenSys/refactor-compiled
-- Merge pull request [#267](https://github.com/Consensys/gnark/issues/267) from ConsenSys/perf/tEd-add
-- Merge pull request [#265](https://github.com/Consensys/gnark/issues/265) from ConsenSys/perf/SW-constScalarMul
-
-
-<a name="v0.6.5"></a>
-## [v0.6.5] - 2022-04-13
-### Fix
-- **plonk:** security vuln in fiat-shamir inputs
-
-
 <a name="v0.7.0"></a>
 ## [v0.7.0] - 2022-03-25
 ### Build
 - fix gosec warnings
 - updated to gnark-crypto v0.7.0
-
-### Ci
+### CI
 - updated github actions
 - test against go1.17 and go1.18 ([#288](https://github.com/Consensys/gnark/issues/288))
-
 ### Clean
 - remove PairingContext and Extension objects from api calls in std/.../pairing ([#286](https://github.com/Consensys/gnark/issues/286))
-
 ### Docs
 - updated README.md with same warning as in docs
 - added Deprecated comments in front of APIs moved to Compiler interface
 - clean up hint interface comment
 - updated DOI
-
 ### Feat
 - adds std/math/bits/ToNAF
 - remove offset shifts in plonk compile
@@ -2126,7 +2002,6 @@
 - added NBits hint
 - make nboutputs of a hint explicit at compile time
 - **std:** added AssertIsTrit
-
 ### Fix
 - add whitespace between vars in test.Println
 - closes [#293](https://github.com/Consensys/gnark/issues/293) and enables recursive hints solving
@@ -2139,13 +2014,11 @@
 - std.GetHints() return bits.NNAF
 - incorrect handling of nbBits == 1 in api.ToBinary
 - **stats:** fix pairing stats. added run flag for stats binary to filter with regexp
-
 ### Perf
 - restored frontend.WithCapacity option...
 - **plonk:** IsConstant -> ConstantValue
 - **sw:** no need for Lookup2 in constScalarMul
 - **tEd:** Add -1C
-
 ### Refactor
 - std/pairing have more consistent apis
 - std/pairing bls12377 api more coherent
@@ -2168,7 +2041,6 @@
 - frontend.Compile now takes a builder instead of backendID as parameter
 - moved internal/compiled to frontend/compiled
 - remove nb inputs from hint declaration
-
 ### Style
 - code cleaning
 - added clearer error message for groth16 verifier missing init in circuit
@@ -2177,7 +2049,6 @@
 - code cleaning
 - remove dead code
 - code cleaning
-
 ### Test
 - add failing test for [#293](https://github.com/Consensys/gnark/issues/293)
 
@@ -2195,18 +2066,18 @@
 - Merge pull request [#271](https://github.com/Consensys/gnark/issues/271) from ConsenSys/refactor-compiled
 - Merge pull request [#267](https://github.com/Consensys/gnark/issues/267) from ConsenSys/perf/tEd-add
 - Merge pull request [#265](https://github.com/Consensys/gnark/issues/265) from ConsenSys/perf/SW-constScalarMul
-
-
+<a name="v0.6.5"></a>
+## [v0.6.5] - 2022-04-13
+### Fix
+- **plonk:** security vuln in fiat-shamir inputs
 <a name="v0.6.4"></a>
 ## [v0.6.4] - 2022-02-15
 ### Build
 - update to gnark-crpto v0.6.1
 - updatd to latezst gnarkcrypto
-
 ### Docs
 - updated changelog for v0.6.4
 - updated README.md with playground link
-
 ### Feat
 - plonk adapted to kzg modifications
 - udpate gnark-crypto
@@ -2215,7 +2086,6 @@
 - groth16 prover adapted to new fft OK
 - **plonk:** beta is dervied using Fiat Shamir
 - **tEd:** implements double-base scalar mul
-
 ### Fix
 - fixed trace and println tests
 - fixed wrong bigInt op in plonk api
@@ -2229,20 +2099,16 @@
 - fixed plonk up to permutation polynomial
 - **tEd:** case when scalar size is odd
 - **tEd:** case when scalar size is odd
-
 ### Perf
 - sparse R1CS solver is parallel
 - R1CS solver may now run in parallel
 - **EdDSA:** eddsa gadget using double-base scalar mul
 - **bandersnatch:** apply tEd perf changes to Bandersnatch
-
 ### Refactor
 - **eddsa:** rearrange eddsa verif as cofactor clearing counts
-
 ### Style
 - code cleaning
 - removed debug comments
-
 ### Test
 - **tEd:** test scalarMul for all curves and schemes
 
@@ -2251,22 +2117,17 @@
 - Merge pull request [#261](https://github.com/Consensys/gnark/issues/261) from ConsenSys/feat/kzg_updated
 - Merge pull request [#257](https://github.com/Consensys/gnark/issues/257) from ConsenSys/perf/EdDSA
 - Merge pull request [#253](https://github.com/Consensys/gnark/issues/253) from ConsenSys/feat/fft_cosets
-
-
 <a name="v0.6.3"></a>
 ## [v0.6.3] - 2022-02-13
 ### Build
 - make staticcheck happy
-
 ### Docs
 - updated changelog for v0.6.3
 - updated example in README.md
-
 ### Feat
 - updated gnark-crypto
 - removed seed in mimc
 - mimc implem corresponds to ethereum implem
-
 ### Fix
 - fixes [#255](https://github.com/Consensys/gnark/issues/255) variable visibility inheritance regression
 - mod reduce input in solve with hint when coming from interface
@@ -2275,12 +2136,10 @@
 - assign a, b, c to solution and div by coeff instead of mul
 - use uint64 for cbor unmarshal and cast
 - fixed mimc example
-
 ### Perf
 - replace big int pool in hint solver by tmp slice
 - r1cs solver faster linear expression eval
 - r1cs solver 40% faster by avoiding redudnant check
-
 ### Test
 - benchmark solve r1cs with large linear exp
 - added r1cs solve benchmark
@@ -2290,24 +2149,18 @@
 - Merge pull request [#249](https://github.com/Consensys/gnark/issues/249) from ConsenSys/perf-ccs-hint
 - Merge pull request [#248](https://github.com/Consensys/gnark/issues/248) from ConsenSys/perf-ccs-solver
 - Merge pull request [#247](https://github.com/Consensys/gnark/issues/247) from ConsenSys/fix/plonk_cbor
-
-
 <a name="v0.6.2"></a>
 ## [v0.6.2] - 2022-01-28
 ### Fix
 - r1cs.GetConstraint bad alloc
-
-
 <a name="v0.6.1"></a>
 ## [v0.6.1] - 2022-01-28
 ### Build
 - go 1.16 to go 1.17
 - github workflow against go 1.17 only
 - github workflow against go 1.17 and go 1.18
-
 ### Clean
 - better errors in witness
-
 ### Docs
 - updated CHANGELOG.md with v0.6.1 changes
 - update backend/witness godoc
@@ -2315,7 +2168,6 @@
 - **backend:** unify documentation for options
 - **frontend:** unify docs for options
 - **test:** unify documentation for options
-
 ### Feat
 - added ccs.GetConstraints
 - added witness.Public() to return Public part of the witness
@@ -2326,7 +2178,6 @@
 - add optional omitempty tag in json generated schema
 - prepare new witness API
 - added frontend/schema to build circuit and witness schemas
-
 ### Fix
 - handle array of array of array... in schema
 - remove limit reader when parsing json
@@ -2336,10 +2187,8 @@
 - remove gnark embed tag in example rollup
 - remove embbed struct tag
 - typo in hint fn name
-
 ### Perf
 - minimize allocations in ccs.GetConstraints
-
 ### Refactor
 - compiled.Visbility -> schema.Visibiility
 - added IsSolved API on the CompiledConstraintSystem interface
@@ -2352,7 +2201,6 @@
 - cleaned internal/witness unused code
 - killed ReadAndProve and ReadAndVerify (plonk)
 - killed ReadAndProve and ReadAndVerify (groth16)
-
 ### Style
 - replace ①  by 1
 - change main/companion to outer/inner curve
@@ -2373,10 +2221,8 @@
 - **frontend:** create CompileOption type
 - **frontend:** use functional opts for witness
 - **test:** create TestingOption type for function opts
-
 ### Test
 - added assert.marshalWitness subtest to ensure round trip json and binary serialization test coverage
-
 ### Tests
 - run marshalling tests as subtests
 
@@ -2392,24 +2238,19 @@
 - Merge pull request [#226](https://github.com/Consensys/gnark/issues/226) from ConsenSys/feat-circuit-schema
 - Merge pull request [#227](https://github.com/Consensys/gnark/issues/227) from ConsenSys/build-update-go1.17
 - Merge pull request [#222](https://github.com/Consensys/gnark/issues/222) from ConsenSys/perf/std-sw-glv
-
-
 <a name="v0.6.0"></a>
 ## [v0.6.0] - 2022-01-04
 ### Build
 - update to latest gnark-crypto with fix for empty addchain folders
 - updated to latest gnark-crypto
-
 ### Clean
 - remove TotalInputs
-
 ### Docs
 - updated changelog.md
 - updated README.md example
 - draft release notes for v0.6.0
 - zkteam -> gnark
 - add suggestion to error
-
 ### Feat
 - extended the Add test
 - internal/parser handles interface values and outputs warning when a struct is non adressable [#169](https://github.com/Consensys/gnark/issues/169)
@@ -2457,7 +2298,6 @@
 - **test:** add Run for running as subtests
 - **test:** add Log method for logging in subtests
 - **test:** solve multi-output hints in engine
-
 ### Fix
 - fixed mul
 - addition of mod reduction in plonk api to bound bigInt
@@ -2524,13 +2364,10 @@
 - **frontend:** set only hint internal variables constrained
 - **init.stats:** update circuit statistics
 - **integration_test:** remove fuzzing call
-
 ### Frontend
 - update hint documentation
-
 ### Perf
 - **std:** bls24 Miller loop in 2NAF + opt. Final exp
-
 ### Refactor
 - frontend.Variable -> cs.Variable
 - simplified cs_to_r1cs_sparse algo
@@ -2576,7 +2413,6 @@
 - **stats:** run as subtests
 - **test:** use Tag
 - **test:** run assert subtests using Run
-
 ### Style
 - added few comments
 - removed dead code
@@ -2588,7 +2424,6 @@
 - remove bls377tobw761 conv func
 - error strings should not end with punctuation or a newline
 - **Miller loop:** for loop instead of addition chain
-
 ### Test
 - use BN254 in modulus-dependent tests for speed
 - added failing test with multiple hints in one R1C
@@ -2609,8 +2444,6 @@
 - Merge pull request [#176](https://github.com/Consensys/gnark/issues/176) from ConsenSys/feat-constraint-counter
 - Merge pull request [#180](https://github.com/Consensys/gnark/issues/180) from ConsenSys/refactor-variable-interface
 - Merge pull request [#173](https://github.com/Consensys/gnark/issues/173) from ConsenSys/feat-debug-tag
-
-
 <a name="v0.5.2"></a>
 ## [v0.5.2] - 2021-11-03
 ### Build
@@ -2627,13 +2460,11 @@
 - fix gofuzz target
 - re-ran go generate
 - fix gofuzz build
-
 ### Docs
 - updated CHANGELOG.md for v0.5.2
 - added pull requests in changelog.md
 - added doc to frontend.API interface
 - added documentation to new test pacakge
-
 ### Feat
 - Sub matches Add api in circuit
 - attempt at reducing nb constraints for ML by working in affine
@@ -2654,7 +2485,6 @@
 - frontend bits operation adjusted to fr.Bits real size
 - ml with short addition chain (13245cs -> 12297, marginal gain)
 - **std:** add bandersnatch
-
 ### Fix
 - fixes [#155](https://github.com/Consensys/gnark/issues/155) slow compiling with plonk frontend
 - don't check if one wire is constrained
@@ -2671,7 +2501,6 @@
 - std/twistededwards remove A
 - std/twistededwards remove A
 - added markBoolean on inplace boolean constraints to avoid duplicated constraints
-
 ### Perf
 - fast path with int64 in divide linear expression
 - cs.coeffID with gobencode
@@ -2681,7 +2510,6 @@
 - plonk compile, replace sha256 with fast lookup with collisions
 - minor perf adjustement on big.Int operations and allocations
 - reduced redundant constraints in range check
-
 ### Refactor
 - delete old curve typed hint functions
 - hint function signature uses big.Int, no more ID from name
@@ -2693,7 +2521,6 @@
 - all circuits use frontend.API in place of *frontend.ConstraintSystem
 - in circuits *frontend.ConstraintSystem to frontend.API
 - factorized assert helper accross curves and backends
-
 ### Style
 - remove unused code (nSquare)
 - removed commented code
@@ -2710,12 +2537,10 @@
 - added comment in range check
 - remove code no longer used in the pairing
 - commented ml test used to diplay nb constraints
-
 ### Test
 - groth16 marshal 10 round only
 - passing
 - bypass fuzz test of frontend for now
-
 ### Tests
 - added add and sub internal test circuits
 - minor adjustements or better fuzzing
@@ -2731,8 +2556,6 @@
 - Merge pull request [#153](https://github.com/Consensys/gnark/issues/153) from ConsenSys/fix/plonk_constraints_blowup
 - Merge pull request [#146](https://github.com/Consensys/gnark/issues/146) from ConsenSys/feat/ml-snark-pairing
 - Merge pull request [#148](https://github.com/Consensys/gnark/issues/148) from ConsenSys/perf-range-check
-
-
 <a name="v0.5.1"></a>
 ## [v0.5.1] - 2021-09-21
 ### Build
@@ -2741,10 +2564,8 @@
 - comment fuzz test part that depends on assertions
 - increased CI test timeout and run race test on ubuntu only
 - fix gosec unhandled error warning
-
 ### Docs
 - added release notes for v0.5.1 in CHANGELOG.md
-
 ### Feat
 - added ToHTML on R1CS
 - cs.Println and debugInfo supported in groth16 and plonk
@@ -2768,7 +2589,6 @@
 - **plonk:** isZero with advice wire OK, binaryDec NOK
 - **r1cs:** replaced isZero solver path by solver hint
 - **r1cs:** removed binaryDec solving method in favor of cs.NewHint
-
 ### Fix
 - hint functions use compiled.Term instead of variable IDs only
 - fix previous fix
@@ -2790,15 +2610,12 @@
 - **eddsa:** S not splitted (s<r) + 2,3 Double instead of [cofactor]G
 - **groth16:** Prove with force flag wasn't doing much since msm had lots of zeroes in input
 - **test:** integration test failing due to missing witness assignment
-
 ### Frontend
 - **groth16:** ensure R (as in LRO) as less variables than L
-
 ### Perf
 - **groth16:** filter wire values after solve in go routines
 - **groth16:** filter A and B for infinity points
 - **groth16:** use batch invert in groth16.Setup
-
 ### Refactor
 - groth16.Prove and plonk.Prove takes backend.ProverOption as parameter
 - save hints in a map in ConstraintSystem instead of slice
@@ -2814,7 +2631,6 @@
 - removed r1c.SolvingMethod in favor of cs.NewHint
 - moved assertions in cs_assertions.go
 - cs.IsZero doesn't need curveID anymore
-
 ### Style
 - printArg doesn't return error
 - code cleaning in cs_to_r1cs_sparse.go
@@ -2823,7 +2639,6 @@
 - in-place filtering of points in setup
 - fixed comments on S in eddsa
 - cleaned eddsa_test
-
 ### Test
 - ensure frontend.Compile is deterministic
 - added non regression for cs.Println and debugInfo traces
@@ -2841,8 +2656,6 @@
 - Merge pull request [#130](https://github.com/Consensys/gnark/issues/130) from ConsenSys/groth16-setup-filter-inf
 - Merge pull request [#131](https://github.com/Consensys/gnark/issues/131) from ConsenSys/fix/i_128
 - Merge pull request [#129](https://github.com/Consensys/gnark/issues/129) from ConsenSys/fix/reduce_constraints_eddsa
-
-
 <a name="v0.5.0"></a>
 ## [v0.5.0] - 2021-08-23
 ### Build
@@ -2872,26 +2685,20 @@
 - ran go:generate for bls24-315 plonk marshal
 - re-ran go:generate
 - **staticheck:** commented debugInfoUnsetVariable
-
-### Chore
-- cleaned plonk bn254, removed old version
-
-### Ci
+### CI
 - added -mod=mod fix, maybe?
 - replace go test sum by go test, CI check
-
+### Chore
+- cleaned plonk bn254, removed old version
 ### Clean
 - cosmetics in plonk.Verify
-
 ### Cleanup
 - removed to_delete.go file
-
 ### Docs
 - fix go report card link
 - prepare release notes for v0.5.0
 - fix go report card link
 - updated doc link and logo on README.md
-
 ### Feat
 - plonk as-in-the-paper implem for bn254
 - LinearExpression implements Sort interface. replaced quickSort() by sort.Sort(...)
@@ -2930,7 +2737,6 @@
 - **plonk:** code gen for proof blinding
 - **plonk:** added ProvingKey serialization test
 - **plonk:** added InitKZG methods on ProvingKey and VerifyingKey
-
 ### Fix
 - fixed gnarkd tests for kzg srs
 - shuffleVariables in fuzz testing with bad offset
@@ -2960,7 +2766,6 @@
 - **frontend:** set initial capacity for constraint system slices to 0
 - **gnarkd:** kzg srs generation in test cases with correct size
 - **plonk:** fixed error in ComputeH  when nbConstraints+nbPublicInputs<6
-
 ### Perf
 - start computeZ earlier
 - plonk prove remove most fft.BitReverse
@@ -2999,7 +2804,6 @@
 - **scs:** rewrote solve O
 - **scs:** sparse r1cs have fast path for special coeffs operations
 - **std:** adds E2/E12 square and cyclo square in E12 (used FinalExp)
-
 ### Refactor
 - removed gnarkd and examples/benchmark
 - mimc uses Write(data) then Sum() instead of Sum(data)
@@ -3008,7 +2812,6 @@
 - strongly typed KZG, Plonk test passing
 - renamed Groth16 protobuf service to ZKSnark
 - **groth16:** SizePublicWitness to NbPublicWitness
-
 ### Style
 - cleaning plonk.prove
 - renamed GetCurveID() to CurveID() on groth16 objects
@@ -3023,7 +2826,6 @@
 - modified comment on reduce
 - **kzg:** factorized some methods in the prover
 - **plonk:** use close(chan) instead of send twice on it
-
 ### Test
 - test for Fiat Shamir gadget
 - added reference frontend.Compile benchmarks
@@ -3039,8 +2841,6 @@
 - Merge pull request [#108](https://github.com/Consensys/gnark/issues/108) from ConsenSys/feat/plonk/clean_verifier
 - Merge pull request [#104](https://github.com/Consensys/gnark/issues/104) from ConsenSys/bls24-315
 - Merge pull request [#95](https://github.com/Consensys/gnark/issues/95) from ConsenSys/fix/deterministic_r1cs
-
-
 <a name="v0.4.0"></a>
 ## [v0.4.0] - 2021-04-29
 ### Build
@@ -3050,23 +2850,17 @@
 - moved solidity integration tests in github.com/consensys/gnark-tests
 - updated .gitignore
 - added .gitlint file
-
-### Ci
+### CI
 - added integration fuzz test in backend/groth16/fuzz_test.go
-
-### Doc
-- fixed typo ([#63](https://github.com/Consensys/gnark/issues/63)) in README.md
-
 ### Docs
 - preparing v0.4.0 release with new README.md and CHANGELOG.md
 - added comments for the splitting of S in eddsa
 - updated package level godoc
 - fixed comments on wire ordering for sparse r1cs
 - **plonk:** fixed doc for computeH
-
+- fixed typo ([#63](https://github.com/Consensys/gnark/issues/63)) in README.md
 ### Eddsa
 - bw761 blinding factor and private key size are consistant with the field size
-
 ### Feat
 - added funcitons for proving PLONK's claim 1 (bn256), not tested
 - mock polynomial commitments for all curves + templates
@@ -3097,7 +2891,6 @@
 - **plonk:** H is split as h1+X**m*h2+X**2m*h3
 - **plonk:** polynomial accumulating partial permutation OK (bn256)
 - **plonk cs:** adding functionality to convert a constraint system to PLONK constraints ([#56](https://github.com/Consensys/gnark/issues/56))
-
 ### Fix
 - cs.Println doesn't trigger panic anymore
 - fixed Groth16 snark circuit according to previous commit
@@ -3121,13 +2914,10 @@
 - **r1cs:** TestSerialization running sequentially
 - **r1cs:** moved bytes.Buffer in t.Run (TestSerialization)
 - **r1cs_sparse:** ensure that Solve never returns nil, err
-
 ### Groth16
 - VerifyingKey data structure change to ensure compatibility with other impl and Solidity in Ethereum. Serialization format change.
-
 ### Integration_test
 - added witness serialization tests
-
 ### Refactor
 - gurvy -> gnark-crypto
 - use gnark-crypto polynomial and accumulator packages
@@ -3150,13 +2940,11 @@
 - **plonk:** suffix raw added to plonk API
 - **plonk:** setup, prove, verify take frontend.Circuit as witness
 - **plonk:** prove, verifiy now return error
-
 ### Style
 - simplified findUnsolvedVariable in SparseR1CS
 - untrack to_delete_bn256.go (used for printing stuff)
 - removed comments of the previous fft in groth16 prove
 - **plonk:** removed comments (used for testing) in setup
-
 ### Test
 - added frontend and backend fuzz.go, go-fuzz compatible format
 - added cs.Println must not panic base test
@@ -3175,32 +2963,24 @@
 - Merge pull request [#51](https://github.com/Consensys/gnark/issues/51) from ConsenSys/eddsa_cleanup
 - Merge pull request [#46](https://github.com/Consensys/gnark/issues/46) from ConsenSys/experimental/solidity
 - Merge pull request [#48](https://github.com/Consensys/gnark/issues/48) from ConsenSys/issue_45
-
-
 <a name="v0.3.8"></a>
 ## [v0.3.8] - 2020-12-23
-
 <a name="v0.3.7"></a>
 ## [v0.3.7] - 2020-12-22
-
 <a name="v0.3.6"></a>
 ## [v0.3.6] - 2020-12-22
 ### Features
 - **profiling:** Adds a way to print the number of constraints in the circuit
-
 ### Fix
 - **typo:** insertion -> assertion
-
 ### R1cs
 - implemented serialization interfaces
-
 ### Serialization
 - using gurvy.Encoder and gurvy.Decoder. Added benchmark and assert helpers
 - added proving key
 - added for fft domain
 - replaced some int by uint64 to avoid ambiguity in serialization protocols
 - gnark object implement io.ReaderFrom and io.WriterTo
-
 ### Wip
 - updating to latest gurvy
 
@@ -3208,50 +2988,37 @@
 - Merge pull request [#42](https://github.com/Consensys/gnark/issues/42) from ConsenSys/linearexp
 - Merge pull request [#41](https://github.com/Consensys/gnark/issues/41) from AlexandreBelling/feature/cs-nb-constraints
 - Merge pull request [#38](https://github.com/Consensys/gnark/issues/38) from ConsenSys/hotfix/discard_secret
-
-
 <a name="v0.3.5"></a>
 ## [v0.3.5] - 2020-10-19
-
 <a name="v0.3.4"></a>
 ## [v0.3.4] - 2020-10-19
-
 <a name="v0.3.3"></a>
 ## [v0.3.3] - 2020-09-23
-
 <a name="v0.3.1"></a>
 ## [v0.3.1] - 2020-09-22
-
 <a name="v0.3.0"></a>
 ## [v0.3.0] - 2020-09-22
-
 <a name="v0.3.0-alpha"></a>
 ## [v0.3.0-alpha] - 2020-09-15
 ### Backend
 - interface to big.Int added minimalist test
 - moved  generated curve specific backends into internal to forbid library user to directly import it
-
 ### Backends
 - restored bw761 groth16 code generation path
-
 ### Circleci
 - added step to ensure no generated files are modified by hand
 - change cache key
 - new workflow with more insight on unit tests
-
 ### Encoding
 - switch from gob to cbor
-
 ### Frontend
 - remove Context object, mostly used as a curve.ID wrapper
 - added frontend.Compile benchmark for reference in further modifications
 - allocate slice capacity when known
 - added Circuit and CircuitVariable interfaces. Can now assign values with compiler check (no more strings). Rollup tests OK
-
 ### Gnark
 - fixing few staticcheck warnings
 - input file is now json. accepts 0x hex and decimal repr for assignment to a circuit
-
 ### Groth16
 - updated to latest gurvy and added go routines in prover workflow. WIP need to be benchmarked
 - reorganize Setup to use gurvy.BatchScalarMultiplication api
@@ -3259,15 +3026,12 @@
 - added test for reference circuit (non short path)
 - restored reference circuit for benchmarking purposes
 - fix possible starvation issue in Prover -- there existed a world were go routine may wait for ever for the tokenn causing a timeout in tests
-
 ### R1cs
 - added GetNbCoefficients and GetNbWires to interface
 - Solve takes typed arguments
-
 ### Refactor
 - remove Gadget suffix from many structs
 - checkpoint
-
 ### Wip
 - investigating millerloop result in snark circuit
 - frontend.NewConstraintSystem is now private. ToR1CS() is private. test circuits moved to internal. gadgets and test circuits use frontend.Compile()
@@ -3275,68 +3039,53 @@
 ### Pull Requests
 - Merge pull request [#26](https://github.com/Consensys/gnark/issues/26) from ConsenSys/gadget_cleanup
 - Merge pull request [#23](https://github.com/Consensys/gnark/issues/23) from ConsenSys/tagless_refactor
-
-
 <a name="v0.2.1-alpha"></a>
 ## [v0.2.1-alpha] - 2020-06-18
-
 <a name="v0.2.0-alpha"></a>
 ## [v0.2.0-alpha] - 2020-06-05
 ### Backend
 - cleaned asserts
 - generating backend/static/CURVE submodules from same template
 - remove curve generated code, keep only build tag version
-
 ### Circleci
 - added missing goimports indirect dependency
 - run go generate to ensure repo consistency in CI
 - test full repo with each build tag
-
 ### Cmd
 - removed wip export command for now
-
 ### Examples
 - back at root of repo
-
 ### Frontend
 - fixed division-by-constant constraint
-
 ### Gnark
 - integration test now uses test circuits defined in internal/tests/circuits
-
 ### Groth16
 - fix reference to large reference test circuit in groth16
 - remove assertion when checking number of inputs and fix missing curve in testdata path
 - add point check infinity in assert
 - VerifyingKey stores K in Affine, not Jacobian. Fixes [#18](https://github.com/Consensys/gnark/issues/18)
-
 ### Integration_test
 - be nice with circleci, do not add large circuit into integration test
-
 ### Refactor
 - separated frontend and backend, code generate typed backend and tests for groth16. yes that's a big commit
-
 ### Templates
 - minor code cleaning
-
 ### WIP
 - using big.Int in frontend to avoid build tags
 
 ### Pull Requests
 - Merge pull request [#22](https://github.com/Consensys/gnark/issues/22) from ConsenSys/refactor
 - Merge pull request [#21](https://github.com/Consensys/gnark/issues/21) from Mikerah/patch-1
-
-
 <a name="v0.1.0-alpha"></a>
 ## v0.1.0-alpha - 2020-03-06
+
 ### Pull Requests
 - Merge pull request [#11](https://github.com/Consensys/gnark/issues/11) from nkeywal/exGadget
 - Merge pull request [#8](https://github.com/Consensys/gnark/issues/8) from ConsenSys/internal-curve-tests
 - Merge pull request [#7](https://github.com/Consensys/gnark/issues/7) from ConsenSys/develop Fixed [#6](https://github.com/Consensys/gnark/issues/6)
 - Merge pull request [#5](https://github.com/Consensys/gnark/issues/5) from ConsenSys/go1.14_deps
-
-
-[Unreleased]: https://github.com/Consensys/gnark/compare/v0.13.0...HEAD
+[v0.15.0]: https://github.com/Consensys/gnark/compare/v0.14.0...v0.15.0
+[v0.14.0]: https://github.com/Consensys/gnark/compare/v0.13.0...v0.14.0
 [v0.13.0]: https://github.com/Consensys/gnark/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/Consensys/gnark/compare/v0.11.0...v0.12.0
 [v0.11.0]: https://github.com/Consensys/gnark/compare/v0.10.0...v0.11.0
@@ -3346,9 +3095,9 @@
 [v0.9.0-alpha]: https://github.com/Consensys/gnark/compare/v0.8.1...v0.9.0-alpha
 [v0.8.1]: https://github.com/Consensys/gnark/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/Consensys/gnark/compare/v0.7.1...v0.8.0
-[v0.7.1]: https://github.com/Consensys/gnark/compare/v0.6.5...v0.7.1
-[v0.6.5]: https://github.com/Consensys/gnark/compare/v0.7.0...v0.6.5
-[v0.7.0]: https://github.com/Consensys/gnark/compare/v0.6.4...v0.7.0
+[v0.7.1]: https://github.com/Consensys/gnark/compare/v0.7.0...v0.7.1
+[v0.7.0]: https://github.com/Consensys/gnark/compare/v0.6.5...v0.7.0
+[v0.6.5]: https://github.com/Consensys/gnark/compare/v0.6.4...v0.6.5
 [v0.6.4]: https://github.com/Consensys/gnark/compare/v0.6.3...v0.6.4
 [v0.6.3]: https://github.com/Consensys/gnark/compare/v0.6.2...v0.6.3
 [v0.6.2]: https://github.com/Consensys/gnark/compare/v0.6.1...v0.6.2
