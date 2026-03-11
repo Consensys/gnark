@@ -28,6 +28,5 @@ func Curves() []ecc.ID {
 		ecc.BLS12_377,
 		ecc.BLS12_381,
 		ecc.BW6_761,
-		ecc.GRUMPKIN,
 	}
 }

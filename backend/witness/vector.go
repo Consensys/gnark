@@ -28,9 +28,10 @@ func newVector(field *big.Int, size int) (any, error) {
 		return make(fr_bls12381.Vector, size), nil
 	case ecc.BW6_761:
 		return make(fr_bw6761.Vector, size), nil
-	case ecc.GRUMPKIN:
-		return make(fr_grumpkin.Vector, size), nil
 	default:
+		if field.Cmp(ecc.GRUMPKIN.ScalarField()) == 0 {
+			return make(fr_grumpkin.Vector, size), nil
+		}
 		if field.Cmp(tinyfield.Modulus()) == 0 {
 			return make(tinyfield.Vector, size), nil
 		}

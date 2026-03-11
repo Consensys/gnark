@@ -94,9 +94,11 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 			bT.cs = bn254r1cs.NewSparseR1CS(config.Capacity)
 		case ecc.BW6_761:
 			bT.cs = bw6761r1cs.NewSparseR1CS(config.Capacity)
-		case ecc.GRUMPKIN:
-			bT.cs = grumpkinr1cs.NewSparseR1CS(config.Capacity)
 		default:
+			if field.Cmp(ecc.GRUMPKIN.ScalarField()) == 0 {
+				bT.cs = grumpkinr1cs.NewSparseR1CS(config.Capacity)
+				break
+			}
 			panic("not implemented")
 		}
 	case *builder[constraint.U32]:
