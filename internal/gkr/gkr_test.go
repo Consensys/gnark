@@ -10,7 +10,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
@@ -114,7 +116,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	if proof, err = DeserializeProof(testCase.Circuit, c.SerializedProof); err != nil {
+	if proof, err = DeserializeProof(testCase.Circuit, testCase.Schedule, c.SerializedProof); err != nil {
 		return err
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
@@ -128,20 +130,18 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 		}
 	}
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
+	return Verify(api, testCase.Circuit, testCase.Schedule, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	res := make(WireAssignment, len(c))
-	inI, outI := 0, 0
-	for i := range c {
-		if c[i].IsInput() {
-			res[i] = inputValues[inI]
-			inI++
-		} else if c[i].IsOutput() {
-			res[i] = outputValues[outI]
-			outI++
-		}
+	inputs := c.Inputs()
+	outputs := c.Outputs()
+	for i, wI := range inputs {
+		res[wI] = inputValues[i]
+	}
+	for i, wI := range outputs {
+		res[wI] = outputValues[i]
 	}
 	return res
 }
@@ -153,12 +153,13 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit Circuit
-	Hash    HashDescription
-	Proof   Proof
-	Input   [][]frontend.Variable
-	Output  [][]frontend.Variable
-	Name    string
+	Circuit  Circuit
+	Schedule constraint.GkrProvingSchedule
+	Hash     HashDescription
+	Proof    Proof
+	Input    [][]frontend.Variable
+	Output   [][]frontend.Variable
+	Name     string
 }
 type TestCaseInfo struct {
 	Hash    HashDescription `json:"hash"`
@@ -188,7 +189,14 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			_, cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			serializableCircuit, gadgetCircuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			cse.Circuit = gadgetCircuit
+
+			schedule, schedErr := gkrcore.DefaultProvingSchedule(serializableCircuit)
+			if schedErr != nil {
+				return nil, schedErr
+			}
+			cse.Schedule = schedule
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -241,7 +249,7 @@ func TestLogNbInstances(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
 			serializedProof := testCase.Proof.Serialize()
-			logNbInstances := ComputeLogNbInstances(testCase.Circuit, len(serializedProof))
+			logNbInstances := ComputeLogNbInstances(testCase.Circuit, testCase.Schedule, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
 		}
 	}

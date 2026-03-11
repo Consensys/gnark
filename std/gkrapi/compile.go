@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	gadget "github.com/consensys/gnark/internal/gkr"
 	gkrbls12377 "github.com/consensys/gnark/internal/gkr/bls12-377"
@@ -26,6 +27,7 @@ type InitialChallengeGetter func() []frontend.Variable
 // Circuit represents a GKR circuit.
 type Circuit struct {
 	circuit              gkrcore.GadgetCircuit
+	schedule             constraint.GkrProvingSchedule
 	gates                []gkrcore.GateBytecode
 	assignments          gadget.WireAssignment
 	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
@@ -80,8 +82,14 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		return nil, err
 	}
 
+	schedule, err := gkrcore.DefaultProvingSchedule(serializableCircuit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute proving schedule: %w", err)
+	}
+
 	res := Circuit{
 		circuit:     gadgetCircuit,
+		schedule:    schedule,
 		assignments: make(gadget.WireAssignment, len(api.circuit)),
 		api:         api.parentApi,
 		hashName:    fiatshamirHashName,
@@ -89,13 +97,13 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 
 	switch curveID {
 	case ecc.BN254:
-		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbn254.NewBlueprints(serializableCircuit, schedule, fiatshamirHashName, compiler)
 	case ecc.BLS12_377:
-		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12377.NewBlueprints(serializableCircuit, schedule, fiatshamirHashName, compiler)
 	case ecc.BLS12_381:
-		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbls12381.NewBlueprints(serializableCircuit, schedule, fiatshamirHashName, compiler)
 	case ecc.BW6_761:
-		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, fiatshamirHashName, compiler)
+		res.blueprints = gkrbw6761.NewBlueprints(serializableCircuit, schedule, fiatshamirHashName, compiler)
 	default:
 		return nil, fmt.Errorf("unsupported curve: %s", curveID)
 	}
@@ -204,6 +212,10 @@ func (c *Circuit) finalize(api frontend.API) error {
 
 	// if the circuit consists of only one instance, directly solve the circuit
 	if len(c.assignments[c.ins[0]]) == 1 {
+		outputSet := make(map[int]bool, len(c.outs))
+		for _, wI := range c.outs {
+			outputSet[int(wI)] = true
+		}
 		gateIn := make([]frontend.Variable, c.circuit.MaxGateNbIn())
 		for wI, w := range c.circuit {
 			if w.IsInput() {
@@ -213,7 +225,7 @@ func (c *Circuit) finalize(api frontend.API) error {
 				gateIn[inI] = c.assignments[inWI][0] // take the first (only) instance
 			}
 			res := w.Gate.Evaluate(gadget.FrontendAPIWrapper{API: api}, gateIn[:len(w.Inputs)]...)
-			if w.IsOutput() {
+			if outputSet[wI] {
 				api.AssertIsEqual(res, c.assignments[wI][0])
 			} else {
 				c.assignments[wI] = append(c.assignments[wI], res)
@@ -273,7 +285,7 @@ func (c *Circuit) verify(api frontend.API, circuit gkrcore.GadgetCircuit, initia
 		err   error
 	)
 
-	if proof, err = gadget.DeserializeProof(circuit, proofSerialized); err != nil {
+	if proof, err = gadget.DeserializeProof(circuit, c.schedule, proofSerialized); err != nil {
 		return err
 	}
 
@@ -282,7 +294,7 @@ func (c *Circuit) verify(api frontend.API, circuit gkrcore.GadgetCircuit, initia
 		return err
 	}
 
-	return gadget.Verify(api, circuit, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...))
+	return gadget.Verify(api, circuit, c.schedule, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...))
 }
 
 // GetValue is a debugging utility returning the value of variable v at instance i.
