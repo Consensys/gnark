@@ -32,6 +32,24 @@ func (f *Field[T]) divPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 }
 
 func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
+	// fast path - constant division can be folded eagerly and avoids calling a
+	// hint for a value already known at compile time.
+	if ba, aConst := f.constantValue(a); aConst {
+		if bb, bConst := f.constantValue(b); bConst {
+			if bb.Sign() == 0 {
+				panic("division by zero")
+			}
+			if !f.fParams.IsPrime() {
+				panic("modulus not a prime")
+			}
+			inv := new(big.Int).ModInverse(bb, f.fParams.Modulus())
+			if inv == nil {
+				panic("division undefined")
+			}
+			ba.Mul(ba, inv).Mod(ba, f.fParams.Modulus())
+			return newConstElement[T](f.api.Compiler().Field(), ba, false)
+		}
+	}
 	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
@@ -66,6 +84,18 @@ func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err erro
 }
 
 func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
+	// fast path - constant inversion can be computed directly without using a
+	// hint or emitting a multiplication check.
+	if ba, aConst := f.constantValue(a); aConst {
+		if !f.fParams.IsPrime() {
+			panic("modulus not a prime")
+		}
+		inv := new(big.Int).ModInverse(ba, f.fParams.Modulus())
+		if inv == nil {
+			panic("inverse undefined")
+		}
+		return newConstElement[T](f.api.Compiler().Field(), inv, false)
+	}
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
@@ -97,6 +127,18 @@ func (f *Field[T]) sqrtPreCond(a, _ *Element[T]) (nextOverflow uint, err error) 
 }
 
 func (f *Field[T]) sqrt(a, _ *Element[T], _ uint) *Element[T] {
+	// fast path - constant square roots can be computed eagerly when they
+	// exist, avoiding a hint round-trip for compile-time values.
+	if ba, aConst := f.constantValue(a); aConst {
+		if !f.fParams.IsPrime() {
+			panic("modulus not a prime")
+		}
+		root := new(big.Int).ModSqrt(ba, f.fParams.Modulus())
+		if root == nil {
+			panic("no square root")
+		}
+		return newConstElement[T](f.api.Compiler().Field(), root, false)
+	}
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
