@@ -84,6 +84,7 @@ func (h *MiMC) State() []frontend.Variable {
 // [Miyaguchi–Preneel]: https://en.wikipedia.org/wiki/One-way_compression_function
 func (h *MiMC) Sum() frontend.Variable {
 
+	//h.Write(data...)s
 	for _, stream := range h.data {
 		r := encryptFuncs[h.id](*h, stream)
 		h.h = h.api.Add(h.h, r, stream)

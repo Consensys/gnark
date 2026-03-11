@@ -11,7 +11,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/babybear"
-	"github.com/consensys/gnark-crypto/field/goldilocks"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
@@ -29,7 +28,6 @@ import (
 	bls12381r1cs "github.com/consensys/gnark/constraint/bls12-381"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
-	goldilocksr1cs "github.com/consensys/gnark/constraint/goldilocks"
 	grumpkinr1cs "github.com/consensys/gnark/constraint/grumpkin"
 	koalabearr1cs "github.com/consensys/gnark/constraint/koalabear"
 	"github.com/consensys/gnark/constraint/solver"
@@ -99,10 +97,6 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 		case ecc.GRUMPKIN:
 			bT.cs = grumpkinr1cs.NewSparseR1CS(config.Capacity)
 		default:
-			if field.Cmp(goldilocks.Modulus()) == 0 {
-				bT.cs = goldilocksr1cs.NewSparseR1CS(config.Capacity)
-				break
-			}
 			panic("not implemented")
 		}
 	case *builder[constraint.U32]:
