@@ -42,11 +42,11 @@ func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
 			if !f.fParams.IsPrime() {
 				panic("modulus not a prime")
 			}
-			bb.ModInverse(bb, f.fParams.Modulus())
-			if bb == nil {
+			inv := new(big.Int).ModInverse(bb, f.fParams.Modulus())
+			if inv == nil {
 				panic("division undefined")
 			}
-			ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+			ba.Mul(ba, inv).Mod(ba, f.fParams.Modulus())
 			return newConstElement[T](f.api.Compiler().Field(), ba, false)
 		}
 	}
