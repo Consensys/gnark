@@ -25,8 +25,8 @@ import (
 )
 
 // compressThreshold → if linear expressions are larger than this, the frontend will introduce
-// intermediate constraints. The lower this number is, the faster compile time should be (to a point)
-// but resulting circuit will have more constraints (slower proving time).
+// intermediate constraints. The lower this number is, the faster compile time should be (to a point).
+// However, the resulting circuit will have more constraints (slower proving time).
 const compressThreshold = 1000
 
 type doubleNoDependencyCircuit struct {
@@ -597,7 +597,7 @@ func newConstBytesPseudoHash(c int64, mod *big.Int) constBytesPseudoHash {
 }
 
 func init() {
-	// register custom (constant) "hash" functions
+	// Register custom (constant) "hash" functions
 	for _, v := range []int64{-1, -20} {
 		name := strconv.Itoa(int(v))
 		stdHash.RegisterCustomHash(name, func(api frontend.API) (stdHash.FieldHasher, error) {

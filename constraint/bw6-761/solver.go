@@ -19,10 +19,6 @@ import (
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/constraint/solver/gkrgates"
-	gkr "github.com/consensys/gnark/internal/gkr/bw6-761"
-	"github.com/consensys/gnark/internal/gkr/gkrhints"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
@@ -50,27 +46,6 @@ type solver struct {
 }
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
-	// add GKR options to overwrite placeholder hints
-	if len(cs.GkrInfo) != 0 {
-		solvingInfo, err := gkrtypes.NewSolvingInfo(cs.GkrInfo, gkrgates.Get)
-		if err != nil {
-			return nil, err
-		}
-
-		gkrData := gkr.NewSolvingData(solvingInfo)
-		// we need to get the current hint ID for each of the GKR hints.
-		// Currently the hints are defined on gkrhints.TestEngineHints, so
-		// we create a temporary instance for hint retrieval. In case this is
-		// not replaced, then we still keep using the big-int based hints on the
-		// GKR test engine.
-		var gkrHints *gkrhints.TestEngineHints
-		// Replace the hint calls with actual references to GKR assignment
-		// getter, solver, and prover based on the defined circuits.
-		opts = append(opts,
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.GetAssignment), gkr.GetAssignmentHint(gkrData)),
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.Solve), gkr.SolveHint(gkrData)),
-			csolver.OverrideHint(csolver.GetHintID(gkrHints.Prove), gkr.ProveHint(gkrData)))
-	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
 	if err != nil {
@@ -370,6 +345,11 @@ func (s *solver) IsSolved(vID uint32) bool {
 	return s.solved[vID]
 }
 
+// GetBlueprint returns the blueprint with the given ID.
+func (s *solver) GetBlueprint(id constraint.BlueprintID) constraint.Blueprint {
+	return s.Blueprints[id]
+}
+
 // Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
 // evaluates it and return the result and the number of uint32 word read.
 func (s *solver) Read(calldata []uint32) (constraint.U64, int) {
@@ -429,7 +409,7 @@ func (s *solver) processInstruction(pi constraint.PackedInstruction, scratch *sc
 	return nil
 }
 
-// run runs the solver. it return an error if a constraint is not satisfied or if not all wires
+// run runs the solver. it returns an error if a constraint is not satisfied or if not all wires
 // were instantiated.
 func (s *solver) run() error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold

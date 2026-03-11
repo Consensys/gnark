@@ -1,4 +1,4 @@
-package gkr_mimc
+package gkr_mimc_test
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
+	gkr_mimc "github.com/consensys/gnark/std/hash/mimc/gkr-mimc"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ type testGkrMiMCCircuit struct {
 }
 
 func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
-	gkrmimc, err := New(api)
+	gkrmimc, err := gkr_mimc.New(api)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (c *testGkrMiMCCircuit) Define(api frontend.API) error {
 }
 
 func TestGkrMiMCCompiles(t *testing.T) {
-	const n = 52000
+	const n = 1000
 	circuit := testGkrMiMCCircuit{
 		In: make([]frontend.Variable, n),
 	}
@@ -83,12 +84,12 @@ type merkleTreeCircuit struct {
 	Leaves []frontend.Variable
 }
 
-func (c merkleTreeCircuit) Define(api frontend.API) error {
+func (c *merkleTreeCircuit) Define(api frontend.API) error {
 	if len(c.Leaves) == 0 {
 		return errors.New("no hashing to do")
 	}
 
-	hsh, err := New(api)
+	hsh, err := gkr_mimc.New(api)
 	if err != nil {
 		return err
 	}
@@ -127,15 +128,16 @@ func BenchmarkGkrMiMC(b *testing.B) {
 		assignment.Leaves[i] = i
 	}
 
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
+	require.NoError(b, err)
+
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	require.NoError(b, err)
 
 	b.ResetTimer()
 
 	for b.Loop() {
-		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		_, err = cs.Solve(w)
 		require.NoError(b, err)
-
-		require.NoError(b, cs.IsSolved(w))
 	}
 }

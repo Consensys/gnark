@@ -302,6 +302,20 @@ func (g2 G2) neg(p *G2Affine) *G2Affine {
 	}
 }
 
+// muxE2Y8Signed selects from 8 E2 Y-values using selector (0-7) and conditionally
+// negates based on signBit. This optimizes the common GLV pattern where Y[i] =
+// -Y[15-i], reducing a 16-to-1 Mux to an 8-to-1 Mux plus conditional negation.
+func (g2 *G2) muxE2Y8Signed(signBit frontend.Variable, selector frontend.Variable, yA0, yA1 [8]*emulated.Element[BaseField]) *fields_bls12381.E2 {
+	baseA0 := g2.fp.Mux(selector, yA0[:]...)
+	baseA1 := g2.fp.Mux(selector, yA1[:]...)
+	negA0 := g2.fp.Neg(baseA0)
+	negA1 := g2.fp.Neg(baseA1)
+	return &fields_bls12381.E2{
+		A0: *g2.fp.Select(signBit, negA0, baseA0),
+		A1: *g2.fp.Select(signBit, negA1, baseA1),
+	}
+}
+
 func (g2 G2) sub(p, q *G2Affine) *G2Affine {
 	qNeg := g2.neg(q)
 	return g2.add(p, qNeg)
@@ -691,13 +705,9 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	B6 := g2.add(tableS[2], tablePhiS[2]) // (Q-R) + (Φ(Q)-Φ(R)) = Q - R + Φ(Q) - Φ(R)
 	B7 := g2.add(tableS[2], tablePhiS[3]) // (Q-R) + (-Φ(Q)+Φ(R)) = Q - R - Φ(Q) + Φ(R)
 	B8 := g2.add(tableS[2], tablePhiS[0]) // (Q-R) + (-Φ(Q)-Φ(R)) = Q - R - Φ(Q) - Φ(R)
-	B9 := g2.neg(B8)                      // -Q + R + Φ(Q) + Φ(R)
 	B10 := g2.neg(B7)                     // -Q + R + Φ(Q) - Φ(R)
-	B11 := g2.neg(B6)                     // -Q + R - Φ(Q) + Φ(R)
 	B12 := g2.neg(B5)                     // -Q + R - Φ(Q) - Φ(R)
-	B13 := g2.neg(B4)                     // -Q - R + Φ(Q) + Φ(R)
 	B14 := g2.neg(B3)                     // -Q - R + Φ(Q) - Φ(R)
-	B15 := g2.neg(B2)                     // -Q - R - Φ(Q) + Φ(R)
 	B16 := g2.neg(B1)                     // -Q - R - Φ(Q) - Φ(R)
 
 	var Bi *G2Affine
@@ -716,9 +726,8 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 			g2.api.Mul(selectorY, g2.api.Sub(1, g2.api.Mul(v2bits[i], 2))),
 			g2.api.Mul(v2bits[i], 15),
 		)
-
-		// Bi.Y are distinct so we need a 16-to-1 multiplexer,
-		// but only half of the Bi.X are distinct so we need an 8-to-1.
+		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
+		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
 		Bi = &G2Affine{
 			P: g2AffP{
 				X: fields_bls12381.E2{
@@ -729,16 +738,10 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 						&B16.P.X.A1, &B8.P.X.A1, &B14.P.X.A1, &B6.P.X.A1, &B12.P.X.A1, &B4.P.X.A1, &B10.P.X.A1, &B2.P.X.A1,
 					),
 				},
-				Y: fields_bls12381.E2{
-					A0: *g2.fp.Mux(selectorY,
-						&B16.P.Y.A0, &B8.P.Y.A0, &B14.P.Y.A0, &B6.P.Y.A0, &B12.P.Y.A0, &B4.P.Y.A0, &B10.P.Y.A0, &B2.P.Y.A0,
-						&B15.P.Y.A0, &B7.P.Y.A0, &B13.P.Y.A0, &B5.P.Y.A0, &B11.P.Y.A0, &B3.P.Y.A0, &B9.P.Y.A0, &B1.P.Y.A0,
-					),
-					A1: *g2.fp.Mux(selectorY,
-						&B16.P.Y.A1, &B8.P.Y.A1, &B14.P.Y.A1, &B6.P.Y.A1, &B12.P.Y.A1, &B4.P.Y.A1, &B10.P.Y.A1, &B2.P.Y.A1,
-						&B15.P.Y.A1, &B7.P.Y.A1, &B13.P.Y.A1, &B5.P.Y.A1, &B11.P.Y.A1, &B3.P.Y.A1, &B9.P.Y.A1, &B1.P.Y.A1,
-					),
-				},
+				Y: *g2.muxE2Y8Signed(v2bits[i], selectorX,
+					[8]*emulated.Element[BaseField]{&B16.P.Y.A0, &B8.P.Y.A0, &B14.P.Y.A0, &B6.P.Y.A0, &B12.P.Y.A0, &B4.P.Y.A0, &B10.P.Y.A0, &B2.P.Y.A0},
+					[8]*emulated.Element[BaseField]{&B16.P.Y.A1, &B8.P.Y.A1, &B14.P.Y.A1, &B6.P.Y.A1, &B12.P.Y.A1, &B4.P.Y.A1, &B10.P.Y.A1, &B2.P.Y.A1},
+				),
 			},
 		}
 		// Acc = [2]Acc + Bi

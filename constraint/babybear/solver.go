@@ -345,6 +345,11 @@ func (s *solver) IsSolved(vID uint32) bool {
 	return s.solved[vID]
 }
 
+// GetBlueprint returns the blueprint with the given ID.
+func (s *solver) GetBlueprint(id constraint.BlueprintID) constraint.Blueprint {
+	return s.Blueprints[id]
+}
+
 // Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
 // evaluates it and return the result and the number of uint32 word read.
 func (s *solver) Read(calldata []uint32) (constraint.U32, int) {
@@ -404,7 +409,7 @@ func (s *solver) processInstruction(pi constraint.PackedInstruction, scratch *sc
 	return nil
 }
 
-// run runs the solver. it return an error if a constraint is not satisfied or if not all wires
+// run runs the solver. it returns an error if a constraint is not satisfied or if not all wires
 // were instantiated.
 func (s *solver) run() error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold

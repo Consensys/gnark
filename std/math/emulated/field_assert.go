@@ -81,7 +81,16 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	}
 	eBits := f.ToBits(e)
 	aBits := f.ToBits(a)
-	ff := func(xbits, ybits []frontend.Variable) []frontend.Variable {
+	f.assertIsLessOrEqualBits(eBits, aBits)
+
+	profile.RecordOperation("emulated.AssertIsLessOrEqual", 4*(len(eBits)+len(aBits)))
+}
+
+// assertIsLessOrEqualBits asserts that the value represented by eBits is less
+// or equal to the value represented by aBits. Both are in little-endian bit
+// order. The slices are padded to the same length internally.
+func (f *Field[T]) assertIsLessOrEqualBits(eBits, aBits []frontend.Variable) {
+	padBits := func(xbits, ybits []frontend.Variable) []frontend.Variable {
 		diff := len(xbits) - len(ybits)
 		ybits = append(ybits, make([]frontend.Variable, diff)...)
 		for i := len(ybits) - diff; i < len(ybits); i++ {
@@ -90,9 +99,9 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		return ybits
 	}
 	if len(eBits) > len(aBits) {
-		aBits = ff(eBits, aBits)
+		aBits = padBits(eBits, aBits)
 	} else {
-		eBits = ff(aBits, eBits)
+		eBits = padBits(aBits, eBits)
 	}
 	p := make([]frontend.Variable, len(eBits)+1)
 	p[len(eBits)] = 1
@@ -104,8 +113,6 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		ll := f.api.Mul(l, eBits[i])
 		f.api.AssertIsEqual(ll, 0)
 	}
-
-	profile.RecordOperation("emulated.AssertIsLessOrEqual", 4*(len(eBits)+len(aBits)))
 }
 
 // AssertIsInRange ensures that a is less than the emulated modulus. When we

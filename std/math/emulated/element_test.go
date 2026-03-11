@@ -439,7 +439,13 @@ func (c *ToBinaryCircuit[T]) Define(api frontend.API) error {
 	if len(bits) != len(c.Bits) {
 		return fmt.Errorf("got %d bits, expected %d", len(bits), len(c.Bits))
 	}
+	// check that the cached bits match the bits we get from ToBits. This is important as AssertIsInRange relies on the cached bits to be correct.
+	newBits := f.ToBits(&c.Value)
+	if len(newBits) != len(bits) {
+		return fmt.Errorf("got %d bits, expected %d", len(newBits), len(bits))
+	}
 	for i := range bits {
+		api.AssertIsEqual(bits[i], newBits[i])
 		api.AssertIsEqual(bits[i], c.Bits[i])
 	}
 	return nil
@@ -1180,7 +1186,13 @@ func (c *ToBitsCanonicalCircuit[T]) Define(api frontend.API) error {
 	}
 	el := f.newInternalElement(c.Limbs, 0)
 	bts := f.ToBitsCanonical(el)
+	// ensure that the bit caching is working correctly by calling ToBitsCanonical twice and comparing the results.
+	newBts := f.ToBitsCanonical(el)
+	if len(newBts) != len(bts) {
+		return fmt.Errorf("got %d bits, expected %d", len(bts), len(c.Expected))
+	}
 	for i := range bts {
+		api.AssertIsEqual(bts[i], newBts[i])
 		api.AssertIsEqual(bts[i], c.Expected[i])
 	}
 	return nil
