@@ -150,9 +150,13 @@ func TestRegressionExpOneKeepsVariable(t *testing.T) {
 // that was still recognized as a constant but carried non-zero overflow. A
 // subsequent multiplication then tried to reduce that "constant with overflow"
 // and panicked.
-type testIssueNNMulOneCircuit struct{}
+type testIssueNNMulOneCircuit struct {
+	Dummy frontend.Variable
+}
 
 func (c *testIssueNNMulOneCircuit) Define(api frontend.API) error {
+	// add a dummy assertion to ensure we wouldn't have empty circuit
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[emparams.Goldilocks](api)
 	if err != nil {
 		return err
@@ -171,6 +175,7 @@ func (c *testIssueNNMulOneCircuit) Define(api frontend.API) error {
 
 func TestRegressionMulOneReductionPath(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit := &testIssueNNMulOneCircuit{}
-	assert.CheckCircuit(circuit, test.WithValidAssignment(&testIssueNNMulOneCircuit{}))
+	var circuit testIssueNNMulOneCircuit
+	witness := testIssueNNMulOneCircuit{Dummy: 1}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.NoTestEngine())
 }
