@@ -2681,7 +2681,7 @@ func TestScalarMulBaseComplete(t *testing.T) {
 	t.Run("P256", func(t *testing.T) {
 		p256 := elliptic.P256()
 		s, _ := rand.Int(rand.Reader, p256.Params().N)
-		px, py := p256.ScalarBaseMult(s.Bytes())
+		px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 
 		circuit := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
 		witness := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
@@ -2776,7 +2776,7 @@ func TestScalarMulBaseEdgeCases(t *testing.T) {
 
 		// Test: [r-1]*G = -G
 		rMinus1 := new(big.Int).Sub(p256.Params().N, big.NewInt(1))
-		px, py := p256.ScalarBaseMult(rMinus1.Bytes())
+		px, py := p256.ScalarBaseMult(rMinus1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 		witnessRm1 := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
 			S: emulated.ValueOf[emulated.P256Fr](rMinus1),
 			Res: AffinePoint[emulated.P256Fp]{
@@ -2839,13 +2839,13 @@ func TestJointScalarMulBaseComplete(t *testing.T) {
 		s2, _ := rand.Int(rand.Reader, p256.Params().N)
 
 		// P = random point
-		px, py := p256.ScalarBaseMult(s1.Bytes())
+		px, py := p256.ScalarBaseMult(s1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 
 		// Circuit computes: [c.S2]*G + [c.S1]*P (due to JointScalarMulBase(p, s2, s1) signature)
 		// So with witness S1=s1, S2=s2, result = [s2]*G + [s1]*P
-		tmp1x, tmp1y := p256.ScalarBaseMult(s2.Bytes())
-		tmp2x, tmp2y := p256.ScalarMult(px, py, s1.Bytes())
-		resx, resy := p256.Add(tmp1x, tmp1y, tmp2x, tmp2y)
+		tmp1x, tmp1y := p256.ScalarBaseMult(s2.Bytes())     //nolint:staticcheck // test needs low-level EC ops
+		tmp2x, tmp2y := p256.ScalarMult(px, py, s1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+		resx, resy := p256.Add(tmp1x, tmp1y, tmp2x, tmp2y)  //nolint:staticcheck // test needs low-level EC ops
 
 		circuit := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
 		witness := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
@@ -2960,7 +2960,7 @@ func TestJointScalarMulBaseEdgeCases(t *testing.T) {
 		s, _ := rand.Int(rand.Reader, p256.Params().N)
 
 		// P = [s]*G (a random point)
-		px, py := p256.ScalarBaseMult(s.Bytes())
+		px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 
 		circuit := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
 
@@ -2981,7 +2981,7 @@ func TestJointScalarMulBaseEdgeCases(t *testing.T) {
 		assert.NoError(err)
 
 		// Test: S1=0, S2=s => [s]*G + [0]*P = [s]*G
-		resx, resy := p256.ScalarBaseMult(s.Bytes())
+		resx, resy := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 		witness1 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
 			P: AffinePoint[emulated.P256Fp]{
 				X: emulated.ValueOf[emulated.P256Fp](px),
@@ -2998,7 +2998,7 @@ func TestJointScalarMulBaseEdgeCases(t *testing.T) {
 		assert.NoError(err)
 
 		// Test: S1=s, S2=0 => [0]*G + [s]*P = [s]*P
-		resx, resy = p256.ScalarMult(px, py, s.Bytes())
+		resx, resy = p256.ScalarMult(px, py, s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
 		witness2 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
 			P: AffinePoint[emulated.P256Fp]{
 				X: emulated.ValueOf[emulated.P256Fp](px),
