@@ -274,6 +274,12 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	lhs1 := api.Select(bit1, u1, api.Add(u1, _v1s1))
 	rhs1 := api.Select(bit1, api.Add(_k1r, _v1s1), _k1r)
 	api.AssertIsEqual(lhs1, rhs1)
+	// Ensure denominator v1 is non-zero to prevent trivial decomposition.
+	// When s1=0 the hint legitimately returns v1=0, so we only check when s1≠0.
+	// This is safe because [0]*P = identity regardless of the hint output.
+	s1IsZero := api.IsZero(s1)
+	_v1NonZero := api.Select(s1IsZero, 1, v1)
+	api.AssertIsDifferent(_v1NonZero, 0)
 
 	// Decompose s2 into (u2, v2) such that u2 + s2*v2 ≡ 0 (mod Order)
 	h2, err := api.NewHint(rationalReconstruct, 4, s2, curve.Order)
@@ -288,6 +294,10 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	lhs2 := api.Select(bit2, u2, api.Add(u2, _v2s2))
 	rhs2 := api.Select(bit2, api.Add(_k2r, _v2s2), _k2r)
 	api.AssertIsEqual(lhs2, rhs2)
+	// Ensure denominator v2 is non-zero to prevent trivial decomposition
+	s2IsZero := api.IsZero(s2)
+	_v2NonZero := api.Select(s2IsZero, 1, v2)
+	api.AssertIsDifferent(_v2NonZero, 0)
 
 	// Apply sign to Q1 and Q2 based on decomposition
 	var _Q1, _Q2 Point
@@ -471,6 +481,13 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 			api.Mul(s2, d),
 			api.Add(n2, api.Mul(k2Over, r)),
 		)
+
+		// Ensure shared denominator d = (z + λ*t) mod r is non-zero
+		// to prevent trivial decomposition leaving R unconstrained.
+		// When both scalars are zero the hint legitimately returns d=0.
+		bothZero := api.And(api.IsZero(s1), api.IsZero(s2))
+		_dNonZero := api.Select(bothZero, 1, d)
+		api.AssertIsDifferent(_dNonZero, 0)
 	}
 
 	// Compute φ(P1), φ(P2), φ(R)
