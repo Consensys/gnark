@@ -1734,9 +1734,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		// Use unified doubleAndAdd to handle the case where P=(0,0) leads
-		// to identity entries in the table causing Acc.X == Bi.X collisions.
-		Acc = c.doubleAndAddGeneric(Acc, Bi, true)
+		// When P=(0,0) with CompleteArithmetic, table entries are identity-like
+		// causing Acc.X == Bi.X collisions, so we use unified addition.
+		// Otherwise, the bias point G prevents collisions and incomplete addition is safe.
+		Acc = c.doubleAndAddGeneric(Acc, Bi, cfg.CompleteArithmetic)
 	}
 
 	// i = 0
