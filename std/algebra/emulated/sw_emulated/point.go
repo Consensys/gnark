@@ -1600,6 +1600,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
+	// Ensure the denominator v1 + λ*v2 is non-zero to prevent trivial decomposition
+	den := c.scalarApi.Add(v1, c.scalarApi.Mul(c.eigenvalue, v2))
+	c.scalarApi.AssertIsDifferent(den, c.scalarApi.Zero())
+
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.

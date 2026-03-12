@@ -465,6 +465,10 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	g2.fr.AssertIsEqual(lhs, rhs)
 
+	// Ensure the denominator v1 + λ*v2 is non-zero to prevent trivial decomposition
+	den := g2.fr.Add(v1, g2.fr.Mul(g2.eigenvalue, v2))
+	g2.fr.AssertIsDifferent(den, g2.fr.Zero())
+
 	// Hint the scalar multiplication R = [s]Q
 	_, point, _, err := emulated.NewVarGenericHint(g2.api, 0, 4, 0, nil,
 		[]*emulated.Element[BaseField]{&Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1},

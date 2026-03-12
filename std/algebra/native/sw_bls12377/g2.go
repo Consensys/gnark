@@ -654,6 +654,10 @@ func (p *g2AffP) scalarMulGLVAndFakeGLV(api frontend.API, P g2AffP, s frontend.V
 
 	scalarApi.AssertIsEqual(lhsEmu, rhsEmu)
 
+	// Ensure the denominator v1 + λ*v2 is non-zero to prevent trivial decomposition
+	denEmu := scalarApi.Add(v1Emu, scalarApi.Mul(lambdaEmu, v2Emu))
+	scalarApi.AssertIsDifferent(denEmu, zeroEmu)
+
 	// Next we compute the hinted scalar mul Q = [s]P
 	point, err := api.NewHint(scalarMulGLVG2Hint, 4, P.X.A0, P.X.A1, P.Y.A0, P.Y.A1, s)
 	if err != nil {
