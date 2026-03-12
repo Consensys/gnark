@@ -1734,7 +1734,9 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		// Use unified doubleAndAdd to handle the case where P=(0,0) leads
+		// to identity entries in the table causing Acc.X == Bi.X collisions.
+		Acc = c.doubleAndAddGeneric(Acc, Bi, true)
 	}
 
 	// i = 0

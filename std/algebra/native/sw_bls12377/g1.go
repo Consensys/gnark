@@ -575,14 +575,17 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	Acc.AddUnified(api, H)
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+	// We use Double + AddUnified instead of DoubleAndAdd/AddAssign to handle
+	// the case Q=±R where table entries may be the identity point (0,0).
 	var B G1Affine
 	for i := nbits - 1; i > 0; i-- {
 		B.X = api.Select(api.Xor(s1bits[i], t1bits[i]), tableS[2].X, tableS[0].X)
 		B.Y = api.Lookup2(s1bits[i], t1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
-		Acc.DoubleAndAdd(api, &Acc, &B)
+		Acc.Double(api, Acc)
+		Acc.AddUnified(api, B)
 		B.X = api.Select(api.Xor(s2bits[i], t2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
 		B.Y = api.Lookup2(s2bits[i], t2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
-		Acc.AddAssign(api, B)
+		Acc.AddUnified(api, B)
 	}
 
 	// i = 0
