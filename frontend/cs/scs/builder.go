@@ -61,6 +61,7 @@ type builder[E constraint.Element] struct {
 
 	genericGate                constraint.BlueprintID
 	mulGate, addGate, boolGate constraint.BlueprintID
+	batchInverseGate           constraint.BlueprintID
 
 	// used to avoid repeated allocations
 	bufL expr.LinearExpression[E]
@@ -129,6 +130,7 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 	b.mulGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CMul[E]{})
 	b.addGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CAdd[E]{})
 	b.boolGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CBool[E]{})
+	b.batchInverseGate = b.cs.AddBlueprint(&constraint.BlueprintBatchInverse[E]{})
 
 	return b
 }

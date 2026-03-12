@@ -131,3 +131,159 @@ func TestSubConstantCircuit(t *testing.T) {
 	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	assert.NoError(err)
 }
+
+type SmallMulConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *SmallMulConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Mul(f.One(), f.One())
+	if res.overflow != 0 {
+		return fmt.Errorf("mul overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("mul should be constant")
+	}
+	f.AssertIsEqual(res, f.One())
+	return nil
+}
+
+func TestSmallMulConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&SmallMulConstantFastPathCircuit{}, test.WithValidAssignment(&SmallMulConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
+
+type SmallMulNoReduceConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *SmallMulNoReduceConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.MulNoReduce(f.NewElement(7), f.NewElement(9))
+	if res.overflow != 0 {
+		return fmt.Errorf("mulNoReduce overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("mulNoReduce should be constant")
+	}
+	f.AssertIsEqual(res, f.NewElement(63))
+	return nil
+}
+
+func TestSmallMulNoReduceConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&SmallMulNoReduceConstantFastPathCircuit{}, test.WithValidAssignment(&SmallMulNoReduceConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
+
+type DivConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *DivConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Div(f.NewElement(21), f.NewElement(3))
+	if res.overflow != 0 {
+		return fmt.Errorf("div overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("div should be constant")
+	}
+	f.AssertIsEqual(res, f.NewElement(7))
+	return nil
+}
+
+func TestDivConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&DivConstantFastPathCircuit{}, test.WithValidAssignment(&DivConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
+
+type InverseConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *InverseConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Inverse(f.NewElement(7))
+	if res.overflow != 0 {
+		return fmt.Errorf("inverse overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("inverse should be constant")
+	}
+	f.AssertIsEqual(f.Mul(res, f.NewElement(7)), f.One())
+	return nil
+}
+
+func TestInverseConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&InverseConstantFastPathCircuit{}, test.WithValidAssignment(&InverseConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
+
+type SqrtConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *SqrtConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Sqrt(f.NewElement(9))
+	if res.overflow != 0 {
+		return fmt.Errorf("sqrt overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("sqrt should be constant")
+	}
+	f.AssertIsEqual(f.Mul(res, res), f.NewElement(9))
+	return nil
+}
+
+func TestSqrtConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&SqrtConstantFastPathCircuit{}, test.WithValidAssignment(&SqrtConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
+
+type LargeMulConstantFastPathCircuit struct {
+	Dummy frontend.Variable
+}
+
+func (c *LargeMulConstantFastPathCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.Dummy, c.Dummy)
+	f, err := NewField[Secp256k1Fp](api)
+	if err != nil {
+		return err
+	}
+	res := f.Mul(f.NewElement(7), f.NewElement(9))
+	if res.overflow != 0 {
+		return fmt.Errorf("mulLarge overflow %d != 0", res.overflow)
+	}
+	if _, ok := f.constantValue(res); !ok {
+		return fmt.Errorf("mulLarge should be constant")
+	}
+	f.AssertIsEqual(res, f.NewElement(63))
+	return nil
+}
+
+func TestLargeMulConstantFastPathCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&LargeMulConstantFastPathCircuit{}, test.WithValidAssignment(&LargeMulConstantFastPathCircuit{Dummy: 1}), test.NoTestEngine())
+}
