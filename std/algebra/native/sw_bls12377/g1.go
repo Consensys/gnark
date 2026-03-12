@@ -572,7 +572,7 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// additions in the loop by forcing Acc to be different than the stored B.
 	// Since the loop size N=nbits-1 is even, [2^N]H = (0,1).
 	H := G1Affine{X: 0, Y: 1}
-	Acc.AddAssign(api, H)
+	Acc.AddUnified(api, H)
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
 	var B G1Affine
@@ -995,7 +995,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// Since the loop size N=nbits-1 is odd the result at the end should be
 	// [2^N]H = H = (0,1).
 	H := G1Affine{X: 0, Y: 1}
-	Acc.AddAssign(api, H)
+	Acc.AddUnified(api, H)
 
 	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25 (proven bound from LLL lattice reduction).
 	// We need ceil(r.BitLen()/4) + 2 bits to account for the constant factor.
