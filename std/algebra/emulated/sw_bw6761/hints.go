@@ -21,7 +21,6 @@ func GetHints() []solver.Hint {
 		finalExpHint,
 		pairingCheckHint,
 		decomposeScalarG1,
-		decomposeScalarG2,
 		scalarMulG2Hint,
 		rationalReconstructExtG2,
 	}
@@ -147,44 +146,6 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		// field and not the emulated field.
 		// 		output0 = |s0| mod r
 		// 		output1 = |s1| mod r
-		if emuOutputs[0].Sign() == -1 {
-			emuOutputs[0].Neg(emuOutputs[0])
-			nativeOutputs[0].SetUint64(1)
-		}
-		if emuOutputs[1].Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
-			nativeOutputs[1].SetUint64(1)
-		}
-
-		return nil
-	})
-}
-
-func decomposeScalarG2(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
-		moduli := hc.EmulatedModuli()
-		if len(moduli) != 1 {
-			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
-		}
-		_, nativeOutputs := hc.NativeInputsOutputs()
-		if len(nativeOutputs) != 2 {
-			return fmt.Errorf("expecting two outputs, got %d", len(nativeOutputs))
-		}
-		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
-		if len(emuInputs) != 2 {
-			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
-		}
-		if len(emuOutputs) != 2 {
-			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
-		}
-
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
-		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
-		emuOutputs[0].Set(&sp[0])
-		emuOutputs[1].Set(&sp[1])
-		nativeOutputs[0].SetUint64(0)
-		nativeOutputs[1].SetUint64(0)
 		if emuOutputs[0].Sign() == -1 {
 			emuOutputs[0].Neg(emuOutputs[0])
 			nativeOutputs[0].SetUint64(1)

@@ -1282,8 +1282,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	// Handle Q=(0,0), s=0/s=-1, and s=±1 (where R=±Q) for complete arithmetic
-	var selector1, selector2 frontend.Variable
+	// Handle Q=(0,0), s=0/s=-1, s=±1 (where R=±Q), and s=±3 (where R=±[3]Q)
+	// for complete arithmetic
+	var selector1, selector2, selector3 frontend.Variable
 	_Q := Q
 	if cfg.CompleteArithmetic {
 		// Use different dummy points for _Q and R to avoid _Q == ±R
@@ -1294,9 +1295,14 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		_Q = c.Select(selector1, dummyQ, Q)
 		// selector2: R.X == Q.X (happens when s=±1, so R=±Q and Add would fail)
 		selector2 = c.baseApi.IsZero(c.baseApi.Sub(&Q.X, r0))
-		// When s=0/s=-1 (selector0), Q=(0,0) (selector1), or R.X==Q.X (selector2),
-		// the incomplete addition formula fails. Use dummy for R in these cases.
-		selectorAny := c.api.Or(c.api.Or(selector0, selector1), selector2)
+		// selector3: R.X == [3]Q.X (happens when s=±3, so R=±[3]Q and
+		// tableQ[2]±tableR[1] would be a doubling or point-at-infinity)
+		tripleQ := c.triple(_Q)
+		selector3 = c.baseApi.IsZero(c.baseApi.Sub(&tripleQ.X, r0))
+		// When s=0/s=-1 (selector0), Q=(0,0) (selector1), R.X==Q.X (selector2),
+		// or R.X==[3]Q.X (selector3), the incomplete addition formula fails.
+		// Use dummy for R in these cases.
+		selectorAny := c.api.Or(c.api.Or(c.api.Or(selector0, selector1), selector2), selector3)
 		r0 = c.baseApi.Select(selectorAny, &dummyR.X, r0)
 		r1 = c.baseApi.Select(selectorAny, &dummyR.Y, r1)
 	}
@@ -1488,9 +1494,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if cfg.CompleteArithmetic {
 		gm := c.GeneratorMultiples()[nbits-1]
 		Acc = c.Add(Acc, c.Neg(&gm))
-		// If s=0, Q=(0,0), R.X==Q.X, or T2==-G (bias collision),
+		// If s=0, Q=(0,0), R.X==Q.X, R.X==[3]Q.X, or T2==-G (bias collision),
 		// use the precomputed [3]R as a fallback
-		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), c.api.Or(selector2, t2EqNegG))
+		selectorEdge := c.api.Or(c.api.Or(c.api.Or(selector0, selector1), c.api.Or(selector2, selector3)), t2EqNegG)
 		Acc = c.Select(selectorEdge, tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be

@@ -2193,6 +2193,38 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// 3 * P == [3]P
+	threePx, threePy := p256.ScalarMult(px, py, big.NewInt(3).Bytes()) //nolint:staticcheck // compatibility test only
+	witness5 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(3)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](threePx),
+			Y: emulated.ValueOf[emulated.P256Fp](threePy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// -3 * P == [-3]P
+	negThreePy := new(big.Int).Sub(p256.Params().P, threePy)
+	witness6 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(-3)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](threePx),
+			Y: emulated.ValueOf[emulated.P256Fp](negThreePy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
+	assert.NoError(err)
 }
 
 func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
