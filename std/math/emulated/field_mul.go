@@ -241,6 +241,16 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	if a.isStrictZero() || b.isStrictZero() {
 		return f.Zero()
 	}
+	if p == nil {
+		// fast path - constant multiplication can be folded directly without
+		// creating a hinted reduction or carrying synthetic overflow metadata.
+		if ba, aConst := f.constantValue(a); aConst {
+			if bb, bConst := f.constantValue(b); bConst {
+				ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+				return newConstElement[T](f.api.Compiler().Field(), ba, false)
+			}
+		}
+	}
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
 
@@ -773,6 +783,15 @@ func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] {
+	// fast path - constant multiplication stays constant even on the
+	// non-reducing path, so avoid growing overflow on a value the compiler can
+	// still recognize as constant.
+	if ba, aConst := f.constantValue(a); aConst {
+		if bb, bConst := f.constantValue(b); bConst {
+			ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+			return newConstElement[T](f.api.Compiler().Field(), ba, false)
+		}
+	}
 	resLimbs := make([]frontend.Variable, nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))
 	for i := range resLimbs {
 		resLimbs[i] = 0

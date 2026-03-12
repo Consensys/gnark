@@ -92,7 +92,7 @@ type System struct {
 	NbInternalVariables int
 
 	// input wires names
-	Public, Secret []string
+	Public, Secret []string //nolint:gosec // They are wire names, not secret values
 
 	// logs (added with system.Println, resolved when solver sets a value to a wire)
 	Logs []LogEntry
