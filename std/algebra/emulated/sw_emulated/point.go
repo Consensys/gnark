@@ -1247,16 +1247,12 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
-	// Handle edge cases for complete arithmetic: s=0, s=-1, Q=(0,0)
+	// Handle edge cases for complete arithmetic: s=0, Q=(0,0)
 	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
 		one := c.scalarApi.One()
-		// Check s=0 or s=-1 (both cause Q=±R which needs special handling)
-		selector0 = c.api.Or(
-			c.scalarApi.IsZero(s),
-			c.scalarApi.IsZero(c.scalarApi.Add(s, one)),
-		)
+		selector0 = c.scalarApi.IsZero(s)
 		_s = c.scalarApi.Select(selector0, one, s)
 	}
 
@@ -1492,7 +1488,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if cfg.CompleteArithmetic {
 		gm := c.GeneratorMultiples()[nbits-1]
 		Acc = c.Add(Acc, c.Neg(&gm))
-		// If s=0, s=-1, Q=(0,0), R.X==Q.X (s=±1), or T2==-G (bias collision),
+		// If s=0, Q=(0,0), R.X==Q.X, or T2==-G (bias collision),
 		// use the precomputed [3]R as a fallback
 		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), c.api.Or(selector2, t2EqNegG))
 		Acc = c.Select(selectorEdge, tableR[2], Acc)
@@ -1531,16 +1527,12 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		panic(err)
 	}
 
-	// handle 0-scalar and (-1)-scalar cases
+	// handle 0-scalar case
 	var selector0 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
 		one := c.scalarApi.One()
-		selector0 = c.api.Or(
-			c.scalarApi.IsZero(s),
-			c.scalarApi.IsZero(
-				c.scalarApi.Add(s, one)),
-		)
+		selector0 = c.scalarApi.IsZero(s)
 		_s = c.scalarApi.Select(selector0, one, s)
 	}
 
