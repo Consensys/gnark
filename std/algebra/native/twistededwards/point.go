@@ -410,13 +410,68 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	R.add(api, &Q1, &Q2, curve)
 
 	// Decompose (s1, s2) using MultiRationalReconstructExt
-	// Returns |x1|, |y1|, |x2|, |y2|, |z|, |t|, signX1, signY1, signX2, signY2, signZ, signT
-	h, err := api.NewHint(multiRationalReconstructExtHint, 12, s1, s2, curve.Order, endo.Lambda)
+	// Returns |x1|, |y1|, |x2|, |y2|, |z|, |t|, signs, and decomposition verification values
+	h, err := api.NewHint(multiRationalReconstructExtHint, 20, s1, s2, curve.Order, endo.Lambda)
 	if err != nil {
 		panic(err)
 	}
 	absX1, absY1, absX2, absY2, absZ, absT := h[0], h[1], h[2], h[3], h[4], h[5]
 	signX1, signY1, signX2, signY2, signZ, signT := h[6], h[7], h[8], h[9], h[10], h[11]
+	d, kd, n1, kn1, n2, kn2, k1Over, k2Over := h[12], h[13], h[14], h[15], h[16], h[17], h[18], h[19]
+
+	// Verify the decomposition: k_i*(z + λ*t) ≡ x_i + λ*y_i (mod r)
+	// We split this into intermediate steps to avoid native field overflow:
+	//   (a) z + λ*t ≡ d (mod r):  z_signed + λ*t_signed = d + kd*r (mod p)
+	//   (b) x_i + λ*y_i ≡ n_i (mod r): x_i_signed + λ*y_i_signed = n_i + kn_i*r (mod p)
+	//   (c) k_i*d ≡ n_i (mod r):  k_i*d = n_i + k_i_overflow*r (mod p)
+	{
+		r := curve.Order
+		lambda := endo.Lambda
+
+		// Signed values (negative = p-val in the native field)
+		zVal := api.Select(signZ, api.Sub(0, absZ), absZ)
+		tVal := api.Select(signT, api.Sub(0, absT), absT)
+		x1Val := api.Select(signX1, api.Sub(0, absX1), absX1)
+		y1Val := api.Select(signY1, api.Sub(0, absY1), absY1)
+		x2Val := api.Select(signX2, api.Sub(0, absX2), absX2)
+		y2Val := api.Select(signY2, api.Sub(0, absY2), absY2)
+
+		// Range check d, n1, n2 (must be < 2^orderBits to bound overflow)
+		orderBits := r.BitLen()
+		api.ToBinary(d, orderBits)
+		api.ToBinary(n1, orderBits)
+		api.ToBinary(n2, orderBits)
+
+		// (a) z + λ*t = d + kd*r (mod p)
+		api.AssertIsEqual(
+			api.Add(zVal, api.Mul(lambda, tVal)),
+			api.Add(d, api.Mul(kd, r)),
+		)
+
+		// (b) x1 + λ*y1 = n1 + kn1*r (mod p)
+		api.AssertIsEqual(
+			api.Add(x1Val, api.Mul(lambda, y1Val)),
+			api.Add(n1, api.Mul(kn1, r)),
+		)
+
+		// (b) x2 + λ*y2 = n2 + kn2*r (mod p)
+		api.AssertIsEqual(
+			api.Add(x2Val, api.Mul(lambda, y2Val)),
+			api.Add(n2, api.Mul(kn2, r)),
+		)
+
+		// (c) s1*d = n1 + k1Over*r (mod p), proving s1*d ≡ n1 (mod r)
+		api.AssertIsEqual(
+			api.Mul(s1, d),
+			api.Add(n1, api.Mul(k1Over, r)),
+		)
+
+		// (c) s2*d = n2 + k2Over*r (mod p), proving s2*d ≡ n2 (mod r)
+		api.AssertIsEqual(
+			api.Mul(s2, d),
+			api.Add(n2, api.Mul(k2Over, r)),
+		)
+	}
 
 	// Compute φ(P1), φ(P2), φ(R)
 	var phiP1, phiP2, phiR Point

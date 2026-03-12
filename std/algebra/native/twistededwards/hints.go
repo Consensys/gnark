@@ -213,23 +213,29 @@ func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.I
 // multiRationalReconstructExtHint decomposes two scalars k1, k2 using MultiRationalReconstructExt
 // for curves with a GLV endomorphism (Bandersnatch).
 // inputs: k1, k2, order, lambda
-// outputs: |x1|, |y1|, |x2|, |y2|, |z|, |t|, signX1, signY1, signX2, signY2, signZ, signT
+// outputs [0..11]: |x1|, |y1|, |x2|, |y2|, |z|, |t|, signX1, signY1, signX2, signY2, signZ, signT
+// outputs [12..19]: d, kd, n1, kn1, n2, kn2, k_1, k_2 (decomposition verification values)
+//
 // where k1 ≡ (x1 + λ*y1)/(z + λ*t) (mod order) and k2 ≡ (x2 + λ*y2)/(z + λ*t) (mod order)
-// The circuit verifies: [x1]P + [y1]φ(P) + [x2]Q + [y2]φ(Q) = [z]R + [t]φ(R)
+//
+// The circuit verifies:
+//  1. [x1]P + [y1]φ(P) + [x2]Q + [y2]φ(Q) = [z]R + [t]φ(R) (group equation)
+//  2. k1*(z+λt) ≡ x1+λy1 (mod r) and k2*(z+λt) ≡ x2+λy2 (mod r) (decomposition)
+//
 // where R = [k1]P + [k2]Q (hinted separately)
 func multiRationalReconstructExtHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 4 {
 		return errors.New("expecting four inputs: k1, k2, order, lambda")
 	}
-	if len(outputs) != 12 {
-		return errors.New("expecting 12 outputs")
+	if len(outputs) != 20 {
+		return errors.New("expecting 20 outputs")
 	}
 
 	k1, k2, order, lambda := inputs[0], inputs[1], inputs[2], inputs[3]
 
 	// Handle zero scalar cases
 	if k1.Sign() == 0 && k2.Sign() == 0 {
-		for i := 0; i < 12; i++ {
+		for i := 0; i < 20; i++ {
 			outputs[i].SetUint64(0)
 		}
 		return nil
@@ -264,6 +270,52 @@ func multiRationalReconstructExtHint(mod *big.Int, inputs, outputs []*big.Int) e
 	setSign(outputs[9], y2)
 	setSign(outputs[10], z)
 	setSign(outputs[11], t)
+
+	// Compute decomposition verification values.
+	// We verify k_i*(z + λ*t) ≡ x_i + λ*y_i (mod r) by splitting into:
+	//   (a) d = (z + λ*t) mod r,  kd = (z + λ*t - d) / r
+	//   (b) n_i = (x_i + λ*y_i) mod r,  kn_i = (x_i + λ*y_i - n_i) / r
+	//   (c) k_i*(z+λ*t) mod r check: k_i*d - n_i = k_i_overflow * r
+
+	// d = (z + λ*t) mod r
+	zPlusLambdaT := new(big.Int).Mul(lambda, t)
+	zPlusLambdaT.Add(zPlusLambdaT, z)
+	d := new(big.Int).Mod(zPlusLambdaT, order)
+	kd := new(big.Int).Sub(zPlusLambdaT, d)
+	kd.Div(kd, order)
+
+	// n1 = (x1 + λ*y1) mod r
+	x1PlusLambdaY1 := new(big.Int).Mul(lambda, y1)
+	x1PlusLambdaY1.Add(x1PlusLambdaY1, x1)
+	n1 := new(big.Int).Mod(x1PlusLambdaY1, order)
+	kn1 := new(big.Int).Sub(x1PlusLambdaY1, n1)
+	kn1.Div(kn1, order)
+
+	// n2 = (x2 + λ*y2) mod r
+	x2PlusLambdaY2 := new(big.Int).Mul(lambda, y2)
+	x2PlusLambdaY2.Add(x2PlusLambdaY2, x2)
+	n2 := new(big.Int).Mod(x2PlusLambdaY2, order)
+	kn2 := new(big.Int).Sub(x2PlusLambdaY2, n2)
+	kn2.Div(kn2, order)
+
+	// k_1 = (k1*d - n1) / r
+	k1d := new(big.Int).Mul(k1, d)
+	k1Overflow := new(big.Int).Sub(k1d, n1)
+	k1Overflow.Div(k1Overflow, order)
+
+	// k_2 = (k2*d - n2) / r
+	k2d := new(big.Int).Mul(k2, d)
+	k2Overflow := new(big.Int).Sub(k2d, n2)
+	k2Overflow.Div(k2Overflow, order)
+
+	outputs[12].Set(d)
+	outputs[13].Set(kd)
+	outputs[14].Set(n1)
+	outputs[15].Set(kn1)
+	outputs[16].Set(n2)
+	outputs[17].Set(kn2)
+	outputs[18].Set(k1Overflow)
+	outputs[19].Set(k2Overflow)
 
 	return nil
 }

@@ -479,16 +479,28 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// tContribZero = t=0 OR R=(0,0)
 	sContribZero := api.Or(sIsZero, QIsZero)
 	tContribZero := api.Or(tIsZero, RIsZero)
-	anyEdgeCase := api.Or(sContribZero, tContribZero)
-
 	// when s contribution is zero, set s=1 to avoid issues with scalar decomposition
 	_s := api.Select(sContribZero, 1, s)
 	// when t contribution is zero, set t=1 to avoid issues with scalar decomposition
 	_t := api.Select(tContribZero, 1, t)
 
-	// Dummy points for edge cases - must be different to avoid table construction issues
-	dummyQ := G1Affine{X: 1, Y: 1}
-	dummyR := G1Affine{X: 2, Y: 1}
+	// Use on-curve generator points as dummies for soundness.
+	// Off-curve dummies would make the loop produce garbage for edge cases,
+	// preventing verification of the hint result.
+	// With on-curve dummies, the loop computes a valid (but shifted) result
+	// that we can adjust for at the end.
+	_, _, g1aff, _ := bls12377.Generators()
+	var g1Triple bls12377.G1Affine
+	g1Triple.Double(&g1aff)
+	g1Triple.Add(&g1Triple, &g1aff)
+	dummyQ := G1Affine{
+		X: g1aff.X.BigInt(new(big.Int)),
+		Y: g1aff.Y.BigInt(new(big.Int)),
+	}
+	dummyR := G1Affine{
+		X: g1Triple.X.BigInt(new(big.Int)),
+		Y: g1Triple.Y.BigInt(new(big.Int)),
+	}
 
 	// when Q contribution is zero, assign dummyQ
 	_Q := Q
@@ -588,15 +600,28 @@ func (p *G1Affine) jointScalarMulComplete(api frontend.API, Q, R G1Affine, s, t 
 	// subtract [2^N]H = (0,1) since we added H at the beginning
 	Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 
-	// Acc now equals [_s]*_Q + [_t]*_R
-	// For the common case (no edge cases), this equals the hinted result
-	// For edge cases, we skip verification and trust the hint
-	// The hint correctly computes edge cases, and the edge case conditions
-	// (s=0, t=0, Q=0, R=0) are verified through IsZero checks above
+	// Acc now equals [_s]*_Q + [_t]*_R where:
+	// - Common case:     _s=s, _Q=Q, _t=t, _R=R      => Acc = [s]*Q + [t]*R = result
+	// - sContribZero:    _s=1, _Q=dummyQ, _t=t, _R=R  => Acc = dummyQ + [t]*R
+	// - tContribZero:    _s=s, _Q=Q, _t=1, _R=dummyR  => Acc = [s]*Q + dummyR
+	// - Both zero:       _s=1, _Q=dummyQ, _t=1, _R=dummyR => Acc = dummyQ + dummyR
+	//
+	// For edge cases, subtract the dummy contributions to recover the true result.
+	// AddUnified handles (0,0) as identity, so when the adjustment is (0,0) it's a no-op.
+	var negDummyQ, negDummyR G1Affine
+	negDummyQ.Neg(api, dummyQ)
+	negDummyR.Neg(api, dummyR)
 
-	// Only verify for the common case (no edge cases)
-	// For edge cases, select Acc = result to make the assertion pass
-	Acc.Select(api, anyEdgeCase, result, Acc)
+	var adjQ G1Affine
+	adjQ.X = api.Select(sContribZero, negDummyQ.X, 0)
+	adjQ.Y = api.Select(sContribZero, negDummyQ.Y, 0)
+	Acc.AddUnified(api, adjQ)
+
+	var adjR G1Affine
+	adjR.X = api.Select(tContribZero, negDummyR.X, 0)
+	adjR.Y = api.Select(tContribZero, negDummyR.Y, 0)
+	Acc.AddUnified(api, adjR)
+
 	Acc.AssertIsEqual(api, result)
 
 	p.X = result.X

@@ -541,19 +541,6 @@ func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
 	return g2.api.And(xEqual, yEqual)
 }
 
-// scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
-// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
-//
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
-// (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the [EVM].
-//
-// It computes the right-to-left variable-base double-and-add algorithm ([Joye07], Alg.1).
-//
-// Since we use incomplete formulas for the addition law, we need to start with
-// a non-zero accumulator point (R0). To do this, we skip the LSB (bit at
-// position 0) and proceed assuming it was 1. At the end, we conditionally
-// subtract the initial value (p) if LSB is 1. We also handle the bits at
 // ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements the GLV+fakeGLV optimization from [EEMP25] which achieves r^(1/4) bounds
 // on the sub-scalars, reducing the number of iterations in the scalar multiplication loop.

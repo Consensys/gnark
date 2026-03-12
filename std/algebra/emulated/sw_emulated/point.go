@@ -1336,9 +1336,14 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// T2 = Q + R (without bias, used in table construction)
 	T2 := c.Add(tableQ[1], tableR[1])
 	Acc := T2
+	var t2EqNegG frontend.Variable
 	if cfg.CompleteArithmetic {
 		g := c.Generator()
-		Acc = c.Add(Acc, g)
+		// Guard: if T2 == -G (i.e. T2.X == G.X), the incomplete Add would fail.
+		// In that case, replace T2 with a safe dummy before adding G.
+		t2EqNegG = c.baseApi.IsZero(c.baseApi.Sub(&T2.X, &g.X))
+		safeT2 := c.Select(t2EqNegG, &c.GeneratorMultiples()[1], T2)
+		Acc = c.Add(safeT2, g)
 	}
 
 	// At each iteration we need to compute:
@@ -1487,8 +1492,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if cfg.CompleteArithmetic {
 		gm := c.GeneratorMultiples()[nbits-1]
 		Acc = c.Add(Acc, c.Neg(&gm))
-		// If s=0, s=-1, Q=(0,0), or R.X==Q.X (s=±1), use the precomputed [3]R as a fallback
-		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), selector2)
+		// If s=0, s=-1, Q=(0,0), R.X==Q.X (s=±1), or T2==-G (bias collision),
+		// use the precomputed [3]R as a fallback
+		selectorEdge := c.api.Or(c.api.Or(selector0, selector1), c.api.Or(selector2, t2EqNegG))
 		Acc = c.Select(selectorEdge, tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
