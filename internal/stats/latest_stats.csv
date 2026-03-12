@@ -79,10 +79,10 @@ math/bits.ToTernary/unconstrained,bn254,plonk,161,321
 math/bits.ToTernary/unconstrained,bls12_377,plonk,160,319
 math/bits.ToTernary/unconstrained,bls12_381,plonk,161,321
 math/bits.ToTernary/unconstrained,bw6_761,plonk,238,475
-math/emulated/secp256k1_64,bn254,groth16,1037,1890
-math/emulated/secp256k1_64,bls12_377,groth16,1037,1890
-math/emulated/secp256k1_64,bls12_381,groth16,1037,1890
-math/emulated/secp256k1_64,bw6_761,groth16,1037,1890
+math/emulated/secp256k1_64,bn254,groth16,1036,1889
+math/emulated/secp256k1_64,bls12_377,groth16,1036,1889
+math/emulated/secp256k1_64,bls12_381,groth16,1036,1889
+math/emulated/secp256k1_64,bw6_761,groth16,1036,1889
 math/emulated/secp256k1_64,bn254,plonk,4025,3923
 math/emulated/secp256k1_64,bls12_377,plonk,4025,3923
 math/emulated/secp256k1_64,bls12_381,plonk,4025,3923
@@ -95,7 +95,7 @@ pairing_bls12377,bn254,plonk,0,0
 pairing_bls12377,bls12_377,plonk,0,0
 pairing_bls12377,bls12_381,plonk,0,0
 pairing_bls12377,bw6_761,plonk,48130,48130
-pairing_bls12381,bn254,groth16,757425,1242848
+pairing_bls12381,bn254,groth16,756837,1242260
 pairing_bls12381,bls12_377,groth16,0,0
 pairing_bls12381,bls12_381,groth16,0,0
 pairing_bls12381,bw6_761,groth16,0,0
@@ -103,7 +103,7 @@ pairing_bls12381,bn254,plonk,2529578,2413653
 pairing_bls12381,bls12_377,plonk,0,0
 pairing_bls12381,bls12_381,plonk,0,0
 pairing_bls12381,bw6_761,plonk,0,0
-pairing_bn254,bn254,groth16,506450,824359
+pairing_bn254,bn254,groth16,506052,823961
 pairing_bn254,bls12_377,groth16,0,0
 pairing_bn254,bls12_381,groth16,0,0
 pairing_bn254,bw6_761,groth16,0,0
@@ -111,7 +111,7 @@ pairing_bn254,bn254,plonk,1646819,1573151
 pairing_bn254,bls12_377,plonk,0,0
 pairing_bn254,bls12_381,plonk,0,0
 pairing_bn254,bw6_761,plonk,0,0
-pairing_bw6761,bn254,groth16,1590695,2647931
+pairing_bw6761,bn254,groth16,1589471,2646707
 pairing_bw6761,bls12_377,groth16,0,0
 pairing_bw6761,bls12_381,groth16,0,0
 pairing_bw6761,bw6_761,groth16,0,0
@@ -119,7 +119,7 @@ pairing_bw6761,bn254,plonk,5318762,5097941
 pairing_bw6761,bls12_377,plonk,0,0
 pairing_bw6761,bls12_381,plonk,0,0
 pairing_bw6761,bw6_761,plonk,0,0
-scalar_mul_G1_bn254,bn254,groth16,51589,81915
+scalar_mul_G1_bn254,bn254,groth16,51547,81873
 scalar_mul_G1_bn254,bls12_377,groth16,0,0
 scalar_mul_G1_bn254,bls12_381,groth16,0,0
 scalar_mul_G1_bn254,bw6_761,groth16,0,0
@@ -127,7 +127,7 @@ scalar_mul_G1_bn254,bn254,plonk,185870,179273
 scalar_mul_G1_bn254,bls12_377,plonk,0,0
 scalar_mul_G1_bn254,bls12_381,plonk,0,0
 scalar_mul_G1_bn254,bw6_761,plonk,0,0
-scalar_mul_P256,bn254,groth16,75608,121864
+scalar_mul_P256,bn254,groth16,75542,121798
 scalar_mul_P256,bls12_377,groth16,0,0
 scalar_mul_P256,bls12_381,groth16,0,0
 scalar_mul_P256,bw6_761,groth16,0,0
@@ -135,7 +135,7 @@ scalar_mul_P256,bn254,plonk,263160,253523
 scalar_mul_P256,bls12_377,plonk,0,0
 scalar_mul_P256,bls12_381,plonk,0,0
 scalar_mul_P256,bw6_761,plonk,0,0
-scalar_mul_secp256k1,bn254,groth16,51629,81983
+scalar_mul_secp256k1,bn254,groth16,51587,81941
 scalar_mul_secp256k1,bls12_377,groth16,0,0
 scalar_mul_secp256k1,bls12_381,groth16,0,0
 scalar_mul_secp256k1,bw6_761,groth16,0,0

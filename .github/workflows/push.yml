@@ -12,18 +12,20 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: 1.25.x
+  ABIGEN_VERSION: v1.14.8
+  GO_VERSION: 1.25.x # NB! when updating also update matrix, we cannot refer to env variables in the matrix
+  GOLANGCI_LINT_VERSION: v2.10.1
 
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2 # nonpinned - official GH action
         with:
           fetch-depth: 0
       - name: install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v6.2.0 # nonpinned - official GH action
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -45,9 +47,9 @@ jobs:
           fi
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 #v9.2.0 pinned
         with:
-          version: v2.8.0
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: -v --timeout=5m
 
   test:
@@ -74,7 +76,7 @@ jobs:
           cache: true
       - name: install deps
         run: |
-          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.8
+          go install github.com/ethereum/go-ethereum/cmd/abigen@${{ env.ABIGEN_VERSION }}
       - name: install solc deps
         if: startsWith(matrix.os, 'gha-runner-scale-set-ubuntu') == true
         run: |

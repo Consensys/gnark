@@ -151,18 +151,21 @@ func (s *blueprintSolver[E]) Mul(a, b E) E {
 
 	return s.montBigIntToElement(m)
 }
+
 func (s *blueprintSolver[E]) Add(a, b E) E {
 	// Addition works the same in Montgomery form: (a·R + b·R) mod m = (a+b)·R mod m
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Add(ba, bb).Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
+
 func (s *blueprintSolver[E]) Sub(a, b E) E {
 	// Subtraction works the same in Montgomery form: (a·R - b·R) mod m = (a-b)·R mod m
 	ba, bb := s.toMontBigInt(a), s.toMontBigInt(b)
 	ba.Sub(ba, bb).Mod(ba, s.modulus.q)
 	return s.montBigIntToElement(ba)
 }
+
 func (s *blueprintSolver[E]) Neg(a E) E {
 	var zero E
 	if a == zero {
@@ -172,17 +175,20 @@ func (s *blueprintSolver[E]) Neg(a E) E {
 	ba.Sub(s.modulus.q, ba)
 	return s.montBigIntToElement(ba)
 }
+
 func (s *blueprintSolver[E]) Inverse(a E) (E, bool) {
-	r := s.toMontBigInt(a)
-	r = r.ModInverse(r, s.modulus.q)
-	if r == nil {
-		var zero E
+	var zero E
+	if a == zero {
 		return zero, false
 	}
+	// a is non-zero, so toMontBigInt(a) != 0 mod q (q prime), ModInverse always succeeds.
+	r := s.toMontBigInt(a)
+	r.ModInverse(r, s.modulus.q)
 	r.Lsh(r, s.modulus.logR).
 		Mod(r, s.modulus.q)
 	return s.bigIntToElement(r), true
 }
+
 func (s *blueprintSolver[E]) One() E {
 	b := new(big.Int).SetUint64(1)
 	return s.bigIntToElement(b)

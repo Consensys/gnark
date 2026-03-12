@@ -15,7 +15,9 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	bw6_fp "github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
-	secp_fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	secp256k1_fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	"github.com/consensys/gnark-crypto/ecc/secp256r1"
+	secp256r1_fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	stark_fp "github.com/consensys/gnark-crypto/ecc/stark-curve/fp"
 	"github.com/consensys/gnark/constraint/solver"
@@ -97,16 +99,18 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 		Px := baseInputs[0]
 		Py := baseInputs[1]
 		S := scalarInputs[0]
-		if baseModulus.Cmp(elliptic.P256().Params().P) == 0 {
-			curve := elliptic.P256()
+		if baseModulus.Cmp(secp256r1_fp.Modulus()) == 0 {
 			// compute the resulting point [s]P
-			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
-			baseOutputs[0].Set(Qx)
-			baseOutputs[1].Set(Qy)
+			var P secp256r1.G1Affine
+			P.X.SetBigInt(Px)
+			P.Y.SetBigInt(Py)
+			P.ScalarMultiplication(&P, S)
+			P.X.BigInt(baseOutputs[0])
+			P.Y.BigInt(baseOutputs[1])
 		} else if baseModulus.Cmp(elliptic.P384().Params().P) == 0 {
 			curve := elliptic.P384()
 			// compute the resulting point [s]P
-			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes())
+			Qx, Qy := curve.ScalarMult(Px, Py, S.Bytes()) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			baseOutputs[0].Set(Qx)
 			baseOutputs[1].Set(Qy)
 		} else if baseModulus.Cmp(stark_fp.Modulus()) == 0 {
@@ -133,7 +137,7 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 			P.ScalarMultiplication(&P, S)
 			P.X.BigInt(baseOutputs[0])
 			P.Y.BigInt(baseOutputs[1])
-		} else if baseModulus.Cmp(secp_fp.Modulus()) == 0 {
+		} else if baseModulus.Cmp(secp256k1_fp.Modulus()) == 0 {
 			// compute the resulting point [s]Q
 			var P secp256k1.G1Affine
 			P.X.SetBigInt(Px)

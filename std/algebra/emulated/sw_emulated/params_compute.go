@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
+	"github.com/consensys/gnark-crypto/ecc/secp256r1"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 )
 
@@ -90,22 +91,26 @@ func computeBLS12381Table() [][2]*big.Int {
 }
 
 func computeP256Table() [][2]*big.Int {
+	Gjac, _ := secp256r1.Generators()
 	table := make([][2]*big.Int, 256)
-	p256 := elliptic.P256()
-	gx, gy := p256.Params().Gx, p256.Params().Gy
-	tmpx, tmpy := new(big.Int).Set(gx), new(big.Int).Set(gy)
+	tmp := new(secp256r1.G1Jac).Set(&Gjac)
+	aff := new(secp256r1.G1Affine)
+	jac := new(secp256r1.G1Jac)
 	for i := 1; i < 256; i++ {
-		tmpx, tmpy = p256.Double(tmpx, tmpy)
+		tmp = tmp.Double(tmp)
 		switch i {
 		case 1, 2:
-			xx, yy := p256.Add(tmpx, tmpy, gx, gy)
-			table[i-1] = [2]*big.Int{xx, yy}
+			jac.Set(tmp).AddAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
 		case 3:
-			xx, yy := p256.Add(tmpx, tmpy, gx, new(big.Int).Sub(p256.Params().P, gy))
-			table[i-1] = [2]*big.Int{xx, yy}
+			jac.Set(tmp).SubAssign(&Gjac)
+			aff.FromJacobian(jac)
+			table[i-1] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
 			fallthrough
 		default:
-			table[i] = [2]*big.Int{tmpx, tmpy}
+			aff.FromJacobian(tmp)
+			table[i] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
 		}
 	}
 	return table
@@ -117,13 +122,13 @@ func computeP384Table() [][2]*big.Int {
 	gx, gy := p384.Params().Gx, p384.Params().Gy
 	tmpx, tmpy := new(big.Int).Set(gx), new(big.Int).Set(gy)
 	for i := 1; i < 384; i++ {
-		tmpx, tmpy = p384.Double(tmpx, tmpy)
+		tmpx, tmpy = p384.Double(tmpx, tmpy) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 		switch i {
 		case 1, 2:
-			xx, yy := p384.Add(tmpx, tmpy, gx, gy)
+			xx, yy := p384.Add(tmpx, tmpy, gx, gy) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			table[i-1] = [2]*big.Int{xx, yy}
 		case 3:
-			xx, yy := p384.Add(tmpx, tmpy, gx, new(big.Int).Sub(p384.Params().P, gy))
+			xx, yy := p384.Add(tmpx, tmpy, gx, new(big.Int).Sub(p384.Params().P, gy)) //nolint:staticcheck // we don't have counterpart in gnark-crypto, and crypto/ecdh doesn't suffice
 			table[i-1] = [2]*big.Int{xx, yy}
 			fallthrough
 		default:
