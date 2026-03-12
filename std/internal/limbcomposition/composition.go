@@ -3,7 +3,16 @@ package limbs
 import (
 	"errors"
 	"math/big"
+	"sync"
 )
+
+var bigIntPool = sync.Pool{
+	New: func() any {
+		return new(big.Int)
+	},
+}
+
+var one = big.NewInt(1)
 
 // Recompose takes the limbs in inputs and combines them into res. It errors if
 // inputs is uninitialized or zero-length and if the result is uninitialized.
@@ -41,10 +50,15 @@ func Decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 			return errors.New("result slice element uninitialized")
 		}
 	}
-	base := new(big.Int).Lsh(big.NewInt(1), nbBits)
-	tmp := new(big.Int).Set(input)
+	base := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(base)
+	base.Lsh(one, nbBits)
+	base.Sub(base, one)
+	tmp := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(tmp)
+	tmp.Set(input)
 	for i := 0; i < len(res); i++ {
-		res[i].Mod(tmp, base)
+		res[i].And(tmp, base)
 		tmp.Rsh(tmp, nbBits)
 	}
 	return nil

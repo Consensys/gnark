@@ -395,6 +395,9 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(BlueprintSparseR1CBool[U64]{}))
 	addType(reflect.TypeOf(BlueprintLookupHint[U64]{}))
 
+	addType(reflect.TypeOf(BlueprintBatchInverse[U32]{}))
+	addType(reflect.TypeOf(BlueprintBatchInverse[U64]{}))
+
 	// Add types registered by external packages (e.g., GKR blueprints)
 	// These use explicit tag numbers to ensure stability regardless of init() order
 	for _, rt := range registeredBlueprintTypes {

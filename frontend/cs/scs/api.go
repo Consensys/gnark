@@ -214,6 +214,68 @@ func (builder *builder[E]) Inverse(i1 frontend.Variable) frontend.Variable {
 	return res
 }
 
+// BatchInvert implements [frontend.BatchInverter]. It computes the modular
+// inverse of each element in i1 using a single BlueprintBatchInverse instruction
+// (one field inversion + O(n) multiplications) followed by n cheap verification
+// constraints.
+func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variable {
+	n := len(i1)
+	if n == 0 {
+		return nil
+	}
+
+	res := make([]frontend.Variable, n)
+
+	// Separate constants (computed inline) from variable inputs (handled by blueprint).
+	type varEntry struct {
+		outputIdx int
+		inTerm    expr.Term[E]
+	}
+	varEntries := make([]varEntry, 0, n)
+	for j, v := range i1 {
+		if c, ok := builder.constantValue(v); ok {
+			if c.IsZero() {
+				panic("BatchInvert: cannot invert zero")
+			}
+			c, _ = builder.cs.Inverse(c)
+			res[j] = builder.cs.ToBigInt(c)
+			continue
+		}
+		varEntries = append(varEntries, varEntry{outputIdx: j, inTerm: v.(expr.Term[E])})
+	}
+
+	if len(varEntries) == 0 {
+		return res
+	}
+
+	// Build calldata with LE encoding per input (single-term in SCS):
+	// [totalSize, nVars, 1, coeffID_0, wireID_0, 1, coeffID_1, wireID_1, ...]
+	nVars := len(varEntries)
+	calldata := make([]uint32, 2, 2+3*nVars)
+	calldata[0] = 0 // placeholder for totalSize
+	calldata[1] = uint32(nVars)
+	for _, e := range varEntries {
+		calldata = append(calldata, 1, builder.cs.AddCoeff(e.inTerm.Coeff), uint32(e.inTerm.VID))
+	}
+	calldata[0] = uint32(len(calldata))
+
+	outputWires := builder.cs.AddInstruction(builder.batchInverseGate, calldata)
+
+	// For each variable input add a verification constraint: outWire * inTerm - 1 == 0
+	for k, e := range varEntries {
+		outTerm := expr.NewTerm(int(outputWires[k]), builder.tOne)
+		builder.addPlonkConstraint(sparseR1C[E]{
+			xa: outTerm.VID,
+			xb: e.inTerm.VID,
+			qM: e.inTerm.Coeff,
+			qC: builder.tMinusOne,
+		})
+		res[e.outputIdx] = outTerm
+	}
+
+	return res
+}
+
 // ---------------------------------------------------------------------------------------------
 // Bit operations
 

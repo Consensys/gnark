@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/bits"
 	"slices"
+	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
@@ -14,6 +15,13 @@ import (
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/multicommit"
 )
+
+// bigIntPool for using in hints to avoid excessive allocations
+var bigIntPool = sync.Pool{
+	New: func() any {
+		return new(big.Int)
+	},
+}
 
 // deferredChecker is an interface for deferring a check in non-native
 // arithmetic. The idea of the deferred check is that we do not compute the
@@ -574,9 +582,14 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	outptr += nbLimbs
 	carryLimbs := outputs[outptr : outptr+nbCarryLen]
 
-	p := new(big.Int)
-	a := new(big.Int)
-	b := new(big.Int)
+	var (
+		p = bigIntPool.Get().(*big.Int)
+		a = bigIntPool.Get().(*big.Int)
+		b = bigIntPool.Get().(*big.Int)
+	)
+	defer bigIntPool.Put(p)
+	defer bigIntPool.Put(a)
+	defer bigIntPool.Put(b)
 	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
 		return fmt.Errorf("recompose p: %w", err)
 	}
@@ -586,10 +599,16 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if err := limbs.Recompose(blimbs, uint(nbBits), b); err != nil {
 		return fmt.Errorf("recompose b: %w", err)
 	}
-	quo := new(big.Int)
-	rem := new(big.Int)
-	ab := new(big.Int).Mul(a, b)
-	if p.Cmp(new(big.Int)) != 0 {
+	quo := bigIntPool.Get().(*big.Int)
+	rem := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(quo)
+	defer bigIntPool.Put(rem)
+	quo.SetInt64(0)
+	rem.SetInt64(0)
+	ab := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(ab)
+	ab.Mul(a, b)
+	if p.Sign() != 0 {
 		quo.QuoRem(ab, p, rem)
 	}
 	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
@@ -608,10 +627,15 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 		if i < len(rhs) {
 			rhs[i].Add(rhs[i], remLimbs[i])
 		} else {
-			rhs = append(rhs, new(big.Int).Set(remLimbs[i]))
+			remLimb := bigIntPool.Get().(*big.Int)
+			defer bigIntPool.Put(remLimb)
+			remLimb.Set(remLimbs[i])
+			rhs = append(rhs, remLimb)
 		}
 	}
-	carry := new(big.Int)
+	carry := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(carry)
+	carry.SetInt64(0)
 	for i := range carryLimbs {
 		if i < len(lhs) {
 			carry.Add(carry, lhs[i])
@@ -620,7 +644,7 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 			carry.Sub(carry, rhs[i])
 		}
 		carry.Rsh(carry, uint(nbBits))
-		carryLimbs[i] = new(big.Int).Set(carry)
+		carryLimbs[i].Set(carry)
 	}
 	return nil
 }
@@ -1272,7 +1296,8 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	// read the modulus
 	plimbs := inputs[ptr : ptr+nbLimbs]
 	ptr += nbLimbs
-	p := new(big.Int)
+	p := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(p)
 	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
 		return fmt.Errorf("recompose p: %w", err)
 	}
@@ -1292,16 +1317,21 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	// recompose the inputs in limb-form to *big.Int form
 	vars := make([]*big.Int, nbVars)
 	for i := range vars {
-		vars[i] = new(big.Int)
+		vars[i] = bigIntPool.Get().(*big.Int)
+		defer bigIntPool.Put(vars[i]) // recall defer is function level, not scope level
 		if err := limbs.Recompose(varsLimbs[i], uint(nbBits), vars[i]); err != nil {
 			return fmt.Errorf("recompose vars[%d]: %w", i, err)
 		}
 	}
 
 	// compute the result on full inputs
-	fullLhs := new(big.Int)
+	fullLhs := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(fullLhs)
+	fullLhs.SetInt64(0)
+	termRes := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(termRes)
 	for i, term := range terms {
-		termRes := new(big.Int).Set(coeffs[i])
+		termRes.Set(coeffs[i])
 		for i, pow := range term {
 			for j := 0; j < pow; j++ {
 				termRes.Mul(termRes, vars[i])
@@ -1316,10 +1346,14 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 
 	// compute the result as r + k*p using Euclidean division (r >= 0)
 	var (
-		quo = new(big.Int)
-		rem = new(big.Int)
+		quo = bigIntPool.Get().(*big.Int)
+		rem = bigIntPool.Get().(*big.Int)
 	)
-	if p.Cmp(new(big.Int)) != 0 {
+	defer bigIntPool.Put(rem)
+	defer bigIntPool.Put(quo)
+	quo.SetInt64(0)
+	rem.SetInt64(0)
+	if p.Sign() != 0 {
 		quo.DivMod(fullLhs, p, rem)
 	}
 	// if quotient is negative, output |k| and set kNeg = 1
@@ -1338,7 +1372,8 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	}
 
 	// compute the result on limbs
-	tmp := new(big.Int)
+	tmp := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(tmp)
 	var lhs []*big.Int
 	for i, term := range terms {
 		// collect the variables to be multiplied together
@@ -1351,14 +1386,19 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(termVarLimbs) == 0 {
 			continue
 		}
-		termRes := []*big.Int{new(big.Int).Set(coeffs[i])}
+		termRes := []*big.Int{bigIntPool.Get().(*big.Int).Set(coeffs[i])}
+		defer bigIntPool.Put(termRes[0])
 		// perform limbwise multiplication
 		for _, toMul := range termVarLimbs {
 			termRes = limbMul(termRes, toMul)
 		}
-		// add or subtract current term based on sign mask
+		// add current term to the result. Increase the length of necessary when
+		// required.
 		for j := len(lhs); j < len(termRes); j++ {
-			lhs = append(lhs, new(big.Int))
+			sfx := bigIntPool.Get().(*big.Int)
+			defer bigIntPool.Put(sfx)
+			sfx.SetInt64(0)
+			lhs = append(lhs, sfx)
 		}
 		if signs[i] != 0 {
 			for j := range termRes {
@@ -1374,7 +1414,9 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	// compute k*p on limbs
 	kpLimbs := make([]*big.Int, max(1, nbMultiplicationResLimbs(nbQuoLimbs, nbLimbs)))
 	for i := range kpLimbs {
-		kpLimbs[i] = new(big.Int)
+		kpLimbs[i] = bigIntPool.Get().(*big.Int)
+		defer bigIntPool.Put(kpLimbs[i])
+		kpLimbs[i].SetInt64(0)
 	}
 	for i := 0; i < nbLimbs; i++ {
 		for j := 0; j < nbQuoLimbs; j++ {
@@ -1383,8 +1425,10 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		}
 	}
 
-	// compute the carries: lhs[i] - rem[i] ∓ kp[i]
-	carry := new(big.Int)
+	// compute the carries
+	carry := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(carry)
+	carry.SetInt64(0)
 	for i := range carryLimbs {
 		if i < len(lhs) {
 			carry.Add(carry, lhs[i])
@@ -1400,7 +1444,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 			}
 		}
 		carry.Rsh(carry, uint(nbBits))
-		carryLimbs[i] = new(big.Int).Set(carry)
+		carryLimbs[i].Set(carry)
 	}
 
 	return nil
