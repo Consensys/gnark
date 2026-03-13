@@ -1,22 +1,29 @@
 package constraint
 
 type (
-	// GkrClaimGroup represents a set of wires with their claim sources.
-	// It is agnostic of the protocol - it only describes which wires have claims
-	// from which sources, not what to do with them.
-	//
-	// ClaimSources contains step indices that produced evaluation claims for these wires.
-	// The special value len(schedule) is a virtual step index representing the verifier's
-	// initial challenge (rho). It is never an actual index into the schedule slice.
-	GkrClaimGroup struct {
-		Wires        []int `json:"wires"`
-		ClaimSources []int `json:"claimSourcesCache"` // step indices; len(schedule) = initial challenge
+	// GkrClaimSource identifies an incoming evaluation claim for a wire.
+	// Level is the level that produced the claim.
+	// OutgoingClaimIndex selects which of that level's outgoing evaluation points is referenced;
+	// always 0 for SumcheckLevels, 0..M-1 for SkipLevels with M inherited evaluation points.
+	// The initial verifier challenge is represented as {Level: len(schedule), OutgoingClaimIndex: 0}.
+	GkrClaimSource struct {
+		Level              int `json:"level"`
+		OutgoingClaimIndex int `json:"outgoingClaimIndex"`
 	}
 
-	// GkrProvingLevel is a sealed interface for a single level in the proving schedule.
-	// A level is either a GkrSkipLevel or a GkrSumcheckLevel.
+	// GkrClaimGroup represents a set of wires sharing identical claim sources.
+	// finalEvalProof index = pos(wire, srcLevel) * NbOutgoingEvalPoints(srcLevel) + ClaimSources[claimI].OutgoingClaimIndex,
+	// where pos(wire, srcLevel) is the wire's position in srcLevel's UniqueGateInputs list.
+	GkrClaimGroup struct {
+		Wires        []int            `json:"wires"`
+		ClaimSources []GkrClaimSource `json:"claimSources"`
+	}
+
+	// GkrProvingLevel is a single level in the proving schedule.
 	GkrProvingLevel interface {
-		gkrProvingLevel() // marker method restricting implementations to GkrSkipLevel and GkrSumcheckLevel
+		NbOutgoingEvalPoints() int
+		NbClaims() int
+		ClaimGroups() []GkrClaimGroup
 	}
 
 	// GkrSkipLevel represents a level where zerocheck is skipped.
@@ -33,5 +40,20 @@ type (
 	GkrProvingSchedule []GkrProvingLevel
 )
 
-func (GkrSumcheckLevel) gkrProvingLevel() {}
-func (GkrSkipLevel) gkrProvingLevel()     {}
+func (g GkrClaimGroup) NbClaims() int { return len(g.Wires) * len(g.ClaimSources) }
+
+func (l GkrSumcheckLevel) NbOutgoingEvalPoints() int { return 1 }
+func (l GkrSumcheckLevel) NbClaims() int {
+	n := 0
+	for _, g := range l {
+		n += len(g.Wires) * len(g.ClaimSources)
+	}
+	return n
+}
+func (l GkrSumcheckLevel) ClaimGroups() []GkrClaimGroup { return l }
+
+func (l GkrSkipLevel) NbOutgoingEvalPoints() int { return len(l.ClaimSources) }
+func (l GkrSkipLevel) NbClaims() int {
+	return GkrClaimGroup(l).NbClaims()
+}
+func (l GkrSkipLevel) ClaimGroups() []GkrClaimGroup { return []GkrClaimGroup{GkrClaimGroup(l)} }

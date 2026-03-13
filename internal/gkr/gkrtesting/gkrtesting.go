@@ -3,6 +3,7 @@ package gkrtesting
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -164,18 +165,18 @@ type TestCaseInfo struct {
 	Schedule ScheduleInfo    `json:"schedule,omitempty"`
 }
 
-// ScheduleStepInfo is the JSON representation of a ProvingLevel with a type discriminator.
+// ScheduleStepInfo is the JSON representation of a single proving level.
+// Type is "sumcheck" or "skip".
 type ScheduleStepInfo struct {
-	Type   string                     `json:"type"`
-	Groups []constraint.GkrClaimGroup `json:"groups,omitempty"`       // for SumcheckLevel
-	Wires  []int                      `json:"wires,omitempty"`        // for SkipLevel
-	Claims []int                      `json:"claimSources,omitempty"` // for SkipLevel
+	Type        string                     `json:"type"`
+	ClaimGroups []constraint.GkrClaimGroup `json:"claimGroups,omitempty"` // for "sumcheck"
+	ClaimGroup  *constraint.GkrClaimGroup  `json:"claimGroup,omitempty"`  // for "skip"
 }
 
 // ScheduleInfo is the JSON-serializable form of a ProvingSchedule.
 type ScheduleInfo []ScheduleStepInfo
 
-// ToProvingSchedule converts a ScheduleInfo to a gkrcore.ProvingSchedule.
+// ToProvingSchedule converts a ScheduleInfo to a constraint.GkrProvingSchedule.
 // A nil ScheduleInfo returns nil, which callers should interpret as DefaultProvingSchedule.
 func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error) {
 	if p == nil {
@@ -185,13 +186,16 @@ func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error)
 	for i, step := range p {
 		switch step.Type {
 		case "sumcheck":
-			groups := step.Groups
+			groups := step.ClaimGroups
 			if groups == nil {
 				groups = []constraint.GkrClaimGroup{}
 			}
 			s[i] = constraint.GkrSumcheckLevel(groups)
 		case "skip":
-			s[i] = constraint.GkrSkipLevel{Wires: step.Wires, ClaimSources: step.Claims}
+			if step.ClaimGroup == nil {
+				return nil, fmt.Errorf("level %d: type=skip but claimGroup is absent", i)
+			}
+			s[i] = constraint.GkrSkipLevel(*step.ClaimGroup)
 		default:
 			return nil, errors.New("unknown ProvingLevel type: " + step.Type)
 		}
