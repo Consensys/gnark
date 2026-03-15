@@ -150,6 +150,8 @@ func (c *SmallMulConstantFastPathCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("mul should be constant")
 	}
 	f.AssertIsEqual(res, f.One())
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
@@ -176,6 +178,8 @@ func (c *SmallMulNoReduceConstantFastPathCircuit) Define(api frontend.API) error
 		return fmt.Errorf("mulNoReduce should be constant")
 	}
 	f.AssertIsEqual(res, f.NewElement(63))
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
@@ -202,6 +206,8 @@ func (c *DivConstantFastPathCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("div should be constant")
 	}
 	f.AssertIsEqual(res, f.NewElement(7))
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
@@ -228,6 +234,8 @@ func (c *InverseConstantFastPathCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("inverse should be constant")
 	}
 	f.AssertIsEqual(f.Mul(res, f.NewElement(7)), f.One())
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
@@ -254,6 +262,8 @@ func (c *SqrtConstantFastPathCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("sqrt should be constant")
 	}
 	f.AssertIsEqual(f.Mul(res, res), f.NewElement(9))
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
@@ -280,6 +290,8 @@ func (c *LargeMulConstantFastPathCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("mulLarge should be constant")
 	}
 	f.AssertIsEqual(res, f.NewElement(63))
+	// duplicate constraint to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	return nil
 }
 
