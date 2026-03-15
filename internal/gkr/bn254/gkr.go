@@ -27,7 +27,7 @@ type (
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
-// WireAssignment is assignment of values to the same wire across many instances of the circuit
+// WireAssignment is the assignment of values to the same wire across many instances of the circuit
 type WireAssignment []polynomial.MultiLin
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
@@ -47,7 +47,7 @@ func (e *zeroCheckLazyClaims) varsNum() int {
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return gkrcore.Degree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel), e.resources.circuit)
+	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel))
 }
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
@@ -62,13 +62,13 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
 // that the full sum matches purportedValue.
 func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.Element, uniqueInputEvaluations []fr.Element) error {
-	e.resources.levelPoints[e.levelI] = r
-	level := e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel)
+	e.resources.outgoingEvalPoints[e.levelI] = [][]fr.Element{r}
+	level := e.resources.schedule[e.levelI]
 	perWireInputEvals := gkrcore.ReduplicateInputs(level, e.resources.circuit, uniqueInputEvaluations)
 
 	var terms []fr.Element
 	flatW := 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := e.resources.circuit[wI]
 
@@ -84,7 +84,7 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 			}
 
 			for _, src := range group.ClaimSources {
-				eq := polynomial.EvalEq(e.resources.levelPoints[src], r)
+				eq := polynomial.EvalEq(e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
 				var term fr.Element
 				term.Mul(&eq, &gateEval)
 				terms = append(terms, term)
@@ -93,8 +93,8 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 		}
 	}
 
-	ys := polynomial.Polynomial(terms)
-	if total := ys.Eval(&e.foldingCoeff); total.Equal(&purportedValue) {
+	claimedEvals := polynomial.Polynomial(terms)
+	if total := claimedEvals.Eval(&e.foldingCoeff); total.Equal(&purportedValue) {
 		return nil
 	}
 	return errors.New("incompatible evaluations")
@@ -105,7 +105,6 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 // where the sum runs over all (wire v, claim source s) pairs in the level.
 // Each wire has its own eq table with the batching coefficients baked in.
 type zeroCheckClaims struct {
-	level              constraint.GkrSumcheckLevel
 	levelI             int
 	resources          *resources
 	input              []polynomial.MultiLin // UniqueGateInputs order
@@ -115,7 +114,7 @@ type zeroCheckClaims struct {
 }
 
 func (c *zeroCheckClaims) varsNum() int {
-	return len(c.resources.levelPoints[c.level[0].ClaimSources[0]])
+	return c.resources.nbVars
 }
 
 // roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
@@ -123,7 +122,8 @@ func (c *zeroCheckClaims) varsNum() int {
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
-	degree := gkrcore.Degree(c.level, c.resources.circuit)
+	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
 	nbWires := len(c.eqs)
 
@@ -287,18 +287,17 @@ func (r *resources) eqAcc(e, m polynomial.MultiLin, q []fr.Element) {
 }
 
 type resources struct {
-	// levelPoints[i] is the sumcheck evaluation point r produced at schedule level i.
-	// levelPoints[len(schedule)] holds the initial challenge (firstChallenge / rho).
-	// SkipLevels produce no point; their slot remains nil.
-	levelPoints   [][]fr.Element
-	evalPositions [][]int // [wireI][evalI] → position in source level's finalEvalProof
-	nbVars        int
-	assignment    WireAssignment
-	memPool       polynomial.Pool
-	workers       *utils.WorkerPool
-	circuit       Circuit
-	schedule      constraint.GkrProvingSchedule
-	transcript    transcript
+	// outgoingEvalPoints[i][k] is the k-th outgoing evaluation point (evaluation challenge) produced at schedule level i.
+	// outgoingEvalPoints[len(schedule)][0] holds the initial challenge (firstChallenge / rho).
+	// SumcheckLevels produce one point (k=0). SkipLevels pass on all their evaluation points.
+	outgoingEvalPoints [][][]fr.Element
+	nbVars             int
+	assignment         WireAssignment
+	memPool            polynomial.Pool
+	workers            *utils.WorkerPool
+	circuit            Circuit
+	schedule           constraint.GkrProvingSchedule
+	transcript         transcript
 }
 
 func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (resources, error) {
@@ -309,15 +308,14 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 	}
 
 	return resources{
-		levelPoints:   make([][]fr.Element, len(schedule)+1),
-		evalPositions: gkrcore.BuildFinalEvalPositions(schedule, c),
-		nbVars:        nbVars,
-		assignment:    assignment,
-		memPool:       polynomial.NewPool(c.MemoryRequirements(nbInstances)...),
-		workers:       utils.NewWorkerPool(),
-		circuit:       c,
-		schedule:      schedule,
-		transcript:    transcript{h: hasher},
+		outgoingEvalPoints: make([][][]fr.Element, len(schedule)+1),
+		nbVars:             nbVars,
+		assignment:         assignment,
+		memPool:            polynomial.NewPool(c.MemoryRequirements(nbInstances)...),
+		workers:            utils.NewWorkerPool(),
+		circuit:            c,
+		schedule:           schedule,
+		transcript:         transcript{h: hasher},
 	}, nil
 }
 
