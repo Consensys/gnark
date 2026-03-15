@@ -19,7 +19,7 @@ func writeUint8(w io.Writer, x int) error {
 	return err
 }
 
-func writeUint16(w io.Writer, x int) error {
+func writeUint16[T int | uint16](w io.Writer, x T) error {
 	var buf [2]byte
 	if x >= 65536 || x < 0 {
 		return fmt.Errorf("%d out of range", x)
@@ -36,6 +36,18 @@ func writeBool(w io.Writer, b bool) error {
 	}
 	_, err := w.Write([]byte{v})
 	return err
+}
+
+func writeUint16Slice[T int | uint16](w io.Writer, s []T) error {
+	if err := writeUint16(w, len(s)); err != nil {
+		return err
+	}
+	for _, v := range s {
+		if err := writeUint16(w, v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeBigInt(w io.Writer, x *big.Int) error {
@@ -57,7 +69,7 @@ func writeBigInt(w io.Writer, x *big.Int) error {
 // Format:
 //
 //	Circuit: [wire_count:u16] [wire...]
-//	Wire: [input_count:u16] [input_indices:u16...] [exported:bool] [gate?]
+//	Wire: [input_count:u16] [input_indices:u16...] [exported:bool] [gate]
 //	Gate (non-input only): [const_count:u16] [constants...] [inst_count:u16] [instructions...]
 //	Constant: [byte_len:u8] [bytes...]
 //	Instruction: [op:u8] [input_count:u16] [input_indices:u16...]
@@ -66,7 +78,7 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 		return fmt.Errorf("circuit length too large: %d", len(c))
 	}
 
-	// Write number of wires
+	// Write the number of wires
 	if err := writeUint16(w, len(c)); err != nil {
 		return err
 	}
@@ -75,19 +87,11 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 	for i := range c {
 		wire := &c[i]
 
-		// Write number of inputs
-		if err := writeUint16(w, len(wire.Inputs)); err != nil {
+		if err := writeUint16Slice(w, wire.Inputs); err != nil {
 			return err
 		}
 
-		// Write each input index
-		for _, input := range wire.Inputs {
-			if err := writeUint16(w, input); err != nil {
-				return err
-			}
-		}
-
-		// Write exported flag
+		// Write the exported flag
 		if err := writeBool(w, wire.Exported); err != nil {
 			return err
 		}
@@ -96,10 +100,10 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 		if !wire.IsInput() {
 			gate := &wire.Gate
 
-			// Write bytecode
+			// Write the bytecode
 			bytecode := &gate.Evaluate
 
-			// Write constants
+			// Write the constants
 			if err := writeUint16(w, len(bytecode.Constants)); err != nil {
 				return err
 			}
@@ -109,26 +113,19 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 				}
 			}
 
-			// Write instructions
+			// Write the instructions
 			if err := writeUint16(w, len(bytecode.Instructions)); err != nil {
 				return err
 			}
 			for _, inst := range bytecode.Instructions {
-				// Write operation
+				// Write the operation
 				if _, err := w.Write([]byte{byte(inst.Op)}); err != nil {
 					return err
 				}
 
-				// Write number of instruction inputs
-				if err := writeUint16(w, len(inst.Inputs)); err != nil {
+				// Write the instruction inputs
+				if err := writeUint16Slice(w, inst.Inputs); err != nil {
 					return err
-				}
-
-				// Write each instruction input
-				for _, input := range inst.Inputs {
-					if err := writeUint16(w, int(input)); err != nil {
-						return err
-					}
 				}
 			}
 		}
@@ -145,35 +142,32 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 // Format:
 //
 //	Schedule: [level_count:u16] [level...]
-//	Level: [type:u8] [skip_group | sumcheck_groups]
-//	SkipLevel: [claim_group]
-//	SumcheckLevel: [group_count:u16] [claim_group...]
-//	ClaimGroup: [wire_count:u16] [wire_indices:u16...] [source_count:u16] [source_indices:u16...]
+//	Level: [skip_sumcheck:bool] [group_count:u16] [claim_group...]
+//	GkrClaimGroup: [wire_count:u16] [wire_indices:u16...] [source_count:u16] [claim_source...]
+//	GkrClaimSource: [level:u16] [outgoing_claim_index:u16]
 func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
 	if len(s) >= 65536 {
 		return fmt.Errorf("schedule length too large: %d", len(s))
 	}
 
 	writeClaimGroup := func(cg constraint.GkrClaimGroup) error {
-		// Write wire count and indices
-		if err := writeUint16(w, len(cg.Wires)); err != nil {
+		if err := writeUint16Slice(w, cg.Wires); err != nil {
 			return err
 		}
-		for _, wireIdx := range cg.Wires {
-			if err := writeUint16(w, wireIdx); err != nil {
+
+		// Write claim source count; each source is two uint16s: Level and OutgoingClaimIndex
+		if err := writeUint16(w, len(cg.ClaimSources)); err != nil {
+			return err
+		}
+		for _, src := range cg.ClaimSources {
+			if err := writeUint16(w, src.Level); err != nil {
+				return err
+			}
+			if err := writeUint16(w, src.OutgoingClaimIndex); err != nil {
 				return err
 			}
 		}
 
-		// Write claim source count and indices
-		if err := writeUint16(w, len(cg.ClaimSources)); err != nil {
-			return err
-		}
-		for _, srcIdx := range cg.ClaimSources {
-			if err := writeUint16(w, srcIdx); err != nil {
-				return err
-			}
-		}
 		return nil
 	}
 
@@ -184,34 +178,18 @@ func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
 
 	// Write each level
 	for _, level := range s {
-		switch l := level.(type) {
-		case constraint.GkrSkipLevel:
-			// Type: 0 for skip
-			if _, err := w.Write([]byte{0}); err != nil {
+		_, isSkip := level.(constraint.GkrSkipLevel)
+		if err := writeBool(w, isSkip); err != nil {
+			return err
+		}
+		groups := level.ClaimGroups()
+		if err := writeUint16(w, len(groups)); err != nil {
+			return err
+		}
+		for _, cg := range groups {
+			if err := writeClaimGroup(cg); err != nil {
 				return err
 			}
-			if err := writeClaimGroup(constraint.GkrClaimGroup(l)); err != nil {
-				return err
-			}
-
-		case constraint.GkrSumcheckLevel:
-			// Type: 1 for sumcheck
-			if _, err := w.Write([]byte{1}); err != nil {
-				return err
-			}
-			// Write number of groups
-			if err := writeUint16(w, len(l)); err != nil {
-				return err
-			}
-			// Write each group
-			for _, cg := range l {
-				if err := writeClaimGroup(cg); err != nil {
-					return err
-				}
-			}
-
-		default:
-			return fmt.Errorf("unknown level type: %T", level)
 		}
 	}
 
