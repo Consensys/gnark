@@ -136,8 +136,8 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) {
 				claimed := finalEval[level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI)]
 				r.api.AssertIsEqual(claimed, gateEval)
 			} else {
-				for _, inI := range inputIndices[levelWireI] {
-					gateIns[inI] = finalEval[level.FinalEvalProofIndex(inI, claimI)]
+				for i, inI := range inputIndices[levelWireI] {
+					gateIns[i] = finalEval[level.FinalEvalProofIndex(inI, claimI)]
 				}
 				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{r.api}, gateIns...)
 			}
