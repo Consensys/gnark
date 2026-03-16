@@ -49,9 +49,10 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // claims on each wire and c is foldingCoeff.
 // Both purportedValue and the vector r have been randomized during sumcheck.
 //
-// For input wires, w(r) is computed directly from the assignment.
-// For non-input wires, the prover claims evaluations of the input wires at r,
-// communicated through uniqueInputEvaluations; those claims are verified later.
+// For input wires, w(r) is computed directly from the assignment and the claimed
+// evaluation in uniqueInputEvaluations is checked equal to it.
+// For non-input wires, the prover claims evaluations of their gate inputs at r via
+// uniqueInputEvaluations; those claims are verified by lower levels' sumchecks.
 // The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
 // that the full sum matches purportedValue.
 func (e *zeroCheckLazyClaims) verifyFinalEval(r []{{ .ElementType }}, purportedValue {{ .ElementType }}, uniqueInputEvaluations []{{ .ElementType }}) error {
@@ -316,22 +317,11 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 	}, nil
 }
 
-// collectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
-func (r *resources) collectOutgoingEvalPoints(levelI int) [][]{{ .ElementType }} {
-	level := r.schedule[levelI].(constraint.GkrSkipLevel)
-	outPoints := make([][]{{ .ElementType }}, level.NbOutgoingEvalPoints())
-	for k, src := range level.ClaimSources {
-		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
-	}
-	r.outgoingEvalPoints[levelI] = outPoints
-	return outPoints
-}
-
 // proveSkipLevel evaluates each unique gate input at each inherited evaluation point and records
 // the outgoing evaluation points on the resources.
 func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
-	outPoints := r.collectOutgoingEvalPoints(levelI)
 	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	uniqueInputs := r.circuit.UniqueGateInputs(level)
 	evals := make([]{{ .ElementType }}, len(uniqueInputs)*len(outPoints))
@@ -346,8 +336,8 @@ func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
 // verifySkipLevel verifies a SkipSumcheck level: checks that the finalEvalProof
 // is consistent with the assignment and gate evaluations, and records outgoing eval points.
 func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
-	outPoints := r.collectOutgoingEvalPoints(levelI)
 	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	finalEval := proof[levelI].finalEvalProof
 	_, inputIndices := r.circuit.InputMapping(level)
@@ -405,7 +395,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	}
 
 	pools := make([]*gateEvaluatorPool, nbWires)
-	flatW := 0
+	levelWireI := 0
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := r.circuit[wI]
@@ -413,8 +403,8 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			if wire.IsInput() {
 				gate = gkrcore.IdentityBytecode()
 			}
-			pools[flatW] = newGateEvaluatorPool(gate, len(inputIndices[flatW]), &r.memPool)
-			flatW++
+			pools[levelWireI] = newGateEvaluatorPool(gate, len(inputIndices[levelWireI]), &r.memPool)
+			levelWireI++
 		}
 	}
 
@@ -422,7 +412,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	eqs := make([]polynomial.MultiLin, nbWires)
 	var alpha {{ .ElementType }}
 	alpha.SetOne()
-	flatW = 0
+	levelWireI = 0
 	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
@@ -447,18 +437,18 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			stride.Mul(&stride, &foldingCoeff)
 		}
 
-		eqs[flatW] = groupEq
-		flatW++
+		eqs[levelWireI] = groupEq
+		levelWireI++
 		alpha.Mul(&alpha, &stride)
 
 		for w := 1; w < len(group.Wires); w++ {
-			eqs[flatW] = polynomial.MultiLin(r.memPool.Make(eqLength))
+			eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
 			r.workers.Submit(eqLength, func(start, end int) {
 				for i := start; i < end; i++ {
-					eqs[flatW][i].Mul(&eqs[flatW-1][i], &stride)
+					eqs[levelWireI][i].Mul(&eqs[levelWireI-1][i], &stride)
 				}
 			}, 512).Wait()
-			flatW++
+			levelWireI++
 			alpha.Mul(&alpha, &stride)
 		}
 	}
