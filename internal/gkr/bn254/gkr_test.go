@@ -68,8 +68,8 @@ func TestMimc(t *testing.T) {
 	test(t, gkrtesting.MiMCCircuit(93))
 }
 
-// testLevel exercises proveLevel/verifyLevel for a single sumcheck level.
-func testLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrSumcheckLevel) {
+// testSumcheckLevel exercises proveLevel/verifyLevel for a single sumcheck level.
+func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
 	t.Helper()
 	_, sCircuit := cache.Compile(t, circuit)
 
@@ -90,19 +90,19 @@ func testLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrSum
 	assert.NoError(t, err)
 	defer proveR.workers.Stop()
 
-	proveR.levelPoints[1] = challenge
-	proof := Proof{proveR.proveLevel(0)}
+	proveR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	proof := Proof{proveR.proveSumcheckLevel(0)}
 
 	// Verify
 	verifyR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 	defer verifyR.workers.Stop()
 
-	verifyR.levelPoints[1] = challenge
-	assert.NoError(t, verifyR.verifyLevel(0, proof))
+	verifyR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	assert.NoError(t, verifyR.verifySumcheckLevel(0, proof))
 }
 
-func TestLevel(t *testing.T) {
+func TestSumcheckLevel(t *testing.T) {
 	// Wires 0,1 = inputs; wires 2,3,4 = mul(0,1). All gates are independent outputs.
 	circuit := gkrcore.RawCircuit{
 		{},
@@ -111,41 +111,114 @@ func TestLevel(t *testing.T) {
 		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
 		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
 	}
-	// All levels have initial challenge at index 1 (len(schedule) = 1).
+	// Each level has an initial challenge at index 1 (len(schedule) = 1).
+	// GkrClaimSource{Level:1} is the initial-challenge sentinel.
 	tests := []struct {
 		name  string
-		level constraint.GkrSumcheckLevel
+		level constraint.GkrProvingLevel
 	}{
 		{
 			name: "single wire",
 			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4}, ClaimSources: []int{1}},
+				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 			},
 		},
 		{
 			name: "two groups",
 			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4}, ClaimSources: []int{1}},
-				{Wires: []int{3}, ClaimSources: []int{1}},
+				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+				{Wires: []int{3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 			},
 		},
 		{
 			name: "one group with two wires",
 			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4, 3}, ClaimSources: []int{1}},
+				{Wires: []int{4, 3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 			},
 		},
 		{
 			name: "mixed: single + multi-wire group",
 			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4}, ClaimSources: []int{1}},
-				{Wires: []int{3, 2}, ClaimSources: []int{1}},
+				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+				{Wires: []int{3, 2}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 			},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testLevel(t, circuit, tc.level)
+			testSumcheckLevel(t, circuit, tc.level)
+		})
+	}
+}
+
+// testSkipLevel exercises proveSkipLevel/verifySkipLevel for a single skip level.
+func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
+	t.Helper()
+	_, sCircuit := cache.Compile(t, circuit)
+
+	ins := sCircuit.Inputs()
+	assignment := make(WireAssignment, len(sCircuit))
+	for _, i := range ins {
+		assignment[i] = make([]fr.Element, 2)
+		fr.Vector(assignment[i]).MustSetRandom()
+	}
+
+	assignment.Complete(sCircuit)
+
+	schedule := constraint.GkrProvingSchedule{level}
+	challenge := []fr.Element{five}
+
+	// Prove
+	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer proveR.workers.Stop()
+
+	proveR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	proof := Proof{proveR.proveSkipLevel(0)}
+
+	// Verify
+	verifyR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer verifyR.workers.Stop()
+
+	verifyR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	assert.NoError(t, verifyR.verifySkipLevel(0, proof))
+}
+
+func TestSkipLevel(t *testing.T) {
+	// Wires 0,1 = inputs; wires 2,3 = identity(0); wire 4 = add(0,1). All degree-1 outputs.
+	circuit := gkrcore.RawCircuit{
+		{},
+		{},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Add2, Inputs: []int{0, 1}},
+	}
+	// Each level has an initial challenge at index 1 (len(schedule) = 1).
+	tests := []struct {
+		name  string
+		level constraint.GkrProvingLevel
+	}{
+		{
+			name:  "single input wire",
+			level: constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+		},
+		{
+			name:  "single identity gate",
+			level: constraint.GkrSkipLevel{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+		},
+		{
+			name:  "add gate",
+			level: constraint.GkrSkipLevel{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+		},
+		{
+			name:  "two identity gates one group",
+			level: constraint.GkrSkipLevel{Wires: []int{2, 3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testSkipLevel(t, circuit, tc.level)
 		})
 	}
 }
@@ -219,27 +292,9 @@ func testWithSchedule(t *testing.T, circuit gkrcore.RawCircuit, schedule constra
 		err = Verify(sCircuit, schedule, fullAssignment, proof, newMessageCounter(1, 1))
 		assert.NoError(t, err, "proof rejected")
 
-		if proof.isEmpty() { // special case for TestNoGate:
-			continue // there's no way to make a trivial proof fail
-		}
-
 		err = Verify(sCircuit, schedule, fullAssignment, proof, newMessageCounter(0, 1))
 		assert.NotNil(t, err, "bad proof accepted")
 	}
-}
-
-func (p Proof) isEmpty() bool {
-	for i := range p {
-		if len(p[i].finalEvalProof) != 0 {
-			return false
-		}
-		for j := range p[i].partialSumPolys {
-			if len(p[i].partialSumPolys[j]) != 0 {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func testNoGate(t *testing.T, inputAssignments ...[]fr.Element) {
@@ -275,10 +330,23 @@ func generateTestVerifier(path string) func(t *testing.T) {
 		assert.NoError(t, err)
 		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, testCase.Hash)
 		assert.NoError(t, err, "proof rejected")
+
 		testCase, err = newTestCase(path)
 		assert.NoError(t, err)
 		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, newMessageCounter(2, 0))
 		assert.NotNil(t, err, "bad proof accepted")
+
+		testCase, err = newTestCase(path)
+		assert.NoError(t, err)
+		testCase.InOutAssignment[len(testCase.InOutAssignment)-1][0].Add(&testCase.InOutAssignment[len(testCase.InOutAssignment)-1][0], &one)
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, testCase.Hash)
+		assert.NotNil(t, err, "tampered output accepted")
+
+		testCase, err = newTestCase(path)
+		assert.NoError(t, err)
+		testCase.InOutAssignment[0][0].Add(&testCase.InOutAssignment[0][0], &one)
+		err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, testCase.Proof, testCase.Hash)
+		assert.NotNil(t, err, "tampered input accepted")
 	}
 }
 
@@ -358,11 +426,11 @@ func TestSingleMulGateExplicitSchedule(t *testing.T) {
 	_, sCircuit := cache.Compile(t, circuit)
 
 	// Wire 2 is the mul gate output (inputs: 0, 1).
-	// Explicit schedule: one SumcheckLevel for wire 2 only.
-	// ClaimSources: [1] = initial challenge (index len(schedule) = 1).
+	// Explicit schedule: one GkrProvingLevel for wire 2.
+	// GkrClaimSource{Level:1} is the initial-challenge sentinel (len(schedule)=1).
 	schedule := constraint.GkrProvingSchedule{
 		constraint.GkrSumcheckLevel{
-			{Wires: []int{2}, ClaimSources: []int{1}},
+			{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 		},
 	}
 	testWithSchedule(t, circuit, schedule)
@@ -444,10 +512,11 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 	var schedule constraint.GkrProvingSchedule
-	if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
-		return nil, err
-	}
-	if schedule == nil {
+	if info.Schedule != nil {
+		if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
+			return nil, err
+		}
+	} else {
 		if schedule, err = gkrcore.DefaultProvingSchedule(circuit); err != nil {
 			return nil, err
 		}
