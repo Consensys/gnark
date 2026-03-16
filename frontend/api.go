@@ -38,8 +38,18 @@ type API interface {
 	// Mul returns res = i1 * i2 * ... in
 	Mul(i1, i2 Variable, in ...Variable) Variable
 
-	// DivUnchecked returns i1 / i2
-	// If i1 == i2 == 0, the return value (0) is unconstrained.
+	// DivUnchecked returns i1 / i2.
+	//
+	// If i2 == 0, the behavior is backend-dependent and should be considered
+	// undetermined.
+	//
+	// Current behavior for zero denominators:
+	//   - constant zero denominator: compile-time error
+	//   - R1CS: for 0/0 the output is left unconstrained and the solver returns 0.
+	//     For x/0 with x!=0, the constraint is unsatisfiable.
+	//   - SCS: for 0/0 the output is left unconstrained, but the default solver fails.
+	//     For x/0 with x!=0, the constraint is unsatisfiable.
+	//   - test engine: fails
 	DivUnchecked(i1, i2 Variable) Variable
 
 	// Div returns i1 / i2
