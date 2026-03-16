@@ -627,6 +627,10 @@ func (r *UnsatisfiedConstraintError) Error() string {
 	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }
 
+func (r *UnsatisfiedConstraintError) Unwrap() error {
+	return r.Err
+}
+
 func (s *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedConstraintError {
 	var debugInfo *string
 	if dID, ok := s.MDebug[int(cID)]; ok {

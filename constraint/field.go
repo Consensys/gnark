@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/smallfields"
 )
 
@@ -77,6 +78,9 @@ func FitsElement[E Element](modulus *big.Int) bool {
 			if modulus.Cmp(c.ScalarField()) == 0 {
 				return true
 			}
+		}
+		if modulus.Cmp(ecc.GRUMPKIN.ScalarField()) == 0 {
+			return true
 		}
 		return false
 	default:

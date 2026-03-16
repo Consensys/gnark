@@ -236,8 +236,8 @@ func (e *engine) Div(i1, i2 frontend.Variable) frontend.Variable {
 func (e *engine) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	res := new(big.Int)
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
-	if b1.IsUint64() && b2.IsUint64() && b1.Uint64() == 0 && b2.Uint64() == 0 {
-		return 0
+	if b1.Sign() == 0 && b2.Sign() == 0 {
+		panic("DivUnchecked(0, 0) called: this leads to an unconstrained value in circuits and is unsupported in the test engine")
 	}
 	if res.ModInverse(b2, e.modulus()) == nil {
 		panic("no inverse")

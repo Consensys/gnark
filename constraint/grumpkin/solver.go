@@ -21,7 +21,7 @@ import (
 	csolver "github.com/consensys/gnark/constraint/solver"
 	"github.com/rs/zerolog"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/grumpkin/fr"
 )
 
 // solver represent the state of the solver during a call to System.Solve(...)
@@ -625,10 +625,6 @@ func (r *UnsatisfiedConstraintError) Error() string {
 		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
 	}
 	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
-}
-
-func (r *UnsatisfiedConstraintError) Unwrap() error {
-	return r.Err
 }
 
 func (s *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedConstraintError {
