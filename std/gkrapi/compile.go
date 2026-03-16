@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
+	_ "github.com/consensys/gnark/std/hash/all"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
