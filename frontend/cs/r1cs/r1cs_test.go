@@ -276,3 +276,22 @@ func TestDivUncheckedZeroSolve(t *testing.T) {
 		})
 	}
 }
+
+func TestDivUncheckedNonZeroNumeratorZeroDenominatorFails(t *testing.T) {
+	circuit := &divUncheckedZeroCircuit{Case: divUncheckedVarVar}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wit, err := frontend.NewWitness(&divUncheckedZeroCircuit{
+		Case: divUncheckedVarVar,
+		A:    1,
+		B:    0,
+	}, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ccs.Solve(wit); err == nil {
+		t.Fatal("expected r1cs solver to fail")
+	}
+}
