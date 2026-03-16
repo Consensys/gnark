@@ -365,7 +365,7 @@ func GetLogMaxInstances(t *testing.T) int {
 	}
 	v, err := strconv.Atoi(s)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	return v
 }
