@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+// ErrDivideByZero is returned when solving a constraint requires computing the
+// inverse of zero (division by zero), for example during SCS blueprint solving.
 var (
 	ErrDivideByZero  = errors.New("division by 0")
 	errBoolConstrain = errors.New("boolean constraint doesn't hold")
