@@ -321,8 +321,25 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 	}, nil
 }
 
-// proveLevel runs the sumcheck for a SumcheckLevel: derives the fold challenge,
-// builds per-wire eq tables, constructs zeroCheckClaims, and calls sumcheckProve.
+// proveSkipLevel evaluates each unique gate input at each inherited evaluation point and records
+// the outgoing evaluation points on the resources.
+func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := make([][]fr.Element, level.NbOutgoingEvalPoints())
+	for k, src := range level.ClaimSources {
+		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	}
+	r.outgoingEvalPoints[levelI] = outPoints
+
+	uniqueInputs := r.circuit.UniqueGateInputs(level)
+	evals := make([]fr.Element, len(uniqueInputs)*len(outPoints))
+	for uiI, inW := range uniqueInputs {
+		for k, point := range outPoints {
+			evals[level.FinalEvalProofIndex(uiI, k)] = r.assignment[inW].Evaluate(point, &r.memPool)
+		}
+	}
+	return sumcheckProof{finalEvalProof: evals}
+}
 func (r *resources) proveLevel(levelI int) sumcheckProof {
 	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
 
