@@ -1,6 +1,7 @@
 package gkrapi
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
@@ -26,14 +27,17 @@ type InitialChallengeGetter func() []frontend.Variable
 
 // Circuit represents a GKR circuit.
 type Circuit struct {
-	circuit              gkrcore.GadgetCircuit
-	schedule             constraint.GkrProvingSchedule
-	gates                []gkrcore.GateBytecode
-	assignments          gadget.WireAssignment
-	getInitialChallenges InitialChallengeGetter // optional getter for the initial Fiat-Shamir challenge
-	ins                  []gkr.Variable
-	outs                 []gkr.Variable
-	api                  frontend.API // the parent API
+	circuit     gkrcore.GadgetCircuit
+	schedule    constraint.GkrProvingSchedule
+	gates       []gkrcore.GateBytecode
+	assignments gadget.WireAssignment
+	ins         []gkr.Variable
+	outs        []gkr.Variable
+	api         frontend.API // the parent API
+
+	// Fiat-Shamir bootstrapping
+	getInitialChallenges InitialChallengeGetter // optional getter for the I/O related portion of the initial Fiat-Shamir challenge
+	statementHash        []byte                 // hash of the circuit and schedule
 
 	// Blueprint-based fields
 	blueprints gkrcore.Blueprints
@@ -60,8 +64,8 @@ func (api *API) NewInput() gkr.Variable {
 
 type CompileOption func(*Circuit)
 
-// WithInitialChallenge provides a getter for the initial Fiat-Shamir challenge.
-// If not provided, the initial challenge will be a commitment to all the input and output values of the circuit.
+// WithInitialChallenge provides a getter for the I/O portion of the initial Fiat-Shamir challenge.
+// If not provided, the I/O initial challenge will be a commitment to all the input and output values of the circuit.
 func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOption {
 	return func(c *Circuit) {
 		c.getInitialChallenges = getInitialChallenge
@@ -87,12 +91,21 @@ func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*C
 		return nil, fmt.Errorf("failed to compute proving schedule: %w", err)
 	}
 
+	hsh := sha256.New()
+	if err = gkrcore.SerializeCircuit(hsh, serializableCircuit); err != nil {
+		return nil, fmt.Errorf("failed to serialize circuit: %w", err)
+	}
+	if err = gkrcore.SerializeSchedule(hsh, schedule); err != nil {
+		return nil, fmt.Errorf("failed to serialize schedule: %w", err)
+	}
+
 	res := Circuit{
-		circuit:     gadgetCircuit,
-		schedule:    schedule,
-		assignments: make(gadget.WireAssignment, len(api.circuit)),
-		api:         api.parentApi,
-		hashName:    fiatshamirHashName,
+		circuit:       gadgetCircuit,
+		schedule:      schedule,
+		assignments:   make(gadget.WireAssignment, len(api.circuit)),
+		api:           api.parentApi,
+		hashName:      fiatshamirHashName,
+		statementHash: hsh.Sum(nil),
 	}
 
 	switch curveID {
@@ -235,21 +248,22 @@ func (c *Circuit) finalize(api frontend.API) error {
 	}
 
 	if c.getInitialChallenges != nil {
-		return c.verify(api, c.circuit, c.getInitialChallenges())
+		return c.verify(api, c.circuit, append([]frontend.Variable{c.statementHash}, c.getInitialChallenges()...))
 	}
 
-	// default initial challenge is a commitment to all input and output values
-	insOuts := make([]frontend.Variable, 0, (len(c.ins)+len(c.outs))*len(c.assignments[c.ins[0]]))
+	// The default initial challenge is a commitment to the circuit, solving schedule, and all input and output values.
+	challenges := make([]frontend.Variable, 1, (len(c.ins)+len(c.outs))*len(c.assignments[c.ins[0]])+1)
+	challenges[0] = c.statementHash
 	for _, in := range c.ins {
-		insOuts = append(insOuts, c.assignments[in]...)
+		challenges = append(challenges, c.assignments[in]...)
 	}
 	for _, out := range c.outs {
-		insOuts = append(insOuts, c.assignments[out]...)
+		challenges = append(challenges, c.assignments[out]...)
 	}
 
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		return c.verify(api, c.circuit, []frontend.Variable{commitment})
-	}, insOuts...)
+	}, challenges...)
 
 	return nil
 }
