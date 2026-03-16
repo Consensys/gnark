@@ -521,23 +521,20 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 
 	proof := make(Proof, len(schedule))
 
-	// Derive initial challenge point
+	// Derive the initial challenge point
 	firstChallenge := make([]fr.Element, r.nbVars)
 	for j := range r.nbVars {
 		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	r.levelPoints[len(schedule)] = firstChallenge
+	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		switch s := schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
-			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
-
-		case constraint.GkrSumcheckLevel:
-			proof[levelI] = r.proveLevel(levelI)
-			// Bind finalEvalProof for next level's challenge derivation
-			r.transcript.bind(proof[levelI].finalEvalProof...)
+		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+			proof[levelI] = r.proveSkipLevel(levelI)
+		} else {
+			proof[levelI] = r.proveSumcheckLevel(levelI)
 		}
+		r.transcript.bind(proof[levelI].finalEvalProof...)
 	}
 
 	return proof, nil
@@ -552,25 +549,23 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 	}
 	defer r.workers.Stop()
 
-	// Derive initial challenge point
+	// Derive the initial challenge point
 	firstChallenge := make([]fr.Element, r.nbVars)
 	for j := range r.nbVars {
 		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	r.levelPoints[len(schedule)] = firstChallenge
+	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		switch s := schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
-			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
-
-		case constraint.GkrSumcheckLevel:
-			if err = r.verifyLevel(levelI, proof); err != nil {
-				return fmt.Errorf("sumcheck proof rejected: %v", err)
-			}
-			// Bind finalEvalProof for next level's challenge derivation
-			r.transcript.bind(proof[levelI].finalEvalProof...)
+		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+			err = r.verifySkipLevel(levelI, proof)
+		} else {
+			err = r.verifySumcheckLevel(levelI, proof)
 		}
+		if err != nil {
+			return fmt.Errorf("level %d: %v", levelI, err)
+		}
+		r.transcript.bind(proof[levelI].finalEvalProof...)
 	}
 	return nil
 }
