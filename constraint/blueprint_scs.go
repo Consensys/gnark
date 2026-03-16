@@ -6,7 +6,9 @@ import (
 )
 
 var (
-	errDivideByZero  = errors.New("division by 0")
+	// ErrDivideByZero is returned when solving a constraint requires computing the
+	// inverse of zero (division by zero), for example during SCS blueprint solving.
+	ErrDivideByZero  = errors.New("division by 0")
 	errBoolConstrain = errors.New("boolean constraint doesn't hold")
 )
 
@@ -69,7 +71,7 @@ func (b *BlueprintGenericSparseR1C[E]) Solve(s Solver[E], inst Instruction) erro
 		den = s.Add(den, u1)
 		den, ok = s.Inverse(den)
 		if !ok {
-			return errDivideByZero
+			return ErrDivideByZero
 		}
 		v1 := s.GetValue(c.QR, c.XB)
 		v2 := s.GetValue(c.QO, c.XC)
@@ -84,7 +86,7 @@ func (b *BlueprintGenericSparseR1C[E]) Solve(s Solver[E], inst Instruction) erro
 		den = s.Add(den, u2)
 		den, ok = s.Inverse(den)
 		if !ok {
-			return errDivideByZero
+			return ErrDivideByZero
 		}
 
 		v1 := s.GetValue(c.QL, c.XA)
@@ -112,7 +114,7 @@ func (b *BlueprintGenericSparseR1C[E]) Solve(s Solver[E], inst Instruction) erro
 		den := s.GetCoeff(c.QO)
 		den, ok = s.Inverse(den)
 		if !ok {
-			return errDivideByZero
+			return ErrDivideByZero
 		}
 		o = s.Mul(o, den)
 		o = s.Neg(o)

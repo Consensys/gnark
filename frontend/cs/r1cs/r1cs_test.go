@@ -15,6 +15,15 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
+type divUncheckedCase uint8
+
+const (
+	divUncheckedVarVar divUncheckedCase = iota
+	divUncheckedVarConst
+	divUncheckedConstVar
+	divUncheckedConstConst
+)
+
 func testQuickSortParametric[E constraint.Element](t *testing.T) {
 	toSort := make(expr.LinearExpression[E], 12)
 	rand := 3
@@ -202,5 +211,87 @@ func TestOverrideZeroConstant(t *testing.T) {
 	_, err = ccs.Solve(wit)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+type divUncheckedZeroCircuit struct {
+	Case divUncheckedCase `gnark:"-"`
+	A    frontend.Variable
+	B    frontend.Variable
+}
+
+func (c *divUncheckedZeroCircuit) Define(api frontend.API) error {
+	var res frontend.Variable
+	switch c.Case {
+	case divUncheckedVarVar:
+		res = api.DivUnchecked(c.A, c.B)
+	case divUncheckedVarConst:
+		res = api.DivUnchecked(c.A, 0)
+	case divUncheckedConstVar:
+		res = api.DivUnchecked(0, c.B)
+	case divUncheckedConstConst:
+		res = api.DivUnchecked(0, 0)
+	default:
+		panic("unknown case")
+	}
+	api.AssertIsEqual(res, 0)
+	return nil
+}
+
+func TestDivUncheckedZeroSolve(t *testing.T) {
+	tests := []struct {
+		name      string
+		mode      divUncheckedCase
+		solvePass bool
+	}{
+		{name: "var_var", mode: divUncheckedVarVar, solvePass: true},
+		{name: "var_const", mode: divUncheckedVarConst, solvePass: false},
+		{name: "const_var", mode: divUncheckedConstVar, solvePass: true},
+		{name: "const_const", mode: divUncheckedConstConst, solvePass: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			circuit := &divUncheckedZeroCircuit{Case: tc.mode}
+			ccs, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, circuit)
+			if !tc.solvePass {
+				if err == nil {
+					t.Fatal("expected compile-time error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			wit, err := frontend.NewWitness(&divUncheckedZeroCircuit{
+				Case: tc.mode,
+				A:    0,
+				B:    0,
+			}, ecc.BN254.ScalarField())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = ccs.Solve(wit); err != nil {
+				t.Fatalf("expected r1cs solver to accept DivUnchecked(0, 0), got %v", err)
+			}
+		})
+	}
+}
+
+func TestDivUncheckedNonZeroNumeratorZeroDenominatorFails(t *testing.T) {
+	circuit := &divUncheckedZeroCircuit{Case: divUncheckedVarVar}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wit, err := frontend.NewWitness(&divUncheckedZeroCircuit{
+		Case: divUncheckedVarVar,
+		A:    1,
+		B:    0,
+	}, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ccs.Solve(wit); err == nil {
+		t.Fatal("expected r1cs solver to fail")
 	}
 }
