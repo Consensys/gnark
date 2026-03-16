@@ -326,6 +326,67 @@ func (builder *builder[E]) Div(i1, i2 frontend.Variable) frontend.Variable {
 	return builder.mulConstant(v1, n2, false)
 }
 
+// BatchInvert implements [frontend.BatchInverter]. It computes the modular
+// inverse of each element in i1 using a single BlueprintBatchInverse instruction
+// (one field inversion + O(n) multiplications) followed by n cheap verification
+// constraints.
+func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variable {
+	n := len(i1)
+	if n == 0 {
+		return nil
+	}
+
+	res := make([]frontend.Variable, n)
+
+	// Separate constants (computed inline) from variable inputs (handled by blueprint).
+	type varEntry struct {
+		outputIdx int
+		inputLC   expr.LinearExpression[E]
+	}
+	varEntries := make([]varEntry, 0, n)
+	for j, v := range i1 {
+		if c, ok := builder.constantValue(v); ok {
+			if c.IsZero() {
+				panic("BatchInvert: cannot invert zero")
+			}
+			c, _ = builder.cs.Inverse(c)
+			res[j] = expr.NewLinearExpression(0, c)
+			continue
+		}
+		lc := builder.toVariable(v)
+		varEntries = append(varEntries, varEntry{outputIdx: j, inputLC: lc})
+	}
+
+	if len(varEntries) == 0 {
+		return res
+	}
+
+	// Build calldata with LE encoding per input:
+	// [totalSize, nVars, nTerms_0, cID_{0,0}, vID_{0,0}, ..., nTerms_1, ...]
+	nVars := len(varEntries)
+	calldata := make([]uint32, 2, 2+3*nVars) // pre-allocate for common single-term case
+	calldata[0] = 0                          // placeholder for totalSize
+	calldata[1] = uint32(nVars)
+	for _, e := range varEntries {
+		calldata = append(calldata, uint32(len(e.inputLC)))
+		for _, t := range e.inputLC {
+			calldata = append(calldata, builder.cs.AddCoeff(t.Coeff), uint32(t.VID))
+		}
+	}
+	calldata[0] = uint32(len(calldata))
+
+	outputWires := builder.cs.AddInstruction(builder.batchInverseGate, calldata)
+
+	// For each variable input add a verification constraint: outWire * input == 1
+	for k, e := range varEntries {
+		outVar := expr.NewLinearExpression(int(outputWires[k]), builder.tOne)
+		builder.cs.AddR1C(builder.newR1C(outVar, e.inputLC, builder.cstOne()), builder.genericGate)
+		res[e.outputIdx] = outVar
+	}
+
+	return res
+}
+
 // Inverse returns res = inverse(v)
 func (builder *builder[E]) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := builder.toVariables(i1)

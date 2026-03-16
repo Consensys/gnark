@@ -1418,10 +1418,8 @@ func TestPolyEvalNegativeCoefficient(t *testing.T) {
 }
 
 func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
-	t.Skip("not implemented yet")
 	assert := test.NewAssert(t)
 	var fp T
-	fmt.Println("modulus", fp.Modulus())
 	var err error
 	const nbInputs = 2
 	inputs := make([]*big.Int, nbInputs)
@@ -1431,14 +1429,172 @@ func testPolyEvalNegativeCoefficient[T FieldParams](t *testing.T) {
 		assert.NoError(err)
 	}
 	for i := range inputs {
-		fmt.Println("input", i, inputs[i])
 		assignmentInput[i] = ValueOf[T](inputs[i])
 	}
 	expected := new(big.Int).Sub(inputs[0], inputs[1])
 	expected.Mod(expected, fp.Modulus())
-	fmt.Println("expected", expected)
 	assignment := &PolyEvalNegativeCoefficient[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
 	err = test.IsSolved(&PolyEvalNegativeCoefficient[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type PolyEvalNegCoeffDiffSquares[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegCoeffDiffSquares[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// x² - y²
+	coefficients := []int{1, -1}
+	res := f.Eval([][]*Element[T]{{&c.Inputs[0], &c.Inputs[0]}, {&c.Inputs[1], &c.Inputs[1]}}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegCoeffDiffSquares(t *testing.T) {
+	testPolyEvalNegCoeffDiffSquares[Goldilocks](t)
+	testPolyEvalNegCoeffDiffSquares[BN254Fr](t)
+	testPolyEvalNegCoeffDiffSquares[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegCoeffDiffSquares[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	const nbInputs = 2
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	// x² - y²
+	expected := new(big.Int).Mul(inputs[0], inputs[0])
+	expected.Sub(expected, new(big.Int).Mul(inputs[1], inputs[1]))
+	expected.Mod(expected, fp.Modulus())
+	assignment := &PolyEvalNegCoeffDiffSquares[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegCoeffDiffSquares[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// PolyEvalNegCoeffLarge tests Eval with larger negative coefficients (-2, -3).
+// Computes 3*x*y - 2*z² + x.
+type PolyEvalNegCoeffLarge[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegCoeffLarge[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	// 3*x*y - 2*z² + x
+	coefficients := []int{3, -2, 1}
+	res := f.Eval([][]*Element[T]{{&c.Inputs[0], &c.Inputs[1]}, {&c.Inputs[2], &c.Inputs[2]}, {&c.Inputs[0]}}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegCoeffLarge(t *testing.T) {
+	testPolyEvalNegCoeffLarge[Goldilocks](t)
+	testPolyEvalNegCoeffLarge[BN254Fr](t)
+	testPolyEvalNegCoeffLarge[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegCoeffLarge[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	const nbInputs = 3
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	// 3*x*y - 2*z² + x
+	expected := new(big.Int).Mul(inputs[0], inputs[1])
+	expected.Mul(expected, big.NewInt(3))
+	z2 := new(big.Int).Mul(inputs[2], inputs[2])
+	z2.Mul(z2, big.NewInt(2))
+	expected.Sub(expected, z2)
+	expected.Add(expected, inputs[0])
+	expected.Mod(expected, fp.Modulus())
+	assignment := &PolyEvalNegCoeffLarge[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegCoeffLarge[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// PolyEvalNegCoeffMixed tests Eval with a mix of positive and negative coefficients
+// including larger values. Computes 82*a*b - 82*c*d + 18*a*d - 242*b*c.
+type PolyEvalNegCoeffMixed[T FieldParams] struct {
+	Inputs []Element[T]
+	Res    Element[T]
+}
+
+func (c *PolyEvalNegCoeffMixed[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	coefficients := []int{82, -82, 18, -242}
+	res := f.Eval([][]*Element[T]{
+		{&c.Inputs[0], &c.Inputs[1]},
+		{&c.Inputs[2], &c.Inputs[3]},
+		{&c.Inputs[0], &c.Inputs[3]},
+		{&c.Inputs[1], &c.Inputs[2]},
+	}, coefficients)
+	f.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPolyEvalNegCoeffMixed(t *testing.T) {
+	testPolyEvalNegCoeffMixed[Goldilocks](t)
+	testPolyEvalNegCoeffMixed[BN254Fr](t)
+	testPolyEvalNegCoeffMixed[emparams.Mod1e512](t)
+}
+
+func testPolyEvalNegCoeffMixed[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	var fp T
+	var err error
+	const nbInputs = 4
+	inputs := make([]*big.Int, nbInputs)
+	assignmentInput := make([]Element[T], nbInputs)
+	for i := range inputs {
+		inputs[i], err = rand.Int(rand.Reader, fp.Modulus())
+		assert.NoError(err)
+	}
+	for i := range inputs {
+		assignmentInput[i] = ValueOf[T](inputs[i])
+	}
+	// 82*a*b - 82*c*d + 18*a*d - 242*b*c
+	mod := fp.Modulus()
+	expected := new(big.Int).Mul(inputs[0], inputs[1])
+	expected.Mul(expected, big.NewInt(82))
+	t2 := new(big.Int).Mul(inputs[2], inputs[3])
+	t2.Mul(t2, big.NewInt(82))
+	expected.Sub(expected, t2)
+	t3 := new(big.Int).Mul(inputs[0], inputs[3])
+	t3.Mul(t3, big.NewInt(18))
+	expected.Add(expected, t3)
+	t4 := new(big.Int).Mul(inputs[1], inputs[2])
+	t4.Mul(t4, big.NewInt(242))
+	expected.Sub(expected, t4)
+	expected.Mod(expected, mod)
+	assignment := &PolyEvalNegCoeffMixed[T]{Inputs: assignmentInput, Res: ValueOf[T](expected)}
+	err = test.IsSolved(&PolyEvalNegCoeffMixed[T]{Inputs: make([]Element[T], nbInputs)}, assignment, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
