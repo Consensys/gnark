@@ -230,7 +230,7 @@ func (c *zeroCheckClaims) roundFold(r fr.Element) {
 
 // proveFinalEval provides the unique input wire values wᵢ(r₁, ..., rₙ).
 func (c *zeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
-	c.resources.levelPoints[c.levelI] = r
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
 	evaluations := make([]fr.Element, len(c.input))
 	for i := range c.input {
 		c.input[i].Fold(r[len(r)-1])
@@ -295,9 +295,10 @@ type resources struct {
 	assignment         WireAssignment
 	memPool            polynomial.Pool
 	workers            *utils.WorkerPool
-	circuit            Circuit
-	schedule           constraint.GkrProvingSchedule
-	transcript         transcript
+	circuit              Circuit
+	schedule             constraint.GkrProvingSchedule
+	transcript           transcript
+	uniqueInputIndices   [][]int	// uniqueInputIndices[wI][claimI]: w's unique-input index in the layer its claimI-th evaluation is coming from
 }
 
 func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (resources, error) {
@@ -316,6 +317,7 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 		circuit:            c,
 		schedule:           schedule,
 		transcript:         transcript{h: hasher},
+		uniqueInputIndices: c.UniqueInputIndices(schedule),
 	}, nil
 }
 
