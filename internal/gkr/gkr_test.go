@@ -14,7 +14,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -130,7 +129,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 		}
 	}
 
-	return Verify(api, testCase.Circuit, testCase.Schedule, assignment, proof, fiatshamir.WithHash(hsh))
+	return Verify(api, testCase.Circuit, testCase.Schedule, assignment, proof, hsh)
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {

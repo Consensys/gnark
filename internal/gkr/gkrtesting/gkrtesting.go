@@ -7,7 +7,9 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"testing"
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -354,4 +356,24 @@ func Poseidon2Circuit(nbFullRounds, nbPartialRounds int) gkrcore.RawCircuit {
 	c[w] = gkrcore.RawWire{Gate: poseidon2FeedForward, Inputs: []int{s0, s1, 1}}
 
 	return c
+}
+
+var testManyInstancesLogMaxInstances = -1
+
+func GetLogMaxInstances(t *testing.T) int {
+	if testManyInstancesLogMaxInstances == -1 {
+
+		s := os.Getenv("GKR_LOG_INSTANCES")
+		if s == "" {
+			testManyInstancesLogMaxInstances = 5
+		} else {
+			var err error
+			testManyInstancesLogMaxInstances, err = strconv.Atoi(s)
+			if err != nil {
+				t.Error(err)
+			}
+		}
+
+	}
+	return testManyInstancesLogMaxInstances
 }

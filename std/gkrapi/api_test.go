@@ -778,3 +778,97 @@ func TestMulti(t *testing.T) {
 
 	test.NewAssert(t).CheckCircuit(new(testMultiCircuit), test.WithValidAssignment(&assignment))
 }
+
+// Poseidon2 gate functions — match gkrtesting.Poseidon2Circuit(4, 2) exactly.
+
+func p2ExtLinear0(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[0], x[1]) // 2*x[0] + x[1]
+}
+
+func p2ExtLinear1(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[1], x[1]) // x[0] + 2*x[1]
+}
+
+func p2IntLinear1(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[1], x[1], x[1]) // x[0] + 3*x[1]
+}
+
+func p2SBox(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Mul(x[0], x[0]) // x^2
+}
+
+func p2FeedForward(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
+	return api.Add(x[0], x[0], x[1], x[2]) // 2*x[0] + x[1] + x[2]
+}
+
+type poseidon2GadgetCircuit struct {
+	In0      []frontend.Variable
+	In1      []frontend.Variable
+	hashName string
+}
+
+func (c *poseidon2GadgetCircuit) Define(api frontend.API) error {
+	gkrApi, err := New(api)
+	if err != nil {
+		return err
+	}
+	in0 := gkrApi.NewInput()
+	in1 := gkrApi.NewInput()
+	s0, s1 := in0, in1
+
+	appendFullRound := func() {
+		lin0 := gkrApi.Gate(p2ExtLinear0, s0, s1)
+		lin1 := gkrApi.Gate(p2ExtLinear1, s0, s1)
+		s0 = gkrApi.Gate(p2SBox, lin0)
+		s1 = gkrApi.Gate(p2SBox, lin1)
+	}
+	appendPartialRound := func() {
+		lin0 := gkrApi.Gate(p2ExtLinear0, s0, s1)
+		lin1 := gkrApi.Gate(p2IntLinear1, s0, s1)
+		s0 = gkrApi.Gate(p2SBox, lin0)
+		s1 = lin1
+	}
+
+	// 4 full rounds, 2 partial rounds: 2 + 2 structure
+	appendFullRound()
+	appendFullRound()
+	appendPartialRound()
+	appendPartialRound()
+	appendFullRound()
+	appendFullRound()
+
+	_ = gkrApi.Gate(p2FeedForward, s0, s1, in1)
+
+	gkrCircuit, err := gkrApi.Compile(c.hashName)
+	if err != nil {
+		return err
+	}
+
+	instanceIn := make(map[gkr.Variable]frontend.Variable)
+	for i := range c.In0 {
+		instanceIn[in0] = c.In0[i]
+		instanceIn[in1] = c.In1[i]
+		if _, err := gkrCircuit.AddInstance(instanceIn); err != nil {
+			return fmt.Errorf("failed to add instance: %w", err)
+		}
+	}
+	return nil
+}
+
+func TestPoseidon2Gadget(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbInstances := 2
+	In0 := make([]frontend.Variable, nbInstances)
+	In1 := make([]frontend.Variable, nbInstances)
+	for i := range In0 {
+		In0[i] = i + 1
+		In1[i] = 2 * (i + 1)
+	}
+	assignment := &poseidon2GadgetCircuit{In0: In0, In1: In1}
+	circuit := &poseidon2GadgetCircuit{
+		In0:      make([]frontend.Variable, nbInstances),
+		In1:      make([]frontend.Variable, nbInstances),
+		hashName: "-1",
+	}
+	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254))
+}

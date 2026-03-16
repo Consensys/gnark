@@ -14,7 +14,6 @@ import (
 	gkrbw6761 "github.com/consensys/gnark/internal/gkr/bw6-761"
 	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/utils"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/multicommit"
@@ -72,7 +71,7 @@ func WithInitialChallenge(getInitialChallenge InitialChallengeGetter) CompileOpt
 // From this point on, the circuit cannot be modified,
 // but instances can be added to it.
 func (api *API) Compile(fiatshamirHashName string, options ...CompileOption) (*Circuit, error) {
-	// Dispatch to curve-specific factory
+	// Dispatch to a curve-specific factory
 	compiler := api.parentApi.Compiler()
 	field := compiler.Field()
 	curveID := utils.FieldToCurve(field)
@@ -294,23 +293,24 @@ func (c *Circuit) verify(api frontend.API, circuit gkrcore.GadgetCircuit, initia
 		return err
 	}
 
-	return gadget.Verify(api, circuit, c.schedule, c.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...))
+	hsh.Write(initialChallenges...)
+	return gadget.Verify(api, circuit, c.schedule, c.assignments, proof, hsh)
 }
 
 // GetValue is a debugging utility returning the value of variable v at instance i.
 // While v can be an input or output variable, GetValue is most useful for querying intermediate values in the circuit.
 func (c *Circuit) GetValue(v gkr.Variable, i int) frontend.Variable {
-	// Create an instruction that will retrieve the assignment at solve time
+	// Create an instruction that will retrieve the assignment at solving time
 	compiler := c.api.Compiler()
 
 	// Build calldata: [0]=totalSize, [1]=wireI, [2]=instanceI, [3...]=dependency_wire_as_linear_expression
-	// The dependency ensures this instruction runs after the solve instruction for instance i
+	// The dependency ensures this instruction runs after the solving instruction for instance i
 	calldata := make([]uint32, 3, 6) // pre-allocate: size + wireI + instanceI + dependency linear expression (typically 3)
 	calldata[1] = uint32(v)
 	calldata[2] = uint32(i)
 
 	// Use the first output variable from instance i as a dependency
-	// This ensures the solve instruction for this instance has completed
+	// This ensures the solving instruction for this instance has completed
 	if len(c.outs) == 0 || i >= len(c.assignments[c.outs[0]]) {
 		panic("GetValue called with invalid instance or before instance was added")
 	}

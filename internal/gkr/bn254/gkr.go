@@ -776,7 +776,7 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
 
-	// Return evaluator to pool (it keeps its vars slice from polynomial pool)
+	// Return evaluator to pool (it keeps its vars slice from the polynomial pool)
 	gep.available[e] = struct{}{}
 }
 

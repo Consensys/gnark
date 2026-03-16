@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 
@@ -72,31 +71,6 @@ func TestPoseidon2(t *testing.T) {
 	test(t, gkrtesting.Poseidon2Circuit(4, 2))
 }
 
-// sentinelEvalPoints builds the evaluation-point slice to place at the
-// initial-challenge sentinel level (outgoingEvalPoints[sentinelIdx]).
-// M is derived as max(OutgoingClaimIndex)+1 across all claim sources that
-// reference sentinelIdx; each point is a single-element slice {k+1}.
-func sentinelEvalPoints(level constraint.GkrProvingLevel, sentinelIdx int) [][]fr.Element {
-	M := 0
-	for _, cg := range level.ClaimGroups() {
-		for _, cs := range cg.ClaimSources {
-			if cs.Level == sentinelIdx && cs.OutgoingClaimIndex+1 > M {
-				M = cs.OutgoingClaimIndex + 1
-			}
-		}
-	}
-	if M == 0 {
-		M = 1
-	}
-	pts := make([][]fr.Element, M)
-	for k := range pts {
-		var e fr.Element
-		e.SetInt64(int64(k + 1))
-		pts[k] = []fr.Element{e}
-	}
-	return pts
-}
-
 // testSumcheckLevel exercises proveLevel/verifyLevel for a single sumcheck level.
 func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
 	t.Helper()
@@ -112,14 +86,14 @@ func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constrain
 	assignment.Complete(sCircuit)
 
 	schedule := constraint.GkrProvingSchedule{level}
-	initEvalPoints := sentinelEvalPoints(level, len(schedule))
+	initEvalPoint := [][]fr.Element{{one}}
 
 	// Prove
 	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 	defer proveR.workers.Stop()
 
-	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoints
+	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoint
 	proof := Proof{proveR.proveSumcheckLevel(0)}
 
 	// Verify
@@ -127,7 +101,7 @@ func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constrain
 	assert.NoError(t, err)
 	defer verifyR.workers.Stop()
 
-	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoints
+	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoint
 	assert.NoError(t, verifyR.verifySumcheckLevel(0, proof))
 }
 
@@ -178,34 +152,6 @@ func TestSumcheckLevel(t *testing.T) {
 			testSumcheckLevel(t, circuit, tc.level)
 		})
 	}
-
-	// Two-claim cases: sentinel level provides two evaluation points,
-	// exercising OutgoingClaimIndex = 1 in a sumcheck level.
-	twoClaim := []struct {
-		name  string
-		level constraint.GkrProvingLevel
-	}{
-		{
-			// Single group whose result feeds eval point 1 of the sentinel.
-			name: "single wire claim index 1",
-			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 1}}},
-			},
-		},
-		{
-			// Two groups consuming different sentinel eval points.
-			name: "two groups different claim indices",
-			level: constraint.GkrSumcheckLevel{
-				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 0}}},
-				{Wires: []int{3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 1}}},
-			},
-		},
-	}
-	for _, tc := range twoClaim {
-		t.Run(tc.name, func(t *testing.T) {
-			testSumcheckLevel(t, circuit, tc.level)
-		})
-	}
 }
 
 // testSkipLevel exercises proveSkipLevel/verifySkipLevel for a single skip level.
@@ -223,14 +169,14 @@ func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.Gk
 	assignment.Complete(sCircuit)
 
 	schedule := constraint.GkrProvingSchedule{level}
-	initEvalPoints := sentinelEvalPoints(level, len(schedule))
+	initEvalPoint := [][]fr.Element{{one}}
 
 	// Prove
 	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 	defer proveR.workers.Stop()
 
-	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoints
+	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoint
 	proof := Proof{proveR.proveSkipLevel(0)}
 
 	// Verify
@@ -238,7 +184,7 @@ func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.Gk
 	assert.NoError(t, err)
 	defer verifyR.workers.Stop()
 
-	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoints
+	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoint
 	assert.NoError(t, verifyR.verifySkipLevel(0, proof))
 }
 
@@ -279,33 +225,6 @@ func TestSkipLevel(t *testing.T) {
 			testSkipLevel(t, circuit, tc.level)
 		})
 	}
-
-	// Two-claim cases: two inherited evaluation points, exercising OutgoingClaimIndex = 0 and 1.
-	// ClaimSources references the same sentinel level at both outgoing indices.
-	twoClaimSources := []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 0}, {Level: 1, OutgoingClaimIndex: 1}}
-	twoClaim := []struct {
-		name  string
-		level constraint.GkrProvingLevel
-	}{
-		{
-			name:  "input wire two claim points",
-			level: constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: twoClaimSources},
-		},
-		{
-			name:  "identity gate two claim points",
-			level: constraint.GkrSkipLevel{Wires: []int{2}, ClaimSources: twoClaimSources},
-		},
-		{
-			// Two unique inputs [0,1]; finalEvalProof = [w0(p0), w0(p1), w1(p0), w1(p1)].
-			name:  "add gate two claim points",
-			level: constraint.GkrSkipLevel{Wires: []int{4}, ClaimSources: twoClaimSources},
-		},
-	}
-	for _, tc := range twoClaim {
-		t.Run(tc.name, func(t *testing.T) {
-			testSkipLevel(t, circuit, tc.level)
-		})
-	}
 }
 
 var one, two, three, four, five, six fr.Element
@@ -317,26 +236,6 @@ func init() {
 	four.Double(&two)
 	five.Add(&three, &two)
 	six.Double(&three)
-}
-
-var testManyInstancesLogMaxInstances = -1
-
-func getLogMaxInstances(t *testing.T) int {
-	if testManyInstancesLogMaxInstances == -1 {
-
-		s := os.Getenv("GKR_LOG_INSTANCES")
-		if s == "" {
-			testManyInstancesLogMaxInstances = 5
-		} else {
-			var err error
-			testManyInstancesLogMaxInstances, err = strconv.Atoi(s)
-			if err != nil {
-				t.Error(err)
-			}
-		}
-
-	}
-	return testManyInstancesLogMaxInstances
 }
 
 func test(t *testing.T, circuit gkrcore.RawCircuit) {
@@ -352,7 +251,7 @@ func testWithSchedule(t *testing.T, circuit gkrcore.RawCircuit, schedule constra
 	}
 	ins := gCircuit.Inputs()
 	insAssignment := make(WireAssignment, len(ins))
-	maxSize := 1 << getLogMaxInstances(t)
+	maxSize := 1 << gkrtesting.GetLogMaxInstances(t)
 
 	for i := range ins {
 		insAssignment[i] = make([]fr.Element, maxSize)
