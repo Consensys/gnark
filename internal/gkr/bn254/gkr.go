@@ -56,9 +56,10 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // claims on each wire and c is foldingCoeff.
 // Both purportedValue and the vector r have been randomized during sumcheck.
 //
-// For input wires, w(r) is computed directly from the assignment.
-// For non-input wires, the prover claims evaluations of the input wires at r,
-// communicated through uniqueInputEvaluations; those claims are verified later.
+// For input wires, w(r) is computed directly from the assignment and the claimed
+// evaluation in uniqueInputEvaluations is checked equal to it.
+// For non-input wires, the prover claims evaluations of their gate inputs at r via
+// uniqueInputEvaluations; those claims are verified by lower levels' sumchecks.
 // The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
 // that the full sum matches purportedValue.
 func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.Element, uniqueInputEvaluations []fr.Element) error {
@@ -75,6 +76,9 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 			var gateEval fr.Element
 			if wire.IsInput() {
 				gateEval = e.resources.assignment[wI].Evaluate(r, &e.resources.memPool)
+				if !gateInputEvals[levelWireI][0].Equal(&gateEval) {
+					return errors.New("incompatible evaluations")
+				}
 			} else {
 				evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 				for _, v := range gateInputEvals[levelWireI] {
@@ -320,22 +324,11 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 	}, nil
 }
 
-// collectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
-func (r *resources) collectOutgoingEvalPoints(levelI int) [][]fr.Element {
-	level := r.schedule[levelI].(constraint.GkrSkipLevel)
-	outPoints := make([][]fr.Element, level.NbOutgoingEvalPoints())
-	for k, src := range level.ClaimSources {
-		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
-	}
-	r.outgoingEvalPoints[levelI] = outPoints
-	return outPoints
-}
-
 // proveSkipLevel evaluates each unique gate input at each inherited evaluation point and records
 // the outgoing evaluation points on the resources.
 func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
-	outPoints := r.collectOutgoingEvalPoints(levelI)
 	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	uniqueInputs := r.circuit.UniqueGateInputs(level)
 	evals := make([]fr.Element, len(uniqueInputs)*len(outPoints))
@@ -350,8 +343,8 @@ func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
 // verifySkipLevel verifies a SkipSumcheck level: checks that the finalEvalProof
 // is consistent with the assignment and gate evaluations, and records outgoing eval points.
 func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
-	outPoints := r.collectOutgoingEvalPoints(levelI)
 	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	finalEval := proof[levelI].finalEvalProof
 	_, inputIndices := r.circuit.InputMapping(level)

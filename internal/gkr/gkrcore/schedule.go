@@ -344,3 +344,13 @@ func (c Circuit[G]) UniqueInputIndices(schedule constraint.GkrProvingSchedule) [
 	}
 	return res
 }
+
+// CollectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
+func CollectOutgoingEvalPoints[F any](level constraint.GkrSkipLevel, levelI int, outgoingEvalPoints [][][]F) [][]F {
+	outPoints := make([][]F, level.NbOutgoingEvalPoints())
+	for k, src := range level.ClaimSources {
+		outPoints[k] = outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	}
+	outgoingEvalPoints[levelI] = outPoints
+	return outPoints
+}

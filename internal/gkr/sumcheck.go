@@ -54,7 +54,7 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 	gJ := make(polynomial.Polynomial, degree+1)
 	gJR := claimedSum
 
-	for j := 0; j < claims.varsNum(); j++ {
+	for j := range claims.varsNum() {
 		partialSumPoly := proof.PartialSumPolys[j]
 		if len(partialSumPoly) != degree {
 			return errors.New("malformed proof")

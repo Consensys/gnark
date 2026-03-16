@@ -75,6 +75,9 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []small_rational.SmallRational, 
 			var gateEval small_rational.SmallRational
 			if wire.IsInput() {
 				gateEval = e.resources.assignment[wI].Evaluate(r, &e.resources.memPool)
+				if !gateInputEvals[levelWireI][0].Equal(&gateEval) {
+					return errors.New("incompatible evaluations")
+				}
 			} else {
 				evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
 				for _, v := range gateInputEvals[levelWireI] {

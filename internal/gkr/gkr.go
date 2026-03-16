@@ -78,9 +78,10 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // claims on each wire and c is foldingCoeff.
 // Both purportedValue and the vector r have been randomized during sumcheck.
 //
-// For input wires, w(r) is computed directly from the assignment.
-// For non-input wires, the prover claims evaluations of the input wires at r,
-// communicated through uniqueInputEvaluations; those claims are verified later.
+// For input wires, w(r) is computed directly from the assignment and the claimed
+// evaluation in uniqueInputEvaluations is asserted equal to it.
+// For non-input wires, the prover claims evaluations of their gate inputs at r via
+// uniqueInputEvaluations; those claims are verified by lower levels' sumchecks.
 func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
 	e.r.outgoingEvalPoints[e.levelI] = [][]frontend.Variable{r}
 	level := e.r.schedule[e.levelI]
@@ -95,6 +96,7 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Var
 			var gateEval frontend.Variable
 			if wire.IsInput() {
 				gateEval = e.r.assignment[wI].Evaluate(api, r)
+				api.AssertIsEqual(perWireInputEvals[levelWireI][0], gateEval)
 			} else {
 				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{api}, perWireInputEvals[levelWireI]...)
 			}
@@ -114,13 +116,40 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Var
 	return nil
 }
 
-func (r *resources) verifySkipLevel(levelI int) {
+func (r *resources) verifySkipLevel(levelI int, proof Proof) {
 	level := r.schedule[levelI].(constraint.GkrSkipLevel)
-	outPoints := make([][]frontend.Variable, level.NbOutgoingEvalPoints())
-	for k, src := range level.ClaimSources {
-		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
+
+	finalEval := proof[levelI].FinalEvalProof
+	_, inputIndices := r.circuit.InputMapping(level)
+	group := constraint.GkrClaimGroup(level)
+	initialChallengeI := len(r.schedule)
+
+	for levelWireI, wI := range group.Wires {
+		wire := r.circuit[wI]
+		gateIns := make([]frontend.Variable, len(wire.Inputs))
+		for claimI, src := range group.ClaimSources {
+			point := outPoints[claimI]
+			var gateEval frontend.Variable
+			if wire.IsInput() {
+				gateEval = r.assignment[wI].Evaluate(r.api, point)
+				claimed := finalEval[level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI)]
+				r.api.AssertIsEqual(claimed, gateEval)
+			} else {
+				for _, inI := range inputIndices[levelWireI] {
+					gateIns[inI] = finalEval[level.FinalEvalProofIndex(inI, claimI)]
+				}
+				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{r.api}, gateIns...)
+			}
+			var claimedEval frontend.Variable
+			if src.Level == initialChallengeI {
+				claimedEval = r.assignment[wI].Evaluate(r.api, point)
+			} else {
+				claimedEval = proof[src.Level].FinalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)]
+			}
+			r.api.AssertIsEqual(claimedEval, gateEval)
+		}
 	}
-	r.outgoingEvalPoints[levelI] = outPoints
 }
 
 func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
@@ -141,8 +170,8 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 				if src.Level == initialChallengeI {
 					claimedEval = r.assignment[wI].Evaluate(r.api, r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex])
 				} else {
-					idx := r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)
-					claimedEval = proof[src.Level].FinalEvalProof[idx]
+					i := r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)
+					claimedEval = proof[src.Level].FinalEvalProof[i]
 				}
 				claimedEvals = append(claimedEvals, claimedEval)
 			}
@@ -163,7 +192,6 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 }
 
 // Verify the consistency of the claimed output with the claimed input.
-// Unlike in Prove, the assignment argument need not be complete.
 func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, proof Proof, h hash.FieldHasher) error {
 	nbVars := assignment.NbVars()
 	if 1<<nbVars != assignment.NbInstances() {
@@ -190,7 +218,7 @@ func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule,
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
 		if _, isSkip := schedule[levelI].(constraint.GkrSkipLevel); isSkip {
-			r.verifySkipLevel(levelI)
+			r.verifySkipLevel(levelI, proof)
 		} else {
 			if err := r.verifySumcheckLevel(levelI, proof); err != nil {
 				return err
