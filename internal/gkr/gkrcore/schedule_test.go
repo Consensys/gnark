@@ -21,11 +21,11 @@ func TestDefaultProvingSchedule(t *testing.T) {
 	// UniqueGateInputs for level 2 (wire 2) = [0, 1].
 	// 3 = len(schedule) = initial challenge sentinel.
 	require.Equal(t, constraint.GkrProvingSchedule{
-		// Level 0: input wire 0, claimed by mul gate at level 2 (its position in UniqueGateInputs = 0)
+		// Level 0: input wire 0, position 0 in mul gate's UniqueGateInputs [0, 1]
 		constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}}},
-		// Level 1: input wire 1, claimed by mul gate at level 2 (position 1 in UniqueGateInputs)
+		// Level 1: input wire 1, position 1 in mul gate's UniqueGateInputs [0, 1]
 		constraint.GkrSkipLevel{Wires: []int{1}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}}},
-		// Level 2: mul gate output, claimed by initial challenge
+		// Level 2: mul gate output, claimed by initial challenge (sentinel)
 		constraint.GkrSumcheckLevel{{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{{Level: 3}}}},
 	}, schedule)
 }
@@ -37,22 +37,21 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 
 	// Wire layout for Poseidon2Circuit(4, 2) — 25 wires total:
 	//   0, 1            inputs
-	//   2–5             full-round 0  (lin0=2, lin1=3, sBox0=4, sBox1=5)
-	//   6–9             full-round 1  (lin0=6, lin1=7, sBox0=8, sBox1=9)
-	//   10–12           partial-round 0  (lin0=10, lin1=11, sBox0=12)
-	//   13–15           partial-round 1  (lin0=13, lin1=14, sBox0=15)
-	//   16–19           full-round 2  (lin0=16, lin1=17, sBox0=18, sBox1=19)
-	//   20–23           full-round 3  (lin0=20, lin1=21, sBox0=22, sBox1=23)
-	//   24              feed-forward output (inputs: 22, 23, 1)
+	//   2–3             full-round 0 lin (lin0=2, lin1=3)
+	//   4–5             full-round 0 sBox (sBox0=4, sBox1=5)
+	//   6–7             full-round 1 lin (lin0=6, lin1=7)
+	//   8–9             full-round 1 sBox (sBox0=8, sBox1=9)
+	//   10–11           partial-round 0 lin (lin0=10, lin1=11)
+	//   12              partial-round 0 sBox0
+	//   13–14           partial-round 1 lin (lin0=13, lin1=14)
+	//   15              partial-round 1 sBox0
+	//   16–17           full-round 2 lin (lin0=16, lin1=17)
+	//   18–19           full-round 2 sBox (sBox0=18, sBox1=19)
+	//   20–21           full-round 3 lin (lin0=20, lin1=21)
+	//   22–23           full-round 3 sBox (sBox0=22, sBox1=23)
+	//   24              feed-forward output
 	//
-	// SkipSumcheck levels (degree-1 gates or input wires with a single claim source)
-	// produce M outgoing eval points, one per inherited claim.
-	// SumcheckLevels always produce exactly 1 outgoing eval point (OCI=0).
 	// 17 = len(schedule) = initial challenge sentinel.
-	//
-	// Level 7 (wire 11, partial-round 0 lin1) has two claim sources (from levels 9 and 10),
-	// so it produces M=2 outgoing eval points. Wires feeding into level 7 therefore
-	// inherit two claim sources from it: {7,0} and {7,1}.
 	require.Equal(t, constraint.GkrProvingSchedule{
 		// Level 0: input wire 0 — claimed by level 2 (full-round 0 lin1+lin0 skip).
 		constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}}},

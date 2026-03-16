@@ -21,7 +21,7 @@ func writeUint8(w io.Writer, x int) error {
 
 func writeUint16[T int | uint16](w io.Writer, x T) error {
 	var buf [2]byte
-	if x >= 65536 || x < 0 {
+	if int(x) >= 65536 || x < 0 {
 		return fmt.Errorf("%d out of range", x)
 	}
 	binary.LittleEndian.PutUint16(buf[:], uint16(x))

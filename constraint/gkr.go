@@ -22,8 +22,12 @@ type (
 	// GkrProvingLevel is a single level in the proving schedule.
 	GkrProvingLevel interface {
 		NbOutgoingEvalPoints() int
+		// NbClaims returns the total number of claims at this level.
 		NbClaims() int
 		ClaimGroups() []GkrClaimGroup
+		// FinalEvalProofIndex returns where to find the evaluationPointI'th evaluation claim for the wireI'th input wire to the layer,
+		// in the layer's final evaluation proof.
+		FinalEvalProofIndex(wireI, evaluationPointI int) int
 	}
 
 	// GkrSkipLevel represents a level where zerocheck is skipped.
@@ -50,10 +54,14 @@ func (l GkrSumcheckLevel) NbClaims() int {
 	}
 	return n
 }
-func (l GkrSumcheckLevel) ClaimGroups() []GkrClaimGroup { return l }
+func (l GkrSumcheckLevel) ClaimGroups() []GkrClaimGroup         { return l }
+func (l GkrSumcheckLevel) FinalEvalProofIndex(wireI, _ int) int { return wireI }
 
 func (l GkrSkipLevel) NbOutgoingEvalPoints() int { return len(l.ClaimSources) }
 func (l GkrSkipLevel) NbClaims() int {
 	return GkrClaimGroup(l).NbClaims()
 }
 func (l GkrSkipLevel) ClaimGroups() []GkrClaimGroup { return []GkrClaimGroup{GkrClaimGroup(l)} }
+func (l GkrSkipLevel) FinalEvalProofIndex(wireI, evaluationPointI int) int {
+	return wireI*l.NbOutgoingEvalPoints() + evaluationPointI
+}

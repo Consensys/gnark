@@ -310,3 +310,37 @@ func DefaultProvingSchedule[G any](c Circuit[G]) (constraint.GkrProvingSchedule,
 	}
 	return b.finalize()
 }
+
+// UniqueInputIndices returns uniqueInputIndices[wI][claimI], the position of wire wI
+// in the UniqueGateInputs list of the source level for its claimI-th claim source.
+// The sentinel initial-challenge claim maps to 0 (unused at call sites).
+func (c Circuit[G]) UniqueInputIndices(schedule constraint.GkrProvingSchedule) [][]int {
+	cache := make([]map[int]int, len(schedule)) // cache[levelI][wireI] is the unique input index of wireI in levelI.
+	res := make([][]int, len(c))
+
+	// This loop weaves the level's treatment both as a claim source and as the collection of input wires
+	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
+		level := schedule[levelI]
+		cache[levelI] = make(map[int]int)
+
+		for _, group := range level.ClaimGroups() {
+			for _, wI := range group.Wires {
+
+				for _, inputWI := range c[wI].Inputs {
+					if _, ok := cache[levelI][inputWI]; !ok {
+						cache[levelI][inputWI] = len(cache[levelI])
+					}
+				}
+
+				for _, claimSource := range group.ClaimSources {
+					if claimSource.Level == len(schedule) { // output
+						res[wI] = append(res[wI], 0) // zero by convention
+					} else {
+						res[wI] = append(res[wI], cache[claimSource.Level][wI])
+					}
+				}
+			}
+		}
+	}
+	return res
+}
