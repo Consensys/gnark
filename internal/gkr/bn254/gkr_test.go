@@ -68,6 +68,35 @@ func TestMimc(t *testing.T) {
 	test(t, gkrtesting.MiMCCircuit(93))
 }
 
+func TestPoseidon2(t *testing.T) {
+	test(t, gkrtesting.Poseidon2Circuit(4, 2))
+}
+
+// sentinelEvalPoints builds the evaluation-point slice to place at the
+// initial-challenge sentinel level (outgoingEvalPoints[sentinelIdx]).
+// M is derived as max(OutgoingClaimIndex)+1 across all claim sources that
+// reference sentinelIdx; each point is a single-element slice {k+1}.
+func sentinelEvalPoints(level constraint.GkrProvingLevel, sentinelIdx int) [][]fr.Element {
+	M := 0
+	for _, cg := range level.ClaimGroups() {
+		for _, cs := range cg.ClaimSources {
+			if cs.Level == sentinelIdx && cs.OutgoingClaimIndex+1 > M {
+				M = cs.OutgoingClaimIndex + 1
+			}
+		}
+	}
+	if M == 0 {
+		M = 1
+	}
+	pts := make([][]fr.Element, M)
+	for k := range pts {
+		var e fr.Element
+		e.SetInt64(int64(k + 1))
+		pts[k] = []fr.Element{e}
+	}
+	return pts
+}
+
 // testSumcheckLevel exercises proveLevel/verifyLevel for a single sumcheck level.
 func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
 	t.Helper()
@@ -83,14 +112,14 @@ func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constrain
 	assignment.Complete(sCircuit)
 
 	schedule := constraint.GkrProvingSchedule{level}
-	challenge := []fr.Element{five}
+	initEvalPoints := sentinelEvalPoints(level, len(schedule))
 
 	// Prove
 	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 	defer proveR.workers.Stop()
 
-	proveR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoints
 	proof := Proof{proveR.proveSumcheckLevel(0)}
 
 	// Verify
@@ -98,7 +127,7 @@ func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constrain
 	assert.NoError(t, err)
 	defer verifyR.workers.Stop()
 
-	verifyR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoints
 	assert.NoError(t, verifyR.verifySumcheckLevel(0, proof))
 }
 
@@ -149,6 +178,34 @@ func TestSumcheckLevel(t *testing.T) {
 			testSumcheckLevel(t, circuit, tc.level)
 		})
 	}
+
+	// Two-claim cases: sentinel level provides two evaluation points,
+	// exercising OutgoingClaimIndex = 1 in a sumcheck level.
+	twoClaim := []struct {
+		name  string
+		level constraint.GkrProvingLevel
+	}{
+		{
+			// Single group whose result feeds eval point 1 of the sentinel.
+			name: "single wire claim index 1",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 1}}},
+			},
+		},
+		{
+			// Two groups consuming different sentinel eval points.
+			name: "two groups different claim indices",
+			level: constraint.GkrSumcheckLevel{
+				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 0}}},
+				{Wires: []int{3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 1}}},
+			},
+		},
+	}
+	for _, tc := range twoClaim {
+		t.Run(tc.name, func(t *testing.T) {
+			testSumcheckLevel(t, circuit, tc.level)
+		})
+	}
 }
 
 // testSkipLevel exercises proveSkipLevel/verifySkipLevel for a single skip level.
@@ -166,14 +223,14 @@ func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.Gk
 	assignment.Complete(sCircuit)
 
 	schedule := constraint.GkrProvingSchedule{level}
-	challenge := []fr.Element{five}
+	initEvalPoints := sentinelEvalPoints(level, len(schedule))
 
 	// Prove
 	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
 	assert.NoError(t, err)
 	defer proveR.workers.Stop()
 
-	proveR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoints
 	proof := Proof{proveR.proveSkipLevel(0)}
 
 	// Verify
@@ -181,7 +238,7 @@ func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.Gk
 	assert.NoError(t, err)
 	defer verifyR.workers.Stop()
 
-	verifyR.outgoingEvalPoints[1] = [][]fr.Element{challenge}
+	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoints
 	assert.NoError(t, verifyR.verifySkipLevel(0, proof))
 }
 
@@ -194,8 +251,9 @@ func TestSkipLevel(t *testing.T) {
 		{Gate: gkrcore.Identity, Inputs: []int{0}},
 		{Gate: gkrcore.Add2, Inputs: []int{0, 1}},
 	}
-	// Each level has an initial challenge at index 1 (len(schedule) = 1).
-	tests := []struct {
+
+	// Single-claim cases: one inherited evaluation point (OutgoingClaimIndex always 0).
+	singleClaim := []struct {
 		name  string
 		level constraint.GkrProvingLevel
 	}{
@@ -216,7 +274,34 @@ func TestSkipLevel(t *testing.T) {
 			level: constraint.GkrSkipLevel{Wires: []int{2, 3}, ClaimSources: []constraint.GkrClaimSource{{Level: 1}}},
 		},
 	}
-	for _, tc := range tests {
+	for _, tc := range singleClaim {
+		t.Run(tc.name, func(t *testing.T) {
+			testSkipLevel(t, circuit, tc.level)
+		})
+	}
+
+	// Two-claim cases: two inherited evaluation points, exercising OutgoingClaimIndex = 0 and 1.
+	// ClaimSources references the same sentinel level at both outgoing indices.
+	twoClaimSources := []constraint.GkrClaimSource{{Level: 1, OutgoingClaimIndex: 0}, {Level: 1, OutgoingClaimIndex: 1}}
+	twoClaim := []struct {
+		name  string
+		level constraint.GkrProvingLevel
+	}{
+		{
+			name:  "input wire two claim points",
+			level: constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: twoClaimSources},
+		},
+		{
+			name:  "identity gate two claim points",
+			level: constraint.GkrSkipLevel{Wires: []int{2}, ClaimSources: twoClaimSources},
+		},
+		{
+			// Two unique inputs [0,1]; finalEvalProof = [w0(p0), w0(p1), w1(p0), w1(p1)].
+			name:  "add gate two claim points",
+			level: constraint.GkrSkipLevel{Wires: []int{4}, ClaimSources: twoClaimSources},
+		},
+	}
+	for _, tc := range twoClaim {
 		t.Run(tc.name, func(t *testing.T) {
 			testSkipLevel(t, circuit, tc.level)
 		})
@@ -281,8 +366,6 @@ func testWithSchedule(t *testing.T, circuit gkrcore.RawCircuit, schedule constra
 		}
 
 		fullAssignment.Complete(sCircuit)
-
-		t.Log("Selected inputs for test")
 
 		proof, err := Prove(sCircuit, schedule, fullAssignment, newMessageCounter(1, 1))
 		assert.NoError(t, err)
