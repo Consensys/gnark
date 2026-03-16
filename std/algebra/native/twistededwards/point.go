@@ -179,7 +179,13 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 	g = api.Mul(g, endo.Endo[0])
 	h := api.Sub(yy, endo.Endo[0])
 
-	p.X = api.DivUnchecked(f, xy)
+	// When the input is the identity (0,1), xy=0 and f=0, so f/xy is 0/0.
+	// φ(identity) = identity, so p.X should be 0 in that case.
+	// We avoid DivUnchecked(0,0) by selecting xy=1 when x=0 (f is also 0,
+	// so 0/1=0 gives the correct result).
+	isIdentity := api.IsZero(p1.X)
+	safeXY := api.Select(isIdentity, 1, xy)
+	p.X = api.DivUnchecked(f, safeXY)
 	p.Y = api.DivUnchecked(g, h)
 
 	return p
