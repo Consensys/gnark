@@ -1,14 +1,25 @@
 package scs_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
+)
+
+type divUncheckedCase uint8
+
+const (
+	divUncheckedVarVar divUncheckedCase = iota
+	divUncheckedVarConst
+	divUncheckedConstVar
+	divUncheckedConstConst
 )
 
 type circuitDupAdd struct {
@@ -256,6 +267,68 @@ func TestSubSameNoConstraint(t *testing.T) {
 	assert.NoError(err)
 	if ccs.GetNbConstraints() != 0 {
 		t.Fatal("expected 0 constraints")
+	}
+}
+
+type divUncheckedZeroCircuit struct {
+	Case divUncheckedCase `gnark:"-"`
+	A    frontend.Variable
+	B    frontend.Variable
+}
+
+func (c *divUncheckedZeroCircuit) Define(api frontend.API) error {
+	var res frontend.Variable
+	switch c.Case {
+	case divUncheckedVarVar:
+		res = api.DivUnchecked(c.A, c.B)
+	case divUncheckedVarConst:
+		res = api.DivUnchecked(c.A, 0)
+	case divUncheckedConstVar:
+		res = api.DivUnchecked(0, c.B)
+	case divUncheckedConstConst:
+		res = api.DivUnchecked(0, 0)
+	default:
+		panic("unknown case")
+	}
+	api.AssertIsEqual(res, 0)
+	return nil
+}
+
+func TestDivUncheckedZeroSolveFails(t *testing.T) {
+	tests := []struct {
+		name      string
+		mode      divUncheckedCase
+		solveFail bool
+	}{
+		{name: "var_var", mode: divUncheckedVarVar, solveFail: true},
+		{name: "var_const", mode: divUncheckedVarConst, solveFail: false},
+		{name: "const_var", mode: divUncheckedConstVar, solveFail: true},
+		{name: "const_const", mode: divUncheckedConstConst, solveFail: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := test.NewAssert(t)
+			circuit := &divUncheckedZeroCircuit{Case: tc.mode}
+			ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+			if !tc.solveFail {
+				if err == nil {
+					t.Fatal("expected compile-time error")
+				}
+				return
+			}
+			assert.NoError(err)
+			w, err := frontend.NewWitness(&divUncheckedZeroCircuit{
+				Case: tc.mode,
+				A:    0,
+				B:    0,
+			}, ecc.BN254.ScalarField())
+			assert.NoError(err)
+			_, err = ccs.Solve(w)
+			assert.Error(err)
+			if !errors.Is(err, constraint.ErrDivideByZero) {
+				t.Fatalf("expected ErrDivideByZero, got %v", err)
+			}
+		})
 	}
 }
 
