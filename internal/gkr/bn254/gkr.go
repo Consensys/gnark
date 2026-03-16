@@ -388,25 +388,29 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 	}
 	return nil
 }
+
+func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
 		foldingCoeff = r.transcript.getChallenge()
 	}
 
-	uniqueInputs, inputIndices := gkrcore.InputMapping(level, r.circuit)
+	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
 	input := make([]polynomial.MultiLin, len(uniqueInputs))
 	for i, inW := range uniqueInputs {
 		input[i] = r.memPool.Clone(r.assignment[inW])
 	}
 
 	nbWires := 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		nbWires += len(group.Wires)
 	}
 
 	pools := make([]*gateEvaluatorPool, nbWires)
 	flatW := 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := r.circuit[wI]
 			gate := wire.Gate.Evaluate
@@ -423,12 +427,12 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 	var alpha fr.Element
 	alpha.SetOne()
 	flatW = 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
 		groupEq := polynomial.MultiLin(r.memPool.Make(eqLength))
 		groupEq[0].Set(&alpha)
-		groupEq.Eq(r.levelPoints[group.ClaimSources[0]])
+		groupEq.Eq(r.outgoingEvalPoints[group.ClaimSources[0].Level][group.ClaimSources[0].OutgoingClaimIndex])
 
 		if nbSources > 1 {
 			newEq := polynomial.MultiLin(r.memPool.Make(eqLength))
@@ -436,7 +440,7 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 			for k := 1; k < nbSources; k++ {
 				aI.Mul(&aI, &foldingCoeff)
 				newEq[0].Set(&aI)
-				r.eqAcc(groupEq, newEq, r.levelPoints[group.ClaimSources[k]])
+				r.eqAcc(groupEq, newEq, r.outgoingEvalPoints[group.ClaimSources[k].Level][group.ClaimSources[k].OutgoingClaimIndex])
 			}
 			r.memPool.Dump(newEq)
 		}
@@ -452,7 +456,7 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 		alpha.Mul(&alpha, &stride)
 
 		for w := 1; w < len(group.Wires); w++ {
-			eqs[flatW] = polynomial.MultiLin(r.memPool.Make(eqLength))
+			eqs[flatW] = r.memPool.Make(eqLength)
 			r.workers.Submit(eqLength, func(start, end int) {
 				for i := start; i < end; i++ {
 					eqs[flatW][i].Mul(&eqs[flatW-1][i], &stride)
@@ -464,7 +468,6 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 	}
 
 	claims := &zeroCheckClaims{
-		level:              level,
 		levelI:             levelI,
 		resources:          r,
 		input:              input,
