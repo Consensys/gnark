@@ -478,44 +478,37 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	return sumcheckProve(claims, &r.transcript)
 }
 
-// verifyLevel runs the sumcheck verification for a SumcheckLevel: derives the fold challenge,
-// computes the claimed sum, and calls sumcheckVerify.
-func (r *resources) verifyLevel(levelI int, proof Proof) error {
-	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
-	initialChallengeI := len(r.schedule)
-
-	nbClaims := gkrcore.NbClaims(level)
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
 		foldingCoeff = r.transcript.getChallenge()
 	}
 
-	var ys []fr.Element
-	for _, group := range level {
+	initialChallengeI := len(r.schedule)
+	claimedEvals := make(polynomial.Polynomial, 0, level.NbClaims())
+
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
-			evalI := 0
-			for _, src := range group.ClaimSources {
-				var y fr.Element
-				if src == initialChallengeI {
-					y = r.assignment[wI].Evaluate(r.levelPoints[src], &r.memPool)
+			for claimI, src := range group.ClaimSources {
+				if src.Level == initialChallengeI {
+					claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
 				} else {
-					y = proof[src].finalEvalProof[r.evalPositions[wI][evalI]]
-					evalI++
+					claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)])
 				}
-				ys = append(ys, y)
 			}
 		}
 	}
 
-	ysPoly := polynomial.Polynomial(ys)
-	claimedSum := ysPoly.Eval(&foldingCoeff)
+	claimedSum := claimedEvals.Eval(&foldingCoeff)
 
 	lazyClaims := &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,
 		resources:    r,
 		levelI:       levelI,
 	}
-	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, gkrcore.Degree(level, r.circuit), &r.transcript)
+	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), &r.transcript)
 }
 
 // Prove consistency of the claimed assignment
