@@ -447,7 +447,7 @@ func NewBlueprints(circuit gkrcore.SerializableCircuit, schedule constraint.GkrP
 	}
 	proveID := compiler.AddBlueprint(prove)
 
-	// Create and register the GetAssignment blueprint
+	// Create and register GetAssignment blueprint
 	getAssignment := &BlueprintGetAssignment{
 		SolveBlueprintID: solveID,
 	}

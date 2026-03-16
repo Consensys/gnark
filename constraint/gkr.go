@@ -65,3 +65,16 @@ func (l GkrSkipLevel) ClaimGroups() []GkrClaimGroup { return []GkrClaimGroup{Gkr
 func (l GkrSkipLevel) FinalEvalProofIndex(wireI, evaluationPointI int) int {
 	return wireI*l.NbOutgoingEvalPoints() + evaluationPointI
 }
+
+// BindGkrFinalEvalProof binds the non-input-wire entries of finalEvalProof into the transcript.
+// Input-wire evaluations are fully determined by the public assignment (and by evaluation points
+// already committed to the transcript), so hashing them contributes nothing to Fiat-Shamir security.
+// uniqueGateInputs is the deduplicated list of gate-input wire indices for the level in the same
+// order as the finalEvalProof entries (i.e. the order returned by UniqueGateInputs).
+func BindGkrFinalEvalProof[F any](transcript interface{ Bind(...F) }, finalEvalProof []F, uniqueGateInputs []int, isInput func(wireI int) bool, level GkrProvingLevel) {
+	for i, inputWireI := range uniqueGateInputs {
+		if !isInput(inputWireI) {
+			transcript.Bind(finalEvalProof[level.FinalEvalProofIndex(i, 0):level.FinalEvalProofIndex(i+1, 0)]...)
+		}
+	}
+}

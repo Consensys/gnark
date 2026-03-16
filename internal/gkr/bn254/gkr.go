@@ -366,7 +366,7 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 			var gateEval fr.Element
 			if wire.IsInput() {
 				gateEval = r.assignment[wI].Evaluate(point, &r.memPool)
-				if claimed := finalEval[level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI)]; !claimed.Equal(&gateEval) { // an input wire has a unique self-input
+				if claimed := finalEval[level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI)]; !claimed.Equal(&gateEval) {
 					return fmt.Errorf("level %d wire %d: finalEvalProof[%d] = %v, want %v", levelI, wI, level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI), &claimed, &gateEval)
 				}
 			} else {
@@ -409,7 +409,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	}
 
 	pools := make([]*gateEvaluatorPool, nbWires)
-	flatW := 0
+	levelWireI := 0
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := r.circuit[wI]
@@ -417,8 +417,8 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			if wire.IsInput() {
 				gate = gkrcore.IdentityBytecode()
 			}
-			pools[flatW] = newGateEvaluatorPool(gate, len(inputIndices[flatW]), &r.memPool)
-			flatW++
+			pools[levelWireI] = newGateEvaluatorPool(gate, len(inputIndices[levelWireI]), &r.memPool)
+			levelWireI++
 		}
 	}
 
@@ -426,7 +426,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	eqs := make([]polynomial.MultiLin, nbWires)
 	var alpha fr.Element
 	alpha.SetOne()
-	flatW = 0
+	levelWireI = 0
 	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
@@ -451,18 +451,18 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			stride.Mul(&stride, &foldingCoeff)
 		}
 
-		eqs[flatW] = groupEq
-		flatW++
+		eqs[levelWireI] = groupEq
+		levelWireI++
 		alpha.Mul(&alpha, &stride)
 
 		for w := 1; w < len(group.Wires); w++ {
-			eqs[flatW] = r.memPool.Make(eqLength)
+			eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
 			r.workers.Submit(eqLength, func(start, end int) {
 				for i := start; i < end; i++ {
-					eqs[flatW][i].Mul(&eqs[flatW-1][i], &stride)
+					eqs[levelWireI][i].Mul(&eqs[levelWireI-1][i], &stride)
 				}
 			}, 512).Wait()
-			flatW++
+			levelWireI++
 			alpha.Mul(&alpha, &stride)
 		}
 	}
@@ -534,7 +534,7 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 		} else {
 			proof[levelI] = r.proveSumcheckLevel(levelI)
 		}
-		r.transcript.bind(proof[levelI].finalEvalProof...)
+		constraint.BindGkrFinalEvalProof(&r.transcript, proof[levelI].finalEvalProof, c.UniqueGateInputs(r.schedule[levelI]), c.IsInput, r.schedule[levelI])
 	}
 
 	return proof, nil
@@ -565,7 +565,7 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 		if err != nil {
 			return fmt.Errorf("level %d: %v", levelI, err)
 		}
-		r.transcript.bind(proof[levelI].finalEvalProof...)
+		constraint.BindGkrFinalEvalProof(&r.transcript, proof[levelI].finalEvalProof, c.UniqueGateInputs(r.schedule[levelI]), c.IsInput, r.schedule[levelI])
 	}
 	return nil
 }

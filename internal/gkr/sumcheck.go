@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 )
 
@@ -20,6 +21,31 @@ type sumcheckLazyClaims interface {
 type sumcheckProof struct {
 	PartialSumPolys []polynomial.Polynomial
 	FinalEvalProof  []frontend.Variable
+}
+
+// transcript is a Fiat-Shamir transcript backed by a running hash.
+// Field elements are written via Bind; challenges are derived via getChallenge.
+// The hash is never reset — all previous data is implicitly part of future challenges.
+type transcript struct {
+	h     hash.FieldHasher
+	bound bool
+}
+
+func (t *transcript) Bind(elements ...frontend.Variable) {
+	if len(elements) == 0 {
+		return
+	}
+	t.h.Write(elements...)
+	t.bound = true
+}
+
+func (t *transcript) getChallenge(bindings ...frontend.Variable) frontend.Variable {
+	t.Bind(bindings...)
+	if !t.bound {
+		t.h.Write(0) // separator to prevent repeated values
+	}
+	t.bound = false
+	return t.h.Sum()
 }
 
 func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckProof, claimedSum frontend.Variable, degree int, t *transcript) error {

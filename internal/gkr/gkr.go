@@ -43,26 +43,33 @@ func (a WireAssignment) NbVars() int {
 
 type Proof []sumcheckProof // for each schedule level, a sumcheck proof
 
+// resources holds all shared state for gadget GKR verification.
+type resources struct {
+	api                frontend.API
+	t                  *transcript
+	circuit            Circuit
+	schedule           constraint.GkrProvingSchedule
+	assignment         WireAssignment
+	outgoingEvalPoints [][][]frontend.Variable // [levelI][outgoingClaimI] → eval point
+	nbVars             int
+	uniqueInputIndices [][]int // [wI][claimI]: w's unique-input index in the layer its claimI-th evaluation is coming from
+}
+
 // zeroCheckLazyClaims is a lazy claim for sumcheck (verifier side).
 // It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
 // where the sum runs over all (wire v, claim source s) pairs in the level.
 type zeroCheckLazyClaims struct {
-	foldingCoeff       frontend.Variable
-	levelI             int
-	schedule           constraint.GkrProvingSchedule
-	circuit            Circuit
-	assignment         WireAssignment
-	outgoingEvalPoints [][][]frontend.Variable // [levelI][outgoingClaimI] → eval point
-	proof              Proof
-	nbVars             int
+	foldingCoeff frontend.Variable
+	r            *resources
+	levelI       int
 }
 
 func (e *zeroCheckLazyClaims) varsNum() int {
-	return e.nbVars
+	return e.r.nbVars
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return e.circuit.ZeroCheckDegree(e.schedule[e.levelI].(constraint.GkrSumcheckLevel))
+	return e.r.circuit.ZeroCheckDegree(e.r.schedule[e.levelI].(constraint.GkrSumcheckLevel))
 }
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
@@ -75,29 +82,29 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // For non-input wires, the prover claims evaluations of the input wires at r,
 // communicated through uniqueInputEvaluations; those claims are verified later.
 func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
-	e.outgoingEvalPoints[e.levelI] = [][]frontend.Variable{r}
-	level := e.schedule[e.levelI]
-	perWireInputEvals := gkrcore.ReduplicateInputs(level, e.circuit, uniqueInputEvaluations)
+	e.r.outgoingEvalPoints[e.levelI] = [][]frontend.Variable{r}
+	level := e.r.schedule[e.levelI]
+	perWireInputEvals := gkrcore.ReduplicateInputs(level, e.r.circuit, uniqueInputEvaluations)
 
 	var terms []frontend.Variable
-	flatW := 0
+	levelWireI := 0
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
-			wire := e.circuit[wI]
+			wire := e.r.circuit[wI]
 
 			var gateEval frontend.Variable
 			if wire.IsInput() {
-				gateEval = e.assignment[wI].Evaluate(api, r)
+				gateEval = e.r.assignment[wI].Evaluate(api, r)
 			} else {
-				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{api}, perWireInputEvals[flatW]...)
+				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{api}, perWireInputEvals[levelWireI]...)
 			}
 
 			for _, src := range group.ClaimSources {
-				eq := polynomial.EvalEq(api, e.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
+				eq := polynomial.EvalEq(api, e.r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
 				term := api.Mul(eq, gateEval)
 				terms = append(terms, term)
 			}
-			flatW++
+			levelWireI++
 		}
 	}
 
@@ -107,29 +114,52 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Var
 	return nil
 }
 
-// transcript is a Fiat-Shamir transcript backed by a running hash.
-// Field elements are written via bind; challenges are derived via getChallenge.
-// The hash is never reset — all previous data is implicitly part of future challenges.
-type transcript struct {
-	h     hash.FieldHasher
-	bound bool
+func (r *resources) verifySkipLevel(levelI int) {
+	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := make([][]frontend.Variable, level.NbOutgoingEvalPoints())
+	for k, src := range level.ClaimSources {
+		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	}
+	r.outgoingEvalPoints[levelI] = outPoints
 }
 
-func (t *transcript) bind(elements ...frontend.Variable) {
-	if len(elements) == 0 {
-		return
-	}
-	t.h.Write(elements...)
-	t.bound = true
-}
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
+	initialChallengeI := len(r.schedule)
 
-func (t *transcript) getChallenge(bindings ...frontend.Variable) frontend.Variable {
-	t.bind(bindings...)
-	if !t.bound {
-		t.h.Write(0) // separator to prevent repeated values
+	foldingCoeff := frontend.Variable(0)
+	if nbClaims >= 2 {
+		foldingCoeff = r.t.getChallenge()
 	}
-	t.bound = false
-	return t.h.Sum()
+
+	var claimedEvals []frontend.Variable
+	for _, group := range level.ClaimGroups() {
+		for _, wI := range group.Wires {
+			for claimI, src := range group.ClaimSources {
+				var claimedEval frontend.Variable
+				if src.Level == initialChallengeI {
+					claimedEval = r.assignment[wI].Evaluate(r.api, r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex])
+				} else {
+					idx := r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)
+					claimedEval = proof[src.Level].FinalEvalProof[idx]
+				}
+				claimedEvals = append(claimedEvals, claimedEval)
+			}
+		}
+	}
+	claimedSum := polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff)
+
+	lazyClaims := &zeroCheckLazyClaims{
+		foldingCoeff: foldingCoeff,
+		r:            r,
+		levelI:       levelI,
+	}
+	if err := verifySumcheck(r.api, lazyClaims, proof[levelI], claimedSum,
+		r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), r.t); err != nil {
+		return fmt.Errorf("sumcheck proof rejected at level %d: %v", levelI, err)
+	}
+	return nil
 }
 
 // Verify the consistency of the claimed output with the claimed input.
@@ -140,73 +170,34 @@ func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule,
 		return errors.New("number of instances must be a power of 2")
 	}
 
-	t := &transcript{h: h}
+	r := &resources{
+		api:                api,
+		t:                  &transcript{h: h},
+		circuit:            c,
+		schedule:           schedule,
+		assignment:         assignment,
+		outgoingEvalPoints: make([][][]frontend.Variable, len(schedule)+1),
+		nbVars:             nbVars,
+		uniqueInputIndices: c.UniqueInputIndices(schedule),
+	}
 
-	uniqueInputIndices := c.UniqueInputIndices(schedule)
-	outgoingEvalPoints := make([][][]frontend.Variable, len(schedule)+1)
 	initialChallengeI := len(schedule)
-
 	firstChallenge := make([]frontend.Variable, nbVars)
 	for j := range nbVars {
-		firstChallenge[j] = t.getChallenge()
+		firstChallenge[j] = r.t.getChallenge()
 	}
-	outgoingEvalPoints[initialChallengeI] = [][]frontend.Variable{firstChallenge}
+	r.outgoingEvalPoints[initialChallengeI] = [][]frontend.Variable{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		level := schedule[levelI]
-
-		if skipLevel, isSkip := level.(constraint.GkrSkipLevel); isSkip {
-			outPoints := make([][]frontend.Variable, level.NbOutgoingEvalPoints())
-			for k, src := range skipLevel.ClaimSources {
-				outPoints[k] = outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
-			}
-			outgoingEvalPoints[levelI] = outPoints
+		if _, isSkip := schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+			r.verifySkipLevel(levelI)
 		} else {
-			nbClaims := level.NbClaims()
-
-			foldingCoeff := frontend.Variable(0)
-			if nbClaims >= 2 {
-				foldingCoeff = t.getChallenge()
-			}
-
-			var claimedEvals []frontend.Variable
-			for _, group := range level.ClaimGroups() {
-				for _, wI := range group.Wires {
-					for claimI, src := range group.ClaimSources {
-						var claimedEval frontend.Variable
-						if src.Level == initialChallengeI {
-							claimedEval = assignment[wI].Evaluate(api, outgoingEvalPoints[src.Level][src.OutgoingClaimIndex])
-						} else {
-							idx := schedule[src.Level].FinalEvalProofIndex(uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)
-							claimedEval = proof[src.Level].FinalEvalProof[idx]
-						}
-						claimedEvals = append(claimedEvals, claimedEval)
-					}
-				}
-			}
-			claimedSum := polynomial.Polynomial(claimedEvals).Eval(api, foldingCoeff)
-
-			lazyClaims := &zeroCheckLazyClaims{
-				foldingCoeff:       foldingCoeff,
-				levelI:             levelI,
-				schedule:           schedule,
-				circuit:            c,
-				assignment:         assignment,
-				outgoingEvalPoints: outgoingEvalPoints,
-				proof:              proof,
-				nbVars:             nbVars,
-			}
-
-			if err := verifySumcheck(
-				api, lazyClaims, proof[levelI], claimedSum,
-				c.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)),
-				t,
-			); err != nil {
-				return fmt.Errorf("sumcheck proof rejected at level %d: %v", levelI, err)
+			if err := r.verifySumcheckLevel(levelI, proof); err != nil {
+				return err
 			}
 		}
-
-		t.bind(proof[levelI].FinalEvalProof...)
+		constraint.BindGkrFinalEvalProof(r.t, proof[levelI].FinalEvalProof,
+			c.UniqueGateInputs(schedule[levelI]), c.IsInput, schedule[levelI])
 	}
 	return nil
 }

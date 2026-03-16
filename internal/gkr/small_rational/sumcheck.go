@@ -16,15 +16,15 @@ import (
 // This does not make use of parallelism and represents polynomials as lists of coefficients.
 
 // transcript is a Fiat-Shamir transcript backed by a running hash.
-// Field elements are written via bind; challenges are derived via getChallenge.
+// Field elements are written via Bind; challenges are derived via getChallenge.
 // The hash is never reset — all previous data is implicitly part of future challenges.
 type transcript struct {
 	h     hash.Hash
-	bound bool // whether bind was called since the last getChallenge
+	bound bool // whether Bind was called since the last getChallenge
 }
 
-// bind writes field elements to the transcript as bindings for the next challenge.
-func (t *transcript) bind(elements ...small_rational.SmallRational) {
+// Bind writes field elements to the transcript as bindings for the next challenge.
+func (t *transcript) Bind(elements ...small_rational.SmallRational) {
 	if len(elements) == 0 {
 		return
 	}
@@ -39,7 +39,7 @@ func (t *transcript) bind(elements ...small_rational.SmallRational) {
 // If no bindings were added since the last squeeze, a separator byte is written first
 // to advance the state and prevent repeated values.
 func (t *transcript) getChallenge(bindings ...small_rational.SmallRational) small_rational.SmallRational {
-	t.bind(bindings...)
+	t.Bind(bindings...)
 	if !t.bound {
 		t.h.Write([]byte{0})
 	}

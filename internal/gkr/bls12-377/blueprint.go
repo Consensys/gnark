@@ -304,7 +304,7 @@ func (b *BlueprintProve) proofSize() int {
 	}
 	nbPaddedInstances := ecc.NextPowerOfTwo(uint64(b.SolveBlueprint.NbInstances))
 	logNbInstances := bits.TrailingZeros64(nbPaddedInstances)
-	return gkrcore.ProofSize(b.Schedule, b.SolveBlueprint.Circuit, logNbInstances)
+	return b.SolveBlueprint.Circuit.ProofSize(b.Schedule, logNbInstances)
 }
 
 // NbOutputs implements Blueprint

@@ -71,7 +71,7 @@ func TestPoseidon2(t *testing.T) {
 	test(t, gkrtesting.Poseidon2Circuit(4, 2))
 }
 
-// testSumcheckLevel exercises proveLevel/verifyLevel for a single sumcheck level.
+// testSumcheckLevel exercises proveSumcheckLevel/verifySumcheckLevel for a single sumcheck level.
 func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
 	t.Helper()
 	_, sCircuit := cache.Compile(t, circuit)
@@ -494,11 +494,10 @@ func newTestCase(path string) (*TestCase, error) {
 		return nil, err
 	}
 	var schedule constraint.GkrProvingSchedule
-	if info.Schedule != nil {
-		if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
-			return nil, err
-		}
-	} else {
+	if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
+		return nil, err
+	}
+	if schedule == nil {
 		if schedule, err = gkrcore.DefaultProvingSchedule(circuit); err != nil {
 			return nil, err
 		}

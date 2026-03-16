@@ -63,6 +63,10 @@ func (w Wire[GateExecutable]) IsInput() bool {
 	return len(w.Inputs) == 0
 }
 
+func (c Circuit[GateExecutable]) IsInput(wireIndex int) bool {
+	return c[wireIndex].IsInput()
+}
+
 // ClaimPropagationInfo returns sets of indices describing the pruning of claim propagation.
 // At the end of sumcheck for wire #wireIndex, we end up with sequences "uniqueEvaluations" and "evaluations",
 // the former a subsequence of the latter.

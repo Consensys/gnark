@@ -27,7 +27,7 @@ type (
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
-// WireAssignment is assignment of values to the same wire across many instances of the circuit
+// WireAssignment is the assignment of values to the same wire across many instances of the circuit
 type WireAssignment []polynomial.MultiLin
 
 type Proof []sumcheckProof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
@@ -47,7 +47,7 @@ func (e *zeroCheckLazyClaims) varsNum() int {
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return gkrcore.Degree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel), e.resources.circuit)
+	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel))
 }
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
@@ -62,13 +62,13 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
 // that the full sum matches purportedValue.
 func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.Element, uniqueInputEvaluations []fr.Element) error {
-	e.resources.levelPoints[e.levelI] = r
-	level := e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel)
-	perWireInputEvals := gkrcore.ReduplicateInputs(level, e.resources.circuit, uniqueInputEvaluations)
+	e.resources.outgoingEvalPoints[e.levelI] = [][]fr.Element{r}
+	level := e.resources.schedule[e.levelI]
+	gateInputEvals := gkrcore.ReduplicateInputs(level, e.resources.circuit, uniqueInputEvaluations)
 
-	var terms []fr.Element
-	flatW := 0
-	for _, group := range level {
+	var claimedEvals polynomial.Polynomial
+	levelWireI := 0
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := e.resources.circuit[wI]
 
@@ -77,27 +77,26 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 				gateEval = e.resources.assignment[wI].Evaluate(r, &e.resources.memPool)
 			} else {
 				evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
-				for _, v := range perWireInputEvals[flatW] {
+				for _, v := range gateInputEvals[levelWireI] {
 					evaluator.pushInput(v)
 				}
 				gateEval.Set(evaluator.evaluate())
 			}
 
 			for _, src := range group.ClaimSources {
-				eq := polynomial.EvalEq(e.resources.levelPoints[src], r)
+				eq := polynomial.EvalEq(e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
 				var term fr.Element
 				term.Mul(&eq, &gateEval)
-				terms = append(terms, term)
+				claimedEvals = append(claimedEvals, term)
 			}
-			flatW++
+			levelWireI++
 		}
 	}
 
-	ys := polynomial.Polynomial(terms)
-	if total := ys.Eval(&e.foldingCoeff); total.Equal(&purportedValue) {
-		return nil
+	if total := claimedEvals.Eval(&e.foldingCoeff); !total.Equal(&purportedValue) {
+		return errors.New("incompatible evaluations")
 	}
-	return errors.New("incompatible evaluations")
+	return nil
 }
 
 // zeroCheckClaims is a claim for sumcheck (prover side).
@@ -105,7 +104,6 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 // where the sum runs over all (wire v, claim source s) pairs in the level.
 // Each wire has its own eq table with the batching coefficients baked in.
 type zeroCheckClaims struct {
-	level              constraint.GkrSumcheckLevel
 	levelI             int
 	resources          *resources
 	input              []polynomial.MultiLin // UniqueGateInputs order
@@ -115,7 +113,7 @@ type zeroCheckClaims struct {
 }
 
 func (c *zeroCheckClaims) varsNum() int {
-	return len(c.resources.levelPoints[c.level[0].ClaimSources[0]])
+	return c.resources.nbVars
 }
 
 // roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
@@ -123,7 +121,8 @@ func (c *zeroCheckClaims) varsNum() int {
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
-	degree := gkrcore.Degree(c.level, c.resources.circuit)
+	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
 	nbWires := len(c.eqs)
 
@@ -230,7 +229,7 @@ func (c *zeroCheckClaims) roundFold(r fr.Element) {
 
 // proveFinalEval provides the unique input wire values wᵢ(r₁, ..., rₙ).
 func (c *zeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
-	c.resources.levelPoints[c.levelI] = r
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
 	evaluations := make([]fr.Element, len(c.input))
 	for i := range c.input {
 		c.input[i].Fold(r[len(r)-1])
@@ -287,18 +286,18 @@ func (r *resources) eqAcc(e, m polynomial.MultiLin, q []fr.Element) {
 }
 
 type resources struct {
-	// levelPoints[i] is the sumcheck evaluation point r produced at schedule level i.
-	// levelPoints[len(schedule)] holds the initial challenge (firstChallenge / rho).
-	// SkipLevels produce no point; their slot remains nil.
-	levelPoints   [][]fr.Element
-	evalPositions [][]int // [wireI][evalI] → position in source level's finalEvalProof
-	nbVars        int
-	assignment    WireAssignment
-	memPool       polynomial.Pool
-	workers       *utils.WorkerPool
-	circuit       Circuit
-	schedule      constraint.GkrProvingSchedule
-	transcript    transcript
+	// outgoingEvalPoints[i][k] is the k-th outgoing evaluation point (evaluation challenge) produced at schedule level i.
+	// outgoingEvalPoints[len(schedule)][0] holds the initial challenge (firstChallenge / rho).
+	// SumcheckLevels produce one point (k=0). SkipLevels pass on all their evaluation points.
+	outgoingEvalPoints [][][]fr.Element
+	nbVars             int
+	assignment         WireAssignment
+	memPool            polynomial.Pool
+	workers            *utils.WorkerPool
+	circuit            Circuit
+	schedule           constraint.GkrProvingSchedule
+	transcript         transcript
+	uniqueInputIndices [][]int // uniqueInputIndices[wI][claimI]: w's unique-input index in the layer its claimI-th evaluation is coming from
 }
 
 func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (resources, error) {
@@ -309,43 +308,109 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 	}
 
 	return resources{
-		levelPoints:   make([][]fr.Element, len(schedule)+1),
-		evalPositions: gkrcore.BuildFinalEvalPositions(schedule, c),
-		nbVars:        nbVars,
-		assignment:    assignment,
-		memPool:       polynomial.NewPool(c.MemoryRequirements(nbInstances)...),
-		workers:       utils.NewWorkerPool(),
-		circuit:       c,
-		schedule:      schedule,
-		transcript:    transcript{h: hasher},
+		outgoingEvalPoints: make([][][]fr.Element, len(schedule)+1),
+		nbVars:             nbVars,
+		assignment:         assignment,
+		memPool:            polynomial.NewPool(c.MemoryRequirements(nbInstances)...),
+		workers:            utils.NewWorkerPool(),
+		circuit:            c,
+		schedule:           schedule,
+		transcript:         transcript{h: hasher},
+		uniqueInputIndices: c.UniqueInputIndices(schedule),
 	}, nil
 }
 
-// proveLevel runs the sumcheck for a SumcheckLevel: derives the fold challenge,
-// builds per-wire eq tables, constructs zeroCheckClaims, and calls sumcheckProve.
-func (r *resources) proveLevel(levelI int) sumcheckProof {
-	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
+// collectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
+func (r *resources) collectOutgoingEvalPoints(levelI int) [][]fr.Element {
+	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	outPoints := make([][]fr.Element, level.NbOutgoingEvalPoints())
+	for k, src := range level.ClaimSources {
+		outPoints[k] = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	}
+	r.outgoingEvalPoints[levelI] = outPoints
+	return outPoints
+}
 
-	nbClaims := gkrcore.NbClaims(level)
+// proveSkipLevel evaluates each unique gate input at each inherited evaluation point and records
+// the outgoing evaluation points on the resources.
+func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
+	outPoints := r.collectOutgoingEvalPoints(levelI)
+	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+
+	uniqueInputs := r.circuit.UniqueGateInputs(level)
+	evals := make([]fr.Element, len(uniqueInputs)*len(outPoints))
+	for uiI, inW := range uniqueInputs {
+		for k, point := range outPoints {
+			evals[level.FinalEvalProofIndex(uiI, k)] = r.assignment[inW].Evaluate(point, &r.memPool)
+		}
+	}
+	return sumcheckProof{finalEvalProof: evals}
+}
+
+// verifySkipLevel verifies a SkipSumcheck level: checks that the finalEvalProof
+// is consistent with the assignment and gate evaluations, and records outgoing eval points.
+func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
+	outPoints := r.collectOutgoingEvalPoints(levelI)
+	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+
+	finalEval := proof[levelI].finalEvalProof
+	_, inputIndices := r.circuit.InputMapping(level)
+	group := constraint.GkrClaimGroup(level)
+	initialChallengeI := len(r.schedule)
+
+	for levelWireI, wI := range group.Wires {
+		wire := r.circuit[wI]
+		evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
+		for claimI, src := range group.ClaimSources {
+			point := outPoints[claimI]
+			var gateEval fr.Element
+			if wire.IsInput() {
+				gateEval = r.assignment[wI].Evaluate(point, &r.memPool)
+				if claimed := finalEval[level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI)]; !claimed.Equal(&gateEval) {
+					return fmt.Errorf("level %d wire %d: finalEvalProof[%d] = %v, want %v", levelI, wI, level.FinalEvalProofIndex(inputIndices[levelWireI][0], claimI), &claimed, &gateEval)
+				}
+			} else {
+				for _, inI := range inputIndices[levelWireI] {
+					evaluator.pushInput(finalEval[level.FinalEvalProofIndex(inI, claimI)])
+				}
+				gateEval.Set(evaluator.evaluate())
+			}
+			var claimedEval fr.Element
+			if src.Level == initialChallengeI {
+				claimedEval = r.assignment[wI].Evaluate(point, &r.memPool)
+			} else {
+				claimedEval = proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)]
+			}
+			if !claimedEval.Equal(&gateEval) {
+				return fmt.Errorf("level %d wire %d claim %d: claimed eval %v disagrees with gate eval %v", levelI, wI, claimI, &claimedEval, &gateEval)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
 		foldingCoeff = r.transcript.getChallenge()
 	}
 
-	uniqueInputs, inputIndices := gkrcore.InputMapping(level, r.circuit)
+	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
 	input := make([]polynomial.MultiLin, len(uniqueInputs))
 	for i, inW := range uniqueInputs {
 		input[i] = r.memPool.Clone(r.assignment[inW])
 	}
 
 	nbWires := 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		nbWires += len(group.Wires)
 	}
 
 	pools := make([]*gateEvaluatorPool, nbWires)
 	flatW := 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			wire := r.circuit[wI]
 			gate := wire.Gate.Evaluate
@@ -362,12 +427,12 @@ func (r *resources) proveLevel(levelI int) sumcheckProof {
 	var alpha fr.Element
 	alpha.SetOne()
 	flatW = 0
-	for _, group := range level {
+	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
 		groupEq := polynomial.MultiLin(r.memPool.Make(eqLength))
 		groupEq[0].Set(&alpha)
-		groupEq.Eq(r.levelPoints[group.ClaimSources[0]])
+		groupEq.Eq(r.outgoingEvalPoints[group.ClaimSources[0].Level][group.ClaimSources[0].OutgoingClaimIndex])
 
 		if nbSources > 1 {
 			newEq := polynomial.MultiLin(r.memPool.Make(eqLength))
@@ -375,7 +440,7 @@ func (r *resources) proveLevel(levelI int) sumcheckProof {
 			for k := 1; k < nbSources; k++ {
 				aI.Mul(&aI, &foldingCoeff)
 				newEq[0].Set(&aI)
-				r.eqAcc(groupEq, newEq, r.levelPoints[group.ClaimSources[k]])
+				r.eqAcc(groupEq, newEq, r.outgoingEvalPoints[group.ClaimSources[k].Level][group.ClaimSources[k].OutgoingClaimIndex])
 			}
 			r.memPool.Dump(newEq)
 		}
@@ -403,7 +468,6 @@ func (r *resources) proveLevel(levelI int) sumcheckProof {
 	}
 
 	claims := &zeroCheckClaims{
-		level:              level,
 		levelI:             levelI,
 		resources:          r,
 		input:              input,
@@ -414,44 +478,37 @@ func (r *resources) proveLevel(levelI int) sumcheckProof {
 	return sumcheckProve(claims, &r.transcript)
 }
 
-// verifyLevel runs the sumcheck verification for a SumcheckLevel: derives the fold challenge,
-// computes the claimed sum, and calls sumcheckVerify.
-func (r *resources) verifyLevel(levelI int, proof Proof) error {
-	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
-	initialChallengeI := len(r.schedule)
-
-	nbClaims := gkrcore.NbClaims(level)
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
 	var foldingCoeff fr.Element
 	if nbClaims >= 2 {
 		foldingCoeff = r.transcript.getChallenge()
 	}
 
-	var ys []fr.Element
-	for _, group := range level {
+	initialChallengeI := len(r.schedule)
+	claimedEvals := make(polynomial.Polynomial, 0, level.NbClaims())
+
+	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
-			evalI := 0
-			for _, src := range group.ClaimSources {
-				var y fr.Element
-				if src == initialChallengeI {
-					y = r.assignment[wI].Evaluate(r.levelPoints[src], &r.memPool)
+			for claimI, src := range group.ClaimSources {
+				if src.Level == initialChallengeI {
+					claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
 				} else {
-					y = proof[src].finalEvalProof[r.evalPositions[wI][evalI]]
-					evalI++
+					claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)])
 				}
-				ys = append(ys, y)
 			}
 		}
 	}
 
-	ysPoly := polynomial.Polynomial(ys)
-	claimedSum := ysPoly.Eval(&foldingCoeff)
+	claimedSum := claimedEvals.Eval(&foldingCoeff)
 
 	lazyClaims := &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,
 		resources:    r,
 		levelI:       levelI,
 	}
-	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, gkrcore.Degree(level, r.circuit), &r.transcript)
+	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), &r.transcript)
 }
 
 // Prove consistency of the claimed assignment
@@ -464,23 +521,20 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 
 	proof := make(Proof, len(schedule))
 
-	// Derive initial challenge point
+	// Derive the initial challenge point
 	firstChallenge := make([]fr.Element, r.nbVars)
 	for j := range r.nbVars {
 		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	r.levelPoints[len(schedule)] = firstChallenge
+	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		switch s := schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
-			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
-
-		case constraint.GkrSumcheckLevel:
-			proof[levelI] = r.proveLevel(levelI)
-			// Bind finalEvalProof for next level's challenge derivation
-			r.transcript.bind(proof[levelI].finalEvalProof...)
+		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+			proof[levelI] = r.proveSkipLevel(levelI)
+		} else {
+			proof[levelI] = r.proveSumcheckLevel(levelI)
 		}
+		constraint.BindGkrFinalEvalProof(&r.transcript, proof[levelI].finalEvalProof, c.UniqueGateInputs(r.schedule[levelI]), c.IsInput, r.schedule[levelI])
 	}
 
 	return proof, nil
@@ -495,25 +549,23 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 	}
 	defer r.workers.Stop()
 
-	// Derive initial challenge point
+	// Derive the initial challenge point
 	firstChallenge := make([]fr.Element, r.nbVars)
 	for j := range r.nbVars {
 		firstChallenge[j] = r.transcript.getChallenge()
 	}
-	r.levelPoints[len(schedule)] = firstChallenge
+	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		switch s := schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
-			r.levelPoints[levelI] = r.levelPoints[s.ClaimSources[0]]
-
-		case constraint.GkrSumcheckLevel:
-			if err = r.verifyLevel(levelI, proof); err != nil {
-				return fmt.Errorf("sumcheck proof rejected: %v", err)
-			}
-			// Bind finalEvalProof for next level's challenge derivation
-			r.transcript.bind(proof[levelI].finalEvalProof...)
+		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+			err = r.verifySkipLevel(levelI, proof)
+		} else {
+			err = r.verifySumcheckLevel(levelI, proof)
 		}
+		if err != nil {
+			return fmt.Errorf("level %d: %v", levelI, err)
+		}
+		constraint.BindGkrFinalEvalProof(&r.transcript, proof[levelI].finalEvalProof, c.UniqueGateInputs(r.schedule[levelI]), c.IsInput, r.schedule[levelI])
 	}
 	return nil
 }
@@ -724,7 +776,7 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
 
-	// Return evaluator to pool (it keeps its vars slice from polynomial pool)
+	// Return evaluator to pool (it keeps its vars slice from the polynomial pool)
 	gep.available[e] = struct{}{}
 }
 
