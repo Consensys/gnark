@@ -127,15 +127,15 @@ func (c Circuit[GateExecutable]) Inputs() []int {
 
 // Outputs returns the list of output wire indices.
 func (c Circuit[GateExecutable]) Outputs() []int {
-	isOutput := make([]bool, len(c))
+	isOutputTo := make([]bool, len(c))
 	for i := range c {
 		for _, in := range c[i].Inputs {
-			isOutput[in] = true
+			isOutputTo[in] = true
 		}
 	}
 	res := make([]int, 0, len(c))
 	for i := range c {
-		if !isOutput[i] {
+		if !isOutputTo[i] || c[i].Exported {
 			res = append(res, i)
 		}
 	}
