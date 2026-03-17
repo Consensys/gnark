@@ -136,7 +136,7 @@ const (
 	divUncheckedConstConst
 )
 
-// squareHint returns x^2 for each input.
+// squareHint returns x^2 for the first input.
 func squareHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	outputs[0].Mul(inputs[0], inputs[0])
 	return nil
