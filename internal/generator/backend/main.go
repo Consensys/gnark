@@ -75,6 +75,15 @@ func main() {
 		NoGKR:       true,
 		ElementType: "U32",
 	}
+	grumpkin := templateData{
+		CSPath:      "../../../constraint/grumpkin/",
+		Curve:       "Grumpkin",
+		CurveID:     "GRUMPKIN",
+		noBackend:   true,
+		NoGKR:       true,
+		NoTests:     true,
+		ElementType: "U64",
+	}
 
 	data := []templateData{
 		bls12_377,
@@ -84,6 +93,7 @@ func main() {
 		tiny_field,
 		baby_bear_field,
 		koala_bear_field,
+		grumpkin,
 	}
 
 	const importCurve = "../imports.go.tmpl"
@@ -148,11 +158,13 @@ func main() {
 				assertNoError(generateGkrBackend(cfg))
 			}
 
-			entries = []bavard.Entry{
-				{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "cs_test", "./template/representations/", entries...); err != nil {
-				panic(err)
+			if !d.NoTests {
+				entries = []bavard.Entry{
+					{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
+				}
+				if err := bgen.Generate(d, "cs_test", "./template/representations/", entries...); err != nil {
+					panic(err)
+				}
 			}
 
 			// groth16 & plonk
@@ -274,6 +286,7 @@ type templateData struct {
 	OnlyField         bool   // use field from gnark-crypto. Import package is deduced from Curve field
 	noBackend         bool
 	NoGKR             bool
+	NoTests           bool
 	ElementType       string
 }
 
