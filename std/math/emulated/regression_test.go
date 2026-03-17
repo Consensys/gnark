@@ -155,7 +155,8 @@ type testIssueNNMulOneCircuit struct {
 }
 
 func (c *testIssueNNMulOneCircuit) Define(api frontend.API) error {
-	// add a dummy assertion to ensure we wouldn't have empty circuit
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[emparams.Goldilocks](api)
 	if err != nil {
