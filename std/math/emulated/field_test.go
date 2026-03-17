@@ -137,6 +137,8 @@ type SmallMulConstantFastPathCircuit struct {
 }
 
 func (c *SmallMulConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Goldilocks](api)
 	if err != nil {
@@ -163,6 +165,8 @@ type SmallMulNoReduceConstantFastPathCircuit struct {
 }
 
 func (c *SmallMulNoReduceConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Goldilocks](api)
 	if err != nil {
@@ -189,6 +193,8 @@ type DivConstantFastPathCircuit struct {
 }
 
 func (c *DivConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Goldilocks](api)
 	if err != nil {
@@ -215,6 +221,8 @@ type InverseConstantFastPathCircuit struct {
 }
 
 func (c *InverseConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Goldilocks](api)
 	if err != nil {
@@ -241,6 +249,8 @@ type SqrtConstantFastPathCircuit struct {
 }
 
 func (c *SqrtConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Goldilocks](api)
 	if err != nil {
@@ -267,6 +277,8 @@ type LargeMulConstantFastPathCircuit struct {
 }
 
 func (c *LargeMulConstantFastPathCircuit) Define(api frontend.API) error {
+	// duplicate constraints to ensure PLONK circuit has at least two constraints
+	api.AssertIsEqual(c.Dummy, c.Dummy)
 	api.AssertIsEqual(c.Dummy, c.Dummy)
 	f, err := NewField[Secp256k1Fp](api)
 	if err != nil {
