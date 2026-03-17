@@ -62,9 +62,9 @@ func init() {
 	addEntry(
 		"commit",
 		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID})
+		[]ecc.ID{bn254.ID, ecc.BLS12_381})
 	addEntry(
 		"no_commit",
 		&noCommitCircuit{}, &noCommitCircuit{Public: 16, X: 3}, &noCommitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID})
+		[]ecc.ID{bn254.ID, ecc.BLS12_381})
 }

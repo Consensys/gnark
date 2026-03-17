@@ -242,47 +242,45 @@ contract Verifier is IVerifier {
         }
 
         // Verify Pedersen commitments
-        {
-            bool commitSuccess;
-            assembly ("memory-safe") {
-                let f := mload(0x40)
+        bool success;
+        assembly ("memory-safe") {
+            let f := mload(0x40)
 
-                // Pair 0: e(commitment, GSigmaNeg)
-                // Load commitment G1 point (already padded in commitments memory)
-                mcopy(f, commitments, 0x80)
-                // GSigmaNeg G2 point
-                mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_X_0_HI)
-                mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_X_0_LO)
-                mstore(add(f, 0xc0), PEDERSEN_GSIGMANEG_X_1_HI)
-                mstore(add(f, 0xe0), PEDERSEN_GSIGMANEG_X_1_LO)
-                mstore(add(f, 0x100), PEDERSEN_GSIGMANEG_Y_0_HI)
-                mstore(add(f, 0x120), PEDERSEN_GSIGMANEG_Y_0_LO)
-                mstore(add(f, 0x140), PEDERSEN_GSIGMANEG_Y_1_HI)
-                mstore(add(f, 0x160), PEDERSEN_GSIGMANEG_Y_1_LO)
+            // Pair 0: e(commitment, GSigmaNeg)
+            // Load commitment G1 point (already padded in commitments memory)
+            mcopy(f, commitments, 0x80)
+            // GSigmaNeg G2 point
+            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_X_0_HI)
+            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_X_0_LO)
+            mstore(add(f, 0xc0), PEDERSEN_GSIGMANEG_X_1_HI)
+            mstore(add(f, 0xe0), PEDERSEN_GSIGMANEG_X_1_LO)
+            mstore(add(f, 0x100), PEDERSEN_GSIGMANEG_Y_0_HI)
+            mstore(add(f, 0x120), PEDERSEN_GSIGMANEG_Y_0_LO)
+            mstore(add(f, 0x140), PEDERSEN_GSIGMANEG_Y_1_HI)
+            mstore(add(f, 0x160), PEDERSEN_GSIGMANEG_Y_1_LO)
 
-                // Pair 1: e(Pok, G)
-                // Load PoK from proof calldata (96 bytes at offset after commitments)
-                mstore(add(f, 0x180), 0)
-                calldatacopy(add(f, 0x190), add(proof.offset, 0x1e0), 0x30)
-                mstore(add(f, 0x1c0), 0)
-                calldatacopy(add(f, 0x1d0), add(proof.offset, 0x210), 0x30)
-                // G point
-                mstore(add(f, 0x200), PEDERSEN_G_X_0_HI)
-                mstore(add(f, 0x220), PEDERSEN_G_X_0_LO)
-                mstore(add(f, 0x240), PEDERSEN_G_X_1_HI)
-                mstore(add(f, 0x260), PEDERSEN_G_X_1_LO)
-                mstore(add(f, 0x280), PEDERSEN_G_Y_0_HI)
-                mstore(add(f, 0x2a0), PEDERSEN_G_Y_0_LO)
-                mstore(add(f, 0x2c0), PEDERSEN_G_Y_1_HI)
-                mstore(add(f, 0x2e0), PEDERSEN_G_Y_1_LO)
+            // Pair 1: e(Pok, G)
+            // Load PoK from proof calldata (96 bytes at offset after commitments)
+            mstore(add(f, 0x180), 0)
+            calldatacopy(add(f, 0x190), add(proof.offset, 0x1e0), 0x30)
+            mstore(add(f, 0x1c0), 0)
+            calldatacopy(add(f, 0x1d0), add(proof.offset, 0x210), 0x30)
+            // G point
+            mstore(add(f, 0x200), PEDERSEN_G_X_0_HI)
+            mstore(add(f, 0x220), PEDERSEN_G_X_0_LO)
+            mstore(add(f, 0x240), PEDERSEN_G_X_1_HI)
+            mstore(add(f, 0x260), PEDERSEN_G_X_1_LO)
+            mstore(add(f, 0x280), PEDERSEN_G_Y_0_HI)
+            mstore(add(f, 0x2a0), PEDERSEN_G_Y_0_LO)
+            mstore(add(f, 0x2c0), PEDERSEN_G_Y_1_HI)
+            mstore(add(f, 0x2e0), PEDERSEN_G_Y_1_LO)
 
-                // BLS12_PAIR: 2 pairs × 384 bytes = 768 bytes
-                commitSuccess := staticcall(gas(), PRECOMPILE_BLS12_PAIR, f, 0x300, f, 0x20)
-                commitSuccess := and(commitSuccess, mload(f))
-            }
-            if (!commitSuccess) {
-                revert CommitmentInvalid();
-            }
+            // BLS12_PAIR: 2 pairs × 384 bytes = 768 bytes
+            success := staticcall(gas(), PRECOMPILE_BLS12_PAIR, f, 0x300, f, 0x20)
+            success := and(success, mload(f))
+        }
+        if (!success) {
+            revert CommitmentInvalid();
         }
 
         (uint256 Lx_hi, uint256 Lx_lo, uint256 Ly_hi, uint256 Ly_lo) = publicInputMSM(
@@ -364,7 +362,6 @@ contract Verifier is IVerifier {
             mstore(add(f, 0x5e0), GAMMA_NEG_Y_1_LO)
 
             // BLS12_PAIR: 4 pairs × 384 bytes = 1536 bytes
-            let success
             success := staticcall(gas(), PRECOMPILE_BLS12_PAIR, f, 0x600, f, 0x20)
             success := and(success, mload(f))
         }
