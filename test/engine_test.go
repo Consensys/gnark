@@ -136,6 +136,59 @@ const (
 	divUncheckedConstConst
 )
 
+// squareHint returns x^2 for each input.
+func squareHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	outputs[0].Mul(inputs[0], inputs[0])
+	return nil
+}
+
+// zeroHint always returns 0.
+func zeroHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	outputs[0].SetUint64(0)
+	return nil
+}
+
+type squareHintCircuit struct {
+	X      frontend.Variable
+	XSqure frontend.Variable
+}
+
+func (c *squareHintCircuit) Define(api frontend.API) error {
+	res, err := api.Compiler().NewHint(squareHint, 1, c.X)
+	if err != nil {
+		return err
+	}
+	api.AssertIsEqual(res[0], c.XSqure)
+	return nil
+}
+
+func TestHintReplacement(t *testing.T) {
+	field := ecc.BN254.ScalarField()
+
+	t.Run("without replacement", func(t *testing.T) {
+		err := IsSolved(
+			&squareHintCircuit{},
+			&squareHintCircuit{X: 3, XSqure: 9},
+			field,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("with replacement", func(t *testing.T) {
+		err := IsSolved(
+			&squareHintCircuit{},
+			&squareHintCircuit{X: 3, XSqure: 0},
+			field,
+			WithReplacementHint(solver.GetHintID(squareHint), zeroHint),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestDivUncheckedZeroPanicsInEngine(t *testing.T) {
 	tests := []struct {
 		name string
