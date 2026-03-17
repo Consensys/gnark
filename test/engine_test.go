@@ -149,8 +149,8 @@ func zeroHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 type squareHintCircuit struct {
-	X      frontend.Variable
-	XSqure frontend.Variable
+	X       frontend.Variable
+	XSquare frontend.Variable
 }
 
 func (c *squareHintCircuit) Define(api frontend.API) error {
@@ -158,7 +158,7 @@ func (c *squareHintCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	api.AssertIsEqual(res[0], c.XSqure)
+	api.AssertIsEqual(res[0], c.XSquare)
 	return nil
 }
 
@@ -168,7 +168,7 @@ func TestHintReplacement(t *testing.T) {
 	t.Run("without replacement", func(t *testing.T) {
 		err := IsSolved(
 			&squareHintCircuit{},
-			&squareHintCircuit{X: 3, XSqure: 9},
+			&squareHintCircuit{X: 3, XSquare: 9},
 			field,
 		)
 		if err != nil {
@@ -179,7 +179,7 @@ func TestHintReplacement(t *testing.T) {
 	t.Run("with replacement", func(t *testing.T) {
 		err := IsSolved(
 			&squareHintCircuit{},
-			&squareHintCircuit{X: 3, XSqure: 0},
+			&squareHintCircuit{X: 3, XSquare: 0},
 			field,
 			WithReplacementHint(solver.GetHintID(squareHint), zeroHint),
 		)
