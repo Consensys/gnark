@@ -84,9 +84,7 @@ func WithReplacementHint(id solver.HintID, f solver.Hint) TestEngineOption {
 		if e.hintMapping == nil {
 			e.hintMapping = make(map[solver.HintID]solver.Hint)
 		}
-		if _, exists := e.hintMapping[id]; exists {
-			return fmt.Errorf("hint with id #%d already exists", id)
-		}
+		// Later calls override earlier ones for the same hint ID, matching solver.OverrideHint behavior.
 		e.hintMapping[id] = f
 		return nil
 	}
