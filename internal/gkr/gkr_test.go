@@ -108,7 +108,7 @@ type GkrVerifierCircuit struct {
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
-	var testCase *TestCase
+	var testCase *testCase
 	var proof Proof
 	var err error
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
@@ -122,9 +122,9 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 
 	var hsh hash.FieldHasher
 	if c.ToFail {
-		hsh = NewMessageCounter(api, 1, 1)
+		hsh = newMessageCounter(api, 1, 1)
 	} else {
-		if hsh, err = HashFromDescription(api, testCase.Hash); err != nil {
+		if hsh, err = hashFromDescription(api, testCase.Hash); err != nil {
 			return err
 		}
 	}
@@ -151,26 +151,26 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 	}
 }
 
-type TestCase struct {
+type testCase struct {
 	Circuit  Circuit
 	Schedule constraint.GkrProvingSchedule
-	Hash     HashDescription
+	Hash     hashDescription
 	Proof    Proof
 	Input    [][]frontend.Variable
 	Output   [][]frontend.Variable
 	Name     string
 }
-type TestCaseInfo struct {
-	Hash    HashDescription `json:"hash"`
+type testCaseInfo struct {
+	Hash    hashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
 	Input   [][]interface{} `json:"input"`
 	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
+	Proof   printableProof  `json:"proof"`
 }
 
-var testCases = make(map[string]*TestCase)
+var testCases = make(map[string]*testCase)
 
-func getTestCase(path string) (*TestCase, error) {
+func getTestCase(path string) (*testCase, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -180,9 +180,9 @@ func getTestCase(path string) (*TestCase, error) {
 	cse, ok := testCases[path]
 	if !ok {
 		var bytes []byte
-		cse = &TestCase{}
+		cse = &testCase{}
 		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
+			var info testCaseInfo
 			err = json.Unmarshal(bytes, &info)
 			if err != nil {
 				return nil, err
@@ -212,14 +212,14 @@ func getTestCase(path string) (*TestCase, error) {
 	return cse, nil
 }
 
-type PrintableProof []PrintableSumcheckProof
+type printableProof []printableSumcheckProof
 
-type PrintableSumcheckProof struct {
+type printableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 }
 
-func unmarshalProof(printable PrintableProof) (proof Proof) {
+func unmarshalProof(printable printableProof) (proof Proof) {
 	proof = make(Proof, len(printable))
 	for i := range printable {
 
@@ -273,14 +273,14 @@ func TestLogNbInstances(t *testing.T) {
 	}
 }
 
-type HashDescription map[string]interface{}
+type hashDescription map[string]interface{}
 
-func HashFromDescription(api frontend.API, d HashDescription) (hash.FieldHasher, error) {
+func hashFromDescription(api frontend.API, d hashDescription) (hash.FieldHasher, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
-			startState := int64(d["val"].(float64))
-			return &MessageCounter{startState: startState, step: 0, state: startState, api: api}, nil
+			startState := int(d["val"].(float64))
+			return newMessageCounter(api, startState, 0), nil
 		default:
 			return nil, fmt.Errorf("unknown fake hash type \"%s\"", _type)
 		}
@@ -288,7 +288,7 @@ func HashFromDescription(api frontend.API, d HashDescription) (hash.FieldHasher,
 	return nil, fmt.Errorf("hash description missing type")
 }
 
-type MessageCounter struct {
+type messageCounter struct {
 	startState int64
 	state      int64
 	step       int64
@@ -298,7 +298,7 @@ type MessageCounter struct {
 	zero frontend.Variable
 }
 
-func (m *MessageCounter) Write(data ...frontend.Variable) {
+func (m *messageCounter) Write(data ...frontend.Variable) {
 
 	for i := range data {
 		sq1, sq2 := m.api.Mul(data[i], data[i]), m.api.Mul(data[i], data[i])
@@ -308,18 +308,17 @@ func (m *MessageCounter) Write(data ...frontend.Variable) {
 	m.state += int64(len(data)) * m.step
 }
 
-func (m *MessageCounter) Sum() frontend.Variable {
+func (m *messageCounter) Sum() frontend.Variable {
 	return m.api.Add(m.state, m.zero)
 }
 
-func (m *MessageCounter) Reset() {
+func (m *messageCounter) Reset() {
 	m.zero = 0
 	m.state = m.startState
 }
 
-func NewMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
-	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
-	return transcript
+func newMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
+	return &messageCounter{startState: int64(startState), state: int64(startState), step: int64(step), zero: 0, api: api}
 }
 
 type constHashCircuit struct {
@@ -327,7 +326,7 @@ type constHashCircuit struct {
 }
 
 func (c *constHashCircuit) Define(api frontend.API) error {
-	hsh := NewMessageCounter(api, 0, 0)
+	hsh := newMessageCounter(api, 0, 0)
 	hsh.Reset()
 	hsh.Write(c.X)
 	sum := hsh.Sum()
