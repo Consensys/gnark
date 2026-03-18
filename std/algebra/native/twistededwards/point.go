@@ -209,18 +209,13 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2, bit, k := s[0], s[1], s[2], s[3]
+	s1, s2, bit, _ := s[0], s[1], s[2], s[3]
 
-	// check that s1 + s2 * s == k*Order
-	_s2 := api.Mul(s2, scalar)
-	_k := api.Mul(k, curve.Order)
-	lhs := api.Select(bit, s1, api.Add(s1, _s2))
-	rhs := api.Select(bit, api.Add(_k, _s2), _k)
-	api.AssertIsEqual(lhs, rhs)
+	// Verify s1 ± s2*scalar ≡ 0 (mod Order) using emulated arithmetic
+	// to avoid native field overflow (s2*scalar overflows the native field).
+	b1, b2 := verifyScalarDecomposition(api, s1, s2, bit, scalar, curve)
 
-	n := (curve.Order.BitLen() + 1) / 2
-	b1 := api.ToBinary(s1, n)
-	b2 := api.ToBinary(s2, n)
+	n := len(b1)
 
 	var res, p2, p3, tmp Point
 	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalar, curve.Order)
@@ -272,38 +267,18 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	if err != nil {
 		panic(err)
 	}
-	u1, v1, bit1, k1 := h1[0], h1[1], h1[2], h1[3]
-
-	// Verify: u1 + s1*v1 == k1*Order (with sign handling)
-	_v1s1 := api.Mul(v1, s1)
-	_k1r := api.Mul(k1, curve.Order)
-	lhs1 := api.Select(bit1, u1, api.Add(u1, _v1s1))
-	rhs1 := api.Select(bit1, api.Add(_k1r, _v1s1), _k1r)
-	api.AssertIsEqual(lhs1, rhs1)
-	// Ensure denominator v1 is non-zero to prevent trivial decomposition.
-	// When s1=0 the hint legitimately returns v1=0, so we only check when s1≠0.
-	// This is safe because [0]*P = identity regardless of the hint output.
-	s1IsZero := api.IsZero(s1)
-	_v1NonZero := api.Select(s1IsZero, 1, v1)
-	api.AssertIsDifferent(_v1NonZero, 0)
+	u1, v1, bit1, _ := h1[0], h1[1], h1[2], h1[3]
 
 	// Decompose s2 into (u2, v2) such that u2 + s2*v2 ≡ 0 (mod Order)
 	h2, err := api.NewHint(rationalReconstruct, 4, s2, curve.Order)
 	if err != nil {
 		panic(err)
 	}
-	u2, v2, bit2, k2 := h2[0], h2[1], h2[2], h2[3]
+	u2, v2, bit2, _ := h2[0], h2[1], h2[2], h2[3]
 
-	// Verify: u2 + s2*v2 == k2*Order (with sign handling)
-	_v2s2 := api.Mul(v2, s2)
-	_k2r := api.Mul(k2, curve.Order)
-	lhs2 := api.Select(bit2, u2, api.Add(u2, _v2s2))
-	rhs2 := api.Select(bit2, api.Add(_k2r, _v2s2), _k2r)
-	api.AssertIsEqual(lhs2, rhs2)
-	// Ensure denominator v2 is non-zero to prevent trivial decomposition
-	s2IsZero := api.IsZero(s2)
-	_v2NonZero := api.Select(s2IsZero, 1, v2)
-	api.AssertIsDifferent(_v2NonZero, 0)
+	// Verify both decompositions using emulated arithmetic to avoid native field overflow.
+	// Also range-checks u1, v1, u2, v2 and ensures v1, v2 non-zero.
+	_, _, _, _ = verifyScalarDecompositionPair(api, u1, v1, bit1, s1, u2, v2, bit2, s2, curve)
 
 	// Apply sign to Q1 and Q2 based on decomposition
 	var _Q1, _Q2 Point
@@ -433,68 +408,17 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	}
 	absX1, absY1, absX2, absY2, absZ, absT := h[0], h[1], h[2], h[3], h[4], h[5]
 	signX1, signY1, signX2, signY2, signZ, signT := h[6], h[7], h[8], h[9], h[10], h[11]
-	d, kd, n1, kn1, n2, kn2, k1Over, k2Over := h[12], h[13], h[14], h[15], h[16], h[17], h[18], h[19]
+	// h[12..19] were intermediate values for native-field verification (d, kd, n1, kn1, n2, kn2, k1Over, k2Over).
+	// They are no longer needed since we now verify the full decomposition in emulated arithmetic.
 
-	// Verify the decomposition: k_i*(z + λ*t) ≡ x_i + λ*y_i (mod r)
-	// We split this into intermediate steps to avoid native field overflow:
-	//   (a) z + λ*t ≡ d (mod r):  z_signed + λ*t_signed = d + kd*r (mod p)
-	//   (b) x_i + λ*y_i ≡ n_i (mod r): x_i_signed + λ*y_i_signed = n_i + kn_i*r (mod p)
-	//   (c) k_i*d ≡ n_i (mod r):  k_i*d = n_i + k_i_overflow*r (mod p)
-	{
-		r := curve.Order
-		lambda := endo.Lambda
-
-		// Signed values (negative = p-val in the native field)
-		zVal := api.Select(signZ, api.Sub(0, absZ), absZ)
-		tVal := api.Select(signT, api.Sub(0, absT), absT)
-		x1Val := api.Select(signX1, api.Sub(0, absX1), absX1)
-		y1Val := api.Select(signY1, api.Sub(0, absY1), absY1)
-		x2Val := api.Select(signX2, api.Sub(0, absX2), absX2)
-		y2Val := api.Select(signY2, api.Sub(0, absY2), absY2)
-
-		// Range check d, n1, n2 (must be < 2^orderBits to bound overflow)
-		orderBits := r.BitLen()
-		api.ToBinary(d, orderBits)
-		api.ToBinary(n1, orderBits)
-		api.ToBinary(n2, orderBits)
-
-		// (a) z + λ*t = d + kd*r (mod p)
-		api.AssertIsEqual(
-			api.Add(zVal, api.Mul(lambda, tVal)),
-			api.Add(d, api.Mul(kd, r)),
-		)
-
-		// (b) x1 + λ*y1 = n1 + kn1*r (mod p)
-		api.AssertIsEqual(
-			api.Add(x1Val, api.Mul(lambda, y1Val)),
-			api.Add(n1, api.Mul(kn1, r)),
-		)
-
-		// (b) x2 + λ*y2 = n2 + kn2*r (mod p)
-		api.AssertIsEqual(
-			api.Add(x2Val, api.Mul(lambda, y2Val)),
-			api.Add(n2, api.Mul(kn2, r)),
-		)
-
-		// (c) s1*d = n1 + k1Over*r (mod p), proving s1*d ≡ n1 (mod r)
-		api.AssertIsEqual(
-			api.Mul(s1, d),
-			api.Add(n1, api.Mul(k1Over, r)),
-		)
-
-		// (c) s2*d = n2 + k2Over*r (mod p), proving s2*d ≡ n2 (mod r)
-		api.AssertIsEqual(
-			api.Mul(s2, d),
-			api.Add(n2, api.Mul(k2Over, r)),
-		)
-
-		// Ensure shared denominator d = (z + λ*t) mod r is non-zero
-		// to prevent trivial decomposition leaving R unconstrained.
-		// When both scalars are zero the hint legitimately returns d=0.
-		bothZero := api.And(api.IsZero(s1), api.IsZero(s2))
-		_dNonZero := api.Select(bothZero, 1, d)
-		api.AssertIsDifferent(_dNonZero, 0)
-	}
+	// Verify the decomposition using emulated arithmetic to avoid native field overflow.
+	// Checks: s_i * (z + λ*t) ≡ x_i + λ*y_i (mod r) for i=1,2
+	// Also range-checks sub-scalars and ensures the shared denominator is non-zero.
+	verifyScalarDecomposition6D(api, s1, s2,
+		absX1, absY1, absX2, absY2, absZ, absT,
+		signX1, signY1, signX2, signY2, signZ, signT,
+		curve, endo,
+	)
 
 	// Compute φ(P1), φ(P2), φ(R)
 	var phiP1, phiP2, phiR Point
