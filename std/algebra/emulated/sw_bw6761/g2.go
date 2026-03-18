@@ -385,19 +385,25 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	// handle (0,0)-point and edge cases
 	var _selector0, _selector1 frontend.Variable
+	var sIsOne, sIsMinusOne frontend.Variable
 	_Q := Q
 	if cfg.CompleteArithmetic {
-		one := g2.curveF.One()
+		// Use different dummy points for _Q and R to avoid _Q == ±R
+		// which would cause incomplete addition failures in the table precomputations.
+		dummyQ := &G2Affine{P: *g2.g2Gen}
+		dummyR := &G2Affine{P: *g2.g2GenNbits}
 		// if Q=(0,0) we assign a dummy point
 		_selector0 = g2.api.And(g2.curveF.IsZero(&Q.P.X), g2.curveF.IsZero(&Q.P.Y))
-		_Q = g2.Select(_selector0, &G2Affine{P: g2AffP{X: *one, Y: *one}}, Q)
-		// if R.X == Q.X (happens when s=±1, so R=±Q), the incomplete addition fails
-		// We check this BEFORE potentially modifying R
-		_selector1 = g2.curveF.IsZero(g2.curveF.Sub(&Q.P.X, &R.P.X))
-		// if s=0/s=-1 (selector0), Q=(0,0) (_selector0), or R.X==Q.X (_selector1),
+		_Q = g2.Select(_selector0, dummyQ, Q)
+		// if s=±1, R=±Q and incomplete addition fails (R.X == Q.X).
+		// We detect this from the constrained scalar, not from the unconstrained R.
+		sIsOne = g2.fr.IsZero(g2.fr.Sub(s, g2.fr.One()))
+		sIsMinusOne = g2.fr.IsZero(g2.fr.Add(s, g2.fr.One()))
+		_selector1 = g2.api.Or(sIsOne, sIsMinusOne)
+		// if s=0 (selector0), Q=(0,0) (_selector0), or s=±1 (_selector1),
 		// we assign a dummy point to R
 		selectorAny := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
-		R = g2.Select(selectorAny, &G2Affine{P: g2AffP{X: *one, Y: *one}}, R)
+		R = g2.Select(selectorAny, dummyR, R)
 	}
 
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -543,10 +549,16 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	g2.AssertIsEqual(Acc, expected)
 
 	if cfg.CompleteArithmetic {
-		// if s=0 or Q=(0,0), return (0,0); otherwise return the original hinted R
 		zeroEl := g2.curveF.Zero()
+		zeroG2 := &G2Affine{P: g2AffP{X: *zeroEl, Y: *zeroEl}}
+		negQ := g2.neg(Q)
+		// s=-1 → -Q, else → R (constrained by MSM check above)
+		result := g2.Select(sIsMinusOne, negQ, originalR)
+		// s=1 → Q
+		result = g2.Select(sIsOne, Q, result)
+		// s=0 or Q=(0,0) → (0,0)
 		returnZero := g2.api.Or(selector0, _selector0)
-		return g2.Select(returnZero, &G2Affine{P: g2AffP{X: *zeroEl, Y: *zeroEl}}, originalR)
+		return g2.Select(returnZero, zeroG2, result)
 	}
 
 	return R

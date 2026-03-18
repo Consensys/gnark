@@ -1613,6 +1613,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// handle (0,0)-point
 	var _selector0, _selector1 frontend.Variable
+	var sIsOne, sIsMinusOne frontend.Variable
 	_P := P
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
@@ -1620,8 +1621,11 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		// if P=(0,0) we assign a dummy point to P and continue
 		_selector0 = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
 		_P = c.Select(_selector0, &c.GeneratorMultiples()[4], P)
-		// if s=±1 we assign a dummy point to Q and continue
-		_selector1 = c.baseApi.IsZero(c.baseApi.Sub(&P.X, &Q.X))
+		// if s=±1, Q=±P and incomplete addition fails (Q.X == P.X).
+		// We detect this from the constrained scalar, not from the unconstrained Q.
+		sIsOne = c.scalarApi.IsZero(c.scalarApi.Sub(s, c.scalarApi.One()))
+		sIsMinusOne = c.scalarApi.IsZero(c.scalarApi.Add(s, c.scalarApi.One()))
+		_selector1 = c.api.Or(sIsOne, sIsMinusOne)
 		Q = c.Select(_selector1, &c.GeneratorMultiples()[3], Q)
 	}
 
@@ -1764,8 +1768,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 	c.AssertIsEqual(Acc, &gm)
 
-	return &AffinePoint[B]{
-		X: *point[0],
-		Y: *point[1],
+	originalQ := &AffinePoint[B]{X: *point[0], Y: *point[1]}
+	if cfg.CompleteArithmetic {
+		negP := c.Neg(P)
+		// s=-1 → -P, else → Q (constrained by MSM check above)
+		result := c.Select(sIsMinusOne, negP, originalQ)
+		// s=1 → P
+		result = c.Select(sIsOne, P, result)
+		// s=0 or P=(0,0) → (0,0)
+		zeroPoint := &AffinePoint[B]{X: *c.baseApi.Zero(), Y: *c.baseApi.Zero()}
+		returnZero := c.api.Or(selector0, _selector0)
+		return c.Select(returnZero, zeroPoint, result)
 	}
+
+	return originalQ
 }

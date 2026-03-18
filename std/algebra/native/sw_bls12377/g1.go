@@ -1037,8 +1037,15 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	}
 	Acc.AssertIsEqual(api, H)
 
-	p.X = point[0]
-	p.Y = point[1]
+	if cfg.CompleteArithmetic {
+		// s=0 or P=(0,0) → return (0,0); otherwise return Q (constrained by MSM check)
+		returnZero := api.Or(selector0, _selector0)
+		p.X = api.Select(returnZero, 0, point[0])
+		p.Y = api.Select(returnZero, 0, point[1])
+	} else {
+		p.X = point[0]
+		p.Y = point[1]
+	}
 
 	return p
 }
