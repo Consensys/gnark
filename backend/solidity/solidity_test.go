@@ -90,7 +90,7 @@ func TestNoCommitment(t *testing.T) {
 	circuit := &noCommitCircuit{}
 	assignment := &noCommitCircuit{A: 2, B: 3, Out: 6}
 	defaultOpts := []test.TestingOption{
-		test.WithCurves(ecc.BN254),
+		test.WithCurves(ecc.BN254, ecc.BLS12_381),
 		test.WithValidAssignment(assignment),
 	}
 	checkCircuit := func(assert *test.Assert, bid backend.ID) {
@@ -116,7 +116,7 @@ func TestSingleCommitment(t *testing.T) {
 	circuit := &commitCircuit{}
 	assignment := &commitCircuit{A: 2, B: 3, Out: 6}
 	defaultOpts := []test.TestingOption{
-		test.WithCurves(ecc.BN254),
+		test.WithCurves(ecc.BN254, ecc.BLS12_381),
 		test.WithValidAssignment(assignment),
 	}
 	checkCircuit := func(assert *test.Assert, bid backend.ID, newHash func() hash.Hash) {
@@ -190,7 +190,7 @@ func TestTwoCommitments(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit := &twoCommitCircuit{}
 	assignment := &twoCommitCircuit{A: 2, B: 3, Out: 6}
-	assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK))
+	assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254, ecc.BLS12_381), test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK))
 }
 
 // loadOrSetupGroth16VK loads an existing VK from vkPath, or if the file doesn't
