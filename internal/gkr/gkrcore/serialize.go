@@ -74,10 +74,9 @@ func writeBigInt(w io.Writer, x *big.Int) error {
 //	Constant: [byte_len:u8] [bytes...]
 //	Instruction: [op:u8] [input_count:u16] [input_indices:u16...]
 func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
-	if len(c) >= 1<<32 {
+	if len(c) >= 1<<16 {
 		return fmt.Errorf("circuit length too large: %d", len(c))
 	}
-
 	// Write the number of wires
 	if err := writeUint16(w, len(c)); err != nil {
 		return err
@@ -146,7 +145,7 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 //	GkrClaimGroup: [wire_count:u16] [wire_indices:u16...] [source_count:u16] [claim_source...]
 //	GkrClaimSource: [level:u16] [outgoing_claim_index:u16]
 func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
-	if len(s) >= 65536 {
+	if len(s) >= 1<<16 {
 		return fmt.Errorf("schedule length too large: %d", len(s))
 	}
 

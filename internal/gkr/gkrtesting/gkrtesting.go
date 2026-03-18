@@ -358,22 +358,14 @@ func Poseidon2Circuit(nbFullRounds, nbPartialRounds int) gkrcore.RawCircuit {
 	return c
 }
 
-var testManyInstancesLogMaxInstances = -1
-
 func GetLogMaxInstances(t *testing.T) int {
-	if testManyInstancesLogMaxInstances == -1 {
-
-		s := os.Getenv("GKR_LOG_INSTANCES")
-		if s == "" {
-			testManyInstancesLogMaxInstances = 5
-		} else {
-			var err error
-			testManyInstancesLogMaxInstances, err = strconv.Atoi(s)
-			if err != nil {
-				t.Error(err)
-			}
-		}
-
+	s := os.Getenv("GKR_LOG_INSTANCES")
+	if s == "" {
+		return 5
 	}
-	return testManyInstancesLogMaxInstances
+	res, err := strconv.Atoi(s)
+	if err != nil {
+		t.Error(err)
+	}
+	return res
 }
