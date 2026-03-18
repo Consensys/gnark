@@ -242,6 +242,15 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 	return
 }
 
+func hasSumcheck(s constraint.GkrProvingSchedule) bool {
+	for _, l := range s {
+		if _, ok := l.(constraint.GkrSumcheckLevel); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func TestLogNbInstances(t *testing.T) {
 	testLogNbInstances := func(path string) func(t *testing.T) {
 		return func(t *testing.T) {
@@ -249,7 +258,11 @@ func TestLogNbInstances(t *testing.T) {
 			assert.NoError(t, err)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := ComputeLogNbInstances(testCase.Circuit, testCase.Schedule, len(serializedProof))
-			assert.Equal(t, 1, logNbInstances)
+			if hasSumcheck(testCase.Schedule) {
+				assert.Equal(t, 1, logNbInstances)
+			} else {
+				assert.Equal(t, -1, logNbInstances, "no-sumcheck schedule should have logNbInstances=-1, got %d instead", logNbInstances)
+			}
 		}
 	}
 
