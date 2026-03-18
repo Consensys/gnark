@@ -59,7 +59,7 @@ func verifyDecompEmulated[T emulated.FieldParams](
 		panic(fmt.Sprintf("failed to create emulated field: %v", err))
 	}
 
-	scalarBits := api.ToBinary(scalar, r.BitLen())
+	scalarBits := api.ToBinary(scalar, api.Compiler().FieldBitLen())
 
 	s1Emu := f.FromBits(s1Bits...)
 	s2Emu := f.FromBits(s2Bits...)
@@ -132,8 +132,9 @@ func verifyDecompPairEmulated[T emulated.FieldParams](
 		panic(fmt.Sprintf("failed to create emulated field: %v", err))
 	}
 
-	s1Bits := api.ToBinary(s1, r.BitLen())
-	s2Bits := api.ToBinary(s2, r.BitLen())
+	nativeBits := api.Compiler().FieldBitLen()
+	s1Bits := api.ToBinary(s1, nativeBits)
+	s2Bits := api.ToBinary(s2, nativeBits)
 
 	u1Emu := f.FromBits(u1Bits...)
 	v1Emu := f.FromBits(v1Bits...)
@@ -243,12 +244,13 @@ func verify6DEmulated[T emulated.FieldParams](
 	n2Computed := f.Add(x2Emu, f.Mul(lambdaEmu, y2Emu))
 
 	// s1 * d ≡ n1 (mod r)
-	s1Bits := api.ToBinary(s1, orderBits)
+	nativeBits := api.Compiler().FieldBitLen()
+	s1Bits := api.ToBinary(s1, nativeBits)
 	s1Emu := f.FromBits(s1Bits...)
 	f.AssertIsEqual(f.Mul(s1Emu, dComputed), n1Computed)
 
 	// s2 * d ≡ n2 (mod r)
-	s2Bits := api.ToBinary(s2, orderBits)
+	s2Bits := api.ToBinary(s2, nativeBits)
 	s2Emu := f.FromBits(s2Bits...)
 	f.AssertIsEqual(f.Mul(s2Emu, dComputed), n2Computed)
 
