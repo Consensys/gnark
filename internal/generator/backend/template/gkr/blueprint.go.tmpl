@@ -214,7 +214,7 @@ func (b *BlueprintProve) Equal(other constraint.BlueprintComparable) bool {
 	if !ok {
 		return false
 	}
-	return b.SolveBlueprintID == o.SolveBlueprintID && b.HashName == o.HashName
+	return b.SolveBlueprintID == o.SolveBlueprintID && b.HashName == o.HashName && reflect.DeepEqual(b.Schedule, o.Schedule)
 }
 
 // Solve implements the BlueprintSolvable interface for proving.
