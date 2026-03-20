@@ -28,11 +28,15 @@
 	],
 	"proof": [
 		{
-			"finalEvalProof": [],
+			"finalEvalProof": [
+				-1
+			],
 			"partialSumPolys": []
 		},
 		{
-			"finalEvalProof": [],
+			"finalEvalProof": [
+				-3
+			],
 			"partialSumPolys": []
 		},
 		{

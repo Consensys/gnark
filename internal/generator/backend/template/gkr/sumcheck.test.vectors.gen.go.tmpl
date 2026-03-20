@@ -1,7 +1,6 @@
 import (
 	"encoding/json"
 	"fmt"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
@@ -30,11 +29,9 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		return err
 	}
 
-	proof, err := sumcheckProve(
-		&singleMultilinClaim{poly}, fiatshamir.WithHash(hsh))
-	if err != nil {
-		return err
-	}
+	claim := singleMultilinClaim{poly}
+	t := transcript{h: hsh}
+	proof := sumcheckProve(&claim, &t)
 	testCaseInfo.Proof = sumcheckToPrintableProof(proof)
 
 	// Verification
@@ -48,12 +45,20 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		return err
 	}
 
-	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err != nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
+		return err
+	}
+	t = transcript{h: hsh}
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, claimedSum, 1, &t); err != nil {
 		return fmt.Errorf("proof rejected: %v", err)
 	}
 
 	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
-	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
+		return err
+	}
+	t = transcript{h: hsh}
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, claimedSum, 1, &t); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 

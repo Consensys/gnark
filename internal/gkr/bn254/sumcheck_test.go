@@ -10,7 +10,6 @@ import (
 	"hash"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/stretchr/testify/assert"
 
 	"math/bits"
@@ -28,11 +27,9 @@ func testSumcheckSingleClaimMultilin(polyInt []uint64, hashGenerator func() hash
 	}
 
 	claim := singleMultilinClaim{g: poly.Clone()}
+	t := transcript{h: hashGenerator()}
 
-	proof, err := sumcheckProve(&claim, fiatshamir.WithHash(hashGenerator()))
-	if err != nil {
-		return err
-	}
+	proof := sumcheckProve(&claim, &t)
 
 	var sb strings.Builder
 	for _, p := range proof.partialSumPolys {
@@ -48,13 +45,15 @@ func testSumcheckSingleClaimMultilin(polyInt []uint64, hashGenerator func() hash
 	}
 
 	lazyClaim := singleMultilinLazyClaim{g: poly, claimedSum: poly.Sum()}
-	if err = sumcheckVerify(lazyClaim, proof, fiatshamir.WithHash(hashGenerator())); err != nil {
+	t = transcript{h: hashGenerator()}
+	if err := sumcheckVerify(lazyClaim, proof, lazyClaim.claimedSum, 1, &t); err != nil {
 		return err
 	}
 
 	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
 	lazyClaim = singleMultilinLazyClaim{g: poly, claimedSum: poly.Sum()}
-	if sumcheckVerify(lazyClaim, proof, fiatshamir.WithHash(hashGenerator())) == nil {
+	t = transcript{h: hashGenerator()}
+	if sumcheckVerify(lazyClaim, proof, lazyClaim.claimedSum, 1, &t) == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 	return nil
@@ -93,16 +92,12 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) proveFinalEval(r []fr.Element) []fr.Element {
+func (c *singleMultilinClaim) proveFinalEval(r []fr.Element) []fr.Element {
 	return nil // verifier can compute the final eval itself
 }
 
-func (c singleMultilinClaim) varsNum() int {
+func (c *singleMultilinClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
-}
-
-func (c singleMultilinClaim) claimsNum() int {
-	return 1
 }
 
 func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
@@ -113,13 +108,12 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []fr.Element{sum}
 }
 
-func (c singleMultilinClaim) fold(fr.Element) polynomial.Polynomial {
+func (c *singleMultilinClaim) roundPolynomial() polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
-func (c *singleMultilinClaim) next(r fr.Element) polynomial.Polynomial {
+func (c *singleMultilinClaim) roundFold(r fr.Element) {
 	c.g.Fold(r)
-	return sumForX1One(c.g)
 }
 
 type singleMultilinLazyClaim struct {
@@ -127,7 +121,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum fr.Element
 }
 
-func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, _ fr.Element, purportedValue fr.Element, proof []fr.Element) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, purportedValue fr.Element, proof []fr.Element) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -135,15 +129,7 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, _ fr.Element, p
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) foldedSum(_ fr.Element) fr.Element {
-	return c.claimedSum
-}
-
-func (c singleMultilinLazyClaim) degree(i int) int {
-	return 1
-}
-
-func (c singleMultilinLazyClaim) claimsNum() int {
+func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
 }
 
