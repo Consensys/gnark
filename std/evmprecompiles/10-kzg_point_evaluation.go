@@ -20,16 +20,13 @@ import (
 	"github.com/consensys/gnark/std/selector"
 )
 
-// fixedKzgSrsVk is the verifying key for the KZG precompile. As it is fixed,
-// then we can embed it into the circuit instead of passing as a witness
-// argument.
-var fixedKzgSrsVk *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
-
-// fixedKzgSrsVk16 is the verifying key for the KZG precompile using 16-bit limbs.
-var fixedKzgSrsVk16 *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]
+// fixedNativeKzgSrsVk is the KZG verifying key in native gnark-crypto form.
+// It is decoded once at startup and never modified thereafter, making it safe
+// to read from concurrent goroutines.
+var fixedNativeKzgSrsVk kzg_bls12381.VerifyingKey
 
 func init() {
-	fixedKzgSrsVk, fixedKzgSrsVk16 = fixedVerificationKey() // initialize the fixed verifying key
+	fixedNativeKzgSrsVk = decodeNativeVerifyingKey()
 }
 
 var (
@@ -56,34 +53,38 @@ var (
 	}
 )
 
-func fixedVerificationKey() (*kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine], *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]) {
+// decodeNativeVerifyingKey decodes the SRS bytes into a native gnark-crypto
+// verifying key. The result contains no gnark circuit types and is safe to
+// store as a package-level variable.
+func decodeNativeVerifyingKey() kzg_bls12381.VerifyingKey {
 	var vk kzg_bls12381.VerifyingKey
 	dec := bls12381.NewDecoder(bytes.NewBuffer(srs), bls12381.NoSubgroupChecks())
-	err := dec.Decode(&vk.G1)
-	if err != nil {
+	if err := dec.Decode(&vk.G1); err != nil {
 		panic(fmt.Sprintf("failed to set G1 element: %v", err))
 	}
-	err = dec.Decode(&vk.G2[0])
-	if err != nil {
+	if err := dec.Decode(&vk.G2[0]); err != nil {
 		panic(fmt.Sprintf("failed to set G2[0] element: %v", err))
 	}
-	err = dec.Decode(&vk.G2[1])
-	if err != nil {
+	if err := dec.Decode(&vk.G2[1]); err != nil {
 		panic(fmt.Sprintf("failed to set G2[1] element: %v", err))
 	}
 	vk.Lines[0] = bls12381.PrecomputeLines(vk.G2[0])
 	vk.Lines[1] = bls12381.PrecomputeLines(vk.G2[1])
-	vkw, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
+	return vk
+}
+
+// newVerifyingKey returns a fresh gnark circuit-level verifying key built
+// from the cached crypto key. It must be called once per circuit compilation:
+// kzg.ValueOfVerifyingKeyFixed produces emulated field elements whose metadata
+// (modReduced, bitsDecomposition, …) is mutated in-place during circuit
+// parsing, so sharing a single instance across concurrent compilations causes
+// a data race.
+func newVerifyingKey() *kzg.VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine] {
+	vk, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](fixedNativeKzgSrsVk)
 	if err != nil {
 		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
 	}
-	// as the constant values are decomposed automatically at circuit parsing time and this is
-	// a global variable, we need to create a separate instance for 16-bit limbs
-	vkw16, err := kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
-	if err != nil {
-		panic(fmt.Sprintf("failed to convert verifying key to fixed: %v", err))
-	}
-	return &vkw, &vkw16
+	return &vk
 }
 
 const (
@@ -163,6 +164,7 @@ func KzgPointEvaluation(
 	// check expected modulus against 128-bit format
 	api.AssertIsEqual(expectedBlsModulus[0], evmBlsModulusHi)
 	api.AssertIsEqual(expectedBlsModulus[1], evmBlsModulusLo)
+	fixedKzgSrsVk := newVerifyingKey()
 	return kzgPointEvaluation(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 16)
 }
 
@@ -202,6 +204,7 @@ func KzgPointEvaluation16(
 	for i := range evmBlsModulus16 {
 		api.AssertIsEqual(expectedBlsModulus[i], evmBlsModulus16[i])
 	}
+	fixedKzgSrsVk16 := newVerifyingKey()
 	return kzgPointEvaluation(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], 2)
 }
 
@@ -346,6 +349,7 @@ func KzgPointEvaluationFailure(
 	if smallfields.IsSmallField(api.Compiler().Field()) {
 		return fmt.Errorf("KzgPointEvaluationFailure method cannot be called over small field compiler")
 	}
+	fixedKzgSrsVk := newVerifyingKey()
 	return kzgPointEvaluationFailure(api, fixedKzgSrsVk, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 16)
 }
 
@@ -387,6 +391,7 @@ func KzgPointEvaluationFailure16(
 	if !smallfields.IsSmallField(api.Compiler().Field()) {
 		return fmt.Errorf("KzgPointEvaluationFailure16 method cannot be called over large field compiler")
 	}
+	fixedKzgSrsVk16 := newVerifyingKey()
 	return kzgPointEvaluationFailure(api, fixedKzgSrsVk16, versionedHash[:], evaluationPoint, claimedValue, commitmentCompressed[:], proofCompressed[:], expectedBlobSize[:], expectedBlsModulus[:], 2)
 }
 
