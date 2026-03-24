@@ -1,6 +1,10 @@
 package emulated
 
-// polyProdCheck represents a polynomial product check in a polynomial
+import (
+	"fmt"
+	"math/big"
+)
+
 // Represents an element of a polynomial ring over the emulated field.
 type Poly[T FieldParams] []*Element[T]
 
@@ -45,3 +49,105 @@ type polyRingMulCheck[T FieldParams] struct {
 	q      Poly[T]   // quotient
 }
 
+// polyRingMul multiplies all polynomials in inputs and divides the product
+// by modPoly using polynomial Euclidean division. Coefficients are reduced
+// modulo fieldMod (the emulated field prime).
+func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q, r []*big.Int, err error) {
+	if len(inputs) == 0 {
+		return nil, nil, fmt.Errorf("polyRingMul: no input polynomials")
+	}
+	if len(modPoly) == 0 {
+		return nil, nil, fmt.Errorf("polyRingMul: modulus polynomial is empty")
+	}
+
+	fmt.Printf("inputs: %v\n", inputs)
+	fmt.Printf("modPoly: %v\n", modPoly)
+
+	// multiply all polynomials in inputs
+	product := make([]*big.Int, len(inputs[0]))
+	for i, c := range inputs[0] {
+		product[i] = new(big.Int).Mod(c, fieldMod)
+	}
+	for k := 1; k < len(inputs); k++ {
+		b := inputs[k]
+		result := make([]*big.Int, len(product)+len(b)-1)
+		for i := range result {
+			result[i] = new(big.Int)
+		}
+		for i, ci := range product {
+			for j, cj := range b {
+				term := new(big.Int).Mul(ci, cj)
+				result[i+j].Add(result[i+j], term)
+				result[i+j].Mod(result[i+j], fieldMod)
+			}
+		}
+		product = result
+	}
+
+	// euclidean division: product = quotient * modPoly + remainder
+	divisorDeg := len(modPoly) - 1
+
+	// if product has lower degree than modPoly, quotient is 0 and remainder is product
+	if len(product)-1 < divisorDeg {
+		remainder := make([]*big.Int, divisorDeg)
+		for i := range remainder {
+			if i < len(product) {
+				remainder[i] = new(big.Int).Set(product[i])
+			} else {
+				remainder[i] = new(big.Int)
+			}
+		}
+		return []*big.Int{new(big.Int)}, remainder, nil
+	}
+
+	// leading coefficient inverse of modPoly modulo field modulus
+	lcInv := new(big.Int).ModInverse(modPoly[divisorDeg], fieldMod)
+	if lcInv == nil {
+		return nil, nil, fmt.Errorf("polyRingMul: leading coefficient of modulus polynomial is not invertible")
+	}
+
+	dividend := make([]*big.Int, len(product))
+	for i, c := range product {
+		dividend[i] = new(big.Int).Set(c)
+	}
+
+	qDeg := len(product) - 1 - divisorDeg
+	quotient := make([]*big.Int, qDeg+1)
+	for i := range quotient {
+		quotient[i] = new(big.Int)
+	}
+
+	for len(dividend) >= len(modPoly) {
+		d := len(dividend) - len(modPoly)
+		// leading quotient term at degree d
+		lc := new(big.Int).Mul(dividend[len(dividend)-1], lcInv)
+		lc.Mod(lc, fieldMod)
+		quotient[d].Set(lc)
+		// subtract lc * x^d * modPoly from dividend
+		for i, c := range modPoly {
+			term := new(big.Int).Mul(lc, c)
+			dividend[i+d].Sub(dividend[i+d], term)
+			dividend[i+d].Mod(dividend[i+d], fieldMod)
+		}
+		// trim leading zeros
+		for len(dividend) > 0 && dividend[len(dividend)-1].Sign() == 0 {
+			dividend = dividend[:len(dividend)-1]
+		}
+	}
+
+	// pad remainder to divisorDeg terms
+	remainder := make([]*big.Int, divisorDeg)
+	for i := range remainder {
+		if i < len(dividend) {
+			remainder[i] = new(big.Int).Set(dividend[i])
+		} else {
+			remainder[i] = new(big.Int)
+		}
+	}
+
+	fmt.Printf("product: %v\n", product)
+	fmt.Printf("quotient: %v\n", quotient)
+	fmt.Printf("remainder: %v\n", remainder)
+
+	return quotient, remainder, nil
+}
