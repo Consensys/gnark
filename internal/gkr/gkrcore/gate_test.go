@@ -1,4 +1,4 @@
-package gkrtypes
+package gkrcore
 
 import (
 	"math/big"

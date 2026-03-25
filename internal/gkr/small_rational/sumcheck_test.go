@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"hash"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"github.com/stretchr/testify/assert"
 
@@ -24,11 +23,9 @@ func testSumcheckSingleClaimMultilin(polyInt []uint64, hashGenerator func() hash
 	}
 
 	claim := singleMultilinClaim{g: poly.Clone()}
+	t := transcript{h: hashGenerator()}
 
-	proof, err := sumcheckProve(&claim, fiatshamir.WithHash(hashGenerator()))
-	if err != nil {
-		return err
-	}
+	proof := sumcheckProve(&claim, &t)
 
 	var sb strings.Builder
 	for _, p := range proof.partialSumPolys {
@@ -44,13 +41,15 @@ func testSumcheckSingleClaimMultilin(polyInt []uint64, hashGenerator func() hash
 	}
 
 	lazyClaim := singleMultilinLazyClaim{g: poly, claimedSum: poly.Sum()}
-	if err = sumcheckVerify(lazyClaim, proof, fiatshamir.WithHash(hashGenerator())); err != nil {
+	t = transcript{h: hashGenerator()}
+	if err := sumcheckVerify(lazyClaim, proof, lazyClaim.claimedSum, 1, &t); err != nil {
 		return err
 	}
 
 	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
 	lazyClaim = singleMultilinLazyClaim{g: poly, claimedSum: poly.Sum()}
-	if sumcheckVerify(lazyClaim, proof, fiatshamir.WithHash(hashGenerator())) == nil {
+	t = transcript{h: hashGenerator()}
+	if sumcheckVerify(lazyClaim, proof, lazyClaim.claimedSum, 1, &t) == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 	return nil
