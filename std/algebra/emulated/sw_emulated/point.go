@@ -1232,7 +1232,11 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
 // It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  Without [algopts.WithCompleteArithmetic]: the scalar s must be nonzero,
+// Q must differ from (0,0), and s must not be ±1 or ±3. These edge cases are
+// not handled and the result is undefined. Use [algopts.WithCompleteArithmetic]
+// for full edge-case coverage.
+//
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -1282,27 +1286,39 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	// Handle Q=(0,0), s=0/s=-1, s=±1 (where R=±Q), and s=±3 (where R=±[3]Q)
-	// for complete arithmetic
-	var selector1, selector2, selector3 frontend.Variable
+	// Handle edge cases for complete arithmetic using constrained scalar checks,
+	// not hint-based comparisons (which would be unsound — the hint is what we
+	// are trying to verify, so it cannot be trusted to detect its own edge cases).
+	//
+	// When s=±1: tableR[1]=∓Q, so T2 = Q + tableR[1] = Q∓Q = ±∞ (incomplete Add fails).
+	// When s=±3: tableR[1]=∓[3]Q, so T3 = [3]Q + tableR[1] = [3]Q∓[3]Q = ±∞.
+	// When Q=(0,0): the hint R=(0,0) and the tables would degenerate.
+	//
+	// For all these cases we substitute R with a dummy point so the loop runs on
+	// generic inputs. The hint is not verified by the loop for these paths; instead,
+	// the correct result is returned via direct computation below (soundness does
+	// not rely on the unverified hint for edge-case paths).
+	var selector1, sIsOne, sIsMinusOne, sIsThree, sIsMinusThree frontend.Variable
+	var selectorAny frontend.Variable
 	_Q := Q
 	if cfg.CompleteArithmetic {
-		// Use different dummy points for _Q and R to avoid _Q == ±R
-		dummyQ := c.Generator()
-		dummyR := &c.GeneratorMultiples()[3] // 8*G, different from G
-		// selector1: Q=(0,0)
+		dummyR := &c.GeneratorMultiples()[3] // 8*G, away from ±G and ±[3]G
+		// selector1: Q=(0,0) — replace _Q with G so table precomputations are valid
 		selector1 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		_Q = c.Select(selector1, dummyQ, Q)
-		// selector2: R.X == Q.X (happens when s=±1, so R=±Q and Add would fail)
-		selector2 = c.baseApi.IsZero(c.baseApi.Sub(&Q.X, r0))
-		// selector3: R.X == [3]Q.X (happens when s=±3, so R=±[3]Q and
-		// tableQ[2]±tableR[1] would be a doubling or point-at-infinity)
-		tripleQ := c.triple(_Q)
-		selector3 = c.baseApi.IsZero(c.baseApi.Sub(&tripleQ.X, r0))
-		// When s=0/s=-1 (selector0), Q=(0,0) (selector1), R.X==Q.X (selector2),
-		// or R.X==[3]Q.X (selector3), the incomplete addition formula fails.
-		// Use dummy for R in these cases.
-		selectorAny := c.api.Or(c.api.Or(c.api.Or(selector0, selector1), selector2), selector3)
+		_Q = c.Select(selector1, c.Generator(), Q)
+		// Detect s=±1 and s=±3 from the constrained scalar (not from the hint R).
+		one := c.scalarApi.One()
+		sIsOne = c.scalarApi.IsZero(c.scalarApi.Sub(s, one))
+		sIsMinusOne = c.scalarApi.IsZero(c.scalarApi.Add(s, one))
+		three := c.scalarApi.NewElement(big.NewInt(3))
+		sIsThree = c.scalarApi.IsZero(c.scalarApi.Sub(s, three))
+		sIsMinusThree = c.scalarApi.IsZero(c.scalarApi.Add(s, three))
+		// For all edge cases, substitute R with the dummy to prevent incomplete
+		// addition failures in the precomputed tables and the main loop.
+		selectorAny = c.api.Or(
+			c.api.Or(c.api.Or(selector0, selector1), c.api.Or(sIsOne, sIsMinusOne)),
+			c.api.Or(sIsThree, sIsMinusThree),
+		)
 		r0 = c.baseApi.Select(selectorAny, &dummyR.X, r0)
 		r1 = c.baseApi.Select(selectorAny, &dummyR.Y, r1)
 	}
@@ -1338,14 +1354,15 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// T2 = Q + R (without bias, used in table construction)
 	T2 := c.Add(tableQ[1], tableR[1])
 	Acc := T2
-	var t2EqNegG frontend.Variable
 	if cfg.CompleteArithmetic {
 		g := c.Generator()
-		// Guard: if T2 == -G (i.e. T2.X == G.X), the incomplete Add would fail.
-		// In that case, replace T2 with a safe dummy before adding G.
-		t2EqNegG = c.baseApi.IsZero(c.baseApi.Sub(&T2.X, &g.X))
-		safeT2 := c.Select(t2EqNegG, &c.GeneratorMultiples()[1], T2)
-		Acc = c.Add(safeT2, g)
+		// Add G as a bias point so Acc ≠ ±Bi throughout the loop.
+		// N.B.: for the non-edge-case path (selectorAny=0), T2 = Q + tableR[1]
+		// where tableR[1] = ±[s]Q (s≠0,±1,±3). T2 = ±G would require Q to
+		// satisfy [1∓s]Q = ±G — a negligible constraint for random (Q,s) inputs.
+		// Accepted as a completeness limitation for this degenerate case,
+		// consistent with how scalarMulGLVAndFakeGLV handles the same scenario.
+		Acc = c.Add(T2, g)
 	}
 
 	// At each iteration we need to compute:
@@ -1490,14 +1507,15 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	tableR[0] = c.Add(tableR[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
-	// For complete arithmetic, subtract the bias [2^nbits]G and handle edge cases
+	// For complete arithmetic, subtract the bias and handle edge cases.
 	if cfg.CompleteArithmetic {
 		gm := c.GeneratorMultiples()[nbits-1]
 		Acc = c.Add(Acc, c.Neg(&gm))
-		// If s=0, Q=(0,0), R.X==Q.X, R.X==[3]Q.X, or T2==-G (bias collision),
-		// use the precomputed [3]R as a fallback
-		selectorEdge := c.api.Or(c.api.Or(c.api.Or(selector0, selector1), c.api.Or(selector2, selector3)), t2EqNegG)
-		Acc = c.Select(selectorEdge, tableR[2], Acc)
+		// For edge cases the loop ran with a dummy R, so its result is meaningless.
+		// Force Acc = tableR[2] so the assertion below trivially holds.
+		// Soundness is preserved because edge-case paths return a directly
+		// computed value (below), not the unverified hint R.
+		Acc = c.Select(selectorAny, tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
 	// 		Acc = [s1]Q + [s2]R + [3]R (+ [2^nbits]G - [2^nbits]G for complete arithmetic)
@@ -1505,7 +1523,28 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// 		    = [s1+s2*s]Q + [3]R
 	// 		    = [0]Q + [3]R
 	// 		    = [3]R
+	// This assertion verifies the hint R=[s]Q for the generic (non-edge-case) path.
 	c.AssertIsEqual(Acc, tableR[2])
+
+	if cfg.CompleteArithmetic {
+		// For edge cases, return the directly-computed correct result.
+		// Soundness here comes from the constrained scalar checks (sIsOne etc.),
+		// not from the loop assertion which was bypassed above.
+		originalR := &AffinePoint[B]{X: *R[0], Y: *R[1]}
+		tripleQ := c.triple(_Q)
+		negQ := c.Neg(_Q)
+		negTripleQ := c.Neg(tripleQ)
+		zeroPoint := &AffinePoint[B]{X: *c.baseApi.Zero(), Y: *c.baseApi.Zero()}
+
+		result := originalR // generic case: hint verified by the assertion above
+		result = c.Select(sIsMinusThree, negTripleQ, result)
+		result = c.Select(sIsThree, tripleQ, result)
+		result = c.Select(sIsMinusOne, negQ, result)
+		result = c.Select(sIsOne, _Q, result)
+		// s=0 or Q=(0,0) take priority over all other cases
+		zeroSelector := c.api.Or(selector0, selector1)
+		return c.Select(zeroSelector, zeroPoint, result)
+	}
 
 	return &AffinePoint[B]{
 		X: *R[0],

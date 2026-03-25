@@ -2225,6 +2225,37 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// 1 * P == P (Ivo's review case: s=1, R=P, R.X==P.X should not bypass verification)
+	witness7 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(1)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness7, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// Soundness check: s=1, P=G but R=-G (malicious prover providing wrong result)
+	negPy = new(big.Int).Sub(p256.Params().P, py)
+	witness8 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(1)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](negPy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness8, testCurve.ScalarField())
+	assert.Error(err, "s=1 with wrong R=-P should be rejected (soundness)")
 }
 
 func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
