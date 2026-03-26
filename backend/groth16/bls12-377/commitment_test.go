@@ -10,9 +10,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	bls12_377groth16 "github.com/consensys/gnark/backend/groth16/bls12-377"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/assert"
@@ -36,35 +37,46 @@ func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey) {
-	_r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
+func setup(t *testing.T, circuit frontend.Circuit) (*cs.R1CS, *bls12_377groth16.ProvingKey, *bls12_377groth16.VerifyingKey) {
+	_ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(t, err)
 
-	pk, vk, err := groth16.Setup(_r1cs)
+	ccs, ok := _ccs.(*cs.R1CS)
+	if !assert.True(t, ok) {
+		return nil, nil, nil
+	}
+
+	pk := new(bls12_377groth16.ProvingKey)
+	vk := new(bls12_377groth16.VerifyingKey)
+	err = bls12_377groth16.Setup(ccs, pk, vk)
 	assert.NoError(t, err)
 
-	return _r1cs, pk, vk
+	return ccs, pk, vk
 }
 
-func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (witness.Witness, groth16.Proof) {
+func prove(t *testing.T, assignment frontend.Circuit, ccs *cs.R1CS, pk *bls12_377groth16.ProvingKey) (fr.Vector, *bls12_377groth16.Proof) {
 	_witness, err := frontend.NewWitness(assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(t, err)
 
-	proof, err := groth16.Prove(cs, pk, _witness)
+	proof, err := bls12_377groth16.Prove(ccs, pk, _witness)
 	assert.NoError(t, err)
 
 	public, err := _witness.Public()
 	assert.NoError(t, err)
-	return public, proof
+	vector, ok := public.Vector().(fr.Vector)
+	if !assert.True(t, ok) {
+		return nil, nil
+	}
+	return vector, proof
 }
 
 func test(t *testing.T, circuit frontend.Circuit, assignment frontend.Circuit) {
 
-	_r1cs, pk, vk := setup(t, circuit)
+	ccs, pk, vk := setup(t, circuit)
 
-	public, proof := prove(t, assignment, _r1cs, pk)
+	public, proof := prove(t, assignment, ccs, pk)
 
-	assert.NoError(t, groth16.Verify(proof, vk, public))
+	assert.NoError(t, bls12_377groth16.Verify(proof, vk, public))
 }
 
 func TestSingleSecretCommitted(t *testing.T) {
