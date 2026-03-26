@@ -45,6 +45,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	}
 
 	nbPublicVars := len(vk.G1.K) - len(vk.PublicAndCommitmentCommitted)
+	expectedCommitments := len(vk.PublicAndCommitmentCommitted)
+
+	if len(vk.CommitmentKeys) != expectedCommitments {
+		return fmt.Errorf("invalid verifying key: got %d commitment keys, expected %d", len(vk.CommitmentKeys), expectedCommitments)
+	}
+	if len(proof.Commitments) != expectedCommitments {
+		return fmt.Errorf("invalid proof: got %d commitments, expected %d", len(proof.Commitments), expectedCommitments)
+	}
 
 	if len(publicWitness) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
