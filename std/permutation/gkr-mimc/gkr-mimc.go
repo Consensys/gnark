@@ -15,7 +15,6 @@ import (
 	"github.com/consensys/gnark/std/gkrapi"
 	"github.com/consensys/gnark/std/gkrapi/gkr"
 	"github.com/consensys/gnark/std/hash"
-	_ "github.com/consensys/gnark/std/hash/all"
 )
 
 // compressor implements a compression function by applying

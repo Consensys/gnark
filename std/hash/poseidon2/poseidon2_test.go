@@ -1,14 +1,18 @@
 package poseidon2_test
 
 import (
+	"errors"
+	"slices"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	poseidonbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/poseidon2"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/poseidon2"
 	gkr_poseidon2 "github.com/consensys/gnark/std/hash/poseidon2/gkr-poseidon2"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 type poseidon2Circuit struct {
@@ -100,4 +104,66 @@ func (c *testStateStorerCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(hshPartial.Sum(), digest)
 	}
 	return nil
+}
+
+type merkleTreeCircuit struct {
+	Leaves []frontend.Variable
+}
+
+func (c *merkleTreeCircuit) Define(api frontend.API) error {
+	if len(c.Leaves) == 0 {
+		return errors.New("no hashing to do")
+	}
+
+	hsh, err := gkr_poseidon2.New(api)
+	if err != nil {
+		return err
+	}
+
+	layer := slices.Clone(c.Leaves)
+
+	for len(layer) > 1 {
+		if len(layer)%2 == 1 {
+			layer = append(layer, 0) // pad with zero
+		}
+
+		for i := range len(layer) / 2 {
+			hsh.Reset()
+			hsh.Write(layer[2*i], layer[2*i+1])
+			layer[i] = hsh.Sum()
+		}
+
+		layer = layer[:len(layer)/2]
+	}
+
+	api.AssertIsDifferent(layer[0], 0)
+	return nil
+}
+
+func BenchmarkGkrPoseidon2(b *testing.B) {
+	const size = 1 << 16
+
+	circuit := merkleTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+	assignment := merkleTreeCircuit{
+		Leaves: make([]frontend.Variable, size),
+	}
+
+	for i := range assignment.Leaves {
+		assignment.Leaves[i] = i
+	}
+
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
+	require.NoError(b, err)
+
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		_, err = cs.Solve(w)
+		require.NoError(b, err)
+	}
 }

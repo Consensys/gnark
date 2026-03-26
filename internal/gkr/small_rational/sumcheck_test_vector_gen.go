@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
@@ -38,11 +37,9 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		return err
 	}
 
-	proof, err := sumcheckProve(
-		&singleMultilinClaim{poly}, fiatshamir.WithHash(hsh))
-	if err != nil {
-		return err
-	}
+	claim := singleMultilinClaim{poly}
+	t := transcript{h: hsh}
+	proof := sumcheckProve(&claim, &t)
 	testCaseInfo.Proof = sumcheckToPrintableProof(proof)
 
 	// Verification
@@ -56,12 +53,20 @@ func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
 		return err
 	}
 
-	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err != nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
+		return err
+	}
+	t = transcript{h: hsh}
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, claimedSum, 1, &t); err != nil {
 		return fmt.Errorf("proof rejected: %v", err)
 	}
 
 	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
-	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, fiatshamir.WithHash(hsh)); err == nil {
+	if hsh, err = hashFromDescription(testCaseInfo.Hash); err != nil {
+		return err
+	}
+	t = transcript{h: hsh}
+	if err = sumcheckVerify(singleMultilinLazyClaim{g: poly, claimedSum: claimedSum}, proof, claimedSum, 1, &t); err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
 
@@ -150,16 +155,12 @@ type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
 
-func (c singleMultilinClaim) proveFinalEval(r []small_rational.SmallRational) []small_rational.SmallRational {
+func (c *singleMultilinClaim) proveFinalEval(r []small_rational.SmallRational) []small_rational.SmallRational {
 	return nil // verifier can compute the final eval itself
 }
 
-func (c singleMultilinClaim) varsNum() int {
+func (c *singleMultilinClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
-}
-
-func (c singleMultilinClaim) claimsNum() int {
-	return 1
 }
 
 func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
@@ -170,13 +171,12 @@ func sumForX1One(g polynomial.MultiLin) polynomial.Polynomial {
 	return []small_rational.SmallRational{sum}
 }
 
-func (c singleMultilinClaim) fold(small_rational.SmallRational) polynomial.Polynomial {
+func (c *singleMultilinClaim) roundPolynomial() polynomial.Polynomial {
 	return sumForX1One(c.g)
 }
 
-func (c *singleMultilinClaim) next(r small_rational.SmallRational) polynomial.Polynomial {
+func (c *singleMultilinClaim) roundFold(r small_rational.SmallRational) {
 	c.g.Fold(r)
-	return sumForX1One(c.g)
 }
 
 type singleMultilinLazyClaim struct {
@@ -184,7 +184,7 @@ type singleMultilinLazyClaim struct {
 	claimedSum small_rational.SmallRational
 }
 
-func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRational, _ small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error {
+func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error {
 	val := c.g.Evaluate(r, nil)
 	if val.Equal(&purportedValue) {
 		return nil
@@ -192,15 +192,7 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRationa
 	return fmt.Errorf("mismatch")
 }
 
-func (c singleMultilinLazyClaim) foldedSum(_ small_rational.SmallRational) small_rational.SmallRational {
-	return c.claimedSum
-}
-
-func (c singleMultilinLazyClaim) degree(i int) int {
-	return 1
-}
-
-func (c singleMultilinLazyClaim) claimsNum() int {
+func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
 }
 

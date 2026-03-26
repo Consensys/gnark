@@ -115,7 +115,7 @@ func (c *merkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func BenchmarkGkrMiMC(b *testing.B) {
-	const size = 1 << 15 // about 2 ^ 16 total hashes
+	const size = 1 << 16
 
 	circuit := merkleTreeCircuit{
 		Leaves: make([]frontend.Variable, size),

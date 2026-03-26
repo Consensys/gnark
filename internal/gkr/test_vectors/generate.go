@@ -16,13 +16,15 @@ import (
 )
 
 func main() {
-	var wg sync.WaitGroup
-	wg.Add(3)
-	for _, f := range []func() error{
+	tasks := []func() error{
 		gkr.GenerateSumcheckVectors,
 		gkr.GenerateVectors,
 		generateSerializationTestData,
-	} {
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(tasks))
+	for _, f := range tasks {
 		go func() {
 			assertNoError(f())
 			wg.Done()

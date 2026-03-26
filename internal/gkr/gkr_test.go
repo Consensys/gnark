@@ -10,9 +10,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -107,41 +108,39 @@ type GkrVerifierCircuit struct {
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
-	var testCase *TestCase
+	var testCase *testCase
 	var proof Proof
 	var err error
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
 
-	if proof, err = DeserializeProof(testCase.Circuit, c.SerializedProof); err != nil {
+	if proof, err = DeserializeProof(testCase.Circuit, testCase.Schedule, c.SerializedProof); err != nil {
 		return err
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
 	var hsh hash.FieldHasher
 	if c.ToFail {
-		hsh = NewMessageCounter(api, 1, 1)
+		hsh = newMessageCounter(api, 1, 1)
 	} else {
-		if hsh, err = HashFromDescription(api, testCase.Hash); err != nil {
+		if hsh, err = hashFromDescription(api, testCase.Hash); err != nil {
 			return err
 		}
 	}
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
+	return Verify(api, testCase.Circuit, testCase.Schedule, assignment, proof, hsh)
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	res := make(WireAssignment, len(c))
-	inI, outI := 0, 0
-	for i := range c {
-		if c[i].IsInput() {
-			res[i] = inputValues[inI]
-			inI++
-		} else if c[i].IsOutput() {
-			res[i] = outputValues[outI]
-			outI++
-		}
+	inputs := c.Inputs()
+	outputs := c.Outputs()
+	for i, wI := range inputs {
+		res[wI] = inputValues[i]
+	}
+	for i, wI := range outputs {
+		res[wI] = outputValues[i]
 	}
 	return res
 }
@@ -152,25 +151,26 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 	}
 }
 
-type TestCase struct {
-	Circuit Circuit
-	Hash    HashDescription
-	Proof   Proof
-	Input   [][]frontend.Variable
-	Output  [][]frontend.Variable
-	Name    string
+type testCase struct {
+	Circuit  Circuit
+	Schedule constraint.GkrProvingSchedule
+	Hash     hashDescription
+	Proof    Proof
+	Input    [][]frontend.Variable
+	Output   [][]frontend.Variable
+	Name     string
 }
-type TestCaseInfo struct {
-	Hash    HashDescription `json:"hash"`
+type testCaseInfo struct {
+	Hash    hashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
 	Input   [][]interface{} `json:"input"`
 	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
+	Proof   printableProof  `json:"proof"`
 }
 
-var testCases = make(map[string]*TestCase)
+var testCases = make(map[string]*testCase)
 
-func getTestCase(path string) (*TestCase, error) {
+func getTestCase(path string) (*testCase, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -180,15 +180,22 @@ func getTestCase(path string) (*TestCase, error) {
 	cse, ok := testCases[path]
 	if !ok {
 		var bytes []byte
-		cse = &TestCase{}
+		cse = &testCase{}
 		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
+			var info testCaseInfo
 			err = json.Unmarshal(bytes, &info)
 			if err != nil {
 				return nil, err
 			}
 
-			_, cse.Circuit = cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			serializableCircuit, gadgetCircuit := cache.GetCircuit(filepath.Join(dir, info.Circuit))
+			cse.Circuit = gadgetCircuit
+
+			schedule, schedErr := gkrcore.DefaultProvingSchedule(serializableCircuit)
+			if schedErr != nil {
+				return nil, schedErr
+			}
+			cse.Schedule = schedule
 
 			cse.Proof = unmarshalProof(info.Proof)
 
@@ -205,14 +212,14 @@ func getTestCase(path string) (*TestCase, error) {
 	return cse, nil
 }
 
-type PrintableProof []PrintableSumcheckProof
+type printableProof []printableSumcheckProof
 
-type PrintableSumcheckProof struct {
+type printableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 }
 
-func unmarshalProof(printable PrintableProof) (proof Proof) {
+func unmarshalProof(printable printableProof) (proof Proof) {
 	proof = make(Proof, len(printable))
 	for i := range printable {
 
@@ -235,14 +242,27 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 	return
 }
 
+func hasSumcheck(s constraint.GkrProvingSchedule) bool {
+	for _, l := range s {
+		if _, ok := l.(constraint.GkrSumcheckLevel); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func TestLogNbInstances(t *testing.T) {
 	testLogNbInstances := func(path string) func(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
 			serializedProof := testCase.Proof.Serialize()
-			logNbInstances := ComputeLogNbInstances(testCase.Circuit, len(serializedProof))
-			assert.Equal(t, 1, logNbInstances)
+			logNbInstances := ComputeLogNbInstances(testCase.Circuit, testCase.Schedule, len(serializedProof))
+			if hasSumcheck(testCase.Schedule) {
+				assert.Equal(t, 1, logNbInstances)
+			} else {
+				assert.Equal(t, -1, logNbInstances, "no-sumcheck schedule should have logNbInstances=-1, got %d instead", logNbInstances)
+			}
 		}
 	}
 
@@ -253,14 +273,14 @@ func TestLogNbInstances(t *testing.T) {
 	}
 }
 
-type HashDescription map[string]interface{}
+type hashDescription map[string]interface{}
 
-func HashFromDescription(api frontend.API, d HashDescription) (hash.FieldHasher, error) {
+func hashFromDescription(api frontend.API, d hashDescription) (hash.FieldHasher, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
-			startState := int64(d["val"].(float64))
-			return &MessageCounter{startState: startState, step: 0, state: startState, api: api}, nil
+			startState := int(d["val"].(float64))
+			return newMessageCounter(api, startState, 0), nil
 		default:
 			return nil, fmt.Errorf("unknown fake hash type \"%s\"", _type)
 		}
@@ -268,7 +288,7 @@ func HashFromDescription(api frontend.API, d HashDescription) (hash.FieldHasher,
 	return nil, fmt.Errorf("hash description missing type")
 }
 
-type MessageCounter struct {
+type messageCounter struct {
 	startState int64
 	state      int64
 	step       int64
@@ -278,7 +298,7 @@ type MessageCounter struct {
 	zero frontend.Variable
 }
 
-func (m *MessageCounter) Write(data ...frontend.Variable) {
+func (m *messageCounter) Write(data ...frontend.Variable) {
 
 	for i := range data {
 		sq1, sq2 := m.api.Mul(data[i], data[i]), m.api.Mul(data[i], data[i])
@@ -288,18 +308,17 @@ func (m *MessageCounter) Write(data ...frontend.Variable) {
 	m.state += int64(len(data)) * m.step
 }
 
-func (m *MessageCounter) Sum() frontend.Variable {
+func (m *messageCounter) Sum() frontend.Variable {
 	return m.api.Add(m.state, m.zero)
 }
 
-func (m *MessageCounter) Reset() {
+func (m *messageCounter) Reset() {
 	m.zero = 0
 	m.state = m.startState
 }
 
-func NewMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
-	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
-	return transcript
+func newMessageCounter(api frontend.API, startState, step int) hash.FieldHasher {
+	return &messageCounter{startState: int64(startState), state: int64(startState), step: int64(step), zero: 0, api: api}
 }
 
 type constHashCircuit struct {
@@ -307,7 +326,7 @@ type constHashCircuit struct {
 }
 
 func (c *constHashCircuit) Define(api frontend.API) error {
-	hsh := NewMessageCounter(api, 0, 0)
+	hsh := newMessageCounter(api, 0, 0)
 	hsh.Reset()
 	hsh.Write(c.X)
 	sum := hsh.Sum()

@@ -5,7 +5,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
-	_ "github.com/consensys/gnark/std/hash/all"
 	gkr_poseidon2 "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2"
 )
 

@@ -15,9 +15,9 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark-crypto/ecc"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/gkr/gkrtypes"
 	"github.com/consensys/gnark/internal/small_rational"
 	"github.com/consensys/gnark/internal/small_rational/polynomial"
 )
@@ -64,10 +64,8 @@ func run(absPath string) error {
 		return err
 	}
 
-	transcriptSetting := fiatshamir.WithHash(testCase.Hash)
-
 	var proof Proof
-	proof, err = Prove(testCase.Circuit, testCase.FullAssignment, transcriptSetting)
+	proof, err = Prove(testCase.Circuit, testCase.Schedule, testCase.FullAssignment, testCase.Hash)
 	if err != nil {
 		return err
 	}
@@ -89,7 +87,7 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, transcriptSetting)
+	err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, proof, testCase.Hash)
 	if err != nil {
 		return err
 	}
@@ -99,7 +97,7 @@ func run(absPath string) error {
 		return err
 	}
 
-	err = Verify(testCase.Circuit, testCase.InOutAssignment, proof, fiatshamir.WithHash(newMessageCounter(2, 0)))
+	err = Verify(testCase.Circuit, testCase.Schedule, testCase.InOutAssignment, proof, newMessageCounter(2, 0))
 	if err == nil {
 		return fmt.Errorf("bad proof accepted")
 	}
@@ -191,11 +189,12 @@ func unmarshalProof(printable gkrtesting.PrintableProof) (Proof, error) {
 }
 
 type TestCase struct {
-	Circuit         gkrtypes.SerializableCircuit
+	Circuit         gkrcore.SerializableCircuit
 	Hash            hash.Hash
 	Proof           Proof
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
+	Schedule        constraint.GkrProvingSchedule
 	Info            gkrtesting.TestCaseInfo // we are generating the test vectors, so we need to keep the circuit instance info to ADD the proof to it and resave it
 }
 
@@ -227,6 +226,20 @@ func newTestCase(path string) (*TestCase, error) {
 	if proof, err = unmarshalProof(info.Proof); err != nil {
 		return nil, err
 	}
+	var schedule constraint.GkrProvingSchedule
+	if schedule, err = info.Schedule.ToProvingSchedule(); err != nil {
+		return nil, err
+	}
+	if schedule == nil {
+		if schedule, err = gkrcore.DefaultProvingSchedule(circuit); err != nil {
+			return nil, err
+		}
+	}
+
+	outputSet := make(map[int]bool, len(circuit))
+	for _, o := range circuit.Outputs() {
+		outputSet[o] = true
+	}
 
 	fullAssignment := make(WireAssignment, len(circuit))
 	inOutAssignment := make(WireAssignment, len(circuit))
@@ -240,7 +253,7 @@ func newTestCase(path string) (*TestCase, error) {
 			}
 			assignmentRaw = info.Input[inI]
 			inI++
-		} else if circuit[i].IsOutput() {
+		} else if outputSet[i] {
 			if outI == len(info.Output) {
 				return nil, fmt.Errorf("fewer output in vector than in circuit")
 			}
@@ -261,7 +274,7 @@ func newTestCase(path string) (*TestCase, error) {
 	fullAssignment.Complete(circuit)
 
 	for i := range circuit {
-		if circuit[i].IsOutput() {
+		if outputSet[i] {
 			if err = sliceEquals(inOutAssignment[i], fullAssignment[i]); err != nil {
 				return nil, fmt.Errorf("assignment mismatch: %v", err)
 			}
@@ -274,6 +287,7 @@ func newTestCase(path string) (*TestCase, error) {
 		Proof:           proof,
 		Hash:            _hash,
 		Circuit:         circuit,
+		Schedule:        schedule,
 		Info:            info,
 	}
 
