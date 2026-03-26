@@ -1,5 +1,6 @@
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -172,4 +173,72 @@ func TestTwoSecretCommitments(t *testing.T) {
 		One: 1,
 		Two: 2,
 	})
+}
+
+func TestVerifyCommitmentCountInvariant(t *testing.T) {
+	testCases := []struct {
+		name             string
+		circuit          frontend.Circuit
+		assignment       frontend.Circuit
+		proofCommitments int
+		expectedErr      string
+	}{
+		{
+			name:             "circuit_no_commitment_proof_has_commitment",
+			circuit:          &noCommitmentCircuit{},
+			assignment:       &noCommitmentCircuit{One: 1},
+			proofCommitments: 1,
+			expectedErr:      "invalid proof: got 1 commitments, expected 0",
+		},
+		{
+			name:             "circuit_one_commitment_proof_has_no_commitment",
+			circuit:          &singleSecretCommittedCircuit{},
+			assignment:       &singleSecretCommittedCircuit{One: 1},
+			proofCommitments: 0,
+			expectedErr:      "invalid proof: got 0 commitments, expected 1",
+		},
+		{
+			name:             "circuit_one_commitment_proof_has_two_commitments",
+			circuit:          &singleSecretCommittedCircuit{},
+			assignment:       &singleSecretCommittedCircuit{One: 1},
+			proofCommitments: 2,
+			expectedErr:      "invalid proof: got 2 commitments, expected 1",
+		},
+		{
+			name:             "circuit_two_commitment_proof_has_single_commitment",
+			circuit:          &twoSecretCommitmentsCircuit{},
+			assignment:       &twoSecretCommitmentsCircuit{One: 1, Two: 2},
+			proofCommitments: 1,
+			expectedErr:      "invalid proof: got 1 commitments, expected 2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_r1cs, pk, vk := setup(t, tc.circuit)
+			public, proof := prove(t, tc.assignment, _r1cs, pk)
+
+			if len(proof.Commitments) > tc.proofCommitments {
+				proof.Commitments = proof.Commitments[:tc.proofCommitments]
+			}
+			for len(proof.Commitments) < tc.proofCommitments {
+				var s fr.Element
+				_, err := s.SetRandom()
+				assert.NoError(t, err)
+				var sBigInt big.Int
+				s.BigInt(&sBigInt)
+				var randomG1El curve.G1Affine
+				randomG1El.ScalarMultiplicationBase(&sBigInt)
+				proof.Commitments = append(proof.Commitments, randomG1El)
+			}
+
+			var err error
+			ok := assert.NotPanics(t, func() {
+				err = {{toLower .CurveID}}groth16.Verify(proof, vk, public)
+			}, "Verify should reject malformed commitment counts without panicking")
+			if ok {
+				assert.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
 }
