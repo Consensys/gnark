@@ -1561,10 +1561,11 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 
 	// handle 0-scalar and (-1)-scalar cases
-	var selector0 frontend.Variable
+	var selector0, selector1 frontend.Variable
 	_s := s
 	if cfg.CompleteArithmetic {
 		one := c.scalarApi.One()
+		selector1 = c.scalarApi.IsZero(c.scalarApi.Sub(s, one))
 		selector0 = c.api.Or(
 			c.scalarApi.IsZero(s),
 			c.scalarApi.IsZero(
@@ -1646,7 +1647,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	Q := &AffinePoint[B]{X: *point[0], Y: *point[1]}
 
 	// handle (0,0)-point
-	var _selector0, _selector1 frontend.Variable
+	var _selector0 frontend.Variable
 	_P := P
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
@@ -1654,9 +1655,8 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		// if P=(0,0) we assign a dummy point to P and continue
 		_selector0 = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
 		_P = c.Select(_selector0, &c.GeneratorMultiples()[4], P)
-		// if s=±1 we assign a dummy point to Q and continue
-		_selector1 = c.baseApi.IsZero(c.baseApi.Sub(&P.X, &Q.X))
-		Q = c.Select(_selector1, &c.GeneratorMultiples()[3], Q)
+		// if s=1 we assign a dummy point to Q and continue
+		Q = c.Select(selector1, &c.GeneratorMultiples()[3], Q)
 	}
 
 	addFn := c.Add
@@ -1802,12 +1802,23 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Acc should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
 	if cfg.CompleteArithmetic {
-		Acc = c.Select(c.api.Or(c.api.Or(selector0, _selector0), _selector1), &gm, Acc)
+		Acc = c.Select(c.api.Or(c.api.Or(selector0, _selector0), selector1), &gm, Acc)
 	}
 	c.AssertIsEqual(Acc, &gm)
 
-	return &AffinePoint[B]{
+	res := &AffinePoint[B]{
 		X: *point[0],
 		Y: *point[1],
 	}
+	if cfg.CompleteArithmetic {
+		zero := c.baseApi.Zero()
+		// The complete-arithmetic edge branches (s=0, s=-1, s=1, or P=(0,0))
+		// reroute the accumulator check through dummy points, so we must also
+		// return the canonical in-circuit result instead of the unverified hint output.
+		res = c.Select(selector1, _P, res)
+		res = c.Select(selector0, c.Neg(_P), res)
+		res = c.Select(c.scalarApi.IsZero(s), &AffinePoint[B]{X: *zero, Y: *zero}, res)
+		res = c.Select(_selector0, &AffinePoint[B]{X: *zero, Y: *zero}, res)
+	}
+	return res
 }
