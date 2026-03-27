@@ -859,8 +859,16 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	}
 	Acc.AssertIsEqual(api, H)
 
-	p.X = point[0]
-	p.Y = point[1]
+	hintedQ := G1Affine{X: point[0], Y: point[1]}
+	if cfg.CompleteArithmetic {
+		// On the zero-scalar and infinity-input branches we replace Q and P with
+		// dummy points to keep the incomplete formulas safe, so the raw hinted
+		// output is no longer constrained there. Select back to the canonical
+		// infinity result instead of returning the unchecked hint.
+		p.Select(api, api.Or(selector0, _selector0), G1Affine{X: 0, Y: 0}, hintedQ)
+	} else {
+		*p = hintedQ
+	}
 
 	return p
 }
