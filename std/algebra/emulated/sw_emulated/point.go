@@ -1651,6 +1651,11 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		Q = c.Select(_selector1, &c.GeneratorMultiples()[3], Q)
 	}
 
+	addFn := c.Add
+	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
+	}
+
 	// precompute -P, -Φ(P), Φ(P)
 	var tableP, tablePhiP [2]*AffinePoint[B]
 	negPY := c.baseApi.Neg(&_P.Y)
@@ -1681,18 +1686,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
 	var tableS, tablePhiS [4]*AffinePoint[B]
-	tableS[0] = c.Add(tableP[0], tableQ[0])
+	tableS[0] = addFn(tableP[0], tableQ[0])
 	tableS[1] = c.Neg(tableS[0])
-	tableS[2] = c.Add(tableP[1], tableQ[0])
+	tableS[2] = addFn(tableP[1], tableQ[0])
 	tableS[3] = c.Neg(tableS[2])
-	tablePhiS[0] = c.Add(tablePhiP[0], tablePhiQ[0])
+	tablePhiS[0] = addFn(tablePhiP[0], tablePhiQ[0])
 	tablePhiS[1] = c.Neg(tablePhiS[0])
-	tablePhiS[2] = c.Add(tablePhiP[1], tablePhiQ[0])
+	tablePhiS[2] = addFn(tablePhiP[1], tablePhiQ[0])
 	tablePhiS[3] = c.Neg(tablePhiS[2])
 
 	// we suppose that the first bits of the sub-scalars are 1 and set:
 	// 		Acc = P + Q + Φ(P) + Φ(Q)
-	Acc := c.Add(tableS[1], tablePhiS[1])
+	Acc := addFn(tableS[1], tablePhiS[1])
 	b1 := Acc
 	// then we add G (the base point) to Acc to avoid incomplete additions in
 	// the loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it
@@ -1702,7 +1707,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// N.B.: Acc cannot be equal to G, otherwise this means G = -Φ²([s+1]P)
 	g := c.Generator()
-	Acc = c.Add(Acc, g)
+	Acc = addFn(Acc, g)
 
 	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
 	// We prove that the factor is log_(3/sqrt(3)))(r).
@@ -1716,19 +1721,19 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
 	// 		B2  = +P + Q + Φ(P) - Φ(Q)
-	B2 := c.Add(tableS[1], tablePhiS[2])
+	B2 := addFn(tableS[1], tablePhiS[2])
 	// 		b3  = +P + Q - Φ(P) + Φ(Q)
-	b3 := c.Add(tableS[1], tablePhiS[3])
+	b3 := addFn(tableS[1], tablePhiS[3])
 	// 		B4  = +P + Q - Φ(P) - Φ(Q)
-	B4 := c.Add(tableS[1], tablePhiS[0])
+	B4 := addFn(tableS[1], tablePhiS[0])
 	// 		b5  = +P - Q + Φ(P) + Φ(Q)
-	b5 := c.Add(tableS[2], tablePhiS[1])
+	b5 := addFn(tableS[2], tablePhiS[1])
 	// 		B6  = +P - Q + Φ(P) - Φ(Q)
-	B6 := c.Add(tableS[2], tablePhiS[2])
+	B6 := addFn(tableS[2], tablePhiS[2])
 	// 		b7  = +P - Q - Φ(P) + Φ(Q)
-	b7 := c.Add(tableS[2], tablePhiS[3])
+	b7 := addFn(tableS[2], tablePhiS[3])
 	// 		B8  = +P - Q - Φ(P) - Φ(Q)
-	B8 := c.Add(tableS[2], tablePhiS[0])
+	B8 := addFn(tableS[2], tablePhiS[0])
 	// 		B10 = -P + Q + Φ(P) - Φ(Q)
 	B10 := c.Neg(b7)
 	// 		B12 = -P + Q - Φ(P) - Φ(Q)
@@ -1767,18 +1772,23 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		if cfg.CompleteArithmetic {
+			Acc = c.doubleGeneric(Acc, true)
+			Acc = addFn(Acc, Bi)
+		} else {
+			Acc = c.doubleAndAdd(Acc, Bi)
+		}
 	}
 
 	// i = 0
 	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
-	tableP[0] = c.Add(tableP[0], Acc)
+	tableP[0] = addFn(tableP[0], Acc)
 	Acc = c.Select(u1bits[0], Acc, tableP[0])
-	tablePhiP[0] = c.Add(tablePhiP[0], Acc)
+	tablePhiP[0] = addFn(tablePhiP[0], Acc)
 	Acc = c.Select(u2bits[0], Acc, tablePhiP[0])
-	tableQ[0] = c.Add(tableQ[0], Acc)
+	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(v1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
+	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(v2bits[0], Acc, tablePhiQ[0])
 
 	// Acc should be now equal to [2^nbits]G
