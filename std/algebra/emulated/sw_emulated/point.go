@@ -1526,10 +1526,18 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// 		    = [3]R
 	c.AssertIsEqual(Acc, tableR[2])
 
-	return &AffinePoint[B]{
+	res := &AffinePoint[B]{
 		X: *R[0],
 		Y: *R[1],
 	}
+	if cfg.CompleteArithmetic {
+		zero := c.baseApi.Zero()
+		// On the complete-arithmetic edge branches (s=0 or Q=(0,0)) the
+		// accumulator check is rerouted through a dummy path, so we must also
+		// return the canonical infinity point instead of the unverified hint output.
+		res = c.Select(c.api.Or(selector1, selector2), &AffinePoint[B]{X: *zero, Y: *zero}, res)
+	}
+	return res
 }
 
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
