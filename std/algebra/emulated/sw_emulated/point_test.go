@@ -2512,6 +2512,70 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	assert.NoError(err)
 }
 
+// This is a regression for the missing complete-formula handling in
+// scalarMulGLVAndFakeGLV. For secp256k1 and s=2, the halfGCDEisenstein
+// decomposition yields signs corresponding to
+//
+//	b1 = -P + Q + Phi(P) + Phi(Q).
+//
+// Choosing P = [k]G with k = -(-1+s+lambda)^(-1) mod r forces b1 = -G, so the
+// subsequent biased addition Add(b1, G) hits the incomplete p = -q case even
+// though WithCompleteArithmetic() is set.
+func TestScalarMulGLVAndFakeGLVCompleteBiasCollisionFails(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	s := big.NewInt(2)
+	px, _ := new(big.Int).SetString("94965683177328971411667606145825844139344978940117793175623205041120367451491", 10)
+	py, _ := new(big.Int).SetString("38527804351792152920115251132777683131500237568498526614282003522453447585331", 10)
+	rx, _ := new(big.Int).SetString("77384702278326987461233747693816699041502972512620163658749372669210393534086", 10)
+	ry, _ := new(big.Int).SetString("5133619745831577372541345842802261169510513692806955885865310987294091530663", 10)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](px),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](py),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](rx),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](ry),
+		},
+	}
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// This is a regression for a remaining incomplete-addition hole in the
+// scalarMulGLVAndFakeGLV table construction on the master code path. For
+// secp256k1, P=G and this specific scalar, one of the Bi precomputations still
+// hits an unsafe c.Add even with WithCompleteArithmetic() set.
+func TestScalarMulGLVAndFakeGLVCompletePrecomputeCollisionFails(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+
+	s, _ := new(big.Int).SetString("75436160726311993805852442966950040901855315110965173977233241085775995960037", 10)
+	var expected secp256k1.G1Affine
+	expected.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](expected.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](expected.Y),
+		},
+	}
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, g, _ := bn254.Generators()
