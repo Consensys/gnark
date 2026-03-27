@@ -239,41 +239,102 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// selector2 = 1 when q is (0,0) and 0 otherwise
 	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := c.baseApi.MulMod(&p.X, &q.X)
-	pxplusqx := c.baseApi.Add(&p.X, &q.X)
-	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
-	num = c.baseApi.Sub(num, pxqx)
-	if c.addA {
-		num = c.baseApi.Add(num, &c.a)
-	}
-	denum := c.baseApi.Add(&p.Y, &q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := c.baseApi.IsZero(denum)
-	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
-	λ := c.baseApi.Div(num, denum)
-
-	// x = λ^2 - p.x - q.x
-	xr := c.baseApi.MulMod(λ, λ)
-	xr = c.baseApi.Sub(xr, pxplusqx)
-
-	// y = λ(p.x - xr) - p.y
-	yr := c.baseApi.Sub(&p.X, xr)
-	yr = c.baseApi.MulMod(yr, λ)
-	yr = c.baseApi.Sub(yr, &p.Y)
-	result := AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
-	}
-
 	zero := c.baseApi.Zero()
 	infinity := AffinePoint[B]{X: *zero, Y: *zero}
-	// if p=(0,0) return q
-	result = *c.Select(selector1, q, &result)
-	// if q=(0,0) return p
-	result = *c.Select(selector2, p, &result)
-	// if p.y + q.y = 0, return (0, 0)
-	result = *c.Select(selector3, &infinity, &result)
+
+	var result AffinePoint[B]
+	if !c.addA {
+		// ---------------------------------------------------------------
+		// j-invariant 0 (a == 0).
+		//
+		// The Brier–Joye unified formula λ = (x₁²+x₁x₂+x₂²)/(y₁+y₂) is
+		// NOT complete on these curves: Fp contains nontrivial cube roots
+		// of unity ω, so two distinct non-inverse points can satisfy
+		// y₁ + y₂ = 0 (e.g. q = −Φ(p) where Φ: (x,y) ↦ (ωx,y)).
+		//
+		// Instead we compute two slopes and select:
+		//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+		//   • tangent λ = 3p.X² / (2p.Y)               when p.X = q.X (doubling)
+		// and handle p = −q  (return O) and p/q = O via selectors.
+		// ---------------------------------------------------------------
+
+		xDiff := c.baseApi.Sub(&q.X, &p.X)
+		xEqual := c.baseApi.IsZero(xDiff)
+
+		// -- chord slope (used when p.X ≠ q.X) --
+		xDiff = c.baseApi.Select(xEqual, c.baseApi.One(), xDiff)
+		λchord := c.baseApi.Div(c.baseApi.Sub(&q.Y, &p.Y), xDiff)
+
+		// -- tangent slope (used when p.X = q.X, i.e. p = ±q) --
+		xx := c.baseApi.MulMod(&p.X, &p.X)
+		xx3 := c.baseApi.MulConst(xx, big.NewInt(3))
+		y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+		y2IsZero := c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(y2IsZero, c.baseApi.One(), y2)
+		λtangent := c.baseApi.Div(xx3, y2)
+		λtangent = c.baseApi.Select(y2IsZero, c.baseApi.Zero(), λtangent)
+
+		// select the appropriate slope
+		λ := c.baseApi.Select(xEqual, λtangent, λchord)
+
+		// compute the result point from λ
+		xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {&p.X}, {&q.X}}, []int{1, -1, -1})
+		yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
+		result = AffinePoint[B]{
+			X: *xr,
+			Y: *yr,
+		}
+
+		// if p=(0,0) return q
+		result = *c.Select(selector1, q, &result)
+		// if q=(0,0) return p
+		result = *c.Select(selector2, p, &result)
+		// if p = −q (same X, different Y) return O.
+		// When xEqual=1 and y2IsZero=1, both points are (0,0) — already
+		// handled above. Otherwise xEqual=1 ∧ ¬yEqual means p.Y = −q.Y.
+		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
+		isInverse := c.api.And(xEqual, c.api.Sub(1, yEqual))
+		result = *c.Select(isInverse, &infinity, &result)
+	} else {
+		// ---------------------------------------------------------------
+		// j-invariant ≠ 0 (a ≠ 0).
+		//
+		// On these curves p.Y + q.Y = 0 implies p = −q, so the Brier–Joye
+		// unified formula is complete.
+		// ---------------------------------------------------------------
+
+		// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+		pxqx := c.baseApi.MulMod(&p.X, &q.X)
+		pxplusqx := c.baseApi.Add(&p.X, &q.X)
+		num := c.baseApi.MulMod(pxplusqx, pxplusqx)
+		num = c.baseApi.Sub(num, pxqx)
+		num = c.baseApi.Add(num, &c.a)
+		denum := c.baseApi.Add(&p.Y, &q.Y)
+		// if p.y + q.y = 0, assign dummy 1 to denum and continue
+		selector3 := c.baseApi.IsZero(denum)
+		denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
+		λ := c.baseApi.Div(num, denum)
+
+		// x = λ^2 - p.x - q.x
+		xr := c.baseApi.MulMod(λ, λ)
+		xr = c.baseApi.Sub(xr, pxplusqx)
+
+		// y = λ(p.x - xr) - p.y
+		yr := c.baseApi.Sub(&p.X, xr)
+		yr = c.baseApi.MulMod(yr, λ)
+		yr = c.baseApi.Sub(yr, &p.Y)
+		result = AffinePoint[B]{
+			X: *xr,
+			Y: *yr,
+		}
+
+		// if p=(0,0) return q
+		result = *c.Select(selector1, q, &result)
+		// if q=(0,0) return p
+		result = *c.Select(selector2, p, &result)
+		// if p.y + q.y = 0, return (0, 0)
+		result = *c.Select(selector3, &infinity, &result)
+	}
 
 	return &result
 }
