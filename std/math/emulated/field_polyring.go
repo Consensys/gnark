@@ -62,9 +62,9 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem 
 	// total number of terms for all input polynomials
 	nbTerms := 0
 	// loop through inputs to compute the number of terms
-	for i := range inputs {
+	for _, inputPoly := range inputs {
 		// add degree of each input polynomial
-		nbTerms += len(inputs[i])
+		nbTerms += len(inputPoly)
 	}
 
 	// metadata for hint inputs
@@ -138,12 +138,11 @@ func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	nbBits := int(inputs[0].Int64())
 	nbLimbs := int(inputs[1].Int64())
 	nbPoly := int(inputs[2].Int64())
+	fieldMod := new(big.Int).Set(inputs[3])
 
 	// extract the input polynomials
 	inputsPolys := make([][]*big.Int, nbPoly)
-	ptr := 3
-	fieldMod := new(big.Int).Set(inputs[ptr])
-	ptr++
+	ptr := 4
 
 	for i := 0; i < nbPoly; i++ {
 		nbTerms := int(inputs[ptr].Int64())
@@ -160,10 +159,10 @@ func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		}
 	}
 
-	nbTerms := int(inputs[ptr].Int64())
+	nbModPolyTerms := int(inputs[ptr].Int64())
 	ptr++
-	modPoly := make([]*big.Int, nbTerms)
-	for j := 0; j < nbTerms; j++ {
+	modPoly := make([]*big.Int, nbModPolyTerms)
+	for j := 0; j < nbModPolyTerms; j++ {
 		coeffLimbs := inputs[ptr : ptr+nbLimbs]
 		ptr += nbLimbs
 		val := new(big.Int)
@@ -306,4 +305,19 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 	}
 
 	return quotient, remainder, nil
+}
+
+func (f *Field[T]) MakePoly(coeffs []interface{}) Poly[T] {
+	nativeMod := f.api.Compiler().Field()
+
+	poly := make(Poly[T], len(coeffs))
+
+	for i, coeff := range coeffs {
+		emCoeff_ := ValueOf[T](coeff)
+		emCoeff := &emCoeff_
+		emCoeff.Initialize(nativeMod)
+		poly[i] = emCoeff
+	}
+
+	return poly
 }
