@@ -293,7 +293,8 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// When xEqual=1 and y2IsZero=1, both points are (0,0) — already
 		// handled above. Otherwise xEqual=1 ∧ ¬yEqual means p.Y = −q.Y.
 		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
-		isInverse := c.api.And(xEqual, c.api.Sub(1, yEqual))
+		areFinite := c.api.And(c.api.Sub(1, isPInfinity), c.api.Sub(1, isQInfinity))
+		isInverse := c.api.And(c.api.And(xEqual, c.api.Sub(1, yEqual)), areFinite)
 		result = *c.Select(isInverse, &infinity, &result)
 	} else {
 		// ---------------------------------------------------------------
