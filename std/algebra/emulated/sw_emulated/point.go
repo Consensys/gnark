@@ -380,8 +380,8 @@ func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
+		X: *xr,
+		Y: *yr,
 	}
 }
 
@@ -444,8 +444,8 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
+		X: *xr,
+		Y: *yr,
 	}
 }
 
@@ -506,8 +506,8 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Add(x3, xpn)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(x3),
-		Y: *c.baseApi.Reduce(y3),
+		X: *x3,
+		Y: *y3,
 	}
 
 }
