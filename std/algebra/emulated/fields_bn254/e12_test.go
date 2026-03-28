@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
 
@@ -126,6 +127,44 @@ func TestMulFp12(t *testing.T) {
 	}
 
 	err := test.IsSolved(&e12Mul{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12MulPolyRing struct {
+	A, B, C E12
+}
+
+func (circuit *e12MulPolyRing) Define(api frontend.API) error {
+	fp, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		return err
+	}
+	e := NewExt12(api)
+	_, r, err := fp.CallPolyRingMulHint(
+		[]emulated.Poly[emulated.BN254Fp]{e.ToPoly(&circuit.A), e.ToPoly(&circuit.B)},
+		fp.MakePoly([]interface{}{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1}),
+	)
+	e.AssertIsEqual(e.FromPoly(r), &circuit.C)
+	return nil
+}
+
+func TestMulFp12PolyRing(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E12
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Mul(&a, &b)
+
+	witness := e12MulPolyRing{
+		A: FromE12(&a),
+		B: FromE12(&b),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12MulPolyRing{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
