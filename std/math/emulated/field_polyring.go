@@ -20,11 +20,11 @@ type Poly[T FieldParams] []*Element[T]
 //   - poly - the input polynomials whose product we are checking. Each
 //     polynomial is represented as a slice of [Element] coefficients. Elements
 //     have to be reduced.
-//   - irr - the irreducible polynomial defining the ring, i.e. the modulus for
-//     the Euclidean division. Treated as a constant.
-//   - r - the product reduced modulo irr, i.e. the remainder. This is the
+//   - mod - the polynomial defining the ring, i.e. the modulus for the Euclidean
+//     division. Treated as a constant.
+//   - r - the product reduced modulo mod, i.e. the remainder. This is the
 //     result returned to the caller.
-//   - q - the quotient of the product divided by irr.
+//   - q - the quotient of the product divided by mod.
 //
 // Given these values, the following holds as an identity of polynomials over
 // the emulated field:
@@ -55,7 +55,7 @@ type polyRingMulCheck[T FieldParams] struct {
 // CallPolyRingMulHint computes a polynomial product check in a polynomial ring,
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
-// the deferred multiplication check.
+// the deferred polynomial ring multiplication check.
 func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem Poly[T], err error) {
 	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
 
@@ -127,6 +127,14 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem 
 		retPtr += nbLimbs
 		rem[i] = f.packLimbs(termLimbs, true)
 	}
+
+	f.deferredPolyChecks = append(f.deferredPolyChecks, polyRingMulCheck[T]{
+		f:      f,
+		inputs: inputs,
+		mod:    mod,
+		r:      rem,
+		q:      quo,
+	})
 
 	return quo, rem, nil
 }

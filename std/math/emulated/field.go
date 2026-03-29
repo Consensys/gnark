@@ -64,7 +64,8 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 	nbRangeChecks    int
 
-	deferredChecks []deferredChecker
+	deferredChecks     []deferredChecker
+	deferredPolyChecks []polyRingMulCheck[T]
 
 	// smallFieldMode indicates that the emulated field is small enough that
 	// products fit in the native field and we can use scalar batched verification
