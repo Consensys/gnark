@@ -529,17 +529,18 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 // read-only as weights in each round; only the input multilinears are folded.
 type singleSourceZeroCheckClaims struct {
 	zeroCheckBase
-	suffixEq    polynomial.MultiLin            // contiguous buffer; second half is the current round's eq segment
-	batchCoeffs []small_rational.SmallRational // per-wire batching coefficients
+	suffixEq polynomial.MultiLin // contiguous buffer; second half is the current round's eq segment
 }
 
 // roundPolynomial computes g'_j(1), ..., g'_j(d) where d is the gate degree.
-// g'_j(m) = ∑_h suffixEq[j+1][h] · ∑_w batchCoeffs[w] · gate_w(inputs at (m, h))
+// g'_j(m) = ∑_h suffixEq[j+1][h] · ∑_w α^w · gate_w(inputs at (m, h))
+// The wire contributions are accumulated via Horner's method in α (= foldingCoeff),
+// eliminating precomputed batchCoeffs and the multiply-by-one for wire 0.
 func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	level := c.resources.schedule[c.levelI].(constraint.GkrSingleSourceZeroCheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
-	nbWires := len(c.batchCoeffs)
+	nbWires := len(c.gateEvaluatorPools)
 
 	sumSize := len(c.input[0]) / 2
 
@@ -591,15 +592,20 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 			iIndex := 0
 			nextIIndex := nbUniqueInputs
 			for d := range degree {
+				// Horner accumulation: gate_0 + α·(gate_1 + α·(... + α·gate_{W-1}))
+				for _, inputI := range c.inputIndices[nbWires-1] {
+					evaluators[nbWires-1].pushInput(inputEvals[iIndex+inputI])
+				}
 				var wireSum small_rational.SmallRational
-				for w := range nbWires {
+				wireSum.Set(evaluators[nbWires-1].evaluate())
+				for w := nbWires - 2; w >= 0; w-- {
+					wireSum.Mul(&wireSum, &c.foldingCoeff)
 					for _, inputI := range c.inputIndices[w] {
 						evaluators[w].pushInput(inputEvals[iIndex+inputI])
 					}
-					var summand small_rational.SmallRational
-					summand.Mul(evaluators[w].evaluate(), &c.batchCoeffs[w])
-					wireSum.Add(&wireSum, &summand)
+					wireSum.Add(&wireSum, evaluators[w].evaluate())
 				}
+
 				var contribution small_rational.SmallRational
 				contribution.Mul(&eqWeight, &wireSum)
 				res[d].Add(&res[d], &contribution)
@@ -700,14 +706,6 @@ func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
 
 	var claims singleSourceZeroCheckClaims
 	claims.init(r, levelI)
-
-	// Build per-wire batching coefficients
-	nbWires := len(claims.gateEvaluatorPools)
-	claims.batchCoeffs = make([]small_rational.SmallRational, nbWires)
-	claims.batchCoeffs[0].SetOne()
-	for w := 1; w < nbWires; w++ {
-		claims.batchCoeffs[w].Mul(&claims.batchCoeffs[w-1], &claims.foldingCoeff)
-	}
 
 	// Build suffix eq table from the single claim source's eval point
 	src := level.ClaimSources[0]
