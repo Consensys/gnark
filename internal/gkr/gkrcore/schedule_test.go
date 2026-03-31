@@ -30,6 +30,31 @@ func TestDefaultProvingSchedule(t *testing.T) {
 	}, schedule)
 }
 
+// TestDefaultProvingScheduleMultiSourceWire tests that a wire with multiple claim sources
+// (exported AND feeding a downstream gate) gets a GkrSumcheckLevel, not a
+// GkrSingleSourceZeroCheckLevel. Wires 3 and 2 become ready simultaneously after wire 4
+// is processed; wire 3 (highWI) has 2 claim sources while wire 2 has 1.
+func TestDefaultProvingScheduleMultiSourceWire(t *testing.T) {
+	// Wire 0: input
+	// Wire 1: input
+	// Wire 2: mul(0,0) — no consumers, not exported → 1 claim (initial challenge)
+	// Wire 3: mul(1,1) — exported AND feeds wire 4 → 2 claims (initial challenge + wire 4's level)
+	// Wire 4: mul(3,3) — no consumers, not exported → 1 claim (initial challenge)
+	//
+	// Wire 4 is processed first (it's the highest ready wire). Then wires 3 and 2 are
+	// simultaneously ready, with wire 3 being highWI.
+	raw := gkrcore.RawCircuit{
+		{}, // wire 0: input
+		{}, // wire 1: input
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 0}},                 // wire 2: mul(0,0)
+		{Gate: gkrcore.Mul2, Inputs: []int{1, 1}, Exported: true}, // wire 3: mul(1,1), exported
+		{Gate: gkrcore.Mul2, Inputs: []int{3, 3}},                 // wire 4: mul(3,3)
+	}
+	_, c := scheduleTestCache.Compile(t, raw)
+	_, err := gkrcore.DefaultProvingSchedule(c)
+	require.NoError(t, err)
+}
+
 func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 	_, c := scheduleTestCache.Compile(t, gkrtesting.Poseidon2Circuit(4, 2))
 	schedule, err := gkrcore.DefaultProvingSchedule(c)
@@ -57,7 +82,8 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 		constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}}},
 
 		// Level 1: input wire 1 — claimed by level 2 and level 16 (feed-forward skip).
-		constraint.GkrSkipLevel{Wires: []int{1}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}, {Level: 16}}},
+		// Multiple claim sources → sumcheck (evaluates multilin once instead of twice).
+		constraint.GkrSumcheckLevel{{Wires: []int{1}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}, {Level: 16}}}},
 
 		// Level 2: full-round 0 lin1+lin0 (skip, inputs from wires 0 and 1).
 		constraint.GkrSkipLevel{Wires: []int{3, 2}, ClaimSources: []constraint.GkrClaimSource{{Level: 3}}},
@@ -69,14 +95,14 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 		constraint.GkrSkipLevel{Wires: []int{7, 6}, ClaimSources: []constraint.GkrClaimSource{{Level: 5}}},
 
 		// Level 5: full-round 1 sBox1+sBox0 (sumcheck, inputs lin1=7 and lin0=6).
-		//   Feeds into level 6 (partial-round 0 lin0, M=1) and level 7 (partial-round 0 lin1, M=2).
-		constraint.GkrSumcheckLevel{{Wires: []int{9, 8}, ClaimSources: []constraint.GkrClaimSource{{Level: 6}, {Level: 7}, {Level: 7, OutgoingClaimIndex: 1}}}},
+		//   Feeds into level 6 (partial-round 0 lin0) and level 7 (partial-round 0 lin1).
+		constraint.GkrSumcheckLevel{{Wires: []int{9, 8}, ClaimSources: []constraint.GkrClaimSource{{Level: 6}, {Level: 7}}}},
 
 		// Level 6: partial-round 0 lin0 (skip, inputs [8, 9]).
 		constraint.GkrSkipLevel{Wires: []int{10}, ClaimSources: []constraint.GkrClaimSource{{Level: 8}}},
 
-		// Level 7: partial-round 0 lin1 (skip, inputs [8, 9]). M=2 (two claim sources).
-		constraint.GkrSkipLevel{Wires: []int{11}, ClaimSources: []constraint.GkrClaimSource{{Level: 9}, {Level: 10}}},
+		// Level 7: partial-round 0 lin1 (sumcheck, inputs [8, 9]). Two claim sources → sumcheck to avoid claim blowup.
+		constraint.GkrSumcheckLevel{{Wires: []int{11}, ClaimSources: []constraint.GkrClaimSource{{Level: 9}, {Level: 10}}}},
 
 		// Level 8: partial-round 0 sBox0 (sumcheck, input lin0=10).
 		constraint.GkrSumcheckLevel{{Wires: []int{12}, ClaimSources: []constraint.GkrClaimSource{{Level: 9}, {Level: 10}}}},

@@ -202,7 +202,8 @@ func (b *scheduleBuilder[G]) buildClaimGroups(batches [][]int) ([]constraint.Gkr
 }
 
 // nextReady returns the highest wire index in the contiguous ready suffix starting at
-// firstUnprocessedWire, along with each wire's claim sources in wire-index order.
+// firstUnprocessedWire, along with each wire's claim sources in descending wire-index order
+// (sources[0] belongs to firstUnprocessedWire, sources[i] to firstUnprocessedWire-i).
 // Returns firstUnprocessedWire, nil if no wires are ready.
 func (b *scheduleBuilder[G]) nextReady() (highestWireI int, sources [][]constraint.GkrClaimSource) {
 	for lowestWireI := b.firstUnprocessedWire; lowestWireI >= 0; lowestWireI-- {
@@ -215,7 +216,6 @@ func (b *scheduleBuilder[G]) nextReady() (highestWireI int, sources [][]constrai
 		}
 		sources = append(sources, src)
 	}
-	slices.Reverse(sources)
 	return b.firstUnprocessedWire, sources
 }
 
