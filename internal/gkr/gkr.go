@@ -152,13 +152,15 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) {
 	}
 }
 
-func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+// verifyLevelSetup derives the folding coefficient, collects all claimed wire
+// evaluations from the proof or the initial assignment, computes the batched
+// claimed sum, and builds the lazy-claims object shared by both verifiers.
+func (r *resources) verifyLevelSetup(levelI int, proof Proof) (frontend.Variable, *zeroCheckLazyClaims) {
 	level := r.schedule[levelI]
-	nbClaims := level.NbClaims()
 	initialChallengeI := len(r.schedule)
 
 	foldingCoeff := frontend.Variable(0)
-	if nbClaims >= 2 {
+	if level.NbClaims() >= 2 {
 		foldingCoeff = r.t.getChallenge()
 	}
 
@@ -177,44 +179,28 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 			}
 		}
 	}
-	claimedSum := polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff)
 
-	lazyClaims := &zeroCheckLazyClaims{
+	return polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff), &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,
 		r:            r,
 		levelI:       levelI,
 	}
+}
+
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
 	if err := verifySumcheck(r.api, lazyClaims, proof[levelI], claimedSum,
-		r.circuit.ZeroCheckDegree(level), r.t); err != nil {
+		r.circuit.ZeroCheckDegree(r.schedule[levelI]), r.t); err != nil {
 		return fmt.Errorf("sumcheck proof rejected at level %d: %v", levelI, err)
 	}
 	return nil
 }
 
 func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
+
 	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
-	nbClaims := level.NbClaims()
-	initialChallengeI := len(r.schedule)
-
-	foldingCoeff := frontend.Variable(0)
-	if nbClaims >= 2 {
-		foldingCoeff = r.t.getChallenge()
-	}
-
 	src := level.ClaimSources[0]
-	var claimedEvals []frontend.Variable
-	for _, wI := range level.Wires {
-		var claimedEval frontend.Variable
-		if src.Level == initialChallengeI {
-			claimedEval = r.assignment[wI].Evaluate(r.api, r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex])
-		} else {
-			i := r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][0], src.OutgoingClaimIndex)
-			claimedEval = proof[src.Level].FinalEvalProof[i]
-		}
-		claimedEvals = append(claimedEvals, claimedEval)
-	}
-	claimedSum := polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff)
-
 	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
 	degree := r.circuit.ZeroCheckDegree(level)
 
@@ -245,11 +231,6 @@ func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) er
 	eqAtQR := polynomial.EvalEq(r.api, q, challenges)
 	claimedSum = r.api.Mul(eqAtQR, claimedSum)
 
-	lazyClaims := &zeroCheckLazyClaims{
-		foldingCoeff: foldingCoeff,
-		r:            r,
-		levelI:       levelI,
-	}
 	return lazyClaims.verifyFinalEval(r.api, challenges, claimedSum, proof[levelI].FinalEvalProof)
 }
 
@@ -356,17 +337,9 @@ func DeserializeProof(circuit Circuit, schedule constraint.GkrProvingSchedule, s
 	reader := variablesReader(serializedProof)
 	for levelI, level := range schedule {
 		nbUniqueInputs := len(circuit.UniqueGateInputs(level))
-		switch sc := level.(type) {
-		case constraint.GkrSkipLevel:
+		if _, isSkip := level.(constraint.GkrSkipLevel); isSkip {
 			proof[levelI].FinalEvalProof = reader.nextN(nbUniqueInputs * level.NbOutgoingEvalPoints())
-		case constraint.GkrSingleSourceZeroCheckLevel:
-			degree := circuit.ZeroCheckDegree(sc)
-			proof[levelI].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
-			for j := range proof[levelI].PartialSumPolys {
-				proof[levelI].PartialSumPolys[j] = reader.nextN(degree)
-			}
-			proof[levelI].FinalEvalProof = reader.nextN(nbUniqueInputs)
-		default:
+		} else {
 			degree := circuit.ZeroCheckDegree(level)
 			proof[levelI].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[levelI].PartialSumPolys {
