@@ -362,46 +362,42 @@ func (e *gateEvaluator) evaluate(top ...small_rational.SmallRational) *small_rat
 	return res
 }
 
-// gateEvaluatorPool manages a pool of gate evaluators for a specific gate type
-// All evaluators share the same underlying polynomial.Pool for element slices
+// gateEvaluatorPool manages a pool of gate evaluators for a specific gate type.
+// All evaluators share the same underlying polynomial.Pool for element slices.
 type gateEvaluatorPool struct {
 	gate        gkrcore.GateBytecode
 	nbIn        int
 	lock        sync.Mutex
-	available   map[*gateEvaluator]struct{}
+	available   []*gateEvaluator
 	elementPool *polynomial.Pool
 }
 
 func newGateEvaluatorPool(gate gkrcore.GateBytecode, nbIn int, elementPool *polynomial.Pool) *gateEvaluatorPool {
-	gep := &gateEvaluatorPool{
+	return &gateEvaluatorPool{
 		gate:        gate,
 		nbIn:        nbIn,
 		elementPool: elementPool,
-		available:   make(map[*gateEvaluator]struct{}),
 	}
-	return gep
 }
 
 func (gep *gateEvaluatorPool) get() *gateEvaluator {
 	gep.lock.Lock()
-	defer gep.lock.Unlock()
-
-	for e := range gep.available {
-		delete(gep.available, e)
+	if n := len(gep.available); n > 0 {
+		e := gep.available[n-1]
+		gep.available = gep.available[:n-1]
+		gep.lock.Unlock()
 		return e
 	}
+	gep.lock.Unlock()
 
 	e := newGateEvaluator(gep.gate, gep.nbIn, gep.elementPool)
-
 	return &e
 }
 
 func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 	gep.lock.Lock()
-	defer gep.lock.Unlock()
-
-	// Return evaluator to pool (it keeps its vars slice from the polynomial pool)
-	gep.available[e] = struct{}{}
+	gep.available = append(gep.available, e)
+	gep.lock.Unlock()
 }
 
 // dumpAll dumps all available evaluator vars slices back to the polynomial pool. It is not to be used after that.
@@ -409,7 +405,8 @@ func (gep *gateEvaluatorPool) put(e *gateEvaluator) {
 func (gep *gateEvaluatorPool) dumpAll() {
 	gep.lock.Lock()
 	defer gep.lock.Unlock()
-	for e := range gep.available {
+	for _, e := range gep.available {
 		gep.elementPool.Dump(e.vars)
 	}
+	gep.available = nil
 }
