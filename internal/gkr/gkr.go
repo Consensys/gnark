@@ -237,12 +237,13 @@ func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) er
 		copy(gPrime[1:], partialSumPoly)
 
 		challenges[j] = r.t.getChallenge(proof[levelI].PartialSumPolys[j]...)
-		gPrimeAtR := polynomial.InterpolateLDE(r.api, challenges[j], gPrime[:(degree+1)])
-
-		// claimedSum = eq(q_j, r_j) * g'(r_j)
-		eqFactor := polynomial.EvalEq(r.api, []frontend.Variable{q[j]}, []frontend.Variable{challenges[j]})
-		claimedSum = r.api.Mul(eqFactor, gPrimeAtR)
+		claimedSum = polynomial.InterpolateLDE(r.api, challenges[j], gPrime[:(degree+1)])
 	}
+
+	// claimedSum is now Σ_w c^w · gate_w(inputs(r)), without the eq factor.
+	// verifyFinalEval expects Σ_w c^w · eq(q, r) · gate_w(inputs(r)), so multiply.
+	eqAtQR := polynomial.EvalEq(r.api, q, challenges)
+	claimedSum = r.api.Mul(eqAtQR, claimedSum)
 
 	lazyClaims := &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,

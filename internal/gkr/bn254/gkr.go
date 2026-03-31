@@ -47,7 +47,7 @@ func (e *zeroCheckLazyClaims) varsNum() int {
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel))
+	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI])
 }
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
