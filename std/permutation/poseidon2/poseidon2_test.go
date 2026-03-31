@@ -195,6 +195,60 @@ func TestPoseidon2(t *testing.T) {
 
 }
 
+// TestPoseidon2_BN254_Widths tests the poseidon2 permutation circuit for
+// BN254 widths t=4,8,12,16, which use precomputed constants (DiagM1 + round keys).
+// See https://github.com/Consensys/gnark-crypto/pull/783.
+func TestPoseidon2_BN254_Widths(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	cases := []circuitParams{
+		{rf: 8, rp: 56, t: 4, id: ecc.BN254},
+		{rf: 8, rp: 57, t: 8, id: ecc.BN254},
+		{rf: 8, rp: 57, t: 12, id: ecc.BN254},
+		{rf: 8, rp: 57, t: 16, id: ecc.BN254},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("t=%d", tc.t), func(t *testing.T) {
+			h := poseidonbn254.NewPermutation(tc.t, tc.rf, tc.rp)
+
+			in := make([]frbn254.Element, tc.t)
+			out := make([]frbn254.Element, tc.t)
+			for i := range in {
+				in[i].SetRandom()
+				out[i].Set(&in[i])
+			}
+			if err := h.Permutation(out); err != nil {
+				t.Fatal(err)
+			}
+
+			var circuit, validWitness Poseidon2Circuit
+			circuit.Input = make([]frontend.Variable, tc.t)
+			circuit.Output = make([]frontend.Variable, tc.t)
+			circuit.params = tc
+
+			validWitness.Input = make([]frontend.Variable, tc.t)
+			validWitness.Output = make([]frontend.Variable, tc.t)
+
+			var invalidWitness Poseidon2Circuit
+			invalidWitness.Input = make([]frontend.Variable, tc.t)
+			invalidWitness.Output = make([]frontend.Variable, tc.t)
+
+			for i := 0; i < tc.t; i++ {
+				validWitness.Input[i] = in[i].String()
+				validWitness.Output[i] = out[i].String()
+				invalidWitness.Input[i] = in[i].String()
+				invalidWitness.Output[i] = in[i].String()
+			}
+
+			assert.CheckCircuit(&circuit,
+				test.WithValidAssignment(&validWitness),
+				test.WithInvalidAssignment(&invalidWitness),
+				test.WithCurves(tc.id))
+		})
+	}
+}
+
 // Poseidon2DefaultParamsCircuit is a test circuit using default parameters
 type Poseidon2DefaultParamsCircuit struct {
 	Input  []frontend.Variable
