@@ -39,6 +39,10 @@ type Parameters struct {
 
 	// round keys: ordered by round then variable
 	RoundKeys [][]big.Int
+	// DiagM1 holds the diagonal entries of the internal matrix for width >= 4.
+	// For width 2 and 3 the internal matrix is hardcoded and this field is unused.
+	// See https://eprint.iacr.org/2023/323.pdf page 15.
+	DiagM1 []big.Int
 }
 
 func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
@@ -56,6 +60,12 @@ func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
 			res.RoundKeys[i] = make([]big.Int, len(p.RoundKeys[i]))
 			for j := range res.RoundKeys[i] {
 				p.RoundKeys[i][j].BigInt(&res.RoundKeys[i][j])
+			}
+		}
+		if len(p.DiagM1) > 0 {
+			res.DiagM1 = make([]big.Int, len(p.DiagM1))
+			for i := range res.DiagM1 {
+				p.DiagM1[i].BigInt(&res.DiagM1[i])
 			}
 		}
 		return res, nil
@@ -140,6 +150,12 @@ func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartial
 			params.RoundKeys[i] = make([]big.Int, len(concreteParams.RoundKeys[i]))
 			for j := range params.RoundKeys[i] {
 				concreteParams.RoundKeys[i][j].BigInt(&params.RoundKeys[i][j])
+			}
+		}
+		if len(concreteParams.DiagM1) > 0 {
+			params.DiagM1 = make([]big.Int, len(concreteParams.DiagM1))
+			for i := range params.DiagM1 {
+				concreteParams.DiagM1[i].BigInt(&params.DiagM1[i])
 			}
 		}
 	case ecc.BLS12_381:
@@ -262,7 +278,7 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 		// at this stage t is supposed to be a multiple of 4
 		// the MDS matrix is circ(2M4,M4,..,M4)
 		h.matMulM4InPlace(input)
-		tmp := make([]frontend.Variable, 4)
+		tmp := []frontend.Variable{0, 0, 0, 0}
 		for i := 0; i < h.params.Width/4; i++ {
 			tmp[0] = h.api.Add(tmp[0], input[4*i])
 			tmp[1] = h.api.Add(tmp[1], input[4*i+1])
@@ -271,9 +287,9 @@ func (h *Permutation) matMulExternalInPlace(input []frontend.Variable) {
 		}
 		for i := 0; i < h.params.Width/4; i++ {
 			input[4*i] = h.api.Add(input[4*i], tmp[0])
-			input[4*i+1] = h.api.Add(input[4*i], tmp[1])
-			input[4*i+2] = h.api.Add(input[4*i], tmp[2])
-			input[4*i+3] = h.api.Add(input[4*i], tmp[3])
+			input[4*i+1] = h.api.Add(input[4*i+1], tmp[1])
+			input[4*i+2] = h.api.Add(input[4*i+2], tmp[2])
+			input[4*i+3] = h.api.Add(input[4*i+3], tmp[3])
 		}
 	}
 }
@@ -295,8 +311,19 @@ func (h *Permutation) matMulInternalInPlace(input []frontend.Variable) {
 		input[2] = h.api.Mul(input[2], 2)
 		input[2] = h.api.Add(input[2], sum)
 	default:
-		// TODO: we don't have general case implemented in gnark-crypto side.
-		panic("only T=2,3 is supported")
+		// General case for width >= 4: state[i] = state[i] * diag[i] + Σstate.
+		// Mirrors gnark-crypto's matMulInternalInPlace for t >= 4.
+		// See https://eprint.iacr.org/2023/323.pdf page 15.
+		if len(h.params.DiagM1) != h.params.Width {
+			panic("poseidon2: missing DiagM1 for width >= 4")
+		}
+		sum := input[0]
+		for i := 1; i < h.params.Width; i++ {
+			sum = h.api.Add(sum, input[i])
+		}
+		for i := 0; i < h.params.Width; i++ {
+			input[i] = h.api.Add(h.api.Mul(input[i], &h.params.DiagM1[i]), sum)
+		}
 	}
 }
 
