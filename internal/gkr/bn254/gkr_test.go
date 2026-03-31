@@ -105,6 +105,92 @@ func testSumcheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constrain
 	assert.NoError(t, verifyR.verifySumcheckLevel(0, proof))
 }
 
+// testSingleSourceZeroCheckLevel exercises proveSingleSourceZeroCheckLevel/verifySingleSourceZeroCheckLevel for a single level.
+func testSingleSourceZeroCheckLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
+	t.Helper()
+	_, sCircuit := cache.Compile(t, circuit)
+
+	ins := sCircuit.Inputs()
+	assignment := make(WireAssignment, len(sCircuit))
+	for _, i := range ins {
+		assignment[i] = make([]fr.Element, 2)
+		fr.Vector(assignment[i]).MustSetRandom()
+	}
+
+	assignment.Complete(sCircuit)
+
+	schedule := constraint.GkrProvingSchedule{level}
+	// The factored-eq recovery divides by (1-q_j), so q must avoid {0,1}.
+	initEvalPoint := [][]fr.Element{{five}}
+
+	// Prove
+	proveR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer proveR.workers.Stop()
+
+	proveR.outgoingEvalPoints[len(schedule)] = initEvalPoint
+	proof := Proof{proveR.proveSingleSourceZeroCheckLevel(0)}
+
+	// Verify
+	verifyR, err := newResources(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	defer verifyR.workers.Stop()
+
+	verifyR.outgoingEvalPoints[len(schedule)] = initEvalPoint
+	assert.NoError(t, verifyR.verifySingleSourceZeroCheckLevel(0, proof))
+}
+
+func TestSingleSourceZeroCheckLevel(t *testing.T) {
+	// Wires 0,1 = inputs; wire 2 = identity(0); wires 3,4,5 = mul(0,1).
+	circuit := gkrcore.RawCircuit{
+		{},
+		{},
+		{Gate: gkrcore.Identity, Inputs: []int{0}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+		{Gate: gkrcore.Mul2, Inputs: []int{0, 1}},
+	}
+
+	tests := []struct {
+		name  string
+		level constraint.GkrProvingLevel
+	}{
+		{
+			name: "single identity wire",
+			level: constraint.GkrSingleSourceZeroCheckLevel{
+				Wires:        []int{2},
+				ClaimSources: []constraint.GkrClaimSource{{Level: 1}},
+			},
+		},
+		{
+			name: "single mul wire",
+			level: constraint.GkrSingleSourceZeroCheckLevel{
+				Wires:        []int{3},
+				ClaimSources: []constraint.GkrClaimSource{{Level: 1}},
+			},
+		},
+		{
+			name: "two mul wires",
+			level: constraint.GkrSingleSourceZeroCheckLevel{
+				Wires:        []int{4, 3},
+				ClaimSources: []constraint.GkrClaimSource{{Level: 1}},
+			},
+		},
+		{
+			name: "three mul wires",
+			level: constraint.GkrSingleSourceZeroCheckLevel{
+				Wires:        []int{5, 4, 3},
+				ClaimSources: []constraint.GkrClaimSource{{Level: 1}},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testSingleSourceZeroCheckLevel(t, circuit, tc.level)
+		})
+	}
+}
+
 func TestSumcheckLevel(t *testing.T) {
 	// Wires 0,1 = inputs; wires 2,3,4 = mul(0,1). All gates are independent outputs.
 	circuit := gkrcore.RawCircuit{

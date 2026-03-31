@@ -45,7 +45,7 @@ func (c Circuit[G]) UniqueGateInputs(level constraint.GkrProvingLevel) []int {
 	return uniqueInputs
 }
 
-func (c Circuit[G]) ZeroCheckDegree(level constraint.GkrSumcheckLevel) int {
+func (c Circuit[G]) ZeroCheckDegree(level constraint.GkrProvingLevel) int {
 	maxDeg := 0
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
@@ -57,7 +57,16 @@ func (c Circuit[G]) ZeroCheckDegree(level constraint.GkrSumcheckLevel) int {
 			maxDeg = max(maxDeg, curr)
 		}
 	}
-	return maxDeg + 1
+
+	switch level.(type) {
+	case constraint.GkrSumcheckLevel:
+		return maxDeg + 1
+	case constraint.GkrSingleSourceZeroCheckLevel:
+		return maxDeg
+	case constraint.GkrSkipLevel:
+		return 0
+	}
+	panic(fmt.Sprintf("ZeroCheckDegree: unknown proving level type %T", level))
 }
 
 // ProofSize returns the total number of field elements in a GKR proof.
@@ -67,11 +76,7 @@ func (c Circuit[G]) ProofSize(schedule constraint.GkrProvingSchedule, logNbInsta
 		// For every outgoing claim and unique input wire, there will be
 		// an outgoing evaluation claim included in finalEvalProof.
 		size += len(c.UniqueGateInputs(level)) * level.NbOutgoingEvalPoints()
-		if sc, ok := level.(constraint.GkrSumcheckLevel); ok {
-			// ZeroCheckDegree is the degree of each sumcheck polynomial.
-			// logNbInstances is the number of rounds in each sumcheck.
-			size += c.ZeroCheckDegree(sc) * logNbInstances
-		}
+		size += c.ZeroCheckDegree(level) * logNbInstances
 	}
 	return size
 }
@@ -138,6 +143,20 @@ func (b *scheduleBuilder[G]) addSumcheckLevel(batches ...[]int) error {
 		return err
 	}
 	b.levels = append(b.levels, constraint.GkrSumcheckLevel(claimGroups))
+	return nil
+}
+
+// addSingleSourceZeroCheckLevel appends a GkrSingleSourceZeroCheckLevel to the schedule.
+// All wires must share the same single claim source and must be ready.
+func (b *scheduleBuilder[G]) addSingleSourceZeroCheckLevel(wireIndices []int) error {
+	claimGroups, err := b.buildClaimGroups([][]int{wireIndices})
+	if err != nil {
+		return err
+	}
+	if len(claimGroups[0].ClaimSources) != 1 {
+		return fmt.Errorf("single source zerocheck level requires exactly 1 claim source, got %d", len(claimGroups[0].ClaimSources))
+	}
+	b.levels = append(b.levels, constraint.GkrSingleSourceZeroCheckLevel(claimGroups[0]))
 	return nil
 }
 
@@ -218,13 +237,14 @@ func (b *scheduleBuilder[G]) claimSources(wI int) ([]constraint.GkrClaimSource, 
 			return nil, false
 		}
 		consumerLevel := b.wireLevels[consumerWI]
-		if _, isSkip := b.levels[consumerLevel].(constraint.GkrSkipLevel); isSkip {
+		switch b.levels[consumerLevel].(type) {
+		case constraint.GkrSkipLevel:
 			// SkipLevel inherits M evaluation points from its own claim sources.
 			M := b.levels[consumerLevel].NbOutgoingEvalPoints()
 			for k := range M {
 				wireClaims = append(wireClaims, constraint.GkrClaimSource{Level: consumerLevel, OutgoingClaimIndex: k})
 			}
-		} else {
+		default:
 			wireClaims = append(wireClaims, constraint.GkrClaimSource{Level: consumerLevel, OutgoingClaimIndex: 0})
 		}
 	}
@@ -300,6 +320,10 @@ func DefaultProvingSchedule[G any](c Circuit[G]) (constraint.GkrProvingSchedule,
 		}
 		if w.Gate.Degree == 1 && len(batchClaimSources) == 1 { // certain that skipping won't cause a claim blowup
 			if err := b.addSkipLevel(batch); err != nil {
+				return nil, err
+			}
+		} else if len(batchClaimSources) == 1 {
+			if err := b.addSingleSourceZeroCheckLevel(batch); err != nil {
 				return nil, err
 			}
 		} else {

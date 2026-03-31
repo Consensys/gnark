@@ -471,6 +471,245 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	return sumcheckProve(claims, &r.transcript)
 }
 
+// singleSourceZeroCheckClaims is the prover-side claim for a single-source
+// zerocheck with the eq polynomial factored out.
+type singleSourceZeroCheckClaims struct {
+	levelI             int
+	resources          *resources
+	input              []polynomial.MultiLin // UniqueGateInputs order
+	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
+	suffixEq           []polynomial.MultiLin // suffixEq[j] = eq(q_{j}, ..., q_{N-1}; ·) of length 2^(N-j)
+	batchCoeffs        []fr.Element          // per-wire batching coefficients
+	gateEvaluatorPools []*gateEvaluatorPool
+	roundI             int
+}
+
+// buildSuffixEq constructs suffix eq tables bottom-up from the claim point q.
+// suffixEq[j] = eq(q_j, ..., q_{N-1}; ·) has length 2^(N-j).
+// In round j, the prover uses suffixEq[j+1] of length 2^(N-1-j) as weights.
+func (r *resources) buildSuffixEq(q []fr.Element) []polynomial.MultiLin {
+	n := len(q)
+	suffixEq := make([]polynomial.MultiLin, n)
+
+	// Start with the last variable: eq(q_{N-1}; ·) = [1-q_{N-1}, q_{N-1}]
+	suffixEq[n-1] = r.memPool.Make(2)
+	suffixEq[n-1][0].SetOne()
+	suffixEq[n-1][0].Sub(&suffixEq[n-1][0], &q[n-1])
+	suffixEq[n-1][1].Set(&q[n-1])
+
+	// Build bottom-up: extend by tensoring with [1-q_j, q_j]
+	for j := n - 2; j >= 0; j-- {
+		prevLen := len(suffixEq[j+1])
+		suffixEq[j] = r.memPool.Make(prevLen * 2)
+
+		var oneMinusQj fr.Element
+		oneMinusQj.SetOne()
+		oneMinusQj.Sub(&oneMinusQj, &q[j])
+
+		r.workers.Submit(prevLen, func(start, end int) {
+			for h := start; h < end; h++ {
+				suffixEq[j][h].Mul(&oneMinusQj, &suffixEq[j+1][h])
+				suffixEq[j][h+prevLen].Mul(&q[j], &suffixEq[j+1][h])
+			}
+		}, 512).Wait()
+	}
+	return suffixEq
+}
+
+// roundPolynomial computes g'_j(1), ..., g'_j(d) where d is the gate degree.
+// g'_j(m) = ∑_h suffixEq[j+1][h] · ∑_w batchCoeffs[w] · gate_w(inputs at (m, h))
+func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+	level := c.resources.schedule[c.levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
+	nbUniqueInputs := len(c.input)
+	nbWires := len(c.batchCoeffs)
+
+	sumSize := len(c.input[0]) / 2
+
+	// Get the suffix eq segment for this round
+	var eqSegment polynomial.MultiLin
+	lastRound := c.roundI == c.resources.nbVars-1
+	if !lastRound {
+		eqSegment = c.suffixEq[c.roundI+1]
+	}
+
+	p := make([]fr.Element, degree)
+	var mu sync.Mutex
+	computeAll := func(start, end int) {
+		var step fr.Element
+
+		evaluators := make([]*gateEvaluator, nbWires)
+		for w := range nbWires {
+			evaluators[w] = c.gateEvaluatorPools[w].get()
+		}
+		defer func() {
+			for w := range nbWires {
+				c.gateEvaluatorPools[w].put(evaluators[w])
+			}
+		}()
+
+		res := make([]fr.Element, degree)
+
+		// Input evaluations at m=1,2,...,degree
+		inputEvals := make([]fr.Element, degree*nbUniqueInputs)
+
+		for h := start; h < end; h++ {
+			evalAt1Index := sumSize + h
+			for k := range nbUniqueInputs {
+				inputEvals[k].Set(&c.input[k][evalAt1Index])
+				step.Sub(&inputEvals[k], &c.input[k][h])
+				for d := 1; d < degree; d++ {
+					inputEvals[d*nbUniqueInputs+k].Add(&inputEvals[(d-1)*nbUniqueInputs+k], &step)
+				}
+			}
+
+			// Suffix eq weight for this hypercube point
+			var eqWeight fr.Element
+			if lastRound {
+				eqWeight.SetOne()
+			} else {
+				eqWeight.Set(&eqSegment[h])
+			}
+
+			iIndex := 0
+			nextIIndex := nbUniqueInputs
+			for d := range degree {
+				var wireSum fr.Element
+				for w := range nbWires {
+					for _, inputI := range c.inputIndices[w] {
+						evaluators[w].pushInput(inputEvals[iIndex+inputI])
+					}
+					var summand fr.Element
+					summand.Mul(evaluators[w].evaluate(), &c.batchCoeffs[w])
+					wireSum.Add(&wireSum, &summand)
+				}
+				var contribution fr.Element
+				contribution.Mul(&eqWeight, &wireSum)
+				res[d].Add(&res[d], &contribution)
+				iIndex, nextIIndex = nextIIndex, nextIIndex+nbUniqueInputs
+			}
+		}
+		mu.Lock()
+		for i := range p {
+			p[i].Add(&p[i], &res[i])
+		}
+		mu.Unlock()
+	}
+
+	const minBlockSize = 64
+	if sumSize < minBlockSize {
+		computeAll(0, sumSize)
+	} else {
+		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
+	}
+
+	return p
+}
+
+// roundFold folds only input multilinears at the verifier challenge r.
+// The suffix eq tables are precomputed and not folded.
+func (c *singleSourceZeroCheckClaims) roundFold(r fr.Element) {
+	const minBlockSize = 512
+	n := len(c.input[0]) / 2
+	if n < minBlockSize {
+		for i := range c.input {
+			c.input[i].Fold(r)
+		}
+	} else {
+		wgs := make([]*sync.WaitGroup, len(c.input))
+		for i := range c.input {
+			wgs[i] = c.resources.workers.Submit(n, c.input[i].FoldParallel(r), minBlockSize)
+		}
+		for _, wg := range wgs {
+			wg.Wait()
+		}
+	}
+	c.roundI++
+}
+
+// proveFinalEval provides the unique input wire values at the final evaluation point.
+func (c *singleSourceZeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
+	evaluations := make([]fr.Element, len(c.input))
+	for i := range c.input {
+		c.input[i].Fold(r[len(r)-1])
+		evaluations[i] = c.input[i][0]
+	}
+	for i := range c.input {
+		c.resources.memPool.Dump(c.input[i])
+	}
+	for i := range c.suffixEq {
+		c.resources.memPool.Dump(c.suffixEq[i])
+	}
+	for _, pool := range c.gateEvaluatorPools {
+		pool.dumpAll()
+	}
+	return evaluations
+}
+
+func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
+	input := make([]polynomial.MultiLin, len(uniqueInputs))
+	for i, inW := range uniqueInputs {
+		input[i] = r.memPool.Clone(r.assignment[inW])
+	}
+
+	nbWires := len(level.Wires)
+	pools := make([]*gateEvaluatorPool, nbWires)
+	for w, wI := range level.Wires {
+		wire := r.circuit[wI]
+		gate := wire.Gate.Evaluate
+		if wire.IsInput() {
+			gate = gkrcore.IdentityBytecode()
+		}
+		pools[w] = newGateEvaluatorPool(gate, len(inputIndices[w]), &r.memPool)
+	}
+
+	// Build per-wire batching coefficients
+	batchCoeffs := make([]fr.Element, nbWires)
+	batchCoeffs[0].SetOne()
+	for w := 1; w < nbWires; w++ {
+		batchCoeffs[w].Mul(&batchCoeffs[w-1], &foldingCoeff)
+	}
+
+	// Build suffix eq table from the single claim source's eval point
+	src := level.ClaimSources[0]
+	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	suffixEq := r.buildSuffixEq(q)
+
+	claims := &singleSourceZeroCheckClaims{
+		levelI:             levelI,
+		resources:          r,
+		input:              input,
+		inputIndices:       inputIndices,
+		suffixEq:           suffixEq,
+		batchCoeffs:        batchCoeffs,
+		gateEvaluatorPools: pools,
+	}
+
+	// Inline prove loop
+	nbVars := r.nbVars
+	proof := sumcheckProof{partialSumPolys: make([]polynomial.Polynomial, nbVars)}
+	challenges := make([]fr.Element, nbVars)
+
+	proof.partialSumPolys[0] = claims.roundPolynomial()
+	for j := range nbVars - 1 {
+		challenges[j] = r.transcript.getChallenge(proof.partialSumPolys[j]...)
+		claims.roundFold(challenges[j])
+		proof.partialSumPolys[j+1] = claims.roundPolynomial()
+	}
+	challenges[nbVars-1] = r.transcript.getChallenge(proof.partialSumPolys[nbVars-1]...)
+	proof.finalEvalProof = claims.proveFinalEval(challenges)
+	return proof
+}
+
 func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 	level := r.schedule[levelI]
 	nbClaims := level.NbClaims()
@@ -504,6 +743,67 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), &r.transcript)
 }
 
+func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	initialChallengeI := len(r.schedule)
+	claimedEvals := make(polynomial.Polynomial, 0, nbClaims)
+	src := level.ClaimSources[0]
+	for _, wI := range level.Wires {
+		if src.Level == initialChallengeI {
+			claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
+		} else {
+			claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][0], src.OutgoingClaimIndex)])
+		}
+	}
+	claimedSum := claimedEvals.Eval(&foldingCoeff)
+
+	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	degree := r.circuit.ZeroCheckDegree(level)
+
+	challenges := make([]fr.Element, r.nbVars)
+	gPrime := make(polynomial.Polynomial, degree+1)
+
+	for j := range r.nbVars {
+		partialPoly := proof[levelI].partialSumPolys[j]
+		if len(partialPoly) != degree {
+			return errors.New("malformed proof")
+		}
+
+		// Recover g'(0) from (1-q_j)*g'(0) + q_j*g'(1) = claimedSum
+		// g'(0) = (claimedSum - q_j * g'(1)) / (1 - q_j)
+		var oneMinusQj, qjTimesGPrime1 fr.Element
+		oneMinusQj.SetOne()
+		oneMinusQj.Sub(&oneMinusQj, &q[j])
+		qjTimesGPrime1.Mul(&q[j], &partialPoly[0]) // partialPoly[0] = g'(1)
+		gPrime[0].Sub(&claimedSum, &qjTimesGPrime1)
+		gPrime[0].Div(&gPrime[0], &oneMinusQj)
+
+		copy(gPrime[1:], partialPoly)
+
+		challenges[j] = r.transcript.getChallenge(partialPoly...)
+		gPrimeCoeffs := polynomial.InterpolateOnRange(gPrime[:(degree + 1)])
+		claimedSum = gPrimeCoeffs.Eval(&challenges[j])
+	}
+
+	// claimedSum is now Σ_w c^w · gate_w(inputs(r)), without the eq factor.
+	// verifyFinalEval expects Σ_w c^w · eq(q, r) · gate_w(inputs(r)), so multiply.
+	eqAtQR := polynomial.EvalEq(q, challenges)
+	claimedSum.Mul(&claimedSum, &eqAtQR)
+
+	lazyClaims := &zeroCheckLazyClaims{
+		foldingCoeff: foldingCoeff,
+		resources:    r,
+		levelI:       levelI,
+	}
+	return lazyClaims.verifyFinalEval(challenges, claimedSum, proof[levelI].finalEvalProof)
+}
+
 // Prove consistency of the claimed assignment
 func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAssignment, hasher hash.Hash) (Proof, error) {
 	r, err := newResources(c, schedule, assignment, hasher)
@@ -522,10 +822,15 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+		switch r.schedule[levelI].(type) {
+		case constraint.GkrSkipLevel:
 			proof[levelI] = r.proveSkipLevel(levelI)
-		} else {
+		case constraint.GkrSingleSourceZeroCheckLevel:
+			proof[levelI] = r.proveSingleSourceZeroCheckLevel(levelI)
+		case constraint.GkrSumcheckLevel:
 			proof[levelI] = r.proveSumcheckLevel(levelI)
+		default:
+			panic(fmt.Sprintf("level %d: unknown proving level type %T", levelI, r.schedule[levelI]))
 		}
 		constraint.BindGkrFinalEvalProof(&r.transcript, proof[levelI].finalEvalProof, c.UniqueGateInputs(r.schedule[levelI]), c.IsInput, r.schedule[levelI])
 	}
@@ -550,10 +855,15 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 	r.outgoingEvalPoints[len(schedule)] = [][]fr.Element{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		if _, isSkip := r.schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+		switch r.schedule[levelI].(type) {
+		case constraint.GkrSkipLevel:
 			err = r.verifySkipLevel(levelI, proof)
-		} else {
+		case constraint.GkrSingleSourceZeroCheckLevel:
+			err = r.verifySingleSourceZeroCheckLevel(levelI, proof)
+		case constraint.GkrSumcheckLevel:
 			err = r.verifySumcheckLevel(levelI, proof)
+		default:
+			panic(fmt.Sprintf("level %d: unknown proving level type %T", levelI, r.schedule[levelI]))
 		}
 		if err != nil {
 			return fmt.Errorf("level %d: %v", levelI, err)

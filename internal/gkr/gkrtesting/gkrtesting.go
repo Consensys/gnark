@@ -168,7 +168,7 @@ type TestCaseInfo struct {
 }
 
 // ScheduleStepInfo is the JSON representation of a single proving level.
-// Type is "sumcheck" or "skip".
+// Type is "sumcheck", "skip", or "singleSourceZeroCheck".
 type ScheduleStepInfo struct {
 	Type        string                     `json:"type"`
 	ClaimGroups []constraint.GkrClaimGroup `json:"claimGroups,omitempty"` // for "sumcheck"
@@ -198,6 +198,11 @@ func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error)
 				return nil, fmt.Errorf("level %d: type=skip but claimGroup is absent", i)
 			}
 			s[i] = constraint.GkrSkipLevel(*step.ClaimGroup)
+		case "singleSourceZeroCheck":
+			if step.ClaimGroup == nil {
+				return nil, fmt.Errorf("level %d: type=singleSourceZeroCheck but claimGroup is absent", i)
+			}
+			s[i] = constraint.GkrSingleSourceZeroCheckLevel(*step.ClaimGroup)
 		default:
 			return nil, errors.New("unknown ProvingLevel type: " + step.Type)
 		}

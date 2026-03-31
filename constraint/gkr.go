@@ -40,6 +40,11 @@ type (
 	// zerocheck-level batching with shared eq tables).
 	GkrSumcheckLevel []GkrClaimGroup
 
+	// GkrSingleSourceZeroCheckLevel represents a level where a single-claim-source
+	// zerocheck is performed with the eq polynomial factored out, reducing the
+	// sumcheck round polynomial degree by 1.
+	GkrSingleSourceZeroCheckLevel GkrClaimGroup
+
 	// GkrProvingSchedule is a sequence of levels defining how to prove a GKR circuit.
 	GkrProvingSchedule []GkrProvingLevel
 )
@@ -65,6 +70,15 @@ func (l GkrSkipLevel) ClaimGroups() []GkrClaimGroup { return []GkrClaimGroup{Gkr
 func (l GkrSkipLevel) FinalEvalProofIndex(wireI, evaluationPointI int) int {
 	return wireI*l.NbOutgoingEvalPoints() + evaluationPointI
 }
+
+func (l GkrSingleSourceZeroCheckLevel) NbOutgoingEvalPoints() int { return 1 }
+func (l GkrSingleSourceZeroCheckLevel) NbClaims() int {
+	return GkrClaimGroup(l).NbClaims()
+}
+func (l GkrSingleSourceZeroCheckLevel) ClaimGroups() []GkrClaimGroup {
+	return []GkrClaimGroup{GkrClaimGroup(l)}
+}
+func (l GkrSingleSourceZeroCheckLevel) FinalEvalProofIndex(wireI, _ int) int { return wireI }
 
 // BindGkrFinalEvalProof binds the non-input-wire entries of finalEvalProof into the transcript.
 // Input-wire evaluations are fully determined by the public assignment (and by evaluation points

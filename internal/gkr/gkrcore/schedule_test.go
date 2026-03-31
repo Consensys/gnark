@@ -26,7 +26,7 @@ func TestDefaultProvingSchedule(t *testing.T) {
 		// Level 1: input wire 1, position 1 in mul gate's UniqueGateInputs [0, 1]
 		constraint.GkrSkipLevel{Wires: []int{1}, ClaimSources: []constraint.GkrClaimSource{{Level: 2}}},
 		// Level 2: mul gate output, claimed by initial challenge (sentinel)
-		constraint.GkrSumcheckLevel{{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{{Level: 3}}}},
+		constraint.GkrSingleSourceZeroCheckLevel{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{{Level: 3}}},
 	}, schedule)
 }
 
@@ -62,8 +62,8 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 		// Level 2: full-round 0 lin1+lin0 (skip, inputs from wires 0 and 1).
 		constraint.GkrSkipLevel{Wires: []int{3, 2}, ClaimSources: []constraint.GkrClaimSource{{Level: 3}}},
 
-		// Level 3: full-round 0 sBox1+sBox0 (sumcheck).
-		constraint.GkrSumcheckLevel{{Wires: []int{5, 4}, ClaimSources: []constraint.GkrClaimSource{{Level: 4}}}},
+		// Level 3: full-round 0 sBox1+sBox0 (single-source zero-check, degree > 1).
+		constraint.GkrSingleSourceZeroCheckLevel{Wires: []int{5, 4}, ClaimSources: []constraint.GkrClaimSource{{Level: 4}}},
 
 		// Level 4: full-round 1 lin1+lin0 (skip, inputs [4, 5]).
 		constraint.GkrSkipLevel{Wires: []int{7, 6}, ClaimSources: []constraint.GkrClaimSource{{Level: 5}}},
@@ -87,20 +87,20 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 		// Level 10: partial-round 1 lin1 (skip, inputs [12, 11]).
 		constraint.GkrSkipLevel{Wires: []int{14}, ClaimSources: []constraint.GkrClaimSource{{Level: 12}}},
 
-		// Level 11: partial-round 1 sBox0 (sumcheck, input lin0=13).
-		constraint.GkrSumcheckLevel{{Wires: []int{15}, ClaimSources: []constraint.GkrClaimSource{{Level: 12}}}},
+		// Level 11: partial-round 1 sBox0 (single-source zero-check, input lin0=13).
+		constraint.GkrSingleSourceZeroCheckLevel{Wires: []int{15}, ClaimSources: []constraint.GkrClaimSource{{Level: 12}}},
 
 		// Level 12: full-round 2 lin1+lin0 (skip, inputs [15, 14]).
 		constraint.GkrSkipLevel{Wires: []int{17, 16}, ClaimSources: []constraint.GkrClaimSource{{Level: 13}}},
 
-		// Level 13: full-round 2 sBox1+sBox0 (sumcheck, inputs lin1=17 and lin0=16).
-		constraint.GkrSumcheckLevel{{Wires: []int{19, 18}, ClaimSources: []constraint.GkrClaimSource{{Level: 14}}}},
+		// Level 13: full-round 2 sBox1+sBox0 (single-source zero-check, inputs lin1=17 and lin0=16).
+		constraint.GkrSingleSourceZeroCheckLevel{Wires: []int{19, 18}, ClaimSources: []constraint.GkrClaimSource{{Level: 14}}},
 
 		// Level 14: full-round 3 lin1+lin0 (skip, inputs [18, 19]).
 		constraint.GkrSkipLevel{Wires: []int{21, 20}, ClaimSources: []constraint.GkrClaimSource{{Level: 15}}},
 
-		// Level 15: full-round 3 sBox1+sBox0 (sumcheck, inputs lin1=21 and lin0=20).
-		constraint.GkrSumcheckLevel{{Wires: []int{23, 22}, ClaimSources: []constraint.GkrClaimSource{{Level: 16}}}},
+		// Level 15: full-round 3 sBox1+sBox0 (single-source zero-check, inputs lin1=21 and lin0=20).
+		constraint.GkrSingleSourceZeroCheckLevel{Wires: []int{23, 22}, ClaimSources: []constraint.GkrClaimSource{{Level: 16}}},
 
 		// Level 16: feed-forward output (skip, inputs [22, 23, 1]). Claimed by initial challenge (17).
 		constraint.GkrSkipLevel{Wires: []int{24}, ClaimSources: []constraint.GkrClaimSource{{Level: 17}}},
