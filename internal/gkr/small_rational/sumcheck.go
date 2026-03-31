@@ -478,17 +478,18 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 	return sumcheckProve(&claims, &r.transcript)
 }
 
-func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+// verifyLevelSetup derives the folding coefficient, collects all claimed wire
+// evaluations from the proof or the initial assignment, computes the batched
+// claimed sum, and builds the lazy-claims object shared by both verifiers.
+func (r *resources) verifyLevelSetup(levelI int, proof Proof) (small_rational.SmallRational, *zeroCheckLazyClaims) {
 	level := r.schedule[levelI]
-	nbClaims := level.NbClaims()
 	var foldingCoeff small_rational.SmallRational
-	if nbClaims >= 2 {
+	if level.NbClaims() >= 2 {
 		foldingCoeff = r.transcript.getChallenge()
 	}
 
 	initialChallengeI := len(r.schedule)
 	claimedEvals := make(polynomial.Polynomial, 0, level.NbClaims())
-
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
 			for claimI, src := range group.ClaimSources {
@@ -501,14 +502,17 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 		}
 	}
 
-	claimedSum := claimedEvals.Eval(&foldingCoeff)
-
-	lazyClaims := &zeroCheckLazyClaims{
+	return claimedEvals.Eval(&foldingCoeff), &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,
 		resources:    r,
 		levelI:       levelI,
 	}
-	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), &r.transcript)
+}
+
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
+	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
+	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level), &r.transcript)
 }
 
 // singleSourceZeroCheckClaims is the prover-side claim for a single-source
@@ -714,25 +718,10 @@ func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
 }
 
 func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
+
 	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
-	nbClaims := level.NbClaims()
-	var foldingCoeff small_rational.SmallRational
-	if nbClaims >= 2 {
-		foldingCoeff = r.transcript.getChallenge()
-	}
-
-	initialChallengeI := len(r.schedule)
-	claimedEvals := make(polynomial.Polynomial, 0, nbClaims)
 	src := level.ClaimSources[0]
-	for _, wI := range level.Wires {
-		if src.Level == initialChallengeI {
-			claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
-		} else {
-			claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][0], src.OutgoingClaimIndex)])
-		}
-	}
-	claimedSum := claimedEvals.Eval(&foldingCoeff)
-
 	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
 	degree := r.circuit.ZeroCheckDegree(level)
 
@@ -776,10 +765,5 @@ func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) er
 	eqAtQR := polynomial.EvalEq(q, challenges)
 	claimedSum.Mul(&claimedSum, &eqAtQR)
 
-	lazyClaims := &zeroCheckLazyClaims{
-		foldingCoeff: foldingCoeff,
-		resources:    r,
-		levelI:       levelI,
-	}
 	return lazyClaims.verifyFinalEval(challenges, claimedSum, proof[levelI].finalEvalProof)
 }
