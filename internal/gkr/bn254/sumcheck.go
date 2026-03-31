@@ -8,9 +8,12 @@ package gkr
 import (
 	"errors"
 	"hash"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/gkr/gkrcore"
 )
 
 // This does not make use of parallelism and represents polynomials as lists of coefficients.
@@ -113,4 +116,693 @@ func sumcheckVerify(claims sumcheckLazyClaims, proof sumcheckProof, claimedSum f
 	}
 
 	return claims.verifyFinalEval(r, gJR, proof.finalEvalProof)
+}
+
+// zeroCheckLazyClaims is a lazy claim for sumcheck (verifier side).
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
+// where the sum runs over all wᵢ and evaluation point xᵢ in the level.
+// Its purpose is to batch the checking of multiple wire evaluations at evaluation points.
+type zeroCheckLazyClaims struct {
+	foldingCoeff fr.Element // the coefficient used to fold claims, conventionally 0 if there is only one claim
+	resources    *resources
+	levelI       int
+}
+
+func (e *zeroCheckLazyClaims) varsNum() int {
+	return e.resources.nbVars
+}
+
+func (e *zeroCheckLazyClaims) degree(int) int {
+	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI])
+}
+
+// verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
+// The sumcheck protocol has already reduced the per-wire claims w(xᵢ) = yᵢ to verifying
+// ∑ᵢ cⁱ eq(xᵢ, r) · wᵢ(r) = purportedValue, where the sum runs over all
+// claims on each wire and c is foldingCoeff.
+// Both purportedValue and the vector r have been randomized during sumcheck.
+//
+// For input wires, w(r) is computed directly from the assignment and the claimed
+// evaluation in uniqueInputEvaluations is checked equal to it.
+// For non-input wires, the prover claims evaluations of their gate inputs at r via
+// uniqueInputEvaluations; those claims are verified by lower levels' sumchecks.
+// The verifier checks consistency by evaluating gateᵥ(inputEvals...) and confirming
+// that the full sum matches purportedValue.
+func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.Element, uniqueInputEvaluations []fr.Element) error {
+	e.resources.outgoingEvalPoints[e.levelI] = [][]fr.Element{r}
+	level := e.resources.schedule[e.levelI]
+	gateInputEvals := gkrcore.ReduplicateInputs(level, e.resources.circuit, uniqueInputEvaluations)
+
+	var claimedEvals polynomial.Polynomial
+	levelWireI := 0
+	for _, group := range level.ClaimGroups() {
+		for _, wI := range group.Wires {
+			wire := e.resources.circuit[wI]
+
+			var gateEval fr.Element
+			if wire.IsInput() {
+				gateEval = e.resources.assignment[wI].Evaluate(r, &e.resources.memPool)
+				if !gateInputEvals[levelWireI][0].Equal(&gateEval) {
+					return errors.New("incompatible evaluations")
+				}
+			} else {
+				evaluator := newGateEvaluator(wire.Gate.Evaluate, len(wire.Inputs))
+				for _, v := range gateInputEvals[levelWireI] {
+					evaluator.pushInput(v)
+				}
+				gateEval.Set(evaluator.evaluate())
+			}
+
+			for _, src := range group.ClaimSources {
+				eq := polynomial.EvalEq(e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
+				var term fr.Element
+				term.Mul(&eq, &gateEval)
+				claimedEvals = append(claimedEvals, term)
+			}
+			levelWireI++
+		}
+	}
+
+	if total := claimedEvals.Eval(&e.foldingCoeff); !total.Equal(&purportedValue) {
+		return errors.New("incompatible evaluations")
+	}
+	return nil
+}
+
+// zeroCheckClaims is a claim for sumcheck (prover side).
+// It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
+// where the sum runs over all (wire v, claim source s) pairs in the level.
+// Each wire has its own eq table with the batching coefficients baked in.
+type zeroCheckClaims struct {
+	levelI             int
+	resources          *resources
+	input              []polynomial.MultiLin // UniqueGateInputs order
+	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
+	eqs                []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
+	gateEvaluatorPools []*gateEvaluatorPool
+}
+
+func (c *zeroCheckClaims) varsNum() int {
+	return c.resources.nbVars
+}
+
+// roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
+// The polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
+// The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
+// By convention, g₀ is a constant polynomial equal to the claimed sum.
+func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
+	nbUniqueInputs := len(c.input)
+	nbWires := len(c.eqs)
+
+	// Both eqs and input are multilinear, thus linear in Xⱼ.
+	// For any such f, f(m) = m·(f(1) - f(0)) + f(0), and f(0), f(1) are read directly
+	// from the bookkeeping tables. This allows stepwise evaluation at Xⱼ = 1, 2, ..., degree.
+	// Layout: [eq₀, eq₁, ..., eq_{nbWires-1}, input₀, input₁, ..., input_{nbUniqueInputs-1}]
+	ml := make([]polynomial.MultiLin, nbWires+nbUniqueInputs)
+	copy(ml, c.eqs)
+	copy(ml[nbWires:], c.input)
+
+	sumSize := len(c.eqs[0]) / 2
+
+	p := make([]fr.Element, degree)
+	var mu sync.Mutex
+	computeAll := func(start, end int) {
+		var step fr.Element
+
+		evaluators := make([]*gateEvaluator, nbWires)
+		for w := range nbWires {
+			evaluators[w] = c.gateEvaluatorPools[w].get()
+		}
+		defer func() {
+			for w := range nbWires {
+				c.gateEvaluatorPools[w].put(evaluators[w])
+			}
+		}()
+
+		res := make([]fr.Element, degree)
+
+		// evaluations of ml, laid out as:
+		// ml[0](1, h...), ml[1](1, h...), ..., ml[len(ml)-1](1, h...),
+		// ml[0](2, h...), ml[1](2, h...), ..., ml[len(ml)-1](2, h...),
+		// ...
+		// ml[0](degree, h...), ml[1](degree, h...), ..., ml[len(ml)-1](degree, h...)
+		mlEvals := make([]fr.Element, degree*len(ml))
+
+		for h := start; h < end; h++ {
+			evalAt1Index := sumSize + h
+			for k := range ml {
+				mlEvals[k].Set(&ml[k][evalAt1Index]) // evaluation at Xⱼ = 1, taken directly from the table
+				step.Sub(&mlEvals[k], &ml[k][h])     // step = ml[k](1) - ml[k](0)
+				for d := 1; d < degree; d++ {
+					mlEvals[d*len(ml)+k].Add(&mlEvals[(d-1)*len(ml)+k], &step)
+				}
+			}
+
+			eIndex := 0 // start of the current row's eq evaluations
+			nextEIndex := len(ml)
+			for d := range degree {
+				for w := range nbWires {
+					for _, inputI := range c.inputIndices[w] {
+						evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
+					}
+					summand := evaluators[w].evaluate()
+					summand.Mul(summand, &mlEvals[eIndex+w])
+					res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
+				}
+				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
+			}
+		}
+		mu.Lock()
+		for i := range p {
+			p[i].Add(&p[i], &res[i]) // collect into the complete sum
+		}
+		mu.Unlock()
+	}
+
+	const minBlockSize = 64
+	if sumSize < minBlockSize {
+		computeAll(0, sumSize)
+	} else {
+		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
+	}
+
+	return p
+}
+
+// roundFold folds all input and eq polynomials at the verifier challenge r.
+// After this call, j ← j+1 and rⱼ = r.
+func (c *zeroCheckClaims) roundFold(r fr.Element) {
+	const minBlockSize = 512
+	n := len(c.eqs[0]) / 2
+	if n < minBlockSize {
+		for i := range c.input {
+			c.input[i].Fold(r)
+		}
+		for i := range c.eqs {
+			c.eqs[i].Fold(r)
+		}
+	} else {
+		wgs := make([]*sync.WaitGroup, len(c.input)+len(c.eqs))
+		for i := range c.input {
+			wgs[i] = c.resources.workers.Submit(n, c.input[i].FoldParallel(r), minBlockSize)
+		}
+		for i := range c.eqs {
+			wgs[len(c.input)+i] = c.resources.workers.Submit(n, c.eqs[i].FoldParallel(r), minBlockSize)
+		}
+		for _, wg := range wgs {
+			wg.Wait()
+		}
+	}
+}
+
+// proveFinalEval provides the unique input wire values wᵢ(r₁, ..., rₙ).
+func (c *zeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
+	evaluations := make([]fr.Element, len(c.input))
+	for i := range c.input {
+		c.input[i].Fold(r[len(r)-1])
+		evaluations[i] = c.input[i][0]
+	}
+	for i := range c.input {
+		c.resources.memPool.Dump(c.input[i])
+	}
+	for i := range c.eqs {
+		c.resources.memPool.Dump(c.eqs[i])
+	}
+	for _, pool := range c.gateEvaluatorPools {
+		pool.dumpAll()
+	}
+	return evaluations
+}
+
+// eqAcc sets m to an eq table at q and then adds it to e.
+// m <- m[0] · eq(q, -).
+// e <- e + m
+func (r *resources) eqAcc(e, m polynomial.MultiLin, q []fr.Element) {
+	n := len(q)
+
+	// At the end of each iteration, m(h₁, ..., hₙ) = m[0] · eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
+	for i := range q { // 1-based in comments: q[i] = qᵢ₊₁
+		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
+		const threshold = 1 << 6
+		k := 1 << i
+		if k < threshold {
+			for j := 0; j < k; j++ {
+				j0 := j << (n - i)    // bᵢ₊₁ = 0
+				j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
+
+				m[j1].Mul(&q[i], &m[j0])  // m(b₁,...,bᵢ,1) = m(b₁,...,bᵢ) · qᵢ₊₁
+				m[j0].Sub(&m[j0], &m[j1]) // m(b₁,...,bᵢ,0) = m(b₁,...,bᵢ) · (1 - qᵢ₊₁)
+			}
+		} else {
+			r.workers.Submit(k, func(start, end int) {
+				for j := start; j < end; j++ {
+					j0 := j << (n - i)    // bᵢ₊₁ = 0
+					j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
+
+					m[j1].Mul(&q[i], &m[j0])  // m(b₁,...,bᵢ,1) = m(b₁,...,bᵢ) · qᵢ₊₁
+					m[j0].Sub(&m[j0], &m[j1]) // m(b₁,...,bᵢ,0) = m(b₁,...,bᵢ) · (1 - qᵢ₊₁)
+				}
+			}, 1024).Wait()
+		}
+	}
+	r.workers.Submit(len(e), func(start, end int) {
+		for i := start; i < end; i++ {
+			e[i].Add(&e[i], &m[i])
+		}
+	}, 512).Wait()
+}
+
+func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
+	input := make([]polynomial.MultiLin, len(uniqueInputs))
+	for i, inW := range uniqueInputs {
+		input[i] = r.memPool.Clone(r.assignment[inW])
+	}
+
+	nbWires := 0
+	for _, group := range level.ClaimGroups() {
+		nbWires += len(group.Wires)
+	}
+
+	pools := make([]*gateEvaluatorPool, nbWires)
+	levelWireI := 0
+	for _, group := range level.ClaimGroups() {
+		for _, wI := range group.Wires {
+			wire := r.circuit[wI]
+			gate := wire.Gate.Evaluate
+			if wire.IsInput() {
+				gate = gkrcore.IdentityBytecode()
+			}
+			pools[levelWireI] = newGateEvaluatorPool(gate, len(inputIndices[levelWireI]), &r.memPool)
+			levelWireI++
+		}
+	}
+
+	eqLength := 1 << r.nbVars
+	eqs := make([]polynomial.MultiLin, nbWires)
+	var alpha fr.Element
+	alpha.SetOne()
+	levelWireI = 0
+	for _, group := range level.ClaimGroups() {
+		nbSources := len(group.ClaimSources)
+
+		groupEq := polynomial.MultiLin(r.memPool.Make(eqLength))
+		groupEq[0].Set(&alpha)
+		groupEq.Eq(r.outgoingEvalPoints[group.ClaimSources[0].Level][group.ClaimSources[0].OutgoingClaimIndex])
+
+		if nbSources > 1 {
+			newEq := polynomial.MultiLin(r.memPool.Make(eqLength))
+			aI := alpha
+			for k := 1; k < nbSources; k++ {
+				aI.Mul(&aI, &foldingCoeff)
+				newEq[0].Set(&aI)
+				r.eqAcc(groupEq, newEq, r.outgoingEvalPoints[group.ClaimSources[k].Level][group.ClaimSources[k].OutgoingClaimIndex])
+			}
+			r.memPool.Dump(newEq)
+		}
+
+		var stride fr.Element
+		stride.Set(&foldingCoeff)
+		for range nbSources - 1 {
+			stride.Mul(&stride, &foldingCoeff)
+		}
+
+		eqs[levelWireI] = groupEq
+		levelWireI++
+		alpha.Mul(&alpha, &stride)
+
+		for w := 1; w < len(group.Wires); w++ {
+			eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
+			r.workers.Submit(eqLength, func(start, end int) {
+				for i := start; i < end; i++ {
+					eqs[levelWireI][i].Mul(&eqs[levelWireI-1][i], &stride)
+				}
+			}, 512).Wait()
+			levelWireI++
+			alpha.Mul(&alpha, &stride)
+		}
+	}
+
+	claims := &zeroCheckClaims{
+		levelI:             levelI,
+		resources:          r,
+		input:              input,
+		inputIndices:       inputIndices,
+		eqs:                eqs,
+		gateEvaluatorPools: pools,
+	}
+	return sumcheckProve(claims, &r.transcript)
+}
+
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI]
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	initialChallengeI := len(r.schedule)
+	claimedEvals := make(polynomial.Polynomial, 0, level.NbClaims())
+
+	for _, group := range level.ClaimGroups() {
+		for _, wI := range group.Wires {
+			for claimI, src := range group.ClaimSources {
+				if src.Level == initialChallengeI {
+					claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
+				} else {
+					claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][claimI], src.OutgoingClaimIndex)])
+				}
+			}
+		}
+	}
+
+	claimedSum := claimedEvals.Eval(&foldingCoeff)
+
+	lazyClaims := &zeroCheckLazyClaims{
+		foldingCoeff: foldingCoeff,
+		resources:    r,
+		levelI:       levelI,
+	}
+	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), &r.transcript)
+}
+
+// singleSourceZeroCheckClaims is the prover-side claim for a single-source
+// zerocheck with the eq polynomial factored out (Section 3.2 of ePrint 2024/108).
+//
+// When a level has exactly one claim source with evaluation point q, the standard
+// round polynomial g_j(X) = Σ_h eq(q, (r₀…r_{j-1}, X, h)) · G(r₀…r_{j-1}, X, h)
+// has degree d+1 (one from eq, d from the gate). Factoring out the per-variable eq
+// gives g_j(X) = eq(q_j, X) · g'_j(X) where g'_j has degree d. The prover sends
+// d evaluations per round instead of d+1, saving one field element per variable and
+// reducing the number of gate evaluations per hypercube point from d+1 to d.
+//
+// The suffix eq tables eq(q_{j+1}…q_{N-1}; ·) are precomputed bottom-up and used
+// read-only as weights in each round; only the input multilinears are folded.
+type singleSourceZeroCheckClaims struct {
+	levelI             int
+	resources          *resources
+	input              []polynomial.MultiLin // UniqueGateInputs order
+	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
+	suffixEq           []polynomial.MultiLin // suffixEq[j] = eq(q_{j}, ..., q_{N-1}; ·) of length 2^(N-j)
+	batchCoeffs        []fr.Element          // per-wire batching coefficients
+	gateEvaluatorPools []*gateEvaluatorPool
+	roundI             int
+}
+
+func (c *singleSourceZeroCheckClaims) varsNum() int {
+	return c.resources.nbVars
+}
+
+// roundPolynomial computes g'_j(1), ..., g'_j(d) where d is the gate degree.
+// g'_j(m) = ∑_h suffixEq[j+1][h] · ∑_w batchCoeffs[w] · gate_w(inputs at (m, h))
+func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+	level := c.resources.schedule[c.levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
+	nbUniqueInputs := len(c.input)
+	nbWires := len(c.batchCoeffs)
+
+	sumSize := len(c.input[0]) / 2
+
+	// Get the suffix eq segment for this round
+	var eqSegment polynomial.MultiLin
+	lastRound := c.roundI == c.resources.nbVars-1
+	if !lastRound {
+		eqSegment = c.suffixEq[c.roundI+1]
+	}
+
+	p := make([]fr.Element, degree)
+	var mu sync.Mutex
+	computeAll := func(start, end int) {
+		var step fr.Element
+
+		evaluators := make([]*gateEvaluator, nbWires)
+		for w := range nbWires {
+			evaluators[w] = c.gateEvaluatorPools[w].get()
+		}
+		defer func() {
+			for w := range nbWires {
+				c.gateEvaluatorPools[w].put(evaluators[w])
+			}
+		}()
+
+		res := make([]fr.Element, degree)
+
+		// Input evaluations at m=1,2,...,degree
+		inputEvals := make([]fr.Element, degree*nbUniqueInputs)
+
+		for h := start; h < end; h++ {
+			evalAt1Index := sumSize + h
+			for k := range nbUniqueInputs {
+				inputEvals[k].Set(&c.input[k][evalAt1Index])
+				step.Sub(&inputEvals[k], &c.input[k][h])
+				for d := 1; d < degree; d++ {
+					inputEvals[d*nbUniqueInputs+k].Add(&inputEvals[(d-1)*nbUniqueInputs+k], &step)
+				}
+			}
+
+			// Suffix eq weight for this hypercube point
+			var eqWeight fr.Element
+			if lastRound {
+				eqWeight.SetOne()
+			} else {
+				eqWeight.Set(&eqSegment[h])
+			}
+
+			iIndex := 0
+			nextIIndex := nbUniqueInputs
+			for d := range degree {
+				var wireSum fr.Element
+				for w := range nbWires {
+					for _, inputI := range c.inputIndices[w] {
+						evaluators[w].pushInput(inputEvals[iIndex+inputI])
+					}
+					var summand fr.Element
+					summand.Mul(evaluators[w].evaluate(), &c.batchCoeffs[w])
+					wireSum.Add(&wireSum, &summand)
+				}
+				var contribution fr.Element
+				contribution.Mul(&eqWeight, &wireSum)
+				res[d].Add(&res[d], &contribution)
+				iIndex, nextIIndex = nextIIndex, nextIIndex+nbUniqueInputs
+			}
+		}
+		mu.Lock()
+		for i := range p {
+			p[i].Add(&p[i], &res[i])
+		}
+		mu.Unlock()
+	}
+
+	const minBlockSize = 64
+	if sumSize < minBlockSize {
+		computeAll(0, sumSize)
+	} else {
+		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
+	}
+
+	return p
+}
+
+// roundFold folds only input multilinears at the verifier challenge r.
+// The suffix eq tables are precomputed and not folded.
+func (c *singleSourceZeroCheckClaims) roundFold(r fr.Element) {
+	const minBlockSize = 512
+	n := len(c.input[0]) / 2
+	if n < minBlockSize {
+		for i := range c.input {
+			c.input[i].Fold(r)
+		}
+	} else {
+		wgs := make([]*sync.WaitGroup, len(c.input))
+		for i := range c.input {
+			wgs[i] = c.resources.workers.Submit(n, c.input[i].FoldParallel(r), minBlockSize)
+		}
+		for _, wg := range wgs {
+			wg.Wait()
+		}
+	}
+	c.roundI++
+}
+
+// proveFinalEval provides the unique input wire values at the final evaluation point.
+func (c *singleSourceZeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
+	evaluations := make([]fr.Element, len(c.input))
+	for i := range c.input {
+		c.input[i].Fold(r[len(r)-1])
+		evaluations[i] = c.input[i][0]
+	}
+	for i := range c.input {
+		c.resources.memPool.Dump(c.input[i])
+	}
+	for i := range c.suffixEq {
+		c.resources.memPool.Dump(c.suffixEq[i])
+	}
+	for _, pool := range c.gateEvaluatorPools {
+		pool.dumpAll()
+	}
+	return evaluations
+}
+
+// buildSuffixEq constructs suffix eq tables bottom-up from the claim point q.
+// suffixEq[j] = eq(q_j, ..., q_{N-1}; ·) has length 2^(N-j).
+// In round j, the prover uses suffixEq[j+1] of length 2^(N-1-j) as weights.
+func (r *resources) buildSuffixEq(q []fr.Element) []polynomial.MultiLin {
+	n := len(q)
+	suffixEq := make([]polynomial.MultiLin, n)
+
+	// Start with the last variable: eq(q_{N-1}; ·) = [1-q_{N-1}, q_{N-1}]
+	suffixEq[n-1] = r.memPool.Make(2)
+	suffixEq[n-1][0].SetOne()
+	suffixEq[n-1][0].Sub(&suffixEq[n-1][0], &q[n-1])
+	suffixEq[n-1][1].Set(&q[n-1])
+
+	// Build bottom-up: extend by tensoring with [1-q_j, q_j]
+	for j := n - 2; j >= 0; j-- {
+		prevLen := len(suffixEq[j+1])
+		suffixEq[j] = r.memPool.Make(prevLen * 2)
+
+		var oneMinusQj fr.Element
+		oneMinusQj.SetOne()
+		oneMinusQj.Sub(&oneMinusQj, &q[j])
+
+		r.workers.Submit(prevLen, func(start, end int) {
+			for h := start; h < end; h++ {
+				suffixEq[j][h].Mul(&oneMinusQj, &suffixEq[j+1][h])
+				suffixEq[j][h+prevLen].Mul(&q[j], &suffixEq[j+1][h])
+			}
+		}, 512).Wait()
+	}
+	return suffixEq
+}
+
+func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
+	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
+	input := make([]polynomial.MultiLin, len(uniqueInputs))
+	for i, inW := range uniqueInputs {
+		input[i] = r.memPool.Clone(r.assignment[inW])
+	}
+
+	nbWires := len(level.Wires)
+	pools := make([]*gateEvaluatorPool, nbWires)
+	for w, wI := range level.Wires {
+		wire := r.circuit[wI]
+		gate := wire.Gate.Evaluate
+		if wire.IsInput() {
+			gate = gkrcore.IdentityBytecode()
+		}
+		pools[w] = newGateEvaluatorPool(gate, len(inputIndices[w]), &r.memPool)
+	}
+
+	// Build per-wire batching coefficients
+	batchCoeffs := make([]fr.Element, nbWires)
+	batchCoeffs[0].SetOne()
+	for w := 1; w < nbWires; w++ {
+		batchCoeffs[w].Mul(&batchCoeffs[w-1], &foldingCoeff)
+	}
+
+	// Build suffix eq table from the single claim source's eval point
+	src := level.ClaimSources[0]
+	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	suffixEq := r.buildSuffixEq(q)
+
+	claims := &singleSourceZeroCheckClaims{
+		levelI:             levelI,
+		resources:          r,
+		input:              input,
+		inputIndices:       inputIndices,
+		suffixEq:           suffixEq,
+		batchCoeffs:        batchCoeffs,
+		gateEvaluatorPools: pools,
+	}
+	return sumcheckProve(claims, &r.transcript)
+}
+
+func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
+	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	nbClaims := level.NbClaims()
+	var foldingCoeff fr.Element
+	if nbClaims >= 2 {
+		foldingCoeff = r.transcript.getChallenge()
+	}
+
+	initialChallengeI := len(r.schedule)
+	claimedEvals := make(polynomial.Polynomial, 0, nbClaims)
+	src := level.ClaimSources[0]
+	for _, wI := range level.Wires {
+		if src.Level == initialChallengeI {
+			claimedEvals = append(claimedEvals, r.assignment[wI].Evaluate(r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], &r.memPool))
+		} else {
+			claimedEvals = append(claimedEvals, proof[src.Level].finalEvalProof[r.schedule[src.Level].FinalEvalProofIndex(r.uniqueInputIndices[wI][0], src.OutgoingClaimIndex)])
+		}
+	}
+	claimedSum := claimedEvals.Eval(&foldingCoeff)
+
+	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	degree := r.circuit.ZeroCheckDegree(level)
+
+	challenges := make([]fr.Element, r.nbVars)
+	gPrime := make(polynomial.Polynomial, degree+1)
+
+	// The verifier tracks claimedSum = g'_{j-1}(r_{j-1}), the "primed" value with
+	// the per-variable eq factors already absent. This is correct because the
+	// full round polynomial is g_j(X) = eq(q_j, X) · g'_j(X), where
+	// g'_j(X) = Σ_h suffixEq[j+1](h) · G(r₀…r_{j-1}, X, h), and
+	//
+	//   g'_{j-1}(r_{j-1}) = Σ_{h_j ∈ {0,1}} eq(q_j, h_j) · g'_j(h_j)
+	//                      = (1-q_j)·g'_j(0) + q_j·g'_j(1)
+	//
+	// so the recovery formula g'_j(0) = (claimedSum - q_j·g'_j(1)) / (1-q_j)
+	// applies directly without dividing out accumulated prefix eq factors.
+	// After interpolating and evaluating g'_j(r_j), the update is simply
+	// claimedSum ← g'_j(r_j), carrying no eq baggage into the next round.
+	for j := range r.nbVars {
+		partialPoly := proof[levelI].partialSumPolys[j]
+		if len(partialPoly) != degree {
+			return errors.New("malformed proof")
+		}
+
+		var oneMinusQj, qjTimesGPrime1 fr.Element
+		oneMinusQj.SetOne()
+		oneMinusQj.Sub(&oneMinusQj, &q[j])
+		qjTimesGPrime1.Mul(&q[j], &partialPoly[0]) // partialPoly[0] = g'(1)
+		gPrime[0].Sub(&claimedSum, &qjTimesGPrime1)
+		gPrime[0].Div(&gPrime[0], &oneMinusQj)
+
+		copy(gPrime[1:], partialPoly)
+
+		challenges[j] = r.transcript.getChallenge(partialPoly...)
+		gPrimeCoeffs := polynomial.InterpolateOnRange(gPrime[:(degree + 1)])
+		claimedSum = gPrimeCoeffs.Eval(&challenges[j])
+	}
+
+	// claimedSum is now Σ_w c^w · gate_w(inputs(r)), without the eq factor.
+	// verifyFinalEval expects Σ_w c^w · eq(q, r) · gate_w(inputs(r)), so multiply.
+	eqAtQR := polynomial.EvalEq(q, challenges)
+	claimedSum.Mul(&claimedSum, &eqAtQR)
+
+	lazyClaims := &zeroCheckLazyClaims{
+		foldingCoeff: foldingCoeff,
+		resources:    r,
+		levelI:       levelI,
+	}
+	return lazyClaims.verifyFinalEval(challenges, claimedSum, proof[levelI].finalEvalProof)
 }
