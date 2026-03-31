@@ -194,16 +194,8 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []fr.Element, purportedValue fr.
 // where the sum runs over all (wire v, claim source s) pairs in the level.
 // Each wire has its own eq table with the batching coefficients baked in.
 type zeroCheckClaims struct {
-	levelI             int
-	resources          *resources
-	input              []polynomial.MultiLin // UniqueGateInputs order
-	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
-	eqs                []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
-	gateEvaluatorPools []*gateEvaluatorPool
-}
-
-func (c *zeroCheckClaims) varsNum() int {
-	return c.resources.nbVars
+	zeroCheckBase
+	eqs []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
 }
 
 // roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
@@ -319,22 +311,7 @@ func (c *zeroCheckClaims) roundFold(r fr.Element) {
 
 // proveFinalEval provides the unique input wire values wᵢ(r₁, ..., rₙ).
 func (c *zeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
-	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
-	evaluations := make([]fr.Element, len(c.input))
-	for i := range c.input {
-		c.input[i].Fold(r[len(r)-1])
-		evaluations[i] = c.input[i][0]
-	}
-	for i := range c.input {
-		c.resources.memPool.Dump(c.input[i])
-	}
-	for i := range c.eqs {
-		c.resources.memPool.Dump(c.eqs[i])
-	}
-	for _, pool := range c.gateEvaluatorPools {
-		pool.dumpAll()
-	}
-	return evaluations
+	return c.zeroCheckBase.proveFinalEval(r, c.eqs)
 }
 
 // eqAcc sets m to an eq table at q and then adds it to e.
@@ -375,26 +352,65 @@ func (r *resources) eqAcc(e, m polynomial.MultiLin, q []fr.Element) {
 	}, 512).Wait()
 }
 
-func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
+// zeroCheckBase holds the fields and initialization logic common to both
+// zeroCheckClaims and singleSourceZeroCheckClaims.
+type zeroCheckBase struct {
+	foldingCoeff       fr.Element
+	levelI             int
+	resources          *resources
+	input              []polynomial.MultiLin // UniqueGateInputs order
+	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
+	gateEvaluatorPools []*gateEvaluatorPool
+}
+
+func (c *zeroCheckBase) varsNum() int {
+	return c.resources.nbVars
+}
+
+// proveFinalEval records the outgoing eval point, folds the last variable,
+// collects the unique input evaluations, and releases all pooled memory.
+// extraPolys is the level-type-specific slice (eqs or suffixEq) to dump.
+func (c *zeroCheckBase) proveFinalEval(r []fr.Element, extraPolys []polynomial.MultiLin) []fr.Element {
+	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
+	evaluations := make([]fr.Element, len(c.input))
+	for i := range c.input {
+		c.input[i].Fold(r[len(r)-1])
+		evaluations[i] = c.input[i][0]
+	}
+	for i := range c.input {
+		c.resources.memPool.Dump(c.input[i])
+	}
+	for i := range extraPolys {
+		c.resources.memPool.Dump(extraPolys[i])
+	}
+	for _, pool := range c.gateEvaluatorPools {
+		pool.dumpAll()
+	}
+	return evaluations
+}
+
+// init derives the folding coefficient, clones the input multilinears,
+// and builds gate evaluator pools — the steps common to all sumcheck-family provers.
+func (c *zeroCheckBase) init(r *resources, levelI int) {
+	c.levelI = levelI
+	c.resources = r
 	level := r.schedule[levelI]
-	nbClaims := level.NbClaims()
-	var foldingCoeff fr.Element
-	if nbClaims >= 2 {
-		foldingCoeff = r.transcript.getChallenge()
+	if level.NbClaims() >= 2 {
+		c.foldingCoeff = r.transcript.getChallenge()
 	}
 
 	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
-	input := make([]polynomial.MultiLin, len(uniqueInputs))
+	c.input = make([]polynomial.MultiLin, len(uniqueInputs))
 	for i, inW := range uniqueInputs {
-		input[i] = r.memPool.Clone(r.assignment[inW])
+		c.input[i] = r.memPool.Clone(r.assignment[inW])
 	}
+	c.inputIndices = inputIndices
 
 	nbWires := 0
 	for _, group := range level.ClaimGroups() {
 		nbWires += len(group.Wires)
 	}
-
-	pools := make([]*gateEvaluatorPool, nbWires)
+	c.gateEvaluatorPools = make([]*gateEvaluatorPool, nbWires)
 	levelWireI := 0
 	for _, group := range level.ClaimGroups() {
 		for _, wI := range group.Wires {
@@ -403,16 +419,22 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			if wire.IsInput() {
 				gate = gkrcore.IdentityBytecode()
 			}
-			pools[levelWireI] = newGateEvaluatorPool(gate, len(inputIndices[levelWireI]), &r.memPool)
+			c.gateEvaluatorPools[levelWireI] = newGateEvaluatorPool(gate, len(inputIndices[levelWireI]), &r.memPool)
 			levelWireI++
 		}
 	}
+}
 
+func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
+	var claims zeroCheckClaims
+	claims.init(r, levelI)
+
+	level := r.schedule[levelI]
 	eqLength := 1 << r.nbVars
-	eqs := make([]polynomial.MultiLin, nbWires)
+	claims.eqs = make([]polynomial.MultiLin, len(claims.gateEvaluatorPools))
 	var alpha fr.Element
 	alpha.SetOne()
-	levelWireI = 0
+	levelWireI := 0
 	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
@@ -424,7 +446,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			newEq := polynomial.MultiLin(r.memPool.Make(eqLength))
 			aI := alpha
 			for k := 1; k < nbSources; k++ {
-				aI.Mul(&aI, &foldingCoeff)
+				aI.Mul(&aI, &claims.foldingCoeff)
 				newEq[0].Set(&aI)
 				r.eqAcc(groupEq, newEq, r.outgoingEvalPoints[group.ClaimSources[k].Level][group.ClaimSources[k].OutgoingClaimIndex])
 			}
@@ -432,20 +454,20 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 		}
 
 		var stride fr.Element
-		stride.Set(&foldingCoeff)
+		stride.Set(&claims.foldingCoeff)
 		for range nbSources - 1 {
-			stride.Mul(&stride, &foldingCoeff)
+			stride.Mul(&stride, &claims.foldingCoeff)
 		}
 
-		eqs[levelWireI] = groupEq
+		claims.eqs[levelWireI] = groupEq
 		levelWireI++
 		alpha.Mul(&alpha, &stride)
 
 		for w := 1; w < len(group.Wires); w++ {
-			eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
+			claims.eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
 			r.workers.Submit(eqLength, func(start, end int) {
 				for i := start; i < end; i++ {
-					eqs[levelWireI][i].Mul(&eqs[levelWireI-1][i], &stride)
+					claims.eqs[levelWireI][i].Mul(&claims.eqs[levelWireI-1][i], &stride)
 				}
 			}, 512).Wait()
 			levelWireI++
@@ -453,15 +475,7 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 		}
 	}
 
-	claims := &zeroCheckClaims{
-		levelI:             levelI,
-		resources:          r,
-		input:              input,
-		inputIndices:       inputIndices,
-		eqs:                eqs,
-		gateEvaluatorPools: pools,
-	}
-	return sumcheckProve(claims, &r.transcript)
+	return sumcheckProve(&claims, &r.transcript)
 }
 
 func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
@@ -510,18 +524,9 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 // The suffix eq tables eq(q_{j+1}…q_{N-1}; ·) are precomputed bottom-up and used
 // read-only as weights in each round; only the input multilinears are folded.
 type singleSourceZeroCheckClaims struct {
-	levelI             int
-	resources          *resources
-	input              []polynomial.MultiLin // UniqueGateInputs order
-	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
-	suffixEq           []polynomial.MultiLin // suffixEq[j] = eq(q_{j}, ..., q_{N-1}; ·) of length 2^(N-j)
-	batchCoeffs        []fr.Element          // per-wire batching coefficients
-	gateEvaluatorPools []*gateEvaluatorPool
-	roundI             int
-}
-
-func (c *singleSourceZeroCheckClaims) varsNum() int {
-	return c.resources.nbVars
+	zeroCheckBase
+	suffixEq    polynomial.MultiLin // contiguous buffer; second half is the current round's eq segment
+	batchCoeffs []fr.Element        // per-wire batching coefficients
 }
 
 // roundPolynomial computes g'_j(1), ..., g'_j(d) where d is the gate degree.
@@ -534,11 +539,11 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 
 	sumSize := len(c.input[0]) / 2
 
-	// Get the suffix eq segment for this round
+	// The second half of suffixEq is the eq segment for this round
 	var eqSegment polynomial.MultiLin
-	lastRound := c.roundI == c.resources.nbVars-1
+	lastRound := len(c.suffixEq) <= 2
 	if !lastRound {
-		eqSegment = c.suffixEq[c.roundI+1]
+		eqSegment = c.suffixEq[len(c.suffixEq)/2:]
 	}
 
 	p := make([]fr.Element, degree)
@@ -632,46 +637,45 @@ func (c *singleSourceZeroCheckClaims) roundFold(r fr.Element) {
 			wg.Wait()
 		}
 	}
-	c.roundI++
+	if len(c.suffixEq) > 2 {
+		c.suffixEq = c.suffixEq[:len(c.suffixEq)/2]
+	}
 }
 
 // proveFinalEval provides the unique input wire values at the final evaluation point.
 func (c *singleSourceZeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Element {
-	c.resources.outgoingEvalPoints[c.levelI] = [][]fr.Element{r}
-	evaluations := make([]fr.Element, len(c.input))
-	for i := range c.input {
-		c.input[i].Fold(r[len(r)-1])
-		evaluations[i] = c.input[i][0]
-	}
-	for i := range c.input {
-		c.resources.memPool.Dump(c.input[i])
-	}
-	for i := range c.suffixEq {
-		c.resources.memPool.Dump(c.suffixEq[i])
-	}
-	for _, pool := range c.gateEvaluatorPools {
-		pool.dumpAll()
-	}
-	return evaluations
+	return c.zeroCheckBase.proveFinalEval(r, []polynomial.MultiLin{c.suffixEq})
 }
 
-// buildSuffixEq constructs suffix eq tables bottom-up from the claim point q.
-// suffixEq[j] = eq(q_j, ..., q_{N-1}; ·) has length 2^(N-j).
-// In round j, the prover uses suffixEq[j+1] of length 2^(N-1-j) as weights.
-func (r *resources) buildSuffixEq(q []fr.Element) []polynomial.MultiLin {
+// buildSuffixEq constructs suffix eq tables in a single contiguous buffer of length 2^N.
+// The layout packs tables smallest-first, left to right:
+//
+//	buf[2:4]             = suffixEq[N-1] = eq(q_{N-1}; ·)            (length 2)
+//	buf[4:8]             = suffixEq[N-2] = eq(q_{N-2}, q_{N-1}; ·)   (length 4)
+//	...
+//	buf[2^(N-1):2^N]     = suffixEq[1]   = eq(q_1, ..., q_{N-1}; ·)  (length 2^(N-1))
+//
+// The first two positions are unused padding so that the buffer halves cleanly:
+// in round j the eq segment is buf[len(buf)/2:] and buf is trimmed to buf[:len(buf)/2].
+func (r *resources) buildSuffixEq(q []fr.Element) polynomial.MultiLin {
 	n := len(q)
-	suffixEq := make([]polynomial.MultiLin, n)
+	buf := r.memPool.Make(1 << n)
+	if n < 2 {
+		return buf
+	}
 
-	// Start with the last variable: eq(q_{N-1}; ·) = [1-q_{N-1}, q_{N-1}]
-	suffixEq[n-1] = r.memPool.Make(2)
-	suffixEq[n-1][0].SetOne()
-	suffixEq[n-1][0].Sub(&suffixEq[n-1][0], &q[n-1])
-	suffixEq[n-1][1].Set(&q[n-1])
+	// Seed: suffixEq[N-1] = [1-q_{N-1}, q_{N-1}] at buf[2:4]
+	buf[2].SetOne()
+	buf[2].Sub(&buf[2], &q[n-1])
+	buf[3].Set(&q[n-1])
 
-	// Build bottom-up: extend by tensoring with [1-q_j, q_j]
-	for j := n - 2; j >= 0; j-- {
-		prevLen := len(suffixEq[j+1])
-		suffixEq[j] = r.memPool.Make(prevLen * 2)
+	// Each suffixEq[j] is built by tensoring [1-q_j, q_j] with suffixEq[j+1].
+	// suffixEq[j+1] sits at buf[srcStart : srcStart+prevLen],
+	// suffixEq[j]   goes to buf[dstStart : dstStart+2*prevLen].
+	for j := n - 2; j >= 1; j-- {
+		prevLen := 1 << (n - j - 1)
+		srcStart := prevLen      // start of suffixEq[j+1]
+		dstStart := prevLen << 1 // start of suffixEq[j]
 
 		var oneMinusQj fr.Element
 		oneMinusQj.SetOne()
@@ -679,61 +683,34 @@ func (r *resources) buildSuffixEq(q []fr.Element) []polynomial.MultiLin {
 
 		r.workers.Submit(prevLen, func(start, end int) {
 			for h := start; h < end; h++ {
-				suffixEq[j][h].Mul(&oneMinusQj, &suffixEq[j+1][h])
-				suffixEq[j][h+prevLen].Mul(&q[j], &suffixEq[j+1][h])
+				buf[dstStart+h].Mul(&oneMinusQj, &buf[srcStart+h])
+				buf[dstStart+prevLen+h].Mul(&q[j], &buf[srcStart+h])
 			}
 		}, 512).Wait()
 	}
-	return suffixEq
+	return buf
 }
 
 func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
 	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
-	nbClaims := level.NbClaims()
-	var foldingCoeff fr.Element
-	if nbClaims >= 2 {
-		foldingCoeff = r.transcript.getChallenge()
-	}
 
-	uniqueInputs, inputIndices := r.circuit.InputMapping(level)
-	input := make([]polynomial.MultiLin, len(uniqueInputs))
-	for i, inW := range uniqueInputs {
-		input[i] = r.memPool.Clone(r.assignment[inW])
-	}
-
-	nbWires := len(level.Wires)
-	pools := make([]*gateEvaluatorPool, nbWires)
-	for w, wI := range level.Wires {
-		wire := r.circuit[wI]
-		gate := wire.Gate.Evaluate
-		if wire.IsInput() {
-			gate = gkrcore.IdentityBytecode()
-		}
-		pools[w] = newGateEvaluatorPool(gate, len(inputIndices[w]), &r.memPool)
-	}
+	var claims singleSourceZeroCheckClaims
+	claims.init(r, levelI)
 
 	// Build per-wire batching coefficients
-	batchCoeffs := make([]fr.Element, nbWires)
-	batchCoeffs[0].SetOne()
+	nbWires := len(claims.gateEvaluatorPools)
+	claims.batchCoeffs = make([]fr.Element, nbWires)
+	claims.batchCoeffs[0].SetOne()
 	for w := 1; w < nbWires; w++ {
-		batchCoeffs[w].Mul(&batchCoeffs[w-1], &foldingCoeff)
+		claims.batchCoeffs[w].Mul(&claims.batchCoeffs[w-1], &claims.foldingCoeff)
 	}
 
 	// Build suffix eq table from the single claim source's eval point
 	src := level.ClaimSources[0]
 	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
-	suffixEq := r.buildSuffixEq(q)
+	claims.suffixEq = r.buildSuffixEq(q)
 
-	claims := &singleSourceZeroCheckClaims{
-		levelI:             levelI,
-		resources:          r,
-		input:              input,
-		inputIndices:       inputIndices,
-		suffixEq:           suffixEq,
-		batchCoeffs:        batchCoeffs,
-		gateEvaluatorPools: pools,
-	}
-	return sumcheckProve(claims, &r.transcript)
+	return sumcheckProve(&claims, &r.transcript)
 }
 
 func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
