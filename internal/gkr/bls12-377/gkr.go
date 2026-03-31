@@ -391,7 +391,6 @@ func (gep *gateEvaluatorPool) get() *gateEvaluator {
 	gep.lock.Unlock()
 
 	e := newGateEvaluator(gep.gate, gep.nbIn, gep.elementPool)
-
 	return &e
 }
 
