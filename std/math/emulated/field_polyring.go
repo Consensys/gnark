@@ -9,7 +9,10 @@ import (
 )
 
 // Represents an element of a polynomial ring over the emulated field.
-type Poly[T FieldParams] []*Element[T]
+type Poly[T FieldParams] struct {
+	Coeffs     []*Element[T]
+	evaluation *big.Int // nil unless evaluated
+}
 
 // polyRingMulCheck represents a polynomial product check in a polynomial
 // ring. Instead of computing the product and reducing it where called,
@@ -43,20 +46,69 @@ type Poly[T FieldParams] []*Element[T]
 //	∏_i inputs_i(α) = r(α) + q(α) * mod(α),
 //
 // which can be verified at a single random point.
+//
+// we verify rlc, ∑_i z^i * ( ∏_j inputs_j(x) - r_i(x) ) == ∑_i z^i * q_i(x) * mod_i(x)
+//
+// this allows skipping individual q evaluations in the circuit because,
+// ∑_i z^i * q_i is computed outside the circuit, and evaluated inside the circuit
+
+type GroupName string
+
+// polyRingCheckManager manages deferred polynomial ring checks
+type polyRingCheckManager[T FieldParams] struct {
+	groupsMapOrder []GroupName                     // deterministic order of map
+	groups         map[GroupName]*polyRingGroup[T] // groupName -> group -> checks
+}
+
+// polyRingGroup binds a specific modulus to all of its checks.
+type polyRingGroup[T FieldParams] struct {
+	mod    *Poly[T]              // polynomial defining the ring
+	rlen   int                   // length of the remainder
+	checks []polyRingMulCheck[T] // individual operations to check
+}
+
+// polyRingMulCheck is an individual deferred check.
 type polyRingMulCheck[T FieldParams] struct {
-	f *Field[T]
 	// ∏_i inputs_i = r + q * mod
-	inputs []Poly[T] // input polynomials
-	mod    Poly[T]   // irreducible polynomial defining the ring
-	r      Poly[T]   // remainder
-	q      Poly[T]   // quotient
+	inputs []*Poly[T] // input polynomials
+	r      *Poly[T]   // remainder
+	q      *Poly[T]   // quotient
+}
+
+// RegisterPolyRing registers a new polynomial ring group with the given name and modulus. The
+func (f *Field[T]) RegisterPolyRing(groupName GroupName, mod *Poly[T]) error {
+	if f.deferredPolyChecker == nil {
+		f.deferredPolyChecker = &polyRingCheckManager[T]{
+			groupsMapOrder: []GroupName{},
+			groups:         make(map[GroupName]*polyRingGroup[T]),
+		}
+	}
+	if _, exists := f.deferredPolyChecker.groups[groupName]; exists {
+		return fmt.Errorf("Ring with name %s already registered", groupName)
+	}
+	f.deferredPolyChecker.groupsMapOrder = append(f.deferredPolyChecker.groupsMapOrder, groupName)
+	f.deferredPolyChecker.groups[groupName] = &polyRingGroup[T]{
+		mod:    mod,
+		checks: []polyRingMulCheck[T]{},
+	}
+
+	return nil
 }
 
 // CallPolyRingMulHint computes a polynomial product check in a polynomial ring,
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
-func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem Poly[T], err error) {
+func (f *Field[T]) CallPolyRingMulHint(inputs []*Poly[T], groupName GroupName) (quo, rem *Poly[T], err error) {
+
+	group, ringGroupExists := f.deferredPolyChecker.groups[groupName]
+
+	if !ringGroupExists {
+		return nil, nil, fmt.Errorf("group with name %s does not exist", groupName)
+	}
+
+	mod := *group.mod
+
 	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
 
 	// total number of terms for all input polynomials
@@ -64,24 +116,25 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem 
 	// loop through inputs to compute the number of terms
 	for _, inputPoly := range inputs {
 		// add degree of each input polynomial
-		nbTerms += len(inputPoly)
+		nbTerms += len(inputPoly.Coeffs)
 	}
 
 	// metadata for hint inputs
 	nbPoly := len(inputs)
 	nbTermsLimbs := nbTerms * nbLimbs
-	nbModTermsLimbs := len(mod) * nbLimbs
+	nbModTermsLimbs := len(mod.Coeffs) * nbLimbs
 
 	// metadata for outputs
-	modDegree := len(mod) - 1
+	modDegree := len(mod.Coeffs) - 1
 	nbRemLimbs := modDegree * nbLimbs
 	totalDegree := nbTerms - nbPoly
 	// q degree is total degree minus the degree of the modulus polynomial
 	qDegree := totalDegree - modDegree
 	nbQTermsLimbs := (1 + qDegree) * nbLimbs
 
-	// Polynomials serialised as nbTerms|...terms. hintInputs contains serialisation of,
-	// in order: nbBits|nbLimbs|nbPoly|fieldMod|...inputs|modPoly, where inputs and mod are serialised as polynomials
+	// polynomials serialised as nbTerms|...terms. hintInputs contains
+	// serialisation of: nbBits|nbLimbs|nbPoly|fieldMod|...inputs|modPoly,
+	// where inputs and mod are serialised as polynomials
 	hintInputs := make([]frontend.Variable, 0, 4+(nbPoly+nbTermsLimbs)+(1+nbModTermsLimbs))
 
 	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly, *f.fParams.Modulus())
@@ -90,16 +143,16 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem 
 	for _, inputPoly := range inputs {
 		// serialised as nbTerms|...terms
 		// add degree of each input polynomial
-		hintInputs = append(hintInputs, len(inputPoly))
+		hintInputs = append(hintInputs, len(inputPoly.Coeffs))
 		// append each term from inputPoly polynomial
-		for _, coeff := range inputPoly {
+		for _, coeff := range inputPoly.Coeffs {
 			hintInputs = append(hintInputs, coeff.Limbs...)
 		}
 	}
 
-	hintInputs = append(hintInputs, len(mod))
+	hintInputs = append(hintInputs, len(mod.Coeffs))
 	// append mod terms
-	for _, coeff := range mod {
+	for _, coeff := range mod.Coeffs {
 		hintInputs = append(hintInputs, coeff.Limbs...)
 	}
 
@@ -111,27 +164,25 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []Poly[T], mod Poly[T]) (quo, rem 
 	}
 
 	// unpack quotient: skip nbQTerms header, then read (1+qDegree) terms of nbLimbs each
-	quo = make(Poly[T], 1+qDegree)
+	quo = &Poly[T]{Coeffs: make([]*Element[T], 1+qDegree)}
 	retPtr := 1 // skip nbQTerms
-	for i := range quo {
+	for i := range quo.Coeffs {
 		termLimbs := ret[retPtr : retPtr+nbLimbs]
 		retPtr += nbLimbs
-		quo[i] = f.packLimbs(termLimbs, false)
+		quo.Coeffs[i] = f.packLimbs(termLimbs, false)
 	}
 
-	// unpack remainder: skip nbRemTerms header, then read (len(mod)-1) terms of nbLimbs each
+	// unpack remainder: skip nbRemTerms header, then read len(mod)-1 terms of nbLimbs each
 	retPtr++ // skip nbRemTerms
-	rem = make(Poly[T], len(mod)-1)
-	for i := range rem {
+	rem = &Poly[T]{Coeffs: make([]*Element[T], len(mod.Coeffs)-1)}
+	for i := range rem.Coeffs {
 		termLimbs := ret[retPtr : retPtr+nbLimbs]
 		retPtr += nbLimbs
-		rem[i] = f.packLimbs(termLimbs, true)
+		rem.Coeffs[i] = f.packLimbs(termLimbs, true)
 	}
 
-	f.deferredPolyChecks = append(f.deferredPolyChecks, polyRingMulCheck[T]{
-		f:      f,
+	group.checks = append(group.checks, polyRingMulCheck[T]{
 		inputs: inputs,
-		mod:    mod,
 		r:      rem,
 		q:      quo,
 	})
@@ -315,16 +366,17 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 	return quotient, remainder, nil
 }
 
-func (f *Field[T]) MakePoly(coeffs []interface{}) Poly[T] {
+func (f *Field[T]) MakePoly(coeffs []interface{}) *Poly[T] {
 	nativeMod := f.api.Compiler().Field()
 
-	poly := make(Poly[T], len(coeffs))
+	poly := &Poly[T]{}
+	poly.Coeffs = make([]*Element[T], len(coeffs))
 
 	for i, coeff := range coeffs {
 		emCoeff_ := ValueOf[T](coeff)
 		emCoeff := &emCoeff_
 		emCoeff.Initialize(nativeMod)
-		poly[i] = emCoeff
+		poly.Coeffs[i] = emCoeff
 	}
 
 	return poly

@@ -324,27 +324,29 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 	}
 }
 
-func (e Ext12) ToPoly(a *E12) emulated.Poly[emulated.BN254Fp] {
-	return emulated.Poly[emulated.BN254Fp]{
-		&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
-		&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
+func (e Ext12) ToPoly(a *E12) *emulated.Poly[emulated.BN254Fp] {
+	return &emulated.Poly[emulated.BN254Fp]{
+		Coeffs: []*baseEl{
+			&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
+			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
+		},
 	}
 }
 
-func (e Ext12) FromPoly(p emulated.Poly[emulated.BN254Fp]) *E12 {
+func (e Ext12) FromPoly(p *emulated.Poly[emulated.BN254Fp]) *E12 {
 	return &E12{
-		A0:  *p[0],
-		A1:  *p[1],
-		A2:  *p[2],
-		A3:  *p[3],
-		A4:  *p[4],
-		A5:  *p[5],
-		A6:  *p[6],
-		A7:  *p[7],
-		A8:  *p[8],
-		A9:  *p[9],
-		A10: *p[10],
-		A11: *p[11],
+		A0:  *p.Coeffs[0],
+		A1:  *p.Coeffs[1],
+		A2:  *p.Coeffs[2],
+		A3:  *p.Coeffs[3],
+		A4:  *p.Coeffs[4],
+		A5:  *p.Coeffs[5],
+		A6:  *p.Coeffs[6],
+		A7:  *p.Coeffs[7],
+		A8:  *p.Coeffs[8],
+		A9:  *p.Coeffs[9],
+		A10: *p.Coeffs[10],
+		A11: *p.Coeffs[11],
 	}
 }
 

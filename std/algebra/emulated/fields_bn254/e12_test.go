@@ -140,10 +140,12 @@ func (circuit *e12MulPolyRing) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
+	modPoly := fp.MakePoly([]interface{}{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1})
+	fp.RegisterPolyRing("e12", modPoly)
 	e := NewExt12(api)
 	_, r, err := fp.CallPolyRingMulHint(
-		[]emulated.Poly[emulated.BN254Fp]{e.ToPoly(&circuit.A), e.ToPoly(&circuit.B)},
-		fp.MakePoly([]interface{}{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1}),
+		[]*emulated.Poly[emulated.BN254Fp]{e.ToPoly(&circuit.A), e.ToPoly(&circuit.B)},
+		"e12",
 	)
 	e.AssertIsEqual(e.FromPoly(r), &circuit.C)
 	return nil
