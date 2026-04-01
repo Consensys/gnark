@@ -381,3 +381,123 @@ func (f *Field[T]) MakePoly(coeffs []interface{}) *Poly[T] {
 
 	return poly
 }
+
+
+// callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
+// the provided quotient polynomials with the scalar challenge z. The result is
+// a single Poly[T] whose coefficients are emulated field elements reduced
+// modulo the emulated field prime. This is used in the deferred ring check to
+// batch multiple quotient polynomials together outside the circuit, saving
+// constraints by avoiding individual quotient evaluations.
+func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variable) (*Poly[T], error) {
+	if len(quotients) == 0 {
+		return nil, fmt.Errorf("BatchPolyQuotients: no quotient polynomials")
+	}
+
+	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
+
+	// the output polynomial has the maximum number of terms among all inputs
+	maxTerms := 0
+	for _, q := range quotients {
+		if len(q.Coeffs) > maxTerms {
+			maxTerms = len(q.Coeffs)
+		}
+	}
+
+	nbPolys := len(quotients)
+
+	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
+	hintInputs := make([]frontend.Variable, 0, 5+nbPolys)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPolys, *f.fParams.Modulus(), z)
+
+	for _, q := range quotients {
+		hintInputs = append(hintInputs, len(q.Coeffs))
+		for _, coeff := range q.Coeffs {
+			hintInputs = append(hintInputs, coeff.Limbs...)
+		}
+	}
+
+	nbOutputs := maxTerms * nbLimbs
+	ret, err := f.api.NewHint(quotientsRLCHint, nbOutputs, hintInputs...)
+	if err != nil {
+		return nil, fmt.Errorf("BatchPolyQuotients hint: %w", err)
+	}
+
+	result := &Poly[T]{Coeffs: make([]*Element[T], maxTerms)}
+	for i := range result.Coeffs {
+		termLimbs := ret[i*nbLimbs : (i+1)*nbLimbs]
+		result.Coeffs[i] = f.packLimbs(termLimbs, false)
+	}
+
+	return result, nil
+}
+
+// quotientsRLCHint computes ∑_i z^i * q_i for a list of quotient
+// polynomials and a scalar challenge z. Each output coefficient is
+// result[j] = ∑_i z^i * q_i[j] mod fieldMod, where fieldMod is the emulated
+// field prime. Should not be called directly; use [Field.BatchPolyQuotients].
+func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) < 5 {
+		return fmt.Errorf("batchPolyQuotientsHint: not enough inputs")
+	}
+
+	nbBits := int(inputs[0].Int64())
+	nbLimbs := int(inputs[1].Int64())
+	nbPolys := int(inputs[2].Int64())
+	fieldMod := new(big.Int).Set(inputs[3])
+	z := new(big.Int).Mod(inputs[4], fieldMod)
+
+	ptr := 5
+	polys := make([][]*big.Int, nbPolys)
+	for i := 0; i < nbPolys; i++ {
+		nbTerms := int(inputs[ptr].Int64())
+		ptr++
+		polys[i] = make([]*big.Int, nbTerms)
+		for j := 0; j < nbTerms; j++ {
+			coeffLimbs := inputs[ptr : ptr+nbLimbs]
+			ptr += nbLimbs
+			val := new(big.Int)
+			if err := limbs.Recompose(coeffLimbs, uint(nbBits), val); err != nil {
+				return fmt.Errorf("recompose polys[%d][%d]: %w", i, j, err)
+			}
+			polys[i][j] = val
+		}
+	}
+
+	maxTerms := len(outputs) / nbLimbs
+
+	// accumulator: result[j] = ∑_i z^i * q_i[j] mod fieldMod
+	result := make([]*big.Int, maxTerms)
+	for i := range result {
+		result[i] = new(big.Int)
+	}
+
+	zPow := new(big.Int).SetInt64(1) // z^0 = 1
+	tmp := new(big.Int)
+	for _, poly := range polys {
+		for j, coeff := range poly {
+			tmp.Mul(zPow, coeff)
+			tmp.Mod(tmp, fieldMod)
+			result[j].Add(result[j], tmp)
+			result[j].Mod(result[j], fieldMod)
+		}
+		zPow.Mul(zPow, z)
+		zPow.Mod(zPow, fieldMod)
+	}
+
+	// serialize: maxTerms coefficients each decomposed into nbLimbs limbs
+	outptr := 0
+	for idx, coeff := range result {
+		coeffLimbs := make([]*big.Int, nbLimbs)
+		for k := range coeffLimbs {
+			coeffLimbs[k] = new(big.Int)
+		}
+		if err := limbs.Decompose(coeff, uint(nbBits), coeffLimbs); err != nil {
+			return fmt.Errorf("decompose result[%d]: %w", idx, err)
+		}
+		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
+		outptr += nbLimbs
+	}
+
+	return nil
+}
