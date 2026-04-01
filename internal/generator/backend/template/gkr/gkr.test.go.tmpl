@@ -148,6 +148,27 @@ func TestSumcheckLevel(t *testing.T) {
 	}
 }
 
+func TestZeroCheckDegreeDispatch(t *testing.T) {
+	_, sCircuit := cache.Compile(t, gkrtesting.Poseidon2Circuit(4, 2))
+	schedule, err := gkrcore.DefaultProvingSchedule(sCircuit)
+	assert.NoError(t, err)
+
+	assignment := make(WireAssignment, len(sCircuit))
+	for _, i := range sCircuit.Inputs() {
+		assignment[i] = make([]{{ .ElementType }}, 2)
+		{{ .FieldPackageName }}.Vector(assignment[i]).MustSetRandom()
+	}
+	assignment.Complete(sCircuit)
+
+	proof, err := Prove(sCircuit, schedule, assignment, newMessageCounter(1, 1))
+	assert.NoError(t, err)
+	assert.NoError(t, Verify(sCircuit, schedule, assignment, proof, newMessageCounter(1, 1)))
+
+	assert.Len(t, proof[3].partialSumPolys[0], 2, "single-source s-box level should use the optimized degree")
+	assert.Len(t, proof[5].partialSumPolys[0], 3, "folded multi-source level must stay on the legacy degree")
+	assert.Len(t, proof[11].partialSumPolys[0], 2, "later single-source level should also use the optimized degree")
+}
+
 // testSkipLevel exercises proveSkipLevel/verifySkipLevel for a single skip level.
 func testSkipLevel(t *testing.T, circuit gkrcore.RawCircuit, level constraint.GkrProvingLevel) {
 	t.Helper()

@@ -45,6 +45,10 @@ func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
 }
 
+func (c singleMultilinLazyClaim) roundCombinationCoeff(int) ({{ .ElementType }}, bool) {
+	return {{ .ElementType }}{}, false
+}
+
 func (c singleMultilinLazyClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
 }
