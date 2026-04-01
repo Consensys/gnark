@@ -545,11 +545,7 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	sumSize := len(c.input[0]) / 2
 
 	// The second half of suffixEq is the eq segment for this round
-	var eqSegment polynomial.MultiLin
-	lastRound := len(c.suffixEq) <= 2
-	if !lastRound {
-		eqSegment = c.suffixEq[len(c.suffixEq)/2:]
-	}
+	eqSegment := c.suffixEq[len(c.suffixEq)/2:]
 
 	p := make([]fr.Element, degree)
 	var mu sync.Mutex
@@ -581,14 +577,6 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 				}
 			}
 
-			// Suffix eq weight for this hypercube point
-			var eqWeight fr.Element
-			if lastRound {
-				eqWeight.SetOne()
-			} else {
-				eqWeight.Set(&eqSegment[h])
-			}
-
 			iIndex := 0
 			nextIIndex := nbUniqueInputs
 			for d := range degree {
@@ -606,9 +594,8 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 					wireSum.Add(&wireSum, evaluators[w].evaluate())
 				}
 
-				var contribution fr.Element
-				contribution.Mul(&eqWeight, &wireSum)
-				res[d].Add(&res[d], &contribution)
+				wireSum.Mul(&wireSum, &eqSegment[h])
+				res[d].Add(&res[d], &wireSum)
 				iIndex, nextIIndex = nextIIndex, nextIIndex+nbUniqueInputs
 			}
 		}
@@ -670,6 +657,13 @@ func (c *singleSourceZeroCheckClaims) proveFinalEval(r []fr.Element) []fr.Elemen
 func (r *resources) buildSuffixEq(q []fr.Element) polynomial.MultiLin {
 	n := len(q)
 	buf := r.memPool.Make(1 << n)
+
+	// buf[1] = 1 so the last round's eqSegment = buf[1:2] yields eqWeight = 1,
+	// eliminating the need for a lastRound conditional in roundPolynomial.
+	if len(buf) > 1 {
+		buf[1].SetOne()
+	}
+
 	if n < 2 {
 		return buf
 	}
