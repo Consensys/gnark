@@ -8,15 +8,14 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/consensys/gnark/internal/gkr/gkrtesting"
+	"github.com/consensys/gnark/internal/small_rational"
+	"github.com/consensys/gnark/internal/small_rational/polynomial"
 	"hash"
 	"math/bits"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-
-	"github.com/consensys/gnark/internal/gkr/gkrtesting"
-	"github.com/consensys/gnark/internal/small_rational"
-	"github.com/consensys/gnark/internal/small_rational/polynomial"
 )
 
 func runMultilin(testCaseInfo *sumcheckTestCaseInfo) error {
@@ -194,6 +193,10 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []small_rational.SmallRationa
 
 func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
+}
+
+func (c singleMultilinLazyClaim) roundCombinationCoeff(int) (small_rational.SmallRational, bool) {
+	return small_rational.SmallRational{}, false
 }
 
 func (c singleMultilinLazyClaim) varsNum() int {

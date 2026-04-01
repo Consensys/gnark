@@ -72,6 +72,15 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 	return e.r.circuit.ZeroCheckDegree(e.r.schedule[e.levelI].(constraint.GkrSumcheckLevel))
 }
 
+func (e *zeroCheckLazyClaims) roundCombinationCoeff(round int) (frontend.Variable, bool) {
+	level := e.r.schedule[e.levelI].(constraint.GkrSumcheckLevel)
+	src, ok := level.SingleClaimSource()
+	if !ok {
+		return nil, false
+	}
+	return e.r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex][round], true
+}
+
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
 // The sumcheck protocol has already reduced the per-wire claims to verifying
 // ∑ᵢ cⁱ eq(xᵢ, r) · wᵢ(r) = purportedValue, where the sum runs over all
@@ -84,7 +93,8 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // uniqueInputEvaluations; those claims are verified by lower levels' sumchecks.
 func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Variable, purportedValue frontend.Variable, uniqueInputEvaluations []frontend.Variable) error {
 	e.r.outgoingEvalPoints[e.levelI] = [][]frontend.Variable{r}
-	level := e.r.schedule[e.levelI]
+	level := e.r.schedule[e.levelI].(constraint.GkrSumcheckLevel)
+	_, optimized := level.SingleClaimSource()
 	perWireInputEvals := gkrcore.ReduplicateInputs(level, e.r.circuit, uniqueInputEvaluations)
 
 	var terms []frontend.Variable
@@ -101,10 +111,16 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Var
 				gateEval = wire.Gate.Evaluate(FrontendAPIWrapper{api}, perWireInputEvals[levelWireI]...)
 			}
 
-			for _, src := range group.ClaimSources {
-				eq := polynomial.EvalEq(api, e.r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
-				term := api.Mul(eq, gateEval)
-				terms = append(terms, term)
+			if optimized {
+				for range group.ClaimSources {
+					terms = append(terms, gateEval)
+				}
+			} else {
+				for _, src := range group.ClaimSources {
+					eq := polynomial.EvalEq(api, e.r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
+					term := api.Mul(eq, gateEval)
+					terms = append(terms, term)
+				}
 			}
 			levelWireI++
 		}

@@ -57,6 +57,9 @@ func (c Circuit[G]) ZeroCheckDegree(level constraint.GkrSumcheckLevel) int {
 			maxDeg = max(maxDeg, curr)
 		}
 	}
+	if _, ok := level.SingleClaimSource(); ok {
+		return maxDeg
+	}
 	return maxDeg + 1
 }
 

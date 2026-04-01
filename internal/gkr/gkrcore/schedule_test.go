@@ -106,3 +106,20 @@ func TestDefaultProvingSchedulePoseidon2(t *testing.T) {
 		constraint.GkrSkipLevel{Wires: []int{24}, ClaimSources: []constraint.GkrClaimSource{{Level: 17}}},
 	}, schedule)
 }
+
+func TestZeroCheckDegreeSingleSourceBoundary(t *testing.T) {
+	_, c := scheduleTestCache.Compile(t, gkrtesting.Poseidon2Circuit(4, 2))
+	schedule, err := gkrcore.DefaultProvingSchedule(c)
+	require.NoError(t, err)
+
+	singleSource := schedule[3].(constraint.GkrSumcheckLevel)
+	src, ok := singleSource.SingleClaimSource()
+	require.True(t, ok)
+	require.Equal(t, constraint.GkrClaimSource{Level: 4}, src)
+	require.Equal(t, 2, c.ZeroCheckDegree(singleSource))
+
+	multiSource := schedule[5].(constraint.GkrSumcheckLevel)
+	_, ok = multiSource.SingleClaimSource()
+	require.False(t, ok)
+	require.Equal(t, 3, c.ZeroCheckDegree(multiSource))
+}

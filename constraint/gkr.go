@@ -57,6 +57,32 @@ func (l GkrSumcheckLevel) NbClaims() int {
 func (l GkrSumcheckLevel) ClaimGroups() []GkrClaimGroup         { return l }
 func (l GkrSumcheckLevel) FinalEvalProofIndex(wireI, _ int) int { return wireI }
 
+// SingleClaimSource returns the unique distinct claim source across the whole
+// level when every claim in the level refers to the same evaluation point.
+// This is the schedule-side eligibility boundary for the Gru24 Section 3.2
+// optimization; folded multi-source levels return false.
+func (l GkrSumcheckLevel) SingleClaimSource() (GkrClaimSource, bool) {
+	if len(l) == 0 {
+		return GkrClaimSource{}, false
+	}
+
+	var first GkrClaimSource
+	found := false
+	for _, group := range l {
+		for _, src := range group.ClaimSources {
+			if !found {
+				first = src
+				found = true
+				continue
+			}
+			if src != first {
+				return GkrClaimSource{}, false
+			}
+		}
+	}
+	return first, found
+}
+
 func (l GkrSkipLevel) NbOutgoingEvalPoints() int { return len(l.ClaimSources) }
 func (l GkrSkipLevel) NbClaims() int {
 	return GkrClaimGroup(l).NbClaims()

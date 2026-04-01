@@ -14,6 +14,7 @@ import (
 type sumcheckLazyClaims interface {
 	varsNum() int
 	degree(i int) int
+	roundCombinationCoeff(i int) (frontend.Variable, bool)
 	verifyFinalEval(api frontend.API, r []frontend.Variable, purportedValue frontend.Variable, proof []frontend.Variable) error
 }
 
@@ -59,8 +60,22 @@ func verifySumcheck(api frontend.API, claims sumcheckLazyClaims, proof sumcheckP
 		if len(partialSumPoly) != degree {
 			return errors.New("malformed proof")
 		}
-		copy(gJ[1:], partialSumPoly)
-		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		if coeff, ok := claims.roundCombinationCoeff(j); ok {
+			isOne := api.IsZero(api.Sub(coeff, 1))
+			gJ[1] = api.Select(isOne, gJR, partialSumPoly[0])
+
+			safeDen := api.Select(isOne, 1, api.Sub(1, coeff))
+			safeNum := api.Select(isOne, 0, api.Sub(gJR, api.Mul(coeff, partialSumPoly[0])))
+			g0Recovered := api.Div(safeNum, safeDen)
+			gJ[0] = api.Select(isOne, partialSumPoly[0], g0Recovered)
+
+			for i := 2; i < len(gJ); i++ {
+				gJ[i] = partialSumPoly[i-1]
+			}
+		} else {
+			copy(gJ[1:], partialSumPoly)
+			gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		}
 
 		r[j] = t.getChallenge(proof.PartialSumPolys[j]...)
 

@@ -7,14 +7,12 @@ package gkr
 
 import (
 	"fmt"
-	"hash"
-
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
 	"github.com/stretchr/testify/assert"
-
-	"math/bits"
+	"hash"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"math/bits"
 
 	"strings"
 	"testing"
@@ -88,6 +86,52 @@ func TestSumcheckDeterministicHashSingleClaimMultilin(t *testing.T) {
 	}
 }
 
+type coeffOneRoundLazyClaim struct {
+	expectedChallenge fr.Element
+	expectedFinalEval fr.Element
+}
+
+func (c coeffOneRoundLazyClaim) verifyFinalEval(r []fr.Element, purportedValue fr.Element, proof []fr.Element) error {
+	if len(r) != 1 {
+		return fmt.Errorf("unexpected challenge length %d", len(r))
+	}
+	if !r[0].Equal(&c.expectedChallenge) {
+		return fmt.Errorf("unexpected challenge")
+	}
+	if !purportedValue.Equal(&c.expectedFinalEval) {
+		return fmt.Errorf("unexpected final eval")
+	}
+	return nil
+}
+
+func (c coeffOneRoundLazyClaim) degree(int) int {
+	return 1
+}
+
+func (c coeffOneRoundLazyClaim) roundCombinationCoeff(int) (fr.Element, bool) {
+	return *toElement(1), true
+}
+
+func (c coeffOneRoundLazyClaim) varsNum() int {
+	return 1
+}
+
+func TestSumcheckVerifyCoeffOneReconstruction(t *testing.T) {
+	proof := sumcheckProof{
+		partialSumPolys: []polynomial.Polynomial{{*toElement(4)}},
+	}
+	lazyClaim := coeffOneRoundLazyClaim{
+		expectedChallenge: *toElement(2),
+		expectedFinalEval: *toElement(14),
+	}
+	tr := transcript{h: newMessageCounter(2, 0)}
+	assert.NoError(t, sumcheckVerify(lazyClaim, proof, *toElement(9), 1, &tr))
+
+	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
+	tr = transcript{h: newMessageCounter(2, 0)}
+	assert.Error(t, sumcheckVerify(lazyClaim, proof, *toElement(9), 1, &tr))
+}
+
 type singleMultilinClaim struct {
 	g polynomial.MultiLin
 }
@@ -131,6 +175,10 @@ func (c singleMultilinLazyClaim) verifyFinalEval(r []fr.Element, purportedValue 
 
 func (c singleMultilinLazyClaim) degree(int) int {
 	return 1
+}
+
+func (c singleMultilinLazyClaim) roundCombinationCoeff(int) (fr.Element, bool) {
+	return fr.Element{}, false
 }
 
 func (c singleMultilinLazyClaim) varsNum() int {
