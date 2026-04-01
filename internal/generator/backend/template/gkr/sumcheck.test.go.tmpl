@@ -3,6 +3,9 @@ import (
 	"{{ .FieldPackagePath }}/polynomial"
 	"github.com/stretchr/testify/assert"
 	"hash"
+	{{ if .GenerateTestVectors}}
+	"github.com/consensys/gnark/internal/small_rational"
+	{{ end }}
 	{{ if not .GenerateTestVectors}}
 	"{{ .FieldPackagePath }}"
 	"math/bits"
@@ -77,6 +80,52 @@ func TestSumcheckDeterministicHashSingleClaimMultilin(t *testing.T) {
 				"failed with poly %v and hashGen %v", poly, hashGen())
 		}
 	}
+}
+
+type coeffOneRoundLazyClaim struct {
+	expectedChallenge {{ .ElementType }}
+	expectedFinalEval {{ .ElementType }}
+}
+
+func (c coeffOneRoundLazyClaim) verifyFinalEval(r []{{ .ElementType }}, purportedValue {{ .ElementType }}, proof []{{ .ElementType }}) error {
+	if len(r) != 1 {
+		return fmt.Errorf("unexpected challenge length %d", len(r))
+	}
+	if !r[0].Equal(&c.expectedChallenge) {
+		return fmt.Errorf("unexpected challenge")
+	}
+	if !purportedValue.Equal(&c.expectedFinalEval) {
+		return fmt.Errorf("unexpected final eval")
+	}
+	return nil
+}
+
+func (c coeffOneRoundLazyClaim) degree(int) int {
+	return 1
+}
+
+func (c coeffOneRoundLazyClaim) roundCombinationCoeff(int) ({{ .ElementType }}, bool) {
+	return *toElement(1), true
+}
+
+func (c coeffOneRoundLazyClaim) varsNum() int {
+	return 1
+}
+
+func TestSumcheckVerifyCoeffOneReconstruction(t *testing.T) {
+	proof := sumcheckProof{
+		partialSumPolys: []polynomial.Polynomial{{*toElement(4)}},
+	}
+	lazyClaim := coeffOneRoundLazyClaim{
+		expectedChallenge: *toElement(2),
+		expectedFinalEval: *toElement(14),
+	}
+	tr := transcript{h: newMessageCounter(2, 0)}
+	assert.NoError(t, sumcheckVerify(lazyClaim, proof, *toElement(9), 1, &tr))
+
+	proof.partialSumPolys[0][0].Add(&proof.partialSumPolys[0][0], toElement(1))
+	tr = transcript{h: newMessageCounter(2, 0)}
+	assert.Error(t, sumcheckVerify(lazyClaim, proof, *toElement(9), 1, &tr))
 }
 
 {{ if not .GenerateTestVectors }}

@@ -50,6 +50,15 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 	return e.resources.circuit.ZeroCheckDegree(e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel))
 }
 
+func (e *zeroCheckLazyClaims) roundCombinationCoeff(round int) (small_rational.SmallRational, bool) {
+	level := e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel)
+	src, ok := level.SingleClaimSource()
+	if !ok {
+		return small_rational.SmallRational{}, false
+	}
+	return e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex][round], true
+}
+
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
 // The sumcheck protocol has already reduced the per-wire claims w(xᵢ) = yᵢ to verifying
 // ∑ᵢ cⁱ eq(xᵢ, r) · wᵢ(r) = purportedValue, where the sum runs over all
@@ -64,7 +73,8 @@ func (e *zeroCheckLazyClaims) degree(int) int {
 // that the full sum matches purportedValue.
 func (e *zeroCheckLazyClaims) verifyFinalEval(r []small_rational.SmallRational, purportedValue small_rational.SmallRational, uniqueInputEvaluations []small_rational.SmallRational) error {
 	e.resources.outgoingEvalPoints[e.levelI] = [][]small_rational.SmallRational{r}
-	level := e.resources.schedule[e.levelI]
+	level := e.resources.schedule[e.levelI].(constraint.GkrSumcheckLevel)
+	_, optimized := level.SingleClaimSource()
 	gateInputEvals := gkrcore.ReduplicateInputs(level, e.resources.circuit, uniqueInputEvaluations)
 
 	var claimedEvals polynomial.Polynomial
@@ -87,11 +97,17 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []small_rational.SmallRational, 
 				gateEval.Set(evaluator.evaluate())
 			}
 
-			for _, src := range group.ClaimSources {
-				eq := polynomial.EvalEq(e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
-				var term small_rational.SmallRational
-				term.Mul(&eq, &gateEval)
-				claimedEvals = append(claimedEvals, term)
+			if optimized {
+				for range group.ClaimSources {
+					claimedEvals = append(claimedEvals, gateEval)
+				}
+			} else {
+				for _, src := range group.ClaimSources {
+					eq := polynomial.EvalEq(e.resources.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex], r)
+					var term small_rational.SmallRational
+					term.Mul(&eq, &gateEval)
+					claimedEvals = append(claimedEvals, term)
+				}
 			}
 			levelWireI++
 		}
@@ -114,17 +130,26 @@ type zeroCheckClaims struct {
 	inputIndices       [][]int               // [wireInLevel][gateInputJ] → index in input
 	eqs                []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
 	gateEvaluatorPools []*gateEvaluatorPool
+	singleSourcePoint  []small_rational.SmallRational
+	round              int
 }
 
 func (c *zeroCheckClaims) varsNum() int {
 	return c.resources.nbVars
 }
 
-// roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
+func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+	if c.singleSourcePoint != nil {
+		return c.roundPolynomialSingleSource()
+	}
+	return c.roundPolynomialLegacy()
+}
+
+// roundPolynomialLegacy computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
 // The polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.
-func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+func (c *zeroCheckClaims) roundPolynomialLegacy() polynomial.Polynomial {
 	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
@@ -205,6 +230,92 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	return p
 }
 
+// roundPolynomialSingleSource implements the Gru24 Section 3.2 path for levels
+// whose claims all refer to the same evaluation point. It collapses the current
+// eq factor by summing the two Boolean branches, so the prover only sends a
+// degree-d polynomial instead of degree-(d+1).
+func (c *zeroCheckClaims) roundPolynomialSingleSource() polynomial.Polynomial {
+	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
+	nbUniqueInputs := len(c.input)
+	nbWires := len(c.eqs)
+	sumSize := len(c.eqs[0]) / 2
+
+	var one small_rational.SmallRational
+	one.SetOne()
+	sendZero := c.singleSourcePoint[c.round].Equal(&one)
+
+	p := make([]small_rational.SmallRational, degree)
+	var mu sync.Mutex
+	computeAll := func(start, end int) {
+		var step small_rational.SmallRational
+
+		evaluators := make([]*gateEvaluator, nbWires)
+		for w := range nbWires {
+			evaluators[w] = c.gateEvaluatorPools[w].get()
+		}
+		defer func() {
+			for w := range nbWires {
+				c.gateEvaluatorPools[w].put(evaluators[w])
+			}
+		}()
+
+		res := make([]small_rational.SmallRational, degree)
+		inputEvals := make([]small_rational.SmallRational, (degree+1)*nbUniqueInputs)
+		weights := make([]small_rational.SmallRational, nbWires)
+
+		accumulateAt := func(offset, outI int) {
+			for w := range nbWires {
+				for _, inputI := range c.inputIndices[w] {
+					evaluators[w].pushInput(inputEvals[offset+inputI])
+				}
+				summand := evaluators[w].evaluate()
+				summand.Mul(summand, &weights[w])
+				res[outI].Add(&res[outI], summand)
+			}
+		}
+
+		for h := start; h < end; h++ {
+			evalAt1Index := sumSize + h
+			for w := range nbWires {
+				weights[w].Set(&c.eqs[w][h])
+			}
+			for k := range c.input {
+				inputEvals[k].Set(&c.input[k][h])
+				step.Sub(&c.input[k][evalAt1Index], &c.input[k][h])
+				for d := 1; d <= degree; d++ {
+					inputEvals[d*nbUniqueInputs+k].Add(&inputEvals[(d-1)*nbUniqueInputs+k], &step)
+				}
+			}
+
+			if sendZero {
+				accumulateAt(0, 0)
+				for d := 2; d <= degree; d++ {
+					accumulateAt(d*nbUniqueInputs, d-1)
+				}
+			} else {
+				for d := 1; d <= degree; d++ {
+					accumulateAt(d*nbUniqueInputs, d-1)
+				}
+			}
+		}
+		mu.Lock()
+		for i := range p {
+			p[i].Add(&p[i], &res[i])
+		}
+		mu.Unlock()
+	}
+
+	const minBlockSize = 64
+	if sumSize < minBlockSize {
+		computeAll(0, sumSize)
+	} else {
+		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
+	}
+
+	return p
+}
+
 // roundFold folds all input and eq polynomials at the verifier challenge r.
 // After this call, j ← j+1 and rⱼ = r.
 func (c *zeroCheckClaims) roundFold(r small_rational.SmallRational) {
@@ -217,6 +328,11 @@ func (c *zeroCheckClaims) roundFold(r small_rational.SmallRational) {
 		for i := range c.eqs {
 			c.eqs[i].Fold(r)
 		}
+		if c.singleSourcePoint != nil {
+			for i := range c.eqs {
+				c.resources.stripSingleSourceEqFactor(c.eqs[i])
+			}
+		}
 	} else {
 		wgs := make([]*sync.WaitGroup, len(c.input)+len(c.eqs))
 		for i := range c.input {
@@ -228,7 +344,13 @@ func (c *zeroCheckClaims) roundFold(r small_rational.SmallRational) {
 		for _, wg := range wgs {
 			wg.Wait()
 		}
+		if c.singleSourcePoint != nil {
+			for i := range c.eqs {
+				c.resources.stripSingleSourceEqFactor(c.eqs[i])
+			}
+		}
 	}
+	c.round++
 }
 
 // proveFinalEval provides the unique input wire values wᵢ(r₁, ..., rₙ).
@@ -287,6 +409,31 @@ func (r *resources) eqAcc(e, m polynomial.MultiLin, q []small_rational.SmallRati
 			e[i].Add(&e[i], &m[i])
 		}
 	}, 512).Wait()
+}
+
+// stripSingleSourceEqFactor removes the current Boolean-variable eq factor from
+// an optimized single-source eq table while keeping the table duplicated across
+// the next current variable. If e encodes a value independent of Xⱼ up to the
+// remaining eq suffix, afterwards it encodes the same shape for the next round.
+func (r *resources) stripSingleSourceEqFactor(e polynomial.MultiLin) {
+	if len(e) <= 1 {
+		return
+	}
+	mid := len(e) / 2
+	work := func(start, end int) {
+		var sum small_rational.SmallRational
+		for i := start; i < end; i++ {
+			sum.Add(&e[i], &e[mid+i])
+			e[i].Set(&sum)
+			e[mid+i].Set(&sum)
+		}
+	}
+	const minBlockSize = 512
+	if mid < minBlockSize {
+		work(0, mid)
+	} else {
+		r.workers.Submit(mid, work, minBlockSize).Wait()
+	}
 }
 
 type resources struct {
@@ -383,7 +530,7 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
 }
 
 func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
-	level := r.schedule[levelI]
+	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
 	nbClaims := level.NbClaims()
 	var foldingCoeff small_rational.SmallRational
 	if nbClaims >= 2 {
@@ -467,6 +614,12 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 		inputIndices:       inputIndices,
 		eqs:                eqs,
 		gateEvaluatorPools: pools,
+	}
+	if src, ok := level.SingleClaimSource(); ok {
+		claims.singleSourcePoint = r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+		for i := range claims.eqs {
+			r.stripSingleSourceEqFactor(claims.eqs[i])
+		}
 	}
 	return sumcheckProve(claims, &r.transcript)
 }

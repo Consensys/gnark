@@ -62,6 +62,7 @@ type sumcheckClaims interface {
 type sumcheckLazyClaims interface {
 	varsNum() int     // varsNum = n
 	degree(i int) int // degree of the total claim in the i'th variable
+	roundCombinationCoeff(i int) (small_rational.SmallRational, bool)
 	verifyFinalEval(r []small_rational.SmallRational, purportedValue small_rational.SmallRational, proof []small_rational.SmallRational) error
 }
 
@@ -99,13 +100,34 @@ func sumcheckVerify(claims sumcheckLazyClaims, proof sumcheckProof, claimedSum s
 
 	gJ := make(polynomial.Polynomial, degree+1)
 	gJR := claimedSum
+	var one small_rational.SmallRational
+	one.SetOne()
 
 	for j := range claims.varsNum() {
 		if len(proof.partialSumPolys[j]) != degree {
 			return errors.New("malformed proof")
 		}
-		copy(gJ[1:], proof.partialSumPolys[j])
-		gJ[0].Sub(&gJR, &proof.partialSumPolys[j][0])
+		if coeff, ok := claims.roundCombinationCoeff(j); ok {
+			if coeff.Equal(&one) {
+				gJ[0].Set(&proof.partialSumPolys[j][0])
+				gJ[1].Set(&gJR)
+			} else {
+				copy(gJ[1:], proof.partialSumPolys[j])
+				gJ[0].Mul(&coeff, &proof.partialSumPolys[j][0])
+				gJ[0].Sub(&gJR, &gJ[0])
+				var oneMinusCoeff small_rational.SmallRational
+				oneMinusCoeff.SetOne()
+				oneMinusCoeff.Sub(&oneMinusCoeff, &coeff)
+				oneMinusCoeff.Inverse(&oneMinusCoeff)
+				gJ[0].Mul(&gJ[0], &oneMinusCoeff)
+			}
+			if degree > 1 {
+				copy(gJ[2:], proof.partialSumPolys[j][1:])
+			}
+		} else {
+			copy(gJ[1:], proof.partialSumPolys[j])
+			gJ[0].Sub(&gJR, &proof.partialSumPolys[j][0])
+		}
 
 		r[j] = t.getChallenge(proof.partialSumPolys[j]...)
 		gJCoeffs := polynomial.InterpolateOnRange(gJ[:(degree + 1)])
