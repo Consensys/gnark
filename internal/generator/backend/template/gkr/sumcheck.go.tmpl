@@ -185,18 +185,13 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(r []{{ .ElementType }}, purportedV
 // zeroCheckClaims is a claim for sumcheck (prover side).
 // It checks that the polynomial ∑ᵢ cⁱ eq(-, xᵢ) wᵢ(-) sums to the expected value,
 // where the sum runs over all (wire v, claim source s) pairs in the level.
-// Within each claim group, wire eq tables differ by a constant stride, so only one
-// eq table per group is stored. Wire contributions are accumulated via Horner's method.
+// Each wire has its own eq table with the batching coefficients baked in.
 type zeroCheckClaims struct {
 	zeroCheckBase
-	eqs          []polynomial.MultiLin // one eq table per claim group
-	strides      []{{ .ElementType }}          // per-group Horner stride (foldingCoeff^nbSources)
-	nbGroupWires []int                 // number of wires in each group
+	eqs []polynomial.MultiLin // per-wire interpolation bases for evaluating wire assignments at challenge points
 }
 
-// roundPolynomial computes gⱼ = ∑ₕ ∑_groups eq_g(Xⱼ, h...) · ∑_w stride^w · gate_w(inputs(Xⱼ, h...)).
-// Within each group, wire contributions are accumulated via Horner's method in stride,
-// then multiplied by the group's eq value. This avoids per-wire eq tables.
+// roundPolynomial computes gⱼ = ∑ₕ ∑ᵥ eqs[v](Xⱼ, h...) · gateᵥ(inputs(Xⱼ, h...)).
 // The polynomial is represented by the evaluations gⱼ(1), gⱼ(2), ..., gⱼ(deg(gⱼ)).
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.
@@ -204,16 +199,15 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
-	nbWires := len(c.gateEvaluatorPools)
-	nbGroups := len(c.eqs)
+	nbWires := len(c.eqs)
 
 	// Both eqs and input are multilinear, thus linear in Xⱼ.
 	// For any such f, f(m) = m·(f(1) - f(0)) + f(0), and f(0), f(1) are read directly
 	// from the bookkeeping tables. This allows stepwise evaluation at Xⱼ = 1, 2, ..., degree.
-	// Layout: [groupEq₀, ..., groupEq_{G-1}, input₀, ..., input_{K-1}]
-	ml := make([]polynomial.MultiLin, nbGroups+nbUniqueInputs)
+	// Layout: [eq₀, eq₁, ..., eq_{nbWires-1}, input₀, input₁, ..., input_{nbUniqueInputs-1}]
+	ml := make([]polynomial.MultiLin, nbWires+nbUniqueInputs)
 	copy(ml, c.eqs)
-	copy(ml[nbGroups:], c.input)
+	copy(ml[nbWires:], c.input)
 
 	sumSize := len(c.eqs[0]) / 2
 
@@ -254,26 +248,13 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 			eIndex := 0 // start of the current row's eq evaluations
 			nextEIndex := len(ml)
 			for d := range degree {
-				wireI := 0
-				for g, nbW := range c.nbGroupWires {
-					// Horner accumulation: gate(0) + stride·(gate(1) + stride·(... + stride·gate(W-1)))
-					lastW := wireI + nbW - 1
-					for _, inputI := range c.inputIndices[lastW] {
-						evaluators[lastW].pushInput(mlEvals[eIndex+nbGroups+inputI])
+				for w := range nbWires {
+					for _, inputI := range c.inputIndices[w] {
+						evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
 					}
-					var groupSum {{ .ElementType }}
-					groupSum.Set(evaluators[lastW].evaluate())
-					for w := lastW - 1; w >= wireI; w-- {
-						groupSum.Mul(&groupSum, &c.strides[g])
-						for _, inputI := range c.inputIndices[w] {
-							evaluators[w].pushInput(mlEvals[eIndex+nbGroups+inputI])
-						}
-						groupSum.Add(&groupSum, evaluators[w].evaluate())
-					}
-
-					groupSum.Mul(&groupSum, &mlEvals[eIndex+g])
-					res[d].Add(&res[d], &groupSum) // collect contributions into the sum from start to end
-					wireI += nbW
+					summand := evaluators[w].evaluate()
+					summand.Mul(summand, &mlEvals[eIndex+w])
+					res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
 				}
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
 			}
@@ -295,7 +276,7 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	return p
 }
 
-// roundFold folds all input and per-group eq polynomials at the verifier challenge r.
+// roundFold folds all input and eq polynomials at the verifier challenge r.
 // After this call, j ← j+1 and rⱼ = r.
 func (c *zeroCheckClaims) roundFold(r {{ .ElementType }}) {
 	const minBlockSize = 512
@@ -443,13 +424,11 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 
 	level := r.schedule[levelI]
 	eqLength := 1 << r.nbVars
-	groups := level.ClaimGroups()
-	claims.eqs = make([]polynomial.MultiLin, len(groups))
-	claims.strides = make([]{{ .ElementType }}, len(groups))
-	claims.nbGroupWires = make([]int, len(groups))
+	claims.eqs = make([]polynomial.MultiLin, len(claims.gateEvaluatorPools))
 	var alpha {{ .ElementType }}
 	alpha.SetOne()
-	for g, group := range groups {
+	levelWireI := 0
+	for _, group := range level.ClaimGroups() {
 		nbSources := len(group.ClaimSources)
 
 		groupEq := polynomial.MultiLin(r.memPool.Make(eqLength))
@@ -473,12 +452,18 @@ func (r *resources) proveSumcheckLevel(levelI int) sumcheckProof {
 			stride.Mul(&stride, &claims.foldingCoeff)
 		}
 
-		claims.eqs[g] = groupEq
-		claims.strides[g] = stride
-		claims.nbGroupWires[g] = len(group.Wires)
+		claims.eqs[levelWireI] = groupEq
+		levelWireI++
+		alpha.Mul(&alpha, &stride)
 
-		// Advance alpha past all wires in this group
-		for range len(group.Wires) {
+		for w := 1; w < len(group.Wires); w++ {
+			claims.eqs[levelWireI] = polynomial.MultiLin(r.memPool.Make(eqLength))
+			r.workers.Submit(eqLength, func(start, end int) {
+				for i := start; i < end; i++ {
+					claims.eqs[levelWireI][i].Mul(&claims.eqs[levelWireI-1][i], &stride)
+				}
+			}, 512).Wait()
+			levelWireI++
 			alpha.Mul(&alpha, &stride)
 		}
 	}
