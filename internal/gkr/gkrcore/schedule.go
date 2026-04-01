@@ -318,18 +318,16 @@ func DefaultProvingSchedule[G any](c Circuit[G]) (constraint.GkrProvingSchedule,
 			}
 			batch = append(batch, highWI-len(batch))
 		}
+		var err error
 		if w.Gate.Degree == 1 && len(batchClaimSources) == 1 { // certain that skipping won't cause a claim blowup
-			if err := b.addSkipLevel(batch); err != nil {
-				return nil, err
-			}
+			err = b.addSkipLevel(batch)
 		} else if len(batchClaimSources) == 1 {
-			if err := b.addSingleSourceZeroCheckLevel(batch); err != nil {
-				return nil, err
-			}
+			err = b.addSingleSourceZeroCheckLevel(batch)
 		} else {
-			if err := b.addSumcheckLevel(batch); err != nil {
-				return nil, err
-			}
+			err = b.addSumcheckLevel(batch)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	return b.finalize()
