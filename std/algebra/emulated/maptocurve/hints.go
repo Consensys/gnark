@@ -70,6 +70,7 @@ func xIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 // Outputs: [k, x_limbs...]
 //
 // For j=0 curves (a=0): x = cbrt(y² - b) where y = msg*T + k.
+// For P-256 (a≠0): x is found via Cardano's formula on x³ − 3x + (b − y²) = 0.
 func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	q, nbLimbs, msg, err := parseHintInputs(inputs)
 	if err != nil {
@@ -81,6 +82,8 @@ func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return yIncrementBN254(nbLimbs, msg, outputs)
 	case q.Cmp(secp256k1fp.Modulus()) == 0:
 		return yIncrementSecp256k1(nbLimbs, msg, outputs)
+	case q.Cmp(secp256r1fp.Modulus()) == 0:
+		return yIncrementSecp256r1(nbLimbs, msg, outputs)
 	default:
 		return fmt.Errorf("yIncrementHint: unsupported field modulus")
 	}
@@ -304,6 +307,37 @@ func nthRoot2SSecp256r1(a *secp256r1fp.Element, s int) *secp256r1fp.Element {
 		}
 	}
 	return z
+}
+
+// secp256r1 / P-256: y² = x³ − 3x + b, y-increment uses Cardano solver.
+func yIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	p := sw_emulated.GetP256Params()
+	var bFp, tFp, msgFp, yBase secp256r1fp.Element
+	msgFp.SetBigInt(msg)
+	bFp.SetBigInt(p.B)
+	tFp.SetUint64(T)
+	yBase.Mul(&msgFp, &tFp)
+
+	for k := uint64(0); k < T; k++ {
+		var kFp, y, y2, c secp256r1fp.Element
+		kFp.SetUint64(k)
+		y.Add(&yBase, &kFp)
+
+		// x³ − 3x + c = 0 where c = b − y²
+		y2.Square(&y)
+		c.Sub(&bFp, &y2)
+
+		roots := cardanoRootsP256(c)
+		if len(roots) == 0 {
+			continue
+		}
+
+		var xBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(roots[0].BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		return nil
+	}
+	return fmt.Errorf("yIncrementHint: no valid k found for secp256r1")
 }
 
 // --- limb helpers ---
