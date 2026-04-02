@@ -6,6 +6,7 @@ import (
 
 	bn254fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	"github.com/consensys/gnark-crypto/ecc/secp256r1"
 	secp256r1fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -327,7 +328,7 @@ func yIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 		y2.Square(&y)
 		c.Sub(&bFp, &y2)
 
-		roots := cardanoRootsP256(c)
+		roots := secp256r1.CardanoRoots(c)
 		if len(roots) == 0 {
 			continue
 		}
