@@ -65,6 +65,7 @@ type polyRingGroup[T FieldParams] struct {
 	mod    *Poly[T]              // polynomial defining the ring
 	rlen   int                   // length of the remainder
 	checks []polyRingMulCheck[T] // individual operations to check
+	q_acc  *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
 }
 
 // polyRingMulCheck is an individual deferred check.
@@ -77,11 +78,8 @@ type polyRingMulCheck[T FieldParams] struct {
 
 // RegisterPolyRing registers a new polynomial ring group with the given name and modulus. The
 func (f *Field[T]) RegisterPolyRing(groupName GroupName, mod *Poly[T]) error {
-	if f.deferredPolyChecker == nil {
-		f.deferredPolyChecker = &polyRingCheckManager[T]{
-			groupsMapOrder: []GroupName{},
-			groups:         make(map[GroupName]*polyRingGroup[T]),
-		}
+	if f.deferredPolyChecker.groups == nil {
+		f.deferredPolyChecker.groups = make(map[GroupName]*polyRingGroup[T])
 	}
 	if _, exists := f.deferredPolyChecker.groups[groupName]; exists {
 		return fmt.Errorf("Ring with name %s already registered", groupName)
@@ -382,6 +380,148 @@ func (f *Field[T]) MakePoly(coeffs []interface{}) *Poly[T] {
 	return poly
 }
 
+// performDeferredRingChecks performs the deferred polynomial checks.
+// prover provides results of ring multiplications - remainders and quotients
+//  1. commit the remainders to obtain a random challenge z for random
+//     linear combination of all quotients
+//  2. batch the quotients with adjacent powers RLC using challenge z
+//     q_acc = ∑_i z^i * q_i
+//  3. commit the quotients rlc with challenge z to obtain challenge x
+//  4. assert equality of remainders and quotients rlc polynomials at x
+//     i.e. ∑_i z^i * ( ∏_j inputs_j(x) - r_i(x) ) == (∑_i z^i * q_i)(x) * mod_i(x)
+//
+// savings come from batching quotients outside the circuit – q_acc = ∑_i z^i * q_i
+func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
+	// use given api. We are in defer and API may be different to what we have
+	// stored.
+
+	if f.deferredPolyChecker == nil || len(f.deferredPolyChecker.groupsMapOrder) == 0 {
+		return nil
+	}
+
+	// get committer from the api
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		panic("compiler doesn't implement frontend.Committer")
+	}
+
+	// 1. commit the remainders
+
+	// prepare all remainder coefficients to commit to from each group
+	var remainderCoeffCommits []frontend.Variable
+	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
+		group := f.deferredPolyChecker.groups[groupName]
+		for _, mulCheck := range group.checks {
+			for _, rCoeff := range mulCheck.r.Coeffs {
+				remainderCoeffCommits = append(remainderCoeffCommits, rCoeff.Limbs...)
+			}
+		}
+	}
+
+	// commit all remainders from each group at once
+	z, err := committer.Commit(remainderCoeffCommits...) // z = remainderCommitment
+	if err != nil {
+		return fmt.Errorf("deferredPolyCheck commit error: %w", err)
+	}
+
+	// 2. batch and store quotients from each group
+	//    and prepare to commit
+
+	// z can be shared across all groups
+	var quotientbatchesCoeffCommits []frontend.Variable
+	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
+		group := f.deferredPolyChecker.groups[groupName]
+
+		quotients := make([]*Poly[T], len(group.checks))
+		for i, mulCheck := range group.checks {
+			quotients[i] = mulCheck.q
+		}
+
+		// q_acc = ∑_i z^i * q_i
+		group.q_acc, err = f.callQuotientsRLCHint(quotients, z)
+
+		//
+		for _, rCoeff := range group.q_acc.Coeffs {
+			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, rCoeff.Limbs...)
+		}
+
+		if err != nil {
+			return fmt.Errorf("deferredPolyCheck callQuotientsRLCHint error: %w", err)
+		}
+	}
+
+	// 3. commit the quotients
+	x, err := committer.Commit(quotientbatchesCoeffCommits...)
+	if err != nil {
+		return fmt.Errorf("deferredPolyCheck quotient commit error: %w", err)
+	}
+
+	// Decompose challenges into emulated elements (full-width, multi-limb).
+	zEmulated := f.nativeToEmulated(z)
+	xEmulated := f.nativeToEmulated(x)
+	_ = zEmulated
+
+	maxTerms := 0
+	maxChecks := 0
+	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
+		group := f.deferredPolyChecker.groups[groupName]
+		maxTerms = max(maxTerms, len(group.mod.Coeffs))
+		maxTerms = max(maxTerms, len(group.q_acc.Coeffs))
+		maxChecks = max(maxChecks, len(group.checks))
+	}
+
+	println("maxChecks, maxTerms", maxChecks, maxTerms)
+
+	xPowers := make([]*Element[T], maxTerms)
+	xPowers[0] = f.One()
+	if maxTerms > 1 {
+		xPowers[1] = xEmulated
+		for i := 2; i < maxTerms; i++ {
+			xPowers[i] = f.Mul(xPowers[i-1], xEmulated)
+		}
+	}
+
+	zPowers := make([]*Element[T], maxChecks)
+	zPowers[0] = f.One()
+	if maxChecks > 1 {
+		zPowers[1] = zEmulated
+		for i := 2; i < maxChecks; i++ {
+			zPowers[i] = f.Mul(zPowers[i-1], zEmulated)
+		}
+	}
+
+	// 4. assert the ring check at x for each group
+	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
+		group := f.deferredPolyChecker.groups[groupName]
+
+		// lhsRlc = ∑_i z^i * (∏_j inputs_i_j(x) - r_i(x))
+		lhsRlc := f.Zero()
+
+		for i, check := range group.checks {
+			// lhs = inputs_i_0(x)
+			lhs := f.evalPolyWithChallenge(check.inputs[0], xPowers)
+
+			// lhs = ∏_j inputs_j(x)
+			for j := 1; j < len(check.inputs); j++ {
+				lhs = f.Mul(lhs, f.evalPolyWithChallenge(check.inputs[j], xPowers))
+			}
+
+			// compute (∏_j inputs_j(x)) - r(x)
+			lhs = f.Sub(lhs, f.evalPolyWithChallenge(check.r, xPowers))
+			lhsRlc = f.Add(lhsRlc, f.Mul(zPowers[i], lhs))
+		}
+
+		// compute q_acc(x) * mod(x)
+		rhs := f.Mul(
+			f.evalPolyWithChallenge(group.q_acc, xPowers),
+			f.evalPolyWithChallenge(group.mod, xPowers),
+		)
+
+		f.AssertIsEqual(lhsRlc, rhs)
+	}
+
+	return nil
+}
 
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
 // the provided quotient polynomials with the scalar challenge z. The result is
