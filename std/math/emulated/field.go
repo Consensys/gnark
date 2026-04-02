@@ -64,8 +64,8 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 	nbRangeChecks    int
 
-	deferredChecks      []deferredChecker
-	deferredPolyChecker *polyRingCheckManager[T]
+	deferredChecks     []deferredChecker
+	deferredPolyChecks []*PolyRingGroupChecks[T]
 
 	// smallFieldMode indicates that the emulated field is small enough that
 	// products fit in the native field and we can use scalar batched verification
@@ -94,8 +94,6 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[[16]byte]int),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
-
-		deferredPolyChecker: &polyRingCheckManager[T]{},
 	}
 
 	// ring checks can add additional deferred checks, so run before other checks

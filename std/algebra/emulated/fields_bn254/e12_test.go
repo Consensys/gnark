@@ -141,11 +141,11 @@ func (circuit *e12MulPolyRing) Define(api frontend.API) error {
 		return err
 	}
 	modPoly := fp.MakePoly([]interface{}{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1})
-	fp.RegisterPolyRing("e12", modPoly)
+	ringGroup := fp.NewPolyRingCheck(modPoly)
 	e := NewExt12(api)
-	_, r, err := fp.CallPolyRingMulHint(
+	expected, err := fp.MulPolyRings(
 		[]*emulated.Poly[emulated.BN254Fp]{e.ToPoly(&circuit.A), e.ToPoly(&circuit.B)},
-		"e12",
+		ringGroup,
 	)
 	e.AssertIsEqual(e.FromPoly(r), &circuit.C)
 	return nil
@@ -169,6 +169,9 @@ func TestMulFp12PolyRing(t *testing.T) {
 	err := test.IsSolved(&e12MulPolyRing{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &witness)
+	assert.NoError(err)
+	println("Fp12 mul poly ring scs constraints:", scs.GetNbConstraints())
 }
 
 type e12Div struct {

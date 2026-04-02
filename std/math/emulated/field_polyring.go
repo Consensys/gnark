@@ -51,19 +51,9 @@ type Poly[T FieldParams] struct {
 //
 // this allows skipping individual q evaluations in the circuit because,
 // ∑_i z^i * q_i is computed outside the circuit, and evaluated inside the circuit
-
-type GroupName string
-
-// polyRingCheckManager manages deferred polynomial ring checks
-type polyRingCheckManager[T FieldParams] struct {
-	groupsMapOrder []GroupName                     // deterministic order of map
-	groups         map[GroupName]*polyRingGroup[T] // groupName -> group -> checks
-}
-
-// polyRingGroup binds a specific modulus to all of its checks.
-type polyRingGroup[T FieldParams] struct {
+// PolyRingGroupChecks binds a specific modulus to all of its checks.
+type PolyRingGroupChecks[T FieldParams] struct {
 	mod    *Poly[T]              // polynomial defining the ring
-	rlen   int                   // length of the remainder
 	checks []polyRingMulCheck[T] // individual operations to check
 	q_acc  *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
 }
@@ -76,37 +66,23 @@ type polyRingMulCheck[T FieldParams] struct {
 	q      *Poly[T]   // quotient
 }
 
-// RegisterPolyRing registers a new polynomial ring group with the given name and modulus. The
-func (f *Field[T]) RegisterPolyRing(groupName GroupName, mod *Poly[T]) error {
-	if f.deferredPolyChecker.groups == nil {
-		f.deferredPolyChecker.groups = make(map[GroupName]*polyRingGroup[T])
-	}
-	if _, exists := f.deferredPolyChecker.groups[groupName]; exists {
-		return fmt.Errorf("Ring with name %s already registered", groupName)
-	}
-	f.deferredPolyChecker.groupsMapOrder = append(f.deferredPolyChecker.groupsMapOrder, groupName)
-	f.deferredPolyChecker.groups[groupName] = &polyRingGroup[T]{
+// NewPolyRingCheck registers a new polynomial ring group with the given modulus. The
+func (f *Field[T]) NewPolyRingCheck(mod *Poly[T]) *PolyRingGroupChecks[T] {
+	groupCheck := &PolyRingGroupChecks[T]{
 		mod:    mod,
 		checks: []polyRingMulCheck[T]{},
 	}
+	f.deferredPolyChecks = append(f.deferredPolyChecks, groupCheck)
 
-	return nil
+	return groupCheck
 }
 
-// CallPolyRingMulHint computes a polynomial product check in a polynomial ring,
+// MulPolyRings computes a polynomial product check in a polynomial ring,
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
-func (f *Field[T]) CallPolyRingMulHint(inputs []*Poly[T], groupName GroupName) (quo, rem *Poly[T], err error) {
-
-	group, ringGroupExists := f.deferredPolyChecker.groups[groupName]
-
-	if !ringGroupExists {
-		return nil, nil, fmt.Errorf("group with name %s does not exist", groupName)
-	}
-
+func (f *Field[T]) MulPolyRings(inputs []*Poly[T], group *PolyRingGroupChecks[T]) (rem *Poly[T], err error) {
 	mod := *group.mod
-
 	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
 
 	// total number of terms for all input polynomials
@@ -158,11 +134,11 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []*Poly[T], groupName GroupName) (
 	ret, err := f.api.NewHint(polyRingMulHint, 1+nbQTermsLimbs+1+nbRemLimbs, hintInputs...)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// unpack quotient: skip nbQTerms header, then read (1+qDegree) terms of nbLimbs each
-	quo = &Poly[T]{Coeffs: make([]*Element[T], 1+qDegree)}
+	quo := &Poly[T]{Coeffs: make([]*Element[T], 1+qDegree)}
 	retPtr := 1 // skip nbQTerms
 	for i := range quo.Coeffs {
 		termLimbs := ret[retPtr : retPtr+nbLimbs]
@@ -185,11 +161,11 @@ func (f *Field[T]) CallPolyRingMulHint(inputs []*Poly[T], groupName GroupName) (
 		q:      quo,
 	})
 
-	return quo, rem, nil
+	return rem, nil
 }
 
 // polyRingMulHint computes the multivariate evaluation as a hint. Should not be
-// called directly, but rather through [Field.callPolyRingMulHint] method which
+// called directly, but rather through [Field.MulPolyRings] method which
 // handles the input packing and output unpacking.
 func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	nbBits := int(inputs[0].Int64())
@@ -395,7 +371,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
 	// stored.
 
-	if f.deferredPolyChecker == nil || len(f.deferredPolyChecker.groupsMapOrder) == 0 {
+	if len(f.deferredPolyChecks) == 0 {
 		return nil
 	}
 
@@ -409,8 +385,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	// prepare all remainder coefficients to commit to from each group
 	var remainderCoeffCommits []frontend.Variable
-	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
-		group := f.deferredPolyChecker.groups[groupName]
+	for _, group := range f.deferredPolyChecks {
 		for _, mulCheck := range group.checks {
 			for _, rCoeff := range mulCheck.r.Coeffs {
 				remainderCoeffCommits = append(remainderCoeffCommits, rCoeff.Limbs...)
@@ -429,9 +404,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	// z can be shared across all groups
 	var quotientbatchesCoeffCommits []frontend.Variable
-	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
-		group := f.deferredPolyChecker.groups[groupName]
-
+	for _, group := range f.deferredPolyChecks {
 		quotients := make([]*Poly[T], len(group.checks))
 		for i, mulCheck := range group.checks {
 			quotients[i] = mulCheck.q
@@ -463,14 +436,11 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	maxTerms := 0
 	maxChecks := 0
-	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
-		group := f.deferredPolyChecker.groups[groupName]
+	for _, group := range f.deferredPolyChecks {
 		maxTerms = max(maxTerms, len(group.mod.Coeffs))
 		maxTerms = max(maxTerms, len(group.q_acc.Coeffs))
 		maxChecks = max(maxChecks, len(group.checks))
 	}
-
-	println("maxChecks, maxTerms", maxChecks, maxTerms)
 
 	xPowers := make([]*Element[T], maxTerms)
 	xPowers[0] = f.One()
@@ -491,9 +461,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	// 4. assert the ring check at x for each group
-	for _, groupName := range f.deferredPolyChecker.groupsMapOrder {
-		group := f.deferredPolyChecker.groups[groupName]
-
+	for _, group := range f.deferredPolyChecks {
 		// lhsRlc = ∑_i z^i * (∏_j inputs_i_j(x) - r_i(x))
 		lhsRlc := f.Zero()
 
@@ -647,7 +615,6 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 // polynomial evaluations at the same point avoids redundant multiplications.
 func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
 	if p.evaluation != nil {
-		println("Already evaluated")
 		return p.evaluation
 	}
 
