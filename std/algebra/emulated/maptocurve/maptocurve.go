@@ -122,26 +122,21 @@ func (m *Mapper[F]) YIncrement(msg *emulated.Element[F]) (x, y *emulated.Element
 	return xEl, yEl, nil
 }
 
-// buildHintInputs constructs hint inputs: [nbLimbs, q_limbs..., a, b, s, msg_limbs...]
+// buildHintInputs constructs hint inputs: [nbLimbs, q_limbs..., msg_limbs...]
+// Curve coefficients are not passed; the hint dispatches on q to look them up.
 func (m *Mapper[F]) buildHintInputs(msg *emulated.Element[F], nbLimbs int) []frontend.Variable {
 	fp := m.field
 	var fparams F
 	q := fparams.Modulus()
 
-	inputs := make([]frontend.Variable, 0, 1+nbLimbs+3+nbLimbs)
+	inputs := make([]frontend.Variable, 0, 1+2*nbLimbs)
 	inputs = append(inputs, nbLimbs)
 
-	// q limbs
 	qLimbs := decomposeBigInt(q, nbLimbs)
 	for _, l := range qLimbs {
 		inputs = append(inputs, l)
 	}
 
-	inputs = append(inputs, m.a)
-	inputs = append(inputs, m.b)
-	inputs = append(inputs, m.s)
-
-	// msg limbs
 	msgLimbs := fp.Reduce(msg).Limbs
 	for i := 0; i < nbLimbs; i++ {
 		inputs = append(inputs, msgLimbs[i])

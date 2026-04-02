@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"math/big"
 
+	bn254fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	secp256r1fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 )
 
 func init() {
@@ -19,222 +23,290 @@ func GetHints() []solver.Hint {
 	}
 }
 
-// parseHintInputs extracts the curve parameters and message from the hint inputs.
-// Format: [nbLimbs, q_limbs..., a, b, s, msg_limbs...]
-func parseHintInputs(inputs []*big.Int) (q, a, b *big.Int, s, nbLimbs int, msg *big.Int, err error) {
+// parseHintInputs extracts the field modulus and message from the hint inputs.
+// Format: [nbLimbs, q_limbs..., msg_limbs...]
+func parseHintInputs(inputs []*big.Int) (q *big.Int, nbLimbs int, msg *big.Int, err error) {
 	if len(inputs) < 1 {
-		return nil, nil, nil, 0, 0, nil, fmt.Errorf("empty inputs")
+		return nil, 0, nil, fmt.Errorf("empty inputs")
 	}
 	nbLimbs = int(inputs[0].Int64())
-	// expected: 1 + nbLimbs + 3 + nbLimbs = 2*nbLimbs + 4
-	expected := 1 + nbLimbs + 3 + nbLimbs
+	expected := 1 + 2*nbLimbs
 	if len(inputs) != expected {
-		return nil, nil, nil, 0, 0, nil, fmt.Errorf("expected %d inputs, got %d", expected, len(inputs))
+		return nil, 0, nil, fmt.Errorf("expected %d inputs, got %d", expected, len(inputs))
 	}
 	q = recompose(inputs[1:1+nbLimbs], nbLimbs)
-	a = inputs[1+nbLimbs]
-	b = inputs[2+nbLimbs]
-	s = int(inputs[3+nbLimbs].Int64())
-	msg = recompose(inputs[4+nbLimbs:4+2*nbLimbs], nbLimbs)
-	return q, a, b, s, nbLimbs, msg, nil
+	msg = recompose(inputs[1+nbLimbs:1+2*nbLimbs], nbLimbs)
+	return q, nbLimbs, msg, nil
 }
 
 // xIncrementHint computes the x-increment witness for a given message.
 //
-// Inputs: [nbLimbs, q_limbs..., a, b, s, msg_limbs...]
+// Inputs: [nbLimbs, q_limbs..., msg_limbs...]
 // Outputs: [k, x_limbs..., y_limbs..., z_limbs...]
 //
 // Searches k ∈ [0, T) such that x = msg*T + k lies on the curve and y has a
 // 2^s-th root. Only practical for low 2-adicity fields (S ≤ 4).
 func xIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	q, a, b, s, nbLimbs, msg, err := parseHintInputs(inputs)
+	q, nbLimbs, msg, err := parseHintInputs(inputs)
 	if err != nil {
 		return fmt.Errorf("xIncrementHint: %w", err)
 	}
 
-	for k := int64(0); k < T; k++ {
-		x := new(big.Int).Mul(msg, big.NewInt(T))
-		x.Add(x, big.NewInt(k))
-		x.Mod(x, q)
+	switch {
+	case q.Cmp(bn254fp.Modulus()) == 0:
+		return xIncrementBN254(nbLimbs, msg, outputs)
+	case q.Cmp(secp256k1fp.Modulus()) == 0:
+		return xIncrementSecp256k1(nbLimbs, msg, outputs)
+	case q.Cmp(secp256r1fp.Modulus()) == 0:
+		return xIncrementSecp256r1(nbLimbs, msg, outputs)
+	default:
+		return fmt.Errorf("xIncrementHint: unsupported field modulus")
+	}
+}
 
-		rhs := evalCurveRHS(x, a, b, q)
-		y := modSqrt(rhs, q)
-		if y == nil {
+// yIncrementHint computes the y-increment witness for a given message.
+//
+// Inputs: [nbLimbs, q_limbs..., msg_limbs...]
+// Outputs: [k, x_limbs...]
+//
+// For j=0 curves (a=0): x = cbrt(y² - b) where y = msg*T + k.
+func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	q, nbLimbs, msg, err := parseHintInputs(inputs)
+	if err != nil {
+		return fmt.Errorf("yIncrementHint: %w", err)
+	}
+
+	switch {
+	case q.Cmp(bn254fp.Modulus()) == 0:
+		return yIncrementBN254(nbLimbs, msg, outputs)
+	case q.Cmp(secp256k1fp.Modulus()) == 0:
+		return yIncrementSecp256k1(nbLimbs, msg, outputs)
+	default:
+		return fmt.Errorf("yIncrementHint: unsupported field modulus")
+	}
+}
+
+// --- BN254 ---
+
+// BN254: y² = x³ + 3, S=1
+func xIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	const s = 1
+	var msgFp, bFp, tFp, xBase bn254fp.Element
+	msgFp.SetBigInt(msg)
+	bFp.SetUint64(3)
+	tFp.SetUint64(T)
+	xBase.Mul(&msgFp, &tFp)
+
+	for k := uint64(0); k < T; k++ {
+		var kFp, x, x2, rhs, y bn254fp.Element
+		kFp.SetUint64(k)
+		x.Add(&xBase, &kFp)
+
+		x2.Square(&x)
+		rhs.Mul(&x2, &x)
+		rhs.Add(&rhs, &bFp)
+
+		if y.Sqrt(&rhs) == nil {
 			continue
 		}
 
-		z := nthRoot2S(y, s, q)
+		z := nthRoot2SBN254(&y, s)
 		if z == nil {
-			y.Sub(q, y)
-			z = nthRoot2S(y, s, q)
+			y.Neg(&y)
+			z = nthRoot2SBN254(&y, s)
 			if z == nil {
 				continue
 			}
 		}
 
-		outputs[0].SetInt64(k)
-		decompose(x, nbLimbs, outputs[1:1+nbLimbs])
-		decompose(y, nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
-		decompose(z, nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		var xBig, yBig, zBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
 		return nil
 	}
-	return fmt.Errorf("xIncrementHint: no valid k found for msg (s=%d)", s)
+	return fmt.Errorf("xIncrementHint: no valid k found for BN254 (s=%d)", s)
 }
 
-// yIncrementHint computes the y-increment witness for a given message.
-//
-// Inputs: [nbLimbs, q_limbs..., a, b, s, msg_limbs...]
-// Outputs: [k, x_limbs...]
-//
-// For j=0 curves (a=0): x = cbrt(y² - b) where y = msg*T + k.
-func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	q, a, b, _, nbLimbs, msg, err := parseHintInputs(inputs)
-	if err != nil {
-		return fmt.Errorf("yIncrementHint: %w", err)
-	}
-
-	if a.Sign() != 0 {
-		return fmt.Errorf("yIncrementHint: j≠0 curves (a≠0) not yet supported")
-	}
-
-	for k := int64(0); k < T; k++ {
-		y := new(big.Int).Mul(msg, big.NewInt(T))
-		y.Add(y, big.NewInt(k))
-		y.Mod(y, q)
-
-		y2 := new(big.Int).Mul(y, y)
-		y2.Mod(y2, q)
-		rhs := new(big.Int).Sub(y2, b)
-		rhs.Mod(rhs, q)
-
-		x := modCbrt(rhs, q)
-		if x == nil {
-			continue
-		}
-
-		outputs[0].SetInt64(k)
-		decompose(x, nbLimbs, outputs[1:1+nbLimbs])
-		return nil
-	}
-	return fmt.Errorf("yIncrementHint: no valid k found for msg")
-}
-
-// --- field arithmetic helpers for hints ---
-
-// evalCurveRHS computes x³ + a*x + b mod q.
-func evalCurveRHS(x, a, b, q *big.Int) *big.Int {
-	x2 := new(big.Int).Mul(x, x)
-	x2.Mod(x2, q)
-	x3 := new(big.Int).Mul(x2, x)
-	x3.Mod(x3, q)
-	rhs := new(big.Int).Set(x3)
-	if a.Sign() != 0 {
-		ax := new(big.Int).Mul(a, x)
-		ax.Mod(ax, q)
-		rhs.Add(rhs, ax)
-		rhs.Mod(rhs, q)
-	}
-	rhs.Add(rhs, b)
-	rhs.Mod(rhs, q)
-	return rhs
-}
-
-// modSqrt returns sqrt(a) mod q, or nil if a is not a QR.
-func modSqrt(a, q *big.Int) *big.Int {
-	r := new(big.Int).ModSqrt(a, q)
-	return r
-}
-
-// nthRoot2S computes z such that z^{2^s} = a mod q, or nil if no such z exists.
-func nthRoot2S(a *big.Int, s int, q *big.Int) *big.Int {
-	z := new(big.Int).Set(a)
+func nthRoot2SBN254(a *bn254fp.Element, s int) *bn254fp.Element {
+	z := new(bn254fp.Element).Set(a)
 	for i := 0; i < s; i++ {
-		z = modSqrt(z, q)
-		if z == nil {
+		if z.Sqrt(z) == nil {
 			return nil
 		}
 	}
 	return z
 }
 
-// modCbrt computes the cube root of a mod q, or nil if a is not a cube.
-func modCbrt(a, q *big.Int) *big.Int {
-	if a.Sign() == 0 {
-		return new(big.Int)
-	}
+func yIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	var msgFp, bFp, tFp, yBase bn254fp.Element
+	msgFp.SetBigInt(msg)
+	bFp.SetUint64(3)
+	tFp.SetUint64(T)
+	yBase.Mul(&msgFp, &tFp)
 
-	a = new(big.Int).Mod(a, q)
-	three := big.NewInt(3)
-	one := big.NewInt(1)
-	qm1 := new(big.Int).Sub(q, one)
+	for k := uint64(0); k < T; k++ {
+		var kFp, y, y2, rhs, x bn254fp.Element
+		kFp.SetUint64(k)
+		y.Add(&yBase, &kFp)
 
-	qMod3 := new(big.Int).Mod(q, three)
-	if qMod3.Cmp(big.NewInt(2)) == 0 {
-		// q ≡ 2 mod 3: cbrt(a) = a^{(2q-1)/3}
-		exp := new(big.Int).Mul(big.NewInt(2), q)
-		exp.Sub(exp, one)
-		exp.Div(exp, three)
-		return new(big.Int).Exp(a, exp, q)
-	}
+		y2.Square(&y)
+		rhs.Sub(&y2, &bFp)
 
-	// q ≡ 1 mod 3: factor q-1 = 3^s * t with gcd(t, 3) = 1
-	s := 0
-	t := new(big.Int).Set(qm1)
-	for {
-		rem := new(big.Int)
-		quo := new(big.Int)
-		quo.DivMod(t, three, rem)
-		if rem.Sign() != 0 {
-			break
+		if x.Cbrt(&rhs) == nil {
+			continue
 		}
-		t.Set(quo)
-		s++
-	}
 
-	// check a is a cube: a^{(q-1)/3} == 1
-	exp := new(big.Int).Div(qm1, three)
-	check := new(big.Int).Exp(a, exp, q)
-	if check.Cmp(one) != 0 {
+		var xBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
 		return nil
 	}
-
-	// find primitive 3^s-th root of unity
-	threePowS := new(big.Int).Exp(three, big.NewInt(int64(s)), nil)
-	gExp := new(big.Int).Div(qm1, threePowS) // (q-1)/3^s
-	var g *big.Int
-	for gen := int64(2); ; gen++ {
-		candidate := new(big.Int).Exp(big.NewInt(gen), gExp, q)
-		// check it has order 3^s (not lower)
-		pow := new(big.Int).Exp(candidate, new(big.Int).Div(threePowS, three), q)
-		if pow.Cmp(one) != 0 {
-			g = candidate
-			break
-		}
-	}
-
-	// initial candidate: a^{3^{-1} mod t}
-	threeInvT := new(big.Int).ModInverse(three, t)
-	candidate := new(big.Int).Exp(a, threeInvT, q)
-
-	// try candidate * g^i for i = 0..3^s-1
-	nCorrections := threePowS.Int64()
-	gi := new(big.Int).Set(one)
-	c3Check := new(big.Int)
-	for i := int64(0); i < nCorrections; i++ {
-		c := new(big.Int).Mul(candidate, gi)
-		c.Mod(c, q)
-		c3Check.Mul(c, c)
-		c3Check.Mod(c3Check, q)
-		c3Check.Mul(c3Check, c)
-		c3Check.Mod(c3Check, q)
-		if c3Check.Cmp(a) == 0 {
-			return c
-		}
-		gi.Mul(gi, g)
-		gi.Mod(gi, q)
-	}
-	return nil
+	return fmt.Errorf("yIncrementHint: no valid k found for BN254")
 }
+
+// --- secp256k1 (y² = x³ + 7, a=0, S=1) ---
+
+// secp256k1: y² = x³ + 7, S=1
+func xIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	const s = 1
+	var msgFp, bFp, tFp, xBase secp256k1fp.Element
+	msgFp.SetBigInt(msg)
+	bFp.SetUint64(7)
+	tFp.SetUint64(T)
+	xBase.Mul(&msgFp, &tFp)
+
+	for k := uint64(0); k < T; k++ {
+		var kFp, x, x2, rhs, y secp256k1fp.Element
+		kFp.SetUint64(k)
+		x.Add(&xBase, &kFp)
+
+		x2.Square(&x)
+		rhs.Mul(&x2, &x)
+		rhs.Add(&rhs, &bFp)
+
+		if y.Sqrt(&rhs) == nil {
+			continue
+		}
+
+		z := nthRoot2SSecp256k1(&y, s)
+		if z == nil {
+			y.Neg(&y)
+			z = nthRoot2SSecp256k1(&y, s)
+			if z == nil {
+				continue
+			}
+		}
+
+		var xBig, yBig, zBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		return nil
+	}
+	return fmt.Errorf("xIncrementHint: no valid k found for secp256k1 (s=%d)", s)
+}
+
+func nthRoot2SSecp256k1(a *secp256k1fp.Element, s int) *secp256k1fp.Element {
+	z := new(secp256k1fp.Element).Set(a)
+	for i := 0; i < s; i++ {
+		if z.Sqrt(z) == nil {
+			return nil
+		}
+	}
+	return z
+}
+
+func yIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	var msgFp, bFp, tFp, yBase secp256k1fp.Element
+	msgFp.SetBigInt(msg)
+	bFp.SetUint64(7)
+	tFp.SetUint64(T)
+	yBase.Mul(&msgFp, &tFp)
+
+	for k := uint64(0); k < T; k++ {
+		var kFp, y, y2, rhs, x secp256k1fp.Element
+		kFp.SetUint64(k)
+		y.Add(&yBase, &kFp)
+
+		y2.Square(&y)
+		rhs.Sub(&y2, &bFp)
+
+		if x.Cbrt(&rhs) == nil {
+			continue
+		}
+
+		var xBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		return nil
+	}
+	return fmt.Errorf("yIncrementHint: no valid k found for secp256k1")
+}
+
+// --- secp256r1 / P-256 (y² = x³ + ax + b, a≠0, S=1) ---
+
+// secp256r1 / P-256: y² = x³ - 3x + b, S=1
+func xIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+	const s = 1
+	// a = -3 mod q, b from curve params
+	p := sw_emulated.GetP256Params()
+	var msgFp, aFp, bFp, tFp, xBase secp256r1fp.Element
+	msgFp.SetBigInt(msg)
+	aFp.SetBigInt(p.A)
+	bFp.SetBigInt(p.B)
+	tFp.SetUint64(T)
+	xBase.Mul(&msgFp, &tFp)
+
+	for k := uint64(0); k < T; k++ {
+		var kFp, x, x2, rhs, y secp256r1fp.Element
+		kFp.SetUint64(k)
+		x.Add(&xBase, &kFp)
+
+		// rhs = x³ + a·x + b
+		x2.Square(&x)
+		rhs.Mul(&x2, &x)
+		var ax secp256r1fp.Element
+		ax.Mul(&aFp, &x)
+		rhs.Add(&rhs, &ax)
+		rhs.Add(&rhs, &bFp)
+
+		if y.Sqrt(&rhs) == nil {
+			continue
+		}
+
+		z := nthRoot2SSecp256r1(&y, s)
+		if z == nil {
+			y.Neg(&y)
+			z = nthRoot2SSecp256r1(&y, s)
+			if z == nil {
+				continue
+			}
+		}
+
+		var xBig, yBig, zBig big.Int
+		outputs[0].SetUint64(k)
+		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		return nil
+	}
+	return fmt.Errorf("xIncrementHint: no valid k found for secp256r1 (s=%d)", s)
+}
+
+func nthRoot2SSecp256r1(a *secp256r1fp.Element, s int) *secp256r1fp.Element {
+	z := new(secp256r1fp.Element).Set(a)
+	for i := 0; i < s; i++ {
+		if z.Sqrt(z) == nil {
+			return nil
+		}
+	}
+	return z
+}
+
+// --- limb helpers ---
 
 // recompose reconstructs a big.Int from its limbs (little-endian, 64-bit each).
 func recompose(limbs []*big.Int, nbLimbs int) *big.Int {

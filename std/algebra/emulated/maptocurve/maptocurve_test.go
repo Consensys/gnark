@@ -39,6 +39,30 @@ func TestXIncrementEmulatedBN254(t *testing.T) {
 	)
 }
 
+func TestXIncrementEmulatedSecp256k1(t *testing.T) {
+	assert := test.NewAssert(t)
+	witness := &xIncrementCircuit[emulated.Secp256k1Fp]{
+		M: emulated.ValueOf[emulated.Secp256k1Fp](big.NewInt(1)),
+	}
+	assert.CheckCircuit(
+		&xIncrementCircuit[emulated.Secp256k1Fp]{},
+		test.WithValidAssignment(witness),
+		test.WithCurves(ecc.BN254),
+	)
+}
+
+func TestXIncrementEmulatedP256(t *testing.T) {
+	assert := test.NewAssert(t)
+	witness := &xIncrementCircuit[emulated.P256Fp]{
+		M: emulated.ValueOf[emulated.P256Fp](big.NewInt(1)),
+	}
+	assert.CheckCircuit(
+		&xIncrementCircuit[emulated.P256Fp]{},
+		test.WithValidAssignment(witness),
+		test.WithCurves(ecc.BN254),
+	)
+}
+
 // --- Y-Increment tests ---
 
 type yIncrementCircuit[F emulated.FieldParams] struct {
@@ -61,6 +85,18 @@ func TestYIncrementEmulatedBN254(t *testing.T) {
 	}
 	assert.CheckCircuit(
 		&yIncrementCircuit[emulated.BN254Fp]{},
+		test.WithValidAssignment(witness),
+		test.WithCurves(ecc.BN254),
+	)
+}
+
+func TestYIncrementEmulatedSecp256k1(t *testing.T) {
+	assert := test.NewAssert(t)
+	witness := &yIncrementCircuit[emulated.Secp256k1Fp]{
+		M: emulated.ValueOf[emulated.Secp256k1Fp](big.NewInt(1)),
+	}
+	assert.CheckCircuit(
+		&yIncrementCircuit[emulated.Secp256k1Fp]{},
 		test.WithValidAssignment(witness),
 		test.WithCurves(ecc.BN254),
 	)
