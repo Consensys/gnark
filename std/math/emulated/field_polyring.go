@@ -11,7 +11,7 @@ import (
 // Represents an element of a polynomial ring over the emulated field.
 type Poly[T FieldParams] struct {
 	Coeffs     []*Element[T]
-	evaluation *big.Int // nil unless evaluated
+	evaluation *Element[T] // nil unless evaluated
 }
 
 // polyRingMulCheck represents a polynomial product check in a polynomial
@@ -457,9 +457,9 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	// Decompose challenges into emulated elements (full-width, multi-limb).
-	zEmulated := f.nativeToEmulated(z)
-	xEmulated := f.nativeToEmulated(x)
-	_ = zEmulated
+	nativesToEl := f.NativeToEmulated(2, z, x)
+	zEmulated := nativesToEl[0]
+	xEmulated := nativesToEl[1]
 
 	maxTerms := 0
 	maxChecks := 0
@@ -646,6 +646,11 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 // where at[i] = at^i. Precomputing and sharing powers across multiple
 // polynomial evaluations at the same point avoids redundant multiplications.
 func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
+	if p.evaluation != nil {
+		println("Already evaluated")
+		return p.evaluation
+	}
+
 	n := len(p.Coeffs)
 	terms := make([][]*Element[T], n)
 	scalars := make([]int, n)
@@ -657,26 +662,50 @@ func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[
 		}
 		scalars[i] = 1
 	}
-	return f.Eval(terms, scalars)
+	evaluation := f.Eval(terms, scalars)
+
+	p.evaluation = evaluation
+	return evaluation
 }
 
-// @TODO probably ugly, find something in gnark to do this
-// nativeToEmulated decomposes a native field variable into an *Element[T] by
+// NativeToEmulated decomposes a native field variable into an *Element[T] by
 // splitting its binary representation into emulated limbs of BitsPerLimb each.
-func (f *Field[T]) nativeToEmulated(v frontend.Variable) *Element[T] {
+func (f *Field[T]) NativeToEmulated(nbLimbs int, v ...frontend.Variable) []*Element[T] {
 	nbBitsPerLimb := int(f.fParams.BitsPerLimb())
-	nbLimbs := int(f.fParams.NbLimbs())
-	nativeBits := f.api.Compiler().FieldBitLen()
-	bits := f.api.ToBinary(v, nativeBits)
-	limbVars := make([]frontend.Variable, nbLimbs)
-	for i := 0; i < nbLimbs; i++ {
-		bi := i * nbBitsPerLimb
-		if bi+nbBitsPerLimb >= nativeBits {
-			limbVars[i] = f.api.FromBinary(bits[bi:]...)
-			break
-		} else {
-			limbVars[i] = f.api.FromBinary(bits[bi : bi+nbBitsPerLimb]...)
-		}
+	hintInputs := make([]frontend.Variable, 0, 2+len(v))
+	hintInputs = append(hintInputs, nbLimbs, nbBitsPerLimb)
+	hintInputs = append(hintInputs, v...)
+	ret, err := f.api.NewHint(splitNativeToLimbsHint, nbLimbs*len(v), hintInputs...)
+	if err != nil {
+		panic(fmt.Sprintf("NativeToEmulated hint error: %v", err))
 	}
-	return f.NewElement(limbVars)
+	elements := make([]*Element[T], len(v))
+	for i := range elements {
+		elements[i] = f.packLimbs(ret[i*nbLimbs:(i+1)*nbLimbs], false)
+	}
+	return elements
+}
+
+func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) < 3 {
+		return fmt.Errorf("splitNativeToLimbs: not enough inputs")
+	}
+
+	nbBits := int(inputs[0].Int64())
+	nbLimbs := int(inputs[1].Int64())
+	outptr := 0
+	for ptr := 2; ptr < len(inputs); ptr++ {
+		nativeEl := inputs[ptr]
+		coeffLimbs := make([]*big.Int, nbLimbs)
+		for k := range coeffLimbs {
+			coeffLimbs[k] = new(big.Int)
+		}
+		if err := limbs.Decompose(nativeEl, uint(nbBits), coeffLimbs); err != nil {
+			return fmt.Errorf("decompose result[%d]: %w", ptr-2, err)
+		}
+		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
+		outptr += nbLimbs
+	}
+
+	return nil
 }
