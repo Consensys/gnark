@@ -143,7 +143,9 @@ func (f *Field[T]) MulPolyRings(inputs []*Poly[T], group *PolyRingGroupChecks[T]
 	for i := range quo.Coeffs {
 		termLimbs := ret[retPtr : retPtr+nbLimbs]
 		retPtr += nbLimbs
-		quo.Coeffs[i] = f.packLimbs(termLimbs, false)
+		// quotient is only used by the prover to generate the rlc, so don't need
+		// rangechecks on these
+		quo.Coeffs[i] = f.newInternalElement(termLimbs, 0)
 	}
 
 	// unpack remainder: skip nbRemTerms header, then read len(mod)-1 terms of nbLimbs each
