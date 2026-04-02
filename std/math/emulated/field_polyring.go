@@ -501,3 +501,42 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 
 	return nil
 }
+
+// evalPolyWithChallenge evaluates p at a point whose powers are given by at,
+// where at[i] = at^i. Precomputing and sharing powers across multiple
+// polynomial evaluations at the same point avoids redundant multiplications.
+func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
+	n := len(p.Coeffs)
+	terms := make([][]*Element[T], n)
+	scalars := make([]int, n)
+	for i, coeff := range p.Coeffs {
+		if i == 0 {
+			terms[i] = []*Element[T]{coeff}
+		} else {
+			terms[i] = []*Element[T]{coeff, at[i]}
+		}
+		scalars[i] = 1
+	}
+	return f.Eval(terms, scalars)
+}
+
+// @TODO probably ugly, find something in gnark to do this
+// nativeToEmulated decomposes a native field variable into an *Element[T] by
+// splitting its binary representation into emulated limbs of BitsPerLimb each.
+func (f *Field[T]) nativeToEmulated(v frontend.Variable) *Element[T] {
+	nbBitsPerLimb := int(f.fParams.BitsPerLimb())
+	nbLimbs := int(f.fParams.NbLimbs())
+	nativeBits := f.api.Compiler().FieldBitLen()
+	bits := f.api.ToBinary(v, nativeBits)
+	limbVars := make([]frontend.Variable, nbLimbs)
+	for i := 0; i < nbLimbs; i++ {
+		bi := i * nbBitsPerLimb
+		if bi+nbBitsPerLimb >= nativeBits {
+			limbVars[i] = f.api.FromBinary(bits[bi:]...)
+			break
+		} else {
+			limbVars[i] = f.api.FromBinary(bits[bi : bi+nbBitsPerLimb]...)
+		}
+	}
+	return f.NewElement(limbVars)
+}
