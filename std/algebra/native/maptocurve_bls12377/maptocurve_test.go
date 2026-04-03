@@ -23,7 +23,10 @@ func TestYIncrement(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(
 		&yIncrementCircuit{},
+		test.WithValidAssignment(&yIncrementCircuit{M: 0}),
 		test.WithValidAssignment(&yIncrementCircuit{M: 1}),
+		test.WithValidAssignment(&yIncrementCircuit{M: 42}),
+		test.WithValidAssignment(&yIncrementCircuit{M: 123456789}),
 		test.WithCurves(ecc.BW6_761),
 	)
 }

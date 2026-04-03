@@ -14,10 +14,12 @@ const T = 256 // increment window size (8 bits)
 // Mapper provides increment-and-check map-to-curve operations for emulated
 // short Weierstrass curves y² = x³ + ax + b.
 type Mapper[F emulated.FieldParams] struct {
-	api   frontend.API
-	field *emulated.Field[F]
-	a, b  *big.Int
-	s     int // 2-adicity v₂(q-1) for x-increment inverse-exclusion
+	api     frontend.API
+	field   *emulated.Field[F]
+	a, b    *big.Int
+	s       int  // 2-adicity v₂(q-1) for x-increment inverse-exclusion
+	nbLimbs uint // effective number of limbs for the emulated field
+	nbBits  uint // effective bits per limb
 }
 
 // NewMapper creates a new Mapper for the curve defined by field type F.
@@ -30,7 +32,8 @@ func NewMapper[F emulated.FieldParams](api frontend.API) (*Mapper[F], error) {
 	}
 	a, b := curveCoefficients[F]()
 	s := twoAdicity[F]()
-	return &Mapper[F]{api: api, field: field, a: a, b: b, s: s}, nil
+	nbLimbs, nbBits := emulated.GetEffectiveFieldParams[F](api.Compiler().Field())
+	return &Mapper[F]{api: api, field: field, a: a, b: b, s: s, nbLimbs: nbLimbs, nbBits: nbBits}, nil
 }
 
 // XIncrement maps msg to a curve point (x, y) using the x-increment method:
@@ -41,13 +44,12 @@ func NewMapper[F emulated.FieldParams](api frontend.API) (*Mapper[F], error) {
 // is not the inverse of a valid y-coordinate (needed for j=0 curves).
 func (m *Mapper[F]) XIncrement(msg *emulated.Element[F]) (x, y *emulated.Element[F], err error) {
 	fp := m.field
+	nbLimbs := int(m.nbLimbs)
 
-	// hint inputs: [nbLimbs, q_limbs..., a, b, s, msg_limbs...]
+	// hint inputs: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
 	// hint outputs: [k, x_limbs..., y_limbs..., z_limbs...]
-	var fparams F
-	nbLimbs := int(fparams.NbLimbs())
 	hintOutputs := 1 + 3*nbLimbs // k + x + y + z
-	hintInputs := m.buildHintInputs(msg, nbLimbs)
+	hintInputs := m.buildHintInputs(msg)
 
 	res, err := m.api.Compiler().NewHint(xIncrementHint, hintOutputs, hintInputs...)
 	if err != nil {
@@ -92,11 +94,12 @@ func (m *Mapper[F]) XIncrement(msg *emulated.Element[F]) (x, y *emulated.Element
 // needed, making this simpler and recommended for j=0 curves.
 func (m *Mapper[F]) YIncrement(msg *emulated.Element[F]) (x, y *emulated.Element[F], err error) {
 	fp := m.field
+	nbLimbs := int(m.nbLimbs)
 
-	var fparams F
-	nbLimbs := int(fparams.NbLimbs())
+	// hint inputs: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
+	// hint outputs: [k, x_limbs...]
 	hintOutputs := 1 + nbLimbs // k + x
-	hintInputs := m.buildHintInputs(msg, nbLimbs)
+	hintInputs := m.buildHintInputs(msg)
 
 	res, err := m.api.Compiler().NewHint(yIncrementHint, hintOutputs, hintInputs...)
 	if err != nil {
@@ -122,17 +125,19 @@ func (m *Mapper[F]) YIncrement(msg *emulated.Element[F]) (x, y *emulated.Element
 	return xEl, yEl, nil
 }
 
-// buildHintInputs constructs hint inputs: [nbLimbs, q_limbs..., msg_limbs...]
+// buildHintInputs constructs hint inputs: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
 // Curve coefficients are not passed; the hint dispatches on q to look them up.
-func (m *Mapper[F]) buildHintInputs(msg *emulated.Element[F], nbLimbs int) []frontend.Variable {
+func (m *Mapper[F]) buildHintInputs(msg *emulated.Element[F]) []frontend.Variable {
 	fp := m.field
 	var fparams F
 	q := fparams.Modulus()
+	nbLimbs := int(m.nbLimbs)
 
-	inputs := make([]frontend.Variable, 0, 1+2*nbLimbs)
-	inputs = append(inputs, nbLimbs)
+	inputs := make([]frontend.Variable, 0, 2+2*nbLimbs)
+	inputs = append(inputs, m.nbLimbs)
+	inputs = append(inputs, m.nbBits)
 
-	qLimbs := decomposeBigInt(q, nbLimbs)
+	qLimbs := decomposeBigInt(q, nbLimbs, m.nbBits)
 	for _, l := range qLimbs {
 		inputs = append(inputs, l)
 	}
@@ -144,14 +149,14 @@ func (m *Mapper[F]) buildHintInputs(msg *emulated.Element[F], nbLimbs int) []fro
 	return inputs
 }
 
-// decomposeBigInt splits v into nbLimbs 64-bit limbs (little-endian) as *big.Int values.
-func decomposeBigInt(v *big.Int, nbLimbs int) []*big.Int {
-	mask := new(big.Int).SetUint64(^uint64(0))
+// decomposeBigInt splits v into nbLimbs limbs of nbBits each (little-endian).
+func decomposeBigInt(v *big.Int, nbLimbs int, nbBits uint) []*big.Int {
+	mask := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), nbBits), big.NewInt(1))
 	tmp := new(big.Int).Set(v)
 	result := make([]*big.Int, nbLimbs)
 	for i := 0; i < nbLimbs; i++ {
 		result[i] = new(big.Int).And(tmp, mask)
-		tmp.Rsh(tmp, 64)
+		tmp.Rsh(tmp, nbBits)
 	}
 	return result
 }
@@ -174,8 +179,7 @@ func (m *Mapper[F]) assertOnCurve(x, y *emulated.Element[F]) {
 // nativeToEmulated converts a native variable (fitting in one limb) to an
 // emulated element.
 func (m *Mapper[F]) nativeToEmulated(v frontend.Variable) *emulated.Element[F] {
-	var fparams F
-	nbLimbs := int(fparams.NbLimbs())
+	nbLimbs := int(m.nbLimbs)
 	limbs := make([]frontend.Variable, nbLimbs)
 	limbs[0] = v
 	for i := 1; i < nbLimbs; i++ {

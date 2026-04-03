@@ -25,41 +25,42 @@ func GetHints() []solver.Hint {
 }
 
 // parseHintInputs extracts the field modulus and message from the hint inputs.
-// Format: [nbLimbs, q_limbs..., msg_limbs...]
-func parseHintInputs(inputs []*big.Int) (q *big.Int, nbLimbs int, msg *big.Int, err error) {
-	if len(inputs) < 1 {
-		return nil, 0, nil, fmt.Errorf("empty inputs")
+// Format: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
+func parseHintInputs(inputs []*big.Int) (q *big.Int, nbLimbs int, nbBits uint, msg *big.Int, err error) {
+	if len(inputs) < 2 {
+		return nil, 0, 0, nil, fmt.Errorf("need at least 2 inputs (nbLimbs, nbBits)")
 	}
 	nbLimbs = int(inputs[0].Int64())
-	expected := 1 + 2*nbLimbs
+	nbBits = uint(inputs[1].Int64())
+	expected := 2 + 2*nbLimbs
 	if len(inputs) != expected {
-		return nil, 0, nil, fmt.Errorf("expected %d inputs, got %d", expected, len(inputs))
+		return nil, 0, 0, nil, fmt.Errorf("expected %d inputs, got %d", expected, len(inputs))
 	}
-	q = recompose(inputs[1:1+nbLimbs], nbLimbs)
-	msg = recompose(inputs[1+nbLimbs:1+2*nbLimbs], nbLimbs)
-	return q, nbLimbs, msg, nil
+	q = recompose(inputs[2:2+nbLimbs], nbLimbs, nbBits)
+	msg = recompose(inputs[2+nbLimbs:2+2*nbLimbs], nbLimbs, nbBits)
+	return q, nbLimbs, nbBits, msg, nil
 }
 
 // xIncrementHint computes the x-increment witness for a given message.
 //
-// Inputs: [nbLimbs, q_limbs..., msg_limbs...]
+// Inputs: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
 // Outputs: [k, x_limbs..., y_limbs..., z_limbs...]
 //
 // Searches k ∈ [0, T) such that x = msg*T + k lies on the curve and y has a
 // 2^s-th root. Only practical for low 2-adicity fields (S ≤ 4).
 func xIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	q, nbLimbs, msg, err := parseHintInputs(inputs)
+	q, nbLimbs, nbBits, msg, err := parseHintInputs(inputs)
 	if err != nil {
 		return fmt.Errorf("xIncrementHint: %w", err)
 	}
 
 	switch {
 	case q.Cmp(bn254fp.Modulus()) == 0:
-		return xIncrementBN254(nbLimbs, msg, outputs)
+		return xIncrementBN254(nbLimbs, nbBits, msg, outputs)
 	case q.Cmp(secp256k1fp.Modulus()) == 0:
-		return xIncrementSecp256k1(nbLimbs, msg, outputs)
+		return xIncrementSecp256k1(nbLimbs, nbBits, msg, outputs)
 	case q.Cmp(secp256r1fp.Modulus()) == 0:
-		return xIncrementSecp256r1(nbLimbs, msg, outputs)
+		return xIncrementSecp256r1(nbLimbs, nbBits, msg, outputs)
 	default:
 		return fmt.Errorf("xIncrementHint: unsupported field modulus")
 	}
@@ -67,24 +68,24 @@ func xIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // yIncrementHint computes the y-increment witness for a given message.
 //
-// Inputs: [nbLimbs, q_limbs..., msg_limbs...]
+// Inputs: [nbLimbs, nbBits, q_limbs..., msg_limbs...]
 // Outputs: [k, x_limbs...]
 //
 // For j=0 curves (a=0): x = cbrt(y² - b) where y = msg*T + k.
 // For P-256 (a≠0): x is found via Cardano's formula on x³ − 3x + (b − y²) = 0.
 func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	q, nbLimbs, msg, err := parseHintInputs(inputs)
+	q, nbLimbs, nbBits, msg, err := parseHintInputs(inputs)
 	if err != nil {
 		return fmt.Errorf("yIncrementHint: %w", err)
 	}
 
 	switch {
 	case q.Cmp(bn254fp.Modulus()) == 0:
-		return yIncrementBN254(nbLimbs, msg, outputs)
+		return yIncrementBN254(nbLimbs, nbBits, msg, outputs)
 	case q.Cmp(secp256k1fp.Modulus()) == 0:
-		return yIncrementSecp256k1(nbLimbs, msg, outputs)
+		return yIncrementSecp256k1(nbLimbs, nbBits, msg, outputs)
 	case q.Cmp(secp256r1fp.Modulus()) == 0:
-		return yIncrementSecp256r1(nbLimbs, msg, outputs)
+		return yIncrementSecp256r1(nbLimbs, nbBits, msg, outputs)
 	default:
 		return fmt.Errorf("yIncrementHint: unsupported field modulus")
 	}
@@ -93,7 +94,7 @@ func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 // --- BN254 ---
 
 // BN254: y² = x³ + 3, S=1
-func xIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func xIncrementBN254(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	const s = 1
 	var msgFp, bFp, tFp, xBase bn254fp.Element
 	msgFp.SetBigInt(msg)
@@ -125,9 +126,9 @@ func xIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig, yBig, zBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
-		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
-		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		decompose(x.BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, nbBits, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, nbBits, outputs[1+2*nbLimbs:1+3*nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("xIncrementHint: no valid k found for BN254 (s=%d)", s)
@@ -143,7 +144,7 @@ func nthRoot2SBN254(a *bn254fp.Element, s int) *bn254fp.Element {
 	return z
 }
 
-func yIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func yIncrementBN254(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	var msgFp, bFp, tFp, yBase bn254fp.Element
 	msgFp.SetBigInt(msg)
 	bFp.SetUint64(3)
@@ -164,7 +165,7 @@ func yIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(x.BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("yIncrementHint: no valid k found for BN254")
@@ -173,7 +174,7 @@ func yIncrementBN254(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 // --- secp256k1 (y² = x³ + 7, a=0, S=1) ---
 
 // secp256k1: y² = x³ + 7, S=1
-func xIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func xIncrementSecp256k1(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	const s = 1
 	var msgFp, bFp, tFp, xBase secp256k1fp.Element
 	msgFp.SetBigInt(msg)
@@ -205,9 +206,9 @@ func xIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig, yBig, zBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
-		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
-		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		decompose(x.BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, nbBits, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, nbBits, outputs[1+2*nbLimbs:1+3*nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("xIncrementHint: no valid k found for secp256k1 (s=%d)", s)
@@ -223,7 +224,7 @@ func nthRoot2SSecp256k1(a *secp256k1fp.Element, s int) *secp256k1fp.Element {
 	return z
 }
 
-func yIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func yIncrementSecp256k1(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	var msgFp, bFp, tFp, yBase secp256k1fp.Element
 	msgFp.SetBigInt(msg)
 	bFp.SetUint64(7)
@@ -244,7 +245,7 @@ func yIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(x.BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("yIncrementHint: no valid k found for secp256k1")
@@ -253,7 +254,7 @@ func yIncrementSecp256k1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 // --- secp256r1 / P-256 (y² = x³ + ax + b, a≠0, S=1) ---
 
 // secp256r1 / P-256: y² = x³ - 3x + b, S=1
-func xIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func xIncrementSecp256r1(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	const s = 1
 	// a = -3 mod q, b from curve params
 	p := sw_emulated.GetP256Params()
@@ -292,9 +293,9 @@ func xIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig, yBig, zBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(x.BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
-		decompose(y.BigInt(&yBig), nbLimbs, outputs[1+nbLimbs:1+2*nbLimbs])
-		decompose(z.BigInt(&zBig), nbLimbs, outputs[1+2*nbLimbs:1+3*nbLimbs])
+		decompose(x.BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
+		decompose(y.BigInt(&yBig), nbLimbs, nbBits, outputs[1+nbLimbs:1+2*nbLimbs])
+		decompose(z.BigInt(&zBig), nbLimbs, nbBits, outputs[1+2*nbLimbs:1+3*nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("xIncrementHint: no valid k found for secp256r1 (s=%d)", s)
@@ -311,7 +312,7 @@ func nthRoot2SSecp256r1(a *secp256r1fp.Element, s int) *secp256r1fp.Element {
 }
 
 // secp256r1 / P-256: y² = x³ − 3x + b, y-increment uses Cardano solver.
-func yIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
+func yIncrementSecp256r1(nbLimbs int, nbBits uint, msg *big.Int, outputs []*big.Int) error {
 	p := sw_emulated.GetP256Params()
 	var bFp, tFp, msgFp, yBase secp256r1fp.Element
 	msgFp.SetBigInt(msg)
@@ -335,7 +336,7 @@ func yIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 		var xBig big.Int
 		outputs[0].SetUint64(k)
-		decompose(roots[0].BigInt(&xBig), nbLimbs, outputs[1:1+nbLimbs])
+		decompose(roots[0].BigInt(&xBig), nbLimbs, nbBits, outputs[1:1+nbLimbs])
 		return nil
 	}
 	return fmt.Errorf("yIncrementHint: no valid k found for secp256r1")
@@ -343,22 +344,22 @@ func yIncrementSecp256r1(nbLimbs int, msg *big.Int, outputs []*big.Int) error {
 
 // --- limb helpers ---
 
-// recompose reconstructs a big.Int from its limbs (little-endian, 64-bit each).
-func recompose(limbs []*big.Int, nbLimbs int) *big.Int {
+// recompose reconstructs a big.Int from its limbs (little-endian, nbBits per limb).
+func recompose(limbs []*big.Int, nbLimbs int, nbBits uint) *big.Int {
 	result := new(big.Int)
 	for i := nbLimbs - 1; i >= 0; i-- {
-		result.Lsh(result, 64)
+		result.Lsh(result, nbBits)
 		result.Add(result, limbs[i])
 	}
 	return result
 }
 
-// decompose splits v into nbLimbs 64-bit limbs (little-endian).
-func decompose(v *big.Int, nbLimbs int, outputs []*big.Int) {
-	mask := new(big.Int).SetUint64(^uint64(0))
+// decompose splits v into nbLimbs limbs of nbBits each (little-endian).
+func decompose(v *big.Int, nbLimbs int, nbBits uint, outputs []*big.Int) {
+	mask := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), nbBits), big.NewInt(1))
 	tmp := new(big.Int).Set(v)
 	for i := 0; i < nbLimbs; i++ {
 		outputs[i].And(tmp, mask)
-		tmp.Rsh(tmp, 64)
+		tmp.Rsh(tmp, nbBits)
 	}
 }
