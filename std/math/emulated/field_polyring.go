@@ -616,25 +616,30 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 // where at[i] = at^i. Precomputing and sharing powers across multiple
 // polynomial evaluations at the same point avoids redundant multiplications.
 func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
-	if p.evaluation != nil {
-		return p.evaluation
+	if p.evaluation == nil {
+		p.evaluation = f.innerProduct(p.Coeffs, at)
 	}
+	return p.evaluation
+}
 
-	n := len(p.Coeffs)
+// evalPolyWithChallenge evaluates p at a point whose powers are given by at,
+// where at[i] = at^i. Precomputing and sharing powers across multiple
+// polynomial evaluations at the same point avoids redundant multiplications.
+func (f *Field[T]) innerProduct(a, b []*Element[T]) *Element[T] {
+	n := len(a)
 	terms := make([][]*Element[T], n)
 	scalars := make([]int, n)
-	for i, coeff := range p.Coeffs {
-		if i == 0 {
-			terms[i] = []*Element[T]{coeff}
+	for i := range a {
+		if b[i] == nil {
+			terms[i] = []*Element[T]{a[i]}
+		} else if a[i] == nil {
+			terms[i] = []*Element[T]{b[i]}
 		} else {
-			terms[i] = []*Element[T]{coeff, at[i]}
+			terms[i] = []*Element[T]{a[i], b[i]}
 		}
 		scalars[i] = 1
 	}
-	evaluation := f.Eval(terms, scalars)
-
-	p.evaluation = evaluation
-	return evaluation
+	return f.Eval(terms, scalars)
 }
 
 // NativeToEmulated decomposes a native field variable into an *Element[T] by
