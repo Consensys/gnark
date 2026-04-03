@@ -7,7 +7,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.2.2-0.20260118153501-cba9f5475432
 	github.com/consensys/compress v0.3.0
-	github.com/consensys/gnark-crypto v0.20.2-0.20260331134137-73760b1de66f
+	github.com/consensys/gnark-crypto v0.20.2-0.20260403200437-251e1be684af
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/pprof v0.0.0-20260202012954-cb029daf43ef
