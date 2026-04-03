@@ -46,5 +46,3 @@ tool (
 	github.com/klauspost/asmfmt/cmd/asmfmt
 	golang.org/x/tools/cmd/goimports
 )
-
-replace github.com/consensys/gnark-crypto => /Users/youssefelhousni/workspace/consensys/curves/consensys:gnark-crypto/gnark-crypto
