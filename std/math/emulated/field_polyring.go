@@ -434,7 +434,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	xPowers := make([]*Element[T], maxTerms)
-	xPowers[0] = nil
+	xPowers[0] = f.One()
 	if maxTerms > 1 {
 		xPowers[1] = xEmulated
 		for i := 2; i < maxTerms; i++ {
@@ -443,7 +443,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	zPowers := make([]*Element[T], maxChecks)
-	zPowers[0] = nil
+	zPowers[0] = f.One()
 	if maxChecks > 1 {
 		zPowers[1] = zEmulated
 		for i := 2; i < maxChecks; i++ {
@@ -632,24 +632,33 @@ func (f *Field[T]) innerProduct(a, b []*Element[T]) *Element[T] {
 // *Element[T] without performing reduction.
 func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	n := len(a)
-	var eval *Element[T]
-	if b[0] == nil {
-		eval = a[0]
-	} else if a[0] == nil {
-		eval = b[0]
-	} else {
-		eval = f.MulNoReduce(a[0], b[0])
-	}
-
-	for i := 1; i < n; i++ {
-		if b[i] == nil {
-			eval = f.add(eval, a[i], max(eval.overflow, a[i].overflow)+1)
-		} else if a[i] == nil {
-			eval = f.add(eval, b[i], max(eval.overflow, b[i].overflow)+1)
-		} else {
-			prod := f.MulNoReduce(a[i], b[i])
-			eval = f.add(eval, prod, max(eval.overflow, prod.overflow)+1)
+	terms := make([]*Element[T], n)
+	for i := 0; i < n; i++ {
+		if a[i] == nil || b[i] == nil || len(b[i].Limbs) == 0 || len(a[i].Limbs) == 0 {
+			continue
 		}
+		if len(b[i].Limbs) == 1 && b[i].Limbs[0] == 1 {
+			terms[i] = a[i]
+			continue
+		} else if len(a[i].Limbs) == 1 && a[i].Limbs[0] == 1 {
+			terms[i] = b[i]
+			continue
+		} else {
+			terms[i] = f.MulNoReduce(a[i], b[i])
+		}
+	}
+	var eval *Element[T]
+	for _, term := range terms {
+		if term != nil {
+			if eval == nil {
+				eval = term
+			} else {
+				eval = f.add(eval, term, max(eval.overflow, term.overflow)+1)
+			}
+		}
+	}
+	if eval == nil {
+		return f.Zero()
 	}
 	return eval
 }
