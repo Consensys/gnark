@@ -8,6 +8,8 @@ import (
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
+var NB_CHALLENGE_LIMBS = 2
+
 // Represents an element of a polynomial ring over the emulated field.
 type Poly[T FieldParams] struct {
 	Coeffs     []*Element[T]
@@ -421,7 +423,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	// Decompose challenges into emulated elements (full-width, multi-limb).
-	nativesToEl := f.NativeToEmulated(2, z, x)
+	nativesToEl := f.NativeToEmulated(NB_CHALLENGE_LIMBS, z, x)
 	zEmulated := nativesToEl[0]
 	xEmulated := nativesToEl[1]
 
@@ -478,7 +480,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 			f.evalPolyWithChallenge(group.mod, xPowers),
 		)
 
-		f.IsZero(f.Sub(lhsRlc, rhs))
+		f.AssertIsEqual(lhsRlc, rhs)
 	}
 
 	return nil
@@ -508,8 +510,8 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 	nbPolys := len(quotients)
 
 	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
-	hintInputs := make([]frontend.Variable, 0, 5+nbPolys)
-	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPolys, *f.fParams.Modulus(), z)
+	hintInputs := make([]frontend.Variable, 0, 6+nbPolys)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, NB_CHALLENGE_LIMBS, nbPolys, *f.fParams.Modulus(), z)
 
 	for _, q := range quotients {
 		hintInputs = f.serialisePoly(q, hintInputs)
@@ -538,14 +540,20 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) < 5 {
 		return fmt.Errorf("batchPolyQuotientsHint: not enough inputs")
 	}
-
 	nbBits := int(inputs[0].Int64())
 	nbLimbs := int(inputs[1].Int64())
-	nbPolys := int(inputs[2].Int64())
-	fieldMod := new(big.Int).Set(inputs[3])
-	z := new(big.Int).Mod(inputs[4], fieldMod)
-
-	ptr := 5
+	nbChallengeLimbs := int(inputs[2].Int64())
+	nbPolys := int(inputs[3].Int64())
+	fieldMod := new(big.Int).Set(inputs[4])
+	zLimbs := make([]*big.Int, nativeMod.BitLen()/(nbBits*nbChallengeLimbs)+1, nbLimbs)
+	for k := range zLimbs {
+		zLimbs[k] = new(big.Int)
+	}
+	if err := limbs.Decompose(inputs[5], uint(nbBits*nbChallengeLimbs), zLimbs); err != nil {
+		return fmt.Errorf("quotientsRLCHint: z decompose failed: %w", err)
+	}
+	z := zLimbs[0]
+	ptr := 6
 	polys := make([][]*big.Int, nbPolys)
 	for i := 0; i < nbPolys; i++ {
 		nbTerms := int(inputs[ptr].Int64())
@@ -561,15 +569,12 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 			polys[i][j] = val
 		}
 	}
-
 	maxTerms := len(outputs) / nbLimbs
-
 	// accumulator: result[j] = ∑_i z^i * q_i[j] mod fieldMod
 	result := make([]*big.Int, maxTerms)
 	for i := range result {
 		result[i] = new(big.Int)
 	}
-
 	zPow := new(big.Int).SetInt64(1) // z^0 = 1
 	tmp := new(big.Int)
 	for _, poly := range polys {
@@ -582,7 +587,6 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 		zPow.Mul(zPow, z)
 		zPow.Mod(zPow, fieldMod)
 	}
-
 	// serialize: maxTerms coefficients each decomposed into nbLimbs limbs
 	outptr := 0
 	for idx, coeff := range result {
@@ -596,7 +600,6 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
 		outptr += nbLimbs
 	}
-
 	return nil
 }
 
@@ -635,14 +638,11 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	terms := make([]*Element[T], n)
 	for i := 0; i < n; i++ {
 		if a[i] == nil || b[i] == nil || len(b[i].Limbs) == 0 || len(a[i].Limbs) == 0 {
-			continue
-		}
-		if len(b[i].Limbs) == 1 && b[i].Limbs[0] == 1 {
+			// don't add anything, one of the multiplier is zero
+		} else if len(b[i].Limbs) == 1 && b[i].Limbs[0] == 1 {
 			terms[i] = a[i]
-			continue
 		} else if len(a[i].Limbs) == 1 && a[i].Limbs[0] == 1 {
 			terms[i] = b[i]
-			continue
 		} else {
 			terms[i] = f.MulNoReduce(a[i], b[i])
 		}
