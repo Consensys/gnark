@@ -115,20 +115,10 @@ func (f *Field[T]) MulPolyRings(inputs []*Poly[T], group *PolyRingGroupChecks[T]
 
 	// loop through inputs to compute the number of terms
 	for _, inputPoly := range inputs {
-		// serialised as nbTerms|...terms
-		// add degree of each input polynomial
-		hintInputs = append(hintInputs, len(inputPoly.Coeffs))
-		// append each term from inputPoly polynomial
-		for _, coeff := range inputPoly.Coeffs {
-			hintInputs = append(hintInputs, coeff.Limbs...)
-		}
+		hintInputs = f.serialisePoly(inputPoly, hintInputs)
 	}
 
-	hintInputs = append(hintInputs, len(mod.Coeffs))
-	// append mod terms
-	for _, coeff := range mod.Coeffs {
-		hintInputs = append(hintInputs, coeff.Limbs...)
-	}
+	hintInputs = f.serialisePoly(&mod, hintInputs)
 
 	// call
 	ret, err := f.api.NewHint(polyRingMulHint, 1+nbQTermsLimbs+1+nbRemLimbs, hintInputs...)
@@ -343,16 +333,15 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 }
 
 func (f *Field[T]) MakePoly(coeffs []interface{}) *Poly[T] {
-	nativeMod := f.api.Compiler().Field()
-
 	poly := &Poly[T]{}
 	poly.Coeffs = make([]*Element[T], len(coeffs))
 
 	for i, coeff := range coeffs {
-		emCoeff_ := ValueOf[T](coeff)
-		emCoeff := &emCoeff_
-		emCoeff.Initialize(nativeMod)
-		poly.Coeffs[i] = emCoeff
+		if coeff == 0 {
+			poly.Coeffs[i] = f.Zero()
+			continue
+		}
+		poly.Coeffs[i] = f.NewElement(coeff)
 	}
 
 	return poly
@@ -484,13 +473,12 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		lhsRlc := f.InnerProductNoReduce(lhsEvals, zPowers)
 
 		// compute q_acc(x) * mod(x)
-		rhs := f.Mul(
+		rhs := f.MulNoReduce(
 			f.evalPolyWithChallenge(group.q_acc, xPowers),
 			f.evalPolyWithChallenge(group.mod, xPowers),
 		)
 
-		// f.AssertIsEqual(lhsRlc, rhs)
-		f.AssertIsDifferent(lhsRlc, rhs)
+		f.IsZero(f.Sub(lhsRlc, rhs))
 	}
 
 	return nil
@@ -524,10 +512,7 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPolys, *f.fParams.Modulus(), z)
 
 	for _, q := range quotients {
-		hintInputs = append(hintInputs, len(q.Coeffs))
-		for _, coeff := range q.Coeffs {
-			hintInputs = append(hintInputs, coeff.Limbs...)
-		}
+		hintInputs = f.serialisePoly(q, hintInputs)
 	}
 
 	nbOutputs := maxTerms * nbLimbs
@@ -672,9 +657,9 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 // NativeToEmulated decomposes a native field variable into an *Element[T] by
 // splitting its binary representation into emulated limbs of BitsPerLimb each.
 func (f *Field[T]) NativeToEmulated(nbLimbs int, v ...frontend.Variable) []*Element[T] {
-	nbBitsPerLimb := int(f.fParams.BitsPerLimb())
+	nbBits := f.fParams.BitsPerLimb()
 	hintInputs := make([]frontend.Variable, 0, 2+len(v))
-	hintInputs = append(hintInputs, nbLimbs, nbBitsPerLimb)
+	hintInputs = append(hintInputs, nbBits, nbLimbs)
 	hintInputs = append(hintInputs, v...)
 	ret, err := f.api.NewHint(splitNativeToLimbsHint, nbLimbs*len(v), hintInputs...)
 	if err != nil {
@@ -697,16 +682,36 @@ func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) erro
 	outptr := 0
 	for ptr := 2; ptr < len(inputs); ptr++ {
 		nativeEl := inputs[ptr]
-		coeffLimbs := make([]*big.Int, nbLimbs)
+		coeffLimbs := make([]*big.Int, nativeEl.BitLen()/nbBits+1)
 		for k := range coeffLimbs {
 			coeffLimbs[k] = new(big.Int)
 		}
 		if err := limbs.Decompose(nativeEl, uint(nbBits), coeffLimbs); err != nil {
 			return fmt.Errorf("decompose result[%d]: %w", ptr-2, err)
 		}
-		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
+		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs[0:nbLimbs])
 		outptr += nbLimbs
 	}
 
 	return nil
+}
+
+// serialisePoly converts a polynomial into a slice of frontend.Variable
+// suitable for hints. format is nbTerms|...terms
+func (f *Field[T]) serialisePoly(poly *Poly[T], inputs []frontend.Variable) []frontend.Variable {
+	nbLimbs := int(f.fParams.NbLimbs())
+	inputs = append(inputs, len(poly.Coeffs))
+	for _, coeff := range poly.Coeffs {
+		if coeff == nil || len(coeff.Limbs) == 0 {
+			for i := 0; i < nbLimbs; i++ {
+				inputs = append(inputs, 0)
+			}
+			continue
+		}
+		inputs = append(inputs, coeff.Limbs...)
+		for i := len(coeff.Limbs); i < nbLimbs; i++ {
+			inputs = append(inputs, 0)
+		}
+	}
+	return inputs
 }
