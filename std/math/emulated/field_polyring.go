@@ -83,7 +83,7 @@ func (f *Field[T]) NewPolyRingCheck(mod *Poly[T]) *PolyRingGroupChecks[T] {
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
-func (f *Field[T]) MulPolyRings(inputs []*Poly[T], group *PolyRingGroupChecks[T]) (rem *Poly[T], err error) {
+func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs ...*Poly[T]) (rem *Poly[T], err error) {
 	mod := *group.mod
 	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
 
@@ -386,6 +386,11 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		}
 	}
 
+	if len(remainderCoeffCommits) == 0 {
+		// nothing to do
+		return nil
+	}
+
 	// commit all remainders from each group at once
 	z, err := committer.Commit(remainderCoeffCommits...) // z = remainderCommitment
 	if err != nil {
@@ -408,6 +413,10 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 		//
 		for _, rCoeff := range group.q_acc.Coeffs {
+			if rCoeff == nil {
+				println("nil coefficient")
+				continue
+			}
 			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, rCoeff.Limbs...)
 		}
 
@@ -723,4 +732,12 @@ func (f *Field[T]) serialisePoly(poly *Poly[T], inputs []frontend.Variable) []fr
 		}
 	}
 	return inputs
+}
+
+type PolyConv[T FieldParams] interface {
+	ToPoly() *Poly[T]
+}
+
+func (p *Poly[T]) ToPoly() *Poly[T] {
+	return p
 }

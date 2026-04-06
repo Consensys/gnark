@@ -15,8 +15,9 @@ type E12 struct {
 
 type Ext12 struct {
 	*Ext2
-	api frontend.API
-	fp  *curveF
+	api  frontend.API
+	fp   *curveF
+	ring *emulated.PolyRingGroupChecks[emulated.BN254Fp]
 }
 
 func NewExt12(api frontend.API) *Ext12 {
@@ -24,11 +25,48 @@ func NewExt12(api frontend.API) *Ext12 {
 	if err != nil {
 		panic(err)
 	}
+	modPoly := fp.MakePoly([]any{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1})
 	return &Ext12{
 		Ext2: NewExt2(api),
 		api:  api,
 		fp:   fp,
+		ring: fp.NewPolyRingCheck(modPoly),
 	}
+}
+
+// PolyLike implementation for E12
+func (a *E12) ToPoly() *basePoly {
+	return &basePoly{
+		Coeffs: []*baseEl{
+			&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
+			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
+		},
+	}
+}
+
+func (e Ext12) FromPoly(p *basePoly) *E12 {
+	return &E12{
+		A0:  *p.Coeffs[0],
+		A1:  *p.Coeffs[1],
+		A2:  *p.Coeffs[2],
+		A3:  *p.Coeffs[3],
+		A4:  *p.Coeffs[4],
+		A5:  *p.Coeffs[5],
+		A6:  *p.Coeffs[6],
+		A7:  *p.Coeffs[7],
+		A8:  *p.Coeffs[8],
+		A9:  *p.Coeffs[9],
+		A10: *p.Coeffs[10],
+		A11: *p.Coeffs[11],
+	}
+}
+
+func (e Ext12) MulPoly(inputs ...*basePoly) *basePoly {
+	rem, err := e.fp.MulPolyRings(e.ring, inputs...)
+	if err != nil {
+		panic(err)
+	}
+	return rem
 }
 
 func (e Ext12) Zero() *E12 {
@@ -324,29 +362,12 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 	}
 }
 
-func (e Ext12) ToPoly(a *E12) *emulated.Poly[emulated.BN254Fp] {
-	return &emulated.Poly[emulated.BN254Fp]{
+func (e Ext12) ToPoly(a *E12) *basePoly {
+	return &basePoly{
 		Coeffs: []*baseEl{
 			&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
 			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
 		},
-	}
-}
-
-func (e Ext12) FromPoly(p *emulated.Poly[emulated.BN254Fp]) *E12 {
-	return &E12{
-		A0:  *p.Coeffs[0],
-		A1:  *p.Coeffs[1],
-		A2:  *p.Coeffs[2],
-		A3:  *p.Coeffs[3],
-		A4:  *p.Coeffs[4],
-		A5:  *p.Coeffs[5],
-		A6:  *p.Coeffs[6],
-		A7:  *p.Coeffs[7],
-		A8:  *p.Coeffs[8],
-		A9:  *p.Coeffs[9],
-		A10: *p.Coeffs[10],
-		A11: *p.Coeffs[11],
 	}
 }
 
