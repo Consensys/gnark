@@ -16,6 +16,8 @@ type Poly[T FieldParams] struct {
 	evaluation *Element[T] // nil unless evaluated
 }
 
+type EvalFnType[T FieldParams] = func([]*Element[T]) *Element[T]
+
 // polyRingMulCheck represents a polynomial product check in a polynomial
 // ring. Instead of computing the product and reducing it where called,
 // we compute the result using a hint and return it. Result is stored for
@@ -55,9 +57,10 @@ type Poly[T FieldParams] struct {
 // ∑_i z^i * q_i is computed outside the circuit, and evaluated inside the circuit
 // PolyRingGroupChecks binds a specific modulus to all of its checks.
 type PolyRingGroupChecks[T FieldParams] struct {
-	mod    *Poly[T]              // polynomial defining the ring
-	checks []polyRingMulCheck[T] // individual operations to check
-	q_acc  *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
+	mod       *Poly[T]              // polynomial defining the ring
+	modEvalFn EvalFnType[T]         // evaluation of mod at the challenge point, set at check time
+	checks    []polyRingMulCheck[T] // individual operations to check
+	q_acc     *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
 }
 
 // polyRingMulCheck is an individual deferred check.
@@ -69,10 +72,10 @@ type polyRingMulCheck[T FieldParams] struct {
 }
 
 // NewPolyRingCheck registers a new polynomial ring group with the given modulus. The
-func (f *Field[T]) NewPolyRingCheck(mod *Poly[T]) *PolyRingGroupChecks[T] {
+func (f *Field[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *PolyRingGroupChecks[T] {
 	groupCheck := &PolyRingGroupChecks[T]{
-		mod:    mod,
-		checks: []polyRingMulCheck[T]{},
+		mod:       mod,
+		modEvalFn: modEvalFn,
 	}
 	f.deferredPolyChecks = append(f.deferredPolyChecks, groupCheck)
 
@@ -483,10 +486,16 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 		lhsRlc := f.InnerProductNoReduce(lhsEvals, zPowers)
 
+		if group.modEvalFn == nil {
+			group.modEvalFn = func(xPowers []*Element[T]) *Element[T] {
+				return f.evalPolyWithChallenge(group.mod, xPowers)
+			}
+		}
+
 		// compute q_acc(x) * mod(x)
 		rhs := f.MulNoReduce(
 			f.evalPolyWithChallenge(group.q_acc, xPowers),
-			f.evalPolyWithChallenge(group.mod, xPowers),
+			group.modEvalFn(xPowers),
 		)
 
 		f.AssertIsEqual(lhsRlc, rhs)
@@ -623,7 +632,7 @@ func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[
 }
 
 // innerProduct computes the inner product of two vectors of Element.
-func (f *Field[T]) innerProduct(a, b []*Element[T]) *Element[T] {
+func (f *Field[T]) InnerProduct(a, b []*Element[T]) *Element[T] {
 	n := len(a)
 	terms := make([][]*Element[T], n)
 	scalars := make([]int, n)

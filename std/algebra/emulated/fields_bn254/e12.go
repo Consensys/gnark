@@ -26,11 +26,18 @@ func NewExt12(api frontend.API) *Ext12 {
 		panic(err)
 	}
 	modPoly := fp.MakePoly([]any{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1})
+	modEval := func(xPowers []*baseEl) *baseEl {
+		// return fp.Eval([][]*baseEl{{xPowers[0]}, {xPowers[6]}, {xPowers[12]}}, []int{82, -18, 1})
+		a0 := fp.MulConst(xPowers[0], big.NewInt(82))
+		a6 := fp.MulConst(xPowers[6], big.NewInt(-18))
+		a12 := xPowers[12]
+		return fp.Add(a0, fp.Add(a6, a12))
+	}
 	return &Ext12{
 		Ext2: NewExt2(api),
 		api:  api,
 		fp:   fp,
-		ring: fp.NewPolyRingCheck(modPoly),
+		ring: fp.NewPolyRingCheck(modPoly, modEval),
 	}
 }
 
