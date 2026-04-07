@@ -470,6 +470,8 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		// lhsRlc = ∑_i z^i * (∏_j inputs_i_j(x) - r_i(x))
 		lhsEvals := make([]*Element[T], len(group.checks))
 
+		// Evaluations don't need to be reduced, we can reduce at the very end to
+		// when asserting equality.
 		for i, check := range group.checks {
 			// lhs = inputs_i_0(x)
 			lhs := f.evalPolyWithChallenge(check.inputs[0], xPowers)
@@ -498,6 +500,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 			group.modEvalFn(xPowers),
 		)
 
+		// AssertIsEqual reduces inputs for comparison
 		f.AssertIsEqual(lhsRlc, rhs)
 	}
 
@@ -633,20 +636,7 @@ func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[
 
 // innerProduct computes the inner product of two vectors of Element.
 func (f *Field[T]) InnerProduct(a, b []*Element[T]) *Element[T] {
-	n := len(a)
-	terms := make([][]*Element[T], n)
-	scalars := make([]int, n)
-	for i := range a {
-		if b[i] == nil {
-			terms[i] = []*Element[T]{a[i]}
-		} else if a[i] == nil {
-			terms[i] = []*Element[T]{b[i]}
-		} else {
-			terms[i] = []*Element[T]{a[i], b[i]}
-		}
-		scalars[i] = 1
-	}
-	return f.Eval(terms, scalars)
+	return f.Reduce(f.InnerProductNoReduce(a, b))
 }
 
 // InnerProductNoReduce computes the inner product of two vectors of
@@ -655,11 +645,11 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	n := len(a)
 	terms := make([]*Element[T], n)
 	for i := 0; i < n; i++ {
-		if a[i] == nil || b[i] == nil || len(b[i].Limbs) == 0 || len(a[i].Limbs) == 0 {
+		if a[i] == nil || b[i] == nil || b[i].isStrictZero() || a[i].isStrictZero() {
 			// don't add anything, one of the multiplier is zero
-		} else if len(b[i].Limbs) == 1 && b[i].Limbs[0] == 1 {
+		} else if bConstVal, bIsConst := f.constantValue(b[i]); bIsConst && bConstVal.Cmp(big.NewInt(1)) == 0 {
 			terms[i] = a[i]
-		} else if len(a[i].Limbs) == 1 && a[i].Limbs[0] == 1 {
+		} else if aConstVal, aIsConst := f.constantValue(a[i]); aIsConst && aConstVal.Cmp(big.NewInt(1)) == 0 {
 			terms[i] = b[i]
 		} else {
 			terms[i] = f.MulNoReduce(a[i], b[i])
