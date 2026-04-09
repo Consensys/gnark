@@ -671,10 +671,11 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	return eval
 }
 
-// NativeToEmulated decomposes a native field variable into an *Element[T] by
-// splitting its binary representation into emulated limbs of BitsPerLimb each.
-func (f *Field[T]) NativeToEmulated(nbLimbs int, v ...frontend.Variable) []*Element[T] {
-	nbBits := f.fParams.BitsPerLimb()
+// NativeToEmulated decomposes a native field var into FieldBitLen/nbBits
+// limbs, return Element[T] truncated to limitLimbs.
+func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) []*Element[T] {
+	nbBits := int(f.fParams.BitsPerLimb())
+	nbLimbs := f.api.Compiler().FieldBitLen()/nbBits + 1
 	hintInputs := make([]frontend.Variable, 0, 2+len(v))
 	hintInputs = append(hintInputs, nbBits, nbLimbs)
 	hintInputs = append(hintInputs, v...)
@@ -684,7 +685,18 @@ func (f *Field[T]) NativeToEmulated(nbLimbs int, v ...frontend.Variable) []*Elem
 	}
 	elements := make([]*Element[T], len(v))
 	for i := range elements {
+		// packLimbs performs range checks on limbs
 		elements[i] = f.packLimbs(ret[i*nbLimbs:(i+1)*nbLimbs], false)
+
+		rebuildEl := elements[i].Limbs[0]
+		placeValue := big.NewInt(1)
+		for j := 1; j < len(elements[i].Limbs); j++ {
+			placeValue.Lsh(placeValue, uint(nbBits))
+			rebuildEl = f.api.Add(rebuildEl, f.api.Mul(elements[i].Limbs[j], placeValue))
+		}
+		// assert correct decomposition
+		f.api.AssertIsEqual(rebuildEl, v[i])
+		elements[i].Limbs = elements[i].Limbs[:limitLimbs]
 	}
 	return elements
 }
