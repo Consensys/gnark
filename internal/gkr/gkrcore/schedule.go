@@ -376,3 +376,12 @@ func CollectOutgoingEvalPoints[F any](level constraint.GkrSkipLevel, levelI int,
 	outgoingEvalPoints[levelI] = outPoints
 	return outPoints
 }
+
+// WireIndices returns all circuit wire indices from a level, flattened across claim groups.
+func WireIndices(level constraint.GkrProvingLevel) []int {
+	var wires []int
+	for _, group := range level.ClaimGroups() {
+		wires = append(wires, group.Wires...)
+	}
+	return wires
+}

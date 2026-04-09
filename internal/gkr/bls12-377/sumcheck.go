@@ -219,6 +219,13 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	sumSize := len(c.eqs[0]) / 2
 
 	p := make([]fr.Element, degree)
+
+	firstRound := len(c.eqs[0]) == 1<<c.resources.nbVars
+	var wireIndices []int
+	if firstRound {
+		wireIndices = gkrcore.WireIndices(level)
+	}
+
 	var mu sync.Mutex
 	computeAll := func(start, end int) {
 		var step fr.Element
@@ -256,12 +263,16 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 			nextEIndex := len(ml)
 			for d := range degree {
 				for w := range nbWires {
-					for _, inputI := range c.inputIndices[w] {
-						evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
+					var term fr.Element
+					if d == 0 && firstRound {
+						term.Mul(&c.resources.assignment[wireIndices[w]][evalAt1Index], &mlEvals[eIndex+w])
+					} else {
+						for _, inputI := range c.inputIndices[w] {
+							evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
+						}
+						term.Mul(evaluators[w].evaluate(), &mlEvals[eIndex+w])
 					}
-					summand := evaluators[w].evaluate()
-					summand.Mul(summand, &mlEvals[eIndex+w])
-					res[d].Add(&res[d], summand) // collect contributions into the sum from start to end
+					res[d].Add(&res[d], &term)
 				}
 				eIndex, nextEIndex = nextEIndex, nextEIndex+len(ml)
 			}
@@ -548,6 +559,13 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	eqSegment := c.suffixEq[len(c.suffixEq)/2:]
 
 	p := make([]fr.Element, degree)
+
+	firstRound := len(c.input[0]) == 1<<c.resources.nbVars
+	var wireIndices []int
+	if firstRound {
+		wireIndices = gkrcore.WireIndices(level)
+	}
+
 	var mu sync.Mutex
 	computeAll := func(start, end int) {
 		var step fr.Element
@@ -581,17 +599,25 @@ func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 			nextIIndex := nbUniqueInputs
 			for d := range degree {
 				// Horner accumulation: gate_0 + α·(gate_1 + α·(... + α·gate_{W-1}))
-				for _, inputI := range c.inputIndices[nbWires-1] {
-					evaluators[nbWires-1].pushInput(inputEvals[iIndex+inputI])
-				}
 				var wireSum fr.Element
-				wireSum.Set(evaluators[nbWires-1].evaluate())
+				if d == 0 && firstRound {
+					wireSum.Set(&c.resources.assignment[wireIndices[nbWires-1]][evalAt1Index])
+				} else {
+					for _, inputI := range c.inputIndices[nbWires-1] {
+						evaluators[nbWires-1].pushInput(inputEvals[iIndex+inputI])
+					}
+					wireSum.Set(evaluators[nbWires-1].evaluate())
+				}
 				for w := nbWires - 2; w >= 0; w-- {
 					wireSum.Mul(&wireSum, &c.foldingCoeff)
-					for _, inputI := range c.inputIndices[w] {
-						evaluators[w].pushInput(inputEvals[iIndex+inputI])
+					if d == 0 && firstRound {
+						wireSum.Add(&wireSum, &c.resources.assignment[wireIndices[w]][evalAt1Index])
+					} else {
+						for _, inputI := range c.inputIndices[w] {
+							evaluators[w].pushInput(inputEvals[iIndex+inputI])
+						}
+						wireSum.Add(&wireSum, evaluators[w].evaluate())
 					}
-					wireSum.Add(&wireSum, evaluators[w].evaluate())
 				}
 
 				wireSum.Mul(&wireSum, &eqSegment[h])
