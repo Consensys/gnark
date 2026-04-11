@@ -86,7 +86,11 @@ func (f *Field[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *Poly
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
-func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs ...*Poly[T]) (rem *Poly[T], err error) {
+func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[T]) (rem *Poly[T], err error) {
+	// defensive copy to prevent memory aliasing
+	inputs := make([]*Poly[T], len(inputs_))
+	copy(inputs, inputs_)
+
 	mod := *group.mod
 	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
 
@@ -661,7 +665,13 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 			if eval == nil {
 				eval = term
 			} else {
-				eval = f.add(eval, term, max(eval.overflow, term.overflow)+1)
+				nextOverflow := max(eval.overflow, term.overflow) + 1
+				// eval = f.Add(eval, term)
+				if nextOverflow+2 > f.maxOverflow() {
+					eval = f.Add(eval, term)
+				} else {
+					eval = f.add(eval, term, nextOverflow)
+				}
 			}
 		}
 	}
