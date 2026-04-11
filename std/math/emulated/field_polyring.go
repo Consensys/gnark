@@ -337,7 +337,7 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 	return quotient, remainder, nil
 }
 
-func (f *Field[T]) MakePoly(coeffs []interface{}) *Poly[T] {
+func (f *Field[T]) MakePoly(coeffs ...interface{}) *Poly[T] {
 	poly := &Poly[T]{}
 	poly.Coeffs = make([]*Element[T], len(coeffs))
 

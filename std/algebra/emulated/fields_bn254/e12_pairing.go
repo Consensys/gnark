@@ -269,6 +269,34 @@ func (e *Ext12) Mul01379By01379(e3, e4, c3, c4 *E2) [10]*baseEl {
 	return [10]*baseEl{d0, d1, d2, d3, d4, d6, d7, d8, d9, d10}
 }
 
+// ToPoly01379 converts to polynomial of degree 9 an E12 sparse
+// element b of the form:
+//
+//	b.A0  =  1
+//	b.A1  =  c3.A0 - 9 * c3.A1
+//	b.A2  =  0
+//	b.A3  =  c4.A0 - 9 * c4.A1
+//	b.A4  =  0
+//	b.A5  =  0
+//	b.A6  =  0
+//	b.A7  =  c3.A1
+//	b.A8  =  0
+//	b.A9  =  c4.A1
+//	b.A10 =  0
+//	b.A11 =  0
+func (e Ext12) ToPoly01379(c3, c4 *E2) *basePoly {
+	nine := big.NewInt(9)
+	b1 := e.fp.Sub(&c3.A0, e.fp.MulConst(&c3.A1, nine))
+	b3 := e.fp.Sub(&c4.A0, e.fp.MulConst(&c4.A1, nine))
+	b7 := &c3.A1
+	b9 := &c4.A1
+
+	return &basePoly{
+		Coeffs: []*baseEl{
+			e.fp.One(), b1, nil, b3, nil, nil, nil, b7, nil, b9},
+	}
+}
+
 // MulBy012346789 multiplies a by an E12 sparse element b of the form
 //
 //	b.A0  =  b[0]
@@ -333,5 +361,29 @@ func (e *Ext12) MulBy012346789(a *E12, b [10]*baseEl) *E12 {
 		A9:  *d9,
 		A10: *d10,
 		A11: *d11,
+	}
+}
+
+// ToPoly012346789 converts to polynomial of degree 10 an E12 sparse
+// element b of the form:
+//
+//	b.A0  =  b[0]
+//	b.A1  =  b[1]
+//	b.A2  =  b[2]
+//	b.A3  =  b[3]
+//	b.A4  =  b[4]
+//	b.A5  =  0
+//	b.A6  =  b[5]
+//	b.A7  =  b[6]
+//	b.A8  =  b[7]
+//	b.A9  =  b[8]
+//	b.A10 =  b[9]
+//	b.A11 =  0
+
+func (e Ext12) ToPoly012346789(b [10]*baseEl) *basePoly {
+	return &basePoly{
+		Coeffs: []*baseEl{
+			b[0], b[1], b[2], b[3], b[4], nil,
+			b[5], b[6], b[7], b[8], b[9]},
 	}
 }

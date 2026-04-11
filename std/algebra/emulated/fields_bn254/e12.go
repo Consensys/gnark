@@ -25,7 +25,7 @@ func NewExt12(api frontend.API) *Ext12 {
 	if err != nil {
 		panic(err)
 	}
-	modPoly := fp.MakePoly([]any{82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1})
+	modPoly := fp.MakePoly(82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1)
 	modEval := func(xPowers []*baseEl) *baseEl {
 		// return fp.Eval([][]*baseEl{{xPowers[0]}, {xPowers[6]}, {xPowers[12]}}, []int{82, -18, 1})
 		a0 := fp.MulConst(xPowers[0], big.NewInt(82))
@@ -51,7 +51,10 @@ func (a *E12) ToPoly() *basePoly {
 	}
 }
 
-func (e Ext12) FromPoly(p *basePoly) *E12 {
+func (e Ext12) PolyToE12(p *basePoly) *E12 {
+	if len(p.Coeffs) != 12 {
+		panic("invalid number of coefficients for E12")
+	}
 	return &E12{
 		A0:  *p.Coeffs[0],
 		A1:  *p.Coeffs[1],
