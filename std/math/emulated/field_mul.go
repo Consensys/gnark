@@ -534,8 +534,12 @@ func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Eleme
 	if customMod != nil {
 		modulusLimbs = customMod.Limbs
 	}
-	hintInputs := make([]frontend.Variable, 0, 4+len(modulusLimbs)+len(a.Limbs)+len(b.Limbs))
-	hintInputs = append(hintInputs, nbBits, nbLimbs, len(a.Limbs), nbQuoLimbs)
+	isCheckZero := 0
+	if !isMulMod {
+		isCheckZero = 1
+	}
+	hintInputs := make([]frontend.Variable, 0, 5+len(modulusLimbs)+len(a.Limbs)+len(b.Limbs))
+	hintInputs = append(hintInputs, nbBits, nbLimbs, len(a.Limbs), nbQuoLimbs, isCheckZero)
 	hintInputs = append(hintInputs, modulusLimbs...)
 	hintInputs = append(hintInputs, a.Limbs...)
 	hintInputs = append(hintInputs, b.Limbs...)
@@ -566,8 +570,9 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	nbLimbs := int(inputs[1].Int64())
 	nbALen := int(inputs[2].Int64())
 	nbQuoLen := int(inputs[3].Int64())
-	nbBLen := len(inputs) - 4 - nbLimbs - nbALen
-	ptr := 4
+	isCheckZero := inputs[4].Int64() == 1
+	nbBLen := len(inputs) - 5 - nbLimbs - nbALen
+	ptr := 5
 	plimbs := inputs[ptr : ptr+nbLimbs]
 	ptr += nbLimbs
 	alimbs := inputs[ptr : ptr+nbALen]
@@ -610,6 +615,10 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	ab.Mul(a, b)
 	if p.Sign() != 0 {
 		quo.QuoRem(ab, p, rem)
+	}
+	if isCheckZero && rem.Sign() != 0 {
+		// we expect the remainder to be zero
+		return fmt.Errorf("unexpected non-zero remainder for checkZero")
 	}
 	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
