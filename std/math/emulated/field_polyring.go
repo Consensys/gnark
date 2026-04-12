@@ -386,8 +386,8 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	// prepare all remainder coefficients to commit to from each group
 	var remainderCoeffCommits []frontend.Variable
 	for _, group := range f.deferredPolyChecks {
-		for _, mulCheck := range group.checks {
-			for _, rCoeff := range mulCheck.r.Coeffs {
+		for _, check := range group.checks {
+			for _, rCoeff := range check.r.Coeffs {
 				remainderCoeffCommits = append(remainderCoeffCommits, rCoeff.Limbs...)
 			}
 		}
@@ -411,8 +411,8 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	quotientbatchesCoeffCommits := []frontend.Variable{z}
 	for _, group := range f.deferredPolyChecks {
 		quotients := make([]*Poly[T], len(group.checks))
-		for i, mulCheck := range group.checks {
-			quotients[i] = mulCheck.q
+		for i, check := range group.checks {
+			quotients[i] = check.q
 		}
 
 		// q_acc = ∑_i z^i * q_i
@@ -506,9 +506,25 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 		// AssertIsEqual reduces inputs for comparison
 		f.AssertIsEqual(lhsRlc, rhs)
+
+		// clean evaluations
+		f.deferredRingCheckCleanEvaluations(group)
 	}
 
 	return nil
+}
+
+func (f *Field[T]) deferredRingCheckCleanEvaluations(group *PolyRingGroupChecks[T]) {
+	// clean up evaluations to save memory, they are not needed after the check
+	// for _, check := range group.checks {
+	// 	check.r.evaluation = nil
+	// 	check.q.evaluation = nil
+	// 	for _, input := range check.inputs {
+	// 		input.evaluation = nil
+	// 	}
+	// }
+	// group.mod.evaluation = nil
+	// group.q_acc.evaluation = nil
 }
 
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
@@ -628,6 +644,7 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	return nil
 }
 
+
 // evalPolyWithChallenge evaluates p at a point whose powers are given by at,
 // where at[i] = at^i. Precomputing and sharing powers across multiple
 // polynomial evaluations at the same point avoids redundant multiplications.
@@ -721,7 +738,7 @@ func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) erro
 	outptr := 0
 	for ptr := 2; ptr < len(inputs); ptr++ {
 		nativeEl := inputs[ptr]
-		coeffLimbs := make([]*big.Int, nativeEl.BitLen()/nbBits+1)
+		coeffLimbs := make([]*big.Int, nativeMod.BitLen()/nbBits+1)
 		for k := range coeffLimbs {
 			coeffLimbs[k] = new(big.Int)
 		}
