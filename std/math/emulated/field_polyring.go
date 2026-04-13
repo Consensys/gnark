@@ -122,12 +122,14 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 	}
 	nbQTermsLimbs := (1 + qDegree) * nbLimbs
 
+	nbMetaDataVars := 3 + int(nbBits)
 	// polynomials serialised as nbTerms|...terms. hintInputs contains
 	// serialisation of: nbBits|nbLimbs|nbPoly|fieldMod|...inputs|modPoly,
 	// where inputs and mod are serialised as polynomials
-	hintInputs := make([]frontend.Variable, 0, 4+(nbPoly+nbTermsLimbs)+(1+nbModTermsLimbs))
+	hintInputs := make([]frontend.Variable, 0, nbMetaDataVars+(nbPoly+nbTermsLimbs)+(1+nbModTermsLimbs))
 
-	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly, f.fParams.Modulus())
+	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly)
+	hintInputs = append(hintInputs, f.Modulus().Limbs...)
 
 	// loop through inputs to compute the number of terms
 	for _, inputPoly := range inputs {
@@ -179,11 +181,13 @@ func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	nbBits := int(inputs[0].Int64())
 	nbLimbs := int(inputs[1].Int64())
 	nbPoly := int(inputs[2].Int64())
-	fieldMod := new(big.Int).Set(inputs[3])
+	fieldMod := new(big.Int)
+	nbMetaDataVars := 3 + int(nbLimbs)
+	limbs.Recompose(inputs[3:nbMetaDataVars], uint(nbBits), fieldMod)
 
 	// extract the input polynomials
 	inputsPolys := make([][]*big.Int, nbPoly)
-	ptr := 4
+	ptr := nbMetaDataVars // skip metadata and modulus limbs
 
 	for i := 0; i < nbPoly; i++ {
 		nbTerms := int(inputs[ptr].Int64())
@@ -542,8 +546,9 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 	nbPolys := len(quotients)
 
 	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
-	hintInputs := make([]frontend.Variable, 0, 6+nbPolys)
-	hintInputs = append(hintInputs, nbBits, nbLimbs, nbChallengeLimbs, nbPolys, f.fParams.Modulus(), z)
+	hintInputs := make([]frontend.Variable, 0, 5+nbLimbs+nbPolys) // nbLimbs from modulus Element
+	hintInputs = append(hintInputs, nbBits, nbLimbs, nbChallengeLimbs, nbPolys, z)
+	hintInputs = append(hintInputs, f.Modulus().Limbs...)
 
 	for _, q := range quotients {
 		hintInputs = f.serialisePoly(q, hintInputs)
@@ -576,16 +581,20 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	nbLimbs := int(inputs[1].Int64())
 	nbChallengeLimbs := int(inputs[2].Int64())
 	nbPolys := int(inputs[3].Int64())
-	fieldMod := new(big.Int).Set(inputs[4])
 	// we only use nbChallengeLimbs worth of the challenge
 	nbChallengeBits := uint(nbBits * nbChallengeLimbs)
 
 	z := new(big.Int) // full z
 	base := new(big.Int).Lsh(one, nbChallengeBits)
 	base.Sub(base, one)    // 0b111...1111 challenge bits
-	z.And(inputs[5], base) // mask z to nbChallengeLimbs bits
+	z.And(inputs[4], base) // mask z to nbChallengeLimbs bits
 
-	ptr := 6
+	nbMetaDataVars := 5 + int(nbLimbs)
+
+	fieldMod := new(big.Int)
+	limbs.Recompose(inputs[5:nbMetaDataVars], uint(nbBits), fieldMod)
+
+	ptr := nbMetaDataVars // skip metadata and modulus limbs
 	polys := make([][]*big.Int, nbPolys)
 	for i := 0; i < nbPolys; i++ {
 		nbTerms := int(inputs[ptr].Int64())
