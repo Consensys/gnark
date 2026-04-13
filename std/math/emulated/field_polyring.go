@@ -225,27 +225,17 @@ func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	outputs[outptr].SetInt64(int64(len(q)))
 	outptr++
 	for _, coeff := range q {
-		coeffLimbs := make([]*big.Int, nbLimbs)
-		for i := range coeffLimbs {
-			coeffLimbs[i] = new(big.Int)
-		}
-		if err := limbs.Decompose(coeff, nbBitsU, coeffLimbs); err != nil {
+		if err := limbs.Decompose(coeff, nbBitsU, outputs[outptr:outptr+nbLimbs]); err != nil {
 			return fmt.Errorf("decompose quotient coeff: %w", err)
 		}
-		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
 		outptr += nbLimbs
 	}
 	outputs[outptr].SetInt64(int64(len(r)))
 	outptr++
 	for _, coeff := range r {
-		coeffLimbs := make([]*big.Int, nbLimbs)
-		for i := range coeffLimbs {
-			coeffLimbs[i] = new(big.Int)
-		}
-		if err := limbs.Decompose(coeff, nbBitsU, coeffLimbs); err != nil {
+		if err := limbs.Decompose(coeff, nbBitsU, outputs[outptr:outptr+nbLimbs]); err != nil {
 			return fmt.Errorf("decompose remainder coeff: %w", err)
 		}
-		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
 		outptr += nbLimbs
 	}
 
@@ -430,10 +420,9 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 			return fmt.Errorf("deferredPolyCheck callQuotientsRLCHint error: %w", err)
 		}
 
-		//
+		// commit quotient rlc coefficients from each group
 		for _, qCoeff := range group.qAcc.Coeffs {
 			if qCoeff == nil {
-				println("nil coefficient")
 				continue
 			}
 			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, qCoeff.Limbs...)
@@ -523,14 +512,10 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		f.AssertIsEqual(lhsRlc, rhs)
 	}
 
-	// clean evaluations
-	f.deferredRingCheckCleanEvaluations()
-	return nil
-}
-
-func (f *Field[T]) deferredRingCheckCleanEvaluations() {
 	// cleanup all deffered polynomial ring checks
 	f.deferredPolyChecks = nil
+
+	return nil
 }
 
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
@@ -637,14 +622,9 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	// serialize: maxTerms coefficients each decomposed into nbLimbs limbs
 	outptr := 0
 	for idx, coeff := range result {
-		coeffLimbs := make([]*big.Int, nbLimbs)
-		for k := range coeffLimbs {
-			coeffLimbs[k] = new(big.Int)
-		}
-		if err := limbs.Decompose(coeff, uint(nbBits), coeffLimbs); err != nil {
+		if err := limbs.Decompose(coeff, uint(nbBits), outputs[outptr:outptr+nbLimbs]); err != nil {
 			return fmt.Errorf("decompose result[%d]: %w", idx, err)
 		}
-		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs)
 		outptr += nbLimbs
 	}
 	return nil
@@ -745,14 +725,9 @@ func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) erro
 	outptr := 0
 	for ptr := 2; ptr < len(inputs); ptr++ {
 		nativeEl := inputs[ptr]
-		coeffLimbs := make([]*big.Int, nativeMod.BitLen()/nbBits+1)
-		for k := range coeffLimbs {
-			coeffLimbs[k] = new(big.Int)
-		}
-		if err := limbs.Decompose(nativeEl, uint(nbBits), coeffLimbs); err != nil {
+		if err := limbs.Decompose(nativeEl, uint(nbBits), outputs[outptr:outptr+nbLimbs]); err != nil {
 			return fmt.Errorf("decompose result[%d]: %w", ptr-2, err)
 		}
-		copy(outputs[outptr:outptr+nbLimbs], coeffLimbs[0:nbLimbs])
 		outptr += nbLimbs
 	}
 
