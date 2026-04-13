@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+type basePoly = emulated.Poly[emulated.BN254Fp]
 type baseEl = emulated.Element[BaseField]
 type GTEl = fields_bn254.E12
 
@@ -569,12 +570,15 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 
 	// Compute f_{6x₀+2,Q}(P)
 	var prodLines [10]*baseEl
-	res := pr.Ext12.One()
+	polyMulDefer := make([]*basePoly, 0, n/2+3)
+	res := pr.curveF.MakePoly(1)
 
-	var initInv GTEl
+	var initPoly *basePoly
+	var initInvPoly *basePoly
 	if init != nil {
-		res = init
-		initInv = *pr.Ext12.Inverse(init)
+		initPoly = init.ToPoly()
+		initInvPoly = pr.Ext12.Inverse(init).ToPoly()
+		res = initPoly
 	}
 
 	j := len(loopCounter) - 2
@@ -584,20 +588,18 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 		c3 := pr.Ext2.MulByElement(&lines[0][0][j].R0, xNegOverY[0])
 		c4 := pr.Ext2.MulByElement(&lines[0][0][j].R1, yInv[0])
 		nine := big.NewInt(9)
-		res = &GTEl{
-			A0:  *pr.curveF.One(),
-			A1:  *pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
-			A2:  *pr.curveF.Zero(),
-			A3:  *pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
-			A4:  *pr.curveF.Zero(),
-			A5:  *pr.curveF.Zero(),
-			A6:  *pr.curveF.Zero(),
-			A7:  c3.A1,
-			A8:  *pr.curveF.Zero(),
-			A9:  c4.A1,
-			A10: *pr.curveF.Zero(),
-			A11: *pr.curveF.Zero(),
-		}
+		res = pr.curveF.MakePoly(
+			*pr.curveF.One(),
+			*pr.curveF.Sub(&c3.A0, pr.curveF.MulConst(&c3.A1, nine)),
+			nil,
+			*pr.curveF.Sub(&c4.A0, pr.curveF.MulConst(&c4.A1, nine)),
+			nil,
+			nil,
+			nil,
+			c3.A1,
+			nil,
+			c4.A1,
+		)
 
 		if n >= 2 {
 			// k = 1, separately to avoid MulBy01379 (res × ℓ)
@@ -609,21 +611,23 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 				c3,
 				c4,
 			)
-			res = &GTEl{
-				A0:  *prodLines[0],
-				A1:  *prodLines[1],
-				A2:  *prodLines[2],
-				A3:  *prodLines[3],
-				A4:  *prodLines[4],
-				A5:  *pr.curveF.Zero(),
-				A6:  *prodLines[5],
-				A7:  *prodLines[6],
-				A8:  *prodLines[7],
-				A9:  *prodLines[8],
-				A10: *prodLines[9],
-				A11: *pr.curveF.Zero(),
-			}
+
+			res = pr.curveF.MakePoly(
+				*prodLines[0],
+				*prodLines[1],
+				*prodLines[2],
+				*prodLines[3],
+				*prodLines[4],
+				nil,
+				*prodLines[5],
+				*prodLines[6],
+				*prodLines[7],
+				*prodLines[8],
+				*prodLines[9],
+			)
 		}
+
+		polyMulDefer = append(polyMulDefer, res)
 
 		if n >= 3 {
 			// k >= 2: batch lines 2-by-2
@@ -634,47 +638,66 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 					pr.Ext2.MulByElement(&lines[k-1][0][j].R0, xNegOverY[k-1]),
 					pr.Ext2.MulByElement(&lines[k-1][0][j].R1, yInv[k-1]),
 				)
-				res = pr.Ext12.MulBy012346789(res, prodLines)
+				polyMulDefer = append(polyMulDefer, pr.ToPoly012346789(prodLines))
 			}
 			// Handle remaining line if (n-2) is odd
 			if (n-2)%2 != 0 {
-				res = pr.MulBy01379(
-					res,
-					pr.Ext2.MulByElement(&lines[n-1][0][j].R0, xNegOverY[n-1]),
-					pr.Ext2.MulByElement(&lines[n-1][0][j].R1, yInv[n-1]),
+				polyMulDefer = append(
+					polyMulDefer,
+					pr.ToPoly01379(
+						pr.Ext2.MulByElement(&lines[n-1][0][j].R0, xNegOverY[n-1]),
+						pr.Ext2.MulByElement(&lines[n-1][0][j].R1, yInv[n-1]),
+					),
 				)
 			}
 		}
 		j--
 	}
 
+	if len(polyMulDefer) > 1 {
+		res = pr.MulPoly(polyMulDefer...)
+		polyMulDefer = polyMulDefer[:0]
+	}
+
 	for i := j; i >= 0; i-- {
-		res = pr.Ext12.Square(res)
+		// res²
+		polyMulDefer = append(polyMulDefer, res, res)
 
 		switch loopCounter[i] {
 		case 0:
 			// Batch lines 2-by-2 across pairs using sparse×sparse multiplication
 			for k := 1; k < n; k += 2 {
-				prodLines = pr.Mul01379By01379(
-					pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
-					pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
-					pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+				// prodLines = pr.Mul01379By01379(
+				// 	pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				// 	pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+				// 	pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+				// 	pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+				// )
+				// polyMulDefer = append(polyMulDefer, pr.ToPoly012346789(prodLines))
+
+				polyMulDefer = append(
+					polyMulDefer,
+					pr.ToPoly01379(
+						pr.Ext2.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+						pr.Ext2.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					),
+					pr.ToPoly01379(
+						pr.Ext2.MulByElement(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+						pr.Ext2.MulByElement(&lines[k-1][0][i].R1, yInv[k-1]),
+					),
 				)
-				res = pr.Ext12.MulBy012346789(res, prodLines)
 			}
 			// Handle odd remaining line
 			if n%2 != 0 {
-				res = pr.MulBy01379(
-					res,
+				polyMulDefer = append(polyMulDefer, pr.ToPoly01379(
 					pr.Ext2.MulByElement(&lines[n-1][0][i].R0, xNegOverY[n-1]),
 					pr.Ext2.MulByElement(&lines[n-1][0][i].R1, yInv[n-1]),
-				)
+				))
 			}
 		case 1:
 			if init != nil {
 				// multiply by init when bit=1
-				res = pr.Ext12.Mul(res, init)
+				polyMulDefer = append(polyMulDefer, initPoly)
 			}
 			// ℓ × ℓ
 			for k := 0; k < n; k++ {
@@ -685,12 +708,12 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
 				)
 				// (ℓ × ℓ) × res
-				res = pr.Ext12.MulBy012346789(res, prodLines)
+				polyMulDefer = append(polyMulDefer, pr.ToPoly012346789(prodLines))
 			}
 		case -1:
 			if init != nil {
 				// multiply by 1/init when bit=-1
-				res = pr.Ext12.Mul(res, &initInv)
+				polyMulDefer = append(polyMulDefer, initInvPoly)
 			}
 			for k := 0; k < n; k++ {
 				// ℓ × ℓ
@@ -701,27 +724,49 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init 
 					pr.Ext2.MulByElement(&lines[k][1][i].R1, yInv[k]),
 				)
 				// (ℓ × ℓ) × res
-				res = pr.Ext12.MulBy012346789(res, prodLines)
+				polyMulDefer = append(polyMulDefer, pr.ToPoly012346789(prodLines))
 			}
 		default:
 			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
+
+		if len(polyMulDefer) > 1 {
+			res = pr.MulPoly(polyMulDefer...)
+			polyMulDefer = polyMulDefer[:0]
+		}
+
 	}
+
+	polyMulDefer = append(polyMulDefer, res)
 
 	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
 	// lines evaluations at P
 	// and ℓ × ℓ
 	for k := 0; k < n; k++ {
-		prodLines = pr.Mul01379By01379(
-			pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
-			pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
-			pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
-			pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
+		// prodLines = pr.Mul01379By01379(
+		// 	pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
+		// 	pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
+		// 	pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
+		// 	pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
+		// )
+		polyMulDefer = append(
+			polyMulDefer,
+			pr.ToPoly01379(
+				pr.Ext2.MulByElement(&lines[k][0][65].R0, xNegOverY[k]),
+				pr.Ext2.MulByElement(&lines[k][0][65].R1, yInv[k]),
+			),
+			pr.ToPoly01379(
+				pr.Ext2.MulByElement(&lines[k][1][65].R0, xNegOverY[k]),
+				pr.Ext2.MulByElement(&lines[k][1][65].R1, yInv[k]),
+			),
 		)
-		res = pr.Ext12.MulBy012346789(res, prodLines)
+	}
+	if len(polyMulDefer) > 1 {
+		res = pr.MulPoly(polyMulDefer...)
+		polyMulDefer = polyMulDefer[:0]
 	}
 
-	return res, nil
+	return pr.PolyToE12(res), nil
 }
 
 // doubleAndAddStep doubles p1 and adds or subs p2 to the result in affine coordinates, based on the isSub boolean.
