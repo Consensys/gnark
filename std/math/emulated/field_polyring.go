@@ -8,7 +8,9 @@ import (
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
-var NB_CHALLENGE_LIMBS = 2
+const nbChallengeLimbs = 2
+
+var one = big.NewInt(1)
 
 // Represents an element of a polynomial ring over the emulated field.
 type Poly[T FieldParams] struct {
@@ -60,7 +62,7 @@ type PolyRingGroupChecks[T FieldParams] struct {
 	mod       *Poly[T]              // polynomial defining the ring
 	modEvalFn EvalFnType[T]         // evaluation of mod at the challenge point, set at check time
 	checks    []polyRingMulCheck[T] // individual operations to check
-	q_acc     *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
+	qAcc      *Poly[T]              // random linear combination of quotients ∑_i z^i * q_i
 }
 
 // polyRingMulCheck is an individual deferred check.
@@ -71,7 +73,8 @@ type polyRingMulCheck[T FieldParams] struct {
 	q      *Poly[T]   // quotient
 }
 
-// NewPolyRingCheck registers a new polynomial ring group with the given modulus. The
+// NewPolyRingCheck registers a new polynomial ring group with the given modulus
+// and returns it. Pass nil for modEvalFn for default polynomial evaluation
 func (f *Field[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *PolyRingGroupChecks[T] {
 	groupCheck := &PolyRingGroupChecks[T]{
 		mod:       mod,
@@ -87,7 +90,8 @@ func (f *Field[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *Poly
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
 func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[T]) (rem *Poly[T], err error) {
-	// defensive copy to prevent memory aliasing
+	// guards against replacing the entries in inputs_ slice but preserves
+	// pointers to each *Poly[T] for cached evaluations
 	inputs := make([]*Poly[T], len(inputs_))
 	copy(inputs, inputs_)
 
@@ -113,6 +117,9 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 	totalDegree := nbTerms - nbPoly
 	// q degree is total degree minus the degree of the modulus polynomial
 	qDegree := totalDegree - modDegree
+	if qDegree < 0 {
+		qDegree = 0
+	}
 	nbQTermsLimbs := (1 + qDegree) * nbLimbs
 
 	// polynomials serialised as nbTerms|...terms. hintInputs contains
@@ -120,7 +127,7 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 	// where inputs and mod are serialised as polynomials
 	hintInputs := make([]frontend.Variable, 0, 4+(nbPoly+nbTermsLimbs)+(1+nbModTermsLimbs))
 
-	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly, *f.fParams.Modulus())
+	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly, f.fParams.Modulus())
 
 	// loop through inputs to compute the number of terms
 	for _, inputPoly := range inputs {
@@ -248,7 +255,7 @@ func polyRingMulHint(mod *big.Int, inputs, outputs []*big.Int) error {
 // polyRingMul multiplies all polynomials in inputs and divides the product
 // by modPoly using polynomial Euclidean division. Coefficients are reduced
 // modulo fieldMod (the emulated field prime).
-func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q, r []*big.Int, err error) {
+func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (quotient, remainder []*big.Int, err error) {
 	if len(inputs) == 0 {
 		return nil, nil, fmt.Errorf("polyRingMul: no input polynomials")
 	}
@@ -267,10 +274,11 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 		for i := range result {
 			result[i] = new(big.Int)
 		}
+		tmp := new(big.Int)
 		for i, ci := range product {
 			for j, cj := range b {
-				term := new(big.Int).Mul(ci, cj)
-				result[i+j].Add(result[i+j], term)
+				tmp.Mul(ci, cj)
+				result[i+j].Add(result[i+j], tmp)
 				result[i+j].Mod(result[i+j], fieldMod)
 			}
 		}
@@ -305,20 +313,22 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 	}
 
 	qDeg := len(product) - 1 - divisorDeg
-	quotient := make([]*big.Int, qDeg+1)
+	quotient = make([]*big.Int, qDeg+1)
 	for i := range quotient {
 		quotient[i] = new(big.Int)
 	}
 
+	lc := new(big.Int)
+	term := new(big.Int)
 	for len(dividend) >= len(modPoly) {
 		d := len(dividend) - len(modPoly)
 		// leading quotient term at degree d
-		lc := new(big.Int).Mul(dividend[len(dividend)-1], lcInv)
+		lc = lc.Mul(dividend[len(dividend)-1], lcInv)
 		lc.Mod(lc, fieldMod)
 		quotient[d].Set(lc)
 		// subtract lc * x^d * modPoly from dividend
 		for i, c := range modPoly {
-			term := new(big.Int).Mul(lc, c)
+			term = term.Mul(lc, c)
 			dividend[i+d].Sub(dividend[i+d], term)
 			dividend[i+d].Mod(dividend[i+d], fieldMod)
 		}
@@ -329,7 +339,7 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 	}
 
 	// pad remainder to divisorDeg terms
-	remainder := make([]*big.Int, divisorDeg)
+	remainder = make([]*big.Int, divisorDeg)
 	for i := range remainder {
 		if i < len(dividend) {
 			remainder[i] = new(big.Int).Set(dividend[i])
@@ -337,11 +347,10 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (q,
 			remainder[i] = new(big.Int)
 		}
 	}
-
-	return quotient, remainder, nil
+	return
 }
 
-func (f *Field[T]) MakePoly(coeffs ...interface{}) *Poly[T] {
+func (f *Field[T]) MakePoly(coeffs ...any) *Poly[T] {
 	poly := &Poly[T]{}
 	poly.Coeffs = make([]*Element[T], len(coeffs))
 
@@ -404,8 +413,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		return fmt.Errorf("deferredPolyCheck commit error: %w", err)
 	}
 
-	// 2. batch and store quotients from each group
-	//    and prepare to commit
+	// 2. batch and store quotients from each group and prepare to commit
 
 	// z can be shared across all groups
 	quotientbatchesCoeffCommits := []frontend.Variable{z}
@@ -416,19 +424,19 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 		}
 
 		// q_acc = ∑_i z^i * q_i
-		group.q_acc, err = f.callQuotientsRLCHint(quotients, z)
-
-		//
-		for _, rCoeff := range group.q_acc.Coeffs {
-			if rCoeff == nil {
-				println("nil coefficient")
-				continue
-			}
-			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, rCoeff.Limbs...)
-		}
+		group.qAcc, err = f.callQuotientsRLCHint(quotients, z)
 
 		if err != nil {
 			return fmt.Errorf("deferredPolyCheck callQuotientsRLCHint error: %w", err)
+		}
+
+		//
+		for _, qCoeff := range group.qAcc.Coeffs {
+			if qCoeff == nil {
+				println("nil coefficient")
+				continue
+			}
+			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, qCoeff.Limbs...)
 		}
 	}
 
@@ -439,15 +447,22 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	// Decompose challenges into emulated elements (full-width, multi-limb).
-	nativesToEl := f.NativeToEmulated(NB_CHALLENGE_LIMBS, z, x)
+	nativesToEl, err := f.NativeToEmulated(nbChallengeLimbs, z, x)
+	if err != nil {
+		return fmt.Errorf("NativeToEmulated error: %w", err)
+	}
 	zEmulated := nativesToEl[0]
 	xEmulated := nativesToEl[1]
 
-	maxTerms := 0
-	maxChecks := 0
+	maxTerms := 1
+	maxChecks := 1
 	for _, group := range f.deferredPolyChecks {
-		maxTerms = max(maxTerms, len(group.mod.Coeffs))
-		maxTerms = max(maxTerms, len(group.q_acc.Coeffs))
+		maxTerms = max(maxTerms, len(group.mod.Coeffs), len(group.qAcc.Coeffs))
+		for _, check := range group.checks {
+			for _, input := range check.inputs {
+				maxTerms = max(maxTerms, len(input.Coeffs))
+			}
+		}
 		maxChecks = max(maxChecks, len(group.checks))
 	}
 
@@ -500,31 +515,22 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 		// compute q_acc(x) * mod(x)
 		rhs := f.MulNoReduce(
-			f.evalPolyWithChallenge(group.q_acc, xPowers),
+			f.evalPolyWithChallenge(group.qAcc, xPowers),
 			group.modEvalFn(xPowers),
 		)
 
 		// AssertIsEqual reduces inputs for comparison
 		f.AssertIsEqual(lhsRlc, rhs)
-
-		// clean evaluations
-		f.deferredRingCheckCleanEvaluations(group)
 	}
 
+	// clean evaluations
+	f.deferredRingCheckCleanEvaluations()
 	return nil
 }
 
-func (f *Field[T]) deferredRingCheckCleanEvaluations(group *PolyRingGroupChecks[T]) {
-	// clean up evaluations to save memory, they are not needed after the check
-	// for _, check := range group.checks {
-	// 	check.r.evaluation = nil
-	// 	check.q.evaluation = nil
-	// 	for _, input := range check.inputs {
-	// 		input.evaluation = nil
-	// 	}
-	// }
-	// group.mod.evaluation = nil
-	// group.q_acc.evaluation = nil
+func (f *Field[T]) deferredRingCheckCleanEvaluations() {
+	// cleanup all deffered polynomial ring checks
+	f.deferredPolyChecks = nil
 }
 
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
@@ -552,7 +558,7 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 
 	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
 	hintInputs := make([]frontend.Variable, 0, 6+nbPolys)
-	hintInputs = append(hintInputs, nbBits, nbLimbs, NB_CHALLENGE_LIMBS, nbPolys, *f.fParams.Modulus(), z)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, nbChallengeLimbs, nbPolys, f.fParams.Modulus(), z)
 
 	for _, q := range quotients {
 		hintInputs = f.serialisePoly(q, hintInputs)
@@ -586,14 +592,14 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	nbChallengeLimbs := int(inputs[2].Int64())
 	nbPolys := int(inputs[3].Int64())
 	fieldMod := new(big.Int).Set(inputs[4])
-	zLimbs := make([]*big.Int, nativeMod.BitLen()/(nbBits*nbChallengeLimbs)+1, nbLimbs)
-	for k := range zLimbs {
-		zLimbs[k] = new(big.Int)
-	}
-	if err := limbs.Decompose(inputs[5], uint(nbBits*nbChallengeLimbs), zLimbs); err != nil {
-		return fmt.Errorf("quotientsRLCHint: z decompose failed: %w", err)
-	}
-	z := zLimbs[0]
+	// we only use nbChallengeLimbs worth of the challenge
+	nbChallengeBits := uint(nbBits * nbChallengeLimbs)
+
+	z := new(big.Int) // full z
+	base := new(big.Int).Lsh(one, nbChallengeBits)
+	base.Sub(base, one)    // 0b111...1111 challenge bits
+	z.And(inputs[5], base) // mask z to nbChallengeLimbs bits
+
 	ptr := 6
 	polys := make([][]*big.Int, nbPolys)
 	for i := 0; i < nbPolys; i++ {
@@ -644,7 +650,6 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	return nil
 }
 
-
 // evalPolyWithChallenge evaluates p at a point whose powers are given by at,
 // where at[i] = at^i. Precomputing and sharing powers across multiple
 // polynomial evaluations at the same point avoids redundant multiplications.
@@ -668,9 +673,9 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	for i := 0; i < n; i++ {
 		if a[i] == nil || b[i] == nil || b[i].isStrictZero() || a[i].isStrictZero() {
 			// don't add anything, one of the multiplier is zero
-		} else if bConstVal, bIsConst := f.constantValue(b[i]); bIsConst && bConstVal.Cmp(big.NewInt(1)) == 0 {
+		} else if bConstVal, bIsConst := f.constantValue(b[i]); bIsConst && bConstVal.Cmp(one) == 0 {
 			terms[i] = a[i]
-		} else if aConstVal, aIsConst := f.constantValue(a[i]); aIsConst && aConstVal.Cmp(big.NewInt(1)) == 0 {
+		} else if aConstVal, aIsConst := f.constantValue(a[i]); aIsConst && aConstVal.Cmp(one) == 0 {
 			terms[i] = b[i]
 		} else {
 			terms[i] = f.MulNoReduce(a[i], b[i])
@@ -683,10 +688,12 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 				eval = term
 			} else {
 				nextOverflow := max(eval.overflow, term.overflow) + 1
-				// eval = f.Add(eval, term)
-				if nextOverflow+2 > f.maxOverflow() {
+				// if next overflow exceeds the maximum, reduce before adding
+				if nextOverflow+1 > f.maxOverflow() {
+					// add with input reduction
 					eval = f.Add(eval, term)
 				} else {
+					// add without overflow checks
 					eval = f.add(eval, term, nextOverflow)
 				}
 			}
@@ -700,7 +707,7 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 
 // NativeToEmulated decomposes a native field var into FieldBitLen/nbBits
 // limbs, return Element[T] truncated to limitLimbs.
-func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) []*Element[T] {
+func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) ([]*Element[T], error) {
 	nbBits := int(f.fParams.BitsPerLimb())
 	nbLimbs := f.api.Compiler().FieldBitLen()/nbBits + 1
 	hintInputs := make([]frontend.Variable, 0, 2+len(v))
@@ -708,7 +715,7 @@ func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) []*E
 	hintInputs = append(hintInputs, v...)
 	ret, err := f.api.NewHint(splitNativeToLimbsHint, nbLimbs*len(v), hintInputs...)
 	if err != nil {
-		panic(fmt.Sprintf("NativeToEmulated hint error: %v", err))
+		return nil, err
 	}
 	elements := make([]*Element[T], len(v))
 	for i := range elements {
@@ -725,7 +732,7 @@ func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) []*E
 		f.api.AssertIsEqual(rebuildEl, v[i])
 		elements[i].Limbs = elements[i].Limbs[:limitLimbs]
 	}
-	return elements
+	return elements, nil
 }
 
 func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {

@@ -27,7 +27,6 @@ func NewExt12(api frontend.API) *Ext12 {
 	}
 	modPoly := fp.MakePoly(82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1)
 	modEval := func(xPowers []*baseEl) *baseEl {
-		// return fp.Eval([][]*baseEl{{xPowers[0]}, {xPowers[6]}, {xPowers[12]}}, []int{82, -18, 1})
 		a0 := fp.MulConst(xPowers[0], big.NewInt(82))
 		a6 := fp.MulConst(xPowers[6], big.NewInt(-18))
 		a12 := xPowers[12]
@@ -41,7 +40,7 @@ func NewExt12(api frontend.API) *Ext12 {
 	}
 }
 
-// PolyLike implementation for E12
+// PolyConv implementation for E12
 func (a *E12) ToPoly() *basePoly {
 	return &basePoly{
 		Coeffs: []*baseEl{
@@ -49,6 +48,10 @@ func (a *E12) ToPoly() *basePoly {
 			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
 		},
 	}
+}
+
+func (e Ext12) ToPoly(a *E12) *basePoly {
+	return a.ToPoly()
 }
 
 func (e Ext12) PolyToE12(p *basePoly) *E12 {
@@ -369,15 +372,6 @@ func (e Ext12) mulDirect(a, b *E12) *E12 {
 		A9:  *d9,
 		A10: *d10,
 		A11: *d11,
-	}
-}
-
-func (e Ext12) ToPoly(a *E12) *basePoly {
-	return &basePoly{
-		Coeffs: []*baseEl{
-			&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
-			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
-		},
 	}
 }
 
