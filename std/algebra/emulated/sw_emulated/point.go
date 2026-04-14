@@ -210,8 +210,8 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
-	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
+	isInfinity := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	b := c.baseApi.Select(isInfinity, c.baseApi.Zero(), &c.b)
 
 	var check *emulated.Element[B]
 	if !c.addA {
@@ -234,46 +234,108 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
-	// selector1 = 1 when p is (0,0) and 0 otherwise
-	selector1 := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-	// selector2 = 1 when q is (0,0) and 0 otherwise
-	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
-
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := c.baseApi.MulMod(&p.X, &q.X)
-	pxplusqx := c.baseApi.Add(&p.X, &q.X)
-	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
-	num = c.baseApi.Sub(num, pxqx)
-	if c.addA {
-		num = c.baseApi.Add(num, &c.a)
-	}
-	denum := c.baseApi.Add(&p.Y, &q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := c.baseApi.IsZero(denum)
-	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
-	λ := c.baseApi.Div(num, denum)
-
-	// x = λ^2 - p.x - q.x
-	xr := c.baseApi.MulMod(λ, λ)
-	xr = c.baseApi.Sub(xr, pxplusqx)
-
-	// y = λ(p.x - xr) - p.y
-	yr := c.baseApi.Sub(&p.X, xr)
-	yr = c.baseApi.MulMod(yr, λ)
-	yr = c.baseApi.Sub(yr, &p.Y)
-	result := AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
-	}
+	// isPInfinity = 1 when p is (0,0) and 0 otherwise
+	isPInfinity := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	// isQInfinity = 1 when q is (0,0) and 0 otherwise
+	isQInfinity := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
 
 	zero := c.baseApi.Zero()
 	infinity := AffinePoint[B]{X: *zero, Y: *zero}
-	// if p=(0,0) return q
-	result = *c.Select(selector1, q, &result)
-	// if q=(0,0) return p
-	result = *c.Select(selector2, p, &result)
-	// if p.y + q.y = 0, return (0, 0)
-	result = *c.Select(selector3, &infinity, &result)
+
+	var result AffinePoint[B]
+	if !c.addA {
+		// ---------------------------------------------------------------
+		// j-invariant 0 (a == 0).
+		//
+		// The Brier–Joye unified formula λ = (x₁²+x₁x₂+x₂²)/(y₁+y₂) is
+		// NOT complete on these curves: Fp contains nontrivial cube roots
+		// of unity ω, so two distinct non-inverse points can satisfy
+		// y₁ + y₂ = 0 (e.g. q = −Φ(p) where Φ: (x,y) ↦ (ωx,y)).
+		//
+		// Instead we compute two slopes and select:
+		//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+		//   • tangent λ = 3p.X² / (2p.Y)               when p.X = q.X (doubling)
+		// and handle p = −q  (return O) and p/q = O via selectors.
+		// ---------------------------------------------------------------
+
+		xDiff := c.baseApi.Sub(&q.X, &p.X)
+		xEqual := c.baseApi.IsZero(xDiff)
+
+		// -- chord slope (used when p.X ≠ q.X) --
+		xDiff = c.baseApi.Select(xEqual, c.baseApi.One(), xDiff)
+		λchord := c.baseApi.Div(c.baseApi.Sub(&q.Y, &p.Y), xDiff)
+
+		// -- tangent slope (used when p.X = q.X, i.e. p = ±q) --
+		xx := c.baseApi.MulMod(&p.X, &p.X)
+		xx3 := c.baseApi.MulConst(xx, big.NewInt(3))
+		y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
+		y2IsZero := c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(y2IsZero, c.baseApi.One(), y2)
+		λtangent := c.baseApi.Div(xx3, y2)
+		λtangent = c.baseApi.Select(y2IsZero, c.baseApi.Zero(), λtangent)
+
+		// select the appropriate slope
+		λ := c.baseApi.Select(xEqual, λtangent, λchord)
+
+		// compute the result point from λ
+		xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {&p.X}, {&q.X}}, []int{1, -1, -1})
+		yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
+		result = AffinePoint[B]{
+			X: *xr,
+			Y: *yr,
+		}
+
+		// if p=(0,0) return q
+		result = *c.Select(isPInfinity, q, &result)
+		// if q=(0,0) return p
+		result = *c.Select(isQInfinity, p, &result)
+		// if p = −q (same X, different Y) return O.
+		// When xEqual=1 and y2IsZero=1, both points are (0,0) — already
+		// handled above. Otherwise xEqual=1 ∧ ¬yEqual means p.Y = −q.Y.
+		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
+		areFinite := c.api.And(c.api.Sub(1, isPInfinity), c.api.Sub(1, isQInfinity))
+		isInverse := c.api.And(c.api.And(xEqual, c.api.Sub(1, yEqual)), areFinite)
+		result = *c.Select(isInverse, &infinity, &result)
+	} else {
+		// ---------------------------------------------------------------
+		// j-invariant ≠ 0 (a ≠ 0).
+		//
+		// On these curves p.Y + q.Y = 0 implies p = −q, so the Brier–Joye
+		// unified formula is complete.
+		// ---------------------------------------------------------------
+
+		// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+		pxqx := c.baseApi.MulMod(&p.X, &q.X)
+		pxplusqx := c.baseApi.Add(&p.X, &q.X)
+		num := c.baseApi.MulMod(pxplusqx, pxplusqx)
+		num = c.baseApi.Sub(num, pxqx)
+		num = c.baseApi.Add(num, &c.a)
+		denum := c.baseApi.Add(&p.Y, &q.Y)
+		// if p.y + q.y = 0, assign dummy 1 to denum and continue
+		isYSumZero := c.baseApi.IsZero(denum)
+		denum = c.baseApi.Select(isYSumZero, c.baseApi.One(), denum)
+		λ := c.baseApi.Div(num, denum)
+
+		// x = λ^2 - p.x - q.x
+		xr := c.baseApi.MulMod(λ, λ)
+		xr = c.baseApi.Sub(xr, pxplusqx)
+
+		// y = λ(p.x - xr) - p.y
+		yr := c.baseApi.Sub(&p.X, xr)
+		yr = c.baseApi.MulMod(yr, λ)
+		yr = c.baseApi.Sub(yr, &p.Y)
+		result = AffinePoint[B]{
+			X: *xr,
+			Y: *yr,
+		}
+
+		// if p=(0,0) return q
+		result = *c.Select(isPInfinity, q, &result)
+		// if q=(0,0) return p
+		result = *c.Select(isQInfinity, p, &result)
+		// if p.y + q.y = 0, return (0, 0)
+		result = *c.Select(isYSumZero, &infinity, &result)
+	}
 
 	return &result
 }
@@ -301,15 +363,15 @@ func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 		xx3a = c.baseApi.Add(xx3a, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	var selector frontend.Variable = 0
+	var isDoubleYZero frontend.Variable = 0
 	if unified {
 		// if 2*p.y = 0, assign dummy 1 to y2 and continue
-		selector = c.baseApi.IsZero(y2)
-		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+		isDoubleYZero = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(isDoubleYZero, c.baseApi.One(), y2)
 	}
 	λ := c.baseApi.Div(xx3a, y2)
 	if unified {
-		λ = c.baseApi.Select(selector, c.baseApi.Zero(), λ)
+		λ = c.baseApi.Select(isDoubleYZero, c.baseApi.Zero(), λ)
 	}
 
 	// xr = λ²-2p.x
@@ -319,8 +381,8 @@ func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
+		X: *xr,
+		Y: *yr,
 	}
 }
 
@@ -348,15 +410,15 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 		xx = c.baseApi.Add(xx, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	var selector frontend.Variable = 0
+	var isDoubleYZero frontend.Variable = 0
 	if unified {
 		// if 2p.y = 0, assign dummy 1 to y2 and continue
-		selector = c.baseApi.IsZero(y2)
-		y2 = c.baseApi.Select(selector, c.baseApi.One(), y2)
+		isDoubleYZero = c.baseApi.IsZero(y2)
+		y2 = c.baseApi.Select(isDoubleYZero, c.baseApi.One(), y2)
 	}
 	λ1 := c.baseApi.Div(xx, y2)
 	if unified {
-		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+		λ1 = c.baseApi.Select(isDoubleYZero, c.baseApi.Zero(), λ1)
 	}
 
 	// xr = λ1²-2p.x
@@ -365,14 +427,14 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
-	selector = 0
+	var isSecondSlopeDenominatorZero frontend.Variable = 0
 	if unified {
-		selector = c.baseApi.IsZero(x1x2)
-		x1x2 = c.baseApi.Select(selector, c.baseApi.One(), x1x2)
+		isSecondSlopeDenominatorZero = c.baseApi.IsZero(x1x2)
+		x1x2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.One(), x1x2)
 	}
 	λ2 := c.baseApi.Div(y2, x1x2)
 	if unified {
-		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+		λ2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.Zero(), λ2)
 	}
 	λ2 = c.baseApi.Sub(λ2, λ1)
 
@@ -383,8 +445,8 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 	yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
+		X: *xr,
+		Y: *yr,
 	}
 }
 
@@ -409,14 +471,14 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
 	xpn := c.baseApi.Neg(&p.X)
 	xqxp := c.baseApi.Add(&q.X, xpn)
-	var selector frontend.Variable = 0
+	var isChordDenominatorZero frontend.Variable = 0
 	if unified {
-		selector = c.baseApi.IsZero(xqxp)
-		xqxp = c.baseApi.Select(selector, c.baseApi.One(), xqxp)
+		isChordDenominatorZero = c.baseApi.IsZero(xqxp)
+		xqxp = c.baseApi.Select(isChordDenominatorZero, c.baseApi.One(), xqxp)
 	}
 	λ1 := c.baseApi.Div(yqyp, xqxp)
 	if unified {
-		λ1 = c.baseApi.Select(selector, c.baseApi.Zero(), λ1)
+		λ1 = c.baseApi.Select(isChordDenominatorZero, c.baseApi.Zero(), λ1)
 	}
 
 	// compute x2 = λ1²-p.x-q.x
@@ -427,14 +489,14 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 	// compute -λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Add(x2, xpn)
-	selector = 0
+	var isSecondSlopeDenominatorZero frontend.Variable = 0
 	if unified {
-		selector = c.baseApi.IsZero(x2xp)
-		x2xp = c.baseApi.Select(selector, c.baseApi.One(), x2xp)
+		isSecondSlopeDenominatorZero = c.baseApi.IsZero(x2xp)
+		x2xp = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.One(), x2xp)
 	}
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	if unified {
-		λ2 = c.baseApi.Select(selector, c.baseApi.Zero(), λ2)
+		λ2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.Zero(), λ2)
 	}
 	λ2 = c.baseApi.Add(λ1, λ2)
 
@@ -445,8 +507,8 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 	y3 := c.baseApi.Eval([][]*emulated.Element[B]{{λ2, c.baseApi.Add(x3, xpn)}, {&p.Y}}, []int{1, -1})
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(x3),
-		Y: *c.baseApi.Reduce(y3),
+		X: *x3,
+		Y: *y3,
 	}
 
 }
@@ -578,13 +640,13 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		panic(err)
 	}
 	addFn := c.Add
-	var selector frontend.Variable
+	var isPointAtInfinity frontend.Variable
 	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		isPointAtInfinity = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
 		one := c.baseApi.One()
-		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
+		Q = c.Select(isPointAtInfinity, &AffinePoint[B]{X: *one, Y: *one}, Q)
 	}
 
 	// We use the endomorphism à la GLV to compute [s]Q as
@@ -601,9 +663,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	selector1, selector2 := sdBits[0], sdBits[1]
-	s3 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
-	s4 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
+	isS1Negative, isS2Negative := sdBits[0], sdBits[1]
+	s3 := c.scalarApi.Select(isS1Negative, c.scalarApi.Neg(s1), s1)
+	s4 := c.scalarApi.Select(isS2Negative, c.scalarApi.Neg(s2), s2)
 	// s == s3 + [λ]s4
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s3, c.scalarApi.Mul(s4, c.eigenvalue)),
@@ -620,18 +682,18 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isS1Negative, negQY, &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isS2Negative, negQY, &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 	tableQ[2] = c.triple(tableQ[1])
 	tablePhiQ[2] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&tableQ[2].X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, c.baseApi.Neg(&tableQ[2].Y), &tableQ[2].Y),
+		Y: *c.baseApi.Select(isS2Negative, c.baseApi.Neg(&tableQ[2].Y), &tableQ[2].Y),
 	}
 
 	// we suppose that the first bits of the sub-scalars are 1 and set:
@@ -751,7 +813,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	if !cfg.IncompleteArithmetic {
 		zero := c.baseApi.Zero()
-		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
+		Acc = c.Select(isPointAtInfinity, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
 	}
 
 	return Acc
@@ -784,12 +846,12 @@ func (c *Curve[B, S]) scalarMulJoye(p *AffinePoint[B], s *emulated.Element[S], o
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	var selector frontend.Variable
+	var isPointAtInfinity frontend.Variable
 	if !cfg.IncompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
-		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+		isPointAtInfinity = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
-		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+		p = c.Select(isPointAtInfinity, &AffinePoint[B]{X: *one, Y: *one}, p)
 	}
 
 	var st S
@@ -824,7 +886,7 @@ func (c *Curve[B, S]) scalarMulJoye(p *AffinePoint[B], s *emulated.Element[S], o
 	if !cfg.IncompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := c.baseApi.Zero()
-		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
+		R0 = c.Select(isPointAtInfinity, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
 	}
 
 	return R0
@@ -928,9 +990,9 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 		panic(fmt.Sprintf("compute GLV decomposition s: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	selector1, selector2 := sdBits[0], sdBits[1]
-	s3 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
-	s4 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
+	isS1Negative, isS2Negative := sdBits[0], sdBits[1]
+	s3 := c.scalarApi.Select(isS1Negative, c.scalarApi.Neg(s1), s1)
+	s4 := c.scalarApi.Select(isS2Negative, c.scalarApi.Neg(s2), s2)
 	// s == s3 + [λ]s4
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s3, c.scalarApi.Mul(s4, c.eigenvalue)),
@@ -943,9 +1005,9 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 		panic(fmt.Sprintf("compute GLV decomposition t: %v", err))
 	}
 	t1, t2 := td[0], td[1]
-	selector3, selector4 := tdBits[0], tdBits[1]
-	t3 := c.scalarApi.Select(selector3, c.scalarApi.Neg(t1), t1)
-	t4 := c.scalarApi.Select(selector4, c.scalarApi.Neg(t2), t2)
+	isT1Negative, isT2Negative := tdBits[0], tdBits[1]
+	t3 := c.scalarApi.Select(isT1Negative, c.scalarApi.Neg(t1), t1)
+	t4 := c.scalarApi.Select(isT2Negative, c.scalarApi.Neg(t2), t2)
 	// t == t3 + [λ]t4
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(t3, c.scalarApi.Mul(t4, c.eigenvalue)),
@@ -957,12 +1019,12 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isS1Negative, negQY, &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, negQY, &Q.Y),
+		Y: *c.baseApi.Select(isS2Negative, negQY, &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 
@@ -971,12 +1033,12 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	negRY := c.baseApi.Neg(&R.Y)
 	tableR[1] = &AffinePoint[B]{
 		X: R.X,
-		Y: *c.baseApi.Select(selector3, negRY, &R.Y),
+		Y: *c.baseApi.Select(isT1Negative, negRY, &R.Y),
 	}
 	tableR[0] = c.Neg(tableR[1])
 	tablePhiR[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&R.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector4, negRY, &R.Y),
+		Y: *c.baseApi.Select(isT2Negative, negRY, &R.Y),
 	}
 	tablePhiR[0] = c.Neg(tablePhiR[1])
 
@@ -990,15 +1052,15 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	tableS[3] = c.Neg(tableS[2])
 	f0 := c.baseApi.Mul(&tableS[0].X, c.thirdRootOne)
 	f2 := c.baseApi.Mul(&tableS[2].X, c.thirdRootOne)
-	xor := c.api.Xor(selector2, selector4)
+	isPhiXTwisted := c.api.Xor(isS2Negative, isT2Negative)
 	tablePhiS[0] = &AffinePoint[B]{
-		X: *c.baseApi.Select(xor, f2, f0),
-		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
+		X: *c.baseApi.Select(isPhiXTwisted, f2, f0),
+		Y: *c.baseApi.Lookup2(isS2Negative, isT2Negative, &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
 	}
 	tablePhiS[1] = c.Neg(tablePhiS[0])
 	tablePhiS[2] = &AffinePoint[B]{
-		X: *c.baseApi.Select(xor, f0, f2),
-		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[2].Y, &tableS[0].Y, &tableS[1].Y, &tableS[3].Y),
+		X: *c.baseApi.Select(isPhiXTwisted, f0, f2),
+		Y: *c.baseApi.Lookup2(isS2Negative, isT2Negative, &tableS[2].Y, &tableS[0].Y, &tableS[1].Y, &tableS[3].Y),
 	}
 	tablePhiS[3] = c.Neg(tablePhiS[2])
 
@@ -1021,10 +1083,10 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 			c.baseApi.Mul(&g0.X, c.thirdRootOne), c.thirdRootOne),
 		Y: g0.Y,
 	}
-	selector0 := c.baseApi.IsZero(
+	isAccNegGenerator := c.baseApi.IsZero(
 		c.baseApi.Add(&Acc.Y, &g0.Y),
 	)
-	g := c.Select(selector0, g1, g0)
+	g := c.Select(isAccNegGenerator, g1, g0)
 	// Acc = Q + R + Φ(Q) + Φ(R) + G or
 	// Q + R + Φ(Q) + Φ(R) + Φ²(G) ( = -G+Φ²(G) = -2G-Φ(G) )
 	Acc = c.Add(Acc, g)
@@ -1107,7 +1169,7 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// subtract [2^nbits]G or conditionally [2^nbits]Φ²(G)
 	gm := c.GeneratorMultiples()[nbits-1]
 	g = c.Select(
-		selector0,
+		isAccNegGenerator,
 		// [2^nbits]Φ²(G)
 		&AffinePoint[B]{
 			X: *c.baseApi.Mul(
@@ -1229,11 +1291,11 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
-	var selector1 frontend.Variable
+	var isScalarZero frontend.Variable
 	_s := s
 	if !cfg.IncompleteArithmetic {
-		selector1 = c.scalarApi.IsZero(s)
-		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
+		isScalarZero = c.scalarApi.IsZero(s)
+		_s = c.scalarApi.Select(isScalarZero, c.scalarApi.One(), s)
 	}
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
@@ -1262,17 +1324,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	var selector2 frontend.Variable
+	var isInputPointAtInfinity frontend.Variable
 	one := c.baseApi.One()
 	dummy := &AffinePoint[B]{X: *one, Y: *one}
 	addFn := c.Add
 	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
-		selector2 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		Q = c.Select(selector2, dummy, Q)
-		r0 = c.baseApi.Select(selector2, c.baseApi.Zero(), r0)
-		r1 = c.baseApi.Select(selector2, &dummy.Y, r1)
+		isInputPointAtInfinity = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		Q = c.Select(isInputPointAtInfinity, dummy, Q)
+		r0 = c.baseApi.Select(isInputPointAtInfinity, c.baseApi.Zero(), r0)
+		r1 = c.baseApi.Select(isInputPointAtInfinity, &dummy.Y, r1)
 	}
 
 	var st S
@@ -1455,7 +1517,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
 	if !cfg.IncompleteArithmetic {
-		Acc = c.Select(c.api.Or(selector1, selector2), tableR[2], Acc)
+		Acc = c.Select(c.api.Or(isScalarZero, isInputPointAtInfinity), tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
 	// 		Acc = [s1]Q + [s2]R + [3]R
@@ -1465,10 +1527,18 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// 		    = [3]R
 	c.AssertIsEqual(Acc, tableR[2])
 
-	return &AffinePoint[B]{
+	res := &AffinePoint[B]{
 		X: *R[0],
 		Y: *R[1],
 	}
+	if !cfg.IncompleteArithmetic {
+		zero := c.baseApi.Zero()
+		// On the complete-arithmetic edge branches (s=0 or Q=(0,0)) the
+		// accumulator check is rerouted through a dummy path, so we must also
+		// return the canonical infinity point instead of the unverified hint output.
+		res = c.Select(c.api.Or(isScalarZero, isInputPointAtInfinity), &AffinePoint[B]{X: *zero, Y: *zero}, res)
+	}
+	return res
 }
 
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
@@ -1492,16 +1562,15 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 
 	// handle 0-scalar and (-1)-scalar cases
-	var selector0 frontend.Variable
+	var isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
+	isScalarZero := c.scalarApi.IsZero(s)
 	_s := s
 	if !cfg.IncompleteArithmetic {
 		one := c.scalarApi.One()
-		selector0 = c.api.Or(
-			c.scalarApi.IsZero(s),
-			c.scalarApi.IsZero(
-				c.scalarApi.Add(s, one)),
-		)
-		_s = c.scalarApi.Select(selector0, one, s)
+		isScalarOne = c.scalarApi.IsZero(c.scalarApi.Sub(s, one))
+		isScalarMinusOne = c.scalarApi.IsZero(c.scalarApi.Add(s, one))
+		isScalarZeroOrMinusOne = c.api.Or(isScalarZero, isScalarMinusOne)
+		_s = c.scalarApi.Select(isScalarZeroOrMinusOne, one, s)
 	}
 
 	// Instead of computing [s]P=Q, we check that Q-[s]P == 0.
@@ -1577,17 +1646,21 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	Q := &AffinePoint[B]{X: *point[0], Y: *point[1]}
 
 	// handle (0,0)-point
-	var _selector0, _selector1 frontend.Variable
+	var isInputPointAtInfinity frontend.Variable
 	_P := P
 	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
-		Q = c.Select(selector0, &c.GeneratorMultiples()[3], Q)
+		Q = c.Select(isScalarZeroOrMinusOne, &c.GeneratorMultiples()[3], Q)
 		// if P=(0,0) we assign a dummy point to P and continue
-		_selector0 = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
-		_P = c.Select(_selector0, &c.GeneratorMultiples()[4], P)
-		// if s=±1 we assign a dummy point to Q and continue
-		_selector1 = c.baseApi.IsZero(c.baseApi.Sub(&P.X, &Q.X))
-		Q = c.Select(_selector1, &c.GeneratorMultiples()[3], Q)
+		isInputPointAtInfinity = c.api.And(c.baseApi.IsZero(&P.X), c.baseApi.IsZero(&P.Y))
+		_P = c.Select(isInputPointAtInfinity, &c.GeneratorMultiples()[4], P)
+		// if s=1 we assign a dummy point to Q and continue
+		Q = c.Select(isScalarOne, &c.GeneratorMultiples()[3], Q)
+	}
+
+	addFn := c.Add
+	if !cfg.IncompleteArithmetic {
+		addFn = c.AddUnified
 	}
 
 	// precompute -P, -Φ(P), Φ(P)
@@ -1620,18 +1693,18 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// precompute -P-Q, P+Q, P-Q, -P+Q, -Φ(P)-Φ(Q), Φ(P)+Φ(Q), Φ(P)-Φ(Q), -Φ(P)+Φ(Q)
 	var tableS, tablePhiS [4]*AffinePoint[B]
-	tableS[0] = c.Add(tableP[0], tableQ[0])
+	tableS[0] = addFn(tableP[0], tableQ[0])
 	tableS[1] = c.Neg(tableS[0])
-	tableS[2] = c.Add(tableP[1], tableQ[0])
+	tableS[2] = addFn(tableP[1], tableQ[0])
 	tableS[3] = c.Neg(tableS[2])
-	tablePhiS[0] = c.Add(tablePhiP[0], tablePhiQ[0])
+	tablePhiS[0] = addFn(tablePhiP[0], tablePhiQ[0])
 	tablePhiS[1] = c.Neg(tablePhiS[0])
-	tablePhiS[2] = c.Add(tablePhiP[1], tablePhiQ[0])
+	tablePhiS[2] = addFn(tablePhiP[1], tablePhiQ[0])
 	tablePhiS[3] = c.Neg(tablePhiS[2])
 
 	// we suppose that the first bits of the sub-scalars are 1 and set:
 	// 		Acc = P + Q + Φ(P) + Φ(Q)
-	Acc := c.Add(tableS[1], tablePhiS[1])
+	Acc := addFn(tableS[1], tablePhiS[1])
 	b1 := Acc
 	// then we add G (the base point) to Acc to avoid incomplete additions in
 	// the loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it
@@ -1641,7 +1714,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	//
 	// N.B.: Acc cannot be equal to G, otherwise this means G = -Φ²([s+1]P)
 	g := c.Generator()
-	Acc = c.Add(Acc, g)
+	Acc = addFn(Acc, g)
 
 	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
 	// We prove that the factor is log_(3/sqrt(3)))(r).
@@ -1655,19 +1728,19 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
 	// 		B2  = +P + Q + Φ(P) - Φ(Q)
-	B2 := c.Add(tableS[1], tablePhiS[2])
+	B2 := addFn(tableS[1], tablePhiS[2])
 	// 		b3  = +P + Q - Φ(P) + Φ(Q)
-	b3 := c.Add(tableS[1], tablePhiS[3])
+	b3 := addFn(tableS[1], tablePhiS[3])
 	// 		B4  = +P + Q - Φ(P) - Φ(Q)
-	B4 := c.Add(tableS[1], tablePhiS[0])
+	B4 := addFn(tableS[1], tablePhiS[0])
 	// 		b5  = +P - Q + Φ(P) + Φ(Q)
-	b5 := c.Add(tableS[2], tablePhiS[1])
+	b5 := addFn(tableS[2], tablePhiS[1])
 	// 		B6  = +P - Q + Φ(P) - Φ(Q)
-	B6 := c.Add(tableS[2], tablePhiS[2])
+	B6 := addFn(tableS[2], tablePhiS[2])
 	// 		b7  = +P - Q - Φ(P) + Φ(Q)
-	b7 := c.Add(tableS[2], tablePhiS[3])
+	b7 := addFn(tableS[2], tablePhiS[3])
 	// 		B8  = +P - Q - Φ(P) - Φ(Q)
-	B8 := c.Add(tableS[2], tablePhiS[0])
+	B8 := addFn(tableS[2], tablePhiS[0])
 	// 		B10 = -P + Q + Φ(P) - Φ(Q)
 	B10 := c.Neg(b7)
 	// 		B12 = -P + Q - Φ(P) - Φ(Q)
@@ -1706,29 +1779,45 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		if !cfg.IncompleteArithmetic {
+			Acc = c.doubleGeneric(Acc, true)
+			Acc = addFn(Acc, Bi)
+		} else {
+			Acc = c.doubleAndAdd(Acc, Bi)
+		}
 	}
 
 	// i = 0
 	// subtract the P, Q, Φ(P), Φ(Q) if the first bits are 0
-	tableP[0] = c.Add(tableP[0], Acc)
+	tableP[0] = addFn(tableP[0], Acc)
 	Acc = c.Select(u1bits[0], Acc, tableP[0])
-	tablePhiP[0] = c.Add(tablePhiP[0], Acc)
+	tablePhiP[0] = addFn(tablePhiP[0], Acc)
 	Acc = c.Select(u2bits[0], Acc, tablePhiP[0])
-	tableQ[0] = c.Add(tableQ[0], Acc)
+	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(v1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
+	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(v2bits[0], Acc, tablePhiQ[0])
 
 	// Acc should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
 	if !cfg.IncompleteArithmetic {
-		Acc = c.Select(c.api.Or(c.api.Or(selector0, _selector0), _selector1), &gm, Acc)
+		Acc = c.Select(c.api.Or(c.api.Or(isScalarZeroOrMinusOne, isInputPointAtInfinity), isScalarOne), &gm, Acc)
 	}
 	c.AssertIsEqual(Acc, &gm)
 
-	return &AffinePoint[B]{
+	res := &AffinePoint[B]{
 		X: *point[0],
 		Y: *point[1],
 	}
+	if !cfg.IncompleteArithmetic {
+		zero := c.baseApi.Zero()
+		// The complete-arithmetic edge branches (s=0, s=-1, s=1, or P=(0,0))
+		// reroute the accumulator check through dummy points, so we must also
+		// return the canonical in-circuit result instead of the unverified hint output.
+		res = c.Select(isScalarOne, _P, res)
+		res = c.Select(isScalarZeroOrMinusOne, c.Neg(_P), res)
+		res = c.Select(isScalarZero, &AffinePoint[B]{X: *zero, Y: *zero}, res)
+		res = c.Select(isInputPointAtInfinity, &AffinePoint[B]{X: *zero, Y: *zero}, res)
+	}
+	return res
 }
