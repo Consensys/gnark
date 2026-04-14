@@ -710,7 +710,6 @@ func kzgPointEvaluationFailure(
 	totalG1, err := curve.MultiScalarMul(
 		[]*sw_bls12381.G1Affine{&fixedKzgSrsVk.G1, proofUncompressed},
 		[]*sw_bls12381.Scalar{claimedValue, evPointNeg},
-		algopts.WithCompleteArithmetic(),
 	)
 	if err != nil {
 		return fmt.Errorf("multi scalar mul: %w", err)

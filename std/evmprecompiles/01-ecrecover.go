@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -116,10 +117,13 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	u2 := frField.Div(&s, &r)
 	// compute public key in circuit C = u1 * G + u2 R
 	//
-	// in case the public key is expected to be zero, then we add 1 to u1 to
-	// avoid falling to incomplete edge case in scalar multiplication. Otherwise we add 0.
+	// In case the public key is expected to be zero, we add 1 to u1 to ensure
+	// the scalars are non-zero (incomplete arithmetic requires non-zero scalars).
+	// We use incomplete arithmetic since the ECRecover protocol guarantees
+	// non-degenerate inputs in the non-failure case, and the pIsZero adjustment
+	// handles the failure case.
 	u1 = frField.Add(u1, frField.Select(pIsZero, frField.One(), frField.Zero()))
-	C := curve.JointScalarMulBase(&R, u2, u1)
+	C := curve.JointScalarMulBase(&R, u2, u1, algopts.WithIncompleteArithmetic())
 	// check that the in-circuit computed public key corresponds to the hint
 	// public key if it is not a QNR failure.
 	//

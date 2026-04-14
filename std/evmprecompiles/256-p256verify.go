@@ -2,7 +2,6 @@ package evmprecompiles
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -46,7 +45,7 @@ func P256Verify(api frontend.API,
 	msInv := scalarApi.Div(msgHash, s)
 	rsInv := scalarApi.Div(r, s)
 	PK := sw_emulated.AffinePoint[emulated.P256Fp]{X: *qx, Y: *qy}
-	Rprime := curve.JointScalarMulBase(&PK, rsInv, msInv, algopts.WithCompleteArithmetic())
+	Rprime := curve.JointScalarMulBase(&PK, rsInv, msInv)
 
 	ResIsInfinity := api.And(
 		baseApi.IsZero(&Rprime.X),
