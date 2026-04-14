@@ -167,7 +167,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := c.Add
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	if !cfg.FoldMulti {

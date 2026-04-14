@@ -566,7 +566,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -579,7 +579,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	}
 	addFn := c.Add
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
@@ -742,14 +742,14 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	// i = 0
 	// subtract the Q, Φ(Q) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
+	// When not using incomplete arithmetic, we use AddUnified instead of Add.
 	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tablePhiQ[0])
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		zero := c.baseApi.Zero()
 		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
 	}
@@ -760,7 +760,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // scalarMulJoye computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  p must not be (0,0) and s must not be 0, when [algopts.WithIncompleteArithmetic] option is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -785,7 +785,7 @@ func (c *Curve[B, S]) scalarMulJoye(p *AffinePoint[B], s *emulated.Element[S], o
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
@@ -821,7 +821,7 @@ func (c *Curve[B, S]) scalarMulJoye(p *AffinePoint[B], s *emulated.Element[S], o
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
 	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := c.baseApi.Zero()
 		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
@@ -846,7 +846,7 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 // jointScalarMulFakeGLV computes [s1]p1 + [s2]p2. It doesn't modify p1, p2 nor s1, s2.
 //
-// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), when [algopts.WithIncompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulFakeGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	sm1 := c.scalarMulFakeGLV(p1, s1, opts...)
 	sm2 := c.scalarMulFakeGLV(p2, s2, opts...)
@@ -894,13 +894,13 @@ func (c *Curve[B, S]) jointScalarMulGenericUnsafe(p1, p2 *AffinePoint[B], s1, s2
 
 // jointScalarMulGLV computes [s1]p1 + [s2]p2 using an endomorphism. It doesn't modify p1, p2 nor s1, s2.
 //
-// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), when [algopts.WithIncompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		res1 := c.scalarMulGLVAndFakeGLV(p1, s1, opts...)
 		res2 := c.scalarMulGLVAndFakeGLV(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
@@ -1175,7 +1175,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := c.Add
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	if !cfg.FoldMulti {
@@ -1214,7 +1214,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
 // It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -1231,7 +1231,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 
 	var selector1 frontend.Variable
 	_s := s
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		selector1 = c.scalarApi.IsZero(s)
 		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
 	}
@@ -1266,7 +1266,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	one := c.baseApi.One()
 	dummy := &AffinePoint[B]{X: *one, Y: *one}
 	addFn := c.Add
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
 		selector2 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
@@ -1296,7 +1296,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(r1), r1),
 	}
 	tableR[0] = c.Neg(tableR[1])
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		tableR[2] = c.AddUnified(tableR[1], tableR[1])
 		tableR[2] = c.AddUnified(tableR[2], tableR[1])
 	} else {
@@ -1376,7 +1376,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		}
 		// We don't use doubleAndAdd here as it would involve edge cases
 		// when bits are 00 (T==-Acc) or 11 (T==Acc).
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
+		Acc = c.doubleGeneric(Acc, !cfg.IncompleteArithmetic)
 		Acc = addFn(Acc, T)
 	} else {
 		// when nbits is odd we start the main loop at normally nbits - 1
@@ -1408,8 +1408,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			),
 		}
 		// Acc = [4]Acc + T
-		Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-		Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+		Acc = c.doubleGeneric(Acc, !cfg.IncompleteArithmetic)
+		Acc = c.doubleAndAddGeneric(Acc, T, !cfg.IncompleteArithmetic)
 	}
 
 	// i = 2
@@ -1442,19 +1442,19 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
 	// 		Acc = [4]Acc + T + [3]R
 	T = addFn(T, tableR[2])
-	Acc = c.doubleGeneric(Acc, cfg.CompleteArithmetic)
-	Acc = c.doubleAndAddGeneric(Acc, T, cfg.CompleteArithmetic)
+	Acc = c.doubleGeneric(Acc, !cfg.IncompleteArithmetic)
+	Acc = c.doubleAndAddGeneric(Acc, T, !cfg.IncompleteArithmetic)
 
 	// i = 0
 	// subtract Q and R if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
+	// When not using incomplete arithmetic, we use AddUnified instead of Add.
 	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
 	tableR[0] = addFn(tableR[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc = c.Select(c.api.Or(selector1, selector2), tableR[2], Acc)
 	}
 	// we added [3]R at the last iteration so the result should be
@@ -1474,7 +1474,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
 // It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -1494,7 +1494,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// handle 0-scalar and (-1)-scalar cases
 	var selector0 frontend.Variable
 	_s := s
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		one := c.scalarApi.One()
 		selector0 = c.api.Or(
 			c.scalarApi.IsZero(s),
@@ -1579,7 +1579,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// handle (0,0)-point
 	var _selector0, _selector1 frontend.Variable
 	_P := P
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
 		Q = c.Select(selector0, &c.GeneratorMultiples()[3], Q)
 		// if P=(0,0) we assign a dummy point to P and continue
@@ -1722,7 +1722,7 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// Acc should be now equal to [2^nbits]G
 	gm := c.GeneratorMultiples()[nbits-1]
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc = c.Select(c.api.Or(c.api.Or(selector0, _selector0), _selector1), &gm, Acc)
 	}
 	c.AssertIsEqual(Acc, &gm)

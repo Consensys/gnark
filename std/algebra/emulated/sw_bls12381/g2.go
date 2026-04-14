@@ -513,7 +513,7 @@ func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
 // scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  p must not be (0,0) and s must not be 0, when [algopts.WithIncompleteArithmetic] option is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -535,7 +535,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
 		one := g2.Ext2.One()
@@ -570,7 +570,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
 	R0 = g2.Select(sBits[0], R0, g2.AddUnified(R0, g2.neg(p)))
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := g2.Ext2.Zero()
 		R0 = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}, Lines: nil}, R0)
@@ -582,7 +582,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 // ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -595,7 +595,7 @@ func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -608,7 +608,7 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	}
 	addFn := g2.add
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = g2.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = g2.api.And(
@@ -765,14 +765,14 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 
 	// i = 0
 	// subtract the Q, Φ(Q) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
+	// When not using incomplete arithmetic, we use AddUnified instead of Add.
 	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = g2.Select(s1bits[0], Acc, tableQ[0])
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = g2.Select(s2bits[0], Acc, tablePhiQ[0])
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		zero := g2.Ext2.Zero()
 		Acc = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}}, Acc)
 	}
@@ -799,7 +799,7 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := g2.add
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = g2.AddUnified
 	}
 	if !cfg.FoldMulti {

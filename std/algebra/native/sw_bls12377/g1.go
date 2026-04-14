@@ -177,7 +177,7 @@ func (p *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts .
 // varScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -189,7 +189,7 @@ func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 		panic(err)
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
@@ -277,9 +277,9 @@ func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// When not using incomplete arithmetic, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -292,7 +292,7 @@ func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 	}
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// subtract [2^N]H = (0,1) since we added H at the beginning
 		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
@@ -347,7 +347,7 @@ func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	table[2] = negQ
 	table[3] = Q
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		table[0].AddUnified(api, negPhiQ)
 		table[1].AddUnified(api, negPhiQ)
 		table[2].AddUnified(api, phiQ)
@@ -363,7 +363,7 @@ func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.CompleteArithmetic {
+		if !cfg.IncompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[3])
 		} else {
@@ -373,7 +373,7 @@ func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		if cfg.CompleteArithmetic {
+		if !cfg.IncompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
 		} else {
@@ -382,7 +382,7 @@ func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	}
 
 	// i = 0
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		negQ.AddUnified(api, Acc)
 		Acc.Select(api, k[0].Bit(0), Acc, negQ)
 		negPhiQ.AddUnified(api, Acc)
@@ -454,7 +454,7 @@ func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	if err != nil {
 		panic(err)
 	}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		var tmp G1Affine
 		p.ScalarMul(api, Q, s, opts...)
 		tmp.ScalarMul(api, R, t, opts...)
@@ -559,7 +559,7 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		panic(err)
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
@@ -629,9 +629,9 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// When not using incomplete arithmetic, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -644,7 +644,7 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 	}
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// subtract [2^N]G = (0,1) since we added H at the beginning
 		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
@@ -673,7 +673,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// handle zero-scalar
 	var selector0 frontend.Variable
 	_s := s
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		selector0 = api.IsZero(s)
 		_s = api.Select(selector0, 1, s)
 	}
@@ -755,7 +755,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// handle (0,0)-point
 	var _selector0 frontend.Variable
 	_P := P
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
 		Q.Select(api, selector0, G1Affine{X: 1, Y: 0}, Q)
 		// if P=(0,0) we assign a dummy point to P and continue
@@ -854,7 +854,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 
 	// Acc should be now equal to H=(0,-1)
 	H = G1Affine{X: 0, Y: -1}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc.Select(api, api.Or(selector0, _selector0), H, Acc)
 	}
 	Acc.AssertIsEqual(api, H)
