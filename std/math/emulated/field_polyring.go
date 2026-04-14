@@ -10,6 +10,9 @@ import (
 
 const nbChallengeLimbs = 2
 
+// op degree -> number of checks of this degree
+var opsDegreeTracking map[int]int = map[int]int{}
+
 var one = big.NewInt(1)
 
 // Represents an element of a polynomial ring over the emulated field.
@@ -164,6 +167,9 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 		retPtr += nbLimbs
 		rem.Coeffs[i] = f.packLimbs(termLimbs, true)
 	}
+
+	opDeg := len(quo.Coeffs) + len(rem.Coeffs) - 2
+	opsDegreeTracking[opDeg]++
 
 	group.checks = append(group.checks, polyRingMulCheck[T]{
 		inputs: inputs,
@@ -377,6 +383,9 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	if len(f.deferredPolyChecks) == 0 {
 		return nil
 	}
+
+	f.log.Printf("Poly Ring Multiplications by Degree: %v", opsDegreeTracking)
+	opsDegreeTracking = map[int]int{} // reset tracking for next run
 
 	// get committer from the api
 	committer, ok := api.(frontend.Committer)
@@ -769,4 +778,56 @@ type PolyConv[T FieldParams] interface {
 
 func (p *Poly[T]) ToPoly() *Poly[T] {
 	return p
+}
+
+// PolyRingAccumulator is used to accumulate polynomial products
+// performs multiplications via MulPolyRings when target degree is
+// reached
+type PolyRingAccumulator[T FieldParams] struct {
+	state      []*Poly[T] // current accumulated polynomials
+	f          *Field[T]
+	checker    *PolyRingGroupChecks[T]
+	targetDeg  int
+	currentDeg int
+}
+
+// NewPolyRingAccumulator creates a new polynomial products accumulator
+func (f *Field[T]) NewPolyRingAccumulator(checker *PolyRingGroupChecks[T], targetDeg int) *PolyRingAccumulator[T] {
+	return &PolyRingAccumulator[T]{
+		f:         f,
+		checker:   checker,
+		targetDeg: targetDeg,
+	}
+}
+
+// Mul adds a new polynomial to the accumulator
+func (acc *PolyRingAccumulator[T]) Mul(poly *Poly[T]) {
+	if acc.currentDeg+len(poly.Coeffs)-1 > acc.targetDeg {
+		acc.Result()
+	}
+	acc.currentDeg += len(poly.Coeffs) - 1
+	acc.state = append(acc.state, poly)
+}
+
+// Sqr squares the current accumulation doubling the degree
+func (acc *PolyRingAccumulator[T]) Sqr() {
+	if acc.currentDeg+acc.currentDeg > acc.targetDeg {
+		acc.Result()
+	}
+	acc.currentDeg += acc.currentDeg // degree doubles
+	acc.state = append(acc.state, acc.state...)
+}
+
+// Sqr squares the current accumulation doubling the degree
+func (acc *PolyRingAccumulator[T]) Result() (result *Poly[T]) {
+	if len(acc.state) == 1 {
+		return acc.state[0]
+	}
+	result, err := acc.f.MulPolyRings(acc.checker, acc.state...)
+	if err != nil {
+		panic(err)
+	}
+	acc.state = []*Poly[T]{result}
+	acc.currentDeg = len(result.Coeffs) - 1
+	return
 }
