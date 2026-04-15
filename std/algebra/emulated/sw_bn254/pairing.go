@@ -309,7 +309,7 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	rwQ1 := pr.Frobenius(residueWitnessInv)
 	res.Mul(rwQ1.ToPoly())
 
-	pr.AssertIsEqual(pr.PolyToE12(res.Result()), pr.Ext12.One())
+	pr.AssertIsEqual(pr.PolyToE12(res.Eval()), pr.Ext12.One())
 
 	return nil
 }
@@ -548,7 +548,7 @@ func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		lines[i] = *Q[i].Lines
 	}
 	res, err := pr.millerLoopLines(P, lines, nil, nil, true)
-	return pr.PolyToE12(res.Result()), err
+	return pr.PolyToE12(res.Eval()), err
 }
 
 // millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
@@ -637,7 +637,7 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init,
 		default:
 			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
-		res.Result()
+		res.Eval()
 	}
 
 	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
@@ -911,7 +911,7 @@ func (pr *Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previou
 	rwQ1 := pr.Frobenius(residueWitnessInv)
 	res.Mul(rwQ1.ToPoly())
 
-	return pr.PolyToE12(res.Result())
+	return pr.PolyToE12(res.Eval())
 }
 
 // IsMillerLoopAndFinalExpOne computes the Miller loop between P and Q,
