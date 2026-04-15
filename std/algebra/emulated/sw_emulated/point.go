@@ -628,7 +628,9 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. The exact exceptional set is not documented and should be
+// treated as implementation-dependent.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -822,7 +824,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // scalarMulJoye computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p must not be (0,0) and s must not be 0, when [algopts.WithIncompleteArithmetic] option is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. The exact exceptional set is currently unknown and should be
+// treated as implementation-dependent.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -1284,7 +1288,11 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
 // It implements the "fake GLV" explained in [EEMP25] (Sec. 3.1).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. Besides Q=(0,0) and s=0, the documented exceptional set also
+// includes the small structured scalar set
+// {±1, ±3, ±3⁻¹ mod r}. Outside of this set, the method is intended for
+// random non-adversarial inputs.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -1552,7 +1560,10 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 // scalarMulGLVAndFakeGLV computes [s]P and returns it. It doesn't modify P nor s.
 // It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. Besides P=(0,0) and s in {0, ±1}, there is a sparse
+// point-dependent exceptional set coming from incomplete precomputations and the
+// initial bias step. This mode is intended for random non-adversarial inputs.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
