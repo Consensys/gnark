@@ -1201,9 +1201,13 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 // JointScalarMulBase computes [s1]g + [s2]p and returns it, where g is the
 // fixed generator. It doesn't modify p, s1 and s2.
 //
-// ⚠️   p must NOT be (0,0),
-// ⚠️   p must NOT be ±g,
-// ⚠️   s1 and s2 must NOT be 0.
+// By default, uses complete arithmetic which correctly handles s1=0, s2=0 and
+// p=(0,0).
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set:
+//   - p must NOT be (0,0)
+//   - p must NOT be ±g
+//   - s1 and s2 must NOT be 0
 //
 // JointScalarMulBase is used to verify an ECDSA signature (r,s) for example on
 // the secp256k1 curve. In this case, p is a public key, s2=r/s and s1=hash/s.
@@ -1223,7 +1227,11 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 // scalars s. It returns an error if the length of the slices mismatch. If the
 // input slices are empty, then returns point at infinity.
 //
-// ⚠️  Points and scalars must be nonzero.
+// By default, uses complete arithmetic which correctly handles zero scalars and
+// points at infinity.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, points and scalars must
+// be nonzero.
 func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], error) {
 
 	if len(p) == 0 {

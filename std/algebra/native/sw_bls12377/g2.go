@@ -471,6 +471,10 @@ func (p *g2AffP) DoubleAndAdd(api frontend.API, p1, p2 *g2AffP) *g2AffP {
 }
 
 // ScalarMulBase computes s * g2 and returns it, where g2 is the fixed generator. It doesn't modify s.
+//
+// ⚠️  s must NOT be 0. This function uses a fixed-base windowed method that
+// does not support complete arithmetic and will produce incorrect results for
+// s=0.
 func (p *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 
 	points := getTwistPoints()
