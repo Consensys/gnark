@@ -3,6 +3,7 @@ package emulated
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
@@ -680,12 +681,19 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 		}
 	}
 	var eval *Element[T]
+	var maxTermOverflow uint = 0
+	// adding n terms can result in an overflow of log2(n) bits
+	var additionOverflow uint = uint(bits.Len(uint(n-1))) + 1
+
 	for _, term := range terms {
 		if term != nil {
 			if eval == nil {
 				eval = term
 			} else {
-				nextOverflow := max(eval.overflow, term.overflow) + 1
+				if maxTermOverflow < term.overflow {
+					maxTermOverflow = term.overflow
+				}
+				nextOverflow := maxTermOverflow + additionOverflow
 				// if next overflow exceeds the maximum, reduce before adding
 				if nextOverflow+1 > f.maxOverflow() {
 					// add with input reduction
