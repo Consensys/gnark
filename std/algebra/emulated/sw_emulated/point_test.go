@@ -490,7 +490,7 @@ func (c *ScalarMulBaseTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMulBase(&c.S)
+	res := cr.ScalarMulBase(&c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -631,7 +631,7 @@ func (c *ScalarMulTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S)
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -822,7 +822,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.ScalarMul(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -1005,7 +1005,7 @@ func (c *JointScalarMulBaseTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1)
+	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1092,7 +1092,7 @@ func (c *MultiScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss)
 	if err != nil {
 		return err
 	}
@@ -1223,7 +1223,7 @@ func (c *MultiScalarMulTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss)
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithIncompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1289,7 +1289,7 @@ func (c *MultiScalarMulFoldedEdgeCasesTest[T, S]) Define(api frontend.API) error
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
 	if err != nil {
 		return err
 	}
@@ -1387,7 +1387,7 @@ func (c *MultiScalarMulFoldedTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithIncompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1499,7 +1499,7 @@ func (c *JointScalarMulTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1632,7 +1632,7 @@ func (c *JointScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -2031,7 +2031,7 @@ func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulFakeGLV(&c.Q, &c.S)
+	res := cr.scalarMulFakeGLV(&c.Q, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -2118,7 +2118,7 @@ func (c *ScalarMulFakeGLVEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulFakeGLV(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.scalarMulFakeGLV(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -2304,7 +2304,7 @@ func (c *ScalarMulGLVAndFakeGLVTest[T, S]) Define(api frontend.API) error {
 		return err
 	}
 	res1 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S)
-	res2 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S, algopts.WithCompleteArithmetic())
+	res2 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res1, &c.R)
 	cr.AssertIsEqual(res2, &c.R)
 	return nil
@@ -2346,7 +2346,7 @@ func (c *ScalarMulGLVAndFakeGLVEdgeCasesTest[T, S]) Define(api frontend.API) err
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGLVAndFakeGLV(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.scalarMulGLVAndFakeGLV(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
