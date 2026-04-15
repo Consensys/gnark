@@ -11,6 +11,7 @@ import (
 
 type E12 struct {
 	A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11 baseEl
+	poly                                             *basePoly
 }
 
 type Ext12 struct {
@@ -42,12 +43,15 @@ func NewExt12(api frontend.API) *Ext12 {
 
 // PolyConv implementation for E12
 func (a *E12) ToPoly() *basePoly {
-	return &basePoly{
-		Coeffs: []*baseEl{
-			&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
-			&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
-		},
+	if a.poly == nil {
+		a.poly = &basePoly{
+			Coeffs: []*baseEl{
+				&a.A0, &a.A1, &a.A2, &a.A3, &a.A4, &a.A5,
+				&a.A6, &a.A7, &a.A8, &a.A9, &a.A10, &a.A11,
+			},
+		}
 	}
+	return a.poly
 }
 
 func (e Ext12) ToPoly(a *E12) *basePoly {
@@ -59,19 +63,24 @@ func (e Ext12) PolyToE12(p *basePoly) *E12 {
 		panic("invalid number of coefficients for E12")
 	}
 	return &E12{
-		A0:  *p.Coeffs[0],
-		A1:  *p.Coeffs[1],
-		A2:  *p.Coeffs[2],
-		A3:  *p.Coeffs[3],
-		A4:  *p.Coeffs[4],
-		A5:  *p.Coeffs[5],
-		A6:  *p.Coeffs[6],
-		A7:  *p.Coeffs[7],
-		A8:  *p.Coeffs[8],
-		A9:  *p.Coeffs[9],
-		A10: *p.Coeffs[10],
-		A11: *p.Coeffs[11],
+		A0:   *p.Coeffs[0],
+		A1:   *p.Coeffs[1],
+		A2:   *p.Coeffs[2],
+		A3:   *p.Coeffs[3],
+		A4:   *p.Coeffs[4],
+		A5:   *p.Coeffs[5],
+		A6:   *p.Coeffs[6],
+		A7:   *p.Coeffs[7],
+		A8:   *p.Coeffs[8],
+		A9:   *p.Coeffs[9],
+		A10:  *p.Coeffs[10],
+		A11:  *p.Coeffs[11],
+		poly: p,
 	}
+}
+
+func (e Ext12) NewPolyRingAccumulator(targetDeg int) *emulated.PolyRingAccumulator[emulated.BN254Fp] {
+	return e.fp.NewPolyRingAccumulator(e.ring, targetDeg)
 }
 
 func (e Ext12) MulPoly(inputs ...*basePoly) *basePoly {
@@ -258,7 +267,8 @@ func (e Ext12) Conjugate(x *E12) *E12 {
 }
 
 func (e Ext12) Mul(x, y *E12) *E12 {
-	return e.mulDirect(x, y)
+	return e.PolyToE12(e.MulPoly(x.ToPoly(), y.ToPoly()))
+	// return e.mulDirect(x, y)
 }
 
 func (e Ext12) mulDirect(a, b *E12) *E12 {
@@ -471,6 +481,30 @@ func (e Ext12) Inverse(x *E12) *E12 {
 	e.AssertIsEqual(one, _one)
 
 	return &inv
+
+}
+
+func (e Ext12) InversePoly(xPoly *basePoly) *basePoly {
+	x := xPoly.Coeffs
+	res, err := e.fp.NewHint(inverseE12Hint, 12, x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11])
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := &basePoly{
+		Coeffs: []*baseEl{
+			res[0], res[1], res[2], res[3], res[4], res[5],
+			res[6], res[7], res[8], res[9], res[10], res[11]},
+	}
+	one := e.One()
+
+	// 1 == inv * x
+	_one := e.MulPoly(xPoly, inv)
+	// _one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, e.PolyToE12(_one))
+
+	return inv
 
 }
 
