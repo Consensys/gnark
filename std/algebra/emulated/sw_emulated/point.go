@@ -610,6 +610,18 @@ func (c *Curve[B, S]) muxY8Signed(signBit frontend.Variable, selector frontend.V
 // ScalarMul computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
+// By default, uses complete arithmetic.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, the exact exceptional set
+// depends on the scalar-multiplication algorithm selected for the current
+// curve:
+//   - curves without an efficient endomorphism inherit the documented
+//     exceptional set of [Curve.scalarMulFakeGLV]
+//     and currently include P-256, P-384 and STARK curve
+//   - curves with an efficient endomorphism inherit the documented exceptional
+//     set of [Curve.scalarMulGLVAndFakeGLV] and currently include BN254,
+//     BLS12-381, BW6-761 and secp256k1.
+//
 // ScalarMul calls scalarMulFakeGLV or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
 //
 // N.B. For scalarMulGLVAndFakeGLV, the result is undefined when the input point is
@@ -912,7 +924,11 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 // jointScalarMulFakeGLV computes [s1]p1 + [s2]p2. It doesn't modify p1, p2 nor s1, s2.
 //
-// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), when [algopts.WithIncompleteArithmetic] option is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. It inherits the documented exceptional set of
+// [Curve.scalarMulFakeGLV] independently for (p1, s1) and (p2, s2). The final
+// merge uses [Curve.AddUnified] and does not introduce additional
+// incomplete-arithmetic restrictions.
 func (c *Curve[B, S]) jointScalarMulFakeGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	sm1 := c.scalarMulFakeGLV(p1, s1, opts...)
 	sm2 := c.scalarMulFakeGLV(p2, s2, opts...)
@@ -960,7 +976,11 @@ func (c *Curve[B, S]) jointScalarMulGenericUnsafe(p1, p2 *AffinePoint[B], s1, s2
 
 // jointScalarMulGLV computes [s1]p1 + [s2]p2 using an endomorphism. It doesn't modify p1, p2 nor s1, s2.
 //
-// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), when [algopts.WithIncompleteArithmetic] option is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. The exceptional set includes at least zero scalars, points at
+// infinity and p1 = ±p2, and may additionally include sparse
+// implementation-dependent failures from precomputations and accumulator
+// collisions in [Curve.jointScalarMulGLVUnsafe].
 func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -976,9 +996,9 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 }
 
 // jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick with an efficient endomorphism and returns it. It doesn't modify Q, R nor s, t.
-// ⚠️  The scalars must be nonzero and the points
-//   - ≠ (0,0),
-//   - P ≠ ±Q,
+// ⚠️  The exceptional set includes at least zero scalars, points equal to
+// (0,0), and Q = ±R. Additional sparse implementation-dependent failures may
+// arise from incomplete precomputations and accumulator collisions.
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	// We use the endomorphism à la GLV to compute [s]Q + [t]R as
 	// 		[s1]Q + [s2]Φ(Q) + [t1]R + [t2]Φ(R)
@@ -1191,6 +1211,18 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 // ScalarMulBase computes [s]g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
 //
+// By default, uses complete arithmetic.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, the exact exceptional set
+// depends on the scalar-multiplication algorithm selected for the current
+// curve:
+//   - curves without an efficient endomorphism inherit the documented
+//     exceptional set of [Curve.scalarMulFakeGLV]
+//     and currently include P-256, P-384 and STARK curve
+//   - curves with an efficient endomorphism inherit the documented exceptional
+//     set of [Curve.scalarMulGLVAndFakeGLV] and currently include BN254,
+//     BLS12-381, BW6-761 and secp256k1.
+//
 // ScalarMul calls scalarMulBaseGeneric or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
@@ -1208,10 +1240,15 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 // By default, uses complete arithmetic which correctly handles s1=0, s2=0 and
 // p=(0,0).
 //
-// ⚠️  When [algopts.WithIncompleteArithmetic] is set:
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. The checks below remove common degenerate inputs, but they do
+// not fully characterize the exceptional set:
 //   - p must NOT be (0,0)
 //   - p must NOT be ±g
 //   - s1 and s2 must NOT be 0
+//
+// Incomplete mode additionally inherits sparse implementation-dependent
+// failures from the underlying joint-scalar algorithm.
 //
 // JointScalarMulBase is used to verify an ECDSA signature (r,s) for example on
 // the secp256k1 curve. In this case, p is a public key, s2=r/s and s1=hash/s.
@@ -1234,8 +1271,11 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 // By default, uses complete arithmetic which correctly handles zero scalars and
 // points at infinity.
 //
-// ⚠️  When [algopts.WithIncompleteArithmetic] is set, points and scalars must
-// be nonzero.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. It inherits the exceptional sets of the underlying scalar-mul
+// calls and additionally depends on internal accumulator and prefix-sum
+// collisions, so the incomplete exceptional set is not fully characterized at
+// the API level.
 func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], error) {
 
 	if len(p) == 0 {
