@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/grumpkin"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
@@ -135,128 +135,36 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 
 // ScalarMul sets P = [s] Q and returns P.
 //
-// The method chooses an implementation based on scalar s. If it is constant,
-// then the compiled circuit depends on s. If it is variable type, then
-// the circuit is independent of the inputs.
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (p *G1Affine) ScalarMul(api frontend.API, q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
-	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return p.constScalarMul(api, q, n, opts...)
-	} else {
-		return p.varScalarMul(api, q, s, opts...)
-	}
+	return p.scalarMulGLV(api, q, s, opts...)
 }
 
-// constScalarMul sets P = [s] Q and returns P.
-func (p *G1Affine) constScalarMul(api frontend.API, q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(err)
-	}
-	if s.BitLen() == 0 {
-		p.X = 0
-		p.Y = 0
-		return p
-	}
-	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
-	// bits are constant and here it makes sense to use the table in the main
-	// loop.
-	var Acc, negQ, negPhiQ, phiQ G1Affine
-	cc := getInnerCurveConfig(api.Compiler().Field())
-	s.Mod(s, cc.fr)
-	cc.phi1Neg(api, &phiQ, &q)
-	phiQ.Neg(api, phiQ)
-
-	k := ecc.SplitScalar(s, cc.glvBasis)
-	if k[0].Sign() == -1 {
-		k[0].Neg(&k[0])
-		q.Neg(api, q)
-	}
-	if k[1].Sign() == -1 {
-		k[1].Neg(&k[1])
-		phiQ.Neg(api, phiQ)
-	}
-	nbits := k[0].BitLen()
-	if k[1].BitLen() > nbits {
-		nbits = k[1].BitLen()
-	}
-	negQ.Neg(api, q)
-	negPhiQ.Neg(api, phiQ)
-	var table [4]G1Affine
-	table[0] = negQ
-	table[1] = q
-	table[2] = negQ
-	table[3] = q
-
-	if !cfg.IncompleteArithmetic {
-		table[0].AddUnified(api, negPhiQ)
-		table[1].AddUnified(api, negPhiQ)
-		table[2].AddUnified(api, phiQ)
-		table[3].AddUnified(api, phiQ)
-	} else {
-		table[0].AddAssign(api, negPhiQ)
-		table[1].AddAssign(api, negPhiQ)
-		table[2].AddAssign(api, phiQ)
-		table[3].AddAssign(api, phiQ)
-	}
-
-	Acc = table[3]
-	// if both high bits are set, then we would get to the incomplete part,
-	// handle it separately.
-	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if !cfg.IncompleteArithmetic {
-			Acc.AddUnified(api, Acc)
-			Acc.AddUnified(api, table[3])
-		} else {
-			Acc.Double(api, Acc)
-			Acc.AddAssign(api, table[3])
-		}
-		nbits = nbits - 1
-	}
-	for i := nbits - 1; i > 0; i-- {
-		if !cfg.IncompleteArithmetic {
-			Acc.AddUnified(api, Acc)
-			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
-		} else {
-			Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
-		}
-	}
-
-	// i = 0
-	if !cfg.IncompleteArithmetic {
-		negQ.AddUnified(api, Acc)
-		Acc.Select(api, k[0].Bit(0), Acc, negQ)
-		negPhiQ.AddUnified(api, Acc)
-	} else {
-		negQ.AddAssign(api, Acc)
-		Acc.Select(api, k[0].Bit(0), Acc, negQ)
-		negPhiQ.AddAssign(api, Acc)
-	}
-	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
-	p.X, p.Y = Acc.X, Acc.Y
-
-	return p
-}
-
-// endoarScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// scalarMulGLV sets P = [s]Q and returns P. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
+//
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
 // [Halo]: https://eprint.iacr.org/2019/1021.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (p *G1Affine) varScalarMul(api frontend.API, q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) scalarMulGLV(api frontend.API, q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	var selector frontend.Variable
-	if !cfg.IncompleteArithmetic {
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = api.And(api.IsZero(q.X), api.IsZero(q.Y))
-		q.Select(api, selector, G1Affine{X: 1, Y: 1}, q)
+	if cfg.IncompleteArithmetic {
+		compilelogger.LogOnce(api.Compiler(), "sw_grumpkin/g1/scalarMulGLV", "WithIncompleteArithmetic is deprecated for (*sw_grumpkin.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}
+	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+	selector := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+	q.Select(api, selector, G1Affine{X: 1, Y: 1}, q)
 
 	// We use the endomorphism à la GLV to compute [s]Q as
 	// 		[s1]Q + [s2]Φ(Q)
@@ -320,27 +228,18 @@ func (p *G1Affine) varScalarMul(api frontend.API, q G1Affine, s frontend.Variabl
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When not using incomplete arithmetic, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if !cfg.IncompleteArithmetic {
-		tableQ[0].AddUnified(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableQ[0])
-		tablePhiQ[0].AddUnified(api, Acc)
-		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
-	} else {
-		tableQ[0].AddAssign(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableQ[0])
-		tablePhiQ[0].AddAssign(api, Acc)
-		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-	}
+	// We use AddUnified so that when s=0 then Acc=(0,0) because
+	// AddUnified(Q, -Q) = (0,0).
+	tableQ[0].AddUnified(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddUnified(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 
 	// subtract H=[2^N]G since we added G at the beginning
 	negH := G1Affine{X: mPoints.G1m[nbits-1][0], Y: api.Neg(mPoints.G1m[nbits-1][1])}
 	Acc.AddUnified(api, negH)
-	if !cfg.IncompleteArithmetic {
-		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
-	}
+	Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 	*p = Acc
 
 	return p
@@ -474,6 +373,10 @@ func (p *G1Affine) DoubleAndAddSelect(api frontend.API, b frontend.Variable, p1,
 }
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
+//
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (p *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	g1aff, _ := grumpkin.Generators()
 	generator := G1Affine{
@@ -483,6 +386,15 @@ func (p *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...
 	return p.ScalarMul(api, generator, s, opts...)
 }
 
+// jointScalarMul computes [s]Q + [t]R and returns it. It doesn't modify the
+// inputs.
+//
+// By default, uses complete arithmetic.
+//
+// In incomplete mode, the exceptional set includes at least zero scalars,
+// infinity inputs, and q = ±r. Additional sparse implementation-dependent
+// failures may arise from precomputations and accumulator collisions in the
+// underlying incomplete formulas.
 func (p *G1Affine) jointScalarMul(api frontend.API, q, r G1Affine, s, t frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
@@ -499,7 +411,12 @@ func (p *G1Affine) jointScalarMul(api frontend.API, q, r G1Affine, s, t frontend
 	return p
 }
 
-// P = [s]Q + [t]R using Shamir's trick
+// jointScalarMulUnsafe computes [s]Q + [t]R using Shamir's trick.
+//
+// It is faster than the complete path but not complete. The exceptional set
+// includes at least zero scalars, infinity inputs, and q = ±r. Additional
+// sparse implementation-dependent failures may arise from precomputations and
+// DoubleAndAdd accumulator collisions.
 func (p *G1Affine) jointScalarMulUnsafe(api frontend.API, q, r G1Affine, s, t frontend.Variable) *G1Affine {
 	var Acc, B1, QNeg, RNeg G1Affine
 	QNeg.Neg(api, q)
@@ -536,7 +453,13 @@ func (p *G1Affine) jointScalarMulUnsafe(api frontend.API, q, r G1Affine, s, t fr
 	return p
 }
 
-// P = [s]Q + [t]R using Shamir's trick and endomorphism
+// jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick and the
+// curve endomorphism.
+//
+// It is faster than the complete path but not complete. The exceptional set
+// includes at least zero scalars, infinity inputs, and q = ±r. Additional
+// sparse implementation-dependent failures may arise from precomputations and
+// DoubleAndAdd accumulator collisions.
 func (p *G1Affine) jointScalarMulGLVUnsafe(api frontend.API, q, r G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 	s1, s2 := callDecomposeScalar(api, s, false)
