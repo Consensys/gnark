@@ -55,7 +55,7 @@ func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
 		}
 		htfVerifierHasher, err := recursion.NewShort(outer, field)
 		if err != nil {
-			return fmt.Errorf("get verifier fs hash: %w", err)
+			return fmt.Errorf("get verifier hash to field: %w", err)
 		}
 		fsOpt := backend.WithVerifierChallengeHashFunction(fsVerifierHasher)
 		if err = fsOpt(vc); err != nil {
