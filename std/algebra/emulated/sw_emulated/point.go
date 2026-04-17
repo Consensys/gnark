@@ -240,9 +240,9 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	isQInfinity := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
 
 	zero := c.baseApi.Zero()
-	infinity := AffinePoint[B]{X: *zero, Y: *zero}
+	infinity := &AffinePoint[B]{X: *zero, Y: *zero}
 
-	var result AffinePoint[B]
+	var result *AffinePoint[B]
 	if !c.addA {
 		// ---------------------------------------------------------------
 		// j-invariant 0 (a == 0).
@@ -280,22 +280,22 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// compute the result point from λ
 		xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {&p.X}, {&q.X}}, []int{1, -1, -1})
 		yr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, c.baseApi.Sub(&p.X, xr)}, {&p.Y}}, []int{1, -1})
-		result = AffinePoint[B]{
+		result = &AffinePoint[B]{
 			X: *xr,
 			Y: *yr,
 		}
 
 		// if p=(0,0) return q
-		result = *c.Select(isPInfinity, q, &result)
+		result = c.Select(isPInfinity, q, result)
 		// if q=(0,0) return p
-		result = *c.Select(isQInfinity, p, &result)
+		result = c.Select(isQInfinity, p, result)
 		// if p = −q (same X, different Y) return O.
 		// When xEqual=1 and y2IsZero=1, both points are (0,0) — already
 		// handled above. Otherwise xEqual=1 ∧ ¬yEqual means p.Y = −q.Y.
 		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
 		areFinite := c.api.And(c.api.Sub(1, isPInfinity), c.api.Sub(1, isQInfinity))
 		isInverse := c.api.And(c.api.And(xEqual, c.api.Sub(1, yEqual)), areFinite)
-		result = *c.Select(isInverse, &infinity, &result)
+		result = c.Select(isInverse, infinity, result)
 	} else {
 		// ---------------------------------------------------------------
 		// j-invariant ≠ 0 (a ≠ 0).
@@ -324,20 +324,20 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		yr := c.baseApi.Sub(&p.X, xr)
 		yr = c.baseApi.MulMod(yr, λ)
 		yr = c.baseApi.Sub(yr, &p.Y)
-		result = AffinePoint[B]{
+		result = &AffinePoint[B]{
 			X: *xr,
 			Y: *yr,
 		}
 
 		// if p=(0,0) return q
-		result = *c.Select(isPInfinity, q, &result)
+		result = c.Select(isPInfinity, q, result)
 		// if q=(0,0) return p
-		result = *c.Select(isQInfinity, p, &result)
+		result = c.Select(isQInfinity, p, result)
 		// if p.y + q.y = 0, return (0, 0)
-		result = *c.Select(isYSumZero, &infinity, &result)
+		result = c.Select(isYSumZero, infinity, result)
 	}
 
-	return &result
+	return result
 }
 
 // Add performs unsafe addition of points p and q. For safe addition use
