@@ -9,6 +9,7 @@ import (
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/compilelogger"
@@ -188,7 +189,9 @@ func (p *G1Affine) scalarMulGLV(api frontend.API, Q G1Affine, s frontend.Variabl
 		panic(err)
 	}
 	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(api.Compiler(), "sw_bls12377/g1/scalarMulGLV", "WithIncompleteArithmetic is deprecated for (*sw_bls12377.G1Affine).scalarMulGLV and complete arithmetic is always used")
+		compilelogger.LogOnce(api.Compiler(), zerolog.InfoLevel,
+			"sw_bls12377/g1/scalarMulGLV",
+			"WithIncompleteArithmetic is deprecated for (*sw_bls12377.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}
 	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 	selector := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))

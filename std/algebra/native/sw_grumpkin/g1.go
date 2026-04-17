@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/rs/zerolog"
 )
 
 // G1Affine point in affine coords
@@ -160,7 +161,9 @@ func (p *G1Affine) scalarMulGLV(api frontend.API, q G1Affine, s frontend.Variabl
 		panic(err)
 	}
 	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(api.Compiler(), "sw_grumpkin/g1/scalarMulGLV", "WithIncompleteArithmetic is deprecated for (*sw_grumpkin.G1Affine).scalarMulGLV and complete arithmetic is always used")
+		compilelogger.LogOnce(api.Compiler(), zerolog.InfoLevel,
+			"sw_grumpkin/g1/scalarMulGLV",
+			"WithIncompleteArithmetic is deprecated for (*sw_grumpkin.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}
 	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 	selector := api.And(api.IsZero(q.X), api.IsZero(q.Y))

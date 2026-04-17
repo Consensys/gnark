@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/rs/zerolog"
 )
 
 type G2 struct {
@@ -612,7 +613,8 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 		panic(err)
 	}
 	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(g2.api.Compiler(), "sw_bls12_381/scalarMulGLV", "WithIncompleteArithmetic is deprecated in (*sw_bls12381.G2).scalarMulGLV and complete arithmetic is always used")
+		compilelogger.LogOnce(g2.api.Compiler(), zerolog.InfoLevel,
+			"sw_bls12_381/scalarMulGLV", "WithIncompleteArithmetic is deprecated in (*sw_bls12381.G2).scalarMulGLV and complete arithmetic is always used")
 	}
 	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 	selector := g2.api.And(
