@@ -480,6 +480,59 @@ func TestAddUnifiedEdgeCases(t *testing.T) {
 	assert.NoError(err)
 }
 
+// TestAddUnifiedCubeRootEdgeCase tests AddUnified on j-invariant 0 curves
+// (e.g. secp256k1, BN254) with two points where p.Y + q.Y = 0 but p.X ≠ q.X.
+// This happens because Fp contains nontrivial cube roots of unity ω: for a
+// curve point P = (x, y), the point (ω·x, -y) is also on the curve and has
+// the same |Y| but different X. The Brier–Joye unified formula divides by
+// (p.Y + q.Y) which is zero in this case, giving the wrong result O instead
+// of the correct sum.
+func TestAddUnifiedCubeRootEdgeCase(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 generator
+	_, g := secp256k1.Generators()
+
+	// Phi(G) = (ω·G.x, G.y), -Phi(G) = (ω·G.x, -G.y)
+	omega, _ := new(big.Int).SetString("55594575648329892869085402983802832744385952214688224221778511981742606582254", 10)
+	var phiGx fp_secp.Element
+	phiGx.SetBigInt(omega)
+	var gx fp_secp.Element
+	gx.Set(&g.X)
+	phiGx.Mul(&phiGx, &gx)
+	negPhiG := secp256k1.G1Affine{X: phiGx, Y: g.Y}
+	negPhiG.Y.Neg(&negPhiG.Y) // (ω·G.x, -G.y)
+
+	// Compute R = G + (-Phi(G)) natively using Jacobian (correct result)
+	var Rjac secp256k1.G1Jac
+	Rjac.FromAffine(&g)
+	var tmp secp256k1.G1Jac
+	tmp.FromAffine(&negPhiG)
+	Rjac.AddAssign(&tmp)
+	var R secp256k1.G1Affine
+	R.FromJacobian(&Rjac)
+
+	circuit := AddUnifiedEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+
+	// G + (-Phi(G)): p.Y + q.Y = G.y + (-G.y) = 0, but p.X ≠ q.X
+	witness := AddUnifiedEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](negPhiG.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](negPhiG.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](R.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](R.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulBaseTest[T, S emulated.FieldParams] struct {
 	Q AffinePoint[T]
 	S emulated.Element[S]
