@@ -23,7 +23,7 @@ type PublicKey[Base, Scalar emulated.FieldParams] sw_emulated.AffinePoint[Base]
 // The method asserts in-circuit that sig.R != 0, sig.S != 0, and pk is not the
 // point at infinity.
 func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) {
-	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig)
+	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig, false)
 	api.AssertIsEqual(inputsValid, 1)
 	for i := range rbits {
 		api.AssertIsEqual(rbits[i], qxBits[i])
@@ -42,7 +42,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 // The method returns 0 if sig.R == 0, sig.S == 0, or pk is the point at
 // infinity, without asserting failure.
 func (pk PublicKey[T, S]) IsValid(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) frontend.Variable {
-	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig)
+	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig, true)
 	verified := frontend.Variable(1)
 	for i := range rbits {
 		res := api.IsZero(api.Sub(rbits[i], qxBits[i]))
@@ -53,7 +53,7 @@ func (pk PublicKey[T, S]) IsValid(api frontend.API, params sw_emulated.CurvePara
 
 // prepareVerification computes Q = [r/s]PK + [m/s]G and returns the bits of Q.x,
 // the bits of r, and a boolean that is 1 iff r != 0, s != 0, and pk != O.
-func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) ([]frontend.Variable, []frontend.Variable, frontend.Variable) {
+func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S], isValid bool) ([]frontend.Variable, []frontend.Variable, frontend.Variable) {
 	cr, err := sw_emulated.New[T, S](api, params)
 	if err != nil {
 		panic(err)
@@ -81,8 +81,15 @@ func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulat
 	anyInvalid := api.Or(api.Or(rIsZero, sIsZero), pkIsInfinity)
 	inputsValid := api.Sub(1, anyInvalid)
 
-	msInv := scalarApi.Div(msg, &sig.S)
-	rsInv := scalarApi.Div(&sig.R, &sig.S)
+	s := &sig.S
+	if isValid {
+		// when called from IsValid, we want to be able to compute the result
+		// even if the inputs are invalid, so we use dummy values for the
+		// inverses in that case.
+		s = scalarApi.Select(sIsZero, scalarApi.One(), s)
+	}
+	msInv := scalarApi.Div(msg, s)
+	rsInv := scalarApi.Div(&sig.R, s)
 
 	// q = [rsInv]pkpt + [msInv]g
 	// r,s != 0 and pkpt != O are asserted by the caller, so incomplete arithmetic is safe.
