@@ -290,8 +290,11 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// if q=(0,0) return p
 		result = c.Select(isQInfinity, p, result)
 		// if p = −q (same X, different Y) return O.
-		// When xEqual=1 and y2IsZero=1, both points are (0,0) — already
-		// handled above. Otherwise xEqual=1 ∧ ¬yEqual means p.Y = −q.Y.
+		// The remaining xEqual=1 and y2IsZero=1 case is doubling a 2-torsion
+		// point with p=q, p.Y=0, p.X≠0. That should also return O, but none of
+		// the currently supported j=0 curves have rational 2-torsion, so we do
+		// not special-case it here. The (0,0) case is already handled above via
+		// the infinity selectors.
 		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
 		areFinite := c.api.And(c.api.Sub(1, isPInfinity), c.api.Sub(1, isQInfinity))
 		isInverse := c.api.And(c.api.And(xEqual, c.api.Sub(1, yEqual)), areFinite)
