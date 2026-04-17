@@ -2,7 +2,6 @@ package ecdsa
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -23,7 +22,7 @@ type PublicKey[Base, Scalar emulated.FieldParams] sw_emulated.AffinePoint[Base]
 // The method asserts in-circuit that sig.R != 0, sig.S != 0, and pk is not the
 // point at infinity.
 func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) {
-	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig, false)
+	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig)
 	api.AssertIsEqual(inputsValid, 1)
 	for i := range rbits {
 		api.AssertIsEqual(rbits[i], qxBits[i])
@@ -42,7 +41,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 // The method returns 0 if sig.R == 0, sig.S == 0, or pk is the point at
 // infinity, without asserting failure.
 func (pk PublicKey[T, S]) IsValid(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) frontend.Variable {
-	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig, true)
+	qxBits, rbits, inputsValid := pk.prepareVerification(api, params, msg, sig)
 	verified := frontend.Variable(1)
 	for i := range rbits {
 		res := api.IsZero(api.Sub(rbits[i], qxBits[i]))
@@ -53,7 +52,7 @@ func (pk PublicKey[T, S]) IsValid(api frontend.API, params sw_emulated.CurvePara
 
 // prepareVerification computes Q = [r/s]PK + [m/s]G and returns the bits of Q.x,
 // the bits of r, and a boolean that is 1 iff r != 0, s != 0, and pk != O.
-func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S], isValid bool) ([]frontend.Variable, []frontend.Variable, frontend.Variable) {
+func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) ([]frontend.Variable, []frontend.Variable, frontend.Variable) {
 	cr, err := sw_emulated.New[T, S](api, params)
 	if err != nil {
 		panic(err)
@@ -81,19 +80,17 @@ func (pk PublicKey[T, S]) prepareVerification(api frontend.API, params sw_emulat
 	anyInvalid := api.Or(api.Or(rIsZero, sIsZero), pkIsInfinity)
 	inputsValid := api.Sub(1, anyInvalid)
 
-	s := &sig.S
-	if isValid {
-		// when called from IsValid, we want to be able to compute the result
-		// even if the inputs are invalid, so we use dummy values for the
-		// inverses in that case.
-		s = scalarApi.Select(sIsZero, scalarApi.One(), s)
-	}
+	// Route s=0 through a dummy denominator so both Verify and IsValid fail
+	// through constraints instead of an inverse hint failure.
+	s := scalarApi.Select(sIsZero, scalarApi.One(), &sig.S)
 	msInv := scalarApi.Div(msg, s)
 	rsInv := scalarApi.Div(&sig.R, s)
 
 	// q = [rsInv]pkpt + [msInv]g
-	// r,s != 0 and pkpt != O are asserted by the caller, so incomplete arithmetic is safe.
-	q := cr.JointScalarMulBase(&pkpt, rsInv, msInv, algopts.WithIncompleteArithmetic())
+	// Use complete arithmetic so valid edge cases such as msg=0 or pk=±G
+	// remain satisfiable, while invalid inputs are still rejected by
+	// inputsValid.
+	q := cr.JointScalarMulBase(&pkpt, rsInv, msInv)
 	qx := baseApi.Reduce(&q.X)
 	qxBits := baseApi.ToBits(qx)
 	rbits := scalarApi.ToBits(&sig.R)
