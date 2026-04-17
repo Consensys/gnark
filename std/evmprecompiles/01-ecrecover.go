@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -117,30 +116,24 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	u2 := frField.Div(&s, &r)
 	// compute public key in circuit C = u1 * G + u2 R
 	//
-	// In case the public key is expected to be zero, we add 1 to u1 to ensure
-	// the scalars are non-zero (incomplete arithmetic requires non-zero scalars).
-	// We use incomplete arithmetic since the ECRecover protocol guarantees
-	// non-degenerate inputs in the non-failure case, and the pIsZero adjustment
-	// handles the failure case.
-	u1 = frField.Add(u1, frField.Select(pIsZero, frField.One(), frField.Zero()))
-	C := curve.JointScalarMulBase(&R, u2, u1, algopts.WithIncompleteArithmetic())
+	// Use complete arithmetic so degenerate but valid inputs such as R=±G stay
+	// satisfiable. However, in the QNR failure branch the circuit intentionally
+	// constructs an off-curve R by taking sqrt(-(x^3+7)) instead of
+	// sqrt(x^3+7). Scalar multiplication is not defined for that point, so we
+	// route only the QNR branch through a fixed on-curve dummy multiplication.
+	compR := curve.Select(isQNRFailure, curve.Generator(), &R)
+	compU1 := frField.Select(isQNRFailure, frField.One(), u1)
+	compU2 := frField.Select(isQNRFailure, frField.Zero(), u2)
+	C := curve.JointScalarMulBase(compR, compU2, compU1)
 	// check that the in-circuit computed public key corresponds to the hint
 	// public key if it is not a QNR failure.
-	//
-	// now, when we added 1 to u1, then the computed public key should be
-	// generator (as we only add 1 when pIsZero=1). Instead of needing to
-	// subtract G using complete arithmetic, we switch between G and the
-	// computed public key.
-	condP := curve.Select(pIsZero, curve.Generator(), &P)
-	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &condP.X))
-	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &condP.Y))
+	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &P.X))
+	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &P.Y))
 	isEqual := api.Mul(xIsEqual, yIsEqual)
 	api.AssertIsEqual(isEqual, api.Sub(1, isQNRFailure))
 	// check that the result is zero if isFailure is true. This holds because in
 	// case of any failure the returned public key from hint is zero.
 	isZero := fpField.IsZero(&P.X)
-	// yIsZero := fpField.IsZero(&P.Y)
-	// isZero := api.Mul(xIsZero, yIsZero)
 	api.AssertIsEqual(isZero, isFailure)
 	// when there was a QNR failure then the computed public key C is random. We
 	// only check for zero public key failure in case of no QNR failure.
