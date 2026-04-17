@@ -105,8 +105,8 @@ scalar_mul_P256_incomplete,bn254,groth16,75542,121798
 scalar_mul_P256_incomplete,bn254,plonk,263160,253523
 scalar_mul_secp256k1,bn254,groth16,128728,196154
 scalar_mul_secp256k1,bn254,plonk,426780,409015
-scalar_mul_secp256k1_incomplete,bn254,groth16,128728,196154
-scalar_mul_secp256k1_incomplete,bn254,plonk,426780,409015
+scalar_mul_secp256k1_incomplete,bn254,groth16,56108,89051
+scalar_mul_secp256k1_incomplete,bn254,plonk,202494,195280
 selector/binaryMux_4,bn254,groth16,5,3
 selector/binaryMux_4,bls12_377,groth16,5,3
 selector/binaryMux_4,bls12_381,groth16,5,3

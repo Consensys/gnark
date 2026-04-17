@@ -338,6 +338,7 @@ func initSnippets() {
 		_ = cr.ScalarMul(
 			&dummyG1,
 			newFr(),
+			algopts.WithIncompleteArithmetic(),
 		)
 
 	}, ecc.BN254)
