@@ -1624,10 +1624,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	}
 
 	// handle 0-scalar and (-1)-scalar cases
-	var isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
-	isScalarZero := c.scalarApi.IsZero(s)
+	var isScalarZero, isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
 	_s := s
 	if !cfg.IncompleteArithmetic {
+		isScalarZero = c.scalarApi.IsZero(s)
 		one := c.scalarApi.One()
 		isScalarOne = c.scalarApi.IsZero(c.scalarApi.Sub(s, one))
 		isScalarMinusOne = c.scalarApi.IsZero(c.scalarApi.Add(s, one))
