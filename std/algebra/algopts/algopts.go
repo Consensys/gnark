@@ -10,12 +10,12 @@ import (
 )
 
 type algebraCfg struct {
-	NbScalarBits          int
-	FoldMulti             bool
-	CompleteArithmetic    bool // Deprecated: arithmetic is now complete by default. Use IncompleteArithmetic to opt out.
-	IncompleteArithmetic  bool
-	ToBitsCanonical       bool
-	NoGroupMembership     bool // if set, then do not perform subgroup membership checks
+	NbScalarBits         int
+	FoldMulti            bool
+	CompleteArithmetic   bool // Deprecated: arithmetic is now complete by default. Use IncompleteArithmetic to opt out.
+	IncompleteArithmetic bool
+	ToBitsCanonical      bool
+	NoGroupMembership    bool // if set, then do not perform subgroup membership checks
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
