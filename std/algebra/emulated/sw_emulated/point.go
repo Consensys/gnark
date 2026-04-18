@@ -303,8 +303,14 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// ---------------------------------------------------------------
 		// j-invariant ≠ 0 (a ≠ 0).
 		//
-		// On these curves p.Y + q.Y = 0 implies p = −q, so the Brier–Joye
-		// unified formula is complete.
+		// For the currently supported j≠0 curves (P-256, P-384 and STARK
+		// curve), there is no rational 2-torsion, so no finite on-curve
+		// point satisfies Y=0. Under that assumption p.Y + q.Y = 0 implies
+		// p = -q, and the Brier-Joye unified formula is complete.
+		//
+		// If support is added for a j≠0 curve with rational 2-torsion, then
+		// the isYSumZero override below must be guarded by finiteness, as in
+		// the j=0 branch, to avoid turning O + Q into O when Q.Y = 0.
 		// ---------------------------------------------------------------
 
 		// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
