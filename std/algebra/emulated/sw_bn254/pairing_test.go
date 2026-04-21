@@ -357,6 +357,56 @@ func TestPairingCheckTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type ThreePairingCheckCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In3G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+	In3G2 G2Affine
+}
+
+func (c *ThreePairingCheckCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	err = pairing.PairingCheck(
+		[]*G1Affine{&c.In1G1, &c.In2G1, &c.In3G1},
+		[]*G2Affine{&c.In1G2, &c.In2G2, &c.In3G2},
+	)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	return nil
+}
+
+func TestThreePairingCheckTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(2a, 2b) * e(-2a, b) * e(a, -2b) == 1
+
+	p, q := randomG1G2Affines()
+	var p1, p2, p3 bn254.G1Affine
+	var q1, q2, q3 bn254.G2Affine
+	p1.Double(&p)
+	q1.Double(&q)
+	p2.Neg(&p1)
+	q2.Set(&q)
+	p3.Set(&p)
+	q3.Neg(&q1)
+
+	witness := ThreePairingCheckCircuit{
+		In1G1: NewG1Affine(p1), // 2p
+		In1G2: NewG2Affine(q1), // 2q
+		In2G1: NewG1Affine(p2), // -2p
+		In2G2: NewG2Affine(q2), // q
+		In3G1: NewG1Affine(p3), // p
+		In3G2: NewG2Affine(q3), // -2q
+	}
+	err := test.IsSolved(&ThreePairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type GroupMembershipCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine

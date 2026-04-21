@@ -241,6 +241,67 @@ func (circuit *groupMembership) Define(api frontend.API) error {
 	return nil
 }
 
+type threePairingCheckBLS377 struct {
+	P1, P2, P3 G1Affine
+	Q1, Q2, Q3 G2Affine
+}
+
+func (circuit *threePairingCheckBLS377) Define(api frontend.API) error {
+
+	err := pairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestThreePairingCheckBLS377(t *testing.T) {
+
+	// pairing test data
+	P, Q := threePairingCheckData()
+	witness := threePairingCheckBLS377{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		P3: NewG1Affine(P[2]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+		Q3: NewG2Affine(Q[2]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&threePairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
+
+}
+
+type threePairingCheckTorusBLS377 struct {
+	P1, P2, P3 G1Affine
+	Q1, Q2, Q3 G2Affine
+}
+
+func (circuit *threePairingCheckTorusBLS377) Define(api frontend.API) error {
+	err := pairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	return nil
+}
+
+func TestThreePairingCheckTorusBLS377(t *testing.T) {
+	// pairing test data
+	P, Q := threePairingCheckData()
+	witness := threePairingCheckTorusBLS377{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		P3: NewG1Affine(P[2]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+		Q3: NewG2Affine(Q[2]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&threePairingCheckTorusBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
+}
+
 func TestGroupMembership(t *testing.T) {
 
 	// pairing test data
@@ -269,6 +330,21 @@ func pairingCheckData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine) {
 	P[1].Double(&P[0]).Neg(&P[1])
 	Q[1].Set(&Q[0])
 	Q[0].Double(&Q[0])
+
+	return
+}
+
+func threePairingCheckData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine) {
+	// e(2a, 2b) * e(-2a, b) * e(a, -2b) == 1
+
+	_, _, p, q := bls12377.Generators()
+
+	P[0].Double(&p)
+	Q[0].Double(&q)
+	P[1].Neg(&P[0])
+	Q[1].Set(&q)
+	P[2].Set(&p)
+	Q[2].Neg(&Q[0])
 
 	return
 }
