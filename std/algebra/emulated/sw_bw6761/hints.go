@@ -60,11 +60,13 @@ func pairingCheckHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int
 			n := len(inputs)
 			p := make([]bw6761.G1Affine, 0, n/4)
 			q := make([]bw6761.G2Affine, 0, n/4)
+			// first half is G1 points
 			for k := 0; k < n/2; k += 2 {
 				P.X.SetBigInt(inputs[k])
 				P.Y.SetBigInt(inputs[k+1])
 				p = append(p, P)
 			}
+			// second half are G2 points
 			for k := n / 2; k < n; k += 2 {
 				Q.X.SetBigInt(inputs[k])
 				Q.Y.SetBigInt(inputs[k+1])
