@@ -400,6 +400,7 @@ func getTagSet() cbor.TagSet {
 
 	addType(reflect.TypeOf(GkrSkipLevel{}))
 	addType(reflect.TypeOf(GkrSumcheckLevel{}))
+	addType(reflect.TypeOf(GkrSingleSourceZeroCheckLevel{}))
 
 	// Add types registered by external packages (e.g., GKR blueprints)
 	// These use explicit tag numbers to ensure stability regardless of init() order

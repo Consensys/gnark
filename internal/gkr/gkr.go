@@ -69,7 +69,7 @@ func (e *zeroCheckLazyClaims) varsNum() int {
 }
 
 func (e *zeroCheckLazyClaims) degree(int) int {
-	return e.r.circuit.ZeroCheckDegree(e.r.schedule[e.levelI].(constraint.GkrSumcheckLevel))
+	return e.r.circuit.ZeroCheckDegree(e.r.schedule[e.levelI])
 }
 
 // verifyFinalEval finalizes the verification of a level at the sumcheck evaluation point r.
@@ -152,13 +152,15 @@ func (r *resources) verifySkipLevel(levelI int, proof Proof) {
 	}
 }
 
-func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+// verifyLevelSetup derives the folding coefficient, collects all claimed wire
+// evaluations from the proof or the initial assignment, computes the batched
+// claimed sum, and builds the lazy-claims object shared by both verifiers.
+func (r *resources) verifyLevelSetup(levelI int, proof Proof) (frontend.Variable, *zeroCheckLazyClaims) {
 	level := r.schedule[levelI]
-	nbClaims := level.NbClaims()
 	initialChallengeI := len(r.schedule)
 
 	foldingCoeff := frontend.Variable(0)
-	if nbClaims >= 2 {
+	if level.NbClaims() >= 2 {
 		foldingCoeff = r.t.getChallenge()
 	}
 
@@ -177,18 +179,59 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 			}
 		}
 	}
-	claimedSum := polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff)
 
-	lazyClaims := &zeroCheckLazyClaims{
+	return polynomial.Polynomial(claimedEvals).Eval(r.api, foldingCoeff), &zeroCheckLazyClaims{
 		foldingCoeff: foldingCoeff,
 		r:            r,
 		levelI:       levelI,
 	}
+}
+
+func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
 	if err := verifySumcheck(r.api, lazyClaims, proof[levelI], claimedSum,
-		r.circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel)), r.t); err != nil {
+		r.circuit.ZeroCheckDegree(r.schedule[levelI]), r.t); err != nil {
 		return fmt.Errorf("sumcheck proof rejected at level %d: %v", levelI, err)
 	}
 	return nil
+}
+
+func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
+	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
+
+	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	src := level.ClaimSources[0]
+	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
+	degree := r.circuit.ZeroCheckDegree(level)
+
+	challenges := make([]frontend.Variable, r.nbVars)
+	gPrime := make(polynomial.Polynomial, degree+1)
+
+	for j := range r.nbVars {
+		partialSumPoly := proof[levelI].PartialSumPolys[j]
+		if len(partialSumPoly) != degree {
+			return errors.New("malformed proof")
+		}
+
+		// Recover g'(0) from (1-q_j)*g'(0) + q_j*g'(1) = claimedSum
+		// g'(0) = (claimedSum - q_j * g'(1)) / (1 - q_j)
+		qjTimesGPrime1 := r.api.Mul(q[j], partialSumPoly[0]) // partialSumPoly[0] = g'(1)
+		numerator := r.api.Sub(claimedSum, qjTimesGPrime1)
+		oneMinusQj := r.api.Sub(1, q[j])
+		gPrime[0] = r.api.Div(numerator, oneMinusQj)
+
+		copy(gPrime[1:], partialSumPoly)
+
+		challenges[j] = r.t.getChallenge(proof[levelI].PartialSumPolys[j]...)
+		claimedSum = polynomial.InterpolateLDE(r.api, challenges[j], gPrime[:(degree+1)])
+	}
+
+	// claimedSum is now Σ_w c^w · gate_w(inputs(r)), without the eq factor.
+	// verifyFinalEval expects Σ_w c^w · eq(q, r) · gate_w(inputs(r)), so multiply.
+	eqAtQR := polynomial.EvalEq(r.api, q, challenges)
+	claimedSum = r.api.Mul(eqAtQR, claimedSum)
+
+	return lazyClaims.verifyFinalEval(r.api, challenges, claimedSum, proof[levelI].FinalEvalProof)
 }
 
 // Verify the consistency of the claimed output with the claimed input.
@@ -217,9 +260,14 @@ func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule,
 	r.outgoingEvalPoints[initialChallengeI] = [][]frontend.Variable{firstChallenge}
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
-		if _, isSkip := schedule[levelI].(constraint.GkrSkipLevel); isSkip {
+		switch schedule[levelI].(type) {
+		case constraint.GkrSkipLevel:
 			r.verifySkipLevel(levelI, proof)
-		} else {
+		case constraint.GkrSingleSourceZeroCheckLevel:
+			if err := r.verifySingleSourceZeroCheckLevel(levelI, proof); err != nil {
+				return err
+			}
+		default:
 			if err := r.verifySumcheckLevel(levelI, proof); err != nil {
 				return err
 			}
@@ -231,24 +279,14 @@ func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule,
 }
 
 func (p Proof) Serialize() []frontend.Variable {
-	size := 0
-	for i := range p {
-		for j := range p[i].PartialSumPolys {
-			size += len(p[i].PartialSumPolys[j])
-		}
-		size += len(p[i].FinalEvalProof)
-	}
-
-	res := make([]frontend.Variable, 0, size)
+	res := make([]frontend.Variable, 0)
 	for i := range p {
 		for j := range p[i].PartialSumPolys {
 			res = append(res, p[i].PartialSumPolys[j]...)
 		}
 		res = append(res, p[i].FinalEvalProof...)
 	}
-	if len(res) != size {
-		panic("bug")
-	}
+
 	return res
 }
 
@@ -258,10 +296,11 @@ func ComputeLogNbInstances(circuit Circuit, schedule constraint.GkrProvingSchedu
 	perVar := 0
 	for _, level := range schedule {
 		nbUniqueInputs := len(circuit.UniqueGateInputs(level))
-		if _, isSkip := level.(constraint.GkrSkipLevel); isSkip {
+		switch level.(type) {
+		case constraint.GkrSkipLevel:
 			serializedProofLen -= nbUniqueInputs * level.NbOutgoingEvalPoints()
-		} else {
-			perVar += circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel))
+		default:
+			perVar += circuit.ZeroCheckDegree(level)
 			serializedProofLen -= nbUniqueInputs
 		}
 	}
@@ -301,7 +340,7 @@ func DeserializeProof(circuit Circuit, schedule constraint.GkrProvingSchedule, s
 		if _, isSkip := level.(constraint.GkrSkipLevel); isSkip {
 			proof[levelI].FinalEvalProof = reader.nextN(nbUniqueInputs * level.NbOutgoingEvalPoints())
 		} else {
-			degree := circuit.ZeroCheckDegree(level.(constraint.GkrSumcheckLevel))
+			degree := circuit.ZeroCheckDegree(level)
 			proof[levelI].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
 			for j := range proof[levelI].PartialSumPolys {
 				proof[levelI].PartialSumPolys[j] = reader.nextN(degree)

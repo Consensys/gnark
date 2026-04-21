@@ -141,7 +141,8 @@ func SerializeCircuit(w io.Writer, c SerializableCircuit) error {
 // Format:
 //
 //	Schedule: [level_count:u16] [level...]
-//	Level: [skip_sumcheck:bool] [group_count:u16] [claim_group...]
+//	Level: [level_type:u8] [group_count:u16] [claim_group...]
+//	level_type: 0=sumcheck, 1=skip, 2=singleSourceZeroCheck
 //	GkrClaimGroup: [wire_count:u16] [wire_indices:u16...] [source_count:u16] [claim_source...]
 //	GkrClaimSource: [level:u16] [outgoing_claim_index:u16]
 func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
@@ -177,8 +178,16 @@ func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
 
 	// Write each level
 	for _, level := range s {
-		_, isSkip := level.(constraint.GkrSkipLevel)
-		if err := writeBool(w, isSkip); err != nil {
+		var levelType int
+		switch level.(type) {
+		case constraint.GkrSumcheckLevel:
+			levelType = 0
+		case constraint.GkrSkipLevel:
+			levelType = 1
+		case constraint.GkrSingleSourceZeroCheckLevel:
+			levelType = 2
+		}
+		if err := writeUint8(w, levelType); err != nil {
 			return err
 		}
 		groups := level.ClaimGroups()
