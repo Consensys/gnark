@@ -29,8 +29,7 @@ func (p *Point) assertIsOnCurve(api frontend.API, curve *CurveParams) {
 
 }
 
-// add Adds two points on a twisted edwards curve (eg jubjub)
-// p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
+// add adds two points that are assumed to satisfy the twisted Edwards curve equation.
 func (p *Point) add(api frontend.API, p1, p2 *Point, curve *CurveParams) *Point {
 
 	// u = (x1 + y1) * (x2 + y2)
@@ -61,7 +60,7 @@ func (p *Point) add(api frontend.API, p1, p2 *Point, curve *CurveParams) *Point 
 	return p
 }
 
-// double doubles a points in SNARK coordinates
+// double doubles a point that is assumed to satisfy the twisted Edwards curve equation.
 func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 
 	u := api.Mul(p1.X, p1.Y)
@@ -122,11 +121,8 @@ func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Va
 	return p
 }
 
-// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
-// p1: base point (as snark point)
-// curve: parameters of the Edwards curve
-// scal: scalar as a SNARK constraint
-// Standard left to right double and add
+// scalarMul computes [scalar]p1 for a point on the twisted Edwards curve.
+// For on-curve points, this method is complete for all scalar inputs, including zero.
 func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
 	return p.scalarMulFakeGLV(api, p1, scalar, curve)
 }
