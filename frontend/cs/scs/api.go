@@ -720,6 +720,11 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 			// constants (or other non-term variables) are not committed, so we skip them here
 			continue
 		}
+		if viTerm.Coeff.IsZero() {
+			// if the variable has a zero coefficient, then it is effectively a
+			// constant and we don't need to commit to it, so we skip it here
+			continue
+		}
 		if _, found := isCommitted[viTerm.VID]; found {
 			// skip duplicated committed value
 			continue

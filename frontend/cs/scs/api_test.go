@@ -397,3 +397,29 @@ func TestDeduplicateCommitments(t *testing.T) {
 
 	assert.Equal(ccsCmts1.GetNbConstraints(), ccsCmts5.GetNbConstraints(), "expected same number of constraints")
 }
+
+type zeroCoeffCommitmentCircuit struct {
+	A frontend.Variable
+}
+
+func (c *zeroCoeffCommitmentCircuit) Define(api frontend.API) error {
+	cmter, ok := api.(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("expected Committer interface")
+	}
+	_, err := cmter.Commit(api.Div(0, c.A), c.A)
+	return err
+}
+
+func TestCommitSkipsZeroCoeffTerms(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &zeroCoeffCommitmentCircuit{})
+	assert.NoError(err)
+
+	w, err := frontend.NewWitness(&zeroCoeffCommitmentCircuit{A: 3}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	_, err = ccs.Solve(w)
+	assert.NoError(err)
+}
