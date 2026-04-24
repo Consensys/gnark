@@ -16,7 +16,6 @@ import (
 	tbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
-	cryptotwistededwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -618,7 +617,7 @@ type scalarMulFakeGLVRegressionCircuit struct {
 }
 
 func (c *scalarMulFakeGLVRegressionCircuit) Define(api frontend.API) error {
-	curve, err := NewEdCurve(api, cryptotwistededwards.BN254)
+	curve, err := NewEdCurve(api, twistededwards.BN254)
 	if err != nil {
 		return err
 	}
