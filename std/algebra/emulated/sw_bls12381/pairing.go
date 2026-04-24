@@ -365,6 +365,10 @@ func (pr *Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	return pr.api.And(isOnCurve, isInSubgroup)
 }
 
+func (pr *Pairing) One() *GTEl {
+	return pr.Ext12.One()
+}
+
 // loopCounter = seed in binary
 //
 //	seed=-15132376222941642752

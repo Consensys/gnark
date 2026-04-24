@@ -559,11 +559,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) IsValidProof(vk VerifyingKey[G1El, G2El
 		return 0, fmt.Errorf("hash to field: %w", err)
 	}
 
-	maxNbPublicCommitted := 0
-	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
-		maxNbPublicCommitted = max(maxNbPublicCommitted, len(s))
-	}
-
 	commitmentAuxData := make([]*emulated.Element[FR], len(vk.PublicAndCommitmentCommitted))
 	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
 		hashToField.Write(v.curve.MarshalG1(proof.Commitments[i].G1El)...)
@@ -580,13 +575,16 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) IsValidProof(vk VerifyingKey[G1El, G2El
 		commitmentAuxData[i] = res
 	}
 
+	isValid := frontend.Variable(1)
 	switch len(vk.CommitmentKeys) {
 	case 0:
 		// explicitly do not verify the commitment as there is nothing
 	case 1:
-		if err = v.commitment.AssertCommitment(proof.Commitments[0], proof.CommitmentPok, vk.CommitmentKeys[0], opt.pedopt...); err != nil {
-			return 0, fmt.Errorf("assert commitment: %w", err)
+		commitmentValid, err := v.commitment.IsCommitmentValid(proof.Commitments[0], proof.CommitmentPok, vk.CommitmentKeys[0], opt.pedopt...)
+		if err != nil {
+			return 0, fmt.Errorf("check commitment: %w", err)
 		}
+		isValid = v.api.Mul(isValid, commitmentValid)
 	default:
 		// TODO: we support only a single commitment in the recursion for now
 		return 0, fmt.Errorf("multiple commitments are not supported")
@@ -603,15 +601,16 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) IsValidProof(vk VerifyingKey[G1El, G2El
 	}
 
 	if opt.forceSubgroupCheck {
-		v.pairing.AssertIsOnG1(&proof.Ar)
-		v.pairing.AssertIsOnG1(&proof.Krs)
-		v.pairing.AssertIsOnG2(&proof.Bs)
+		isValid = v.api.Mul(isValid, v.pairing.IsOnG1(&proof.Ar))
+		isValid = v.api.Mul(isValid, v.pairing.IsOnG1(&proof.Krs))
+		isValid = v.api.Mul(isValid, v.pairing.IsOnG2(&proof.Bs))
 	}
 	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
 	if err != nil {
 		return 0, fmt.Errorf("pairing: %w", err)
 	}
-	return v.pairing.IsEqual(pairing, &vk.E), nil
+	isValid = v.api.Mul(isValid, v.pairing.IsEqual(pairing, &vk.E))
+	return isValid, nil
 }
 
 // SwitchVerification key switches the verification key based on the provided
