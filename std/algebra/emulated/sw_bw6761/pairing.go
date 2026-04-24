@@ -321,7 +321,15 @@ func (pr *Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
+func (pr *Pairing) IsOnCurve(P *G1Affine) frontend.Variable {
+	return pr.curve.IsOnCurve(P)
+}
+
 func (pr *Pairing) AssertIsOnTwist(Q *G2Affine) {
+	pr.api.AssertIsEqual(pr.IsOnTwist(Q), 1)
+}
+
+func (pr *Pairing) IsOnTwist(Q *G2Affine) frontend.Variable {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
@@ -334,13 +342,16 @@ func (pr *Pairing) AssertIsOnTwist(Q *G2Affine) {
 	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
 	right = pr.curveF.Mul(right, &Q.P.X)
 	right = pr.curveF.Add(right, b)
-	pr.curveF.AssertIsEqual(left, right)
+	return pr.curveF.IsZero(pr.curveF.Sub(left, right))
 }
 
 func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
-	// 1- Check P is on the curve
-	pr.AssertIsOnCurve(P)
+	pr.api.AssertIsEqual(pr.IsOnG1(P), 1)
+}
 
+func (pr *Pairing) IsOnG1(P *G1Affine) frontend.Variable {
+	// 1- Check P is on the curve
+	isOnCurve := pr.IsOnCurve(P)
 	// 2- Check P has the right subgroup order
 	// we check that [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
 	xP := pr.g1.scalarMulBySeed(P)
@@ -353,12 +364,20 @@ func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	right = pr.g1.phi(right)
 
 	// [r]P == 0 <==> [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
-	pr.curve.AssertIsEqual(left, right)
+	isEqual := pr.api.And(
+		pr.curveF.IsZero(pr.curveF.Sub(&left.X, &right.X)),
+		pr.curveF.IsZero(pr.curveF.Sub(&left.Y, &right.Y)),
+	)
+	return pr.api.And(isOnCurve, isEqual)
 }
 
 func (pr *Pairing) AssertIsOnG2(Q *G2Affine) {
+	pr.api.AssertIsEqual(pr.IsOnG2(Q), 1)
+}
+
+func (pr *Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1- Check Q is on the curve
-	pr.AssertIsOnTwist(Q)
+	isOnCurve := pr.IsOnTwist(Q)
 
 	// 2- Check Q has the right subgroup order
 	// we check that [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
@@ -372,7 +391,11 @@ func (pr *Pairing) AssertIsOnG2(Q *G2Affine) {
 	right = pr.g2.phi(right)
 
 	// [r]Q == 0 <==> [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
-	pr.g2.AssertIsEqual(left, right)
+	isEqual := pr.api.And(
+		pr.curveF.IsZero(pr.curveF.Sub(&left.P.X, &right.P.X)),
+		pr.curveF.IsZero(pr.curveF.Sub(&left.P.Y, &right.P.Y)),
+	)
+	return pr.api.And(isOnCurve, isEqual)
 }
 
 // seed x₀=9586122913090633729

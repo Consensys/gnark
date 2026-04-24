@@ -207,6 +207,11 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
 func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
+	c.api.AssertIsEqual(c.IsOnCurve(p), 1)
+}
+
+// IsOnCurve returns a boolean indicating if p belongs to the curve.
+func (c *Curve[B, S]) IsOnCurve(p *AffinePoint[B]) frontend.Variable {
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
@@ -219,7 +224,7 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 	} else {
 		check = c.baseApi.Eval([][]*emulated.Element[B]{{&p.X, &p.X, &p.X}, {&c.a, &p.X}, {b}, {&p.Y, &p.Y}}, []int{1, 1, 1, -1})
 	}
-	c.baseApi.AssertIsEqual(check, c.baseApi.Zero())
+	return c.baseApi.IsZero(check)
 }
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
