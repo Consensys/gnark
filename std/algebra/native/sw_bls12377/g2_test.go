@@ -370,3 +370,84 @@ func randomPointG2() bls12377.G2Jac {
 	p2.ScalarMultiplication(&p2, r1.BigInt(&b))
 	return p2
 }
+
+// -------------------------------------------------------------------------------------------------
+// GLV and Fake GLV scalar multiplication tests
+
+type g2ScalarMulGLVAndFakeGLV struct {
+	A g2AffP
+	C g2AffP `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g2ScalarMulGLVAndFakeGLV) Define(api frontend.API) error {
+	expected := g2AffP{}
+	expected.scalarMulGLVAndFakeGLV(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG2GLVAndFakeGLV(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a, c bls12377.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2ScalarMulGLVAndFakeGLV
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g2ScalarMulGLVAndFakeGLVEdgeCases struct {
+	A    g2AffP
+	R    frontend.Variable
+	Zero frontend.Variable
+}
+
+func (circuit *g2ScalarMulGLVAndFakeGLVEdgeCases) Define(api frontend.API) error {
+	// Note: The GLVAndFakeGLV algorithm assumes P ≠ Q where Q = [s]P.
+	// This means s=1 is not supported as it would make Q = P.
+	// The s=1 case should be handled separately (it's trivial: [1]P = P).
+	expected1, expected2, expected3 := g2AffP{}, g2AffP{}, g2AffP{}
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
+	infinity := g2AffP{X: zero, Y: zero}
+	expected1.scalarMulGLVAndFakeGLV(api, circuit.A, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected2.scalarMulGLVAndFakeGLV(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected3.scalarMulGLVAndFakeGLV(api, infinity, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	expected3.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestScalarMulG2GLVAndFakeGLVEdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a bls12377.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2ScalarMulGLVAndFakeGLVEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	witness.Zero = 0
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}

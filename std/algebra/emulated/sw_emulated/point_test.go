@@ -2177,6 +2177,85 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
 	assert.NoError(err)
+
+	// -1 * P == -P
+	negPy := new(big.Int).Sub(p256.Params().P, py)
+	witness4 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(-1)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](negPy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 3 * P == [3]P
+	threePx, threePy := p256.ScalarMult(px, py, big.NewInt(3).Bytes()) //nolint:staticcheck // compatibility test only
+	witness5 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(3)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](threePx),
+			Y: emulated.ValueOf[emulated.P256Fp](threePy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// -3 * P == [-3]P
+	negThreePy := new(big.Int).Sub(p256.Params().P, threePy)
+	witness6 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(-3)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](threePx),
+			Y: emulated.ValueOf[emulated.P256Fp](negThreePy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 1 * P == P (Ivo's review case: s=1, R=P, R.X==P.X should not bypass verification)
+	witness7 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(1)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness7, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// Soundness check: s=1, P=G but R=-G (malicious prover providing wrong result)
+	negPy = new(big.Int).Sub(p256.Params().P, py)
+	witness8 := ScalarMulFakeGLVEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](big.NewInt(1)),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](negPy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness8, testCurve.ScalarField())
+	assert.Error(err, "s=1 with wrong R=-P should be rejected (soundness)")
 }
 
 func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
@@ -2232,6 +2311,22 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// -1 * P == -P
+	negPy := new(big.Int).Sub(p384.Params().P, py)
+	witness4 := ScalarMulFakeGLVEdgeCasesTest[emulated.P384Fp, emulated.P384Fr]{
+		S: emulated.ValueOf[emulated.P384Fr](big.NewInt(-1)),
+		P: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](px),
+			Y: emulated.ValueOf[emulated.P384Fp](py),
+		},
+		R: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](px),
+			Y: emulated.ValueOf[emulated.P384Fp](negPy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -2290,6 +2385,23 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases3(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// -1 * P == -P
+	var negG stark_curve.G1Affine
+	negG.Neg(&g)
+	witness4 := ScalarMulFakeGLVEdgeCasesTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](big.NewInt(-1)),
+		P: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](g.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](g.Y),
+		},
+		R: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](negG.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](negG.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -2544,4 +2656,531 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+// JointScalarMulBaseCompleteTest tests JointScalarMulBase with complete arithmetic (for P256)
+type JointScalarMulBaseCompleteTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S1  emulated.Element[S]
+	S2  emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *JointScalarMulBaseCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// JointScalarMulBaseUnsafeTest tests JointScalarMulBase without complete arithmetic
+type JointScalarMulBaseUnsafeTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S1  emulated.Element[S]
+	S2  emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *JointScalarMulBaseUnsafeTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S1, &c.S2)
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// ScalarMulFakeGLVCompleteTest tests ScalarMul with complete arithmetic for non-GLV curves
+type ScalarMulFakeGLVCompleteTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S   emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *ScalarMulFakeGLVCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// ScalarMulGLVCompleteTest tests ScalarMul with complete arithmetic for GLV curves
+type ScalarMulGLVCompleteTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S   emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *ScalarMulGLVCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// JointScalarMulGLVCompleteTest tests JointScalarMulBase with complete arithmetic for GLV curves
+type JointScalarMulGLVCompleteTest[B, S emulated.FieldParams] struct {
+	P   AffinePoint[B]
+	S1  emulated.Element[S]
+	S2  emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *JointScalarMulGLVCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// ScalarMulBaseCompleteTest tests ScalarMulBase with complete arithmetic
+type ScalarMulBaseCompleteTest[B, S emulated.FieldParams] struct {
+	S   emulated.Element[S]
+	Res AffinePoint[B]
+}
+
+func (c *ScalarMulBaseCompleteTest[B, S]) Define(api frontend.API) error {
+	cr, err := New[B, S](api, GetCurveParams[B]())
+	if err != nil {
+		return err
+	}
+	res := cr.ScalarMulBase(&c.S, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+// TestScalarMulBaseComplete tests ScalarMulBase with complete arithmetic for GLV curves
+func TestScalarMulBaseComplete(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 (GLV curve)
+	t.Run("secp256k1", func(t *testing.T) {
+		_, g := secp256k1.Generators()
+		var r fr_secp.Element
+		_, _ = r.SetRandom()
+		s := new(big.Int)
+		r.BigInt(s)
+
+		var res secp256k1.G1Affine
+		res.ScalarMultiplication(&g, s)
+
+		circuit := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+		witness := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+
+	// P-256 (non-GLV curve)
+	t.Run("P256", func(t *testing.T) {
+		p256 := elliptic.P256()
+		s, _ := rand.Int(rand.Reader, p256.Params().N)
+		px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+
+		circuit := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
+		witness := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			S: emulated.ValueOf[emulated.P256Fr](s),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+}
+
+// TestScalarMulBaseEdgeCases tests ScalarMulBase edge cases with complete arithmetic
+func TestScalarMulBaseEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 (GLV curve)
+	t.Run("secp256k1", func(t *testing.T) {
+		_, g := secp256k1.Generators()
+		var infinity secp256k1.G1Affine
+
+		circuit := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+
+		// Test: [0]*G = infinity
+		witness0 := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](infinity.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](infinity.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness0, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: [1]*G = G
+		witness1 := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S: emulated.ValueOf[emulated.Secp256k1Fr](1),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: [r-1]*G = -G
+		rMinus1 := new(big.Int).Sub(fr_secp.Modulus(), big.NewInt(1))
+		var negG secp256k1.G1Affine
+		negG.Neg(&g)
+		witnessRm1 := ScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S: emulated.ValueOf[emulated.Secp256k1Fr](rMinus1),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](negG.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](negG.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witnessRm1, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+
+	// P-256 (non-GLV curve)
+	t.Run("P256", func(t *testing.T) {
+		p256 := elliptic.P256()
+		gx := p256.Params().Gx
+		gy := p256.Params().Gy
+
+		circuit := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
+
+		// Test: [0]*G = infinity
+		witness0 := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			S: emulated.ValueOf[emulated.P256Fr](0),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](0),
+				Y: emulated.ValueOf[emulated.P256Fp](0),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness0, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: [1]*G = G
+		witness1 := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			S: emulated.ValueOf[emulated.P256Fr](1),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](gx),
+				Y: emulated.ValueOf[emulated.P256Fp](gy),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: [r-1]*G = -G
+		rMinus1 := new(big.Int).Sub(p256.Params().N, big.NewInt(1))
+		px, py := p256.ScalarBaseMult(rMinus1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+		witnessRm1 := ScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			S: emulated.ValueOf[emulated.P256Fr](rMinus1),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+		}
+		err = test.IsSolved(&circuit, &witnessRm1, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+}
+
+// TestJointScalarMulBaseComplete tests JointScalarMulBase with complete arithmetic
+func TestJointScalarMulBaseComplete(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 (GLV curve)
+	t.Run("secp256k1", func(t *testing.T) {
+		_, g := secp256k1.Generators()
+		var r1, r2 fr_secp.Element
+		_, _ = r1.SetRandom()
+		_, _ = r2.SetRandom()
+		s1 := new(big.Int)
+		s2 := new(big.Int)
+		r1.BigInt(s1)
+		r2.BigInt(s2)
+
+		// P = random point
+		var p secp256k1.G1Affine
+		p.ScalarMultiplication(&g, s2)
+
+		// Circuit computes: [c.S2]*G + [c.S1]*P (due to JointScalarMulBase(p, s2, s1) signature)
+		// So with witness S1=s1, S2=s2, result = [s2]*G + [s1]*P
+		var res1, res2, res secp256k1.G1Affine
+		res1.ScalarMultiplication(&g, s2)
+		res2.ScalarMultiplication(&p, s1)
+		res.Add(&res1, &res2)
+
+		circuit := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+		witness := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](s1),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](s2),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+
+	// P-256 (non-GLV curve)
+	t.Run("P256", func(t *testing.T) {
+		p256 := elliptic.P256()
+		s1, _ := rand.Int(rand.Reader, p256.Params().N)
+		s2, _ := rand.Int(rand.Reader, p256.Params().N)
+
+		// P = random point
+		px, py := p256.ScalarBaseMult(s1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+
+		// Circuit computes: [c.S2]*G + [c.S1]*P (due to JointScalarMulBase(p, s2, s1) signature)
+		// So with witness S1=s1, S2=s2, result = [s2]*G + [s1]*P
+		tmp1x, tmp1y := p256.ScalarBaseMult(s2.Bytes())     //nolint:staticcheck // test needs low-level EC ops
+		tmp2x, tmp2y := p256.ScalarMult(px, py, s1.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+		resx, resy := p256.Add(tmp1x, tmp1y, tmp2x, tmp2y)  //nolint:staticcheck // test needs low-level EC ops
+
+		circuit := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
+		witness := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			P: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+			S1: emulated.ValueOf[emulated.P256Fr](s1),
+			S2: emulated.ValueOf[emulated.P256Fr](s2),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](resx),
+				Y: emulated.ValueOf[emulated.P256Fp](resy),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+}
+
+// TestJointScalarMulBaseEdgeCases tests JointScalarMulBase edge cases with complete arithmetic
+func TestJointScalarMulBaseEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 (GLV curve)
+	// Circuit computes: [S2]*G + [S1]*P (due to JointScalarMulBase(p, s2, s1) signature)
+	t.Run("secp256k1", func(t *testing.T) {
+		_, g := secp256k1.Generators()
+		var infinity secp256k1.G1Affine
+		var r fr_secp.Element
+		_, _ = r.SetRandom()
+		s := new(big.Int)
+		r.BigInt(s)
+
+		// P = [s]*G (a random point)
+		var p, res secp256k1.G1Affine
+		p.ScalarMultiplication(&g, s)
+
+		circuit := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+
+		// Test: S1=0, S2=0 => [0]*G + [0]*P = infinity
+		witness0 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](infinity.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](infinity.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness0, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=0, S2=s => [s]*G + [0]*P = [s]*G
+		res.ScalarMultiplication(&g, s)
+		witness1 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=s, S2=0 => [0]*G + [s]*P = [s]*P
+		res.ScalarMultiplication(&p, s)
+		witness2 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: P is infinity, S1=0, S2=s => [s]*G + [0]*infinity = [s]*G
+		res.ScalarMultiplication(&g, s)
+		witness3 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](infinity.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](infinity.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=-1, S2=1 => [1]*G + [-1]*P = G - P
+		var negP secp256k1.G1Affine
+		negP.Neg(&p)
+		res.Add(&g, &negP)
+		witness4 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](big.NewInt(-1)),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](1),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=1, S2=-1 => [-1]*G + [1]*P = P - G
+		var negG secp256k1.G1Affine
+		negG.Neg(&g)
+		res.Add(&p, &negG)
+		witness5 := JointScalarMulGLVCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](1),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](big.NewInt(-1)),
+			Res: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](res.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](res.Y),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
+		assert.NoError(err)
+	})
+
+	// P-256 (non-GLV curve)
+	// Circuit computes: [S2]*G + [S1]*P (due to JointScalarMulBase(p, s2, s1) signature)
+	t.Run("P256", func(t *testing.T) {
+		p256 := elliptic.P256()
+		s, _ := rand.Int(rand.Reader, p256.Params().N)
+
+		// P = [s]*G (a random point)
+		px, py := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+
+		circuit := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{}
+
+		// Test: S1=0, S2=0 => [0]*G + [0]*P = infinity
+		witness0 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			P: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+			S1: emulated.ValueOf[emulated.P256Fr](0),
+			S2: emulated.ValueOf[emulated.P256Fr](0),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](0),
+				Y: emulated.ValueOf[emulated.P256Fp](0),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness0, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=0, S2=s => [s]*G + [0]*P = [s]*G
+		resx, resy := p256.ScalarBaseMult(s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+		witness1 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			P: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+			S1: emulated.ValueOf[emulated.P256Fr](0),
+			S2: emulated.ValueOf[emulated.P256Fr](s),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](resx),
+				Y: emulated.ValueOf[emulated.P256Fp](resy),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=s, S2=0 => [0]*G + [s]*P = [s]*P
+		resx, resy = p256.ScalarMult(px, py, s.Bytes()) //nolint:staticcheck // test needs low-level EC ops
+		witness2 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			P: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+			S1: emulated.ValueOf[emulated.P256Fr](s),
+			S2: emulated.ValueOf[emulated.P256Fr](0),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](resx),
+				Y: emulated.ValueOf[emulated.P256Fp](resy),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+		assert.NoError(err)
+
+		// Test: S1=-1, S2=1 => [1]*G + [-1]*P = G - P
+		gx, gy := p256.Params().Gx, p256.Params().Gy
+		negPy := new(big.Int).Sub(p256.Params().P, py)
+		resx, resy = p256.Add(gx, gy, px, negPy) //nolint:staticcheck // test needs low-level EC ops
+		witness3 := JointScalarMulBaseCompleteTest[emulated.P256Fp, emulated.P256Fr]{
+			P: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](px),
+				Y: emulated.ValueOf[emulated.P256Fp](py),
+			},
+			S1: emulated.ValueOf[emulated.P256Fr](big.NewInt(-1)),
+			S2: emulated.ValueOf[emulated.P256Fr](1),
+			Res: AffinePoint[emulated.P256Fp]{
+				X: emulated.ValueOf[emulated.P256Fp](resx),
+				Y: emulated.ValueOf[emulated.P256Fp](resy),
+			},
+		}
+		err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+		assert.NoError(err)
+	})
 }

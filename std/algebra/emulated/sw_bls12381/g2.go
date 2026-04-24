@@ -24,6 +24,10 @@ type G2 struct {
 	// SSWU map coefficients
 	sswuCoeffA, sswuCoeffB *fields_bls12381.E2
 	sswuZ                  *fields_bls12381.E2
+
+	// Precomputed G2 generator and its multiple for GLV+FakeGLV
+	g2Gen      *g2AffP // G2 generator
+	g2GenNbits *g2AffP // [2^nbits]G2 where nbits = (r.BitLen()+3)/4 + 2
 }
 
 type g2AffP struct {
@@ -80,6 +84,31 @@ func NewG2(api frontend.API) (*G2, error) {
 		A0: *fp.NewElement(sswuZ.A0),
 		A1: *fp.NewElement(sswuZ.A1),
 	}
+
+	// Precomputed G2 generator for GLV+FakeGLV
+	g2Gen := &g2AffP{
+		X: fields_bls12381.E2{
+			A0: *fp.NewElement("352701069587466618187139116011060144890029952792775240219908644239793785735715026873347600343865175952761926303160"),
+			A1: *fp.NewElement("3059144344244213709971259814753781636986470325476647558659373206291635324768958432433509563104347017837885763365758"),
+		},
+		Y: fields_bls12381.E2{
+			A0: *fp.NewElement("1985150602287291935568054521177171638300868978215655730859378665066344726373823718423869104263333984641494340347905"),
+			A1: *fp.NewElement("927553665492332455747201965776037880757740193453592970025027978793976877002675564980949289727957565575433344219582"),
+		},
+	}
+	// [2^(nbits-1)]G2 where nbits = (255+3)/4 + 2 = 66, so this is [2^65]G2
+	// The loop does nbits-1 doublings, so the generator accumulates to [2^(nbits-1)]G2
+	g2GenNbits := &g2AffP{
+		X: fields_bls12381.E2{
+			A0: *fp.NewElement("1307001654908388153254394944417118155033503188409787277795273489312551176370209873126740711463572657296916966732684"),
+			A1: *fp.NewElement("1066804690119577865989830850277879393407029322116864061755683314318400220056817483617033672656485029228353937929571"),
+		},
+		Y: fields_bls12381.E2{
+			A0: *fp.NewElement("1233864651366532660795929818904272589705597977637697925481983092108793193162343169655985724823869788077854535468808"),
+			A1: *fp.NewElement("2703972434797875065063829955607449483769333186572810763171217085444622779819503421195150761462859837038921185079043"),
+		},
+	}
+
 	return &G2{
 		api:        api,
 		fp:         fp,
@@ -94,6 +123,9 @@ func NewG2(api frontend.API) (*G2, error) {
 		sswuCoeffA: coeffA,
 		sswuCoeffB: coeffB,
 		sswuZ:      z,
+		// GLV+FakeGLV precomputed values
+		g2Gen:      g2Gen,
+		g2GenNbits: g2GenNbits,
 	}, nil
 }
 
@@ -447,7 +479,6 @@ func (g2 G2) doubleAndAddSelect(b frontend.Variable, p, q *G2Affine) *G2Affine {
 		},
 	}
 }
-
 func (g2 *G2) computeTwistEquation(Q *G2Affine) (left, right *fields_bls12381.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
@@ -510,274 +541,288 @@ func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
 	return g2.api.And(xEqual, yEqual)
 }
 
-// scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
-// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
-//
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
-// (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the [EVM].
-//
-// It computes the right-to-left variable-base double-and-add algorithm ([Joye07], Alg.1).
-//
-// Since we use incomplete formulas for the addition law, we need to start with
-// a non-zero accumulator point (R0). To do this, we skip the LSB (bit at
-// position 0) and proceed assuming it was 1. At the end, we conditionally
-// subtract the initial value (p) if LSB is 1. We also handle the bits at
-// positions 1 and n-1 outside of the loop to optimize the number of
-// constraints using [ELM03] (Section 3.1)
-//
-// [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
-// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-// [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		// if p=(0,0) we assign a dummy (0,1) to p and continue
-		selector = g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
-		one := g2.Ext2.One()
-		p = g2.Select(selector, &G2Affine{P: g2AffP{X: *one, Y: *one}, Lines: nil}, p)
-	}
-
-	var st ScalarField
-	sBits := g2.fr.ToBitsCanonical(s)
-	n := st.Modulus().BitLen()
-	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
-		n = cfg.NbScalarBits
-	}
-
-	// i = 1
-	Rb := g2.triple(p)
-	R0 := g2.Select(sBits[1], Rb, p)
-	R1 := g2.Select(sBits[1], p, Rb)
-
-	for i := 2; i < n-1; i++ {
-		Rb = g2.doubleAndAddSelect(sBits[i], R0, R1)
-		R0 = g2.Select(sBits[i], Rb, R0)
-		R1 = g2.Select(sBits[i], R1, Rb)
-	}
-
-	// i = n-1
-	Rb = g2.doubleAndAddSelect(sBits[n-1], R0, R1)
-	R0 = g2.Select(sBits[n-1], Rb, R0)
-
-	// i = 0
-	// we use AddUnified instead of Add. This is because:
-	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
-	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
-	R0 = g2.Select(sBits[0], R0, g2.AddUnified(R0, g2.neg(p)))
-
-	if cfg.CompleteArithmetic {
-		// if p=(0,0), return (0,0)
-		zero := g2.Ext2.Zero()
-		R0 = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}, Lines: nil}, R0)
-	}
-
-	return R0
-}
-
 // ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
-// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+// It implements the GLV+fakeGLV optimization from [EEMP25] which achieves r^(1/4) bounds
+// on the sub-scalars, reducing the number of iterations in the scalar multiplication loop.
+//
+// Benchmarks show ~36% fewer constraints compared to plain GLV:
+//   - GLV: ~914k constraints
+//   - GLV+FakeGLV: ~585k constraints
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
-// [Halo]: https://eprint.iacr.org/2019/1021.pdf
+// [EEMP25]: https://eprint.iacr.org/2025/933
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
-	return g2.scalarMulGLV(Q, s, opts...)
+	return g2.scalarMulGLVAndFakeGLV(Q, s, opts...)
 }
 
-// scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
-// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+// scalarMulGLVAndFakeGLV computes [s]Q using GLV+fakeGLV with r^(1/4) bounds.
+// It implements the "GLV + fake GLV" explained in [EEMP25] (Sec. 3.3).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
-// (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the [EVM].
 //
-// [Halo]: https://eprint.iacr.org/2019/1021.pdf
-// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
+// [EEMP25]: https://eprint.iacr.org/2025/933
+func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	addFn := g2.add
-	var selector frontend.Variable
+
+	// handle 0-scalar
+	var selector0 frontend.Variable
+	_s := s
 	if cfg.CompleteArithmetic {
-		addFn = g2.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = g2.api.And(
-			g2.api.And(g2.fp.IsZero(&Q.P.X.A0), g2.fp.IsZero(&Q.P.X.A1)),
-			g2.api.And(g2.fp.IsZero(&Q.P.Y.A0), g2.fp.IsZero(&Q.P.Y.A1)),
-		)
-		one := g2.Ext2.One()
-		Q = g2.Select(selector, &G2Affine{P: g2AffP{X: *one, Y: *one}, Lines: nil}, Q)
+		one := g2.fr.One()
+		selector0 = g2.fr.IsZero(s)
+		_s = g2.fr.Select(selector0, one, s)
 	}
 
-	// We use the endomorphism à la GLV to compute [s]Q as
-	// 		[s1]Q + [s2]Φ(Q)
-	// the sub-scalars s1, s2 can be negative (bigints) in the hint. If so,
-	// they will be reduced in-circuit modulo the SNARK scalar field and not
-	// the emulated field. So we return in the hint |s1|, |s2| and boolean
-	// flags sdBits to negate the points Q, Φ(Q) instead of the corresponding
-	// sub-scalars.
+	// Instead of computing [s]Q=R, we check that R-[s]Q == 0.
+	// This is equivalent to [v]R + [-s*v]Q = 0 for some nonzero v.
+	//
+	// Using LLL-based lattice reduction we find small sub-scalars:
+	// 		[v1 + λ*v2]R + [u1 + λ*u2]Q = 0
+	// 		[v1]R + [v2]Φ(R) + [u1]Q + [u2]Φ(Q) = 0
+	//
+	// where u1, u2, v1, v2 < c*r^{1/4} with c ≈ 1.25 (proven bound from LLL).
 
-	// decompose s into s1 and s2
-	sdBits, sd, err := g2.fr.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[ScalarField]{s, g2.eigenvalue})
+	// decompose s into u1, u2, v1, v2
+	signs, sd, err := g2.fr.NewHintGeneric(rationalReconstructExtG2, 4, 4, nil, []*emulated.Element[ScalarField]{_s, g2.eigenvalue})
 	if err != nil {
-		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExtG2 hint: %v", err))
 	}
-	s1, s2 := sd[0], sd[1]
-	selector1, selector2 := sdBits[0], sdBits[1]
-	s3 := g2.fr.Select(selector1, g2.fr.Neg(s1), s1)
-	s4 := g2.fr.Select(selector2, g2.fr.Neg(s2), s2)
-	// s == s3 + [λ]s4
-	g2.fr.AssertIsEqual(
-		g2.fr.Add(s3, g2.fr.Mul(s4, g2.eigenvalue)),
-		s,
+	u1, u2, v1, v2 := sd[0], sd[1], sd[2], sd[3]
+	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
+
+	// Check that: s*(v1 + λ*v2) + u1 + λ*u2 = 0
+	var st ScalarField
+	sv1 := g2.fr.Mul(_s, v1)
+	sλv2 := g2.fr.Mul(_s, g2.fr.Mul(g2.eigenvalue, v2))
+	λu2 := g2.fr.Mul(g2.eigenvalue, u2)
+	zero := g2.fr.Zero()
+
+	lhs1 := g2.fr.Select(isNegv1, zero, sv1)
+	lhs2 := g2.fr.Select(isNegv2, zero, sλv2)
+	lhs3 := g2.fr.Select(isNegu1, zero, u1)
+	lhs4 := g2.fr.Select(isNegu2, zero, λu2)
+	lhs := g2.fr.Add(
+		g2.fr.Add(lhs1, lhs2),
+		g2.fr.Add(lhs3, lhs4),
 	)
 
-	s1bits := g2.fr.ToBits(s1)
-	s2bits := g2.fr.ToBits(s2)
+	rhs1 := g2.fr.Select(isNegv1, sv1, zero)
+	rhs2 := g2.fr.Select(isNegv2, sλv2, zero)
+	rhs3 := g2.fr.Select(isNegu1, u1, zero)
+	rhs4 := g2.fr.Select(isNegu2, λu2, zero)
+	rhs := g2.fr.Add(
+		g2.fr.Add(rhs1, rhs2),
+		g2.fr.Add(rhs3, rhs4),
+	)
+
+	g2.fr.AssertIsEqual(lhs, rhs)
+
+	// Ensure the denominator v1 + λ*v2 is non-zero to prevent trivial decomposition
+	den := g2.fr.Add(v1, g2.fr.Mul(g2.eigenvalue, v2))
+	g2.fr.AssertIsDifferent(den, g2.fr.Zero())
+
+	// Hint the scalar multiplication R = [s]Q
+	_, point, _, err := emulated.NewVarGenericHint(g2.api, 0, 4, 0, nil,
+		[]*emulated.Element[BaseField]{&Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1},
+		[]*emulated.Element[ScalarField]{s},
+		scalarMulG2Hint)
+	if err != nil {
+		panic(fmt.Sprintf("scalarMulG2Hint: %v", err))
+	}
+	R := &G2Affine{
+		P: g2AffP{
+			X: fields_bls12381.E2{A0: *point[0], A1: *point[1]},
+			Y: fields_bls12381.E2{A0: *point[2], A1: *point[3]},
+		},
+	}
+	// Preserve the original hinted R for return value (before edge-case modifications)
+	originalR := R
+
+	// handle (0,0)-point and edge cases
+	var _selector0, _selector1 frontend.Variable
+	var sIsOne, sIsMinusOne frontend.Variable
+	_Q := Q
+	if cfg.CompleteArithmetic {
+		// Use different dummy points for _Q and R to avoid _Q == ±R
+		// which would cause incomplete addition failures in the table precomputations.
+		dummyQ := &G2Affine{P: *g2.g2Gen}
+		dummyR := &G2Affine{P: *g2.g2GenNbits}
+		// if Q=(0,0) we assign a dummy point
+		_selector0 = g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
+		_Q = g2.Select(_selector0, dummyQ, Q)
+		// if s=±1, R=±Q and incomplete addition fails (R.X == Q.X).
+		// We detect this from the constrained scalar, not from the unconstrained R.
+		sIsOne = g2.fr.IsZero(g2.fr.Sub(s, g2.fr.One()))
+		sIsMinusOne = g2.fr.IsZero(g2.fr.Add(s, g2.fr.One()))
+		_selector1 = g2.api.Or(sIsOne, sIsMinusOne)
+		// if s=0 (selector0), Q=(0,0) (_selector0), or s=±1 (_selector1),
+		// we assign a dummy point to R
+		selectorAny := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
+		R = g2.Select(selectorAny, dummyR, R)
+	}
 
 	// precompute -Q, -Φ(Q), Φ(Q)
-	var tableQ, tablePhiQ [3]*G2Affine
-	negQY := g2.Ext2.Neg(&Q.P.Y)
+	var tableQ, tablePhiQ [2]*G2Affine
+	negQY := g2.Ext2.Neg(&_Q.P.Y)
 	tableQ[1] = &G2Affine{
 		P: g2AffP{
-			X: Q.P.X,
-			Y: *g2.Ext2.Select(selector1, negQY, &Q.P.Y),
+			X: _Q.P.X,
+			Y: *g2.Ext2.Select(isNegu1, negQY, &_Q.P.Y),
 		},
 	}
 	tableQ[0] = g2.neg(tableQ[1])
 	tablePhiQ[1] = &G2Affine{
 		P: g2AffP{
-			X: *g2.Ext2.MulByElement(&Q.P.X, g2.w2),
-			Y: *g2.Ext2.Select(selector2, negQY, &Q.P.Y),
+			X: *g2.Ext2.MulByElement(&_Q.P.X, g2.w2),
+			Y: *g2.Ext2.Select(isNegu2, negQY, &_Q.P.Y),
 		},
 	}
 	tablePhiQ[0] = g2.neg(tablePhiQ[1])
-	tableQ[2] = g2.triple(tableQ[1])
-	tablePhiQ[2] = &G2Affine{
+
+	// precompute -R, -Φ(R), Φ(R)
+	var tableR, tablePhiR [2]*G2Affine
+	negRY := g2.Ext2.Neg(&R.P.Y)
+	tableR[1] = &G2Affine{
 		P: g2AffP{
-			X: *g2.Ext2.MulByElement(&tableQ[2].P.X, g2.w2),
-			Y: *g2.Ext2.Select(selector2, g2.Ext2.Neg(&tableQ[2].P.Y), &tableQ[2].P.Y),
+			X: R.P.X,
+			Y: *g2.Ext2.Select(isNegv1, negRY, &R.P.Y),
 		},
 	}
+	tableR[0] = g2.neg(tableR[1])
+	tablePhiR[1] = &G2Affine{
+		P: g2AffP{
+			X: *g2.Ext2.MulByElement(&R.P.X, g2.w2),
+			Y: *g2.Ext2.Select(isNegv2, negRY, &R.P.Y),
+		},
+	}
+	tablePhiR[0] = g2.neg(tablePhiR[1])
 
-	// we suppose that the first bits of the sub-scalars are 1 and set:
-	// 		Acc = Q + Φ(Q)
-	Acc := g2.add(tableQ[1], tablePhiQ[1])
+	// precompute -Q-R, Q+R, Q-R, -Q+R (combining the two points Q and R)
+	var tableS [4]*G2Affine
+	tableS[0] = g2.add(tableQ[0], tableR[0]) // -Q - R
+	tableS[1] = g2.neg(tableS[0])            // Q + R
+	tableS[2] = g2.add(tableQ[1], tableR[0]) // Q - R
+	tableS[3] = g2.neg(tableS[2])            // -Q + R
 
-	// At each iteration we need to compute:
-	// 		[2]Acc ± Q ± Φ(Q).
-	// We can compute [2]Acc and look up the (precomputed) point P from:
-	// 		B1 = Q+Φ(Q)
-	// 		B2 = -Q-Φ(Q)
-	// 		B3 = Q-Φ(Q)
-	// 		B4 = -Q+Φ(Q)
-	//
-	// If we extend this by merging two iterations, we need to look up P and P'
-	// both from {B1, B2, B3, B4} and compute:
-	// 		[2]([2]Acc+P)+P' = [4]Acc + T
-	// where T = [2]P+P'. So at each (merged) iteration, we can compute [4]Acc
-	// and look up T from the precomputed list of points:
-	//
-	// T = [3](Q + Φ(Q))
-	// P = B1 and P' = B1
-	t1 := g2.add(tableQ[2], tablePhiQ[2])
-	// T = Q + Φ(Q)
-	// P = B1 and P' = B2
-	T2 := Acc
-	// T = [3]Q + Φ(Q)
-	// P = B1 and P' = B3
-	T3 := g2.add(tableQ[2], tablePhiQ[1])
-	// T = Q + [3]Φ(Q)
-	// P = B1 and P' = B4
-	t4 := g2.add(tableQ[1], tablePhiQ[2])
-	// T  = -[3](Q + Φ(Q))
-	// P = B2 and P' = B2
-	T6 := g2.neg(t1)
-	// T = -Q - [3]Φ(Q)
-	// P = B2 and P' = B3
-	T7 := g2.neg(t4)
-	// T = [3]Q - Φ(Q)
-	// P = B3 and P' = B1
-	t9 := g2.add(tableQ[2], tablePhiQ[0])
-	// T = Q - [3]Φ(Q)
-	// P = B3 and P' = B2
-	t := g2.neg(tablePhiQ[2])
-	T10 := g2.add(tableQ[1], t)
-	// T = [3](Q - Φ(Q))
-	// P = B3 and P' = B3
-	T11 := g2.add(tableQ[2], t)
-	// T = -Φ(Q) + Q
-	// P = B3 and P' = B4
-	T12 := g2.add(tablePhiQ[0], tableQ[1])
-	// T = Φ(Q) - [3]Q
-	// P = B4 and P' = B2
-	T14 := g2.neg(t9)
-	// T = Φ(Q) - Q
-	// P = B4 and P' = B3
-	T15 := g2.neg(T12)
-	// note that half the points are negatives of the other half,
-	// hence have the same X coordinates.
+	// precompute -Φ(Q)-Φ(R), Φ(Q)+Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R) (combining endomorphisms)
+	var tablePhiS [4]*G2Affine
+	tablePhiS[0] = g2.add(tablePhiQ[0], tablePhiR[0]) // -Φ(Q) - Φ(R)
+	tablePhiS[1] = g2.neg(tablePhiS[0])               // Φ(Q) + Φ(R)
+	tablePhiS[2] = g2.add(tablePhiQ[1], tablePhiR[0]) // Φ(Q) - Φ(R)
+	tablePhiS[3] = g2.neg(tablePhiS[2])               // -Φ(Q) + Φ(R)
 
-	nbits := 130
-	for i := nbits - 2; i > 0; i -= 2 {
+	// Acc = Q + Φ(Q) + R + Φ(R)
+	Acc := g2.add(tableS[1], tablePhiS[1])
+	B1 := Acc
+
+	// Add G2 generator to Acc to avoid incomplete additions in the loop.
+	// At the end, since [u1]Q + [u2]Φ(Q) + [v1]R + [v2]Φ(R) = 0,
+	// Acc will equal [2^nbits]G2 (precomputed).
+	g2GenPoint := &G2Affine{P: *g2.g2Gen}
+	Acc = g2.add(Acc, g2GenPoint)
+
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25
+	nbits := (st.Modulus().BitLen()+3)/4 + 2
+	u1bits := g2.fr.ToBits(u1)
+	u2bits := g2.fr.ToBits(u2)
+	v1bits := g2.fr.ToBits(v1)
+	v2bits := g2.fr.ToBits(v2)
+
+	// Precompute all 16 combinations: ±Q ± Φ(Q) ± R ± Φ(R)
+	// Using tableS (Q±R) and tablePhiS (Φ(Q)±Φ(R)) to match G1 pattern
+	// B1 = (Q+R) + (Φ(Q)+Φ(R)) = Q + R + Φ(Q) + Φ(R)
+	B2 := g2.add(tableS[1], tablePhiS[2]) // (Q+R) + (Φ(Q)-Φ(R)) = Q + R + Φ(Q) - Φ(R)
+	B3 := g2.add(tableS[1], tablePhiS[3]) // (Q+R) + (-Φ(Q)+Φ(R)) = Q + R - Φ(Q) + Φ(R)
+	B4 := g2.add(tableS[1], tablePhiS[0]) // (Q+R) + (-Φ(Q)-Φ(R)) = Q + R - Φ(Q) - Φ(R)
+	B5 := g2.add(tableS[2], tablePhiS[1]) // (Q-R) + (Φ(Q)+Φ(R)) = Q - R + Φ(Q) + Φ(R)
+	B6 := g2.add(tableS[2], tablePhiS[2]) // (Q-R) + (Φ(Q)-Φ(R)) = Q - R + Φ(Q) - Φ(R)
+	B7 := g2.add(tableS[2], tablePhiS[3]) // (Q-R) + (-Φ(Q)+Φ(R)) = Q - R - Φ(Q) + Φ(R)
+	B8 := g2.add(tableS[2], tablePhiS[0]) // (Q-R) + (-Φ(Q)-Φ(R)) = Q - R - Φ(Q) - Φ(R)
+	B10 := g2.neg(B7)                     // -Q + R + Φ(Q) - Φ(R)
+	B12 := g2.neg(B5)                     // -Q + R - Φ(Q) - Φ(R)
+	B14 := g2.neg(B3)                     // -Q - R + Φ(Q) - Φ(R)
+	B16 := g2.neg(B1)                     // -Q - R - Φ(Q) - Φ(R)
+
+	var Bi *G2Affine
+	for i := nbits - 1; i > 0; i-- {
 		// selectorY takes values in [0,15]
 		selectorY := g2.api.Add(
-			s1bits[i],
-			g2.api.Mul(s2bits[i], 2),
-			g2.api.Mul(s1bits[i-1], 4),
-			g2.api.Mul(s2bits[i-1], 8),
+			u1bits[i],
+			g2.api.Mul(u2bits[i], 2),
+			g2.api.Mul(v1bits[i], 4),
+			g2.api.Mul(v2bits[i], 8),
 		)
 		// selectorX takes values in [0,7] s.t.:
 		// 		- when selectorY < 8: selectorX = selectorY
 		// 		- when selectorY >= 8: selectorX = 15 - selectorY
 		selectorX := g2.api.Add(
-			g2.api.Mul(selectorY, g2.api.Sub(1, g2.api.Mul(s2bits[i-1], 2))),
-			g2.api.Mul(s2bits[i-1], 15),
+			g2.api.Mul(selectorY, g2.api.Sub(1, g2.api.Mul(v2bits[i], 2))),
+			g2.api.Mul(v2bits[i], 15),
 		)
 		// Half of the Bi.X are distinct (8-to-1) and Y[i] = -Y[15-i],
 		// so we use 8-to-1 Mux for both X and Y, with conditional negation for Y.
-		T := &G2Affine{
+		Bi = &G2Affine{
 			P: g2AffP{
 				X: fields_bls12381.E2{
-					A0: *g2.fp.Mux(selectorX, &T6.P.X.A0, &T10.P.X.A0, &T14.P.X.A0, &T2.P.X.A0, &T7.P.X.A0, &T11.P.X.A0, &T15.P.X.A0, &T3.P.X.A0),
-					A1: *g2.fp.Mux(selectorX, &T6.P.X.A1, &T10.P.X.A1, &T14.P.X.A1, &T2.P.X.A1, &T7.P.X.A1, &T11.P.X.A1, &T15.P.X.A1, &T3.P.X.A1),
+					A0: *g2.fp.Mux(selectorX,
+						&B16.P.X.A0, &B8.P.X.A0, &B14.P.X.A0, &B6.P.X.A0, &B12.P.X.A0, &B4.P.X.A0, &B10.P.X.A0, &B2.P.X.A0,
+					),
+					A1: *g2.fp.Mux(selectorX,
+						&B16.P.X.A1, &B8.P.X.A1, &B14.P.X.A1, &B6.P.X.A1, &B12.P.X.A1, &B4.P.X.A1, &B10.P.X.A1, &B2.P.X.A1,
+					),
 				},
-				Y: *g2.muxE2Y8Signed(s2bits[i-1], selectorX,
-					[8]*emulated.Element[BaseField]{&T6.P.Y.A0, &T10.P.Y.A0, &T14.P.Y.A0, &T2.P.Y.A0, &T7.P.Y.A0, &T11.P.Y.A0, &T15.P.Y.A0, &T3.P.Y.A0},
-					[8]*emulated.Element[BaseField]{&T6.P.Y.A1, &T10.P.Y.A1, &T14.P.Y.A1, &T2.P.Y.A1, &T7.P.Y.A1, &T11.P.Y.A1, &T15.P.Y.A1, &T3.P.Y.A1},
+				Y: *g2.muxE2Y8Signed(v2bits[i], selectorX,
+					[8]*emulated.Element[BaseField]{&B16.P.Y.A0, &B8.P.Y.A0, &B14.P.Y.A0, &B6.P.Y.A0, &B12.P.Y.A0, &B4.P.Y.A0, &B10.P.Y.A0, &B2.P.Y.A0},
+					[8]*emulated.Element[BaseField]{&B16.P.Y.A1, &B8.P.Y.A1, &B14.P.Y.A1, &B6.P.Y.A1, &B12.P.Y.A1, &B4.P.Y.A1, &B10.P.Y.A1, &B2.P.Y.A1},
 				),
 			},
 		}
-		// Acc = [4]Acc + T
-		Acc = g2.double(Acc)
-		Acc = g2.doubleAndAdd(Acc, T)
+		// Acc = [2]Acc + Bi
+		Acc = g2.doubleAndAdd(Acc, Bi)
 	}
 
-	// i = 0
-	// subtract the Q, Φ(Q) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
-	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	tableQ[0] = addFn(tableQ[0], Acc)
-	Acc = g2.Select(s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
-	Acc = g2.Select(s2bits[0], Acc, tablePhiQ[0])
+	// i = 0: subtract Q, Φ(Q), R, Φ(R) if the first bits are 0
+	tableQ[0] = g2.add(tableQ[0], Acc)
+	Acc = g2.Select(u1bits[0], Acc, tableQ[0])
+	tablePhiQ[0] = g2.add(tablePhiQ[0], Acc)
+	Acc = g2.Select(u2bits[0], Acc, tablePhiQ[0])
+	tableR[0] = g2.add(tableR[0], Acc)
+	Acc = g2.Select(v1bits[0], Acc, tableR[0])
+	tablePhiR[0] = g2.add(tablePhiR[0], Acc)
+	Acc = g2.Select(v2bits[0], Acc, tablePhiR[0])
+
+	// Acc should now be [2^nbits]G2 since [u1]Q + [u2]Φ(Q) + [v1]R + [v2]Φ(R) = 0
+	// and we added G2 to the initial accumulator.
+	expected := &G2Affine{P: *g2.g2GenNbits}
 
 	if cfg.CompleteArithmetic {
-		zero := g2.Ext2.Zero()
-		Acc = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}}, Acc)
+		// if Q=(0,0), s=0, or R.X==Q.X, skip the check
+		skip := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
+		Acc = g2.Select(skip, expected, Acc)
+	}
+	g2.AssertIsEqual(Acc, expected)
+
+	if cfg.CompleteArithmetic {
+		zeroE2 := g2.Ext2.Zero()
+		zeroG2 := &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}
+		negQ := g2.neg(Q)
+		// s=-1 → -Q, else → R (constrained by MSM check above)
+		result := g2.Select(sIsMinusOne, negQ, originalR)
+		// s=1 → Q
+		result = g2.Select(sIsOne, Q, result)
+		// s=0 or Q=(0,0) → (0,0)
+		returnZero := g2.api.Or(selector0, _selector0)
+		return g2.Select(returnZero, zeroG2, result)
 	}
 
-	return Acc
+	return R
 }
 
 // MultiScalarMul computes the multi scalar multiplication of the points P and
@@ -808,9 +853,9 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
 		n := len(p)
-		res := g2.scalarMulGLV(p[0], s[0], opts...)
+		res := g2.ScalarMul(p[0], s[0], opts...)
 		for i := 1; i < n; i++ {
-			q := g2.scalarMulGLV(p[i], s[i], opts...)
+			q := g2.ScalarMul(p[i], s[i], opts...)
 			res = addFn(res, q)
 		}
 		return res, nil
@@ -820,10 +865,10 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 			return nil, fmt.Errorf("need scalar for folding")
 		}
 		gamma := s[0]
-		res := g2.scalarMulGLV(p[len(p)-1], gamma, opts...)
+		res := g2.ScalarMul(p[len(p)-1], gamma, opts...)
 		for i := len(p) - 2; i > 0; i-- {
 			res = addFn(p[i], res)
-			res = g2.scalarMulGLV(res, gamma, opts...)
+			res = g2.ScalarMul(res, gamma, opts...)
 		}
 		res = addFn(p[0], res)
 		return res, nil
