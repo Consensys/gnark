@@ -21,11 +21,18 @@ import (
 type Curve interface {
 	Params() *CurveParams
 	Endo() *EndoParams
+	// Add computes p1+p2 for inputs that lie on the curve.
 	Add(p1, p2 Point) Point
+	// Double computes 2*p1 for an input point that lies on the curve.
 	Double(p1 Point) Point
+	// Neg computes -p1 for an input point that lies on the curve.
 	Neg(p1 Point) Point
+	// AssertIsOnCurve constrains p1 to satisfy the twisted Edwards curve equation.
 	AssertIsOnCurve(p1 Point)
+	// ScalarMul computes [scalar]p1. For on-curve points, it is complete for all
+	// scalar inputs, including zero.
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
+	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
