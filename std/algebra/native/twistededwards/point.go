@@ -29,8 +29,7 @@ func (p *Point) assertIsOnCurve(api frontend.API, curve *CurveParams) {
 
 }
 
-// add Adds two points on a twisted edwards curve (eg jubjub)
-// p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
+// add adds two points that are assumed to satisfy the twisted Edwards curve equation.
 func (p *Point) add(api frontend.API, p1, p2 *Point, curve *CurveParams) *Point {
 
 	// u = (x1 + y1) * (x2 + y2)
@@ -61,7 +60,7 @@ func (p *Point) add(api frontend.API, p1, p2 *Point, curve *CurveParams) *Point 
 	return p
 }
 
-// double doubles a points in SNARK coordinates
+// double doubles a point that is assumed to satisfy the twisted Edwards curve equation.
 func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 
 	u := api.Mul(p1.X, p1.Y)
@@ -80,54 +79,9 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 	return p
 }
 
-// scalarMulGeneric computes the scalar multiplication of a point on a twisted Edwards curve
-// p1: base point (as snark point)
-// curve: parameters of the Edwards curve
-// scal: scalar as a SNARK constraint
-// Standard left to right double and add
-func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
-	// first unpack the scalar
-	b := api.ToBinary(scalar)
-
-	res := Point{}
-	tmp := Point{}
-	A := Point{}
-	B := Point{}
-
-	A.double(api, p1, curve)
-	B.add(api, &A, p1, curve)
-
-	n := len(b) - 1
-	res.X = api.Lookup2(b[n], b[n-1], 0, A.X, p1.X, B.X)
-	res.Y = api.Lookup2(b[n], b[n-1], 1, A.Y, p1.Y, B.Y)
-
-	for i := n - 2; i >= 1; i -= 2 {
-		res.double(api, &res, curve).
-			double(api, &res, curve)
-		tmp.X = api.Lookup2(b[i], b[i-1], 0, A.X, p1.X, B.X)
-		tmp.Y = api.Lookup2(b[i], b[i-1], 1, A.Y, p1.Y, B.Y)
-		res.add(api, &res, &tmp, curve)
-	}
-
-	if n%2 == 0 {
-		res.double(api, &res, curve)
-		tmp.add(api, &res, p1, curve)
-		res.X = api.Select(b[0], tmp.X, res.X)
-		res.Y = api.Select(b[0], tmp.Y, res.Y)
-	}
-
-	p.X = res.X
-	p.Y = res.Y
-
-	return p
-}
-
-// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
-// p1: base point (as snark point)
-// curve: parameters of the Edwards curve
-// scal: scalar as a SNARK constraint
-// Standard left to right double and add
-func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+// scalarMul computes [scalar]p1 for a point on the twisted Edwards curve.
+// For on-curve points, this method is complete for all scalar inputs, including zero.
+func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
 	return p.scalarMulFakeGLV(api, p1, scalar, curve)
 }
 
@@ -162,76 +116,6 @@ func (p *Point) doubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 fron
 	return p
 }
 
-// GLV
-
-// phi endomorphism √-2 ∈ 𝒪₋₈
-// (x,y) → λ × (x,y) s.t. λ² = -2 mod Order
-func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoParams) *Point {
-
-	xy := api.Mul(p1.X, p1.Y)
-	yy := api.Mul(p1.Y, p1.Y)
-	f := api.Sub(1, yy)
-	f = api.Mul(f, endo.Endo[1])
-	g := api.Add(yy, endo.Endo[0])
-	g = api.Mul(g, endo.Endo[0])
-	h := api.Sub(yy, endo.Endo[0])
-
-	p.X = api.DivUnchecked(f, xy)
-	p.Y = api.DivUnchecked(g, h)
-
-	return p
-}
-
-// scalarMulGLV computes the scalar multiplication of a point on a twisted
-// Edwards curve à la GLV.
-// p1: base point (as snark point)
-// curve: parameters of the Edwards curve
-// scal: scalar as a SNARK constraint
-// Standard left to right double and add
-func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
-	// the hints allow to decompose the scalar s into s1 and s2 such that
-	// s1 + λ * s2 == s mod Order,
-	// with λ s.t. λ² = -2 mod Order.
-	sd, err := api.NewHint(decomposeScalar, 3, scalar)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	s1, s2 := sd[0], sd[1]
-
-	// -s1 + λ * s2 == s + k*Order
-	api.AssertIsEqual(api.Sub(api.Mul(s2, endo.Lambda), s1), api.Add(scalar, api.Mul(curve.Order, sd[2])))
-
-	// Normally s1 and s2 are of the max size sqrt(Order) = 128
-	// But in a circuit, we force s1 to be negative by rounding always above.
-	// This changes the size bounds to 2*sqrt(Order) = 129.
-	n := 129
-
-	b1 := api.ToBinary(s1, n)
-	b2 := api.ToBinary(s2, n)
-
-	var res, _p1, p2, p3, tmp Point
-	_p1.neg(api, p1)
-	p2.phi(api, p1, curve, endo)
-	p3.add(api, &_p1, &p2, curve)
-
-	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, _p1.X, p2.X, p3.X)
-	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, _p1.Y, p2.Y, p3.Y)
-
-	for i := n - 2; i >= 0; i-- {
-		res.double(api, &res, curve)
-		tmp.X = api.Lookup2(b1[i], b2[i], 0, _p1.X, p2.X, p3.X)
-		tmp.Y = api.Lookup2(b1[i], b2[i], 1, _p1.Y, p2.Y, p3.Y)
-		res.add(api, &res, &tmp, curve)
-	}
-
-	p.X = res.X
-	p.Y = res.Y
-
-	return p
-}
-
 // scalarMulFakeGLV computes the scalar multiplication of a point on a twisted
 // Edwards curve following https://hackmd.io/@yelhousni/Hy-aWld50
 //
@@ -243,9 +127,12 @@ func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variab
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
+	isScalarZero := api.IsZero(scalar)
+	checkedScalar := api.Select(isScalarZero, 1, scalar)
+
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + s * s2 == 0 mod Order,
-	s, err := api.NewHint(halfGCD, 4, scalar, curve.Order)
+	s, err := api.NewHint(halfGCD, 4, checkedScalar, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -253,18 +140,20 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	s1, s2, bit, k := s[0], s[1], s[2], s[3]
 
 	// check that s1 + s2 * s == k*Order
-	_s2 := api.Mul(s2, scalar)
+	_s2 := api.Mul(s2, checkedScalar)
 	_k := api.Mul(k, curve.Order)
 	lhs := api.Select(bit, s1, api.Add(s1, _s2))
 	rhs := api.Select(bit, api.Add(_k, _s2), _k)
 	api.AssertIsEqual(lhs, rhs)
+	// A malicious hint can provide s1=s2=0, which makes the relation vacuous.
+	api.AssertIsEqual(api.IsZero(s2), 0)
 
 	n := (curve.Order.BitLen() + 1) / 2
 	b1 := api.ToBinary(s1, n)
 	b2 := api.ToBinary(s2, n)
 
 	var res, p2, p3, tmp Point
-	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, scalar, curve.Order)
+	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, checkedScalar, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -287,8 +176,8 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	api.AssertIsEqual(res.X, 0)
 	api.AssertIsEqual(res.Y, 1)
 
-	p.X = q[0]
-	p.Y = q[1]
+	p.X = api.Select(isScalarZero, 0, q[0])
+	p.Y = api.Select(isScalarZero, 1, q[1])
 
 	return p
 }

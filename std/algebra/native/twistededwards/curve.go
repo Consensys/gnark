@@ -10,7 +10,6 @@ type curve struct {
 	api    frontend.API
 	id     twistededwards.ID
 	params *CurveParams
-	endo   *EndoParams
 }
 
 func (c *curve) Params() *CurveParams {
@@ -19,10 +18,6 @@ func (c *curve) Params() *CurveParams {
 
 func (c *curve) API() frontend.API {
 	return c.api
-}
-
-func (c *curve) Endo() *EndoParams {
-	return c.endo
 }
 
 func (c *curve) Add(p1, p2 Point) Point {
@@ -46,7 +41,7 @@ func (c *curve) AssertIsOnCurve(p1 Point) {
 }
 func (c *curve) ScalarMul(p1 Point, scalar frontend.Variable) Point {
 	var p Point
-	p.scalarMul(c.api, &p1, scalar, c.params, c.endo)
+	p.scalarMul(c.api, &p1, scalar, c.params)
 	return p
 }
 func (c *curve) DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point {

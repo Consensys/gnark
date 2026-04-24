@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -23,7 +22,7 @@ func ECG2ScalarMulSumBLS(api frontend.API, prev, Q *sw_bls12381.G2Affine, s *emu
 	// Check the point is in G2
 	g2.AssertIsOnG2(Q)
 	// Compute the scalar multiplication
-	res := g2.ScalarMul(Q, s, algopts.WithCompleteArithmetic())
+	res := g2.ScalarMul(Q, s)
 	// Compute the aggregate
 	sum := g2.AddUnified(prev, res)
 	// Assert that the sum is as expected

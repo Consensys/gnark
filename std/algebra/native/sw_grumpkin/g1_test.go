@@ -232,7 +232,7 @@ type g1constantScalarMul struct {
 
 func (circuit *g1constantScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
-	expected.constScalarMul(api, circuit.A, circuit.R)
+	expected.scalarMulGLV(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -271,8 +271,8 @@ type g1constantScalarMulEdgeCases struct {
 func (circuit *g1constantScalarMulEdgeCases) Define(api frontend.API) error {
 	expected1 := G1Affine{}
 	expected2 := G1Affine{}
-	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
-	expected2.constScalarMul(api, circuit.Inf, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.scalarMulGLV(api, circuit.A, big.NewInt(0))
+	expected2.scalarMulGLV(api, circuit.Inf, circuit.R)
 	expected1.AssertIsEqual(api, circuit.Inf)
 	expected2.AssertIsEqual(api, circuit.Inf)
 	return nil
@@ -312,8 +312,8 @@ type g1ScalarMulEdgeCases struct {
 func (circuit *g1ScalarMulEdgeCases) Define(api frontend.API) error {
 	expected1 := G1Affine{}
 	expected2 := G1Affine{}
-	expected2.ScalarMul(api, circuit.Inf, circuit.R, algopts.WithCompleteArithmetic())
-	expected1.ScalarMul(api, circuit.A, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected2.ScalarMul(api, circuit.Inf, circuit.R)
+	expected1.ScalarMul(api, circuit.A, circuit.Zero)
 	expected1.AssertIsEqual(api, circuit.Inf)
 	expected2.AssertIsEqual(api, circuit.Inf)
 	return nil
@@ -349,9 +349,9 @@ type g1ScalarMul struct {
 
 func (circuit *g1ScalarMul) Define(api frontend.API) error {
 	var expected, expected2 G1Affine
-	expected.ScalarMul(api, circuit.A, circuit.Rvar)
+	expected.ScalarMul(api, circuit.A, circuit.Rvar, algopts.WithIncompleteArithmetic())
 	expected.AssertIsEqual(api, circuit.C)
-	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
+	expected2.ScalarMul(api, circuit.A, circuit.Rcon, algopts.WithIncompleteArithmetic())
 	expected2.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -430,7 +430,7 @@ func (c *MultiScalarMulEdgeCasesTest) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss)
 	if err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func (c *MultiScalarMulTest) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss)
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithIncompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -590,12 +590,12 @@ func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2 := G1Affine{}
 	expected3 := G1Affine{}
 	expected4 := G1Affine{}
-	expected1.jointScalarMul(api, circuit.Inf, circuit.Inf, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
-	expected2.jointScalarMul(api, circuit.A, circuit.B, circuit.Zero, circuit.Zero, algopts.WithCompleteArithmetic())
-	expected3.jointScalarMul(api, circuit.A, circuit.Inf, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
-	expected4.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.Zero, algopts.WithCompleteArithmetic())
+	expected1.jointScalarMul(api, circuit.Inf, circuit.Inf, circuit.R, circuit.S)
+	expected2.jointScalarMul(api, circuit.A, circuit.B, circuit.Zero, circuit.Zero)
+	expected3.jointScalarMul(api, circuit.A, circuit.Inf, circuit.R, circuit.S)
+	expected4.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.Zero)
 	_expected := G1Affine{}
-	_expected.ScalarMul(api, circuit.A, circuit.R, algopts.WithCompleteArithmetic())
+	_expected.ScalarMul(api, circuit.A, circuit.R)
 	expected1.AssertIsEqual(api, circuit.Inf)
 	expected2.AssertIsEqual(api, circuit.Inf)
 	expected3.AssertIsEqual(api, _expected)
@@ -645,7 +645,7 @@ type g1JointScalarMul struct {
 
 func (circuit *g1JointScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
-	expected.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S)
+	expected.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S, algopts.WithIncompleteArithmetic())
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -689,8 +689,8 @@ type g1JointScalarMulNaive struct {
 func (circuit *g1JointScalarMulNaive) Define(api frontend.API) error {
 	expected := G1Affine{}
 	tmp := G1Affine{}
-	tmp.ScalarMul(api, circuit.A, circuit.R)
-	expected.ScalarMul(api, circuit.B, circuit.S)
+	tmp.ScalarMul(api, circuit.A, circuit.R, algopts.WithIncompleteArithmetic())
+	expected.ScalarMul(api, circuit.B, circuit.S, algopts.WithIncompleteArithmetic())
 	expected.AddAssign(api, tmp)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
@@ -745,7 +745,7 @@ func (c *MultiScalarMulFoldedEdgeCasesTest) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
 	if err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ type g1varScalarMul struct {
 
 func (circuit *g1varScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
-	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.scalarMulGLV(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }

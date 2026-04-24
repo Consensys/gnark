@@ -43,8 +43,18 @@ func (s *globalStats) WriteTo(w io.Writer) (int64, error) {
 	for _, circuitName := range circuitNames {
 		innerStats := s.Stats[circuitName]
 		for _, backendID := range backend.Implemented() {
+			if _, ok := innerStats[backendID]; !ok {
+				// if we don't have stats for this backend, we skip it. This can
+				// happen when a snippet is only registered for some backends.
+				continue
+			}
 			backendName := backendID.String()
 			for _, curveID := range gnark.Curves() {
+				if _, ok := innerStats[backendID][curveID]; !ok {
+					// if we don't have stats for this curve, we skip it. This can
+					// happen when a snippet is only registered for some curves.
+					continue
+				}
 				curveName := curveID.String()
 				snippet := innerStats[backendID][curveID]
 				if err := csvWriter.Write([]string{circuitName, curveName, backendName, strconv.Itoa(snippet.NbConstraints), strconv.Itoa(snippet.NbInternalWires)}); err != nil {

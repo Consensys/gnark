@@ -130,6 +130,10 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 
 // ScalarMul computes scalar*P and returns the result. It doesn't modify the
 // inputs.
+//
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := &G1Affine{
 		X: P.X,
@@ -142,6 +146,10 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 
 // ScalarMulBase computes scalar*G where G is the standard base point of the
 // curve. It doesn't modify the scalar.
+//
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
@@ -152,6 +160,15 @@ func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affin
 // MultiScalarMul computes ∑scalars_i * P_i and returns it. It doesn't modify
 // the inputs. It returns an error if there is a mismatch in the lengths of the
 // inputs.
+//
+// By default, uses complete arithmetic.
+//
+// In incomplete mode, the non-folding path inherits the exceptional set of the
+// underlying joint-scalar helper and may additionally fail on sparse partial-
+// sum merge collisions. The folding path inherits the exceptional set of
+// scalarBitsMul and may additionally fail on sparse prefix-sum collisions.
+// Accordingly, the incomplete exceptional set is implementation-dependent and
+// not fully characterized at the API level.
 func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts.AlgebraOption) (*G1Affine, error) {
 	if len(P) == 0 {
 		return &G1Affine{
@@ -164,7 +181,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := c.Add
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	if !cfg.FoldMulti {

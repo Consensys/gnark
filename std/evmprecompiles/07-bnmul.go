@@ -2,7 +2,6 @@ package evmprecompiles
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -16,6 +15,6 @@ func ECMul(api frontend.API, P *sw_emulated.AffinePoint[emulated.BN254Fp], u *em
 		panic(err)
 	}
 	// Check that P is on G1 (done in the zkEVM ⚠️ )
-	res := curve.ScalarMul(P, u, algopts.WithCompleteArithmetic())
+	res := curve.ScalarMul(P, u)
 	return res
 }
