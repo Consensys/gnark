@@ -341,3 +341,50 @@ func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
 }
+
+type scalarMulFakeGLVRegressionCircuit struct {
+	Scalar frontend.Variable `gnark:",public"`
+}
+
+func (c *scalarMulFakeGLVRegressionCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, cryptotwistededwards.BN254)
+	if err != nil {
+		return err
+	}
+	base := Point{X: curve.Params().Base[0], Y: curve.Params().Base[1]}
+	_ = curve.ScalarMul(base, c.Scalar)
+	return nil
+}
+
+func zeroHalfGCDHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 2 {
+		return errors.New("expecting two inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	for i := range outputs {
+		outputs[i].SetUint64(0)
+	}
+	return nil
+}
+
+// This is a regression for a soundness issue in scalarMulFakeGLV. A malicious
+// halfGCD hint can return the trivial decomposition s1=s2=0, which makes the
+// internal accumulator check vacuous and lets any scalar-mul hint output pass.
+func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
+	assert := require.New(t)
+
+	witness := scalarMulFakeGLVRegressionCircuit{Scalar: big.NewInt(1)}
+
+	err := test.IsSolved(&scalarMulFakeGLVRegressionCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	err = test.IsSolved(
+		&scalarMulFakeGLVRegressionCircuit{},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(halfGCD), zeroHalfGCDHint),
+	)
+	assert.Error(err)
+}
