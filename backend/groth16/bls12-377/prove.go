@@ -391,6 +391,6 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 }
 
 // ExportProof not implemented for BLS12-377
-func (vk *Proof) ExportProof(publicSignals []string, w io.Writer) error {
+func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
 	return errors.New("not implemented")
 }
