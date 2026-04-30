@@ -1,0 +1,65 @@
+package sw_kb8
+
+import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_kb8"
+)
+
+// Accumulator stores the 1-point multiset hash state.
+type Accumulator struct {
+	curve *Curve
+	sum   G1Affine
+}
+
+// NewAccumulator returns a zero accumulator.
+func NewAccumulator(curve *Curve) *Accumulator {
+	return &Accumulator{
+		curve: curve,
+		sum:   curve.Infinity(),
+	}
+}
+
+// Insert maps msg and adds it to the accumulator.
+func (a *Accumulator) Insert(msg frontend.Variable) error {
+	p, err := maptocurve_kb8.YIncrement(a.curve.api, msg)
+	if err != nil {
+		return err
+	}
+	pm := fromMapPoint(p)
+	a.sum.AddUnified(a.curve.api, pm)
+	return nil
+}
+
+// Remove maps msg and subtracts it from the accumulator.
+func (a *Accumulator) Remove(msg frontend.Variable) error {
+	p, err := maptocurve_kb8.YIncrement(a.curve.api, msg)
+	if err != nil {
+		return err
+	}
+	pm := fromMapPoint(p)
+	var neg G1Affine
+	neg.Neg(a.curve.api, pm)
+	a.sum.AddUnified(a.curve.api, neg)
+	return nil
+}
+
+// Digest returns the current digest.
+func (a *Accumulator) Digest() G1Affine {
+	return a.sum
+}
+
+// Reset clears the accumulator.
+func (a *Accumulator) Reset() {
+	a.sum = a.curve.Infinity()
+}
+
+// Hash returns the multiset hash of msgs.
+func (c *Curve) Hash(msgs []frontend.Variable) (G1Affine, error) {
+	acc := NewAccumulator(c)
+	for _, msg := range msgs {
+		if err := acc.Insert(msg); err != nil {
+			return G1Affine{}, err
+		}
+	}
+	return acc.Digest(), nil
+}
