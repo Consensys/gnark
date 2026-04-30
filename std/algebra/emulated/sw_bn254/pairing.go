@@ -319,6 +319,14 @@ func (pr *Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
+func (pr *Pairing) IsOnG1(P *G1Affine) frontend.Variable {
+	return pr.curve.IsOnCurve(P)
+}
+
+func (pr *Pairing) One() *GTEl {
+	return pr.Ext12.One()
+}
+
 func (pr *Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
 	if len(inputs) == 0 {
 		return nil

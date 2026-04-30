@@ -326,6 +326,12 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+func (pr *Pairing) One() *GT {
+	var res GT
+	res.SetOne()
+	return &res
+}
+
 // AssertIsEqual asserts the equality of the target group elements.
 func (pr *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(pr.api, *e2)
@@ -452,6 +458,11 @@ func (pr *Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
 
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
 func (pr *Pairing) AssertIsOnCurve(p *G1Affine) {
+	pr.api.AssertIsEqual(pr.IsOnCurve(p), 1)
+}
+
+// IsOnCurve returns a boolean indicating if p belongs to the curve.
+func (pr *Pairing) IsOnCurve(p *G1Affine) frontend.Variable {
 	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
@@ -461,12 +472,16 @@ func (pr *Pairing) AssertIsOnCurve(p *G1Affine) {
 	left := pr.api.Mul(p.Y, p.Y)
 	right := pr.api.Mul(p.X, pr.api.Mul(p.X, p.X))
 	right = pr.api.Add(right, b)
-	pr.api.AssertIsEqual(left, right)
+	return pr.api.IsZero(pr.api.Sub(left, right))
 }
 
 func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
+	pr.api.AssertIsEqual(pr.IsOnG1(P), 1)
+}
+
+func (pr *Pairing) IsOnG1(P *G1Affine) frontend.Variable {
 	// 1- Check P is on the curve
-	pr.AssertIsOnCurve(P)
+	isOnCurve := pr.IsOnCurve(P)
 
 	// 2- Check P has the right subgroup order
 	// [x²]ϕ(P)
@@ -480,11 +495,19 @@ func (pr *Pairing) AssertIsOnG1(P *G1Affine) {
 	_P.Neg(pr.api, _P)
 
 	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
-	P.AssertIsEqual(pr.api, _P)
+	isEqual := pr.api.And(
+		pr.api.IsZero(pr.api.Sub(P.X, _P.X)),
+		pr.api.IsZero(pr.api.Sub(P.Y, _P.Y)),
+	)
+	return pr.api.And(isOnCurve, isEqual)
 }
 
 // AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.
 func (pr *Pairing) AssertIsOnTwist(p *G2Affine) {
+	pr.api.AssertIsEqual(pr.IsOnTwist(p), 1)
+}
+
+func (pr *Pairing) IsOnTwist(p *G2Affine) frontend.Variable {
 	// (X,Y) ∈ {Y² == X³ + 1/u} U (0,0)
 
 	// if p=(0,0) we assign b=0 and continue
@@ -502,12 +525,18 @@ func (pr *Pairing) AssertIsOnTwist(p *G2Affine) {
 	right.Square(pr.api, p.P.X)
 	right.Mul(pr.api, right, p.P.X)
 	right.Add(pr.api, right, b)
-	left.AssertIsEqual(pr.api, right)
+	var diff fields_bls12377.E2
+	diff.Sub(pr.api, left, right)
+	return diff.IsZero(pr.api)
 }
 
 func (pr *Pairing) AssertIsOnG2(P *G2Affine) {
+	pr.api.AssertIsEqual(pr.IsOnG2(P), 1)
+}
+
+func (pr *Pairing) IsOnG2(P *G2Affine) frontend.Variable {
 	// 1- Check P is on the curve
-	pr.AssertIsOnTwist(P)
+	isOnTwist := pr.IsOnTwist(P)
 
 	// 2- Check P has the right subgroup order
 	// [x₀]Q
@@ -517,7 +546,11 @@ func (pr *Pairing) AssertIsOnG2(P *G2Affine) {
 	psiP.psi(pr.api, &P.P)
 
 	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
-	xP.AssertIsEqual(pr.api, psiP)
+	var diffX, diffY fields_bls12377.E2
+	diffX.Sub(pr.api, xP.X, psiP.X)
+	diffY.Sub(pr.api, xP.Y, psiP.Y)
+	isEqual := pr.api.And(diffX.IsZero(pr.api), diffY.IsZero(pr.api))
+	return pr.api.And(isOnTwist, isEqual)
 }
 
 // NewG1Affine allocates a witness from the native G1 element and returns it.

@@ -97,6 +97,9 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
 
+	// One returns the identity element of the target group.
+	One() *GtEl
+
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
 
@@ -105,6 +108,12 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 
 	// AssertIsOnG2 asserts that the input is on the G2 curve.
 	AssertIsOnG2(*G2El)
+
+	// IsOnG1 returns a boolean indicating whether the input is on G1.
+	IsOnG1(*G1El) frontend.Variable
+
+	// IsOnG2 returns a boolean indicating whether the input is on G2.
+	IsOnG2(*G2El) frontend.Variable
 
 	// MuxG2 performs a lookup from the G2 inputs and returns inputs[sel]. It is
 	// most efficient for power of two lengths of the inputs, but works for any

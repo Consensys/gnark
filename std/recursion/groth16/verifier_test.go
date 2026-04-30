@@ -342,6 +342,7 @@ func getInnerCommitment(assert *test.Assert, field, outer *big.Int) (constraint.
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
+
 func TestBN254InBN254Commitment(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -671,4 +672,84 @@ func TestBLS12InBW6InvalidProof(t *testing.T) {
 		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 		assert.NoError(err)
 	}, "invalid=witness")
+}
+
+type OuterCircuitIsValidWithSubgroupCheck[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Proof        Proof[G1El, G2El]
+	VerifyingKey VerifyingKey[G1El, G2El, GtEl]
+	InnerWitness Witness[FR]
+	Res          frontend.Variable `gnark:",public"`
+}
+
+func (c *OuterCircuitIsValidWithSubgroupCheck[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	res, err := verifier.IsValidProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithSubgroupCheck())
+	if err != nil {
+		return fmt.Errorf("proof check: %w", err)
+	}
+	api.AssertIsEqual(res, c.Res)
+	return nil
+}
+
+func TestBLS12InBW6CommitmentIsValidWithSubgroupCheck(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	assert.Equal(len(innerCcs.GetCommitments().CommitmentIndexes()), 1)
+
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuitIsValidWithSubgroupCheck[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Proof:        PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
+	}
+
+	outerAssignment := &OuterCircuitIsValidWithSubgroupCheck[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+		Res:          1,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
+func TestBN254InBN254CommitmentIsValidWithSubgroupCheck(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BN254.ScalarField(), ecc.BN254.ScalarField())
+	assert.Equal(len(innerCcs.GetCommitments().CommitmentIndexes()), 1)
+
+	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bn254.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuitIsValidWithSubgroupCheck[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Proof:        PlaceholderProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerCcs),
+		InnerWitness: PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
+	}
+
+	assert.Run(func(assert *test.Assert) {
+		outerAssignment := &OuterCircuitIsValidWithSubgroupCheck[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+			InnerWitness: circuitWitness,
+			Proof:        circuitProof,
+			VerifyingKey: circuitVk,
+			Res:          1,
+		}
+		err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "valid")
 }

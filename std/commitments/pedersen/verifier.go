@@ -27,6 +27,7 @@ type VerifyingKey[G2El algebra.G2ElementT] struct {
 
 // Verifier verifies the knowledge proofs for a Pedersen commitments
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	api     frontend.API
 	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
@@ -36,7 +37,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 	if err != nil {
 		return nil, fmt.Errorf("get pairing: %w", err)
 	}
-	return &Verifier[FR, G1El, G2El, GtEl]{pairing: pairing}, nil
+	return &Verifier[FR, G1El, G2El, GtEl]{api: api, pairing: pairing}, nil
 }
 
 // FoldCommitments folds the given commitments into a single commitment for efficient verification.
@@ -54,19 +55,35 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) FoldCommitments(commitments []Commitmen
 
 // AssertCommitment verifies the given commitment and knowledge proof against the given verifying key.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertCommitment(commitment Commitment[G1El], knowledgeProof KnowledgeProof[G1El], vk VerifyingKey[G2El], opts ...VerifierOption) error {
+	isValid, err := v.IsCommitmentValid(commitment, knowledgeProof, vk, opts...)
+	if err != nil {
+		return err
+	}
+	v.api.AssertIsEqual(isValid, 1)
+	return nil
+}
+
+// IsCommitmentValid returns a variable that is 1 if the commitment and
+// knowledge proof are valid and 0 otherwise.
+func (v *Verifier[FR, G1El, G2El, GtEl]) IsCommitmentValid(commitment Commitment[G1El], knowledgeProof KnowledgeProof[G1El], vk VerifyingKey[G2El], opts ...VerifierOption) (frontend.Variable, error) {
 	cfg, err := newCfg(opts...)
 	if err != nil {
-		return fmt.Errorf("apply options: %w", err)
-	}
-	if cfg.subgroupCheck {
-		v.pairing.AssertIsOnG1(&commitment.G1El)
-		v.pairing.AssertIsOnG1(&knowledgeProof.G1El)
+		return 0, fmt.Errorf("apply options: %w", err)
 	}
 
-	if err = v.pairing.PairingCheck([]*G1El{&commitment.G1El, &knowledgeProof.G1El}, []*G2El{&vk.GSigmaNeg, &vk.G}); err != nil {
-		return fmt.Errorf("pairing check failed: %w", err)
+	isValid := frontend.Variable(1)
+	if cfg.subgroupCheck {
+		isValid = v.api.Mul(isValid, v.pairing.IsOnG1(&commitment.G1El))
+		isValid = v.api.Mul(isValid, v.pairing.IsOnG1(&knowledgeProof.G1El))
 	}
-	return nil
+
+	res, err := v.pairing.Pair([]*G1El{&commitment.G1El, &knowledgeProof.G1El}, []*G2El{&vk.GSigmaNeg, &vk.G})
+	if err != nil {
+		return 0, fmt.Errorf("pairing: %w", err)
+	}
+
+	isValid = v.api.Mul(isValid, v.pairing.IsEqual(res, v.pairing.One()))
+	return isValid, nil
 }
 
 // TODO: add asserting with switches between different keys
