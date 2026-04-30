@@ -20,12 +20,31 @@ type multisetHashCircuit struct {
 	Digest G1Affine
 }
 
+type multisetHashSingleInsertCircuit struct {
+	Msg    frontend.Variable
+	Digest G1Affine
+}
+
 func (c *multisetHashCircuit) Define(api frontend.API) error {
 	curve, err := NewCurve(api)
 	if err != nil {
 		return err
 	}
 	digest, err := curve.Hash(c.Msgs[:])
+	if err != nil {
+		return err
+	}
+	digest.X.AssertIsEqual(api, c.Digest.X)
+	digest.Y.AssertIsEqual(api, c.Digest.Y)
+	return nil
+}
+
+func (c *multisetHashSingleInsertCircuit) Define(api frontend.API) error {
+	curve, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	digest, err := curve.Hash([]frontend.Variable{c.Msg})
 	if err != nil {
 		return err
 	}
@@ -65,14 +84,14 @@ func TestHashInvalidDigest(t *testing.T) {
 }
 
 func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
-	msgs := []uint16{7, 19, 7, 1024}
-	d, err := nativemsh.Hash(msgs)
+	msg := uint16(7)
+	d, err := nativemsh.Hash([]uint16{msg})
 	if err != nil {
 		b.Fatal(err)
 	}
 	shifted := shiftedDigest(d)
-	w := &multisetHashCircuit{
-		Msgs:   [4]frontend.Variable{msgs[0], msgs[1], msgs[2], msgs[3]},
+	w := &multisetHashSingleInsertCircuit{
+		Msg:    msg,
 		Digest: NewG1Affine(shifted),
 	}
 	witness, err := frontend.NewWitness(w, koalabear.Modulus())
@@ -81,7 +100,7 @@ func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
 	}
 
 	b.Run("scs", func(b *testing.B) {
-		var c multisetHashCircuit
+		var c multisetHashSingleInsertCircuit
 		ccs, err := frontend.CompileGeneric[constraint.U32](koalabear.Modulus(), widecommitter.From(scs.NewBuilder), &c)
 		if err != nil {
 			b.Fatal(err)
@@ -96,7 +115,7 @@ func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
 	})
 
 	b.Run("r1cs", func(b *testing.B) {
-		var c multisetHashCircuit
+		var c multisetHashSingleInsertCircuit
 		ccs, err := frontend.CompileGeneric[constraint.U32](koalabear.Modulus(), widecommitter.From(r1cs.NewBuilder), &c, frontend.WithCompressThreshold(10))
 		if err != nil {
 			b.Fatal(err)
