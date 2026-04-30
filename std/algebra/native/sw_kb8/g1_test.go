@@ -122,6 +122,69 @@ func TestDoubleAndAddAffineG1(t *testing.T) {
 	assert.CheckCircuit(&g1DoubleAndAddAffine{}, test.WithValidAssignment(&witness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }
 
+type g1AddBrierJoyeAffine struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+}
+
+func (circuit *g1AddBrierJoyeAffine) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.AddBrierJoye(api, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestAddBrierJoyeAffineG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	aJac, bJac := distinctPointsG1(t)
+	var a, b, c kb8.G1Affine
+	a.FromJacobian(&aJac)
+	b.FromJacobian(&bJac)
+	aJac.AddAssign(&bJac)
+	c.FromJacobian(&aJac)
+
+	var witness g1AddBrierJoyeAffine
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert.CheckCircuit(&g1AddBrierJoyeAffine{}, test.WithValidAssignment(&witness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
+}
+
+func TestAddBrierJoyeDoubleG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	aJac := randomPointG1(t)
+	var a, c kb8.G1Affine
+	a.FromJacobian(&aJac)
+	aJac.DoubleAssign()
+	c.FromJacobian(&aJac)
+
+	var witness g1AddBrierJoyeAffine
+	witness.A.Assign(&a)
+	witness.B.Assign(&a)
+	witness.C.Assign(&c)
+
+	assert.CheckCircuit(&g1AddBrierJoyeAffine{}, test.WithValidAssignment(&witness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
+}
+
+func TestAddBrierJoyeOppositeG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	aJac := randomPointG1(t)
+	var a kb8.G1Affine
+	a.FromJacobian(&aJac)
+
+	var negA kb8.G1Affine
+	negA.Neg(&a)
+
+	var witness g1AddBrierJoyeAffine
+	witness.A.Assign(&a)
+	witness.B.Assign(&negA)
+	witness.C.X.SetZero()
+	witness.C.Y.SetZero()
+
+	assert.CheckCircuit(&g1AddBrierJoyeAffine{}, test.WithValidAssignment(&witness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
+}
+
 func randomPointG1(t *testing.T) kb8.G1Jac {
 	t.Helper()
 	_, g := kb8.Generators()

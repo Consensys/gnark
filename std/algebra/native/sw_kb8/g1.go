@@ -16,9 +16,10 @@ type Curve struct {
 }
 
 var (
-	curveA, curveB = func() (E8, E8) {
+	curveA, curveB, accumulatorOffset = func() (E8, E8, G1Affine) {
 		a, b := kb8.CurveCoefficients()
-		return fields_kb8.NewE8(a), fields_kb8.NewE8(b)
+		_, offsetNative := kb8.Generators()
+		return fields_kb8.NewE8(a), fields_kb8.NewE8(b), NewG1Affine(offsetNative)
 	}()
 )
 
@@ -146,6 +147,37 @@ func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
 	result.Select(api, selector2, *p, result)
 	result.Select(api, selector3, inf, result)
 
+	p.X = result.X
+	p.Y = result.Y
+	return p
+}
+
+// AddBrierJoye adds q to p using the Brier-Joye/Joye unified affine formula.
+// It assumes neither operand is infinity and maps opposite points to infinity.
+// Doubling is handled by the same formula.
+func (p *G1Affine) AddBrierJoye(api frontend.API, q G1Affine) *G1Affine {
+	var pxqx, pxplusqx, num, den, one, lambda, xr, yr E8
+	pxqx.Mul(api, p.X, q.X)
+	pxplusqx.Add(api, p.X, q.X)
+	num.Square(api, pxplusqx)
+	num.Sub(api, num, pxqx)
+	num.Add(api, num, curveA)
+	den.Add(api, p.Y, q.Y)
+	selector := den.IsZero(api)
+	one.SetOne()
+	den.Select(api, selector, one, den)
+	lambda.DivUnchecked(api, num, den)
+	xr.Square(api, lambda)
+	xr.Sub(api, xr, pxplusqx)
+	yr.Sub(api, p.X, xr)
+	yr.Mul(api, lambda, yr)
+	yr.Sub(api, yr, p.Y)
+	result := G1Affine{X: xr, Y: yr}
+
+	var inf G1Affine
+	inf.X.SetZero()
+	inf.Y.SetZero()
+	result.Select(api, selector, inf, result)
 	p.X = result.X
 	p.Y = result.Y
 	return p

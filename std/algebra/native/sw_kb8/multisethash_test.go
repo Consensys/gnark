@@ -3,6 +3,7 @@ package sw_kb8
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc/kb8"
 	nativemsh "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
@@ -38,9 +39,10 @@ func TestHash(t *testing.T) {
 	msgs := []uint16{7, 19, 7, 1024}
 	d, err := nativemsh.Hash(msgs)
 	assert.NoError(err)
+	shifted := shiftedDigest(d)
 	witness := &multisetHashCircuit{
 		Msgs:   [4]frontend.Variable{msgs[0], msgs[1], msgs[2], msgs[3]},
-		Digest: NewG1Affine(d),
+		Digest: NewG1Affine(shifted),
 	}
 	invalid := *witness
 	invalid.Digest.X.C0.B0.A0 = 42
@@ -52,9 +54,10 @@ func TestHashInvalidDigest(t *testing.T) {
 	msgs := []uint16{1, 2, 3, 4}
 	d, err := nativemsh.Hash(msgs)
 	assert.NoError(err)
+	shifted := shiftedDigest(d)
 	valid := &multisetHashCircuit{
 		Msgs:   [4]frontend.Variable{msgs[0], msgs[1], msgs[2], msgs[3]},
-		Digest: NewG1Affine(d),
+		Digest: NewG1Affine(shifted),
 	}
 	invalid := *valid
 	invalid.Digest.Y.C1.B1.A1 = 17
@@ -67,9 +70,10 @@ func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	shifted := shiftedDigest(d)
 	w := &multisetHashCircuit{
 		Msgs:   [4]frontend.Variable{msgs[0], msgs[1], msgs[2], msgs[3]},
-		Digest: NewG1Affine(d),
+		Digest: NewG1Affine(shifted),
 	}
 	witness, err := frontend.NewWitness(w, koalabear.Modulus())
 	if err != nil {
@@ -105,4 +109,15 @@ func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
 			}
 		}
 	})
+}
+
+func shiftedDigest(d kb8.G1Affine) kb8.G1Affine {
+	_, offset := kb8.Generators()
+	var jd, jo kb8.G1Jac
+	jd.FromAffine(&d)
+	jo.FromAffine(&offset)
+	jd.AddAssign(&jo)
+	var shifted kb8.G1Affine
+	shifted.FromJacobian(&jd)
+	return shifted
 }

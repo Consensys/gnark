@@ -15,7 +15,7 @@ type Accumulator struct {
 func NewAccumulator(curve *Curve) *Accumulator {
 	return &Accumulator{
 		curve: curve,
-		sum:   curve.Infinity(),
+		sum:   accumulatorOffset,
 	}
 }
 
@@ -26,20 +26,7 @@ func (a *Accumulator) Insert(msg frontend.Variable) error {
 		return err
 	}
 	pm := fromMapPoint(p)
-	a.sum.AddUnified(a.curve.api, pm)
-	return nil
-}
-
-// Remove maps msg and subtracts it from the accumulator.
-func (a *Accumulator) Remove(msg frontend.Variable) error {
-	p, err := maptocurve_kb8.YIncrement(a.curve.api, msg)
-	if err != nil {
-		return err
-	}
-	pm := fromMapPoint(p)
-	var neg G1Affine
-	neg.Neg(a.curve.api, pm)
-	a.sum.AddUnified(a.curve.api, neg)
+	a.sum.AddBrierJoye(a.curve.api, pm)
 	return nil
 }
 
@@ -50,7 +37,7 @@ func (a *Accumulator) Digest() G1Affine {
 
 // Reset clears the accumulator.
 func (a *Accumulator) Reset() {
-	a.sum = a.curve.Infinity()
+	a.sum = accumulatorOffset
 }
 
 // Hash returns the multiset hash of msgs.
