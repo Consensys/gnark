@@ -58,13 +58,14 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 }
 
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
-	l1 := api.Add(e1.A0, e1.A1)
-	l2 := api.Add(e2.A0, e2.A1)
-	u := api.Mul(l1, l2)
-	ac := api.Mul(e1.A0, e2.A0)
-	bd := api.Mul(e1.A1, e2.A1)
-	e.A1 = api.Sub(u, api.Add(ac, bd))
-	e.A0 = api.Add(ac, api.Mul(bd, uSquare))
+	// Schoolbook multiplication: cheaper than Karatsuba in Plonk where M = A = 1 gate.
+	// c0 = a0*b0 + β*a1*b1, c1 = a0*b1 + a1*b0  (β = uSquare = 3, free as constant mul)
+	a0b0 := api.Mul(e1.A0, e2.A0)
+	a1b1 := api.Mul(e1.A1, e2.A1)
+	a0b1 := api.Mul(e1.A0, e2.A1)
+	a1b0 := api.Mul(e1.A1, e2.A0)
+	e.A0 = api.Add(a0b0, api.Mul(uSquare, a1b1))
+	e.A1 = api.Add(a0b1, a1b0)
 	return e
 }
 
