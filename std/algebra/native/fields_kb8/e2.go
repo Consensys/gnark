@@ -4,6 +4,7 @@ import (
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/frontendtype"
 )
 
 var uSquare = koalabear.NewElement(3)
@@ -58,8 +59,31 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 }
 
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
-	// Schoolbook multiplication: cheaper than Karatsuba in Plonk where M = A = 1 gate.
-	// c0 = a0*b0 + β*a1*b1, c1 = a0*b1 + a1*b0  (β = uSquare = 3, free as constant mul)
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			return e.mulKaratsuba(api, e1, e2)
+		case frontendtype.SCS:
+			return e.mulSchoolbook(api, e1, e2)
+		}
+	}
+	return e.mulKaratsuba(api, e1, e2)
+}
+
+// mulKaratsuba uses Karatsuba: 3M+5A = 8 gates. Cheaper in R1CS where M >> A.
+func (e *E2) mulKaratsuba(api frontend.API, e1, e2 E2) *E2 {
+	l1 := api.Add(e1.A0, e1.A1)
+	l2 := api.Add(e2.A0, e2.A1)
+	u := api.Mul(l1, l2)
+	ac := api.Mul(e1.A0, e2.A0)
+	bd := api.Mul(e1.A1, e2.A1)
+	e.A1 = api.Sub(u, api.Add(ac, bd))
+	e.A0 = api.Add(ac, api.Mul(bd, uSquare))
+	return e
+}
+
+// mulSchoolbook uses schoolbook: 4M+2A = 6 gates. Cheaper in Plonk where M = A = 1 gate.
+func (e *E2) mulSchoolbook(api frontend.API, e1, e2 E2) *E2 {
 	a0b0 := api.Mul(e1.A0, e2.A0)
 	a1b1 := api.Mul(e1.A1, e2.A1)
 	a0b1 := api.Mul(e1.A0, e2.A1)
