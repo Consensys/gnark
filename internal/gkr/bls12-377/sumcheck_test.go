@@ -136,3 +136,47 @@ func (c singleMultilinLazyClaim) degree(int) int {
 func (c singleMultilinLazyClaim) varsNum() int {
 	return bits.TrailingZeros(uint(len(c.g)))
 }
+
+// TestForwardDiffComputer feeds f(0..d) for polynomials of small degree and
+// checks that successive GetNext calls return f(d+1), f(d+2), ... .
+func TestForwardDiffComputer(t *testing.T) {
+	// f(X) = c_0 + c_1 X + ... + c_{d} X^d
+	eval := func(coeffs []int64, x int64) int64 {
+		var y, xp int64 = 0, 1
+		for _, c := range coeffs {
+			y += c * xp
+			xp *= x
+		}
+		return y
+	}
+
+	cases := []struct {
+		name   string
+		coeffs []int64 // length = d+1
+	}{
+		{"degree 2: X^2", []int64{0, 0, 1}},
+		{"degree 2: 3 - 2X + 5X^2", []int64{3, -2, 5}},
+		{"degree 3: X^3 - X", []int64{0, -1, 0, 1}},
+		{"degree 4: 2 + X + X^2 + X^3 + X^4", []int64{2, 1, 1, 1, 1}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := len(tc.coeffs) - 1
+			fdc := newForwardDiffComputer(d)
+			fdc.Reset()
+			var v fr.Element
+			for k := 0; k <= d; k++ {
+				v.SetInt64(eval(tc.coeffs, int64(k)))
+				fdc.SetNext(&v)
+			}
+			for k := d + 1; k <= d+3; k++ {
+				var expected fr.Element
+				expected.SetInt64(eval(tc.coeffs, int64(k)))
+				got := fdc.GetNext()
+				assert.True(t, got.Equal(&expected),
+					"GetNext at X=%d: expected %s, got %s", k, expected.String(), got.String())
+			}
+		})
+	}
+}

@@ -203,6 +203,9 @@ type zeroCheckClaims struct {
 // The value gⱼ(0) is inferred from the equation gⱼ(0) + gⱼ(1) = gⱼ₋₁(rⱼ₋₁).
 // By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
+	if len(c.eqs[0]) == 1<<c.resources.nbVars {
+		return c.firstRoundPolynomial()
+	}
 	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
@@ -280,6 +283,192 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
 	}
 
+	return p
+}
+
+// forwardDiffComputer maintains the finite-difference table for a polynomial of degree d.
+//
+// Feed d+1 consecutive values via SetNext, then call GetNext for each subsequent value.
+// Reset rewinds the counter so the same buffer can be reused with new data.
+type forwardDiffComputer struct {
+	diffs []fr.Element // len == d+1
+	n     int          // number of SetNext calls so far
+}
+
+func newForwardDiffComputer(d int) *forwardDiffComputer {
+	return &forwardDiffComputer{diffs: make([]fr.Element, d+1)}
+}
+
+func (c *forwardDiffComputer) Reset() { c.n = 0 }
+
+// SetNext records f(n). On the (d+1)-th call it builds the difference table from
+// f(0..d) and advances the anchor to d, so that the first subsequent GetNext yields f(d+1).
+func (c *forwardDiffComputer) SetNext(v *fr.Element) {
+	c.diffs[c.n].Set(v)
+	c.n++
+	if c.n == len(c.diffs) {
+		d := len(c.diffs) - 1
+		for level := 1; level <= d; level++ {
+			for i := d; i >= level; i-- {
+				c.diffs[i].Sub(&c.diffs[i], &c.diffs[i-1])
+			}
+		}
+		for range d {
+			for j := 0; j < d; j++ {
+				c.diffs[j].Add(&c.diffs[j], &c.diffs[j+1])
+			}
+		}
+	}
+}
+
+// GetNext advances the anchor by one and returns f at the new anchor (a pointer into the internal buffer).
+func (c *forwardDiffComputer) GetNext() *fr.Element {
+	n := len(c.diffs) - 1
+	for j := 0; j < n; j++ {
+		c.diffs[j].Add(&c.diffs[j], &c.diffs[j+1])
+	}
+	return &c.diffs[0]
+}
+
+// firstRoundPolynomial is a specialised version of roundPolynomial for round 1 only.
+// In round 1, the assignment table gives f_w(0,h) and f_w(1,h) directly, saving two
+// gate evaluations per (wire, h). A forward-difference computer then derives f_w(D+1,h)
+// from f_w(0..D,h) without any additional gate evaluation.
+//
+// The per-group bracket polynomial bracket_g(X,h) = Σ_k stride^k·f_{wk}(X,h) is degree D,
+// so one forwardDiffComputer per worker suffices (reset between groups).
+func (c *zeroCheckClaims) firstRoundPolynomial() polynomial.Polynomial {
+	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	degree := c.resources.circuit.ZeroCheckDegree(level)
+	nbUniqueInputs := len(c.input)
+	nbWires := len(c.eqs)
+	sumSize := len(c.eqs[0]) / 2
+	wireIndices := gkrcore.WireIndices(level)
+
+	// Per-group bookkeeping: firstWireI[g], nbInGroup[g], strides[g][k] = stride_g^k.
+	type groupInfo struct {
+		firstWireI int
+		n          int
+		strides    []fr.Element
+	}
+	groups := make([]groupInfo, 0, len(level))
+	{
+		flat := 0
+		for _, group := range level {
+			var stride fr.Element
+			stride.Set(&c.foldingCoeff)
+			for range len(group.ClaimSources) - 1 {
+				stride.Mul(&stride, &c.foldingCoeff)
+			}
+			ts := make([]fr.Element, len(group.Wires))
+			ts[0].SetOne()
+			for k := 1; k < len(group.Wires); k++ {
+				ts[k].Mul(&ts[k-1], &stride)
+			}
+			groups = append(groups, groupInfo{firstWireI: flat, n: len(group.Wires), strides: ts})
+			flat += len(group.Wires)
+		}
+	}
+
+	ml := make([]polynomial.MultiLin, nbWires+nbUniqueInputs)
+	copy(ml, c.eqs)
+	copy(ml[nbWires:], c.input)
+
+	p := make([]fr.Element, degree)
+	var mu sync.Mutex
+
+	computeAll := func(start, end int) {
+		evaluators := make([]*gateEvaluator, nbWires)
+		for w := range nbWires {
+			evaluators[w] = c.gateEvaluatorPools[w].get()
+		}
+		defer func() {
+			for w := range nbWires {
+				c.gateEvaluatorPools[w].put(evaluators[w])
+			}
+		}()
+
+		res := make([]fr.Element, degree)
+		mlEvals := make([]fr.Element, degree*len(ml))
+		fd := newForwardDiffComputer(degree - 1)
+
+		var step, summand, term, bracket fr.Element
+		for h := start; h < end; h++ {
+			evalAt1Index := sumSize + h
+
+			for k := range ml {
+				mlEvals[k].Set(&ml[k][evalAt1Index])
+				step.Sub(&mlEvals[k], &ml[k][h])
+				for d := 1; d < degree; d++ {
+					mlEvals[d*len(ml)+k].Add(&mlEvals[(d-1)*len(ml)+k], &step)
+				}
+			}
+
+			for _, g := range groups {
+				fwi := g.firstWireI
+				ng := g.n
+				ts := g.strides
+				fd.Reset()
+
+				// X = 0: from assignment lower half (no gate eval).
+				bracket.Set(&c.resources.assignment[wireIndices[fwi]][h])
+				for k := 1; k < ng; k++ {
+					term.Mul(&ts[k], &c.resources.assignment[wireIndices[fwi+k]][h])
+					bracket.Add(&bracket, &term)
+				}
+				fd.SetNext(&bracket)
+
+				// X = 1: from assignment upper half (no gate eval); accumulate res[0].
+				bracket.Set(&c.resources.assignment[wireIndices[fwi]][evalAt1Index])
+				for k := 1; k < ng; k++ {
+					term.Mul(&ts[k], &c.resources.assignment[wireIndices[fwi+k]][evalAt1Index])
+					bracket.Add(&bracket, &term)
+				}
+				fd.SetNext(&bracket)
+				summand.Mul(&bracket, &mlEvals[fwi])
+				res[0].Add(&res[0], &summand)
+
+				// X = 2..D: gate evals, accumulate bracket, feed FD.
+				for d := 2; d <= degree-1; d++ {
+					eIndex := (d - 1) * len(ml)
+					w := fwi
+					for _, inputI := range c.inputIndices[w] {
+						evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
+					}
+					bracket.Set(evaluators[w].evaluate())
+					for k := 1; k < ng; k++ {
+						w = fwi + k
+						for _, inputI := range c.inputIndices[w] {
+							evaluators[w].pushInput(mlEvals[eIndex+nbWires+inputI])
+						}
+						term.Mul(&ts[k], evaluators[w].evaluate())
+						bracket.Add(&bracket, &term)
+					}
+					fd.SetNext(&bracket)
+					summand.Mul(&bracket, &mlEvals[eIndex+fwi])
+					res[d-1].Add(&res[d-1], &summand)
+				}
+
+				// X = D+1 = degree: derived from FD (no gate eval).
+				bracketPtr := fd.GetNext()
+				eIndex := (degree - 1) * len(ml)
+				summand.Mul(bracketPtr, &mlEvals[eIndex+fwi])
+				res[degree-1].Add(&res[degree-1], &summand)
+			}
+		}
+		mu.Lock()
+		for i := range p {
+			p[i].Add(&p[i], &res[i])
+		}
+		mu.Unlock()
+	}
+
+	const minBlockSize = 64
+	if sumSize < minBlockSize {
+		computeAll(0, sumSize)
+	} else {
+		c.resources.workers.Submit(sumSize, computeAll, minBlockSize).Wait()
+	}
 	return p
 }
 

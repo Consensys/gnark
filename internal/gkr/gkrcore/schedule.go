@@ -367,6 +367,16 @@ func (c Circuit[G]) UniqueInputIndices(schedule constraint.GkrProvingSchedule) [
 	return res
 }
 
+// WireIndices returns the absolute circuit wire indices for all wires in a level,
+// flattened across claim groups in iteration order.
+func WireIndices(level constraint.GkrProvingLevel) []int {
+	var wires []int
+	for _, group := range level.ClaimGroups() {
+		wires = append(wires, group.Wires...)
+	}
+	return wires
+}
+
 // CollectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
 func CollectOutgoingEvalPoints[F any](level constraint.GkrSkipLevel, levelI int, outgoingEvalPoints [][][]F) [][]F {
 	outPoints := make([][]F, level.NbOutgoingEvalPoints())
