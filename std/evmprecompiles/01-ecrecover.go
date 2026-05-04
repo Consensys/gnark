@@ -90,11 +90,12 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// the signature as elements in Fr, but it actually represents elements in Fp. Convert to Fp element.
 	rbits := frField.ToBits(&r)
 	Rx := fpField.FromBits(rbits...)
-	Ry := fpField.Mul(Rx, Rx) // Ry = x^2
 	// compute R.y y = sqrt(x^3+7)
-	Ry = fpField.Mul(Ry, Rx)   // Ry = x^3
 	b := fpField.NewElement(7) // b = 7 for secp256k1, a = 0
-	Ry = fpField.Add(Ry, b)    // Ry = x^3 + 7
+	Ry := fpField.Eval([][]*emulated.Element[emulated.Secp256k1Fp]{
+		{Rx, Rx, Rx}, // x³
+		{b},          // +7
+	}, []int{1, 1}) // Ry = x^3 + 7
 	// in case of failure due to no QNR, negate Ry so that exists a square root
 	Ry = fpField.Select(isQNRFailure, fpField.Sub(fpField.Modulus(), Ry), Ry)
 	Ry = fpField.Sqrt(Ry) // Ry = sqrt(x^3 + 7)
