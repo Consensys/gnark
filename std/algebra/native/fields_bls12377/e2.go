@@ -115,9 +115,10 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 func (e *E2) Cube(api frontend.API, x E2) *E2 {
 	a2 := api.Mul(x.A0, x.A0) // A²
 	b2 := api.Mul(x.A1, x.A1) // B²
-	// t1 = A² + 3·(-5)·B² = A² − 15·B²
-	t1 := api.Add(a2, api.Mul(b2, -15))
-	// t2 = 3·A² + (-5)·B² = 3·A² − 5·B²
+	threeNR := api.Mul(ext.uSquare, 3)
+	// t1 = A² + 3·nr·B² = A² − 15·B²
+	t1 := api.Add(a2, api.Mul(b2, threeNR))
+	// t2 = 3·A² + nr·B² = 3·A² − 5·B²
 	t2 := api.Add(api.Mul(a2, 3), api.Mul(b2, ext.uSquare))
 	e.A0 = api.Mul(x.A0, t1) // A·t1
 	e.A1 = api.Mul(x.A1, t2) // B·t2
