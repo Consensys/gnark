@@ -26,7 +26,15 @@ func (a *Accumulator) Insert(msg frontend.Variable) error {
 		return err
 	}
 	pm := fromMapPoint(p)
-	a.sum.AddBrierJoye(a.curve.api, pm)
+	// Use AddAssign (incomplete addition) instead of AddBrierJoye (unified).
+	// This is safe because the fixed offset G ensures the accumulator is never
+	// the identity or the negation of the incoming point:
+	//   - acc starts at G ≠ O, so acc.X ≠ 0 always (no infinity input)
+	//   - acc = G + Σ Map(mᵢ) ≠ ±Map(m) with overwhelming probability
+	//     (would require G = -Σ Map(mᵢ) ± Map(m), negligible over 2^248 group)
+	// A malicious prover hitting P = ±Q causes division by zero, which the
+	// constraint system rejects (unsatisfiable).
+	a.sum.AddAssign(a.curve.api, pm)
 	return nil
 }
 
