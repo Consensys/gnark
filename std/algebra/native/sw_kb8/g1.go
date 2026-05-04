@@ -226,8 +226,7 @@ func (c *Curve) isInfinity(p *G1Affine) frontend.Variable {
 func (c *Curve) AssertIsOnCurve(p *G1Affine) {
 	isInf := c.isInfinity(p)
 	left := *new(E8).Square(c.api, p.Y)
-	x2 := *new(E8).Square(c.api, p.X)
-	right := *new(E8).Mul(c.api, x2, p.X)
+	right := *new(E8).Cube(c.api, p.X)
 	right.Sub(c.api, right, *new(E8).MulByFp(c.api, p.X, 3))
 	right.Add(c.api, right, curveB)
 	diff := *new(E8).Sub(c.api, left, right)
