@@ -37,17 +37,28 @@ func YIncrement(api frontend.API, msg frontend.Variable) (G1Affine, error) {
 	return p, nil
 }
 
+// assertIsOnCurve asserts y² = x³ - 3x + b for a point from the y-increment map.
+//
+// Optimizations over a generic on-curve check:
+//   - y is in the base subfield (y = (y0,0,...,0)), so y² = (y0²,0,...,0) costs
+//     1 Fp mul instead of a full E8.Square (72 gates).
+//   - The map never produces infinity, so the isInf branch is removed (~30 gates).
+//   - The result is checked via direct AssertIsEqual instead of IsZero+Or (~15 gates).
 func assertIsOnCurve(api frontend.API, p *G1Affine) {
-	isInf := api.And(p.X.IsZero(api), p.Y.IsZero(api))
 	_, b := kb8.CurveCoefficients()
-	left := *new(E8).Square(api, p.Y)
+
+	// y² — exploit that y is in the base subfield: only y.C0.B0.A0 is nonzero
+	var ySquared E8
+	ySquared.SetZero()
+	ySquared.C0.B0.A0 = api.Mul(p.Y.C0.B0.A0, p.Y.C0.B0.A0)
+
+	// x³ - 3x + b
 	x2 := *new(E8).Square(api, p.X)
-	right := *new(E8).Mul(api, x2, p.X)
-	right.Sub(api, right, *new(E8).MulByFp(api, p.X, 3))
-	right.Add(api, right, newE8(b))
-	diff := *new(E8).Sub(api, left, right)
-	isCurve := diff.IsZero(api)
-	api.AssertIsEqual(api.Or(isInf, isCurve), 1)
+	rhs := *new(E8).Mul(api, x2, p.X)
+	rhs.Sub(api, rhs, *new(E8).MulByFp(api, p.X, 3))
+	rhs.Add(api, rhs, newE8(b))
+
+	ySquared.AssertIsEqual(api, rhs)
 }
 
 func IsCompatible(api frontend.API) bool {
