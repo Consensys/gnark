@@ -93,10 +93,42 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 		case frontendtype.R1CS:
 			return e.mulToom3OverKaratsuba(api, e1, e2)
 		case frontendtype.SCS:
+			if _, ok := api.(frontend.Committer); ok {
+				return e.mulSZ(api, e1, e2)
+			}
 			return e.mulKaratsubaOverKaratsuba(api, e1, e2)
 		}
 	}
 	return e.mulKaratsubaOverKaratsuba(api, e1, e2)
+}
+
+// mulSZ computes e = e1 * e2 using the Schwartz-Zippel technique.
+// P(X) = X^6 + 5. Soundness: 10/p ≈ 2^{-373}.
+func (e *E6) mulSZ(api frontend.API, e1, e2 E6) *E6 {
+	aCoeffs := e6Coeffs(&e1)
+	bCoeffs := e6Coeffs(&e2)
+	in := make([]frontend.Variable, 12)
+	copy(in[:6], aCoeffs[:])
+	copy(in[6:], bCoeffs[:])
+
+	out, err := api.Compiler().NewHint(mulE6SZHint, 11, in...)
+	if err != nil {
+		panic(err)
+	}
+
+	assignE6(e, out[:6])
+
+	var q [5]frontend.Variable
+	copy(q[:], out[6:11])
+
+	aMono := towerToMonomial6(aCoeffs)
+	bMono := towerToMonomial6(bCoeffs)
+	cMono := towerToMonomial6(e6Coeffs(e))
+
+	ch := getE6SZChecker(api)
+	ch.addCheck(aMono, bMono, cMono, q)
+
+	return e
 }
 
 func (e *E6) mulKaratsubaOverKaratsuba(api frontend.API, e1, e2 E6) *E6 {
@@ -268,7 +300,17 @@ func (e *E6) MulByNonResidue(api frontend.API, e1 E6) *E6 {
 
 // Square sets z to the E6 product of x,x, returns e
 func (e *E6) Square(api frontend.API, x E6) *E6 {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		if ft.FrontendType() == frontendtype.SCS {
+			if _, ok := api.(frontend.Committer); ok {
+				return e.squareSZ(api, x)
+			}
+		}
+	}
+	return e.squareKaratsuba(api, x)
+}
 
+func (e *E6) squareKaratsuba(api frontend.API, x E6) *E6 {
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 	var c4, c5, c1, c2, c3, c0 E2
 	c4.Mul(api, x.B0, x.B1).Double(api, c4)
@@ -283,6 +325,30 @@ func (e *E6) Square(api frontend.API, x E6) *E6 {
 	e.B2.Add(api, c2, c4).Add(api, e.B2, c5).Sub(api, e.B2, c3)
 	e.B0 = c0
 	e.B1 = c1
+
+	return e
+}
+
+func (e *E6) squareSZ(api frontend.API, x E6) *E6 {
+	aCoeffs := e6Coeffs(&x)
+	in := make([]frontend.Variable, 6)
+	copy(in, aCoeffs[:])
+
+	out, err := api.Compiler().NewHint(squareE6SZHint, 11, in...)
+	if err != nil {
+		panic(err)
+	}
+
+	assignE6(e, out[:6])
+
+	var q [5]frontend.Variable
+	copy(q[:], out[6:11])
+
+	aMono := towerToMonomial6(aCoeffs)
+	cMono := towerToMonomial6(e6Coeffs(e))
+
+	ch := getE6SZChecker(api)
+	ch.addSquareCheck(aMono, cMono, q)
 
 	return e
 }
@@ -366,7 +432,57 @@ func (e *E6) MulByE2(api frontend.API, e1 E6, e2 E2) *E6 {
 
 // MulBy01 multiplication by sparse element (c0,c1,0)
 func (e *E6) MulBy01(api frontend.API, c0, c1 E2) *E6 {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		if ft.FrontendType() == frontendtype.SCS {
+			if _, ok := api.(frontend.Committer); ok {
+				return e.mulBy01SZ(api, c0, c1)
+			}
+		}
+	}
+	return e.mulBy01Karatsuba(api, c0, c1)
+}
 
+// mulBy01SZ computes e = e * sparse(c0, c1, 0) using SZ.
+// Sparse monomial indices: 0, 1, 3, 4 are variable; 2, 5 are zero.
+func (e *E6) mulBy01SZ(api frontend.API, c0, c1 E2) *E6 {
+	aCoeffs := e6Coeffs(e)
+	in := make([]frontend.Variable, 10)
+	copy(in[:6], aCoeffs[:])
+	in[6] = c0.A0
+	in[7] = c0.A1
+	in[8] = c1.A0
+	in[9] = c1.A1
+
+	out, err := api.Compiler().NewHint(mulBy01E6SZHint, 11, in...)
+	if err != nil {
+		panic(err)
+	}
+
+	assignE6(e, out[:6])
+
+	var q [5]frontend.Variable
+	copy(q[:], out[6:11])
+
+	aMono := towerToMonomial6(aCoeffs)
+	cMono := towerToMonomial6(e6Coeffs(e))
+
+	// sparse b: tower = [c0.A0, c0.A1, c1.A0, c1.A1, 0, 0]
+	// monomial = [c0.A0, c1.A0, 0, c0.A1, c1.A1, 0]
+	var bMono [6]frontend.Variable
+	bMono[0] = c0.A0
+	bMono[1] = c1.A0
+	bMono[2] = 0
+	bMono[3] = c0.A1
+	bMono[4] = c1.A1
+	bMono[5] = 0
+
+	ch := getE6SZChecker(api)
+	ch.addSparseCheck(aMono, bMono, cMono, q, []int{0, 1, 3, 4})
+
+	return e
+}
+
+func (e *E6) mulBy01Karatsuba(api frontend.API, c0, c1 E2) *E6 {
 	var a, b, tmp, t0, t1, t2 E2
 
 	a.Mul(api, e.B0, c0)
