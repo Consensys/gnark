@@ -97,8 +97,9 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 	} else {
 		// sparse R1CS
 		var res SparseR1CSSolution
-		// query l, r, o in Lagrange basis, not blinded
-		res.L, res.R, res.O = evaluateLROSmallDomain(cs, solver.values)
+		res.L = solver.l
+		res.R = solver.r
+		res.O = solver.o
 
 		return &res, nil
 	}
