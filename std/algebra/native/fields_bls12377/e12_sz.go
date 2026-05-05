@@ -6,14 +6,9 @@ import (
 	"sync"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/multicommit"
 )
-
-func init() {
-	solver.RegisterHint(mulE12SZHint, squareE12SZHint, mulBy034E12SZHint)
-}
 
 // Schwartz-Zippel based E12 multiplication for SCS.
 //
@@ -156,8 +151,8 @@ func (ch *e12SZChecker) resolve(api frontend.API) error {
 		// P(r) = r^12 + 5
 		pEval := api.Add(rPow[12], 5)
 
-		// Batching coefficient: α = r^13
-		alpha := api.Mul(rPow[12], r)
+		// Batching coefficient: r^23 ensures non-overlapping degree ranges (deg(e_i)=22)
+		alpha := api.Mul(rPow[12], rPow[11]) // r^23
 
 		lhsAcc := frontend.Variable(0)
 		rhsAcc := frontend.Variable(0)
@@ -209,12 +204,11 @@ func evalAtPowers12(api frontend.API, coeffs []frontend.Variable, rPow []fronten
 }
 
 // evalSparse12 evaluates a polynomial where only some coefficients are nonzero.
-// varIdx: indices with circuit variable coefficients (need api.Mul)
-// constIdx: indices with constant coefficients (api.Mul by constant is free, just api.Add)
+// varIdx: indices with circuit variable coefficients (multiplication gate required)
+// constIdx: indices with constant coefficients (scalar multiplication, no gate in SCS)
 func evalSparse12(api frontend.API, coeffs []frontend.Variable, rPow []frontend.Variable, varIdx, constIdx []int) frontend.Variable {
 	var result frontend.Variable = 0
 	for _, i := range constIdx {
-		// constant * r^i: the Mul is free (constant multiplication)
 		result = api.Add(result, api.Mul(coeffs[i], rPow[i]))
 	}
 	for _, i := range varIdx {

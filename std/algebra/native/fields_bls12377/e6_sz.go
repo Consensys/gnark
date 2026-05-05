@@ -6,14 +6,9 @@ import (
 	"sync"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/multicommit"
 )
-
-func init() {
-	solver.RegisterHint(mulE6SZHint, squareE6SZHint, mulBy01E6SZHint)
-}
 
 // Schwartz-Zippel based E6 multiplication/squaring for SCS.
 //
@@ -124,8 +119,8 @@ func (ch *e6SZChecker) resolve(api frontend.API) error {
 		// P(r) = r^6 + 5
 		pEval := api.Add(rPow[6], 5)
 
-		// Batching coefficient
-		alpha := api.Mul(rPow[6], r) // r^7
+		// Batching coefficient: r^11 ensures non-overlapping degree ranges (deg(e_i)=10)
+		alpha := api.Mul(rPow[6], rPow[5]) // r^11
 
 		lhsAcc := frontend.Variable(0)
 		rhsAcc := frontend.Variable(0)
