@@ -94,7 +94,20 @@ func (e *E2) mulSchoolbook(api frontend.API, e1, e2 E2) *E2 {
 }
 
 func (e *E2) Square(api frontend.API, x E2) *E2 {
-	// Algorithm 22 from https://eprint.iacr.org/2010/354.pdf adapted to u^2 = 3.
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			return e.squareKaratsuba(api, x)
+		case frontendtype.SCS:
+			return e.squareSchoolbook(api, x)
+		}
+	}
+	return e.squareKaratsuba(api, x)
+}
+
+// squareKaratsuba uses Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
+// adapted to u^2 = 3: 2M + 3A + 3 const-muls. Cheaper in R1CS where M >> A.
+func (e *E2) squareKaratsuba(api frontend.API, x E2) *E2 {
 	c0 := api.Add(x.A0, x.A1)
 	c2 := api.Mul(x.A1, uSquare)
 	c2 = api.Add(c2, x.A0)
@@ -105,6 +118,16 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 	e.A1 = c2
 	c2 = api.Mul(c2, 2)
 	e.A0 = api.Sub(c0, c2)
+	return e
+}
+
+// squareSchoolbook uses 3M + 1A + 2 const-muls. Cheaper in Plonk where M = A = 1 gate.
+func (e *E2) squareSchoolbook(api frontend.API, x E2) *E2 {
+	a2 := api.Mul(x.A0, x.A0)
+	b2 := api.Mul(x.A1, x.A1)
+	ab := api.Mul(x.A0, x.A1)
+	e.A0 = api.Add(a2, api.Mul(b2, uSquare))
+	e.A1 = api.Mul(ab, 2)
 	return e
 }
 

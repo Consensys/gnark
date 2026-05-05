@@ -70,3 +70,22 @@ func TestMulE2(t *testing.T) {
 	w.C.Assign(&c)
 	assert.CheckCircuit(&e2Mul{}, test.WithValidAssignment(&w), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }
+
+type e2Square struct{ A, C E2 }
+
+func (c *e2Square) Define(api frontend.API) error {
+	var e E2
+	e.Square(api, c.A)
+	e.AssertIsEqual(api, c.C)
+	return nil
+}
+func TestSquareE2(t *testing.T) {
+	assert := test.NewAssert(t)
+	var a, c extensions.E2
+	a.SetRandom()
+	c.Square(&a)
+	var w e2Square
+	w.A.Assign(&a)
+	w.C.Assign(&c)
+	assert.CheckCircuit(&e2Square{}, test.WithValidAssignment(&w), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
+}

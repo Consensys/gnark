@@ -71,6 +71,25 @@ func TestMulE8(t *testing.T) {
 	assert.CheckCircuit(&e8Mul{}, test.WithValidAssignment(&w), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }
 
+type e8Square struct{ A, C E8 }
+
+func (c *e8Square) Define(api frontend.API) error {
+	var e E8
+	e.Square(api, c.A)
+	e.AssertIsEqual(api, c.C)
+	return nil
+}
+func TestSquareE8(t *testing.T) {
+	assert := test.NewAssert(t)
+	var a, c extensions.E8
+	a.SetRandom()
+	c.Square(&a)
+	var w e8Square
+	w.A.Assign(&a)
+	w.C.Assign(&c)
+	assert.CheckCircuit(&e8Square{}, test.WithValidAssignment(&w), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
+}
+
 type e8Inv struct{ A, C E8 }
 
 func (c *e8Inv) Define(api frontend.API) error {

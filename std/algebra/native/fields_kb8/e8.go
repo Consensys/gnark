@@ -3,6 +3,7 @@ package fields_kb8
 import (
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/frontendtype"
 )
 
 type E8 struct {
@@ -87,7 +88,20 @@ func (e *E8) Mul(api frontend.API, e1, e2 E8) *E8 {
 }
 
 func (e *E8) Square(api frontend.API, x E8) *E8 {
-	// Quadratic-extension square over E4 with w^2 = v.
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			return e.squareKaratsuba(api, x)
+		case frontendtype.SCS:
+			return e.squareSchoolbook(api, x)
+		}
+	}
+	return e.squareKaratsuba(api, x)
+}
+
+// squareKaratsuba uses the complex method (Algo 22 over E4): 2 E4.Mul + linear ops.
+// Cheaper in R1CS where the inner Mul cost dominates.
+func (e *E8) squareKaratsuba(api frontend.API, x E8) *E8 {
 	var c0, c2, tmp, tmpNR E4
 	tmp.MulByNonResidue(api, x.C1)
 	c0.Add(api, x.C0, x.C1)
@@ -100,6 +114,19 @@ func (e *E8) Square(api frontend.API, x E8) *E8 {
 	tmpNR.MulByNonResidue(api, c2)
 	e.C0.Sub(api, c0, c2)
 	e.C0.Sub(api, e.C0, tmpNR)
+	return e
+}
+
+// squareSchoolbook: x = A + Bw ⇒ x² = (A² + γ·B²) + 2AB·w.
+// 2 E4.Sqr + 1 E4.Mul + 1 MulByNR + 1 add + 1 double. Cheaper in Plonk.
+func (e *E8) squareSchoolbook(api frontend.API, x E8) *E8 {
+	var a2, b2, ab, bgamma E4
+	a2.Square(api, x.C0)
+	b2.Square(api, x.C1)
+	ab.Mul(api, x.C0, x.C1)
+	bgamma.MulByNonResidue(api, b2)
+	e.C0.Add(api, a2, bgamma)
+	e.C1.Double(api, ab)
 	return e
 }
 
