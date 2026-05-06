@@ -37,7 +37,7 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithCompleteArithmetic())
+	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
 	return err
 }
 
@@ -656,7 +656,7 @@ func (c *AggregationDiffPubs[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 		hubWitness.Public[i] = c.Witnesses[i].Public[0]
 	}
 	hubWitness.Public[len(c.Witnesses)] = c.PublicInput
-	if err := v.AssertProof(c.HubKey, c.HubProof, hubWitness, WithCompleteArithmetic()); err != nil {
+	if err := v.AssertProof(c.HubKey, c.HubProof, hubWitness); err != nil {
 		return fmt.Errorf("assert hub proof: %w", err)
 	}
 	// dg, pr, pts, err := v.PrepareVerification(c.HubKey, c.HubProof, hubWitness, WithCompleteArithmetic())

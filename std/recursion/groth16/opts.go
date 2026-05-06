@@ -20,9 +20,11 @@ type verifierCfg struct {
 type VerifierOption func(cfg *verifierCfg) error
 
 // WithCompleteArithmetic returns a VerifierOption that forces complete arithmetic.
+//
+// Deprecated: Scalar multiplication is now complete by default. This option is
+// a no-op and will be removed in a future version.
 func WithCompleteArithmetic() VerifierOption {
 	return func(cfg *verifierCfg) error {
-		cfg.algopt = append(cfg.algopt, algopts.WithCompleteArithmetic())
 		return nil
 	}
 }
