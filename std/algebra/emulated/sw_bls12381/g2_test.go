@@ -25,7 +25,7 @@ func (c *mulG2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new G2 struct: %w", err)
 	}
-	res1 := g2.scalarMulGLV(&c.In, &c.S)
+	res1 := g2.ScalarMul(&c.In, &c.S)
 	res2 := g2.scalarMulGeneric(&c.In, &c.S)
 	g2.AssertIsEqual(res1, &c.Res)
 	g2.AssertIsEqual(res2, &c.Res)
