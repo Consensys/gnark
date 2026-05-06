@@ -1711,6 +1711,15 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	c.scalarApi.AssertIsEqual(lhs, rhs)
 
+	// Soundness: forbid the trivial all-zeros Eisenstein decomposition
+	// (v1 = v2 = 0). Without this, a malicious hint can return the all-zeros
+	// solution, making the relation s·(v1 + λ·v2) + u1 + λ·u2 = 0 satisfied
+	// vacuously and the in-circuit accumulator constraint becomes independent
+	// of the hinted scalar-mul output Q — letting any Q pass. Forbidding v ≠ 0
+	// forces s·(v1 + λ·v2) ≠ 0, which constrains (u1, u2) to the genuine
+	// lattice point and Q to [s]P.
+	c.api.AssertIsEqual(c.api.Mul(c.scalarApi.IsZero(v1), c.scalarApi.IsZero(v2)), 0)
+
 	// Next we compute the hinted scalar mul Q = [s]P
 	// P coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
