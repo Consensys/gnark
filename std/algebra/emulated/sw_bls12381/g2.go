@@ -7,9 +7,11 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/rs/zerolog"
 )
 
 type G2 struct {
@@ -513,7 +515,9 @@ func (g2 *G2) IsEqual(p, q *G2Affine) frontend.Variable {
 // scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this test-only helper is
+// faster but not complete. The exact exceptional set is currently unknown and
+// should be treated as implementation-dependent.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -535,7 +539,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
 		one := g2.Ext2.One()
@@ -570,7 +574,7 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
 	R0 = g2.Select(sBits[0], R0, g2.AddUnified(R0, g2.neg(p)))
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := g2.Ext2.Zero()
 		R0 = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}, Lines: nil}, R0)
@@ -582,7 +586,8 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 // ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// This method is complete by default.
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -595,7 +600,8 @@ func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// This helper always uses complete arithmetic.
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -606,18 +612,17 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	if err != nil {
 		panic(err)
 	}
-	addFn := g2.add
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		addFn = g2.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = g2.api.And(
-			g2.api.And(g2.fp.IsZero(&Q.P.X.A0), g2.fp.IsZero(&Q.P.X.A1)),
-			g2.api.And(g2.fp.IsZero(&Q.P.Y.A0), g2.fp.IsZero(&Q.P.Y.A1)),
-		)
-		one := g2.Ext2.One()
-		Q = g2.Select(selector, &G2Affine{P: g2AffP{X: *one, Y: *one}, Lines: nil}, Q)
+	if cfg.IncompleteArithmetic {
+		compilelogger.LogOnce(g2.api.Compiler(), zerolog.InfoLevel,
+			"sw_bls12_381/scalarMulGLV", "WithIncompleteArithmetic is deprecated in (*sw_bls12381.G2).scalarMulGLV and complete arithmetic is always used")
 	}
+	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+	selector := g2.api.And(
+		g2.api.And(g2.fp.IsZero(&Q.P.X.A0), g2.fp.IsZero(&Q.P.X.A1)),
+		g2.api.And(g2.fp.IsZero(&Q.P.Y.A0), g2.fp.IsZero(&Q.P.Y.A1)),
+	)
+	one := g2.Ext2.One()
+	Q = g2.Select(selector, &G2Affine{P: g2AffP{X: *one, Y: *one}, Lines: nil}, Q)
 
 	// We use the endomorphism à la GLV to compute [s]Q as
 	// 		[s1]Q + [s2]Φ(Q)
@@ -765,17 +770,15 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 
 	// i = 0
 	// subtract the Q, Φ(Q) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
-	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	tableQ[0] = addFn(tableQ[0], Acc)
+	// We use AddUnified so that when s=0 then Acc=(0,0) because
+	// AddUnified(Q, -Q) = (0,0).
+	tableQ[0] = g2.AddUnified(tableQ[0], Acc)
 	Acc = g2.Select(s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
+	tablePhiQ[0] = g2.AddUnified(tablePhiQ[0], Acc)
 	Acc = g2.Select(s2bits[0], Acc, tablePhiQ[0])
 
-	if cfg.CompleteArithmetic {
-		zero := g2.Ext2.Zero()
-		Acc = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}}, Acc)
-	}
+	zero := g2.Ext2.Zero()
+	Acc = g2.Select(selector, &G2Affine{P: g2AffP{X: *zero, Y: *zero}}, Acc)
 
 	return Acc
 }
@@ -783,6 +786,9 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 // MultiScalarMul computes the multi scalar multiplication of the points P and
 // scalars s. It returns an error if the length of the slices mismatch. If the
 // input slices are empty, then returns point at infinity.
+//
+// This method is complete by default.
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.AlgebraOption) (*G2Affine, error) {
 
 	if len(p) == 0 {
@@ -798,10 +804,6 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
-	addFn := g2.add
-	if cfg.CompleteArithmetic {
-		addFn = g2.AddUnified
-	}
 	if !cfg.FoldMulti {
 		// the scalars are unique
 		if len(p) != len(s) {
@@ -811,7 +813,7 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 		res := g2.scalarMulGLV(p[0], s[0], opts...)
 		for i := 1; i < n; i++ {
 			q := g2.scalarMulGLV(p[i], s[i], opts...)
-			res = addFn(res, q)
+			res = g2.AddUnified(res, q)
 		}
 		return res, nil
 	} else {
@@ -822,10 +824,10 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 		gamma := s[0]
 		res := g2.scalarMulGLV(p[len(p)-1], gamma, opts...)
 		for i := len(p) - 2; i > 0; i-- {
-			res = addFn(p[i], res)
+			res = g2.AddUnified(p[i], res)
 			res = g2.scalarMulGLV(res, gamma, opts...)
 		}
-		res = addFn(p[0], res)
+		res = g2.AddUnified(p[0], res)
 		return res, nil
 	}
 }

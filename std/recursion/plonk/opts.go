@@ -55,7 +55,7 @@ func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
 		}
 		htfVerifierHasher, err := recursion.NewShort(outer, field)
 		if err != nil {
-			return fmt.Errorf("get hash to field: %w", err)
+			return fmt.Errorf("get verifier hash to field: %w", err)
 		}
 		fsOpt := backend.WithVerifierChallengeHashFunction(fsVerifierHasher)
 		if err = fsOpt(vc); err != nil {
@@ -67,39 +67,22 @@ func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
 		}
 		htfOpt := backend.WithVerifierHashToFieldFunction(htfVerifierHasher)
 		if err = htfOpt(vc); err != nil {
-			return fmt.Errorf("apply verifier htf option: %w", err)
+			return fmt.Errorf("apply verifier htf hash option: %w", err)
 		}
 		return nil
 	}
 }
 
-type verifierCfg struct {
-	withCompleteArithmetic bool
-}
-
-// VerifierOption allows to modify the behaviour of PLONK verifier.
-type VerifierOption func(cfg *verifierCfg) error
+// VerifierOption allows to modify the behaviour of the PLONK verifier.
+type VerifierOption func() error
 
 // WithCompleteArithmetic forces the usage of complete formulas for point
-// addition and multi-scalar multiplication. The option is necessary when
-// recursing simple inner circuits whose selector polynomials may have
-// exceptional cases (zeros, equal to each other, inverses of each other).
+// addition and multi-scalar multiplication.
 //
-// Safe formulas are less efficient to use, so using this option has performance
-// impact on the outer circuit size.
+// Deprecated: Scalar multiplication is now complete by default. This option is
+// a no-op and will be removed in a future version.
 func WithCompleteArithmetic() VerifierOption {
-	return func(cfg *verifierCfg) error {
-		cfg.withCompleteArithmetic = true
+	return func() error {
 		return nil
 	}
-}
-
-func newCfg(opts ...VerifierOption) (*verifierCfg, error) {
-	cfg := new(verifierCfg)
-	for i := range opts {
-		if err := opts[i](cfg); err != nil {
-			return nil, fmt.Errorf("option %d: %w", i, err)
-		}
-	}
-	return cfg, nil
 }
