@@ -20,6 +20,8 @@ func GetHints() []solver.Hint {
 		rationalReconstruct,
 		scalarMulHint,
 		decomposeScalar,
+		doubleBaseScalarMulHint,
+		multiRationalReconstructExtHint,
 	}
 }
 
@@ -165,5 +167,180 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	} else {
 		return errors.New("scalarMulHint: unknown curve")
 	}
+	return nil
+}
+
+// doubleBaseScalarMulHint computes [s1]P1 and [s2]P2 separately and returns
+// their (X, Y) coords. Inputs: P1.X, P1.Y, s1, P2.X, P2.Y, s2, order.
+// Outputs: Q1.X, Q1.Y, Q2.X, Q2.Y where Q1=[s1]P1 and Q2=[s2]P2.
+//
+// Used by `doubleBaseScalarMul3MSMLogUp` and `doubleBaseScalarMul6MSMLogUp` to
+// hint the result that the in-circuit MSM verifies.
+func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 7 {
+		return errors.New("expecting seven inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	if field.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
+		order, _ := new(big.Int).SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		if inputs[6].Cmp(order) == 0 {
+			var P1, P2 bandersnatch.PointAffine
+			P1.X.SetBigInt(inputs[0])
+			P1.Y.SetBigInt(inputs[1])
+			P1.ScalarMultiplication(&P1, inputs[2])
+			P2.X.SetBigInt(inputs[3])
+			P2.Y.SetBigInt(inputs[4])
+			P2.ScalarMultiplication(&P2, inputs[5])
+			P1.X.BigInt(outputs[0])
+			P1.Y.BigInt(outputs[1])
+			P2.X.BigInt(outputs[2])
+			P2.Y.BigInt(outputs[3])
+		} else {
+			var P1, P2 jubjub.PointAffine
+			P1.X.SetBigInt(inputs[0])
+			P1.Y.SetBigInt(inputs[1])
+			P1.ScalarMultiplication(&P1, inputs[2])
+			P2.X.SetBigInt(inputs[3])
+			P2.Y.SetBigInt(inputs[4])
+			P2.ScalarMultiplication(&P2, inputs[5])
+			P1.X.BigInt(outputs[0])
+			P1.Y.BigInt(outputs[1])
+			P2.X.BigInt(outputs[2])
+			P2.Y.BigInt(outputs[3])
+		}
+	} else if field.Cmp(ecc.BN254.ScalarField()) == 0 {
+		var P1, P2 babyjubjub.PointAffine
+		P1.X.SetBigInt(inputs[0])
+		P1.Y.SetBigInt(inputs[1])
+		P1.ScalarMultiplication(&P1, inputs[2])
+		P2.X.SetBigInt(inputs[3])
+		P2.Y.SetBigInt(inputs[4])
+		P2.ScalarMultiplication(&P2, inputs[5])
+		P1.X.BigInt(outputs[0])
+		P1.Y.BigInt(outputs[1])
+		P2.X.BigInt(outputs[2])
+		P2.Y.BigInt(outputs[3])
+	} else if field.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
+		var P1, P2 edbls12377.PointAffine
+		P1.X.SetBigInt(inputs[0])
+		P1.Y.SetBigInt(inputs[1])
+		P1.ScalarMultiplication(&P1, inputs[2])
+		P2.X.SetBigInt(inputs[3])
+		P2.Y.SetBigInt(inputs[4])
+		P2.ScalarMultiplication(&P2, inputs[5])
+		P1.X.BigInt(outputs[0])
+		P1.Y.BigInt(outputs[1])
+		P2.X.BigInt(outputs[2])
+		P2.Y.BigInt(outputs[3])
+	} else if field.Cmp(ecc.BW6_761.ScalarField()) == 0 {
+		var P1, P2 edbw6761.PointAffine
+		P1.X.SetBigInt(inputs[0])
+		P1.Y.SetBigInt(inputs[1])
+		P1.ScalarMultiplication(&P1, inputs[2])
+		P2.X.SetBigInt(inputs[3])
+		P2.Y.SetBigInt(inputs[4])
+		P2.ScalarMultiplication(&P2, inputs[5])
+		P1.X.BigInt(outputs[0])
+		P1.Y.BigInt(outputs[1])
+		P2.X.BigInt(outputs[2])
+		P2.Y.BigInt(outputs[3])
+	} else {
+		return errors.New("doubleBaseScalarMulHint: unknown curve")
+	}
+	return nil
+}
+
+// multiRationalReconstructExtHint decomposes (k1, k2) jointly via 6-D LLL
+// reconstruction: finds (x1, y1, x2, y2, z, t) with shared denominator
+// (z + λ·t) such that
+//
+//	k1 ≡ (x1 + λ·y1) / (z + λ·t)   (mod r)
+//	k2 ≡ (x2 + λ·y2) / (z + λ·t)   (mod r)
+//
+// with each component bounded by ~r^(1/3). Used by the GLV-curve
+// `doubleBaseScalarMul6MSMLogUp` path.
+//
+// inputs: k1, k2, order, lambda
+// outputs[0..5]:  |x1|, |y1|, |x2|, |y2|, |z|, |t|
+// outputs[6..11]: signX1, signY1, signX2, signY2, signZ, signT
+// outputs[12..19]: helper integers (d, kd, n1, kn1, n2, kn2, k1_over, k2_over)
+func multiRationalReconstructExtHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 4 {
+		return errors.New("expecting four inputs: k1, k2, order, lambda")
+	}
+	if len(outputs) != 20 {
+		return errors.New("expecting 20 outputs")
+	}
+	k1, k2, order, lambda := inputs[0], inputs[1], inputs[2], inputs[3]
+
+	if k1.Sign() == 0 && k2.Sign() == 0 {
+		for i := range outputs {
+			outputs[i].SetUint64(0)
+		}
+		return nil
+	}
+
+	rc := lattice.NewReconstructor(order).SetLambda(lambda)
+	res := rc.MultiRationalReconstructExt(k1, k2)
+	x1, y1, x2, y2, z, t := res[0], res[1], res[2], res[3], res[4], res[5]
+
+	outputs[0].Abs(x1)
+	outputs[1].Abs(y1)
+	outputs[2].Abs(x2)
+	outputs[3].Abs(y2)
+	outputs[4].Abs(z)
+	outputs[5].Abs(t)
+
+	setSign := func(out *big.Int, val *big.Int) {
+		if val.Sign() < 0 {
+			out.SetUint64(1)
+		} else {
+			out.SetUint64(0)
+		}
+	}
+	setSign(outputs[6], x1)
+	setSign(outputs[7], y1)
+	setSign(outputs[8], x2)
+	setSign(outputs[9], y2)
+	setSign(outputs[10], z)
+	setSign(outputs[11], t)
+
+	zPlusLambdaT := new(big.Int).Mul(lambda, t)
+	zPlusLambdaT.Add(zPlusLambdaT, z)
+	d := new(big.Int).Mod(zPlusLambdaT, order)
+	kd := new(big.Int).Sub(zPlusLambdaT, d)
+	kd.Div(kd, order)
+
+	x1PlusLambdaY1 := new(big.Int).Mul(lambda, y1)
+	x1PlusLambdaY1.Add(x1PlusLambdaY1, x1)
+	n1 := new(big.Int).Mod(x1PlusLambdaY1, order)
+	kn1 := new(big.Int).Sub(x1PlusLambdaY1, n1)
+	kn1.Div(kn1, order)
+
+	x2PlusLambdaY2 := new(big.Int).Mul(lambda, y2)
+	x2PlusLambdaY2.Add(x2PlusLambdaY2, x2)
+	n2 := new(big.Int).Mod(x2PlusLambdaY2, order)
+	kn2 := new(big.Int).Sub(x2PlusLambdaY2, n2)
+	kn2.Div(kn2, order)
+
+	k1d := new(big.Int).Mul(k1, d)
+	k1Overflow := new(big.Int).Sub(k1d, n1)
+	k1Overflow.Div(k1Overflow, order)
+
+	k2d := new(big.Int).Mul(k2, d)
+	k2Overflow := new(big.Int).Sub(k2d, n2)
+	k2Overflow.Div(k2Overflow, order)
+
+	outputs[12].Set(d)
+	outputs[13].Set(kd)
+	outputs[14].Set(n1)
+	outputs[15].Set(kn1)
+	outputs[16].Set(n2)
+	outputs[17].Set(kn2)
+	outputs[18].Set(k1Overflow)
+	outputs[19].Set(k2Overflow)
+
 	return nil
 }

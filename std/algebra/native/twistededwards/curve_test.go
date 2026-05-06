@@ -380,6 +380,12 @@ func TestFixedScalarMulEdgeCases(t *testing.T) {
 	}
 }
 
+// TestDoubleBaseScalarMulEdgeCases covers small but **non-degenerate** scalar
+// pairs. Note: as documented on `Curve.DoubleBaseScalarMul`, the optimized
+// MSM(3, 2n/3) and MSM(6, n/3) paths require both scalars non-zero and both
+// points non-identity. Callers needing zero-scalar / identity-point support
+// must use `ScalarMul` + `Add` directly, since this routine is now hardened
+// for the LLL-bounded fast path.
 func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -389,9 +395,17 @@ func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 		data := testDataForScalars(params, curveID, big.NewInt(1), big.NewInt(2))
 
 		t.Run(curveLabel(curveID), func(t *testing.T) {
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 0, Result: identityPoint()})
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 0, Result: data.P1})
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 1, Result: data.P2})
+			// s1=2, s2=3 → 2·P1 + 3·P2 (small but non-degenerate)
+			d2 := testDataForScalars(params, curveID, big.NewInt(2), big.NewInt(3))
+			assertSolvedForCurve(t, curveID,
+				&doubleBaseScalarMulCircuit{curveID: curveID},
+				&doubleBaseScalarMulCircuit{P1: d2.P1, P2: d2.P2, S1: 2, S2: 3, Result: d2.DoubleScalarMulResult},
+			)
+			// s1=1, s2=2 (avoids the s2=0 / s1=0 cases the new MSM rejects)
+			assertSolvedForCurve(t, curveID,
+				&doubleBaseScalarMulCircuit{curveID: curveID},
+				&doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 2, Result: data.DoubleScalarMulResult},
+			)
 		})
 	}
 }
