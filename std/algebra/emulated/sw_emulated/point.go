@@ -261,21 +261,28 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		xDiff := c.baseApi.Sub(&q.X, &p.X)
 		xEqual := c.baseApi.IsZero(xDiff)
 
-		// -- chord slope (used when p.X ≠ q.X) --
-		xDiff = c.baseApi.Select(xEqual, c.baseApi.One(), xDiff)
-		λchord := c.baseApi.Div(c.baseApi.Sub(&q.Y, &p.Y), xDiff)
-
-		// -- tangent slope (used when p.X = q.X, i.e. p = ±q) --
+		// Build the slope with a *single* Div: select the chord/tangent
+		// numerator and denominator before dividing, instead of computing two
+		// slopes and selecting the result. Saves 1 Div + 1 IsZero on the j=0
+		// path (the previous code computed both Div(q.Y-p.Y, xDiff) and
+		// Div(3p.X², 2p.Y) before selecting).
+		//   • chord   numerator = q.Y - p.Y,  denominator = q.X - p.X
+		//   • tangent numerator = 3·p.X²,     denominator = 2·p.Y
+		// The combined denominator is zero only when p = q = (0,0); in that
+		// case the infinity-selectors below override `result` with p anyway,
+		// so we can safely divide by a dummy 1 and force λ to 0.
+		numChord := c.baseApi.Sub(&q.Y, &p.Y)
+		denChord := xDiff
 		xx := c.baseApi.MulMod(&p.X, &p.X)
-		xx3 := c.baseApi.MulConst(xx, big.NewInt(3))
-		y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-		y2IsZero := c.baseApi.IsZero(y2)
-		y2 = c.baseApi.Select(y2IsZero, c.baseApi.One(), y2)
-		λtangent := c.baseApi.Div(xx3, y2)
-		λtangent = c.baseApi.Select(y2IsZero, c.baseApi.Zero(), λtangent)
+		numTangent := c.baseApi.MulConst(xx, big.NewInt(3))
+		denTangent := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 
-		// select the appropriate slope
-		λ := c.baseApi.Select(xEqual, λtangent, λchord)
+		num := c.baseApi.Select(xEqual, numTangent, numChord)
+		den := c.baseApi.Select(xEqual, denTangent, denChord)
+		denIsZero := c.baseApi.IsZero(den)
+		denSafe := c.baseApi.Select(denIsZero, c.baseApi.One(), den)
+		λ := c.baseApi.Div(num, denSafe)
+		λ = c.baseApi.Select(denIsZero, c.baseApi.Zero(), λ)
 
 		// compute the result point from λ
 		xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {&p.X}, {&q.X}}, []int{1, -1, -1})

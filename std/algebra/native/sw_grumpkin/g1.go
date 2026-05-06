@@ -45,45 +45,57 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 }
 
 func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
-	// selector1 = 1 when p is (0,0) and 0 otherwise
-	selector1 := api.And(api.IsZero(p.X), api.IsZero(p.Y))
-	// selector2 = 1 when q is (0,0) and 0 otherwise
-	selector2 := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+	// ---------------------------------------------------------------
+	// Grumpkin (y² = x³ − 17) has j-invariant 0. The Brier–Joye unified
+	// formula λ = (x₁² + x₁x₂ + x₂²) / (y₁ + y₂) is NOT complete here:
+	// Fp (= BN254 Fr, p ≡ 1 mod 3) contains a primitive cube root of unity
+	// ω, and Q = -Φ(P) = (ω·P.x, -P.y) satisfies y_P + y_Q = 0 with
+	// P ≠ -Q. The old formula returned (0, 0) on that pair — a soundness
+	// bug exploitable inside scalarMulGLV's boundary corrections.
+	//
+	// Replaced with the chord/tangent split + single-Div fold:
+	//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+	//   • tangent λ = 3·p.X² / (2·p.Y)            when p.X = q.X (doubling)
+	// The inverse-case override is gated by `areFinite` so it doesn't fire
+	// when one input is the SW infinity convention (0,0). 2-torsion points
+	// of E(Fp) are not in the prime-order subgroup G1, so we don't
+	// special-case the (p=q with p.Y=0, p.X≠0) doubling case.
+	// ---------------------------------------------------------------
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := api.Mul(p.X, q.X)
-	pxplusqx := api.Add(p.X, q.X)
-	num := api.Mul(pxplusqx, pxplusqx)
-	num = api.Sub(num, pxqx)
-	denum := api.Add(p.Y, q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := api.IsZero(denum)
-	denum = api.Select(selector3, 1, denum)
-	λ := api.Div(num, denum)
+	isPInf := api.And(api.IsZero(p.X), api.IsZero(p.Y))
+	isQInf := api.And(api.IsZero(q.X), api.IsZero(q.Y))
 
-	// x = λ^2 - p.x - q.x
-	xr := api.Mul(λ, λ)
-	xr = api.Sub(xr, pxplusqx)
+	xDiff := api.Sub(q.X, p.X)
+	xEqual := api.IsZero(xDiff)
 
-	// y = λ(p.x - xr) - p.y
-	yr := api.Sub(p.X, xr)
-	yr = api.Mul(yr, λ)
-	yr = api.Sub(yr, p.Y)
-	result := G1Affine{
-		X: xr,
-		Y: yr,
-	}
+	numChord := api.Sub(q.Y, p.Y)
+	denChord := xDiff
+	xx := api.Mul(p.X, p.X)
+	numTangent := api.Mul(xx, 3)  // free
+	denTangent := api.Mul(p.Y, 2) // free
 
-	// if p=(0,0) return q
-	result.Select(api, selector1, q, result)
-	// if q=(0,0) return p
-	result.Select(api, selector2, *p, result)
-	// if p.y + q.y = 0, return (0, 0)
-	result.Select(api, selector3, G1Affine{0, 0}, result)
+	num := api.Select(xEqual, numTangent, numChord)
+	den := api.Select(xEqual, denTangent, denChord)
+	denIsZero := api.IsZero(den)
+	denSafe := api.Select(denIsZero, 1, den)
+	λ := api.Div(num, denSafe)
+	λ = api.Select(denIsZero, 0, λ)
+
+	xr := api.Sub(api.Mul(λ, λ), api.Add(p.X, q.X))
+	yr := api.Sub(api.Mul(λ, api.Sub(p.X, xr)), p.Y)
+
+	result := G1Affine{X: xr, Y: yr}
+
+	result.Select(api, isPInf, q, result)
+	result.Select(api, isQInf, *p, result)
+
+	yEqual := api.IsZero(api.Sub(p.Y, q.Y))
+	areFinite := api.And(api.Sub(1, isPInf), api.Sub(1, isQInf))
+	isInverse := api.And(api.And(xEqual, api.Sub(1, yEqual)), areFinite)
+	result.Select(api, isInverse, G1Affine{X: 0, Y: 0}, result)
 
 	p.X = result.X
 	p.Y = result.Y
-
 	return p
 }
 

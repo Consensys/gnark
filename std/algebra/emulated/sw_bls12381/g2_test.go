@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
@@ -191,6 +192,31 @@ func TestAddG2UnifiedTestSolveEdgeCases(t *testing.T) {
 		err5 := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness5, ecc.BN254.ScalarField())
 		assert.NoError(err5)
 	}, "case=zero3")
+
+	assert.Run(func(assert *test.Assert) {
+		// j=0 cube-root edge case: Q = (ω²·P.X, -P.Y) with ω cube root of
+		// unity ∈ Fp ⊂ Fp². Then y_P + y_Q = 0, P ≠ -Q (since ω² ≠ 1), and
+		// the correct sum is finite. The old Brier–Joye AddUnified returned
+		// ([0,0],[0,0]) — soundness break.
+		var omegaSq fp.Element
+		omegaSq.SetString("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+		omegaSq.Square(&omegaSq)
+		var Q bls12381.G2Affine
+		Q.X.A0.Mul(&p.X.A0, &omegaSq)
+		Q.X.A1.Mul(&p.X.A1, &omegaSq)
+		Q.Y.A0.Neg(&p.Y.A0)
+		Q.Y.A1.Neg(&p.Y.A1)
+		var R bls12381.G2Affine
+		R.Add(&p, &Q)
+		assert.False(R.IsInfinity(), "expected finite sum")
+		witness := addG2Circuit{
+			In1: NewG2Affine(p),
+			In2: NewG2Affine(Q),
+			Res: NewG2Affine(R),
+		}
+		err := test.IsSolved(&addG2Circuit{unifiedAdd: true}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}, "case=cubeRoot")
 
 }
 
