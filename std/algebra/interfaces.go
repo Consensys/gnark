@@ -31,26 +31,28 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// ScalarMul returns the scalar multiplication of the point by a scalar. It
 	// does not modify the inputs.
 	//
-	// Depending on the implementation the scalar multiplication may be
-	// incomplete for zero scalar or point at infinity. To allow the exceptional
-	// case use the [algopts.WithCompleteArithmetic] option.
+	// By default the scalar multiplication is complete, i.e. it handles
+	// correctly zero scalar and point at infinity inputs. To opt into faster
+	// incomplete formulas (when inputs are guaranteed non-degenerate), use
+	// [algopts.WithIncompleteArithmetic].
 	ScalarMul(*G1El, *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
 	//
-	// Depending on the implementation the scalar multiplication may be
-	// incomplete for zero scalar. To allow the exceptional case use the
-	// [algopts.WithCompleteArithmetic] option.
+	// By default the scalar multiplication is complete, i.e. it handles
+	// correctly zero scalar. To opt into faster incomplete formulas (when the
+	// scalar is guaranteed non-zero), use [algopts.WithIncompleteArithmetic].
 	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// MultiScalarMul computes the sum ∑ s_i P_i for the input
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
 	//
-	// Depending on the implementation the scalar multiplication may be
-	// incomplete for zero scalar or point at infinity. To allow the exceptional
-	// case use the [algopts.WithCompleteArithmetic] option.
+	// By default the scalar multiplication is complete, i.e. it handles
+	// correctly zero scalars and points at infinity. To opt into faster
+	// incomplete formulas (when inputs are guaranteed non-degenerate), use
+	// [algopts.WithIncompleteArithmetic].
 	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the

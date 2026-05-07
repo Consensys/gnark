@@ -16,7 +16,6 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -674,10 +673,6 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR], opts ...VerifierOption) ([]kzg.Commitment[G1El], []kzg.OpeningProof[FR, G1El], []emulated.Element[FR], error) {
 
 	var fr FR
-	cfg, err := newCfg(opts...)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("apply options: %w", err)
-	}
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return nil, nil, nil, fmt.Errorf("BSB22 commitment number mismatch")
 	}
@@ -885,20 +880,12 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		zhZeta, // third part
 	)
 
-	var msmOpts []algopts.AlgebraOption
-	if cfg.withCompleteArithmetic {
-		msmOpts = append(msmOpts, algopts.WithCompleteArithmetic())
-	}
-	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars, msmOpts...)
+	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-	if cfg.withCompleteArithmetic {
-		// in PLONK Wo Commit ==> use AddUnified
-		linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
-	} else {
-		linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El)
-	}
+	// in PLONK Wo Commit ==> use AddUnified (complete arithmetic is default)
+	linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+6)
