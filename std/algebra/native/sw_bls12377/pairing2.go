@@ -516,8 +516,7 @@ func (pr *Pairing) AssertIsOnTwist(p *G2Affine) {
 
 	var left, right fields_bls12377.E2
 	left.Square(pr.api, p.P.Y)
-	right.Square(pr.api, p.P.X)
-	right.Mul(pr.api, right, p.P.X)
+	right.Cube(pr.api, p.P.X)
 	right.Add(pr.api, right, b)
 	left.AssertIsEqual(pr.api, right)
 }

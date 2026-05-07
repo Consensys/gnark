@@ -129,6 +129,27 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 	return e
 }
 
+// Cube computes e = x³ directly, cheaper than Square + Mul.
+//
+// With x = (A, B) in Fp[u]/(u² + 5) (so nr = u² = -5):
+//
+//	x³.A0 = A·(A² + 3·nr·B²) = A·(A² − 15·B²)
+//	x³.A1 = B·(3·A² + nr·B²) = B·(3·A² − 5·B²)
+//
+// Cost: 4M + 2A = 6 gates vs Square(5) + Mul(~8) = ~13 gates.
+func (e *E2) Cube(api frontend.API, x E2) *E2 {
+	a2 := api.Mul(x.A0, x.A0) // A²
+	b2 := api.Mul(x.A1, x.A1) // B²
+	threeNR := api.Mul(ext.uSquare, 3)
+	// t1 = A² + 3·nr·B² = A² − 15·B²
+	t1 := api.Add(a2, api.Mul(b2, threeNR))
+	// t2 = 3·A² + nr·B² = 3·A² − 5·B²
+	t2 := api.Add(api.Mul(a2, 3), api.Mul(b2, ext.uSquare))
+	e.A0 = api.Mul(x.A0, t1) // A·t1
+	e.A1 = api.Mul(x.A1, t2) // B·t2
+	return e
+}
+
 // MulByFp multiplies an fp2 elmt by an fp elmt
 func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 	e.A0 = api.Mul(e1.A0, c)
