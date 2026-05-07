@@ -46,45 +46,71 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 }
 
 func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
-	// selector1 = 1 when p is (0,0) and 0 otherwise
-	selector1 := api.And(api.IsZero(p.X), api.IsZero(p.Y))
-	// selector2 = 1 when q is (0,0) and 0 otherwise
-	selector2 := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+	// ---------------------------------------------------------------
+	// BLS12-377 G1 has j-invariant 0. The Brier–Joye unified formula
+	// λ = (x₁² + x₁x₂ + x₂²) / (y₁ + y₂) is NOT complete on j=0 curves:
+	// Fp contains a primitive cube root of unity ω, and Q = -Φ(P) = (ω·P.x,
+	// -P.y) satisfies y_P + y_Q = 0 with P ≠ -Q. The old formula returned
+	// (0, 0) (infinity) on that pair — a soundness bug exploitable inside
+	// scalarMulGLV's boundary corrections.
+	//
+	// We replace it with the chord/tangent split (one Div via the fold
+	// trick: build num/den with Selects, divide once):
+	//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+	//   • tangent λ = 3·p.X² / (2·p.Y)            when p.X = q.X (doubling)
+	// Edge cases (p=O, q=O, p=−q) are handled by selectors at the end. The
+	// inverse-case override is gated by `areFinite` so it doesn't fire when
+	// one input is the SW infinity convention (0,0).
+	//
+	// Note: the only pair that hits the rational 2-torsion case (p=q with
+	// p.Y=0, p.X≠0) is (-1,0), (-ω,0), (-ω²,0). These are NOT in the
+	// prime-order subgroup G1, so the case can only be hit by an off-G1
+	// caller — which is the caller's responsibility to gate.
+	// ---------------------------------------------------------------
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := api.Mul(p.X, q.X)
-	pxplusqx := api.Add(p.X, q.X)
-	num := api.Mul(pxplusqx, pxplusqx)
-	num = api.Sub(num, pxqx)
-	denum := api.Add(p.Y, q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := api.IsZero(denum)
-	denum = api.Select(selector3, 1, denum)
-	λ := api.Div(num, denum)
+	// isPInf = 1 when p is (0,0) and 0 otherwise
+	isPInf := api.And(api.IsZero(p.X), api.IsZero(p.Y))
+	// isQInf = 1 when q is (0,0) and 0 otherwise
+	isQInf := api.And(api.IsZero(q.X), api.IsZero(q.Y))
 
-	// x = λ^2 - p.x - q.x
-	xr := api.Mul(λ, λ)
-	xr = api.Sub(xr, pxplusqx)
+	xDiff := api.Sub(q.X, p.X)
+	xEqual := api.IsZero(xDiff)
 
-	// y = λ(p.x - xr) - p.y
-	yr := api.Sub(p.X, xr)
-	yr = api.Mul(yr, λ)
-	yr = api.Sub(yr, p.Y)
-	result := G1Affine{
-		X: xr,
-		Y: yr,
-	}
+	// chord:    num = q.Y − p.Y, den = q.X − p.X
+	// tangent:  num = 3·p.X²,     den = 2·p.Y
+	numChord := api.Sub(q.Y, p.Y)
+	denChord := xDiff
+	xx := api.Mul(p.X, p.X)
+	numTangent := api.Mul(xx, 3)  // const × var = free
+	denTangent := api.Mul(p.Y, 2) // free
+
+	num := api.Select(xEqual, numTangent, numChord)
+	den := api.Select(xEqual, denTangent, denChord)
+	denIsZero := api.IsZero(den)
+	denSafe := api.Select(denIsZero, 1, den)
+	λ := api.Div(num, denSafe)
+	λ = api.Select(denIsZero, 0, λ)
+
+	// xr = λ² - p.x - q.x
+	xr := api.Sub(api.Mul(λ, λ), api.Add(p.X, q.X))
+	// yr = λ·(p.x - xr) - p.y
+	yr := api.Sub(api.Mul(λ, api.Sub(p.X, xr)), p.Y)
+
+	result := G1Affine{X: xr, Y: yr}
 
 	// if p=(0,0) return q
-	result.Select(api, selector1, q, result)
+	result.Select(api, isPInf, q, result)
 	// if q=(0,0) return p
-	result.Select(api, selector2, *p, result)
-	// if p.y + q.y = 0, return (0, 0)
-	result.Select(api, selector3, G1Affine{0, 0}, result)
+	result.Select(api, isQInf, *p, result)
+
+	// if p = −q (xEqual=1, yEqual=0, both finite), return (0, 0)
+	yEqual := api.IsZero(api.Sub(p.Y, q.Y))
+	areFinite := api.And(api.Sub(1, isPInf), api.Sub(1, isQInf))
+	isInverse := api.And(api.And(xEqual, api.Sub(1, yEqual)), areFinite)
+	result.Select(api, isInverse, G1Affine{X: 0, Y: 0}, result)
 
 	p.X = result.X
 	p.Y = result.Y
-
 	return p
 }
 
@@ -662,6 +688,15 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	rhs = api.Add(rhs, rhs5)
 
 	api.AssertIsEqual(lhs, rhs)
+
+	// Soundness: forbid the trivial all-zeros Eisenstein decomposition
+	// (v1 = v2 = 0). Without this, a malicious hint can return the all-zeros
+	// solution, making the relation s·(v1 + λ·v2) + u1 + λ·u2 - r·q = 0
+	// satisfied vacuously and the in-circuit accumulator constraint becomes
+	// independent of the hinted scalar-mul output Q — letting any Q pass.
+	// Forbidding v ≠ 0 forces s·(v1 + λ·v2) ≠ 0, which constrains (u1, u2, q)
+	// to the genuine lattice point and Q to [s]P.
+	api.AssertIsEqual(api.Mul(api.IsZero(v1), api.IsZero(v2)), 0)
 
 	// Next we compute the hinted scalar mul Q = [s]P
 	point, err := api.NewHint(scalarMulGLVG1Hint, 2, P.X, P.Y, s)
