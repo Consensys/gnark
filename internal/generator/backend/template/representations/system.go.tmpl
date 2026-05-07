@@ -93,15 +93,13 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 		res.C = solver.c
 		return &res, nil
 	} else {
-		// sparse R1CS
+		// sparse R1CS: solver fills L,R,O during solving.
 		var res SparseR1CSSolution
 		res.L = solver.l
 		res.R = solver.r
 		res.O = solver.o
-
 		return &res, nil
 	}
-	
 }
 
 // IsSolved
@@ -157,59 +155,6 @@ func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 		}
 	}
 	return toReturn
-}
-
-
-
-// evaluateLROSmallDomain extracts the solver l, r, o, and returns it in lagrange form.
-// solver = [ public | secret | internal ]
-// TODO @gbotrel refactor; this seems to be a small util function for plonk
-func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
-
-	//s := int(pk.Domain[0].Cardinality)
-	s := cs.GetNbConstraints() + len(cs.Public) // len(spr.Public) is for the placeholder constraints
-	s = int(ecc.NextPowerOfTwo(uint64(s)))
-
-	var l, r, o []fr.Element
-	l = make([]fr.Element, s, s + 4) // +4 to leave room for the blinding in plonk
-	r = make([]fr.Element, s, s + 4)
-	o = make([]fr.Element, s, s + 4)
-	s0 := solution[0]
-
-	for i := 0; i < len(cs.Public); i++ { // placeholders
-		l[i] = solution[i]
-		r[i] = s0
-		o[i] = s0
-	}
-	offset := len(cs.Public)
-	nbConstraints := cs.GetNbConstraints()
-	
-
-	var sparseR1C constraint.SparseR1C
-	j := 0
-	for _, inst := range cs.Instructions {
-		blueprint := cs.Blueprints[inst.BlueprintID]
-		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))
-
-			l[offset+j] = solution[sparseR1C.XA]
-			r[offset+j] = solution[sparseR1C.XB]
-			o[offset+j] = solution[sparseR1C.XC]
-			j++
-		}
-	}
-
-
-	offset += nbConstraints
-
-	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solver[0])
-		l[offset+i] = s0
-		r[offset+i] = s0
-		o[offset+i] = s0
-	}
-
-	return l, r, o
-
 }
 
 

@@ -69,8 +69,7 @@ func benchmarkSolvePrecompile(b *testing.B, curve ecc.ID, circuit, assignment fr
 
 	b.ReportMetric(float64(ccs.GetNbConstraints()), "constraints")
 	b.ReportMetric(float64(ccs.GetNbInstructions()), "instructions")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := ccs.Solve(witness); err != nil {
 			b.Fatal(err)
 		}

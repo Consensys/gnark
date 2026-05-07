@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,7 +18,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
 
 	fr "github.com/consensys/gnark-crypto/field/babybear"
@@ -27,42 +27,49 @@ import (
 type solver struct {
 	*system
 
-	// values and solved are index by the wire (variable) id
+	// values and solved are indexed by the wire (variable) id
 	values []fr.Element
 	solved []bool
 
 	// maps hintID to hint function
 	mHintsFunctions map[csolver.HintID]csolver.Hint
-	nativeHints     map[csolver.HintID]nativeHint
+	// nativeHints maps the HintID of a known std hint to its solver-side native
+	// implementation. Lazily populated only for hints that the circuit actually
+	// uses, so circuits with no matching hints carry zero overhead.
+	nativeHints map[csolver.HintID]nativeHintFn
 
 	// used to out api.Println
 	logger  zerolog.Logger
 	nbTasks int
 
-	a, b, c fr.Vector // R1CS solver will compute the a,b,c matrices
-	l, r, o fr.Vector // SparseR1CS solver computes L, R, O for the small domain
+	a, b, c fr.Vector // R1CS solver builds the a,b,c matrices
+	l, r, o fr.Vector // SparseR1CS solver builds the L,R,O small-domain vectors
+	// publicOffset is len(s.Public) cached on the solver to avoid a slice-header
+	// load on every setSparseLRO call; setSparseLRO runs once per SCS constraint.
+	publicOffset int
 
 	q *big.Int
 }
 
-type nativeHint uint8
+// nativeHintFn is a solver-side implementation of a known std hint that
+// operates directly on calldata, avoiding the big.Int round-trip used by the
+// generic hint path.
+type nativeHintFn func(s *solver, calldata []uint32, scratch *scratch) error
 
-const (
-	nativeHintNone nativeHint = iota
-	nativeHintLogderivargCount
-	nativeHintLogderivargBatchDivBySub
-	nativeHintRangecheckDecompose
-	nativeHintBitsNBits
-	nativeHintBsb22CommitmentPlaceholder
-)
-
-const (
-	logderivargCountHintName         = "github.com/consensys/gnark/std/internal/logderivarg.countHint"
-	logderivargBatchDivBySubHintName = "github.com/consensys/gnark/std/internal/logderivarg.batchDivBySubHint"
-	rangecheckDecomposeHintName      = "github.com/consensys/gnark/std/rangecheck.DecomposeHint"
-	bitsNBitsHintName                = "github.com/consensys/gnark/std/math/bits.nBits"
-	bsb22CommitmentPlaceholderName   = "github.com/consensys/gnark/frontend/cs.Bsb22CommitmentComputePlaceholder"
-)
+// nativeHintByName lists the std hints for which we ship a solver-side native
+// implementation. Detection is by fully-qualified name so that user-supplied
+// replacement hints (with a different function pointer) bypass the native path
+// and run through the canonical big.Int impl instead.
+//
+// Renaming a hint here silently disables the native fast path (correctness is
+// preserved via the big.Int fallback). Changing a hint's algorithm requires
+// updating the matching native impl in this file too.
+var nativeHintByName = map[string]nativeHintFn{
+	"github.com/consensys/gnark/std/internal/logderivarg.countHint":         (*solver).solveLogderivargCount,
+	"github.com/consensys/gnark/std/internal/logderivarg.batchDivBySubHint": (*solver).solveLogderivargBatchDivBySub,
+	"github.com/consensys/gnark/std/rangecheck.DecomposeHint":               (*solver).solveRangecheckDecompose,
+	"github.com/consensys/gnark/std/math/bits.nBits":                        (*solver).solveBitsNBits,
+}
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// parse options
@@ -104,7 +111,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 		values:          make([]fr.Element, nbWires),
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: hintFunctions,
-		nativeHints:     makeNativeHintMap(cs, hintFunctions),
+		nativeHints:     resolveNativeHints(cs, hintFunctions),
 		logger:          opt.Logger,
 		nbTasks:         opt.NbTasks,
 		q:               cs.Field(),
@@ -126,46 +133,20 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 		s.b = make(fr.Vector, cs.GetNbConstraints(), n)
 		s.c = make(fr.Vector, cs.GetNbConstraints(), n)
 	} else {
+		s.publicOffset = len(s.Public)
 		s.initSparseLRO()
 	}
 
 	return &s, nil
 }
 
-func makeNativeHintMap(cs *system, hintFunctions map[csolver.HintID]csolver.Hint) map[csolver.HintID]nativeHint {
-	var nativeHints map[csolver.HintID]nativeHint
-	for hintID, name := range cs.MHintsDependencies {
-		f, ok := hintFunctions[hintID]
-		if !ok || csolver.GetHintName(f) != name {
-			continue
-		}
-		var kind nativeHint
-		switch name {
-		case logderivargCountHintName:
-			kind = nativeHintLogderivargCount
-		case logderivargBatchDivBySubHintName:
-			kind = nativeHintLogderivargBatchDivBySub
-		case rangecheckDecomposeHintName:
-			kind = nativeHintRangecheckDecompose
-		case bitsNBitsHintName:
-			kind = nativeHintBitsNBits
-		case bsb22CommitmentPlaceholderName:
-			kind = nativeHintBsb22CommitmentPlaceholder
-		default:
-			continue
-		}
-		if nativeHints == nil {
-			nativeHints = make(map[csolver.HintID]nativeHint, 2)
-		}
-		nativeHints[hintID] = kind
-	}
-	return nativeHints
-}
-
+// initSparseLRO allocates and initializes the L,R,O small-domain vectors used
+// by the SparseR1CS solver. Public-input rows have no blueprint instruction so
+// we fill them here; rows past the constraint range get values[0] to satisfy
+// the PLONK permutation argument (wire id 0 by convention).
 func (s *solver) initSparseLRO() {
-	size := s.GetNbConstraints() + len(s.Public)
-	size = int(ecc.NextPowerOfTwo(uint64(size)))
-
+	size := int(ecc.NextPowerOfTwo(uint64(s.GetNbConstraints() + len(s.Public))))
+	// +4 leaves room for plonk blinding.
 	s.l = make(fr.Vector, size, size+4)
 	s.r = make(fr.Vector, size, size+4)
 	s.o = make(fr.Vector, size, size+4)
@@ -174,77 +155,50 @@ func (s *solver) initSparseLRO() {
 	if len(s.values) > 0 {
 		s0 = s.values[0]
 	}
-
 	for i := 0; i < len(s.Public); i++ {
 		s.l[i] = s.values[i]
 		s.r[i] = s0
 		s.o[i] = s0
 	}
-
-	offset := len(s.Public) + s.GetNbConstraints()
-	fillElementVector(s.l[offset:], s0)
-	fillElementVector(s.r[offset:], s0)
-	fillElementVector(s.o[offset:], s0)
-}
-
-func fillElementVector(v []fr.Element, value fr.Element) {
-	if len(v) == 0 {
-		return
-	}
-	v[0] = value
-	for n := 1; n < len(v); n *= 2 {
-		copy(v[n:], v[:n])
+	if !s0.IsZero() {
+		offset := len(s.Public) + s.GetNbConstraints()
+		for i := offset; i < size; i++ {
+			s.l[i] = s0
+			s.r[i] = s0
+			s.o[i] = s0
+		}
 	}
 }
 
 func (s *solver) set(id int, value fr.Element) {
-	if debug.Debug && s.solved[id] {
+	if s.solved[id] {
 		panic("solving the same wire twice should never happen.")
 	}
 	s.values[id] = value
 	s.solved[id] = true
 }
 
-func (s *solver) setUint64(id int, value uint64) {
-	var v fr.Element
-	v.SetUint64(value)
-	s.set(id, v)
+// setSparseLRO fills L,R,O for a single SCS constraint. Called from the
+// SparseR1CS fast paths so we don't need a second post-solve decompression pass.
+func (s *solver) setSparseLRO(cID, xa, xb, xc uint32) {
+	i := s.publicOffset + int(cID)
+	s.l[i] = s.values[xa]
+	s.r[i] = s.values[xb]
+	s.o[i] = s.values[xc]
 }
 
-// computeTerm computes coeff*variable
+// computeTerm computes coeff*variable. Public callers reach it via the
+// Solver[E] interface; for the solver hot loop see valueWithCoeff which skips
+// the constant-term and solved-wire checks.
 func (s *solver) computeTerm(t constraint.Term) fr.Element {
 	cID, vID := t.CoeffID(), t.WireID()
-
 	if t.IsConstant() {
 		return s.Coefficients[cID]
 	}
-
 	if cID != 0 && !s.solved[vID] {
 		panic("computing a term with an unsolved wire")
 	}
-
-	switch cID {
-	case constraint.CoeffIdZero:
-		return fr.Element{}
-	case constraint.CoeffIdOne:
-		return s.values[vID]
-	case constraint.CoeffIdTwo:
-		var res fr.Element
-		res.Double(&s.values[vID])
-		return res
-	case constraint.CoeffIdMinusOne:
-		var res fr.Element
-		res.Neg(&s.values[vID])
-		return res
-	case constraint.CoeffIdMinusTwo:
-		var res fr.Element
-		res.Double(&s.values[vID]).Neg(&res)
-		return res
-	default:
-		var res fr.Element
-		res.Mul(&s.Coefficients[cID], &s.values[vID])
-		return res
-	}
+	return s.valueWithCoeff(uint32(cID), uint32(vID))
 }
 
 // r += (t.coeff*t.value)
@@ -269,10 +223,6 @@ func (s *solver) accumulateInto(t constraint.Term, r *fr.Element) {
 		r.Add(r, &res)
 	case constraint.CoeffIdMinusOne:
 		r.Sub(r, &s.values[vID])
-	case constraint.CoeffIdMinusTwo:
-		var res fr.Element
-		res.Double(&s.values[vID])
-		r.Sub(r, &res)
 	default:
 		var res fr.Element
 		res.Mul(&s.Coefficients[cID], &s.values[vID])
@@ -280,6 +230,8 @@ func (s *solver) accumulateInto(t constraint.Term, r *fr.Element) {
 	}
 }
 
+// valueWithCoeff returns coeff * values[vID], with shortcuts for the common
+// {0, ±1, 2} coefficients. Hot path used by the SparseR1CS fast solvers.
 func (s *solver) valueWithCoeff(cID, vID uint32) fr.Element {
 	switch cID {
 	case constraint.CoeffIdZero:
@@ -294,81 +246,11 @@ func (s *solver) valueWithCoeff(cID, vID uint32) fr.Element {
 		var res fr.Element
 		res.Neg(&s.values[vID])
 		return res
-	case constraint.CoeffIdMinusTwo:
-		var res fr.Element
-		res.Double(&s.values[vID]).Neg(&res)
-		return res
 	default:
 		var res fr.Element
 		res.Mul(&s.Coefficients[cID], &s.values[vID])
 		return res
 	}
-}
-
-func inverseInPlace(v *fr.Element) bool {
-	if v.IsZero() {
-		return false
-	}
-	if v.IsOne() {
-		return true
-	}
-	var neg fr.Element
-	neg.Neg(v)
-	if neg.IsOne() {
-		return true
-	}
-	v.Inverse(v)
-	return true
-}
-
-// solveWithHint executes a hint and assign the result to its defined outputs.
-func (s *solver) solveWithHint(h *constraint.HintMapping, scratch *scratch) error {
-	// ensure hint function was provided
-	f, ok := s.mHintsFunctions[h.HintID]
-	if !ok {
-		return errors.New("missing hint function")
-	}
-
-	// tmp IO big int memory
-	nbInputs := len(h.Inputs)
-	nbOutputs := int(h.OutputRange.End - h.OutputRange.Start)
-	inputs := scratch.bigIntInputs(nbInputs)
-	outputs := scratch.bigIntOutputs(nbOutputs)
-	for i := 0; i < nbOutputs; i++ {
-		outputs[i].SetUint64(0)
-	}
-
-	for i := 0; i < nbInputs; i++ {
-		var v fr.Element
-		input := h.Inputs[i]
-		if len(input) == 1 {
-			term := input[0]
-			if term.IsConstant() {
-				v = s.Coefficients[term.CoeffID()]
-			} else {
-				v = s.valueWithCoeff(uint32(term.CoeffID()), uint32(term.WireID()))
-			}
-		} else {
-			for _, term := range input {
-				if term.IsConstant() {
-					v.Add(&v, &s.Coefficients[term.CoeffID()])
-					continue
-				}
-				s.accumulateInto(term, &v)
-			}
-		}
-		scratch.setBigIntInput(inputs[i], &v, i)
-	}
-
-	err := f(s.q, inputs, outputs)
-
-	var v fr.Element
-	for i := range outputs {
-		v.SetBigInt(outputs[i])
-		s.set(int(h.OutputRange.Start)+i, v)
-	}
-
-	return err
 }
 
 func (s *solver) printLogs(logs []constraint.LogEntry) {
@@ -508,32 +390,358 @@ func (s *solver) Read(calldata []uint32) (constraint.U32, int) {
 	return ret, j
 }
 
-func (s *solver) readLinearExpression(calldata []uint32) (fr.Element, int) {
-	var v fr.Element
-	n := int(calldata[0])
-	j := 1
-	if n == 1 {
-		cID, vID := calldata[j], calldata[j+1]
-		if vID == math.MaxUint32 {
-			v = s.Coefficients[cID]
-		} else {
-			v = s.valueWithCoeff(cID, vID)
+// processInstruction dispatches the instruction to the right solver path.
+// SparseR1CS instructions go through fast paths that read calldata directly
+// and fill L,R,O in place. R1CS goes through solveR1C. Generic hints take the
+// calldata-based hint path. Anything else falls back to BlueprintSolvable.
+func (s *solver) processInstruction(pi constraint.PackedInstruction, scratch *scratch) error {
+	blueprint := s.Blueprints[pi.BlueprintID]
+	cID := pi.ConstraintOffset
+	calldata := s.CallData[pi.StartCallData:]
+
+	if s.Type == constraint.SystemSparseR1CS {
+		switch blueprint.(type) {
+		case *constraint.BlueprintSparseR1CAdd[constraint.U32]:
+			s.solveSparseR1CAdd(calldata)
+			s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
+			return nil
+		case *constraint.BlueprintSparseR1CMul[constraint.U32]:
+			s.solveSparseR1CMul(calldata)
+			s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
+			return nil
+		case *constraint.BlueprintSparseR1CBool[constraint.U32]:
+			if err := s.solveSparseR1CBool(calldata); err != nil {
+				return s.wrapErrWithDebugInfo(cID, err)
+			}
+			s.setSparseLRO(cID, calldata[0], calldata[0], 0)
+			return nil
+		case *constraint.BlueprintGenericSparseR1C[constraint.U32]:
+			if err := s.solveGenericSparseR1C(calldata); err != nil {
+				return s.wrapErrWithDebugInfo(cID, err)
+			}
+			s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
+			return nil
+		case *constraint.BlueprintBatchInverse[constraint.U32]:
+			s.solveBatchInverse(calldata, pi.WireOffset, scratch)
+			return nil
 		}
-		return v, 3
+	} else if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
+		// TODO @gbotrel we use the solveR1C method for now, having user-defined
+		// blueprint for R1CS would require constraint.Solver interface to add methods
+		// to set a,b,c since it's more efficient to compute these while we solve.
+		inst := pi.Unpack(&s.System)
+		bc.DecompressR1C(&scratch.tR1C, inst)
+		return s.solveR1C(cID, &scratch.tR1C)
 	}
-	for k := 0; k < n; k++ {
-		cID, vID := calldata[j], calldata[j+1]
-		if vID == math.MaxUint32 {
-			v.Add(&v, &s.Coefficients[cID])
-		} else {
-			tv := s.valueWithCoeff(cID, vID)
-			v.Add(&v, &tv)
+
+	if _, ok := blueprint.(*constraint.BlueprintGenericHint); ok {
+		return s.solveGenericHint(calldata, scratch)
+	}
+
+	// fall back to the generic BlueprintSolvable interface; for SCS blueprints
+	// that aren't fast-pathed we still need to fill L,R,O after Solve.
+	inst := pi.Unpack(&s.System)
+	bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U32])
+	if !ok {
+		return nil
+	}
+	if err := bc.Solve(s, inst); err != nil {
+		return s.wrapErrWithDebugInfo(cID, err)
+	}
+	if s.Type == constraint.SystemSparseR1CS {
+		if sparse, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
+			var c constraint.SparseR1C
+			sparse.DecompressSparseR1C(&c, inst)
+			s.setSparseLRO(cID, c.XA, c.XB, c.XC)
 		}
-		j += 2
 	}
-	return v, j
+	return nil
 }
 
+// solveGenericHint runs the hint encoded by a BlueprintGenericHint instruction.
+// If a native solver-side implementation is registered for this hint, it runs
+// instead of the canonical big.Int path; otherwise we fall back to
+// solveHintGeneric which converts inputs/outputs through big.Ints.
+func (s *solver) solveGenericHint(calldata []uint32, scratch *scratch) error {
+	hintID := csolver.HintID(calldata[1])
+	if fn, ok := s.nativeHints[hintID]; ok {
+		return fn(s, calldata, scratch)
+	}
+	return s.solveHintGeneric(hintID, calldata, scratch)
+}
+
+// solveHintGeneric is the canonical big.Int hint path. Inputs are read from
+// the calldata directly (skipping HintMapping decompression) but each input is
+// still converted to a big.Int before invoking the user hint.
+func (s *solver) solveHintGeneric(hintID csolver.HintID, calldata []uint32, scratch *scratch) error {
+	f, ok := s.mHintsFunctions[hintID]
+	if !ok {
+		return errors.New("missing hint function")
+	}
+
+	nbInputs := int(calldata[2])
+	inputs := scratch.bigInts(nbInputs)
+
+	j := 3
+	var v fr.Element
+	for i := 0; i < nbInputs; i++ {
+		n := int(calldata[j])
+		j++
+		v.SetZero()
+		for k := 0; k < n; k++ {
+			s.accumulateInto(constraint.Term{CID: calldata[j], VID: calldata[j+1]}, &v)
+			j += 2
+		}
+		scratch.setInput(inputs[i], &v, i)
+	}
+
+	outputStart, outputEnd := calldata[j], calldata[j+1]
+	outputs := scratch.bigIntOutputs(int(outputEnd - outputStart))
+
+	err := f(s.q, inputs, outputs)
+
+	for i := range outputs {
+		v.SetBigInt(outputs[i])
+		s.set(int(outputStart)+i, v)
+	}
+	return err
+}
+
+// resolveNativeHints walks the circuit's hint dependencies and binds each one
+// for which we have a native impl to the user-supplied hint function. The name
+// match guards against user replacements: if the user passed a different
+// function under the same HintID, we run their function via the canonical path
+// instead.
+func resolveNativeHints(cs *system, hintFunctions map[csolver.HintID]csolver.Hint) map[csolver.HintID]nativeHintFn {
+	var resolved map[csolver.HintID]nativeHintFn
+	for id, name := range cs.MHintsDependencies {
+		fn, ok := nativeHintByName[name]
+		if !ok {
+			continue
+		}
+		f, ok := hintFunctions[id]
+		if !ok || csolver.GetHintName(f) != name {
+			continue
+		}
+		if resolved == nil {
+			resolved = make(map[csolver.HintID]nativeHintFn, len(nativeHintByName))
+		}
+		resolved[id] = fn
+	}
+	return resolved
+}
+
+func (s *solver) setUint64(id int, value uint64) {
+	var v fr.Element
+	v.SetUint64(value)
+	s.set(id, v)
+}
+
+// solveBitsNBits is the native impl of std/math/bits.nBits.
+func (s *solver) solveBitsNBits(calldata []uint32, _ *scratch) error {
+	if int(calldata[2]) != 1 {
+		return fmt.Errorf("expected one input, got %d", calldata[2])
+	}
+	input, nRead := s.readLinearExpression(calldata[3:])
+	j := 3 + nRead
+	outputStart, outputEnd := calldata[j], calldata[j+1]
+	for i := 0; i < int(outputEnd-outputStart); i++ {
+		s.setUint64(int(outputStart)+i, elementBitWindow(&input, i, 1))
+	}
+	return nil
+}
+
+// solveRangecheckDecompose is the native impl of std/rangecheck.DecomposeHint:
+// split the third input into nbLimbs uint64 limbs of `limbSize` bits each.
+// Falls back to the generic path when the input shape doesn't match the
+// uint64-limb fast path.
+func (s *solver) solveRangecheckDecompose(calldata []uint32, scratch *scratch) error {
+	hintID := csolver.HintID(calldata[1])
+	if int(calldata[2]) != 3 {
+		return fmt.Errorf("rangecheck decompose: expected 3 inputs")
+	}
+	j := 3
+	varSizeElement, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+	varSize, ok := elementToInt(&varSizeElement)
+	if !ok {
+		return s.solveHintGeneric(hintID, calldata, scratch)
+	}
+	limbSizeElement, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+	limbSize, ok := elementToInt(&limbSizeElement)
+	if !ok || limbSize <= 0 || limbSize >= 64 {
+		return s.solveHintGeneric(hintID, calldata, scratch)
+	}
+	val, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+
+	nbLimbs := (varSize + limbSize - 1) / limbSize
+	outputStart, outputEnd := calldata[j], calldata[j+1]
+	if int(outputEnd-outputStart) != nbLimbs {
+		return fmt.Errorf("rangecheck decompose: need %d outputs", nbLimbs)
+	}
+	mask := (uint64(1) << uint(limbSize)) - 1
+	for i := 0; i < nbLimbs; i++ {
+		s.setUint64(int(outputStart)+i, elementBitWindow(&val, i*limbSize, limbSize)&mask)
+	}
+	return nil
+}
+
+// solveLogderivargCount is the native impl of std/internal/logderivarg.countHint:
+// for each table row, count how many query rows match. Inputs are
+// (nbTable, nbRow, table_rows..., query_rows...). One output per table row.
+func (s *solver) solveLogderivargCount(calldata []uint32, scratch *scratch) error {
+	nbInputs := int(calldata[2])
+	if nbInputs <= 2 {
+		return fmt.Errorf("logderivarg count: at least two inputs required")
+	}
+	jEnd := skipLinearExpressions(calldata, nbInputs)
+	outputStart, outputEnd := calldata[jEnd], calldata[jEnd+1]
+
+	j := 3
+	nbTableElement, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+	nbTable, ok := elementToInt(&nbTableElement)
+	if !ok {
+		return fmt.Errorf("logderivarg count: first input must be table length")
+	}
+	nbRowElement, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+	nbRow, ok := elementToInt(&nbRowElement)
+	if !ok {
+		return fmt.Errorf("logderivarg count: second input must be row length")
+	}
+	if nbInputs < 2+nbTable*nbRow || (nbInputs-2-nbTable*nbRow)%nbRow != 0 {
+		return fmt.Errorf("logderivarg count: input shape doesn't match table layout")
+	}
+	if int(outputEnd-outputStart) != nbTable {
+		return fmt.Errorf("logderivarg count: output size mismatch")
+	}
+	nbQueries := (nbInputs - 2 - nbTable*nbRow) / nbRow
+	if nbQueries <= 0 {
+		return fmt.Errorf("logderivarg count: at least one query required")
+	}
+
+	counts := scratch.uint64s(nbTable)
+	if nbRow == 1 {
+		idx := scratch.elementMap(nbTable)
+		k := j
+		for i := 0; i < nbTable; i++ {
+			v, nRead := s.readLinearExpression(calldata[k:])
+			k += nRead
+			if _, exists := idx[v]; exists {
+				return fmt.Errorf("logderivarg count: duplicate table key")
+			}
+			idx[v] = i
+		}
+		for i := 0; i < nbQueries; i++ {
+			v, nRead := s.readLinearExpression(calldata[k:])
+			k += nRead
+			pos, ok := idx[v]
+			if !ok {
+				return fmt.Errorf("logderivarg count: query element not in table")
+			}
+			counts[pos]++
+		}
+	} else {
+		idx := scratch.stringMap(nbTable)
+		buf := scratch.byteKey(nbRow * fr.Bytes)
+		k := j
+		for i := 0; i < nbTable; i++ {
+			key, nRead := s.readRowKey(calldata[k:], nbRow, buf)
+			k += nRead
+			if _, exists := idx[key]; exists {
+				return fmt.Errorf("logderivarg count: duplicate table key")
+			}
+			idx[key] = i
+		}
+		for i := 0; i < nbQueries; i++ {
+			key, nRead := s.readRowKey(calldata[k:], nbRow, buf)
+			k += nRead
+			pos, ok := idx[key]
+			if !ok {
+				return fmt.Errorf("logderivarg count: query element not in table")
+			}
+			counts[pos]++
+		}
+	}
+
+	for i := 0; i < nbTable; i++ {
+		s.setUint64(int(outputStart)+i, counts[i])
+	}
+	return nil
+}
+
+// solveLogderivargBatchDivBySub is the native impl of
+// std/internal/logderivarg.batchDivBySubHint: for inputs (challenge, num_0,
+// ..., num_{n-1}, t_0, ..., t_{n-1}), compute num_i / (challenge - t_i) using
+// a single field inversion via Montgomery batch inversion.
+func (s *solver) solveLogderivargBatchDivBySub(calldata []uint32, scratch *scratch) error {
+	nbInputs := int(calldata[2])
+	jEnd := skipLinearExpressions(calldata, nbInputs)
+	outputStart, outputEnd := calldata[jEnd], calldata[jEnd+1]
+	n := int(outputEnd - outputStart)
+	if nbInputs != 1+2*n {
+		return fmt.Errorf("logderivarg batchDivBySub: expected %d inputs, got %d", 1+2*n, nbInputs)
+	}
+
+	j := 3
+	challenge, nRead := s.readLinearExpression(calldata[j:])
+	j += nRead
+
+	numerators := scratch.frElements(n)
+	for i := 0; i < n; i++ {
+		numerators[i], nRead = s.readLinearExpression(calldata[j:])
+		j += nRead
+	}
+
+	diffs := scratch.frElements2(n)
+	prefix := scratch.frElements3(n)
+	var acc fr.Element
+	acc.SetOne()
+	var diff fr.Element
+	for i := 0; i < n; i++ {
+		t, nRead := s.readLinearExpression(calldata[j:])
+		j += nRead
+		diff.Sub(&challenge, &t)
+		if diff.IsZero() {
+			return fmt.Errorf("logderivarg batchDivBySub: no inverse at index %d", i)
+		}
+		diffs[i] = diff
+		prefix[i] = acc
+		acc.Mul(&acc, &diff)
+	}
+
+	var invAcc fr.Element
+	invAcc.Inverse(&acc)
+	for i := n - 1; i >= 0; i-- {
+		var inv, res fr.Element
+		inv.Mul(&prefix[i], &invAcc)
+		invAcc.Mul(&invAcc, &diffs[i])
+		res.Mul(&numerators[i], &inv)
+		s.set(int(outputStart)+i, res)
+	}
+	return nil
+}
+
+// readRowKey concatenates nbRow linear-expression values into buf and returns
+// it as a string key. The string aliases buf, so the caller must consume the
+// key before reading the next row into the same buffer (map lookups copy on
+// hash, so this is safe inside this hint).
+func (s *solver) readRowKey(calldata []uint32, nbRow int, buf []byte) (string, int) {
+	j := 0
+	for i := 0; i < nbRow; i++ {
+		v, nRead := s.readLinearExpression(calldata[j:])
+		j += nRead
+		bytes := v.Bytes()
+		copy(buf[i*fr.Bytes:(i+1)*fr.Bytes], bytes[:])
+	}
+	return string(buf), j
+}
+
+// skipLinearExpressions advances past `n` linear expressions starting from
+// calldata[3] and returns the offset of the next field.
 func skipLinearExpressions(calldata []uint32, n int) int {
 	j := 3
 	for i := 0; i < n; i++ {
@@ -542,219 +750,23 @@ func skipLinearExpressions(calldata []uint32, n int) int {
 	return j
 }
 
-// processInstruction decodes the instruction and execute blueprint-defined logic.
-// an instruction can encode a hint, a custom constraint or a generic constraint.
-func (s *solver) processInstruction(pi constraint.PackedInstruction, scratch *scratch) error {
-	// fetch the blueprint
-	blueprint := s.Blueprints[pi.BlueprintID]
-	if s.Type == constraint.SystemSparseR1CS {
-		if handled, err := s.processSparseR1CInstruction(pi, blueprint); handled {
-			return err
-		}
+// elementToInt returns v as a non-negative int when it fits, false otherwise.
+func elementToInt(v *fr.Element) (int, bool) {
+	if !v.IsUint64() {
+		return 0, false
 	}
-	if _, ok := blueprint.(*constraint.BlueprintGenericHint); ok {
-		return s.solveGenericHint(s.CallData[pi.StartCallData:], scratch)
+	n := v.Uint64()
+	const maxInt = int(^uint(0) >> 1)
+	if n > uint64(maxInt) {
+		return 0, false
 	}
-	if s.Type == constraint.SystemSparseR1CS {
-		if _, ok := blueprint.(*constraint.BlueprintBatchInverse[constraint.U32]); ok {
-			return s.solveBatchInverse(s.CallData[pi.StartCallData:], pi.WireOffset, scratch)
-		}
-	}
-
-	inst := pi.Unpack(&s.System)
-	cID := inst.ConstraintOffset // here we have 1 constraint in the instruction only
-
-	if s.Type == constraint.SystemR1CS {
-		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
-			// TODO @gbotrel we use the solveR1C method for now, having user-defined
-			// blueprint for R1CS would require constraint.Solver interface to add methods
-			// to set a,b,c since it's more efficient to compute these while we solve.
-			bc.DecompressR1C(&scratch.tR1C, inst)
-			return s.solveR1C(cID, &scratch.tR1C)
-		}
-	}
-
-	// blueprint declared "I know how to solve this."
-	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U32]); ok {
-		if err := bc.Solve(s, inst); err != nil {
-			return s.wrapErrWithDebugInfo(cID, err)
-		}
-		if s.Type == constraint.SystemSparseR1CS {
-			if sparse, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-				var c constraint.SparseR1C
-				sparse.DecompressSparseR1C(&c, inst)
-				s.setSparseLRO(cID, c.XA, c.XB, c.XC)
-			}
-		}
-		return nil
-	}
-
-	// blueprint encodes a hint, we execute.
-	// TODO @gbotrel may be worth it to move hint logic in blueprint "solve"
-	if bc, ok := blueprint.(constraint.BlueprintHint); ok {
-		bc.DecompressHint(&scratch.tHint, inst)
-		return s.solveWithHint(&scratch.tHint, scratch)
-	}
-
-	return nil
-}
-
-func (s *solver) solveGenericHint(calldata []uint32, scratch *scratch) error {
-	hintID := csolver.HintID(calldata[1])
-	switch s.nativeHints[hintID] {
-	case nativeHintLogderivargCount:
-		return s.solveLogderivargCountHint(calldata, scratch)
-	case nativeHintLogderivargBatchDivBySub:
-		return s.solveLogderivargBatchDivBySubHint(calldata, scratch)
-	case nativeHintRangecheckDecompose:
-		return s.solveRangecheckDecomposeHint(calldata, scratch)
-	case nativeHintBitsNBits:
-		return s.solveBitsNBitsHint(calldata)
-	case nativeHintBsb22CommitmentPlaceholder:
-		return s.solveBsb22CommitmentPlaceholderHint(hintID, calldata, scratch)
-	}
-	return s.solveGenericHintBigInt(hintID, calldata, scratch)
-}
-
-func (s *solver) solveGenericHintBigInt(hintID csolver.HintID, calldata []uint32, scratch *scratch) error {
-	f, ok := s.mHintsFunctions[hintID]
-	if !ok {
-		return errors.New("missing hint function")
-	}
-
-	nbInputs := int(calldata[2])
-	inputs := scratch.bigIntInputs(nbInputs)
-
-	j := 3
-	for i := 0; i < nbInputs; i++ {
-		nRead := s.setBigIntFromLinearExpression(inputs[i], calldata[j:], scratch, i)
-		j += nRead
-	}
-
-	outputStart, outputEnd := calldata[j], calldata[j+1]
-	nbOutputs := int(outputEnd - outputStart)
-	outputs := scratch.bigIntOutputs(nbOutputs)
-	for i := 0; i < nbOutputs; i++ {
-		outputs[i].SetUint64(0)
-	}
-
-	err := f(s.q, inputs, outputs)
-
-	var v fr.Element
-	for i := range outputs {
-		v.SetBigInt(outputs[i])
-		s.set(int(outputStart)+i, v)
-	}
-
-	return err
-}
-
-func (s *solver) solveBsb22CommitmentPlaceholderHint(hintID csolver.HintID, calldata []uint32, scratch *scratch) error {
-	f, ok := s.mHintsFunctions[hintID]
-	if !ok {
-		return errors.New("missing hint function")
-	}
-	outputStart, outputEnd := calldata[calldata[0]-2], calldata[calldata[0]-1]
-	nbOutputs := int(outputEnd - outputStart)
-	outputs := scratch.bigIntOutputs(nbOutputs)
-	for i := 0; i < nbOutputs; i++ {
-		outputs[i].SetUint64(0)
-	}
-	err := f(s.q, nil, outputs)
-	var v fr.Element
-	for i := range outputs {
-		v.SetBigInt(outputs[i])
-		s.set(int(outputStart)+i, v)
-	}
-	return err
-}
-
-func (s *solver) setBigIntFromLinearExpression(dst *big.Int, calldata []uint32, scratch *scratch, inputIndex int) int {
-	n := int(calldata[0])
-	if n == 1 {
-		cID, vID := calldata[1], calldata[2]
-		if vID == math.MaxUint32 {
-			switch cID {
-			case constraint.CoeffIdZero:
-				dst.SetUint64(0)
-				return 3
-			case constraint.CoeffIdOne:
-				dst.SetUint64(1)
-				return 3
-			case constraint.CoeffIdTwo:
-				dst.SetUint64(2)
-				return 3
-			}
-		} else if cID == constraint.CoeffIdZero {
-			dst.SetUint64(0)
-			return 3
-		}
-	}
-	v, nRead := s.readLinearExpression(calldata)
-	scratch.setBigIntInput(dst, &v, inputIndex)
-	return nRead
-}
-
-func (s *solver) solveBitsNBitsHint(calldata []uint32) error {
-	nbInputs := int(calldata[2])
-	if nbInputs != 1 {
-		return fmt.Errorf("expected one input, got %d", nbInputs)
-	}
-	j := 3
-	input, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-	outputStart, outputEnd := calldata[j], calldata[j+1]
-
-	for i := 0; i < int(outputEnd-outputStart); i++ {
-		s.setUint64(int(outputStart)+i, elementBit(&input, i))
-	}
-	return nil
-}
-
-func (s *solver) solveRangecheckDecomposeHint(calldata []uint32, scratch *scratch) error {
-	nbInputs := int(calldata[2])
-	if nbInputs != 3 {
-		return fmt.Errorf("input must be 3 elements")
-	}
-	j := 3
-	varSizeElement, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-	varSize, ok := elementToInt(&varSizeElement)
-	if !ok {
-		return fmt.Errorf("first two inputs have to be uint64")
-	}
-	limbSizeElement, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-	limbSize, ok := elementToInt(&limbSizeElement)
-	if !ok {
-		return fmt.Errorf("first two inputs have to be uint64")
-	}
-	if limbSize <= 0 || limbSize >= 64 {
-		return s.solveGenericHintBigInt(csolver.HintID(calldata[1]), calldata, scratch)
-	}
-	val, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-
-	nbLimbs := decompositionSize(varSize, limbSize)
-	outputStart, outputEnd := calldata[j], calldata[j+1]
-	if int(outputEnd-outputStart) != nbLimbs {
-		return fmt.Errorf("need %d outputs instead to decompose", nbLimbs)
-	}
-
-	mask := (uint64(1) << uint(limbSize)) - 1
-	for i := 0; i < nbLimbs; i++ {
-		bitOffset := i * limbSize
-		s.setUint64(int(outputStart)+i, elementBitWindow(&val, bitOffset, limbSize)&mask)
-	}
-	return nil
+	return int(n), true
 }
 
 const elementWordBits = 32
 
-func elementBit(v *fr.Element, bitOffset int) uint64 {
-	return elementBitWindow(v, bitOffset, 1)
-}
-
+// elementBitWindow extracts `bitSize` bits from v starting at `bitOffset`.
+// Callers must keep bitSize in [1, 63]: a shift by 64 is undefined in Go.
 func elementBitWindow(v *fr.Element, bitOffset, bitSize int) uint64 {
 	bits := v.Bits()
 	var out uint64
@@ -776,203 +788,117 @@ func elementBitWindow(v *fr.Element, bitOffset, bitSize int) uint64 {
 	return out
 }
 
-func decompositionSize(varSize int, limbSize int) int {
-	return (varSize + limbSize - 1) / limbSize
+// solveSparseR1CAdd: qL.xa + qR.xb + qC == xc.
+// Calldata layout: xa, xb, xc, qL, qR, qC.
+func (s *solver) solveSparseR1CAdd(calldata []uint32) {
+	a := s.valueWithCoeff(calldata[3], calldata[0])
+	if calldata[4] != constraint.CoeffIdZero {
+		b := s.valueWithCoeff(calldata[4], calldata[1])
+		a.Add(&a, &b)
+	}
+	if calldata[5] != constraint.CoeffIdZero {
+		a.Add(&a, &s.Coefficients[calldata[5]])
+	}
+	s.set(int(calldata[2]), a)
 }
 
-func (s *solver) solveLogderivargBatchDivBySubHint(calldata []uint32, scratch *scratch) error {
-	nbInputs := int(calldata[2])
-	jEnd := skipLinearExpressions(calldata, nbInputs)
-	outputStart, outputEnd := calldata[jEnd], calldata[jEnd+1]
-	n := int(outputEnd - outputStart)
-	if nbInputs != 1+2*n {
-		return fmt.Errorf("expected %d inputs, got %d", 1+2*n, nbInputs)
-	}
+// solveSparseR1CMul: qM.(xa.xb) == xc.
+// Calldata layout: xa, xb, xc, qM.
+func (s *solver) solveSparseR1CMul(calldata []uint32) {
+	m := s.valueWithCoeff(calldata[3], calldata[0])
+	m.Mul(&m, &s.values[calldata[1]])
+	s.set(int(calldata[2]), m)
+}
 
-	j := 3
-	challenge, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-
-	numerators := scratch.frElements(n)
-	for i := 0; i < n; i++ {
-		numerators[i], nRead = s.readLinearExpression(calldata[j:])
-		j += nRead
-	}
-
-	diffs := scratch.frElements2(n)
-	prefix := scratch.frElements3(n)
-	var acc fr.Element
-	acc.SetOne()
-	var diff fr.Element
-	for i := 0; i < n; i++ {
-		tableVal, nRead := s.readLinearExpression(calldata[j:])
-		j += nRead
-		diff.Sub(&challenge, &tableVal)
-		if diff.IsZero() {
-			return fmt.Errorf("no modular inverse at index %d", i)
-		}
-		diffs[i] = diff
-		prefix[i] = acc
-		acc.Mul(&acc, &diff)
-	}
-
-	var invAcc fr.Element
-	invAcc.Inverse(&acc)
-	for i := n - 1; i >= 0; i-- {
-		var inv, res fr.Element
-		inv.Mul(&prefix[i], &invAcc)
-		invAcc.Mul(&invAcc, &diffs[i])
-		res.Mul(&numerators[i], &inv)
-		s.set(int(outputStart)+i, res)
+// solveSparseR1CBool checks qL.xa + qM.(xa.xa) == 0.
+// Calldata layout: xa, qL, qM.
+func (s *solver) solveSparseR1CBool(calldata []uint32) error {
+	v1 := s.valueWithCoeff(calldata[1], calldata[0])
+	v2 := s.valueWithCoeff(calldata[2], calldata[0])
+	v := s.values[calldata[0]]
+	v.Mul(&v, &v2).Add(&v, &v1)
+	if !v.IsZero() {
+		return errors.New("boolean constraint doesn't hold")
 	}
 	return nil
 }
 
-func (s *solver) solveLogderivargCountHint(calldata []uint32, scratch *scratch) error {
-	nbInputs := int(calldata[2])
-	if nbInputs <= 2 {
-		return fmt.Errorf("at least two input required")
-	}
-	jEnd := skipLinearExpressions(calldata, nbInputs)
-	outputStart, outputEnd := calldata[jEnd], calldata[jEnd+1]
-
-	j := 3
-	nbTableElement, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-	nbTable, ok := elementToInt(&nbTableElement)
-	if !ok {
-		return fmt.Errorf("first element must be length of table")
-	}
-	nbRowElement, nRead := s.readLinearExpression(calldata[j:])
-	j += nRead
-	nbRow, ok := elementToInt(&nbRowElement)
-	if !ok {
-		return fmt.Errorf("first element must be length of row")
-	}
-	if nbInputs < 2+nbTable*nbRow {
-		return fmt.Errorf("input doesn't fit table")
-	}
-	if int(outputEnd-outputStart) != nbTable {
-		return fmt.Errorf("output not table size")
-	}
-	if (nbInputs-2-nbTable*nbRow)%nbRow != 0 {
-		return fmt.Errorf("query count not full integer")
-	}
-	nbQueries := (nbInputs - 2 - nbTable*nbRow) / nbRow
-	if nbQueries <= 0 {
-		return fmt.Errorf("at least one query required")
+// solveGenericSparseR1C: qL.xa + qR.xb + qO.xc + qM.(xa.xb) + qC == 0.
+// Calldata layout: xa, xb, xc, qL, qR, qO, qM, qC, commitment.
+func (s *solver) solveGenericSparseR1C(calldata []uint32) error {
+	if constraint.CommitmentConstraint(calldata[8]) != constraint.NOT {
+		// commitment-related constraints don't need solving, the commitment
+		// computation will set the wire.
+		return nil
 	}
 
-	counts := scratch.uint64s(nbTable)
-	if nbRow == 1 {
-		return s.solveLogderivargCountHintSingleColumn(calldata[j:], outputStart, nbTable, nbQueries, counts, scratch)
-	}
-	return s.solveLogderivargCountHintMultiColumn(calldata[j:], outputStart, nbTable, nbRow, nbQueries, counts, scratch)
-}
+	xa, xb, xc := calldata[0], calldata[1], calldata[2]
+	ql, qr, qo, qm, qc := calldata[3], calldata[4], calldata[5], calldata[6], calldata[7]
 
-func elementToInt(v *fr.Element) (int, bool) {
-	if !v.IsUint64() {
-		return 0, false
-	}
-	n := v.Uint64()
-	const maxInt = int(^uint(0) >> 1)
-	if n > uint64(maxInt) {
-		return 0, false
-	}
-	return int(n), true
-}
-
-func (s *solver) solveLogderivargCountHintSingleColumn(calldata []uint32, outputStart uint32, nbTable, nbQueries int, counts []uint64, scratch *scratch) error {
-	index := scratch.countMap1
-	if index == nil {
-		index = make(map[fr.Element]int, nbTable)
-		scratch.countMap1 = index
-	} else {
-		clear(index)
-	}
-
-	j := 0
-	for i := 0; i < nbTable; i++ {
-		v, nRead := s.readLinearExpression(calldata[j:])
-		j += nRead
-		if _, ok := index[v]; ok {
-			return fmt.Errorf("duplicate key")
+	if !s.solved[xa] {
+		// L(qL + qM.xb) = -(qR.xb + qO.xc + qC)
+		den := s.valueWithCoeff(qm, xb)
+		den.Add(&den, &s.Coefficients[ql])
+		if !inverseInPlace(&den) {
+			return constraint.ErrDivideByZero
 		}
-		index[v] = i
+		num := s.valueWithCoeff(qr, xb)
+		v2 := s.valueWithCoeff(qo, xc)
+		num.Add(&num, &v2).Add(&num, &s.Coefficients[qc])
+		num.Mul(&num, &den).Neg(&num)
+		s.set(int(xa), num)
+		return nil
 	}
-	for i := 0; i < nbQueries; i++ {
-		v, nRead := s.readLinearExpression(calldata[j:])
-		j += nRead
-		idx, ok := index[v]
-		if !ok {
-			return fmt.Errorf("query element not in table")
+	if !s.solved[xb] {
+		den := s.valueWithCoeff(qm, xa)
+		den.Add(&den, &s.Coefficients[qr])
+		if !inverseInPlace(&den) {
+			return constraint.ErrDivideByZero
 		}
-		counts[idx]++
+		num := s.valueWithCoeff(ql, xa)
+		v2 := s.valueWithCoeff(qo, xc)
+		num.Add(&num, &v2).Add(&num, &s.Coefficients[qc])
+		num.Mul(&num, &den).Neg(&num)
+		s.set(int(xb), num)
+		return nil
+	}
+	if !s.solved[xc] {
+		o := s.valueWithCoeff(qm, xa)
+		o.Mul(&o, &s.values[xb])
+		l := s.valueWithCoeff(ql, xa)
+		r := s.valueWithCoeff(qr, xb)
+		o.Add(&o, &l).Add(&o, &r).Add(&o, &s.Coefficients[qc])
+		den := s.Coefficients[qo]
+		if !inverseInPlace(&den) {
+			return constraint.ErrDivideByZero
+		}
+		o.Mul(&o, &den).Neg(&o)
+		s.set(int(xc), o)
+		return nil
 	}
 
-	for i := 0; i < nbTable; i++ {
-		s.setUint64(int(outputStart)+i, counts[i])
+	// all wires solved: assertion check.
+	l := s.valueWithCoeff(ql, xa)
+	r := s.valueWithCoeff(qr, xb)
+	m := s.valueWithCoeff(qm, xa)
+	m.Mul(&m, &s.values[xb])
+	o := s.valueWithCoeff(qo, xc)
+	t := m
+	t.Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &s.Coefficients[qc])
+	if !t.IsZero() {
+		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + %s + %s != 0",
+			l.String(), r.String(), o.String(), m.String(), s.Coefficients[qc].String())
 	}
 	return nil
 }
 
-func (s *solver) solveLogderivargCountHintMultiColumn(calldata []uint32, outputStart uint32, nbTable, nbRow, nbQueries int, counts []uint64, scratch *scratch) error {
-	index := scratch.countMap
-	if index == nil {
-		index = make(map[string]int, nbTable)
-		scratch.countMap = index
-	} else {
-		clear(index)
-	}
-	bufLen := nbRow * fr.Bytes
-	if cap(scratch.countKey) < bufLen {
-		scratch.countKey = make([]byte, bufLen)
-	} else {
-		scratch.countKey = scratch.countKey[:bufLen]
-	}
-
-	j := 0
-	for i := 0; i < nbTable; i++ {
-		key, nRead := s.readCountRowKey(calldata[j:], nbRow, scratch.countKey)
-		j += nRead
-		if _, ok := index[key]; ok {
-			return fmt.Errorf("duplicate key")
-		}
-		index[key] = i
-	}
-	for i := 0; i < nbQueries; i++ {
-		key, nRead := s.readCountRowKey(calldata[j:], nbRow, scratch.countKey)
-		j += nRead
-		idx, ok := index[key]
-		if !ok {
-			return fmt.Errorf("query element not in table")
-		}
-		counts[idx]++
-	}
-
-	var v fr.Element
-	for i := 0; i < nbTable; i++ {
-		v.SetUint64(counts[i])
-		s.set(int(outputStart)+i, v)
-	}
-	return nil
-}
-
-func (s *solver) readCountRowKey(calldata []uint32, nbRow int, buf []byte) (string, int) {
-	j := 0
-	for i := 0; i < nbRow; i++ {
-		v, nRead := s.readLinearExpression(calldata[j:])
-		j += nRead
-		bytes := v.Bytes()
-		copy(buf[i*fr.Bytes:(i+1)*fr.Bytes], bytes[:])
-	}
-	return string(buf), j
-}
-
-func (s *solver) solveBatchInverse(calldata []uint32, wireOffset uint32, scratch *scratch) error {
+// solveBatchInverse computes Montgomery-style batch inversion of n linear
+// expressions, writing the inverses to wires [wireOffset, wireOffset+n).
+// Calldata layout: totalSize, n, then n linear expressions in Read() format.
+func (s *solver) solveBatchInverse(calldata []uint32, wireOffset uint32, scratch *scratch) {
 	n := int(calldata[1])
 	if n == 0 {
-		return nil
+		return
 	}
 
 	inputs := scratch.frElements(n)
@@ -1005,149 +931,38 @@ func (s *solver) solveBatchInverse(calldata []uint32, wireOffset uint32, scratch
 		invAcc.Mul(&invAcc, &inputs[i])
 		s.set(int(wireOffset)+i, result)
 	}
-	return nil
 }
 
-func (s *solver) processSparseR1CInstruction(pi constraint.PackedInstruction, blueprint constraint.Blueprint) (bool, error) {
-	calldata := s.CallData[pi.StartCallData:]
-	cID := pi.ConstraintOffset
-
-	switch blueprint.(type) {
-	case *constraint.BlueprintSparseR1CAdd[constraint.U32]:
-		s.solveSparseR1CAdd(calldata)
-		s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
-		return true, nil
-	case *constraint.BlueprintSparseR1CMul[constraint.U32]:
-		s.solveSparseR1CMul(calldata)
-		s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
-		return true, nil
-	case *constraint.BlueprintSparseR1CBool[constraint.U32]:
-		if err := s.checkSparseR1CBool(calldata); err != nil {
-			return true, s.wrapErrWithDebugInfo(cID, err)
-		}
-		s.setSparseLRO(cID, calldata[0], calldata[0], 0)
-		return true, nil
-	case *constraint.BlueprintGenericSparseR1C[constraint.U32]:
-		if err := s.solveGenericSparseR1C(calldata); err != nil {
-			return true, s.wrapErrWithDebugInfo(cID, err)
-		}
-		s.setSparseLRO(cID, calldata[0], calldata[1], calldata[2])
-		return true, nil
-	default:
-		return false, nil
+// readLinearExpression evaluates a length-prefixed linear expression encoded as
+// (n, cID_0, vID_0, ..., cID_{n-1}, vID_{n-1}) and returns the value and the
+// number of uint32 words consumed.
+func (s *solver) readLinearExpression(calldata []uint32) (fr.Element, int) {
+	var v fr.Element
+	n := int(calldata[0])
+	j := 1
+	for k := 0; k < n; k++ {
+		s.accumulateInto(constraint.Term{CID: calldata[j], VID: calldata[j+1]}, &v)
+		j += 2
 	}
+	return v, j
 }
 
-func (s *solver) setSparseLRO(cID, xa, xb, xc uint32) {
-	i := len(s.Public) + int(cID)
-	s.l[i] = s.values[xa]
-	s.r[i] = s.values[xb]
-	s.o[i] = s.values[xc]
-}
-
-func (s *solver) solveSparseR1CAdd(calldata []uint32) {
-	// qL⋅xa + qR⋅xb + qC == xc
-	a := s.valueWithCoeff(calldata[3], calldata[0])
-	if calldata[4] != constraint.CoeffIdZero {
-		b := s.valueWithCoeff(calldata[4], calldata[1])
-		a.Add(&a, &b)
+// inverseInPlace inverts v in place, returning false when v is zero.
+// Shortcuts ±1 to avoid the modular inverse.
+func inverseInPlace(v *fr.Element) bool {
+	if v.IsZero() {
+		return false
 	}
-	if calldata[5] != constraint.CoeffIdZero {
-		a.Add(&a, &s.Coefficients[calldata[5]])
+	if v.IsOne() {
+		return true
 	}
-	s.set(int(calldata[2]), a)
-}
-
-func (s *solver) solveSparseR1CMul(calldata []uint32) {
-	// qM⋅(xa⋅xb) == xc
-	m := s.valueWithCoeff(calldata[3], calldata[0])
-	m.Mul(&m, &s.values[calldata[1]])
-	s.set(int(calldata[2]), m)
-}
-
-func (s *solver) checkSparseR1CBool(calldata []uint32) error {
-	// qL⋅xa + qM⋅(xa⋅xa) == 0
-	v1 := s.valueWithCoeff(calldata[1], calldata[0])
-	v2 := s.valueWithCoeff(calldata[2], calldata[0])
-	v := s.values[calldata[0]]
-	v.Mul(&v, &v2).Add(&v, &v1)
-	if !v.IsZero() {
-		return errors.New("boolean constraint doesn't hold")
+	var neg fr.Element
+	neg.Neg(v)
+	if neg.IsOne() {
+		return true
 	}
-	return nil
-}
-
-func (s *solver) solveGenericSparseR1C(calldata []uint32) error {
-	// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xa⋅xb) + qC == 0
-	if constraint.CommitmentConstraint(calldata[8]) != constraint.NOT {
-		return nil
-	}
-
-	xa, xb, xc := calldata[0], calldata[1], calldata[2]
-	ql, qr, qo, qm, qc := calldata[3], calldata[4], calldata[5], calldata[6], calldata[7]
-
-	var ok bool
-	if !s.solved[xa] {
-		den := s.valueWithCoeff(qm, xb)
-		den.Add(&den, &s.Coefficients[ql])
-		if ok = inverseInPlace(&den); !ok {
-			return constraint.ErrDivideByZero
-		}
-		num := s.valueWithCoeff(qr, xb)
-		v2 := s.valueWithCoeff(qo, xc)
-		num.Add(&num, &v2).Add(&num, &s.Coefficients[qc])
-		num.Mul(&num, &den).Neg(&num)
-		s.set(int(xa), num)
-		return nil
-	}
-
-	if !s.solved[xb] {
-		den := s.valueWithCoeff(qm, xa)
-		den.Add(&den, &s.Coefficients[qr])
-		if ok = inverseInPlace(&den); !ok {
-			return constraint.ErrDivideByZero
-		}
-		num := s.valueWithCoeff(ql, xa)
-		v2 := s.valueWithCoeff(qo, xc)
-		num.Add(&num, &v2).Add(&num, &s.Coefficients[qc])
-		num.Mul(&num, &den).Neg(&num)
-		s.set(int(xb), num)
-		return nil
-	}
-
-	if !s.solved[xc] {
-		o := s.valueWithCoeff(qm, xa)
-		o.Mul(&o, &s.values[xb])
-		l := s.valueWithCoeff(ql, xa)
-		r := s.valueWithCoeff(qr, xb)
-		o.Add(&o, &l).Add(&o, &r).Add(&o, &s.Coefficients[qc])
-
-		den := s.Coefficients[qo]
-		if ok = inverseInPlace(&den); !ok {
-			return constraint.ErrDivideByZero
-		}
-		o.Mul(&o, &den).Neg(&o)
-		s.set(int(xc), o)
-		return nil
-	}
-
-	l := s.valueWithCoeff(ql, xa)
-	r := s.valueWithCoeff(qr, xb)
-	m := s.valueWithCoeff(qm, xa)
-	m.Mul(&m, &s.values[xb])
-	o := s.valueWithCoeff(qo, xc)
-	t := m
-	t.Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &s.Coefficients[qc])
-	if !t.IsZero() {
-		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + %s + %s != 0",
-			l.String(),
-			r.String(),
-			o.String(),
-			m.String(),
-			s.Coefficients[qc].String(),
-		)
-	}
-	return nil
+	v.Inverse(v)
+	return true
 }
 
 // run runs the solver. it returns an error if a constraint is not satisfied or if not all wires
@@ -1156,7 +971,7 @@ func (s *solver) run() error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.
-	const minWorkPerCPU = 25.0 // TODO @gbotrel revisit that with blocks.
+	const minWorkPerCPU = 50.0 // TODO @gbotrel revisit that with blocks.
 
 	// cs.Levels has a list of levels, where all constraints in a level l(n) are independent
 	// and may only have dependencies on previous levels
@@ -1253,16 +1068,11 @@ func (s *solver) run() error {
 		}
 	}
 
-	return s.checkAllSolved()
-}
-
-func (s *solver) checkAllSolved() error {
 	for i := range s.solved {
 		if !s.solved[i] {
 			return errors.New("solver didn't assign a value to all wires")
 		}
 	}
-
 	return nil
 }
 
@@ -1387,89 +1197,108 @@ func (s *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedConstra
 	return &UnsatisfiedConstraintError{CID: int(cID), Err: err, DebugInfo: debugInfo}
 }
 
-// temporary variables to avoid memallocs in hotloop
+// scratch holds per-worker reusable buffers so the solver hot loop avoids
+// allocations across instructions. Each goroutine in run() owns one.
 type scratch struct {
-	tR1C         constraint.R1C
-	tHint        constraint.HintMapping
-	elements     []fr.Element
-	elements2    []fr.Element
-	elements3    []fr.Element
-	counts       []uint64
-	countMap1    map[fr.Element]int
-	countMap     map[string]int
-	countKey     []byte
+	tR1C constraint.R1C
+
+	// fr.Element arenas; three distinct slices because logderiv batch divide
+	// needs three simultaneously (numerators + diffs + prefix products).
+	elements  []fr.Element
+	elements2 []fr.Element
+	elements3 []fr.Element
+
+	counts []uint64 // logderiv count outputs
+
+	// per-shape lookup tables for logderiv count. Allocated once, cleared per use.
+	mapElement map[fr.Element]int
+	mapString  map[string]int
+	keyBuf     []byte
+
+	// big.Int arenas for hint inputs/outputs. ptrs alias values so the hint
+	// signature ([]*big.Int) gets stable pointers across calls.
 	inputValues  []big.Int
 	inputs       []*big.Int
-	inputWords   []big.Word
 	outputValues []big.Int
 	outputs      []*big.Int
+	// inputWords backs all input big.Ints' nat slices in a single allocation,
+	// so converting fr.Element -> big.Int never allocates. Sized in fr-limb
+	// units; one input occupies fr.Limbs words.
+	inputWords []big.Word
 }
 
-func (s *scratch) frElements(n int) []fr.Element {
-	if cap(s.elements) < n {
-		s.elements = make([]fr.Element, n)
-	} else {
-		s.elements = s.elements[:n]
-	}
-	return s.elements
-}
+func (s *scratch) frElements(n int) []fr.Element  { return growFrSlice(&s.elements, n) }
+func (s *scratch) frElements2(n int) []fr.Element { return growFrSlice(&s.elements2, n) }
+func (s *scratch) frElements3(n int) []fr.Element { return growFrSlice(&s.elements3, n) }
 
-func (s *scratch) frElements2(n int) []fr.Element {
-	if cap(s.elements2) < n {
-		s.elements2 = make([]fr.Element, n)
-	} else {
-		s.elements2 = s.elements2[:n]
-	}
-	return s.elements2
-}
-
-func (s *scratch) frElements3(n int) []fr.Element {
-	if cap(s.elements3) < n {
-		s.elements3 = make([]fr.Element, n)
-	} else {
-		s.elements3 = s.elements3[:n]
-	}
-	return s.elements3
+func growFrSlice(p *[]fr.Element, n int) []fr.Element {
+	*p = slices.Grow((*p)[:0], n)[:n]
+	return *p
 }
 
 func (s *scratch) uint64s(n int) []uint64 {
-	if cap(s.counts) < n {
-		s.counts = make([]uint64, n)
-	} else {
-		s.counts = s.counts[:n]
-		clear(s.counts)
-	}
+	s.counts = slices.Grow(s.counts[:0], n)[:n]
+	clear(s.counts)
 	return s.counts
 }
 
-func (s *scratch) bigIntInputs(n int) []*big.Int {
-	s.inputValues, s.inputs = resizeBigIntScratch(s.inputValues, s.inputs, n)
+func (s *scratch) elementMap(hint int) map[fr.Element]int {
+	if s.mapElement == nil {
+		s.mapElement = make(map[fr.Element]int, hint)
+	} else {
+		clear(s.mapElement)
+	}
+	return s.mapElement
+}
+
+func (s *scratch) stringMap(hint int) map[string]int {
+	if s.mapString == nil {
+		s.mapString = make(map[string]int, hint)
+	} else {
+		clear(s.mapString)
+	}
+	return s.mapString
+}
+
+func (s *scratch) byteKey(n int) []byte {
+	s.keyBuf = slices.Grow(s.keyBuf[:0], n)[:n]
+	return s.keyBuf
+}
+
+func (s *scratch) bigInts(n int) []*big.Int {
+	s.inputValues, s.inputs = growBigInts(s.inputValues, s.inputs, n)
 	return s.inputs
 }
 
+// setInput converts v into inputs[i] without allocating. On 64-bit platforms
+// we point the input's nat slice at our shared inputWords arena; on 32-bit
+// platforms the limb width mismatch forces a generic BigInt() call.
+func (s *scratch) setInput(dst *big.Int, v *fr.Element, i int) {
+	bits := v.Bits()
+	dst.SetUint64(uint64(bits[0]))
+}
+
 func (s *scratch) bigIntOutputs(n int) []*big.Int {
-	s.outputValues, s.outputs = resizeBigIntScratch(s.outputValues, s.outputs, n)
+	s.outputValues, s.outputs = growBigInts(s.outputValues, s.outputs, n)
+	for i := 0; i < n; i++ {
+		s.outputs[i].SetUint64(0)
+	}
 	return s.outputs
 }
 
-func resizeBigIntScratch(values []big.Int, ptrs []*big.Int, n int) ([]big.Int, []*big.Int) {
+// growBigInts grows the values+ptrs pair in tandem so ptrs[i] always points to
+// values[i]. Reallocations are unavoidable (a moved values backing array would
+// invalidate every old pointer), but slices.Grow keeps the amortised cost low.
+func growBigInts(values []big.Int, ptrs []*big.Int, n int) ([]big.Int, []*big.Int) {
 	if cap(values) < n {
 		values = make([]big.Int, n)
-	} else {
-		values = values[:n]
-	}
-	if cap(ptrs) < n {
 		ptrs = make([]*big.Int, n)
-	} else {
-		ptrs = ptrs[:n]
+		for i := 0; i < n; i++ {
+			ptrs[i] = &values[i]
+		}
+		return values, ptrs
 	}
-	for i := 0; i < n; i++ {
-		ptrs[i] = &values[i]
-	}
+	values = values[:n]
+	ptrs = ptrs[:n]
 	return values, ptrs
-}
-
-func (s *scratch) setBigIntInput(dst *big.Int, v *fr.Element, i int) {
-	bits := v.Bits()
-	dst.SetUint64(uint64(bits[0]))
 }

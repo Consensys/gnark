@@ -111,8 +111,7 @@ func BenchmarkPlonkECMul30Solve(b *testing.B) {
 	b.ReportMetric(float64(len(spr.Levels)), "levels")
 	b.ReportMetric(float64(len(spr.Instructions)), "instructions")
 	b.ReportMetric(float64(len(fullWitness.Vector().(bls12377fr.Vector))), "witness_values")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := spr.Solve(fullWitness); err != nil {
 			b.Fatal(err)
 		}
@@ -123,8 +122,7 @@ func BenchmarkPlonkECMul30SolveSingleThread(b *testing.B) {
 	const nInstances = 30
 	spr := compileECMulSparseR1CS(b, nInstances)
 	fullWitness := buildECMulWitness(b, nInstances)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := spr.Solve(fullWitness, solver.WithNbTasks(1)); err != nil {
 			b.Fatal(err)
 		}
@@ -137,8 +135,7 @@ func BenchmarkPlonkECMul30SolveTasks(b *testing.B) {
 	fullWitness := buildECMulWitness(b, nInstances)
 	for _, nbTasks := range []int{2, 4, 8, 12, 18} {
 		b.Run(strconv.Itoa(nbTasks), func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				if _, err := spr.Solve(fullWitness, solver.WithNbTasks(nbTasks)); err != nil {
 					b.Fatal(err)
 				}
