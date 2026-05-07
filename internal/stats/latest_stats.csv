@@ -88,7 +88,7 @@ math/emulated/secp256k1_64,bls12_377,plonk,4025,3923
 math/emulated/secp256k1_64,bls12_381,plonk,4025,3923
 math/emulated/secp256k1_64,bw6_761,plonk,4025,3923
 pairing_bls12377,bw6_761,groth16,11876,11876
-pairing_bls12377,bw6_761,plonk,48130,48130
+pairing_bls12377,bw6_761,plonk,45565,45565
 pairing_bls12381,bn254,groth16,756837,1242260
 pairing_bls12381,bn254,plonk,2529578,2413653
 pairing_bn254,bn254,groth16,506052,823961
