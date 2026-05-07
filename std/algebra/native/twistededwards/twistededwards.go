@@ -33,6 +33,10 @@ type Curve interface {
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
 	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
+	// DoubleBaseScalarMulNonZero computes [s1]p1+[s2]p2 with the optimized
+	// lattice MSM path. It requires s1, s2 to be nonzero and p1, p2 to be
+	// non-identity points.
+	DoubleBaseScalarMulNonZero(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
 

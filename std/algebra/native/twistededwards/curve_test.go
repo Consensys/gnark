@@ -191,6 +191,22 @@ func (circuit *doubleBaseScalarMulCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type doubleBaseScalarMulNonZeroCircuit struct {
+	curveID twistededwards.ID
+	P1, P2  Point
+	S1, S2  frontend.Variable
+	Result  Point
+}
+
+func (circuit *doubleBaseScalarMulNonZeroCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+	assertPointEqual(api, curve.DoubleBaseScalarMulNonZero(circuit.P1, circuit.P2, circuit.S1, circuit.S2), circuit.Result)
+	return nil
+}
+
 func TestAdd(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -296,6 +312,21 @@ func TestDoubleBaseScalarMul(t *testing.T) {
 	}
 }
 
+func TestDoubleBaseScalarMulNonZero(t *testing.T) {
+	for _, curveID := range curves {
+		params, err := GetCurveParams(curveID)
+		if err != nil {
+			t.Fatalf("%s: get curve params: %v", curveLabel(curveID), err)
+		}
+		data := randomTestData(params, curveID)
+		circuit := &doubleBaseScalarMulNonZeroCircuit{curveID: curveID}
+		witness := &doubleBaseScalarMulNonZeroCircuit{P1: data.P1, P2: data.P2, S1: data.S1, S2: data.S2, Result: data.DoubleScalarMulResult}
+		invalidWitness := *witness
+		invalidWitness.Result = offCurvePoint()
+		checkCircuitForCurve(t, curveID, circuit, witness, &invalidWitness)
+	}
+}
+
 func TestAddEdgeCases(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -380,12 +411,9 @@ func TestFixedScalarMulEdgeCases(t *testing.T) {
 	}
 }
 
-// TestDoubleBaseScalarMulEdgeCases covers small but **non-degenerate** scalar
-// pairs. Note: as documented on `Curve.DoubleBaseScalarMul`, the optimized
-// MSM(3, 2n/3) and MSM(6, n/3) paths require both scalars non-zero and both
-// points non-identity. Callers needing zero-scalar / identity-point support
-// must use `ScalarMul` + `Add` directly, since this routine is now hardened
-// for the LLL-bounded fast path.
+// TestDoubleBaseScalarMulEdgeCases covers the complete public method, including
+// zero scalars and identity points. The optimized NonZero variant is tested
+// separately.
 func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -393,19 +421,14 @@ func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 			t.Fatalf("%s: get curve params: %v", curveLabel(curveID), err)
 		}
 		data := testDataForScalars(params, curveID, big.NewInt(1), big.NewInt(2))
+		base := Point{X: params.Base[0], Y: params.Base[1]}
 
 		t.Run(curveLabel(curveID), func(t *testing.T) {
-			// s1=2, s2=3 → 2·P1 + 3·P2 (small but non-degenerate)
-			d2 := testDataForScalars(params, curveID, big.NewInt(2), big.NewInt(3))
-			assertSolvedForCurve(t, curveID,
-				&doubleBaseScalarMulCircuit{curveID: curveID},
-				&doubleBaseScalarMulCircuit{P1: d2.P1, P2: d2.P2, S1: 2, S2: 3, Result: d2.DoubleScalarMulResult},
-			)
-			// s1=1, s2=2 (avoids the s2=0 / s1=0 cases the new MSM rejects)
-			assertSolvedForCurve(t, curveID,
-				&doubleBaseScalarMulCircuit{curveID: curveID},
-				&doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 2, Result: data.DoubleScalarMulResult},
-			)
+			circuit := &doubleBaseScalarMulCircuit{curveID: curveID}
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 0, Result: identityPoint()})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 0, Result: data.P1})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 1, Result: data.P2})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: identityPoint(), P2: base, S1: 1, S2: 2, Result: data.P2})
 		})
 	}
 }

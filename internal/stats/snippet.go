@@ -523,7 +523,7 @@ func initSnippets() {
 		P1.Y = newVariable()
 		P2.X = newVariable()
 		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMul(P1, P2, newVariable(), newVariable())
+		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
 	}, ecc.BN254)
 
 	registerSnippet("msm_jubjub_2", func(api frontend.API, newVariable func() frontend.Variable) {
@@ -536,7 +536,7 @@ func initSnippets() {
 		P1.Y = newVariable()
 		P2.X = newVariable()
 		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMul(P1, P2, newVariable(), newVariable())
+		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
 	}, ecc.BLS12_381)
 
 	registerSnippet("msm_bandersnatch_2", func(api frontend.API, newVariable func() frontend.Variable) {
@@ -549,7 +549,7 @@ func initSnippets() {
 		P1.Y = newVariable()
 		P2.X = newVariable()
 		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMul(P1, P2, newVariable(), newVariable())
+		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
 	}, ecc.BLS12_381)
 
 	registerSnippet("selector/mux_3", func(api frontend.API, newVariable func() frontend.Variable) {
