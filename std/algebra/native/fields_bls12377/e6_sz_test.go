@@ -2,11 +2,13 @@ package fields_bls12377
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
@@ -59,6 +61,46 @@ func TestE6MulSZCorrectness(t *testing.T) {
 	w2, _ := frontend.NewWitness(bad, field)
 	if err := ccs.IsSolved(w2); err == nil {
 		t.Fatal("E6.Mul SZ should reject wrong result")
+	}
+}
+
+func corruptHintOutput(h solver.Hint, output int) solver.Hint {
+	return func(field *big.Int, inputs, outputs []*big.Int) error {
+		if err := h(field, inputs, outputs); err != nil {
+			return err
+		}
+		outputs[output].Add(outputs[output], big.NewInt(1))
+		return nil
+	}
+}
+
+func TestE6MulSZRejectsCorruptedQuotientHint(t *testing.T) {
+	field := ecc.BW6_761.ScalarField()
+	a, b := randomE6(), randomE6()
+	var c bls12377.E6
+	c.Mul(&a, &b)
+
+	circuit := &e6MulSZCircuit{}
+	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	witness := &e6MulSZCircuit{}
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+	w, err := frontend.NewWitness(witness, field)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ccs.IsSolved(w, solver.OverrideHint(
+		solver.GetHintID(mulE6SZHint),
+		corruptHintOutput(mulE6SZHint, 6),
+	))
+	if err == nil {
+		t.Fatal("E6.Mul SZ should reject a corrupted quotient hint")
 	}
 }
 

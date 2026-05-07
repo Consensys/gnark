@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
@@ -89,6 +90,40 @@ func TestE12MulSZCorrectness(t *testing.T) {
 	w2, _ := frontend.NewWitness(badWitness, field)
 	if err := ccs.IsSolved(w2); err == nil {
 		t.Fatal("SZ mul should reject wrong result")
+	}
+}
+
+func TestE12MulSZRejectsCorruptedQuotientHint(t *testing.T) {
+	field := ecc.BW6_761.ScalarField()
+	a := randomE12()
+	b := randomE12()
+	var c bls12377.E12
+	c.Mul(&a, &b)
+
+	circuit := newE12MulNCircuit(1)
+	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	aCirc, bCirc, cCirc := assignE12Circuit(a, b, c)
+	witness := &e12MulNCircuit{
+		N: 1,
+		A: []E12{aCirc},
+		B: []E12{bCirc},
+		C: []E12{cCirc},
+	}
+	w, err := frontend.NewWitness(witness, field)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ccs.IsSolved(w, solver.OverrideHint(
+		solver.GetHintID(mulE12SZHint),
+		corruptHintOutput(mulE12SZHint, 12),
+	))
+	if err == nil {
+		t.Fatal("E12.Mul SZ should reject a corrupted quotient hint")
 	}
 }
 
