@@ -4,7 +4,6 @@
 package sw_bls12377
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -156,5 +155,3 @@ func TestG1AddUnifiedRandom(t *testing.T) {
 		test.WithValidAssignment(&witness),
 		test.WithCurves(ecc.BW6_761))
 }
-
-var _ = big.NewInt // keep import used if compiler complains
