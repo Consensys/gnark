@@ -19,6 +19,7 @@ import (
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	fr_stark "github.com/consensys/gnark-crypto/ecc/stark-curve/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -2661,4 +2662,51 @@ func TestScalarMulGLVAndFakeGLVCompletePrecomputeCollisionFails(t *testing.T) {
 
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+// zeroHalfGCDEisenstein replaces the honest halfGCDEisenstein hint with one
+// returning the all-zeros decomposition. Used by the regression below.
+func zeroHalfGCDEisenstein(_ *big.Int, _, outputs []*big.Int) error {
+	for i := range outputs {
+		outputs[i].SetUint64(0)
+	}
+	return nil
+}
+
+// TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
+// soundness issue in scalarMulGLVAndFakeGLV. A malicious halfGCDEisenstein
+// hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=0) makes
+// the relation s·(v1 + λ·v2) + u1 + λ·u2 = 0 vacuous and lets the
+// scalar-mul hint output be any point. The fix asserts NOT (v1=0 AND v2=0).
+func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
+	_, g := secp256k1.Generators()
+	s := big.NewInt(7)
+	var expected secp256k1.G1Affine
+	expected.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](expected.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](expected.Y),
+		},
+	}
+
+	// honest path satisfies the constraints
+	if err := test.IsSolved(&circuit, &witness, testCurve.ScalarField()); err != nil {
+		t.Fatalf("honest path should be satisfiable: %v", err)
+	}
+
+	// malicious all-zeros Eisenstein decomposition must be rejected
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(halfGCDEisenstein), zeroHalfGCDEisenstein),
+	)
+	if err == nil {
+		t.Fatal("malicious all-zeros Eisenstein decomposition was accepted — soundness break")
+	}
 }
