@@ -265,13 +265,12 @@ func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.I
 // inputs: k1, k2, order, lambda
 // outputs[0..5]:  |x1|, |y1|, |x2|, |y2|, |z|, |t|
 // outputs[6..11]: signX1, signY1, signX2, signY2, signZ, signT
-// outputs[12..19]: helper integers (d, kd, n1, kn1, n2, kn2, k1_over, k2_over)
 func multiRationalReconstructExtHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 4 {
 		return errors.New("expecting four inputs: k1, k2, order, lambda")
 	}
-	if len(outputs) != 20 {
-		return errors.New("expecting 20 outputs")
+	if len(outputs) != 12 {
+		return errors.New("expecting 12 outputs")
 	}
 	k1, k2, order, lambda := inputs[0], inputs[1], inputs[2], inputs[3]
 
@@ -306,41 +305,6 @@ func multiRationalReconstructExtHint(_ *big.Int, inputs, outputs []*big.Int) err
 	setSign(outputs[9], y2)
 	setSign(outputs[10], z)
 	setSign(outputs[11], t)
-
-	zPlusLambdaT := new(big.Int).Mul(lambda, t)
-	zPlusLambdaT.Add(zPlusLambdaT, z)
-	d := new(big.Int).Mod(zPlusLambdaT, order)
-	kd := new(big.Int).Sub(zPlusLambdaT, d)
-	kd.Div(kd, order)
-
-	x1PlusLambdaY1 := new(big.Int).Mul(lambda, y1)
-	x1PlusLambdaY1.Add(x1PlusLambdaY1, x1)
-	n1 := new(big.Int).Mod(x1PlusLambdaY1, order)
-	kn1 := new(big.Int).Sub(x1PlusLambdaY1, n1)
-	kn1.Div(kn1, order)
-
-	x2PlusLambdaY2 := new(big.Int).Mul(lambda, y2)
-	x2PlusLambdaY2.Add(x2PlusLambdaY2, x2)
-	n2 := new(big.Int).Mod(x2PlusLambdaY2, order)
-	kn2 := new(big.Int).Sub(x2PlusLambdaY2, n2)
-	kn2.Div(kn2, order)
-
-	k1d := new(big.Int).Mul(k1, d)
-	k1Overflow := new(big.Int).Sub(k1d, n1)
-	k1Overflow.Div(k1Overflow, order)
-
-	k2d := new(big.Int).Mul(k2, d)
-	k2Overflow := new(big.Int).Sub(k2d, n2)
-	k2Overflow.Div(k2Overflow, order)
-
-	outputs[12].Set(d)
-	outputs[13].Set(kd)
-	outputs[14].Set(n1)
-	outputs[15].Set(kn1)
-	outputs[16].Set(n2)
-	outputs[17].Set(kn2)
-	outputs[18].Set(k1Overflow)
-	outputs[19].Set(k2Overflow)
 
 	return nil
 }

@@ -93,8 +93,8 @@ msm_P256_2,bn254,groth16,185846,288056
 msm_P256_2,bn254,plonk,635297,608874
 msm_babyjubjub_2,bn254,groth16,5267,5629
 msm_babyjubjub_2,bn254,plonk,12318,11795
-msm_bandersnatch_2,bls12_381,groth16,6048,6819
-msm_bandersnatch_2,bls12_381,plonk,14490,13940
+msm_bandersnatch_2,bls12_381,groth16,5532,6301
+msm_bandersnatch_2,bls12_381,plonk,13470,12918
 msm_jubjub_2,bls12_381,groth16,5273,5699
 msm_jubjub_2,bls12_381,plonk,12258,11799
 msm_secp256k1_2,bn254,groth16,208997,312737

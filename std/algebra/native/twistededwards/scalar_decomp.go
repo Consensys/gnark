@@ -207,21 +207,19 @@ func verify6DEmulated[T emulated.FieldParams](
 	orderBits := r.BitLen()
 	nBits := (orderBits + 2) / 3
 
-	// Range check the sub-scalars
-	api.ToBinary(absX1, nBits)
-	api.ToBinary(absY1, nBits)
-	api.ToBinary(absX2, nBits)
-	api.ToBinary(absY2, nBits)
-	api.ToBinary(absZ, nBits)
-	api.ToBinary(absT, nBits)
+	absX1Bits := api.ToBinary(absX1, nBits)
+	absY1Bits := api.ToBinary(absY1, nBits)
+	absX2Bits := api.ToBinary(absX2, nBits)
+	absY2Bits := api.ToBinary(absY2, nBits)
+	absZBits := api.ToBinary(absZ, nBits)
+	absTBits := api.ToBinary(absT, nBits)
 
-	// Convert to emulated elements with signs
-	absX1Emu := f.FromBits(api.ToBinary(absX1, nBits)...)
-	absY1Emu := f.FromBits(api.ToBinary(absY1, nBits)...)
-	absX2Emu := f.FromBits(api.ToBinary(absX2, nBits)...)
-	absY2Emu := f.FromBits(api.ToBinary(absY2, nBits)...)
-	absZEmu := f.FromBits(api.ToBinary(absZ, nBits)...)
-	absTEmu := f.FromBits(api.ToBinary(absT, nBits)...)
+	absX1Emu := f.FromBits(absX1Bits...)
+	absY1Emu := f.FromBits(absY1Bits...)
+	absX2Emu := f.FromBits(absX2Bits...)
+	absY2Emu := f.FromBits(absY2Bits...)
+	absZEmu := f.FromBits(absZBits...)
+	absTEmu := f.FromBits(absTBits...)
 
 	lambdaEmu := f.NewElement(lambda)
 	zero := f.Zero()

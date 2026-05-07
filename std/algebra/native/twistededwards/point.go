@@ -356,16 +356,14 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	Q2.X, Q2.Y = qHint[2], qHint[3]
 	R.add(api, &Q1, &Q2, curve)
 
-	// Decompose (s1, s2) using MultiRationalReconstructExt
-	// Returns |x1|, |y1|, |x2|, |y2|, |z|, |t|, signs, and decomposition verification values
-	h, err := api.NewHint(multiRationalReconstructExtHint, 20, s1, s2, curve.Order, endo.Lambda)
+	// Decompose (s1, s2) using MultiRationalReconstructExt. Returns
+	// |x1|, |y1|, |x2|, |y2|, |z|, |t| and their signs.
+	h, err := api.NewHint(multiRationalReconstructExtHint, 12, s1, s2, curve.Order, endo.Lambda)
 	if err != nil {
 		panic(err)
 	}
 	absX1, absY1, absX2, absY2, absZ, absT := h[0], h[1], h[2], h[3], h[4], h[5]
 	signX1, signY1, signX2, signY2, signZ, signT := h[6], h[7], h[8], h[9], h[10], h[11]
-	// h[12..19] were intermediate values for native-field verification (d, kd, n1, kn1, n2, kn2, k1Over, k2Over).
-	// They are no longer needed since we now verify the full decomposition in emulated arithmetic.
 
 	// Verify the decomposition using emulated arithmetic to avoid native field overflow.
 	// Checks: s_i * (z + λ*t) ≡ x_i + λ*y_i (mod r) for i=1,2
