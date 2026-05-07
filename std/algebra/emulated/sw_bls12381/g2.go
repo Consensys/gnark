@@ -190,46 +190,70 @@ func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 // [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (g2 *G2) AddUnified(p, q *G2Affine) *G2Affine {
+	// ---------------------------------------------------------------
+	// BLS12-381 G2 sits on a D-twist with j-invariant 0 over Fp². The
+	// Brier–Joye unified formula is NOT complete on j=0: Fp ≡ 1 mod 3
+	// gives a primitive cube root of unity ω in Fp ⊂ Fp², so the pair
+	// Q = -Φ(P) = (ω·P.x, -P.y) satisfies y_P + y_Q = 0 with P ≠ -Q. The
+	// old formula returned the EVM-infinity convention ([0,0], [0,0]) on
+	// that pair — soundness bug exploitable in MultiScalarMul / scalar mul
+	// boundary corrections.
+	//
+	// Replaced with the chord/tangent split + single-Div fold:
+	//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+	//   • tangent λ = 3·p.X² / (2·p.Y)            when p.X = q.X
+	// The inverse-case override is gated by `areFinite` so it doesn't fire
+	// when one input is the SW infinity convention.
+	// ---------------------------------------------------------------
 
-	// selector1 = 1 when p is ([0,0],[0,0]) and 0 otherwise
-	selector1 := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
-	// selector2 = 1 when q is ([0,0],[0,0]) and 0 otherwise
-	selector2 := g2.api.And(g2.Ext2.IsZero(&q.P.X), g2.Ext2.IsZero(&q.P.Y))
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := g2.Mul(&p.P.X, &q.P.X)
-	pxplusqx := g2.Add(&p.P.X, &q.P.X)
-	num := g2.Mul(pxplusqx, pxplusqx)
-	num = g2.Sub(num, pxqx)
-	denum := g2.Add(&p.P.Y, &q.P.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := g2.IsZero(denum)
-	denum = g2.Ext2.Select(selector3, g2.One(), denum)
-	λ := g2.DivUnchecked(num, denum)
+	isPInf := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+	isQInf := g2.api.And(g2.Ext2.IsZero(&q.P.X), g2.Ext2.IsZero(&q.P.Y))
 
-	// x = λ^2 - p.x - q.x
+	xDiff := g2.Sub(&q.P.X, &p.P.X)
+	xEqual := g2.IsZero(xDiff)
+
+	// chord:    num = q.Y − p.Y, den = q.X − p.X
+	// tangent:  num = 3·p.X²,     den = 2·p.Y
+	numChord := g2.Sub(&q.P.Y, &p.P.Y)
+	denChord := xDiff
+	xx := g2.Square(&p.P.X)
+	numTangent := g2.MulByConstElement(xx, big.NewInt(3)) // free at constraint level
+	denTangent := g2.MulByConstElement(&p.P.Y, big.NewInt(2))
+
+	num := g2.Ext2.Select(xEqual, numTangent, numChord)
+	den := g2.Ext2.Select(xEqual, denTangent, denChord)
+	denIsZero := g2.IsZero(den)
+	denSafe := g2.Ext2.Select(denIsZero, g2.One(), den)
+	λ := g2.DivUnchecked(num, denSafe)
+	λ = g2.Ext2.Select(denIsZero, g2.Zero(), λ)
+
+	pxPlusQx := g2.Add(&p.P.X, &q.P.X)
 	xr := g2.Mul(λ, λ)
-	xr = g2.Sub(xr, pxplusqx)
+	xr = g2.Sub(xr, pxPlusQx)
 
-	// y = λ(p.x - xr) - p.y
-	yr := g2.Sub(&p.P.X, xr)
-	yr = g2.Mul(yr, λ)
+	pxMinusXr := g2.Sub(&p.P.X, xr)
+	yr := g2.Mul(λ, pxMinusXr)
 	yr = g2.Sub(yr, &p.P.Y)
+
 	result := &G2Affine{
 		P:     g2AffP{X: *xr, Y: *yr},
 		Lines: nil,
 	}
 
+	result = g2.Select(isPInf, q, result)
+	result = g2.Select(isQInf, p, result)
+
+	// if p = −q (xEqual=1, yEqual=0, both finite), return infinity
+	ySub := g2.Sub(&p.P.Y, &q.P.Y)
+	yEqual := g2.IsZero(ySub)
+	areFinite := g2.api.And(g2.api.Sub(1, isPInf), g2.api.Sub(1, isQInf))
+	isInverse := g2.api.And(g2.api.And(xEqual, g2.api.Sub(1, yEqual)), areFinite)
 	zero := g2.Ext2.Zero()
 	infinity := G2Affine{
 		P:     g2AffP{X: *zero, Y: *zero},
 		Lines: nil,
 	}
-	// if p=([0,0],[0,0]) return q
-	result = g2.Select(selector1, q, result)
-	// if q=([0,0],[0,0]) return p
-	result = g2.Select(selector2, p, result)
-	// if p.y + q.y = 0, return ([0,0],[0,0])
-	result = g2.Select(selector3, &infinity, result)
+	result = g2.Select(isInverse, &infinity, result)
 
 	return result
 }
