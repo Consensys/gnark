@@ -696,3 +696,96 @@ func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
 	)
 	assert.Error(err)
 }
+
+func forgedBN254DoubleBaseScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 7 {
+		return errors.New("expecting seven inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	var p1, p2, q1, q2 tbn254.PointAffine
+	p1.X.SetBigInt(inputs[0])
+	p1.Y.SetBigInt(inputs[1])
+	p2.X.SetBigInt(inputs[3])
+	p2.Y.SetBigInt(inputs[4])
+	q1.ScalarMultiplication(&p1, inputs[2])
+	q2.ScalarMultiplication(&p2, inputs[5])
+
+	var delta tbn254.PointAffine
+	delta.Set(&p1)
+
+	var q1Hint tbn254.PointAffine
+	q1Hint.Add(&q1, &delta)
+
+	q1Hint.X.BigInt(outputs[0])
+	q1Hint.Y.BigInt(outputs[1])
+	q2.X.BigInt(outputs[2])
+	q2.Y.BigInt(outputs[3])
+	return nil
+}
+
+func forgedBN254DoubleBaseResult(params *CurveParams, s1, s2 *big.Int) (Point, error) {
+	var p1, p2 tbn254.PointAffine
+	p1.X.SetBigInt(params.Base[0])
+	p1.Y.SetBigInt(params.Base[1])
+	p2.Set(&p1)
+	p1.ScalarMultiplication(&p1, s1)
+	p2.ScalarMultiplication(&p2, s2)
+
+	p1X, p1Y := new(big.Int), new(big.Int)
+	p2X, p2Y := new(big.Int), new(big.Int)
+	p1.X.BigInt(p1X)
+	p1.Y.BigInt(p1Y)
+	p2.X.BigInt(p2X)
+	p2.Y.BigInt(p2Y)
+
+	inputs := []*big.Int{
+		p1X,
+		p1Y,
+		new(big.Int).Set(s1),
+		p2X,
+		p2Y,
+		new(big.Int).Set(s2),
+		new(big.Int).Set(params.Order),
+	}
+	outputs := []*big.Int{new(big.Int), new(big.Int), new(big.Int), new(big.Int)}
+	if err := forgedBN254DoubleBaseScalarMulHint(nil, inputs, outputs); err != nil {
+		return Point{}, err
+	}
+	var q1, q2, r tbn254.PointAffine
+	q1.X.SetBigInt(outputs[0])
+	q1.Y.SetBigInt(outputs[1])
+	q2.X.SetBigInt(outputs[2])
+	q2.Y.SetBigInt(outputs[3])
+	r.Add(&q1, &q2)
+	rX, rY := new(big.Int), new(big.Int)
+	r.X.BigInt(rX)
+	r.Y.BigInt(rY)
+	return Point{X: rX, Y: rY}, nil
+}
+
+func TestDoubleBaseScalarMulNonZeroRejectsForgedPartialHints(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+
+	data := testDataForScalars(params, twistededwards.BN254, big.NewInt(5), big.NewInt(7))
+	forged, err := forgedBN254DoubleBaseResult(params, data.S1, data.S2)
+	assert.NoError(err)
+
+	witness := doubleBaseScalarMulNonZeroCircuit{
+		P1:     data.P1,
+		P2:     data.P2,
+		S1:     data.S1,
+		S2:     data.S2,
+		Result: forged,
+	}
+	err = test.IsSolved(
+		&doubleBaseScalarMulNonZeroCircuit{curveID: twistededwards.BN254},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(doubleBaseScalarMulHint), forgedBN254DoubleBaseScalarMulHint),
+	)
+	assert.Error(err)
+}

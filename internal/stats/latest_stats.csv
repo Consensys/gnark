@@ -91,12 +91,12 @@ msm_G1_bn254_2,bn254,groth16,208925,312617
 msm_G1_bn254_2,bn254,plonk,688811,658743
 msm_P256_2,bn254,groth16,185846,288056
 msm_P256_2,bn254,plonk,635297,608874
-msm_babyjubjub_2,bn254,groth16,5267,5629
-msm_babyjubjub_2,bn254,plonk,12318,11795
+msm_babyjubjub_2,bn254,groth16,5269,5683
+msm_babyjubjub_2,bn254,plonk,12389,11848
 msm_bandersnatch_2,bls12_381,groth16,5532,6301
 msm_bandersnatch_2,bls12_381,plonk,13470,12918
-msm_jubjub_2,bls12_381,groth16,5273,5699
-msm_jubjub_2,bls12_381,plonk,12258,11799
+msm_jubjub_2,bls12_381,groth16,5276,5754
+msm_jubjub_2,bls12_381,plonk,12332,11855
 msm_secp256k1_2,bn254,groth16,208997,312737
 msm_secp256k1_2,bn254,plonk,689104,659028
 pairing_bls12377,bw6_761,groth16,11876,11876

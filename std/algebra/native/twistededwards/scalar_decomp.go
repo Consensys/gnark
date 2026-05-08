@@ -85,34 +85,34 @@ func verifyDecompEmulated[T emulated.FieldParams](
 	f.AssertIsDifferent(s2Check, zero)
 }
 
-// verifyScalarDecompositionPair checks two independent decompositions:
-// u1 + v1*s1 ≡ 0 (mod r) and u2 + v2*s2 ≡ 0 (mod r)
+// verifyScalarDecomposition3D checks a shared-denominator decomposition:
+// s1*z ≡ x1 (mod r) and s2*z ≡ x2 (mod r).
 // Used by doubleBaseScalarMul3MSMLogUp.
-func verifyScalarDecompositionPair(
+func verifyScalarDecomposition3D(
 	api frontend.API,
-	u1, v1, bit1, s1 frontend.Variable,
-	u2, v2, bit2, s2 frontend.Variable,
+	s1, s2 frontend.Variable,
+	absX1, absX2, absZ frontend.Variable,
+	signX1, signX2, signZ frontend.Variable,
 	curve *CurveParams,
-) (u1Bits, v1Bits, u2Bits, v2Bits []frontend.Variable) {
+) (x1Bits, x2Bits, zBits []frontend.Variable) {
 	r := curve.Order
-	n := (r.BitLen() + 1) / 2
+	n := (2*r.BitLen() + 2) / 3
 
-	u1Bits = api.ToBinary(u1, n)
-	v1Bits = api.ToBinary(v1, n)
-	u2Bits = api.ToBinary(u2, n)
-	v2Bits = api.ToBinary(v2, n)
+	x1Bits = api.ToBinary(absX1, n)
+	x2Bits = api.ToBinary(absX2, n)
+	zBits = api.ToBinary(absZ, n)
 
 	switch {
 	case r.Cmp(edBN254Order{}.Modulus()) == 0:
-		verifyDecompPairEmulated[edBN254Order](api, u1, v1, bit1, s1, u2, v2, bit2, s2, u1Bits, v1Bits, u2Bits, v2Bits, r)
+		verifyDecomp3DEmulated[edBN254Order](api, s1, s2, signX1, signX2, signZ, x1Bits, x2Bits, zBits)
 	case r.Cmp(edBLS12381Order{}.Modulus()) == 0:
-		verifyDecompPairEmulated[edBLS12381Order](api, u1, v1, bit1, s1, u2, v2, bit2, s2, u1Bits, v1Bits, u2Bits, v2Bits, r)
+		verifyDecomp3DEmulated[edBLS12381Order](api, s1, s2, signX1, signX2, signZ, x1Bits, x2Bits, zBits)
 	case r.Cmp(edBandersnatchOrder{}.Modulus()) == 0:
-		verifyDecompPairEmulated[edBandersnatchOrder](api, u1, v1, bit1, s1, u2, v2, bit2, s2, u1Bits, v1Bits, u2Bits, v2Bits, r)
+		verifyDecomp3DEmulated[edBandersnatchOrder](api, s1, s2, signX1, signX2, signZ, x1Bits, x2Bits, zBits)
 	case r.Cmp(edBLS12377Order{}.Modulus()) == 0:
-		verifyDecompPairEmulated[edBLS12377Order](api, u1, v1, bit1, s1, u2, v2, bit2, s2, u1Bits, v1Bits, u2Bits, v2Bits, r)
+		verifyDecomp3DEmulated[edBLS12377Order](api, s1, s2, signX1, signX2, signZ, x1Bits, x2Bits, zBits)
 	case r.Cmp(edBW6761Order{}.Modulus()) == 0:
-		verifyDecompPairEmulated[edBW6761Order](api, u1, v1, bit1, s1, u2, v2, bit2, s2, u1Bits, v1Bits, u2Bits, v2Bits, r)
+		verifyDecomp3DEmulated[edBW6761Order](api, s1, s2, signX1, signX2, signZ, x1Bits, x2Bits, zBits)
 	default:
 		panic(fmt.Sprintf("unsupported twisted Edwards curve order: %s", r.String()))
 	}
@@ -120,12 +120,11 @@ func verifyScalarDecompositionPair(
 	return
 }
 
-func verifyDecompPairEmulated[T emulated.FieldParams](
+func verifyDecomp3DEmulated[T emulated.FieldParams](
 	api frontend.API,
-	u1, v1, bit1, s1 frontend.Variable,
-	u2, v2, bit2, s2 frontend.Variable,
-	u1Bits, v1Bits, u2Bits, v2Bits []frontend.Variable,
-	r *big.Int,
+	s1, s2 frontend.Variable,
+	signX1, signX2, signZ frontend.Variable,
+	x1Bits, x2Bits, zBits []frontend.Variable,
 ) {
 	f, err := emulated.NewField[T](api)
 	if err != nil {
@@ -136,37 +135,21 @@ func verifyDecompPairEmulated[T emulated.FieldParams](
 	s1Bits := api.ToBinary(s1, nativeBits)
 	s2Bits := api.ToBinary(s2, nativeBits)
 
-	u1Emu := f.FromBits(u1Bits...)
-	v1Emu := f.FromBits(v1Bits...)
+	x1Emu := f.FromBits(x1Bits...)
+	x2Emu := f.FromBits(x2Bits...)
+	zEmu := f.FromBits(zBits...)
 	s1Emu := f.FromBits(s1Bits...)
-	u2Emu := f.FromBits(u2Bits...)
-	v2Emu := f.FromBits(v2Bits...)
 	s2Emu := f.FromBits(s2Bits...)
 	zero := f.Zero()
 
-	// Check: u1 ± v1*s1 ≡ 0 (mod r)
-	v1s1 := f.Mul(v1Emu, s1Emu)
-	negV1s1 := f.Neg(v1s1)
-	term1 := f.Select(bit1, negV1s1, v1s1)
-	sum1 := f.Add(u1Emu, term1)
-	f.AssertIsEqual(sum1, zero)
+	x1Signed := f.Select(signX1, f.Neg(x1Emu), x1Emu)
+	x2Signed := f.Select(signX2, f.Neg(x2Emu), x2Emu)
+	zSigned := f.Select(signZ, f.Neg(zEmu), zEmu)
 
-	// Ensure v1 non-zero (when s1 != 0)
-	s1IsZero := api.IsZero(s1)
-	v1Check := f.Select(s1IsZero, f.One(), v1Emu)
-	f.AssertIsDifferent(v1Check, zero)
+	f.AssertIsEqual(f.Mul(s1Emu, zSigned), x1Signed)
+	f.AssertIsEqual(f.Mul(s2Emu, zSigned), x2Signed)
 
-	// Check: u2 ± v2*s2 ≡ 0 (mod r)
-	v2s2 := f.Mul(v2Emu, s2Emu)
-	negV2s2 := f.Neg(v2s2)
-	term2 := f.Select(bit2, negV2s2, v2s2)
-	sum2 := f.Add(u2Emu, term2)
-	f.AssertIsEqual(sum2, zero)
-
-	// Ensure v2 non-zero (when s2 != 0)
-	s2IsZero := api.IsZero(s2)
-	v2Check := f.Select(s2IsZero, f.One(), v2Emu)
-	f.AssertIsDifferent(v2Check, zero)
+	f.AssertIsDifferent(zEmu, zero)
 }
 
 // verifyScalarDecomposition6D checks the 6D decomposition for doubleBaseScalarMul6MSMLogUp.

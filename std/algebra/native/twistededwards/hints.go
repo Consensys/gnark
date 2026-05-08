@@ -21,6 +21,7 @@ func GetHints() []solver.Hint {
 		scalarMulHint,
 		decomposeScalar,
 		doubleBaseScalarMulHint,
+		multiRationalReconstructHint,
 		multiRationalReconstructExtHint,
 	}
 }
@@ -249,6 +250,55 @@ func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.I
 	} else {
 		return errors.New("doubleBaseScalarMulHint: unknown curve")
 	}
+	return nil
+}
+
+// multiRationalReconstructHint decomposes (k1, k2) jointly via 3-D LLL
+// reconstruction: finds (x1, x2, z) with a shared denominator z such that
+//
+//	k1 ≡ x1 / z   (mod r)
+//	k2 ≡ x2 / z   (mod r)
+//
+// with each component bounded by ~r^(2/3). Used by the non-GLV
+// `doubleBaseScalarMul3MSMLogUp` path.
+//
+// inputs: k1, k2, order
+// outputs[0..2]: |x1|, |x2|, |z|
+// outputs[3..5]: signX1, signX2, signZ
+func multiRationalReconstructHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 3 {
+		return errors.New("expecting three inputs: k1, k2, order")
+	}
+	if len(outputs) != 6 {
+		return errors.New("expecting six outputs")
+	}
+	k1, k2, order := inputs[0], inputs[1], inputs[2]
+
+	if k1.Sign() == 0 && k2.Sign() == 0 {
+		for i := range outputs {
+			outputs[i].SetUint64(0)
+		}
+		return nil
+	}
+
+	res := lattice.NewReconstructor(order).MultiRationalReconstruct(k1, k2)
+	x1, x2, z := res[0], res[1], res[2]
+
+	outputs[0].Abs(x1)
+	outputs[1].Abs(x2)
+	outputs[2].Abs(z)
+
+	setSign := func(out *big.Int, val *big.Int) {
+		if val.Sign() < 0 {
+			out.SetUint64(1)
+		} else {
+			out.SetUint64(0)
+		}
+	}
+	setSign(outputs[3], x1)
+	setSign(outputs[4], x2)
+	setSign(outputs[5], z)
+
 	return nil
 }
 

@@ -194,11 +194,10 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 	return p
 }
 
-// doubleBaseScalarMul3MSMLogUp computes s1*P1+s2*P2 using MultiRationalReconstruct (true 3-MSM).
-// This decomposes both scalars with a shared denominator in Z, giving ~r^(2/3)-bit scalars.
-// Verifies: [x1]P + [x2]Q = [z]R
-// where R = [s1]P + [s2]Q (hinted).
-// Uses LogDerivLookup for the 4-point multi-scalar multiplication (16-entry table).
+// doubleBaseScalarMul3MSMLogUp computes s1*P1+s2*P2 using MultiRationalReconstruct.
+// This decomposes both scalars with a shared denominator in Z, giving
+// ~r^(2/3)-bit scalars. It verifies [x1]P1 + [x2]P2 - [z]R = O where
+// R = [s1]P1 + [s2]P2 is hinted.
 func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams) *Point {
 	// Get hinted results Q1 = [s1]P1 and Q2 = [s2]P2
 	q, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order)
@@ -209,96 +208,56 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	Q1.X, Q1.Y = q[0], q[1]
 	Q2.X, Q2.Y = q[2], q[3]
 
-	// Decompose s1 into (u1, v1) such that u1 + s1*v1 ≡ 0 (mod Order)
-	h1, err := api.NewHint(rationalReconstruct, 4, s1, curve.Order)
+	var R Point
+	R.add(api, &Q1, &Q2, curve)
+
+	// Decompose (s1, s2) into (x1, x2, z) such that
+	// s1*z ≡ x1 and s2*z ≡ x2 (mod Order).
+	h, err := api.NewHint(multiRationalReconstructHint, 6, s1, s2, curve.Order)
 	if err != nil {
 		panic(err)
 	}
-	u1, v1, bit1, _ := h1[0], h1[1], h1[2], h1[3]
+	absX1, absX2, absZ := h[0], h[1], h[2]
+	signX1, signX2, signZ := h[3], h[4], h[5]
 
-	// Decompose s2 into (u2, v2) such that u2 + s2*v2 ≡ 0 (mod Order)
-	h2, err := api.NewHint(rationalReconstruct, 4, s2, curve.Order)
-	if err != nil {
-		panic(err)
-	}
-	u2, v2, bit2, _ := h2[0], h2[1], h2[2], h2[3]
+	// Verify the decomposition using emulated arithmetic to avoid native field
+	// overflow. Also range-checks x1, x2, z and ensures z is non-zero.
+	bX1, bX2, bZ := verifyScalarDecomposition3D(api, s1, s2, absX1, absX2, absZ, signX1, signX2, signZ, curve)
 
-	// Verify both decompositions using emulated arithmetic to avoid native field overflow.
-	// Also range-checks u1, v1, u2, v2 and ensures v1, v2 non-zero.
-	_, _, _, _ = verifyScalarDecompositionPair(api, u1, v1, bit1, s1, u2, v2, bit2, s2, curve)
+	var sP1, sP2, sR Point
+	sP1.X = api.Select(signX1, api.Neg(p1.X), p1.X)
+	sP1.Y = p1.Y
+	sP2.X = api.Select(signX2, api.Neg(p2.X), p2.X)
+	sP2.Y = p2.Y
+	sR.X = api.Select(signZ, R.X, api.Neg(R.X))
+	sR.Y = R.Y
 
-	// Apply sign to Q1 and Q2 based on decomposition
-	var _Q1, _Q2 Point
-	_Q1.X = api.Select(bit1, api.Neg(Q1.X), Q1.X)
-	_Q1.Y = Q1.Y
-	_Q2.X = api.Select(bit2, api.Neg(Q2.X), Q2.X)
-	_Q2.Y = Q2.Y
-
-	// Build the 16-entry table for 4-MSM: P1, _Q1, P2, _Q2
-	var table [16]Point
-
-	// Precompute pair sums
-	var P1Q1, P2Q2, P1P2, P1Q2, Q1P2, Q1Q2 Point
-	P1Q1.add(api, p1, &_Q1, curve)
-	P2Q2.add(api, p2, &_Q2, curve)
-	P1P2.add(api, p1, p2, curve)
-	P1Q2.add(api, p1, &_Q2, curve)
-	Q1P2.add(api, &_Q1, p2, curve)
-	Q1Q2.add(api, &_Q1, &_Q2, curve)
-
-	// Precompute triple sums
-	var P1Q1P2, P1Q1Q2, P1P2Q2, Q1P2Q2 Point
-	P1Q1P2.add(api, &P1Q1, p2, curve)
-	P1Q1Q2.add(api, &P1Q1, &_Q2, curve)
-	P1P2Q2.add(api, &P1P2, &_Q2, curve)
-	Q1P2Q2.add(api, &Q1P2, &_Q2, curve)
-
-	// Precompute quad sum
-	var P1Q1P2Q2 Point
-	P1Q1P2Q2.add(api, &P1Q1P2, &_Q2, curve)
-
-	// Build table: index i = b0 + 2*b1 + 4*b2 + 8*b3
+	// Build the 8-entry table for 3-MSM: sP1, sP2, sR.
+	var table [8]Point
 	table[0] = Point{X: 0, Y: 1}
-	table[1] = *p1
-	table[2] = _Q1
-	table[3] = P1Q1
-	table[4] = *p2
-	table[5] = P1P2
-	table[6] = Q1P2
-	table[7] = P1Q1P2
-	table[8] = _Q2
-	table[9] = P1Q2
-	table[10] = Q1Q2
-	table[11] = P1Q1Q2
-	table[12] = P2Q2
-	table[13] = P1P2Q2
-	table[14] = Q1P2Q2
-	table[15] = P1Q1P2Q2
+	table[1] = sP1
+	table[2] = sP2
+	table[3].add(api, &sP1, &sP2, curve)
+	table[4] = sR
+	table[5].add(api, &sP1, &sR, curve)
+	table[6].add(api, &sP2, &sR, curve)
+	table[7].add(api, &table[3], &sR, curve)
 
 	// Create LogDerivLookup tables
 	tableX := logderivlookup.New(api)
 	tableY := logderivlookup.New(api)
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 8; i++ {
 		tableX.Insert(table[i].X)
 		tableY.Insert(table[i].Y)
 	}
 
-	n := (curve.Order.BitLen() + 1) / 2
-	b1 := api.ToBinary(u1, n)
-	b2 := api.ToBinary(v1, n)
-	b3 := api.ToBinary(u2, n)
-	b4 := api.ToBinary(v2, n)
+	n := len(bX1)
 
 	// Compute indices for lookups
 	indices := make([]frontend.Variable, n)
 	for i := 0; i < n; i++ {
-		// index = b1[i] + 2*b2[i] + 4*b3[i] + 8*b4[i]
-		indices[i] = api.Add(
-			b1[i],
-			api.Mul(b2[i], 2),
-			api.Mul(b3[i], 4),
-			api.Mul(b4[i], 8),
-		)
+		// index = bX1[i] + 2*bX2[i] + 4*bZ[i]
+		indices[i] = api.Add(bX1[i], api.Mul(bX2[i], 2), api.Mul(bZ[i], 4))
 	}
 
 	// Batch lookup
@@ -322,8 +281,8 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	api.AssertIsEqual(res.X, 0)
 	api.AssertIsEqual(res.Y, 1)
 
-	// Return Q1 + Q2
-	p.add(api, &Q1, &Q2, curve)
+	p.X = R.X
+	p.Y = R.Y
 
 	return p
 }
