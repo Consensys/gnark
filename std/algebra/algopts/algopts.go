@@ -10,11 +10,12 @@ import (
 )
 
 type algebraCfg struct {
-	NbScalarBits       int
-	FoldMulti          bool
-	CompleteArithmetic bool
-	ToBitsCanonical    bool
-	NoGroupMembership  bool // if set, then do not perform subgroup membership checks
+	NbScalarBits         int
+	FoldMulti            bool
+	CompleteArithmetic   bool // Deprecated: arithmetic is now complete by default. Use IncompleteArithmetic to opt out.
+	IncompleteArithmetic bool
+	ToBitsCanonical      bool
+	NoGroupMembership    bool // if set, then do not perform subgroup membership checks
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -51,12 +52,34 @@ func WithFoldingScalarMul() AlgebraOption {
 
 // WithCompleteArithmetic forces the use of safe addition formulas for scalar
 // multiplication.
+//
+// Deprecated: Scalar multiplication is now complete by default. This option is
+// a no-op and will be removed in a future version. To opt into faster
+// incomplete formulas (when inputs are guaranteed non-degenerate), use
+// [WithIncompleteArithmetic].
 func WithCompleteArithmetic() AlgebraOption {
 	return func(ac *algebraCfg) error {
-		if ac.CompleteArithmetic {
-			return errors.New("WithCompleteArithmetic already set")
+		if ac.IncompleteArithmetic {
+			return errors.New("WithCompleteArithmetic and WithIncompleteArithmetic are mutually exclusive")
 		}
 		ac.CompleteArithmetic = true
+		return nil
+	}
+}
+
+// WithIncompleteArithmetic opts into faster incomplete formulas for scalar
+// multiplication. The caller must guarantee that the scalar is non-zero and the
+// input point is not the point at infinity (0,0). Using this option with
+// degenerate inputs leads to undefined circuit behavior.
+func WithIncompleteArithmetic() AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if ac.IncompleteArithmetic {
+			return errors.New("WithIncompleteArithmetic already set")
+		}
+		if ac.CompleteArithmetic {
+			return errors.New("WithCompleteArithmetic and WithIncompleteArithmetic are mutually exclusive")
+		}
+		ac.IncompleteArithmetic = true
 		return nil
 	}
 }

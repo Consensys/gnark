@@ -58,49 +58,76 @@ func (p *g2AffP) AddAssign(api frontend.API, p1 g2AffP) *g2AffP {
 }
 
 func (p *g2AffP) AddUnified(api frontend.API, q g2AffP) *g2AffP {
-	// selector1 = 1 when p is (0,0) and 0 otherwise
-	selector1 := api.And(p.X.IsZero(api), p.Y.IsZero(api))
-	// selector2 = 1 when q is (0,0) and 0 otherwise
-	selector2 := api.And(q.X.IsZero(api), q.Y.IsZero(api))
+	// ---------------------------------------------------------------
+	// BLS12-377 G2 sits on a D-twist with j-invariant 0 over Fp². The
+	// Brier–Joye unified formula is NOT complete on j=0: when there exists
+	// a primitive cube root of unity ω in Fp² (which there is, since
+	// Fp ⊂ Fp² and Fp ≡ 1 mod 3), the pair Q = -Φ(P) = (ω·P.x, -P.y)
+	// satisfies y_P + y_Q = 0 with P ≠ -Q. The old formula returned the
+	// infinity convention ([0,0],[0,0]) on that pair — soundness bug.
+	//
+	// Replaced with the chord/tangent split + single-Div fold:
+	//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+	//   • tangent λ = 3·p.X² / (2·p.Y)            when p.X = q.X
+	// The inverse-case override is gated by `areFinite` to avoid wrongly
+	// firing when one input is the SW infinity convention.
+	// ---------------------------------------------------------------
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	var pxqx, pxplusqx, num, denum, λ fields_bls12377.E2
-	pxqx.Mul(api, p.X, q.X)
-	pxplusqx.Add(api, p.X, q.X)
-	num.Mul(api, pxplusqx, pxplusqx)
-	num.Sub(api, num, pxqx)
-	denum.Add(api, p.Y, q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := denum.IsZero(api)
+	isPInf := api.And(p.X.IsZero(api), p.Y.IsZero(api))
+	isQInf := api.And(q.X.IsZero(api), q.Y.IsZero(api))
+
+	// xDiff, xEqual
+	var xDiff fields_bls12377.E2
+	xDiff.Sub(api, q.X, p.X)
+	xEqual := xDiff.IsZero(api)
+
+	// chord:    num = q.Y − p.Y, den = q.X − p.X
+	// tangent:  num = 3·p.X²,     den = 2·p.Y
+	var numChord, denChord, xx, numTangent, denTangent fields_bls12377.E2
+	numChord.Sub(api, q.Y, p.Y)
+	denChord = xDiff
+	xx.Square(api, p.X)
+	numTangent.MulByFp(api, xx, 3)  // free
+	denTangent.MulByFp(api, p.Y, 2) // free
+
+	// fold: build num/den with Selects, divide once.
+	var num, den, denSafe, λ fields_bls12377.E2
+	num.Select(api, xEqual, numTangent, numChord)
+	den.Select(api, xEqual, denTangent, denChord)
+	denIsZero := den.IsZero(api)
 	one := fields_bls12377.E2{A0: 1, A1: 0}
-	denum.Select(api, selector3, one, denum)
-	λ.DivUnchecked(api, num, denum)
+	denSafe.Select(api, denIsZero, one, den)
+	λ.DivUnchecked(api, num, denSafe)
+	zeroE2 := fields_bls12377.E2{A0: 0, A1: 0}
+	λ.Select(api, denIsZero, zeroE2, λ)
 
-	// x = λ^2 - p.x - q.x
-	var xr, yr fields_bls12377.E2
+	// xr = λ² − p.x − q.x
+	var xr, yr, pxPlusQx fields_bls12377.E2
+	pxPlusQx.Add(api, p.X, q.X)
 	xr.Square(api, λ)
-	xr.Sub(api, xr, pxplusqx)
+	xr.Sub(api, xr, pxPlusQx)
 
-	// y = λ(p.x - xr) - p.y
-	yr.Sub(api, p.X, xr)
-	yr.Mul(api, yr, λ)
+	// yr = λ·(p.x − xr) − p.y
+	var pxMinusXr fields_bls12377.E2
+	pxMinusXr.Sub(api, p.X, xr)
+	yr.Mul(api, λ, pxMinusXr)
 	yr.Sub(api, yr, p.Y)
-	result := g2AffP{
-		X: xr,
-		Y: yr,
-	}
 
-	// if p=(0,0) return q
-	result.Select(api, selector1, q, result)
-	// if q=(0,0) return p
-	result.Select(api, selector2, *p, result)
-	// if p.y + q.y = 0, return (0, 0)
-	zero := fields_bls12377.E2{A0: 0, A1: 0}
-	result.Select(api, selector3, g2AffP{X: zero, Y: zero}, result)
+	result := g2AffP{X: xr, Y: yr}
+
+	result.Select(api, isPInf, q, result)
+	result.Select(api, isQInf, *p, result)
+
+	// if p = −q (xEqual=1, yEqual=0, both finite), return ([0,0], [0,0])
+	var ySub fields_bls12377.E2
+	ySub.Sub(api, p.Y, q.Y)
+	yEqual := ySub.IsZero(api)
+	areFinite := api.And(api.Sub(1, isPInf), api.Sub(1, isQInf))
+	isInverse := api.And(api.And(xEqual, api.Sub(1, yEqual)), areFinite)
+	result.Select(api, isInverse, g2AffP{X: zeroE2, Y: zeroE2}, result)
 
 	p.X = result.X
 	p.Y = result.Y
-
 	return p
 }
 
@@ -184,7 +211,7 @@ func (p *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 // varScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) when [algopts.WithIncompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -198,7 +225,7 @@ func (p *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	var selector frontend.Variable
 	one := fields_bls12377.E2{A0: 1, A1: 0}
 	zero := fields_bls12377.E2{A0: 0, A1: 0}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
 		Q.Select(api, selector, g2AffP{X: one, Y: one}, Q)
@@ -288,9 +315,9 @@ func (p *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// When not using incomplete arithmetic, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -313,13 +340,13 @@ func (p *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 		A1: points.G2m[nbits-1][3],
 	}
 	B.Y.Neg(api, B.Y)
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc.AddUnified(api, B)
 	} else {
 		Acc.AddAssign(api, B)
 	}
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
 	}
 
@@ -370,7 +397,7 @@ func (p *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	table[2] = negQ
 	table[3] = Q
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		table[0].AddUnified(api, negPhiQ)
 		table[1].AddUnified(api, negPhiQ)
 		table[2].AddUnified(api, phiQ)
@@ -386,7 +413,7 @@ func (p *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.CompleteArithmetic {
+		if !cfg.IncompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[3])
 		} else {
@@ -396,7 +423,7 @@ func (p *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		if cfg.CompleteArithmetic {
+		if !cfg.IncompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
 		} else {
@@ -405,7 +432,7 @@ func (p *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	}
 
 	// i = 0
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		negQ.AddUnified(api, Acc)
 		Acc.Select(api, k[0].Bit(0), Acc, negQ)
 		negPhiQ.AddUnified(api, Acc)
@@ -471,6 +498,10 @@ func (p *g2AffP) DoubleAndAdd(api frontend.API, p1, p2 *g2AffP) *g2AffP {
 }
 
 // ScalarMulBase computes s * g2 and returns it, where g2 is the fixed generator. It doesn't modify s.
+//
+// ⚠️  s must NOT be 0. This function uses a fixed-base windowed method that
+// does not support complete arithmetic and will produce incorrect results for
+// s=0.
 func (p *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 
 	points := getTwistPoints()
