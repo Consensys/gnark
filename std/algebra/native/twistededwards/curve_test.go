@@ -667,8 +667,8 @@ func zeroRationalReconstructHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
-	if len(outputs) != 4 {
-		return errors.New("expecting four outputs")
+	if len(outputs) != 3 {
+		return errors.New("expecting three outputs")
 	}
 	for i := range outputs {
 		outputs[i].SetUint64(0)

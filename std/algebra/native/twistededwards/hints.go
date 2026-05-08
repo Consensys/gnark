@@ -67,20 +67,20 @@ func decomposeScalar(scalarField *big.Int, inputs []*big.Int, res []*big.Int) er
 	return nil
 }
 
-// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, s2, signBit, k) such
-// that s1 + s2·s = k·r in the integers, with |s1|, |s2| < γ₂·√r ≈ 1.15·√r
+// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, s2, signBit) such
+// that s1 + s2·s = 0 mod r, with |s1|, |s2| < γ₂·√r ≈ 1.15·√r
 // (proven LLL/Hermite bound). Replaces the older heuristic-bound HalfGCD.
 //
 // The bit-decomposition convention: s1 ≥ 0 always, s2 = ±|s2| with signBit = 1
-// iff the underlying signed s2 was negative. The integer k is signed.
+// iff the underlying signed s2 was negative.
 func rationalReconstruct(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs (s, r)")
 	}
-	if len(outputs) != 4 {
-		return errors.New("expecting four outputs (s1, |s2|, signBit, k)")
+	if len(outputs) != 3 {
+		return errors.New("expecting three outputs (s1, |s2|, signBit)")
 	}
-	// Zero scalar: trivial (s1=s2=k=0). The in-circuit IsZero(s2)=0 guard
+	// Zero scalar: trivial (s1=s2=0). The in-circuit IsZero(s2)=0 guard
 	// rejects this; the caller must pre-route scalar=1 (mirrors the existing
 	// scalarMulFakeGLV: checkedScalar = Select(isScalarZero, 1, scalar)).
 	if inputs[0].Sign() == 0 {
@@ -90,9 +90,8 @@ func rationalReconstruct(_ *big.Int, inputs, outputs []*big.Int) error {
 		return nil
 	}
 
-	// lattice.RationalReconstruct returns (x, z) with x ≡ z·s mod r,
-	// so x − z·s = m·r for some signed integer m, with |x|, |z| < γ₂·√r.
-	// Map onto our convention: s1 + s2·s = k·r ⇒ s1 = x, s2 = −z, k = m.
+	// lattice.RationalReconstruct returns (x, z) with x ≡ z·s mod r.
+	// Map onto our convention: s1 + s2·s = 0 mod r ⇒ s1 = x, s2 = −z.
 	res := lattice.RationalReconstruct(inputs[0], inputs[1])
 	x, z := new(big.Int).Set(res[0]), new(big.Int).Set(res[1])
 
@@ -103,12 +102,6 @@ func rationalReconstruct(_ *big.Int, inputs, outputs []*big.Int) error {
 		z.Neg(z)
 	}
 	outputs[0].Set(x) // s1 = x ≥ 0
-
-	// k = (x − z·s) / r computed in signed integers.
-	k := new(big.Int).Mul(z, inputs[0])
-	k.Sub(x, k)
-	k.Quo(k, inputs[1])
-	outputs[3].Set(k)
 
 	// s2 = −z, encoded as |s2| + signBit. signBit = 1 iff −z < 0 iff z > 0.
 	outputs[1].Abs(z)
