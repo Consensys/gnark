@@ -148,7 +148,7 @@ type g2constantScalarMul struct {
 
 func (circuit *g2constantScalarMul) Define(api frontend.API) error {
 	expected := g2AffP{}
-	expected.constScalarMul(api, circuit.A, circuit.R)
+	expected.constScalarMul(api, circuit.A, circuit.R, algopts.WithIncompleteArithmetic())
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -190,7 +190,7 @@ func (circuit *g2constantScalarMulEdgeCases) Define(api frontend.API) error {
 	zero := fields_bls12377.E2{A0: 0, A1: 0}
 	infinity := g2AffP{X: zero, Y: zero}
 	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
-	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected2.constScalarMul(api, infinity, circuit.R)
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil
@@ -227,7 +227,7 @@ type g2varScalarMul struct {
 
 func (circuit *g2varScalarMul) Define(api frontend.API) error {
 	expected := g2AffP{}
-	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.varScalarMul(api, circuit.A, circuit.R, algopts.WithIncompleteArithmetic())
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -265,8 +265,8 @@ func (circuit *g2varScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2 := g2AffP{}
 	zero := fields_bls12377.E2{A0: 0, A1: 0}
 	infinity := g2AffP{X: zero, Y: zero}
-	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
-	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.varScalarMul(api, circuit.A, 0)
+	expected2.varScalarMul(api, infinity, circuit.R)
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil

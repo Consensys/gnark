@@ -331,9 +331,10 @@ func (pr *Pairing) AssertIsOnTwist(Q *G2Affine) {
 	b := pr.curveF.Select(selector, pr.curveF.Zero(), bTwist)
 
 	left := pr.curveF.Mul(&Q.P.Y, &Q.P.Y)
-	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
-	right = pr.curveF.Mul(right, &Q.P.X)
-	right = pr.curveF.Add(right, b)
+	right := pr.curveF.Eval([][]*emulated.Element[BaseField]{
+		{&Q.P.X, &Q.P.X, &Q.P.X},
+		{b},
+	}, []int{1, 1})
 	pr.curveF.AssertIsEqual(left, right)
 }
 

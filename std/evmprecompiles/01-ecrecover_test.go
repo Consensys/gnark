@@ -2,12 +2,14 @@ package evmprecompiles
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark-crypto/field/koalabear"
@@ -39,6 +41,43 @@ func TestSignForRecoverCorrectness(t *testing.T) {
 	if !ok {
 		t.Fatal("not verified")
 	}
+}
+
+func TestECRecoverGeneratorCommitment(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// Use k=1 and d=1, so the ECDSA commitment is R=G. This forces r=G.x,
+	// which is a degenerate input for incomplete JointScalarMulBase.
+	_, generator := secp256k1.Generators()
+	msgDigest := sha256.Sum256([]byte("ecrecover regression: r = G.x"))
+	msgHash := ecdsa.HashToInt(msgDigest[:])
+	r := generator.X.BigInt(new(big.Int))
+	s := new(big.Int).Add(msgHash, r)
+	s.Mod(s, fr.Modulus())
+	if s.Sign() == 0 {
+		t.Fatal("constructed zero s")
+	}
+	v := uint(generator.Y.BigInt(new(big.Int)).Bit(0))
+
+	var pk ecdsa.PublicKey
+	err := pk.RecoverFrom(msgDigest[:], v, r, s)
+	assert.NoError(err)
+
+	circuit := ecrecoverCircuit{}
+	witness := ecrecoverCircuit{
+		Message:   emulated.ValueOf[emulated.Secp256k1Fr](msgHash),
+		V:         v + 27,
+		R:         emulated.ValueOf[emulated.Secp256k1Fr](r),
+		S:         emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Strict:    0,
+		IsFailure: 0,
+		Expected: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 type ecrecoverCircuit struct {
