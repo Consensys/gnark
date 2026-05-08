@@ -162,23 +162,33 @@ func verifyScalarDecomposition6D(
 	signX1, signY1, signX2, signY2, signZ, signT frontend.Variable,
 	curve *CurveParams,
 	endo *EndoParams,
-) {
+) (x1Bits, y1Bits, x2Bits, y2Bits, zBits, tBits []frontend.Variable) {
 	r := curve.Order
+	n := (r.BitLen() + 2) / 3
+
+	x1Bits = api.ToBinary(absX1, n)
+	y1Bits = api.ToBinary(absY1, n)
+	x2Bits = api.ToBinary(absX2, n)
+	y2Bits = api.ToBinary(absY2, n)
+	zBits = api.ToBinary(absZ, n)
+	tBits = api.ToBinary(absT, n)
 
 	switch {
 	case r.Cmp(edBandersnatchOrder{}.Modulus()) == 0:
-		verify6DEmulated[edBandersnatchOrder](api, s1, s2, absX1, absY1, absX2, absY2, absZ, absT,
+		verify6DEmulated[edBandersnatchOrder](api, s1, s2, x1Bits, y1Bits, x2Bits, y2Bits, zBits, tBits,
 			signX1, signY1, signX2, signY2, signZ, signT, r, endo.Lambda)
 	default:
 		// Currently only Bandersnatch has an endomorphism. Add other cases as needed.
 		panic(fmt.Sprintf("unsupported twisted Edwards curve order for 6D decomposition: %s", r.String()))
 	}
+
+	return
 }
 
 func verify6DEmulated[T emulated.FieldParams](
 	api frontend.API,
 	s1, s2 frontend.Variable,
-	absX1, absY1, absX2, absY2, absZ, absT frontend.Variable,
+	absX1Bits, absY1Bits, absX2Bits, absY2Bits, absZBits, absTBits []frontend.Variable,
 	signX1, signY1, signX2, signY2, signZ, signT frontend.Variable,
 	r, lambda *big.Int,
 ) {
@@ -186,16 +196,6 @@ func verify6DEmulated[T emulated.FieldParams](
 	if err != nil {
 		panic(fmt.Sprintf("failed to create emulated field: %v", err))
 	}
-
-	orderBits := r.BitLen()
-	nBits := (orderBits + 2) / 3
-
-	absX1Bits := api.ToBinary(absX1, nBits)
-	absY1Bits := api.ToBinary(absY1, nBits)
-	absX2Bits := api.ToBinary(absX2, nBits)
-	absY2Bits := api.ToBinary(absY2, nBits)
-	absZBits := api.ToBinary(absZ, nBits)
-	absTBits := api.ToBinary(absT, nBits)
 
 	absX1Emu := f.FromBits(absX1Bits...)
 	absY1Emu := f.FromBits(absY1Bits...)

@@ -317,7 +317,7 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 	// Verify the decomposition using emulated arithmetic to avoid native field overflow.
 	// Checks: s_i * (z + λ*t) ≡ x_i + λ*y_i (mod r) for i=1,2
 	// Also range-checks sub-scalars and ensures the shared denominator is non-zero.
-	verifyScalarDecomposition6D(api, s1, s2,
+	bX1, bY1, bX2, bY2, bZ, bT := verifyScalarDecomposition6D(api, s1, s2,
 		absX1, absY1, absX2, absY2, absZ, absT,
 		signX1, signY1, signX2, signY2, signZ, signT,
 		curve, endo,
@@ -452,15 +452,7 @@ func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1
 		tableY.Insert(table[i].Y)
 	}
 
-	// Scalar bit length: ~r^(1/3) ≈ 85 bits for 254-bit order
-	n := (curve.Order.BitLen() + 2) / 3
-
-	bX1 := api.ToBinary(absX1, n)
-	bY1 := api.ToBinary(absY1, n)
-	bX2 := api.ToBinary(absX2, n)
-	bY2 := api.ToBinary(absY2, n)
-	bZ := api.ToBinary(absZ, n)
-	bT := api.ToBinary(absT, n)
+	n := len(bX1)
 
 	// Compute indices for lookups
 	indices := make([]frontend.Variable, n)
