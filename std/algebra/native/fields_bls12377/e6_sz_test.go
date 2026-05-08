@@ -1,7 +1,6 @@
 package fields_bls12377
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
@@ -74,6 +74,26 @@ func corruptHintOutput(h solver.Hint, output int) solver.Hint {
 	}
 }
 
+func zeroHintOutput(_ *big.Int, _ []*big.Int, outputs []*big.Int) error {
+	for i := range outputs {
+		outputs[i].SetUint64(0)
+	}
+	return nil
+}
+
+func commitmentInputCountHint(field *big.Int, inputs, outputs []*big.Int) error {
+	outputs[0].SetInt64(int64(len(inputs)))
+	outputs[0].Mod(outputs[0], field)
+	return nil
+}
+
+func negBLS12377Base(v int64) *big.Int {
+	res := big.NewInt(v)
+	res.Neg(res)
+	res.Mod(res, bls12377.ID.BaseField())
+	return res
+}
+
 func TestE6MulSZRejectsCorruptedQuotientHint(t *testing.T) {
 	field := ecc.BW6_761.ScalarField()
 	a, b := randomE6(), randomE6()
@@ -101,6 +121,41 @@ func TestE6MulSZRejectsCorruptedQuotientHint(t *testing.T) {
 	))
 	if err == nil {
 		t.Fatal("E6.Mul SZ should reject a corrupted quotient hint")
+	}
+}
+
+func TestE6MulSZRejectsForgedInputsWhenCommitted(t *testing.T) {
+	field := ecc.BW6_761.ScalarField()
+
+	circuit := &e6MulSZCircuit{}
+	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Before committing a and b, the commitment hint sees depth + c + q:
+	// 1 + 6 + 5 inputs. The forged a(X)=X-r, b(X)=1, c=q=0 would pass.
+	const oldChallenge = 12
+	var a, b, c bls12377.E6
+	a.B0.A0.SetBigInt(negBLS12377Base(oldChallenge))
+	a.B1.A0.SetOne()
+	b.SetOne()
+
+	witness := &e6MulSZCircuit{}
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+	w, err := frontend.NewWitness(witness, field)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ccs.IsSolved(w,
+		solver.OverrideHint(solver.GetHintID(mulE6SZHint), zeroHintOutput),
+		solver.OverrideHint(solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder), commitmentInputCountHint),
+	)
+	if err == nil {
+		t.Fatal("E6.Mul SZ should bind the challenge to multiplication inputs")
 	}
 }
 
@@ -209,7 +264,7 @@ func TestE6MulBy01SZCorrectness(t *testing.T) {
 func TestE6SZConstraintCount(t *testing.T) {
 	field := ecc.BW6_761.ScalarField()
 
-	fmt.Println("=== E6 SCS Constraint Counts (Schwartz-Zippel) ===")
+	t.Log("=== E6 SCS Constraint Counts (Schwartz-Zippel) ===")
 
 	for _, tc := range []struct {
 		name    string
@@ -223,6 +278,6 @@ func TestE6SZConstraintCount(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}
-		fmt.Printf("  %-20s %d SCS\n", tc.name, ccs.GetNbConstraints())
+		t.Logf("  %-20s %d SCS", tc.name, ccs.GetNbConstraints())
 	}
 }

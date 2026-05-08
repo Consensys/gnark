@@ -125,8 +125,7 @@ func (e *E6) mulSZ(api frontend.API, e1, e2 E6) *E6 {
 	bMono := towerToMonomial6(bCoeffs)
 	cMono := towerToMonomial6(e6Coeffs(e))
 
-	ch := getE6SZChecker(api)
-	ch.addCheck(aMono, bMono, cMono, q)
+	addSZCheck(api, aMono[:], bMono[:], cMono[:], q[:])
 
 	return e
 }
@@ -347,8 +346,7 @@ func (e *E6) squareSZ(api frontend.API, x E6) *E6 {
 	aMono := towerToMonomial6(aCoeffs)
 	cMono := towerToMonomial6(e6Coeffs(e))
 
-	ch := getE6SZChecker(api)
-	ch.addSquareCheck(aMono, cMono, q)
+	addSZSquareCheck(api, aMono[:], cMono[:], q[:])
 
 	return e
 }
@@ -476,8 +474,7 @@ func (e *E6) mulBy01SZ(api frontend.API, c0, c1 E2) *E6 {
 	bMono[4] = c1.A1
 	bMono[5] = 0
 
-	ch := getE6SZChecker(api)
-	ch.addSparseCheck(aMono, bMono, cMono, q, []int{0, 1, 3, 4})
+	addSZCheck(api, aMono[:], bMono[:], cMono[:], q[:])
 
 	return e
 }

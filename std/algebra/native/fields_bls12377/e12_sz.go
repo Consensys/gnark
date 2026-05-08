@@ -3,11 +3,9 @@ package fields_bls12377
 import (
 	"fmt"
 	"math/big"
-	"sync"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/multicommit"
 )
 
 // Schwartz-Zippel based E12 multiplication for SCS.
@@ -23,7 +21,8 @@ import (
 // BLS12-377's base field is ~377 bits, so a single Fp evaluation point gives
 // ~372 bits of soundness (deg(a*b)/p = 22/p ≈ 2^{-372}), well above 128 bits.
 //
-// Gate cost: ~49 SCS gates per multiplication (vs ~264 for Karatsuba).
+// The exact SCS cost depends on commitment inputs and batching; see the
+// constraint-count tests for current numbers.
 
 // towerToMonomial12 reorders tower-basis coefficients to monomial-basis.
 //
@@ -59,162 +58,6 @@ func assignE12(e *E12, v []frontend.Variable) {
 	e.C1.B0.A0, e.C1.B0.A1 = v[6], v[7]
 	e.C1.B1.A0, e.C1.B1.A1 = v[8], v[9]
 	e.C1.B2.A0, e.C1.B2.A1 = v[10], v[11]
-}
-
-// e12MulCheck stores one deferred a*b=c check in monomial form.
-type e12MulCheck struct {
-	a, b, c    [12]frontend.Variable // monomial coefficients (degree 11)
-	q          [11]frontend.Variable // quotient monomial coefficients (degree 10)
-	isSquare   bool                  // if true, b is ignored and a(r)² is checked
-	bSparseIdx []int                 // if non-nil, only these indices of b are nonzero variables
-	bConstIdx  []int                 // indices of b that are constants (e.g., 1)
-}
-
-// e12SZChecker accumulates E12 multiplication checks and resolves them
-// in a single deferred callback using a shared Fiat-Shamir challenge.
-type e12SZChecker struct {
-	checks []e12MulCheck
-}
-
-var (
-	e12szMu       sync.Mutex
-	e12szCheckers = map[frontend.Compiler]*e12SZChecker{}
-)
-
-func getE12SZChecker(api frontend.API) *e12SZChecker {
-	compiler := api.Compiler()
-
-	e12szMu.Lock()
-	ch, ok := e12szCheckers[compiler]
-	if ok {
-		e12szMu.Unlock()
-		return ch
-	}
-	ch = &e12SZChecker{}
-	e12szCheckers[compiler] = ch
-	e12szMu.Unlock()
-
-	compiler.Defer(func(api frontend.API) error {
-		defer func() {
-			e12szMu.Lock()
-			delete(e12szCheckers, compiler)
-			e12szMu.Unlock()
-		}()
-		return ch.resolve(api)
-	})
-	return ch
-}
-
-func (ch *e12SZChecker) addCheck(a, b, c [12]frontend.Variable, q [11]frontend.Variable) {
-	ch.checks = append(ch.checks, e12MulCheck{a: a, b: b, c: c, q: q, isSquare: false})
-}
-
-func (ch *e12SZChecker) addSquareCheck(a, c [12]frontend.Variable, q [11]frontend.Variable) {
-	ch.checks = append(ch.checks, e12MulCheck{a: a, c: c, q: q, isSquare: true})
-}
-
-// addSparseCheck registers a check where b has only some nonzero coefficients.
-// sparseVarIdx: indices of b that are circuit variables
-// sparseConstIdx: indices of b that are known constants (e.g., index 0 = 1 for MulBy034)
-func (ch *e12SZChecker) addSparseCheck(a, b, c [12]frontend.Variable, q [11]frontend.Variable, sparseVarIdx, sparseConstIdx []int) {
-	ch.checks = append(ch.checks, e12MulCheck{
-		a: a, b: b, c: c, q: q,
-		bSparseIdx: sparseVarIdx, bConstIdx: sparseConstIdx,
-	})
-}
-
-// resolve performs all accumulated checks using a single commitment challenge.
-func (ch *e12SZChecker) resolve(api frontend.API) error {
-	if len(ch.checks) == 0 {
-		return nil
-	}
-
-	var toCommit []frontend.Variable
-	for i := range ch.checks {
-		toCommit = append(toCommit, ch.checks[i].c[:]...)
-		toCommit = append(toCommit, ch.checks[i].q[:]...)
-	}
-
-	// BLS12-377 is a large field — use plain WithCommitment (single Fp challenge).
-	// Soundness: 22/p ≈ 2^{-372}.
-	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		r := commitment
-
-		// Precompute r², ..., r¹² (11 gates, shared across all checks)
-		rPow := make([]frontend.Variable, 13)
-		rPow[0] = frontend.Variable(1)
-		rPow[1] = r
-		for i := 2; i <= 12; i++ {
-			rPow[i] = api.Mul(rPow[i-1], r)
-		}
-
-		// P(r) = r^12 + 5
-		pEval := api.Add(rPow[12], 5)
-
-		// Batching coefficient: r^23 ensures non-overlapping degree ranges (deg(e_i)=22)
-		alpha := api.Mul(rPow[12], rPow[11]) // r^23
-
-		lhsAcc := frontend.Variable(0)
-		rhsAcc := frontend.Variable(0)
-		alphaPow := frontend.Variable(1)
-
-		for i := range ch.checks {
-			chk := &ch.checks[i]
-
-			aEval := evalAtPowers12(api, chk.a[:], rPow)
-			var abEval frontend.Variable
-			if chk.isSquare {
-				abEval = api.Mul(aEval, aEval)
-			} else if chk.bSparseIdx != nil {
-				// sparse b: only evaluate nonzero terms
-				bEval := evalSparse12(api, chk.b[:], rPow, chk.bSparseIdx, chk.bConstIdx)
-				abEval = api.Mul(aEval, bEval)
-			} else {
-				bEval := evalAtPowers12(api, chk.b[:], rPow)
-				abEval = api.Mul(aEval, bEval)
-			}
-			cEval := evalAtPowers12(api, chk.c[:], rPow)
-			qEval := evalAtPowers12(api, chk.q[:], rPow)
-			qpEval := api.Mul(qEval, pEval)
-			rhs := api.Add(qpEval, cEval)
-
-			lhsAcc = api.Add(lhsAcc, api.Mul(alphaPow, abEval))
-			rhsAcc = api.Add(rhsAcc, api.Mul(alphaPow, rhs))
-
-			if i < len(ch.checks)-1 {
-				alphaPow = api.Mul(alphaPow, alpha)
-			}
-		}
-
-		api.AssertIsEqual(lhsAcc, rhsAcc)
-		return nil
-	}, toCommit...)
-
-	return nil
-}
-
-// evalAtPowers12 evaluates coeffs[0] + coeffs[1]*r + ... + coeffs[n-1]*r^(n-1)
-// using precomputed powers.
-func evalAtPowers12(api frontend.API, coeffs []frontend.Variable, rPow []frontend.Variable) frontend.Variable {
-	result := coeffs[0]
-	for i := 1; i < len(coeffs); i++ {
-		result = api.Add(result, api.Mul(coeffs[i], rPow[i]))
-	}
-	return result
-}
-
-// evalSparse12 evaluates a polynomial where only some coefficients are nonzero.
-// varIdx: indices with circuit variable coefficients (multiplication gate required)
-// constIdx: indices with constant coefficients (scalar multiplication, no gate in SCS)
-func evalSparse12(api frontend.API, coeffs []frontend.Variable, rPow []frontend.Variable, varIdx, constIdx []int) frontend.Variable {
-	var result frontend.Variable = 0
-	for _, i := range constIdx {
-		result = api.Add(result, api.Mul(coeffs[i], rPow[i]))
-	}
-	for _, i := range varIdx {
-		result = api.Add(result, api.Mul(coeffs[i], rPow[i]))
-	}
-	return result
 }
 
 // mulBy034E12SZHint computes c = a * sparse(1,0,0,c3,c4,0) in Fp12.

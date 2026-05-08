@@ -111,11 +111,7 @@ func (e *E12) mulBy034SZ(api frontend.API, c3, c4 E2) *E12 {
 	bMono[7] = c3.A1
 	bMono[9] = c4.A1
 
-	ch := getE12SZChecker(api)
-	ch.addSparseCheck(aMono, bMono, cMono, q,
-		[]int{1, 3, 7, 9}, // variable indices
-		[]int{0},          // constant indices (mono[0] = 1)
-	)
+	addSZCheck(api, aMono[:], bMono[:], cMono[:], q[:])
 
 	return e
 }

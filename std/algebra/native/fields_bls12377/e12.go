@@ -193,8 +193,7 @@ func (e *E12) mulSZ(api frontend.API, e1, e2 E12) *E12 {
 	bMono := towerToMonomial12(bCoeffs)
 	cMono := towerToMonomial12(e12Coeffs(e))
 
-	ch := getE12SZChecker(api)
-	ch.addCheck(aMono, bMono, cMono, q)
+	addSZCheck(api, aMono[:], bMono[:], cMono[:], q[:])
 
 	return e
 }
@@ -246,8 +245,7 @@ func (e *E12) squareSZ(api frontend.API, x E12) *E12 {
 	aMono := towerToMonomial12(aCoeffs)
 	cMono := towerToMonomial12(e12Coeffs(e))
 
-	ch := getE12SZChecker(api)
-	ch.addSquareCheck(aMono, cMono, q)
+	addSZSquareCheck(api, aMono[:], cMono[:], q[:])
 
 	return e
 }
