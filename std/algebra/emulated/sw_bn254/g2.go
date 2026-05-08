@@ -347,45 +347,6 @@ func (g2 *G2) Select(b frontend.Variable, p, q *G2Affine) *G2Affine {
 	}
 }
 
-func (g2 G2) triple(p *G2Affine) *G2Affine {
-	mone := g2.fp.NewElement(-1)
-
-	// compute λ1 = (3p.x²)/2p.y
-	xx := g2.Square(&p.P.X)
-	xx = g2.MulByConstElement(xx, big.NewInt(3))
-	y2 := g2.Double(&p.P.Y)
-	λ1 := g2.DivUnchecked(xx, y2)
-
-	// x2 = λ1²-2p.x
-	x20 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {mone, &λ1.A1, &λ1.A1}, {mone, &p.P.X.A0}}, []int{1, 1, 2})
-	x21 := g2.fp.Eval([][]*baseEl{{&λ1.A0, &λ1.A1}, {mone, &p.P.X.A1}}, []int{2, 2})
-	x2 := &fields_bn254.E2{A0: *x20, A1: *x21}
-
-	// omit y2 computation, and
-	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
-	x1x2 := g2.Sub(&p.P.X, x2)
-	λ2 := g2.DivUnchecked(y2, x1x2)
-	λ2 = g2.Sub(λ2, λ1)
-
-	// compute x3 =λ2²-p.x-x2
-	x30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A0}, {mone, &λ2.A1, &λ2.A1}, {mone, &p.P.X.A0}, {mone, x20}}, []int{1, 1, 1, 1})
-	x31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &λ2.A1}, {mone, &p.P.X.A1}, {mone, x21}}, []int{2, 1, 1})
-	x3 := &fields_bn254.E2{A0: *x30, A1: *x31}
-
-	// compute y3 = λ2*(p.x - x3)-p.y
-	y3 := g2.Ext2.Sub(&p.P.X, x3)
-	y30 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A0}, {mone, &λ2.A1, &y3.A1}, {mone, &p.P.Y.A0}}, []int{1, 1, 1})
-	y31 := g2.fp.Eval([][]*baseEl{{&λ2.A0, &y3.A1}, {&λ2.A1, &y3.A0}, {mone, &p.P.Y.A1}}, []int{1, 1, 1})
-	y3 = &fields_bn254.E2{A0: *y30, A1: *y31}
-
-	return &G2Affine{
-		P: g2AffP{
-			X: *x3,
-			Y: *y3,
-		},
-	}
-}
-
 // ScalarMul computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements the GLV+fakeGLV optimization from [EEMP25] which achieves r^(1/4) bounds
 // on the sub-scalars, reducing the number of iterations in the scalar multiplication loop.
