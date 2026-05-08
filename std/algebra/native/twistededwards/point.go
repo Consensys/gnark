@@ -142,20 +142,10 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2, bit, k := s[0], s[1], s[2], s[3]
+	s1, s2, bit := s[0], s[1], s[2]
 
-	// check that s1 + s2 * s == k*Order
-	_s2 := api.Mul(s2, checkedScalar)
-	_k := api.Mul(k, curve.Order)
-	lhs := api.Select(bit, s1, api.Add(s1, _s2))
-	rhs := api.Select(bit, api.Add(_k, _s2), _k)
-	api.AssertIsEqual(lhs, rhs)
-	// A malicious hint can provide s1=s2=0, which makes the relation vacuous.
-	api.AssertIsEqual(api.IsZero(s2), 0)
-
-	n := (curve.Order.BitLen() + 1) / 2
-	b1 := api.ToBinary(s1, n)
-	b2 := api.ToBinary(s2, n)
+	b1, b2 := verifyScalarDecomposition(api, s1, s2, bit, checkedScalar, curve)
+	n := len(b1)
 
 	var res, p2, p3, tmp Point
 	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, checkedScalar, curve.Order)
