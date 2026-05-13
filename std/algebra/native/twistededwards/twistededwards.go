@@ -33,6 +33,10 @@ type Curve interface {
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
 	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
+	// DoubleBaseScalarMulNonZero computes [s1]p1+[s2]p2 with the optimized
+	// lattice MSM path. It requires s1, s2 to be nonzero and p1, p2 to be
+	// non-identity points.
+	DoubleBaseScalarMulNonZero(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
 
@@ -46,6 +50,15 @@ type Point struct {
 type CurveParams struct {
 	A, D, Cofactor, Order *big.Int
 	Base                  [2]*big.Int // base point coordinates
+}
+
+// EndoParams holds the GLV endomorphism parameters for curves that have one
+// (Bandersnatch). The endomorphism Φ(x, y) = ((Endo[0]·(1−y²)/(x·y) + …) acts as
+// scalar multiplication by Lambda on the prime-order subgroup. This is used
+// only by the `doubleBaseScalarMul6MSMLogUp` MSM(6, n/3) variant.
+type EndoParams struct {
+	Endo   [2]*big.Int
+	Lambda *big.Int
 }
 
 // NewEdCurve returns a new Edwards curve
@@ -62,8 +75,18 @@ func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
 		return nil, err
 	}
 
-	// default
-	return &curve{api: api, params: params, id: id}, nil
+	var endo *EndoParams
+	if id == twistededwards.BLS12_381_BANDERSNATCH {
+		endo = &EndoParams{
+			Endo:   [2]*big.Int{new(big.Int), new(big.Int)},
+			Lambda: new(big.Int),
+		}
+		endo.Endo[0].SetString("37446463827641770816307242315180085052603635617490163568005256780843403514036", 10)
+		endo.Endo[1].SetString("49199877423542878313146170939139662862850515542392585932876811575731455068989", 10)
+		endo.Lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+	}
+
+	return &curve{api: api, params: params, endo: endo, id: id}, nil
 }
 
 func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {

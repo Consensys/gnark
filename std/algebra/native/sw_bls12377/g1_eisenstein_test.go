@@ -28,11 +28,11 @@ func (c *scalarMulGLVAndFakeGLVTrivialDecompCircuit) Define(api frontend.API) er
 	return nil
 }
 
-// zeroHalfGCDEisenstein replaces the honest halfGCDEisenstein hint with one
+// zeroRationalReconstructExt replaces the honest rationalReconstructExt hint with one
 // that returns the all-zeros decomposition (u1 = u2 = v1 = v2 = q = 0). The
 // signs are also zero (positive). This is the malicious-hint shape the
 // soundness fix protects against.
-func zeroHalfGCDEisenstein(_ *big.Int, inputs, outputs []*big.Int) error {
+func zeroRationalReconstructExt(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
@@ -46,7 +46,7 @@ func zeroHalfGCDEisenstein(_ *big.Int, inputs, outputs []*big.Int) error {
 }
 
 // TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
-// soundness issue in scalarMulGLVAndFakeGLV. A malicious halfGCDEisenstein
+// soundness issue in scalarMulGLVAndFakeGLV. A malicious rationalReconstructExt
 // hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=q=0) makes
 // the relation s·(v1 + λ·v2) + u1 + λ·u2 - r·q = 0 vacuous and lets the
 // scalar-mul hint output be any point. The fix asserts NOT (v1=0 AND v2=0).
@@ -73,7 +73,7 @@ func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
 		&scalarMulGLVAndFakeGLVTrivialDecompCircuit{},
 		&witness,
 		ecc.BW6_761.ScalarField(),
-		test.WithReplacementHint(solver.GetHintID(halfGCDEisenstein), zeroHalfGCDEisenstein),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstructExt), zeroRationalReconstructExt),
 	)
 	assert.Error(err, "trivial all-zeros Eisenstein decomposition was accepted — soundness break")
 }
