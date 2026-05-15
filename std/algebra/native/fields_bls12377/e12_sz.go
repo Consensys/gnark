@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -60,7 +61,8 @@ func assignE12(e *E12, v []frontend.Variable) {
 	e.C1.B2.A0, e.C1.B2.A1 = v[10], v[11]
 }
 
-// mulBy034E12SZHint computes c = a * sparse(1,0,0,c3,c4,0) in Fp12.
+// mulBy034E12SZHint computes c = a * sparse(1,0,0,c3,c4,0) in Fp12 and the
+// quotient q such that a(X)*b(X) = q(X)*(X^12+5) + c(X) in Fp[X].
 //
 // inputs:  16 big.Ints (12 for a in tower, 2 for c3, 2 for c4)
 // outputs: 23 big.Ints (12 for c in tower, 11 for q in monomial)
@@ -84,33 +86,9 @@ func mulBy034E12SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 
 	getNativeE12(&c, outputs[:12])
 
-	aMono := e12TowerToMonomialBigInt(&a)
-	bMono := e12TowerToMonomialBigInt(&b)
-
-	p := bls12377.ID.BaseField()
-	var prod [23]big.Int
-	for i := 0; i < 12; i++ {
-		for j := 0; j < 12; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &bMono[j])
-			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
-		}
-	}
-
-	five := big.NewInt(5)
-	var q [11]big.Int
-	for i := 10; i >= 0; i-- {
-		q[i].Set(&prod[i+12])
-		q[i].Mod(&q[i], p)
-		var t big.Int
-		t.Mul(&q[i], five)
-		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
-	}
-
+	q := e12SZQuotient(e12TowerToMonomialFpElement(&a), e12TowerToMonomialFpElement(&b))
 	for i := 0; i < 11; i++ {
-		outputs[12+i].Set(&q[i])
+		q[i].BigInt(outputs[12+i])
 	}
 	return nil
 }
@@ -136,39 +114,10 @@ func mulE12SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	// output c in tower basis (first 12 outputs)
 	getNativeE12(&c, outputs[:12])
 
-	// convert a, b to monomial form for polynomial multiplication
-	aMono := e12TowerToMonomialBigInt(&a)
-	bMono := e12TowerToMonomialBigInt(&b)
-
-	// polynomial multiply: prod = aMono * bMono (degree 22, 23 coefficients)
-	p := bls12377.ID.BaseField()
-	var prod [23]big.Int
-	for i := 0; i < 12; i++ {
-		for j := 0; j < 12; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &bMono[j])
-			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
-		}
-	}
-
-	// divide by P(X) = X^12 + 5 (monic degree 12)
-	// q[i] = prod[i+12] for i = 10..0, then fold: prod[i] += prod[i+12]*(-5)
-	five := big.NewInt(5)
-	var q [11]big.Int
-	for i := 10; i >= 0; i-- {
-		q[i].Set(&prod[i+12])
-		q[i].Mod(&q[i], p)
-		// subtract q[i] * 5 from prod[i] (since P = X^12 + 5, constant term is +5)
-		var t big.Int
-		t.Mul(&q[i], five)
-		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
-	}
-
+	q := e12SZQuotient(e12TowerToMonomialFpElement(&a), e12TowerToMonomialFpElement(&b))
 	// output q in monomial basis (last 11 outputs)
 	for i := 0; i < 11; i++ {
-		outputs[12+i].Set(&q[i])
+		q[i].BigInt(outputs[12+i])
 	}
 	return nil
 }
@@ -192,34 +141,35 @@ func squareE12SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 	getNativeE12(&c, outputs[:12])
 
-	aMono := e12TowerToMonomialBigInt(&a)
+	aMono := e12TowerToMonomialFpElement(&a)
+	q := e12SZQuotient(aMono, aMono)
+	for i := 0; i < 11; i++ {
+		q[i].BigInt(outputs[12+i])
+	}
+	return nil
+}
 
-	p := bls12377.ID.BaseField()
-	var prod [23]big.Int
+func e12SZQuotient(aMono, bMono [12]fp.Element) [11]fp.Element {
+	var prod [23]fp.Element
 	for i := 0; i < 12; i++ {
 		for j := 0; j < 12; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &aMono[j])
+			var t fp.Element
+			t.Mul(&aMono[i], &bMono[j])
 			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
 		}
 	}
 
-	five := big.NewInt(5)
-	var q [11]big.Int
+	var five fp.Element
+	five.SetUint64(5)
+	var q [11]fp.Element
+	// Compute q such that a*b = c + q*(X^12+5).
 	for i := 10; i >= 0; i-- {
 		q[i].Set(&prod[i+12])
-		q[i].Mod(&q[i], p)
-		var t big.Int
-		t.Mul(&q[i], five)
+		var t fp.Element
+		t.Mul(&q[i], &five)
 		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
 	}
-
-	for i := 0; i < 11; i++ {
-		outputs[12+i].Set(&q[i])
-	}
-	return nil
+	return q
 }
 
 func setNativeE12(dst *bls12377.E12, inputs []*big.Int) {
@@ -252,24 +202,11 @@ func getNativeE12(src *bls12377.E12, outputs []*big.Int) {
 	src.C1.B2.A1.BigInt(outputs[11])
 }
 
-// e12TowerToMonomialBigInt converts tower-basis E12 to monomial-basis big.Ints.
-func e12TowerToMonomialBigInt(e *bls12377.E12) [12]big.Int {
-	var tower [12]big.Int
-	e.C0.B0.A0.BigInt(&tower[0])
-	e.C0.B0.A1.BigInt(&tower[1])
-	e.C0.B1.A0.BigInt(&tower[2])
-	e.C0.B1.A1.BigInt(&tower[3])
-	e.C0.B2.A0.BigInt(&tower[4])
-	e.C0.B2.A1.BigInt(&tower[5])
-	e.C1.B0.A0.BigInt(&tower[6])
-	e.C1.B0.A1.BigInt(&tower[7])
-	e.C1.B1.A0.BigInt(&tower[8])
-	e.C1.B1.A1.BigInt(&tower[9])
-	e.C1.B2.A0.BigInt(&tower[10])
-	e.C1.B2.A1.BigInt(&tower[11])
+// e12TowerToMonomialFpElement converts tower-basis E12 to monomial-basis elements.
+func e12TowerToMonomialFpElement(e *bls12377.E12) [12]fp.Element {
 	// permutation: mono[degree] = tower[index]
-	return [12]big.Int{
-		tower[0], tower[6], tower[2], tower[8], tower[4], tower[10],
-		tower[1], tower[7], tower[3], tower[9], tower[5], tower[11],
+	return [12]fp.Element{
+		e.C0.B0.A0, e.C1.B0.A0, e.C0.B1.A0, e.C1.B1.A0, e.C0.B2.A0, e.C1.B2.A0,
+		e.C0.B0.A1, e.C1.B0.A1, e.C0.B1.A1, e.C1.B1.A1, e.C0.B2.A1, e.C1.B2.A1,
 	}
 }

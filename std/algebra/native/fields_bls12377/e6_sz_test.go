@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
@@ -37,7 +36,7 @@ func TestE6MulSZCorrectness(t *testing.T) {
 	c.Mul(&a, &b)
 
 	circuit := &e6MulSZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +100,7 @@ func TestE6MulSZRejectsCorruptedQuotientHint(t *testing.T) {
 	c.Mul(&a, &b)
 
 	circuit := &e6MulSZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +127,7 @@ func TestE6MulSZRejectsForgedInputsWhenCommitted(t *testing.T) {
 	field := ecc.BW6_761.ScalarField()
 
 	circuit := &e6MulSZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +176,7 @@ func TestE6SquareSZCorrectness(t *testing.T) {
 	c.Square(&a)
 
 	circuit := &e6SquareSZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +230,7 @@ func TestE6MulBy01SZCorrectness(t *testing.T) {
 	res.Mul(&a, &sparse)
 
 	circuit := &e6MulBy01SZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +273,7 @@ func TestE6SZConstraintCount(t *testing.T) {
 		{"E6.Square", &e6SquareSZCircuit{}},
 		{"E6.MulBy01", &e6MulBy01SZCircuit{}},
 	} {
-		ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, tc.circuit)
+		ccs, err := frontend.Compile(field, scs.NewBuilder, tc.circuit)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}

@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -40,7 +41,8 @@ func assignE6(e *E6, v []frontend.Variable) {
 	e.B2.A0, e.B2.A1 = v[4], v[5]
 }
 
-// mulBy01E6SZHint computes c = a * sparse(c0, c1, 0) in Fp6.
+// mulBy01E6SZHint computes c = a * sparse(c0, c1, 0) in Fp6 and the quotient q
+// such that a(X)*b(X) = q(X)*(X^6+5) + c(X) in Fp[X].
 // inputs: 10 (6 for a in tower, 2 for c0, 2 for c1)
 // outputs: 11 (6 for c in tower, 5 for q in monomial)
 func mulBy01E6SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
@@ -62,33 +64,9 @@ func mulBy01E6SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 	getNativeE6(&c, outputs[:6])
 
-	aMono := e6TowerToMonomialBigInt(&a)
-	bMono := e6TowerToMonomialBigInt(&b)
-
-	p := bls12377.ID.BaseField()
-	var prod [11]big.Int
-	for i := 0; i < 6; i++ {
-		for j := 0; j < 6; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &bMono[j])
-			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
-		}
-	}
-
-	five := big.NewInt(5)
-	var q [5]big.Int
-	for i := 4; i >= 0; i-- {
-		q[i].Set(&prod[i+6])
-		q[i].Mod(&q[i], p)
-		var t big.Int
-		t.Mul(&q[i], five)
-		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
-	}
-
+	q := e6SZQuotient(e6TowerToMonomialFpElement(&a), e6TowerToMonomialFpElement(&b))
 	for i := 0; i < 5; i++ {
-		outputs[6+i].Set(&q[i])
+		q[i].BigInt(outputs[6+i])
 	}
 	return nil
 }
@@ -110,38 +88,15 @@ func mulE6SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 	getNativeE6(&c, outputs[:6])
 
-	aMono := e6TowerToMonomialBigInt(&a)
-	bMono := e6TowerToMonomialBigInt(&b)
-
-	p := bls12377.ID.BaseField()
-	var prod [11]big.Int
-	for i := 0; i < 6; i++ {
-		for j := 0; j < 6; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &bMono[j])
-			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
-		}
-	}
-
-	five := big.NewInt(5)
-	var q [5]big.Int
-	for i := 4; i >= 0; i-- {
-		q[i].Set(&prod[i+6])
-		q[i].Mod(&q[i], p)
-		var t big.Int
-		t.Mul(&q[i], five)
-		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
-	}
-
+	q := e6SZQuotient(e6TowerToMonomialFpElement(&a), e6TowerToMonomialFpElement(&b))
 	for i := 0; i < 5; i++ {
-		outputs[6+i].Set(&q[i])
+		q[i].BigInt(outputs[6+i])
 	}
 	return nil
 }
 
-// squareE6SZHint computes c = a² in Fp6 and quotient q.
+// squareE6SZHint computes c = a² in Fp6 and the quotient q such that
+// a(X)² = q(X)*(X^6+5) + c(X) in Fp[X].
 func squareE6SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 6 {
 		return fmt.Errorf("squareE6SZHint: expected 6 inputs, got %d", len(inputs))
@@ -156,34 +111,35 @@ func squareE6SZHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 	getNativeE6(&c, outputs[:6])
 
-	aMono := e6TowerToMonomialBigInt(&a)
+	aMono := e6TowerToMonomialFpElement(&a)
+	q := e6SZQuotient(aMono, aMono)
+	for i := 0; i < 5; i++ {
+		q[i].BigInt(outputs[6+i])
+	}
+	return nil
+}
 
-	p := bls12377.ID.BaseField()
-	var prod [11]big.Int
+func e6SZQuotient(aMono, bMono [6]fp.Element) [5]fp.Element {
+	var prod [11]fp.Element
 	for i := 0; i < 6; i++ {
 		for j := 0; j < 6; j++ {
-			var t big.Int
-			t.Mul(&aMono[i], &aMono[j])
+			var t fp.Element
+			t.Mul(&aMono[i], &bMono[j])
 			prod[i+j].Add(&prod[i+j], &t)
-			prod[i+j].Mod(&prod[i+j], p)
 		}
 	}
 
-	five := big.NewInt(5)
-	var q [5]big.Int
+	var five fp.Element
+	five.SetUint64(5)
+	var q [5]fp.Element
+	// Compute q such that a*b = c + q*(X^6+5).
 	for i := 4; i >= 0; i-- {
 		q[i].Set(&prod[i+6])
-		q[i].Mod(&q[i], p)
-		var t big.Int
-		t.Mul(&q[i], five)
+		var t fp.Element
+		t.Mul(&q[i], &five)
 		prod[i].Sub(&prod[i], &t)
-		prod[i].Mod(&prod[i], p)
 	}
-
-	for i := 0; i < 5; i++ {
-		outputs[6+i].Set(&q[i])
-	}
-	return nil
+	return q
 }
 
 func setNativeE6(dst *bls12377.E6, inputs []*big.Int) {
@@ -204,14 +160,7 @@ func getNativeE6(src *bls12377.E6, outputs []*big.Int) {
 	src.B2.A1.BigInt(outputs[5])
 }
 
-func e6TowerToMonomialBigInt(e *bls12377.E6) [6]big.Int {
-	var tower [6]big.Int
-	e.B0.A0.BigInt(&tower[0])
-	e.B0.A1.BigInt(&tower[1])
-	e.B1.A0.BigInt(&tower[2])
-	e.B1.A1.BigInt(&tower[3])
-	e.B2.A0.BigInt(&tower[4])
-	e.B2.A1.BigInt(&tower[5])
+func e6TowerToMonomialFpElement(e *bls12377.E6) [6]fp.Element {
 	// permutation: [t[0], t[2], t[4], t[1], t[3], t[5]]
-	return [6]big.Int{tower[0], tower[2], tower[4], tower[1], tower[3], tower[5]}
+	return [6]fp.Element{e.B0.A0, e.B1.A0, e.B2.A0, e.B0.A1, e.B1.A1, e.B2.A1}
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
@@ -57,7 +56,7 @@ func TestE12MulSZCorrectness(t *testing.T) {
 	c.Mul(&a, &b)
 
 	circuit := newE12MulNCircuit(1)
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -101,7 +100,7 @@ func TestE12MulSZRejectsCorruptedQuotientHint(t *testing.T) {
 	c.Mul(&a, &b)
 
 	circuit := newE12MulNCircuit(1)
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func TestE12MulSZRejectsForgedInputsWhenCommitted(t *testing.T) {
 	field := ecc.BW6_761.ScalarField()
 
 	circuit := newE12MulNCircuit(1)
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +168,7 @@ func TestE12MulSZMultiple(t *testing.T) {
 
 	n := 4
 	circuit := newE12MulNCircuit(n)
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -202,7 +201,7 @@ func TestE12SquareSZCorrectness(t *testing.T) {
 	c.Square(&a)
 
 	circuit := &e12SquareNCircuit{N: 1, A: make([]E12, 1), C: make([]E12, 1)}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -301,7 +300,7 @@ func TestE12MulBy034SZCorrectness(t *testing.T) {
 	res.Mul(&a, &sparse)
 
 	circuit := &e12MulBy034SZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +361,7 @@ func TestE12MulBy01234SZCorrectness(t *testing.T) {
 	res.Mul(&a, &sparse)
 
 	circuit := &e12MulBy01234SZCircuit{}
-	ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +397,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 
 	for _, n := range []int{1, 2, 4, 8, 16} {
 		circuit := newE12MulNCircuit(n)
-		ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+		ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 		if err != nil {
 			t.Fatalf("compile N=%d: %v", n, err)
 		}
@@ -406,7 +405,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 		if n == 1 {
 			t.Logf("  N=%2d: total=%d SCS", n, nb)
 		} else {
-			ccs1, _ := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, newE12MulNCircuit(1))
+			ccs1, _ := frontend.Compile(field, scs.NewBuilder, newE12MulNCircuit(1))
 			marginal := (nb - ccs1.GetNbConstraints()) / (n - 1)
 			t.Logf("  N=%2d: total=%d SCS, marginal/mul=%d", n, nb, marginal)
 		}
@@ -415,7 +414,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 	t.Log("=== E12 MulBy01234 SCS Constraint Counts (Schwartz-Zippel) ===")
 	for _, n := range []int{1, 2, 4} {
 		circuit := &e12MulBy01234NCircuit{N: n, A: make([]E12, n), X: make([][5]E2, n)}
-		ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+		ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 		if err != nil {
 			t.Fatalf("compile mulby01234 N=%d: %v", n, err)
 		}
@@ -423,7 +422,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 		if n == 1 {
 			t.Logf("  N=%2d: total=%d SCS", n, nb)
 		} else {
-			ccs1, _ := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, &e12MulBy01234NCircuit{N: 1, A: make([]E12, 1), X: make([][5]E2, 1)})
+			ccs1, _ := frontend.Compile(field, scs.NewBuilder, &e12MulBy01234NCircuit{N: 1, A: make([]E12, 1), X: make([][5]E2, 1)})
 			marginal := (nb - ccs1.GetNbConstraints()) / (n - 1)
 			t.Logf("  N=%2d: total=%d SCS, marginal/op=%d", n, nb, marginal)
 		}
@@ -432,7 +431,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 	t.Log("=== E12 MulBy034 SCS Constraint Counts (Schwartz-Zippel) ===")
 	for _, n := range []int{1, 2, 4, 8} {
 		circuit := &e12MulBy034NCircuit{N: n, A: make([]E12, n), C3: make([]E2, n), C4: make([]E2, n)}
-		ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+		ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 		if err != nil {
 			t.Fatalf("compile mulby034 N=%d: %v", n, err)
 		}
@@ -440,7 +439,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 		if n == 1 {
 			t.Logf("  N=%2d: total=%d SCS", n, nb)
 		} else {
-			ccs1, _ := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, &e12MulBy034NCircuit{N: 1, A: make([]E12, 1), C3: make([]E2, 1), C4: make([]E2, 1)})
+			ccs1, _ := frontend.Compile(field, scs.NewBuilder, &e12MulBy034NCircuit{N: 1, A: make([]E12, 1), C3: make([]E2, 1), C4: make([]E2, 1)})
 			marginal := (nb - ccs1.GetNbConstraints()) / (n - 1)
 			t.Logf("  N=%2d: total=%d SCS, marginal/op=%d", n, nb, marginal)
 		}
@@ -449,7 +448,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 	t.Log("=== E12 Square SCS Constraint Counts (Schwartz-Zippel) ===")
 	for _, n := range []int{1, 2, 4, 8} {
 		circuit := &e12SquareNCircuit{N: n, A: make([]E12, n), C: make([]E12, n)}
-		ccs, err := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, circuit)
+		ccs, err := frontend.Compile(field, scs.NewBuilder, circuit)
 		if err != nil {
 			t.Fatalf("compile square N=%d: %v", n, err)
 		}
@@ -457,7 +456,7 @@ func TestE12MulSZConstraintCount(t *testing.T) {
 		if n == 1 {
 			t.Logf("  N=%2d: total=%d SCS", n, nb)
 		} else {
-			ccs1, _ := frontend.CompileGeneric[constraint.U64](field, scs.NewBuilder, &e12SquareNCircuit{N: 1, A: make([]E12, 1), C: make([]E12, 1)})
+			ccs1, _ := frontend.Compile(field, scs.NewBuilder, &e12SquareNCircuit{N: 1, A: make([]E12, 1), C: make([]E12, 1)})
 			marginal := (nb - ccs1.GetNbConstraints()) / (n - 1)
 			t.Logf("  N=%2d: total=%d SCS, marginal/sq=%d", n, nb, marginal)
 		}
