@@ -626,7 +626,7 @@ func (c *scalarMulFakeGLVRegressionCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func zeroHalfGCDHint(_ *big.Int, inputs, outputs []*big.Int) error {
+func zeroRationalReconstructHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
@@ -640,8 +640,9 @@ func zeroHalfGCDHint(_ *big.Int, inputs, outputs []*big.Int) error {
 }
 
 // This is a regression for a soundness issue in scalarMulFakeGLV. A malicious
-// halfGCD hint can return the trivial decomposition s1=s2=0, which makes the
-// internal accumulator check vacuous and lets any scalar-mul hint output pass.
+// rationalReconstruct hint can return the trivial decomposition s1=s2=0,
+// which makes the internal accumulator check vacuous and lets any scalar-mul
+// hint output pass.
 func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
 	assert := require.New(t)
 
@@ -654,7 +655,7 @@ func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
 		&scalarMulFakeGLVRegressionCircuit{},
 		&witness,
 		ecc.BN254.ScalarField(),
-		test.WithReplacementHint(solver.GetHintID(halfGCD), zeroHalfGCDHint),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstruct), zeroRationalReconstructHint),
 	)
 	assert.Error(err)
 }

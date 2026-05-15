@@ -651,9 +651,9 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	sd, err := api.NewHint(halfGCDEisenstein, 10, _s, cc.lambda)
+	sd, err := api.NewHint(rationalReconstructExt, 10, _s, cc.lambda)
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
 	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
 	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
@@ -775,10 +775,10 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	H := G1Affine{X: 0, Y: 1}
 	Acc.AddAssign(api, H)
 
-	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is log_(3/sqrt(3)))(r).
-	// so we need to add 9 bits to r^{1/4}.nbits().
-	nbits := cc.lambda.BitLen()>>1 + 9 // 72
+	// LLL Hermite bound (gnark-crypto/algebra/lattice): u1, u2, v1, v2 are
+	// bounded by γ₄·r^(1/4) ≈ 1.25·r^(1/4), which fits in (r.BitLen()+3)/4 + 2
+	// bits. Tighter than the previous heuristic lambda.BitLen()/2 + 9 (saves ~6 iters).
+	nbits := (cc.fr.BitLen()+3)/4 + 2 // 66 for BLS12-377
 	u1bits := api.ToBinary(u1, nbits)
 	u2bits := api.ToBinary(u2, nbits)
 	v1bits := api.ToBinary(v1, nbits)
