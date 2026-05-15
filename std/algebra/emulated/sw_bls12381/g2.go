@@ -344,12 +344,23 @@ func (g2 G2) sub(p, q *G2Affine) *G2Affine {
 }
 
 func (g2 *G2) double(p *G2Affine) *G2Affine {
+	return g2.doubleGeneric(p, false)
+}
 
+func (g2 *G2) doubleGeneric(p *G2Affine, unified bool) *G2Affine {
 	// compute λ = (3p.x²)/2*p.y
 	xx3a := g2.Square(&p.P.X)
 	xx3a = g2.MulByConstElement(xx3a, big.NewInt(3))
 	y2 := g2.Double(&p.P.Y)
+	var isDoubleYZero frontend.Variable = 0
+	if unified {
+		isDoubleYZero = g2.Ext2.IsZero(y2)
+		y2 = g2.Ext2.Select(isDoubleYZero, g2.Ext2.One(), y2)
+	}
 	λ := g2.DivUnchecked(xx3a, y2)
+	if unified {
+		λ = g2.Ext2.Select(isDoubleYZero, g2.Ext2.Zero(), λ)
+	}
 
 	// xr = λ²-2p.x
 	xr0 := g2.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p.P.X.A0}}, []int{1, -1, -2})
@@ -758,6 +769,11 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 		R = g2.Select(isScalarOne, dummyR, R)
 	}
 
+	addFn := g2.add
+	if !cfg.IncompleteArithmetic {
+		addFn = g2.AddUnified
+	}
+
 	// Precompute -Q, -Φ(Q), Φ(Q).
 	var tableQ, tablePhiQ [2]*G2Affine
 	negQY := g2.Ext2.Neg(&_Q.P.Y)
@@ -796,24 +812,24 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	// Combine Q, R precomputations into ±Q±R, ±Φ(Q)±Φ(R) tables.
 	var tableS [4]*G2Affine
-	tableS[0] = g2.add(tableQ[0], tableR[0])
+	tableS[0] = addFn(tableQ[0], tableR[0])
 	tableS[1] = g2.neg(tableS[0])
-	tableS[2] = g2.add(tableQ[1], tableR[0])
+	tableS[2] = addFn(tableQ[1], tableR[0])
 	tableS[3] = g2.neg(tableS[2])
 
 	var tablePhiS [4]*G2Affine
-	tablePhiS[0] = g2.add(tablePhiQ[0], tablePhiR[0])
+	tablePhiS[0] = addFn(tablePhiQ[0], tablePhiR[0])
 	tablePhiS[1] = g2.neg(tablePhiS[0])
-	tablePhiS[2] = g2.add(tablePhiQ[1], tablePhiR[0])
+	tablePhiS[2] = addFn(tablePhiQ[1], tablePhiR[0])
 	tablePhiS[3] = g2.neg(tablePhiS[2])
 
 	// Initial accumulator: Q + R + Φ(Q) + Φ(R) plus a fixed shift by the G2
 	// generator to avoid incomplete additions in the loop. At the end Acc
 	// will equal [2^(nbits-1)]G2 (the precomputed g2GenNbits).
-	Acc := g2.add(tableS[1], tablePhiS[1])
+	Acc := addFn(tableS[1], tablePhiS[1])
 	B1 := Acc
 	g2GenPoint := &G2Affine{P: *g2.g2Gen}
-	Acc = g2.add(Acc, g2GenPoint)
+	Acc = addFn(Acc, g2GenPoint)
 
 	// LLL Hermite bound: u_i, v_i < γ₄·r^(1/4), fits in (BitLen+3)/4 + 2 bits.
 	nbits := (st.Modulus().BitLen()+3)/4 + 2
@@ -824,13 +840,13 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	// 16-entry Bi precomputation: ±Q ± R ± Φ(Q) ± Φ(R). Half the entries are
 	// negatives of the other half (same X), so we use an 8-to-1 mux + signed Y.
-	B2 := g2.add(tableS[1], tablePhiS[2])
-	B3 := g2.add(tableS[1], tablePhiS[3])
-	B4 := g2.add(tableS[1], tablePhiS[0])
-	B5 := g2.add(tableS[2], tablePhiS[1])
-	B6 := g2.add(tableS[2], tablePhiS[2])
-	B7 := g2.add(tableS[2], tablePhiS[3])
-	B8 := g2.add(tableS[2], tablePhiS[0])
+	B2 := addFn(tableS[1], tablePhiS[2])
+	B3 := addFn(tableS[1], tablePhiS[3])
+	B4 := addFn(tableS[1], tablePhiS[0])
+	B5 := addFn(tableS[2], tablePhiS[1])
+	B6 := addFn(tableS[2], tablePhiS[2])
+	B7 := addFn(tableS[2], tablePhiS[3])
+	B8 := addFn(tableS[2], tablePhiS[0])
 	B10 := g2.neg(B7)
 	B12 := g2.neg(B5)
 	B14 := g2.neg(B3)
@@ -864,17 +880,22 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 				),
 			},
 		}
-		Acc = g2.doubleAndAdd(Acc, Bi)
+		if !cfg.IncompleteArithmetic {
+			Acc = g2.doubleGeneric(Acc, true)
+			Acc = addFn(Acc, Bi)
+		} else {
+			Acc = g2.doubleAndAdd(Acc, Bi)
+		}
 	}
 
 	// i = 0: subtract Q, Φ(Q), R, Φ(R) if the first bits are 0.
-	tableQ[0] = g2.add(tableQ[0], Acc)
+	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = g2.Select(u1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = g2.add(tablePhiQ[0], Acc)
+	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = g2.Select(u2bits[0], Acc, tablePhiQ[0])
-	tableR[0] = g2.add(tableR[0], Acc)
+	tableR[0] = addFn(tableR[0], Acc)
 	Acc = g2.Select(v1bits[0], Acc, tableR[0])
-	tablePhiR[0] = g2.add(tablePhiR[0], Acc)
+	tablePhiR[0] = addFn(tablePhiR[0], Acc)
 	Acc = g2.Select(v2bits[0], Acc, tablePhiR[0])
 
 	// At this point Acc must equal [2^(nbits-1)]G2 (the bias we added).
