@@ -16,6 +16,12 @@ func GetHints() []solver.Hint {
 		inverseE6Hint,
 		inverseE12Hint,
 		finalExpHint,
+		mulE6SZHint,
+		squareE6SZHint,
+		mulBy01E6SZHint,
+		mulE12SZHint,
+		squareE12SZHint,
+		mulBy034E12SZHint,
 	}
 }
 
