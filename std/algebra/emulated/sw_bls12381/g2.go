@@ -7,11 +7,9 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/rs/zerolog"
 )
 
 type G2 struct {
@@ -641,8 +639,15 @@ func (g2 *G2) scalarMulGeneric(p *G2Affine, s *Scalar, opts ...algopts.AlgebraOp
 // ScalarMul computes [s]Q using GLV+FakeGLV with proven r^(1/4) sub-scalar
 // bounds (LLL Hermite). Routes through scalarMulGLVAndFakeGLV.
 //
+// Q is assumed to be in the prime-order G2 subgroup; this method does not check
+// subgroup membership for arbitrary twist points.
+//
 // This method is complete by default.
-// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. Besides Q=(0,0) and s in {0, ±1}, there is a sparse
+// point-dependent exceptional set coming from incomplete precomputations and the
+// initial bias step. This mode is intended for random non-adversarial inputs.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -665,7 +670,11 @@ func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *
 // bits — about a quarter of the iteration count of plain GLV.
 //
 // This method is complete by default.
-// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. Besides Q=(0,0) and s in {0, ±1}, there is a sparse
+// point-dependent exceptional set coming from incomplete precomputations and the
+// initial bias step. This mode is intended for random non-adversarial inputs.
 //
 // [EEMP25]: https://eprint.iacr.org/2025/933
 func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
@@ -673,15 +682,18 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	if err != nil {
 		panic(err)
 	}
-	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(g2.api.Compiler(), zerolog.InfoLevel,
-			"sw_bls12_381/scalarMulGLVAndFakeGLV", "WithIncompleteArithmetic is deprecated in (*sw_bls12381.G2).scalarMulGLVAndFakeGLV and complete arithmetic is always used")
-	}
 
-	// Handle s = 0 by routing through s = 1 and overriding the result later.
-	one := g2.fr.One()
-	selector0 := g2.fr.IsZero(s)
-	_s := g2.fr.Select(selector0, one, s)
+	// handle 0-scalar and (-1)-scalar cases
+	var isScalarZero, isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
+	_s := s
+	if !cfg.IncompleteArithmetic {
+		isScalarZero = g2.fr.IsZero(s)
+		one := g2.fr.One()
+		isScalarOne = g2.fr.IsZero(g2.fr.Sub(s, one))
+		isScalarMinusOne = g2.fr.IsZero(g2.fr.Add(s, one))
+		isScalarZeroOrMinusOne = g2.api.Or(isScalarZero, isScalarMinusOne)
+		_s = g2.fr.Select(isScalarZeroOrMinusOne, one, s)
+	}
 
 	// Decompose s into (u1, u2, v1, v2) via LLL: s·(v1 + λ·v2) + u1 + λ·u2 ≡ 0
 	// (mod r), with each sub-scalar bounded by ~r^(1/4).
@@ -734,21 +746,17 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	}
 	originalR := R // preserve the unmodified hint output for the return value
 
-	// Edge cases: Q = (0,0), s = 0, s = ±1 force R into a relation with Q
-	// that the incomplete table precomputations can't handle. Substitute
-	// dummy points and reconstruct the canonical result at the end.
-	dummyQ := &G2Affine{P: *g2.g2Gen}
-	dummyR := &G2Affine{P: *g2.g2GenNbits}
-
-	_selector0 := g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
-	_Q := g2.Select(_selector0, dummyQ, Q)
-
-	sIsOne := g2.fr.IsZero(g2.fr.Sub(s, g2.fr.One()))
-	sIsMinusOne := g2.fr.IsZero(g2.fr.Add(s, g2.fr.One()))
-	_selector1 := g2.api.Or(sIsOne, sIsMinusOne)
-
-	selectorAny := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
-	R = g2.Select(selectorAny, dummyR, R)
+	// handle (0,0)-point and scalar edge cases
+	var isInputPointAtInfinity frontend.Variable
+	_Q := Q
+	if !cfg.IncompleteArithmetic {
+		dummyQ := &G2Affine{P: *g2.g2Gen}
+		dummyR := &G2Affine{P: *g2.g2GenNbits}
+		R = g2.Select(isScalarZeroOrMinusOne, dummyR, R)
+		isInputPointAtInfinity = g2.api.And(g2.Ext2.IsZero(&Q.P.X), g2.Ext2.IsZero(&Q.P.Y))
+		_Q = g2.Select(isInputPointAtInfinity, dummyQ, Q)
+		R = g2.Select(isScalarOne, dummyR, R)
+	}
 
 	// Precompute -Q, -Φ(Q), Φ(Q).
 	var tableQ, tablePhiQ [2]*G2Affine
@@ -872,28 +880,34 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	// At this point Acc must equal [2^(nbits-1)]G2 (the bias we added).
 	expected := &G2Affine{P: *g2.g2GenNbits}
 
-	// Skip the assertion on edge branches (where R is the dummy).
-	skip := g2.api.Or(g2.api.Or(selector0, _selector0), _selector1)
-	Acc = g2.Select(skip, expected, Acc)
+	if !cfg.IncompleteArithmetic {
+		Acc = g2.Select(g2.api.Or(g2.api.Or(isScalarZeroOrMinusOne, isInputPointAtInfinity), isScalarOne), expected, Acc)
+	}
 	g2.AssertIsEqual(Acc, expected)
 
-	// Reconstruct the canonical result: hint output for the regular path,
-	// constants on the edge branches.
-	zeroE2 := g2.Ext2.Zero()
-	zeroG2 := &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}
-	negQ := g2.neg(Q)
-	result := g2.Select(sIsMinusOne, negQ, originalR)
-	result = g2.Select(sIsOne, Q, result)
-	returnZero := g2.api.Or(selector0, _selector0)
-	return g2.Select(returnZero, zeroG2, result)
+	if !cfg.IncompleteArithmetic {
+		zeroE2 := g2.Ext2.Zero()
+		zeroG2 := &G2Affine{P: g2AffP{X: *zeroE2, Y: *zeroE2}}
+		result := g2.Select(isScalarOne, Q, originalR)
+		result = g2.Select(isScalarZeroOrMinusOne, g2.neg(Q), result)
+		result = g2.Select(isScalarZero, zeroG2, result)
+		result = g2.Select(isInputPointAtInfinity, zeroG2, result)
+		return result
+	}
+	return R
 }
 
 // MultiScalarMul computes the multi scalar multiplication of the points P and
 // scalars s. It returns an error if the length of the slices mismatch. If the
 // input slices are empty, then returns point at infinity.
 //
-// This method is complete by default.
-// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
+// By default, uses complete arithmetic which correctly handles zero scalars and
+// points at infinity.
+//
+// ⚠️  When [algopts.WithIncompleteArithmetic] is set, this method is faster but
+// not complete. It inherits the exceptional sets of the underlying scalar-mul
+// calls and additionally depends on internal accumulator collisions, so the
+// incomplete exceptional set is not fully characterized at the API level.
 func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.AlgebraOption) (*G2Affine, error) {
 
 	if len(p) == 0 {
@@ -909,6 +923,10 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
+	addFn := g2.add
+	if !cfg.IncompleteArithmetic {
+		addFn = g2.AddUnified
+	}
 	if !cfg.FoldMulti {
 		// the scalars are unique
 		if len(p) != len(s) {
@@ -918,7 +936,7 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 		res := g2.ScalarMul(p[0], s[0], opts...)
 		for i := 1; i < n; i++ {
 			q := g2.ScalarMul(p[i], s[i], opts...)
-			res = g2.AddUnified(res, q)
+			res = addFn(res, q)
 		}
 		return res, nil
 	} else {
@@ -929,10 +947,10 @@ func (g2 *G2) MultiScalarMul(p []*G2Affine, s []*Scalar, opts ...algopts.Algebra
 		gamma := s[0]
 		res := g2.ScalarMul(p[len(p)-1], gamma, opts...)
 		for i := len(p) - 2; i > 0; i-- {
-			res = g2.AddUnified(p[i], res)
+			res = addFn(p[i], res)
 			res = g2.ScalarMul(res, gamma, opts...)
 		}
-		res = g2.AddUnified(p[0], res)
+		res = addFn(p[0], res)
 		return res, nil
 	}
 }
