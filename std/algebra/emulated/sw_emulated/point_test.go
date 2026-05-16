@@ -2601,7 +2601,7 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 }
 
 // This is a regression for the missing complete-formula handling in
-// scalarMulGLVAndFakeGLV. For secp256k1 and s=2, the halfGCDEisenstein
+// scalarMulGLVAndFakeGLV. For secp256k1 and s=2, the rationalReconstructExt
 // decomposition yields signs corresponding to
 //
 //	b1 = -P + Q + Phi(P) + Phi(Q).
@@ -2664,9 +2664,9 @@ func TestScalarMulGLVAndFakeGLVCompletePrecomputeCollisionFails(t *testing.T) {
 	assert.NoError(err)
 }
 
-// zeroHalfGCDEisenstein replaces the honest halfGCDEisenstein hint with one
+// zeroRationalReconstructExt replaces the honest rationalReconstructExt hint with one
 // returning the all-zeros decomposition. Used by the regression below.
-func zeroHalfGCDEisenstein(_ *big.Int, _, outputs []*big.Int) error {
+func zeroRationalReconstructExt(_ *big.Int, _, outputs []*big.Int) error {
 	for i := range outputs {
 		outputs[i].SetUint64(0)
 	}
@@ -2674,7 +2674,7 @@ func zeroHalfGCDEisenstein(_ *big.Int, _, outputs []*big.Int) error {
 }
 
 // TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
-// soundness issue in scalarMulGLVAndFakeGLV. A malicious halfGCDEisenstein
+// soundness issue in scalarMulGLVAndFakeGLV. A malicious rationalReconstructExt
 // hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=0) makes
 // the relation s·(v1 + λ·v2) + u1 + λ·u2 = 0 vacuous and lets the
 // scalar-mul hint output be any point. The fix asserts NOT (v1=0 AND v2=0).
@@ -2704,7 +2704,7 @@ func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
 
 	// malicious all-zeros Eisenstein decomposition must be rejected
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(),
-		test.WithReplacementHint(solver.GetHintID(halfGCDEisenstein), zeroHalfGCDEisenstein),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstructExt), zeroRationalReconstructExt),
 	)
 	if err == nil {
 		t.Fatal("malicious all-zeros Eisenstein decomposition was accepted — soundness break")

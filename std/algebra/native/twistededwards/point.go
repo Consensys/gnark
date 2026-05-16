@@ -131,8 +131,10 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	checkedScalar := api.Select(isScalarZero, 1, scalar)
 
 	// the hints allow to decompose the scalar s into s1 and s2 such that
-	// s1 + s * s2 == 0 mod Order,
-	s, err := api.NewHint(halfGCD, 4, checkedScalar, curve.Order)
+	// s1 + s * s2 == 0 mod Order. Uses LLL-based lattice rational
+	// reconstruction with proven Hermite bound |s1|, |s2| < γ₂·√r ≈ 1.15·√r
+	// (see [EEMP25] / gnark-crypto/algebra/lattice).
+	s, err := api.NewHint(rationalReconstruct, 4, checkedScalar, curve.Order)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
