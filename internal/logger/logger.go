@@ -45,6 +45,10 @@ func Logger() *slog.Logger {
 	return defaultLogger
 }
 
+func Trace(log *slog.Logger, msg string, attrs ...slog.Attr) {
+	log.LogAttrs(context.Background(), LevelTrace, msg, attrs...)
+}
+
 func newHandler(w io.Writer, level slog.Level) slog.Handler {
 	return slog.NewTextHandler(w, &slog.HandlerOptions{
 		// We want to include the source for trace logs, but not for higher
