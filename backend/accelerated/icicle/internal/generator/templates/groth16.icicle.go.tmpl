@@ -806,7 +806,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 		opt.HashToFieldFn = hash_to_field.New([]byte(constraint.CommitmentDst))
 	}
 	pk.PinToGPU = cfg.PinToGPU
-	log := logger.Logger().With(slog.String("curve", r1cs.CurveID().String()), slog.String("acceleration", "icicle"), slog.Int("nbConstraints", r1cs.GetNbConstraints()), slog.String("backend", "groth16"))
+	log := opt.Logger.With(slog.String("curve", r1cs.CurveID().String()), slog.String("acceleration", "icicle"), slog.Int("nbConstraints", r1cs.GetNbConstraints()), slog.String("backend", "groth16"))
 
 	device := icicle_runtime.CreateDevice(cfg.Backend.String(), cfg.DeviceID)
 
