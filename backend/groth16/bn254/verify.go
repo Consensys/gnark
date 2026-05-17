@@ -11,11 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"text/template"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"github.com/consensys/gnark/internal/logger"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -26,7 +28,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -57,7 +58,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	if len(publicWitness) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
-	log := logger.Logger().With().Str("curve", vk.CurveID().String()).Str("backend", "groth16").Logger()
+	log := opt.Logger.With(slog.String("curve", vk.CurveID().String()), slog.String("backend", "groth16"))
 	start := time.Now()
 
 	// check that the points in the proof are in the correct subgroup
@@ -140,7 +141,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return errPairingCheckFailed
 	}
 
-	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
+	log.Debug("verifier done", slog.Duration("took", time.Since(start)))
 	return nil
 }
 
@@ -157,7 +158,7 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 	if cfg.HashToFieldFn == nil {
 		// set the target hash function to legacy keccak256 as it is the default for `solidity.WithTargetSolidityVerifier``
 		cfg.HashToFieldFn = sha3.NewLegacyKeccak256()
-		log.Debug().Msg("hash to field function not set, using keccak256 as default")
+		log.Debug("hash to field function not set, using keccak256 as default")
 	}
 	// a bit hacky way to understand what hash function is provided. We already
 	// receive instance of hash function but it is difficult to compare it with
@@ -206,9 +207,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 	}
 
 	if len(vk.PublicAndCommitmentCommitted) > 1 {
-		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
+		log.Warn("exporting solidity verifier with more than one commitment is not supported")
 	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
-		log.Warn().Msg("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
+		log.Warn("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
 	}
 
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)

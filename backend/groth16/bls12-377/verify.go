@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -19,7 +20,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -50,7 +50,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	if len(publicWitness) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
-	log := logger.Logger().With().Str("curve", vk.CurveID().String()).Str("backend", "groth16").Logger()
+	log := opt.Logger.With(slog.String("curve", vk.CurveID().String()), slog.String("backend", "groth16"))
 	start := time.Now()
 
 	// check that the points in the proof are in the correct subgroup
@@ -133,7 +133,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return errPairingCheckFailed
 	}
 
-	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
+	log.Debug("verifier done", slog.Duration("took", time.Since(start)))
 	return nil
 }
 

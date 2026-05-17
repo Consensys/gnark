@@ -7,6 +7,7 @@ package groth16
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"runtime"
 	"time"
@@ -16,14 +17,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/hash_to_field"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bw6-761"
+	"github.com/consensys/gnark/internal/utils"
+
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
-	cs "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
@@ -58,13 +59,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		opt.HashToFieldFn = hash_to_field.New([]byte(constraint.CommitmentDst))
 	}
 
-	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "none").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
+	log := opt.Logger.With(slog.String("curve", r1cs.CurveID().String()), slog.String("acceleration", "none"), slog.Int("nbConstraints", r1cs.GetNbConstraints()), slog.String("backend", "groth16"))
 
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 
 	proof := &Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
 
-	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+	solverOpts := make([]solver.Option, 0, len(opt.SolverOpts)+2)
+	solverOpts = append(solverOpts, solver.WithLogger(opt.Logger))
+	solverOpts = append(solverOpts, opt.SolverOpts...)
 
 	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
 
@@ -309,7 +312,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil, err
 	}
 
-	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+	log.Debug("prover done", slog.Duration("took", time.Since(start)))
 
 	return proof, nil
 }

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"log/slog"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -38,7 +39,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	fcs "github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 )
 
 const (
@@ -97,16 +97,13 @@ type Proof struct {
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
-	log := logger.Logger().With().
-		Str("curve", spr.CurveID().String()).
-		Int("nbConstraints", spr.GetNbConstraints()).
-		Str("backend", "plonk").Logger()
-
 	// parse the options
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("get prover options: %w", err)
 	}
+
+	log := opt.Logger.With(slog.String("curve", spr.CurveID().String()), slog.Int("nbConstraints", spr.GetNbConstraints()), slog.String("backend", "plonk"))
 
 	start := time.Now()
 
@@ -148,7 +145,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+	log.Debug("prover done", slog.Duration("took", time.Since(start)))
 	return instance.proof, nil
 }
 
@@ -317,7 +314,10 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 // solveConstraints computes the evaluation of the polynomials L, R, O
 // and sets x[id_L], x[id_R], x[id_O] in Lagrange form
 func (s *instance) solveConstraints() error {
-	_solution, err := s.spr.Solve(s.fullWitness, s.opt.SolverOpts...)
+	solverOpts := make([]solver.Option, 0, len(s.opt.SolverOpts)+1)
+	solverOpts = append(solverOpts, solver.WithLogger(s.opt.Logger))
+	solverOpts = append(solverOpts, s.opt.SolverOpts...)
+	_solution, err := s.spr.Solve(s.fullWitness, solverOpts...)
 	if err != nil {
 		return err
 	}
