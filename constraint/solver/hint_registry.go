@@ -2,12 +2,13 @@ package solver
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
 	"math/big"
 	"sync"
 
 	"github.com/consensys/gnark/internal/hints"
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 func init() {
@@ -23,12 +24,12 @@ var (
 func RegisterHint(hintFns ...Hint) {
 	registryM.Lock()
 	defer registryM.Unlock()
+	log := logger.Logger()
 	for _, hintFn := range hintFns {
 		key := GetHintID(hintFn)
 		name := GetHintName(hintFn)
 		if _, ok := registry[key]; ok {
-			log := logger.Logger()
-			log.Debug().Str("name", name).Msg("function registered multiple times")
+			logger.Trace(log, "hint registered multiple times", slog.String("name", name))
 			continue
 		}
 		registry[key] = hintFn
