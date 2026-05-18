@@ -23,14 +23,15 @@ type Config struct {
 // WithHints is a solver option that specifies additional hint functions to be used
 // by the constraint solver.
 func WithHints(hintFunctions ...Hint) Option {
-	log := logger.Logger()
 	return func(opt *Config) error {
+		// use logger from config -- NewConfig initializes it.
+		log := opt.Logger
 		// it is an error to register hint function several times, but as the
 		// prover already checks it then omit here.
 		for _, h := range hintFunctions {
 			uuid := GetHintID(h)
 			if _, ok := opt.HintFunctions[uuid]; ok {
-				log.Warn().Int("hintID", int(uuid)).Str("name", GetHintName(h)).Msg("duplicate hint function")
+				log.Debug("WithHints called for already registered hint function, skipping", slog.Int("hintID", int(uuid)), slog.String("name", GetHintName(h)))
 			} else {
 				opt.HintFunctions[uuid] = h
 			}
@@ -42,6 +43,8 @@ func WithHints(hintFunctions ...Hint) Option {
 // OverrideHint forces the solver to use provided hint function for given id.
 func OverrideHint(id HintID, f Hint) Option {
 	return func(opt *Config) error {
+		log := opt.Logger
+		log.Debug("Overriding hint function", slog.Int("hintID", int(id)), slog.String("name", GetHintName(f)))
 		opt.HintFunctions[id] = f
 		return nil
 	}
