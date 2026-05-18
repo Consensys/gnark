@@ -36,13 +36,18 @@ func Logger() *slog.Logger {
 	defaultOnce.Do(func() {
 		level := levelFromEnv(debug.Debug)
 		if level == LevelDisabled {
-			defaultLogger = slog.New(newHandler(io.Discard, level))
+			defaultLogger = DisabledLogger()
 			return
 		}
 		defaultLogger = slog.New(newHandler(defaultOutput, level))
 		logDebugRuntimeInfo(defaultLogger)
 	})
 	return defaultLogger
+}
+
+// DisabledLogger returns a logger that discards all records.
+func DisabledLogger() *slog.Logger {
+	return slog.New(newHandler(io.Discard, LevelDisabled))
 }
 
 func Trace(log *slog.Logger, msg string, attrs ...slog.Attr) {
