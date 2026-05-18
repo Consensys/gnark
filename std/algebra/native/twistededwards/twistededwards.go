@@ -20,12 +20,18 @@ import (
 // Curve methods implemented by a twisted edwards curve inside a circuit
 type Curve interface {
 	Params() *CurveParams
-	Endo() *EndoParams
+	// Add computes p1+p2 for inputs that lie on the curve.
 	Add(p1, p2 Point) Point
+	// Double computes 2*p1 for an input point that lies on the curve.
 	Double(p1 Point) Point
+	// Neg computes -p1 for an input point that lies on the curve.
 	Neg(p1 Point) Point
+	// AssertIsOnCurve constrains p1 to satisfy the twisted Edwards curve equation.
 	AssertIsOnCurve(p1 Point)
+	// ScalarMul computes [scalar]p1. For on-curve points, it is complete for all
+	// scalar inputs, including zero.
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
+	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
 	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
@@ -42,12 +48,6 @@ type CurveParams struct {
 	Base                  [2]*big.Int // base point coordinates
 }
 
-// EndoParams endomorphism parameters for the curve, if they exist
-type EndoParams struct {
-	Endo   [2]*big.Int
-	Lambda *big.Int
-}
-
 // NewEdCurve returns a new Edwards curve
 func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
 	snarkField, err := GetSnarkField(id)
@@ -61,21 +61,9 @@ func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
 	if err != nil {
 		return nil, err
 	}
-	var endo *EndoParams
-
-	// bandersnatch
-	if id == twistededwards.BLS12_381_BANDERSNATCH {
-		endo = &EndoParams{
-			Endo:   [2]*big.Int{new(big.Int), new(big.Int)},
-			Lambda: new(big.Int),
-		}
-		endo.Endo[0].SetString("37446463827641770816307242315180085052603635617490163568005256780843403514036", 10)
-		endo.Endo[1].SetString("49199877423542878313146170939139662862850515542392585932876811575731455068989", 10)
-		endo.Lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
-	}
 
 	// default
-	return &curve{api: api, params: params, endo: endo, id: id}, nil
+	return &curve{api: api, params: params, id: id}, nil
 }
 
 func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {

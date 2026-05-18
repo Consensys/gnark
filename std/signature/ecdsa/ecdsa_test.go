@@ -117,6 +117,46 @@ func TestEcdsaSHA256(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestEcdsaPreHashedZeroHash(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	privKey, err := ecdsa.GenerateKey(rand.Reader)
+	assert.NoError(err, "failed to generate ecdsa key")
+	publicKey := privKey.PublicKey
+
+	msg := []byte{}
+	sigBin, err := privKey.Sign(msg, nil)
+	assert.NoError(err, "failed to sign message")
+
+	flag, err := publicKey.Verify(sigBin, msg, nil)
+	assert.NoError(err, "failed to verify signature")
+	assert.True(flag, "can't verify signature")
+
+	var sig ecdsa.Signature
+	sig.SetBytes(sigBin)
+	r, s := new(big.Int), new(big.Int)
+	r.SetBytes(sig.R[:32])
+	s.SetBytes(sig.S[:32])
+
+	hash := ecdsa.HashToInt(msg)
+	assert.Zero(hash.Sign(), "expected zero pre-hash")
+
+	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		Sig: Signature[emulated.Secp256k1Fr]{
+			R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		},
+		Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
+		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // Example how to verify the signature inside the circuit.
 func ExamplePublicKey_Verify() {
 	api := frontend.API(nil) // provider by the builder
@@ -257,6 +297,40 @@ func TestEcdsaPublicKeyIsValid(t *testing.T) {
 	}, "case=invalid-s")
 
 	assert.Run(func(assert *test.Assert) {
+		witness := EcdsaIsValidCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			Sig: Signature[emulated.Secp256k1Fr]{
+				R: emulated.ValueOf[emulated.Secp256k1Fr](0),
+				S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			},
+			Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
+			Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+			},
+			IsValid: 0,
+		}
+		err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err, "solving failed")
+	}, "case=zero-r")
+
+	assert.Run(func(assert *test.Assert) {
+		witness := EcdsaIsValidCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			Sig: Signature[emulated.Secp256k1Fr]{
+				R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+				S: emulated.ValueOf[emulated.Secp256k1Fr](0),
+			},
+			Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
+			Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+			},
+			IsValid: 0,
+		}
+		err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err, "solving failed")
+	}, "case=zero-s")
+
+	assert.Run(func(assert *test.Assert) {
 		hash := ecdsa.HashToInt([]byte("invalid message"))
 		witness := EcdsaIsValidCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 			Sig: Signature[emulated.Secp256k1Fr]{
@@ -273,6 +347,23 @@ func TestEcdsaPublicKeyIsValid(t *testing.T) {
 		err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err, "solving failed")
 	}, "case=invalid-msg")
+
+	assert.Run(func(assert *test.Assert) {
+		witness := EcdsaIsValidCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			Sig: Signature[emulated.Secp256k1Fr]{
+				R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+				S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			},
+			Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
+			Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](0),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](0),
+			},
+			IsValid: 0,
+		}
+		err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err, "solving failed")
+	}, "case=zero-pub")
 
 	assert.Run(func(assert *test.Assert) {
 		privKey, err := ecdsa.GenerateKey(rand.Reader)

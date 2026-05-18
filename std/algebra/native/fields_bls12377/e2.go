@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/frontendtype"
 )
 
 // E2 element in a quadratic extension
@@ -69,7 +70,19 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 
 // Mul e2 elmts
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
+	if ft, ok := api.Compiler().(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			return e.mulKaratsuba(api, e1, e2)
+		case frontendtype.SCS:
+			return e.mulSchoolbook(api, e1, e2)
+		}
+	}
+	return e.mulKaratsuba(api, e1, e2)
+}
 
+// mulKaratsuba uses 3M+5A = 8 Plonk gates. Optimal for R1CS where M >> A.
+func (e *E2) mulKaratsuba(api frontend.API, e1, e2 E2) *E2 {
 	l1 := api.Add(e1.A0, e1.A1)
 	l2 := api.Add(e2.A0, e2.A1)
 
@@ -87,6 +100,18 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 	return e
 }
 
+// mulSchoolbook uses 4M+2A = 6 Plonk gates. Optimal for Plonk (SCS) where M = A = 1 gate.
+// c0 = a0*b0 + β*a1*b1, c1 = a0*b1 + a1*b0  (β = uSquare is a constant, mul is free)
+func (e *E2) mulSchoolbook(api frontend.API, e1, e2 E2) *E2 {
+	a0b0 := api.Mul(e1.A0, e2.A0)
+	a1b1 := api.Mul(e1.A1, e2.A1)
+	a0b1 := api.Mul(e1.A0, e2.A1)
+	a1b0 := api.Mul(e1.A1, e2.A0)
+	e.A0 = api.Add(a0b0, api.Mul(ext.uSquare, a1b1))
+	e.A1 = api.Add(a0b1, a1b0)
+	return e
+}
+
 // Square e2 elt
 func (e *E2) Square(api frontend.API, x E2) *E2 {
 	//algo 22 https://eprint.iacr.org/2010/354.pdf
@@ -101,6 +126,27 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 	c2 = api.Mul(c2, 2)
 	e.A0 = api.Add(c0, c2)
 
+	return e
+}
+
+// Cube computes e = x³ directly, cheaper than Square + Mul.
+//
+// With x = (A, B) in Fp[u]/(u² + 5) (so nr = u² = -5):
+//
+//	x³.A0 = A·(A² + 3·nr·B²) = A·(A² − 15·B²)
+//	x³.A1 = B·(3·A² + nr·B²) = B·(3·A² − 5·B²)
+//
+// Cost: 4M + 2A = 6 gates vs Square(5) + Mul(~8) = ~13 gates.
+func (e *E2) Cube(api frontend.API, x E2) *E2 {
+	a2 := api.Mul(x.A0, x.A0) // A²
+	b2 := api.Mul(x.A1, x.A1) // B²
+	threeNR := api.Mul(ext.uSquare, 3)
+	// t1 = A² + 3·nr·B² = A² − 15·B²
+	t1 := api.Add(a2, api.Mul(b2, threeNR))
+	// t2 = 3·A² + nr·B² = 3·A² − 5·B²
+	t2 := api.Add(api.Mul(a2, 3), api.Mul(b2, ext.uSquare))
+	e.A0 = api.Mul(x.A0, t1) // A·t1
+	e.A1 = api.Mul(x.A1, t2) // B·t2
 	return e
 }
 

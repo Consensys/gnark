@@ -90,11 +90,12 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// the signature as elements in Fr, but it actually represents elements in Fp. Convert to Fp element.
 	rbits := frField.ToBits(&r)
 	Rx := fpField.FromBits(rbits...)
-	Ry := fpField.Mul(Rx, Rx) // Ry = x^2
 	// compute R.y y = sqrt(x^3+7)
-	Ry = fpField.Mul(Ry, Rx)   // Ry = x^3
 	b := fpField.NewElement(7) // b = 7 for secp256k1, a = 0
-	Ry = fpField.Add(Ry, b)    // Ry = x^3 + 7
+	Ry := fpField.Eval([][]*emulated.Element[emulated.Secp256k1Fp]{
+		{Rx, Rx, Rx}, // x³
+		{b},          // +7
+	}, []int{1, 1}) // Ry = x^3 + 7
 	// in case of failure due to no QNR, negate Ry so that exists a square root
 	Ry = fpField.Select(isQNRFailure, fpField.Sub(fpField.Modulus(), Ry), Ry)
 	Ry = fpField.Sqrt(Ry) // Ry = sqrt(x^3 + 7)
@@ -116,27 +117,24 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	u2 := frField.Div(&s, &r)
 	// compute public key in circuit C = u1 * G + u2 R
 	//
-	// in case the public key is expected to be zero, then we add 1 to u1 to
-	// avoid falling to incomplete edge case in scalar multiplication. Otherwise we add 0.
-	u1 = frField.Add(u1, frField.Select(pIsZero, frField.One(), frField.Zero()))
-	C := curve.JointScalarMulBase(&R, u2, u1)
+	// Use complete arithmetic so degenerate but valid inputs such as R=±G stay
+	// satisfiable. However, in the QNR failure branch the circuit intentionally
+	// constructs an off-curve R by taking sqrt(-(x^3+7)) instead of
+	// sqrt(x^3+7). Scalar multiplication is not defined for that point, so we
+	// route only the QNR branch through a fixed on-curve dummy multiplication.
+	compR := curve.Select(isQNRFailure, curve.Generator(), &R)
+	compU1 := frField.Select(isQNRFailure, frField.One(), u1)
+	compU2 := frField.Select(isQNRFailure, frField.Zero(), u2)
+	C := curve.JointScalarMulBase(compR, compU2, compU1)
 	// check that the in-circuit computed public key corresponds to the hint
 	// public key if it is not a QNR failure.
-	//
-	// now, when we added 1 to u1, then the computed public key should be
-	// generator (as we only add 1 when pIsZero=1). Instead of needing to
-	// subtract G using complete arithmetic, we switch between G and the
-	// computed public key.
-	condP := curve.Select(pIsZero, curve.Generator(), &P)
-	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &condP.X))
-	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &condP.Y))
+	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &P.X))
+	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &P.Y))
 	isEqual := api.Mul(xIsEqual, yIsEqual)
 	api.AssertIsEqual(isEqual, api.Sub(1, isQNRFailure))
 	// check that the result is zero if isFailure is true. This holds because in
 	// case of any failure the returned public key from hint is zero.
 	isZero := fpField.IsZero(&P.X)
-	// yIsZero := fpField.IsZero(&P.Y)
-	// isZero := api.Mul(xIsZero, yIsZero)
 	api.AssertIsEqual(isZero, isFailure)
 	// when there was a QNR failure then the computed public key C is random. We
 	// only check for zero public key failure in case of no QNR failure.

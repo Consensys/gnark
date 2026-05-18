@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/algebra/eisenstein"
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls12381_fp "github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -32,8 +32,8 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalarG1,
 		scalarMulHint,
-		halfGCD,
-		halfGCDEisenstein,
+		rationalReconstruct,
+		rationalReconstructExt,
 	}
 }
 
@@ -160,7 +160,15 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	})
 }
 
-func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, |s2|, signBit) such
+// that s1 ≡ s2·s (mod r), with |s1|, |s2| < γ₂·√r ≈ 1.15·√r (proven LLL/Hermite
+// bound from gnark-crypto/algebra/lattice). Replaces the older heuristic
+// HalfGCD-based decomposition.
+//
+// In-circuit: 1 native sign bit + 2 emulated outputs (s1, |s2|). The caller
+// reconstructs the signed s2 as ±|s2| based on the sign bit and asserts
+// s1 + s·s2 ≡ 0 (mod r).
+func rationalReconstruct(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
@@ -177,25 +185,38 @@ func halfGCD(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		if len(emuOutputs) != 2 {
 			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
 		}
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[0], glvBasis)
-		emuOutputs[0].Set(&glvBasis.V1[0])
-		emuOutputs[1].Set(&glvBasis.V1[1])
-		// we need the absolute values for the in-circuit computations,
-		// otherwise the negative values will be reduced modulo the SNARK scalar
-		// field and not the emulated field.
-		// 		output0 = |s0| mod r
-		// 		output1 = |s1| mod r
+		// lattice.RationalReconstruct returns (x, z) with x ≡ z·s (mod r),
+		// i.e., x − z·s ≡ 0 (mod r). The circuit expects: s1 + s·_s2 ≡ 0
+		// (mod r), so s1 = x and _s2 = −z.
+		rc := lattice.NewReconstructor(moduli[0])
+		res := rc.RationalReconstruct(emuInputs[0])
+		x, z := new(big.Int).Set(res[0]), new(big.Int).Set(res[1])
+
+		// Normalise so s1 ≥ 0; flipping (x, z) preserves x ≡ z·s mod r.
+		if x.Sign() < 0 {
+			x.Neg(x)
+			z.Neg(z)
+		}
+		emuOutputs[0].Set(x)
+		emuOutputs[1].Abs(z)
+
+		// signBit = 1 iff −z < 0 iff z > 0 (so the in-circuit code negates
+		// |z| to recover s2 = −z).
 		nativeOutputs[0].SetUint64(0)
-		if emuOutputs[1].Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
-			nativeOutputs[0].SetUint64(1) // we return the sign of the second subscalar
+		if z.Sign() > 0 {
+			nativeOutputs[0].SetUint64(1)
 		}
 		return nil
 	})
 }
 
-func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+// rationalReconstructExt is the 4-D Eisenstein-style decomposition: given a
+// scalar s and GLV eigenvalue λ, finds (u1, u2, v1, v2) such that
+// s·(v1 + λ·v2) + u1 + λ·u2 ≡ 0 (mod r), with |u_i|, |v_i| < γ₄·r^(1/4) ≈
+// 1.25·r^(1/4) (proven LLL bound). Replaces the older Eisenstein HalfGCD.
+//
+// In-circuit: 4 native sign bits + 4 emulated absolute values.
+func rationalReconstructExt(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
 		moduli := hc.EmulatedModuli()
 		if len(moduli) != 1 {
@@ -213,47 +234,43 @@ func halfGCDEisenstein(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 			return fmt.Errorf("expecting four outputs, got %d", len(emuOutputs))
 		}
 
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
-		r := eisenstein.ComplexNumber{
-			A0: glvBasis.V1[0],
-			A1: glvBasis.V1[1],
-		}
-		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
-		// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-		// so here we return -s instead of s.
-		s := eisenstein.ComplexNumber{
-			A0: sp[0],
-			A1: sp[1],
-		}
-		s.Neg(&s)
+		// Inputs: emuInputs[0] = s, emuInputs[1] = λ.
+		// In-circuit we check Q − [s]P = 0, equivalently [−s]P + Q = 0, so we
+		// negate the scalar before reconstruction (matches the previous
+		// halfGCDEisenstein convention).
+		k := new(big.Int).Neg(emuInputs[0])
+		k.Mod(k, moduli[0])
 
-		res := eisenstein.HalfGCD(&r, &s)
-		// values
-		emuOutputs[0].Set(&res[0].A0)
-		emuOutputs[1].Set(&res[0].A1)
-		emuOutputs[2].Set(&res[1].A0)
-		emuOutputs[3].Set(&res[1].A1)
-		// signs
+		rc := lattice.NewReconstructor(moduli[0]).SetLambda(emuInputs[1])
+		res := rc.RationalReconstructExt(k)
+		// res = (x, y, z, t) with k = (x + λ·y)/(z + λ·t) mod r,
+		// i.e., (x + λ·y) − k·(z + λ·t) ≡ 0 (mod r).
+		// Mapping onto our convention u1 + λ·u2 + s·(v1 + λ·v2) ≡ 0 with k = −s:
+		// u1 = x, u2 = y, v1 = z, v2 = t.
+		u1 := new(big.Int).Set(res[0])
+		u2 := new(big.Int).Set(res[1])
+		v1 := new(big.Int).Set(res[2])
+		v2 := new(big.Int).Set(res[3])
+
+		emuOutputs[0].Abs(u1)
+		emuOutputs[1].Abs(u2)
+		emuOutputs[2].Abs(v1)
+		emuOutputs[3].Abs(v2)
+
 		nativeOutputs[0].SetUint64(0)
 		nativeOutputs[1].SetUint64(0)
 		nativeOutputs[2].SetUint64(0)
 		nativeOutputs[3].SetUint64(0)
-
-		if res[0].A0.Sign() == -1 {
-			emuOutputs[0].Neg(emuOutputs[0])
+		if u1.Sign() < 0 {
 			nativeOutputs[0].SetUint64(1)
 		}
-		if res[0].A1.Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
+		if u2.Sign() < 0 {
 			nativeOutputs[1].SetUint64(1)
 		}
-		if res[1].A0.Sign() == -1 {
-			emuOutputs[2].Neg(emuOutputs[2])
+		if v1.Sign() < 0 {
 			nativeOutputs[2].SetUint64(1)
 		}
-		if res[1].A1.Sign() == -1 {
-			emuOutputs[3].Neg(emuOutputs[3])
+		if v2.Sign() < 0 {
 			nativeOutputs[3].SetUint64(1)
 		}
 		return nil
