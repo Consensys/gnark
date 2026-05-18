@@ -811,7 +811,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 
 	proof := &groth16_bn254.Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
 
-	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+	solverOpts := make([]solver.Option, 0, len(opt.SolverOpts)+2)
+	solverOpts = append(solverOpts, solver.WithLogger(opt.Logger))
+	solverOpts = append(solverOpts, opt.SolverOpts...)
 
 	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
 	privateCommittedValuesDevice := make([]icicle_core.DeviceSlice, len(commitmentInfo))
