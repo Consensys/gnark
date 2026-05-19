@@ -43,8 +43,7 @@ func WithHints(hintFunctions ...Hint) Option {
 // OverrideHint forces the solver to use provided hint function for given id.
 func OverrideHint(id HintID, f Hint) Option {
 	return func(opt *Config) error {
-		log := opt.Logger
-		log.Debug("Overriding hint function", slog.Int("hintID", int(id)), slog.String("name", GetHintName(f)))
+		logger.Trace(opt.Logger, "Overriding hint function", slog.Int("hintID", int(id)), slog.String("name", GetHintName(f)))
 		opt.HintFunctions[id] = f
 		return nil
 	}
