@@ -3,17 +3,19 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/smallfields"
-	"github.com/consensys/gnark/logger"
 )
 
 // Compile will generate a ConstraintSystem from the given circuit
@@ -67,34 +69,45 @@ func CompileU32(field *big.Int, newBuilder NewBuilderU32, circuit Circuit, opts 
 // [CompileU32] are more convenient as are explicitly constrained to specific
 // types.
 func CompileGeneric[E constraint.Element](field *big.Int, newBuilder NewBuilderGeneric[E], circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystemGeneric[E], error) {
-	log := logger.Logger()
-	log.Info().Msg("compiling circuit")
 	// parse options
 	opt := defaultCompileConfig()
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
-			log.Err(err).Msg("applying compile option")
+			opt.Logger.Error("applying compile option", slog.Any("err", err))
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
+	log := opt.Logger
+	logger.Trace(log, "compiling circuit")
 
 	// instantiate new builder
 	builder, err := newBuilder(field, opt)
 	if err != nil {
-		log.Err(err).Msg("instantiating builder")
+		log.Error("instantiating builder", slog.Any("err", err))
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
 
+	start := time.Now()
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
 	if err = parseCircuit(builder, circuit); err != nil {
-		log.Err(err).Msg("parsing circuit")
+		log.Error("parsing circuit", slog.Any("err", err))
 		return nil, fmt.Errorf("parse circuit: %w", err)
-
 	}
 
 	// compile the circuit into its final form
-	return builder.Compile()
+	ccs, err := builder.Compile()
+	if err != nil {
+		log.Error("compiling circuit", slog.Any("err", err))
+		return nil, fmt.Errorf("compile circuit: %w", err)
+	}
+
+	log.Debug("circuit compiled",
+		slog.Duration("took", time.Since(start)),
+		slog.Int("nbConstraints", ccs.GetNbConstraints()),
+		slog.Int("nbPublic", ccs.GetNbPublicVariables()),
+		slog.Int("nbSecret", ccs.GetNbSecretVariables()))
+	return ccs, nil
 }
 
 func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (err error) {
@@ -108,8 +121,8 @@ func parseCircuit[E constraint.Element](builder Builder[E], circuit Circuit) (er
 		return err
 	}
 
-	log := logger.Logger()
-	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
+	log := builder.Compiler().Logger()
+	logger.Trace(log, "parsed circuit inputs", slog.Int("nbSecret", s.Secret), slog.Int("nbPublic", s.Public))
 
 	// leaf handlers are called when encountering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
@@ -187,6 +200,7 @@ type CompileOption func(opt *CompileConfig) error
 func defaultCompileConfig() CompileConfig {
 	return CompileConfig{
 		CompressThreshold: 300,
+		Logger:            logger.Logger(),
 	}
 }
 
@@ -194,6 +208,7 @@ type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
 	CompressThreshold         int
+	Logger                    *slog.Logger
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -239,6 +254,18 @@ func IgnoreUnconstrainedInputs() CompileOption {
 func WithCompressThreshold(threshold int) CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.CompressThreshold = threshold
+		return nil
+	}
+}
+
+// WithLogger sets the logger used during circuit compilation. If this option is
+// not provided, then the default logger is used. Passing nil disables logging.
+func WithLogger(log *slog.Logger) CompileOption {
+	return func(opt *CompileConfig) error {
+		if log == nil {
+			log = logger.DisabledLogger()
+		}
+		opt.Logger = log
 		return nil
 	}
 }

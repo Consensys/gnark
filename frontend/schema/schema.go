@@ -6,12 +6,13 @@ package schema
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // Schema represents the structure of a gnark circuit (/ witness)
@@ -314,7 +315,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
 				log := logger.Logger()
-				log.Warn().Str("slice name", parentGoName).Str("slice type", reflect.SliceOf(target).String()).Msg("ignoring uninitialized slice")
+				log.Warn("ignoring uninitialized slice", slog.String("slice name", parentGoName), slog.String("slice type", reflect.SliceOf(target).String()))
 			}
 			return r, nil
 		}
