@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/hex"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 	proof any,
 	validPublicWitness witness.Witness,
 	opts []solidity.ExportOption,
+	log *slog.Logger,
 ) {
 	if !SolcCheck {
 		// we return, we don't have the solidity check build tag defined
@@ -37,7 +39,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 		panic("solidity verification not implemented for this curve: " + c.String())
 	}
 	if nbPubWit == 0 {
-		assert.Log("skipping solidity tests for zero public witness length")
+		log.Warn("skipping solidity tests for zero public witness length")
 		return
 	}
 
@@ -65,7 +67,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 	// generate assets
 	// gnark-solidity-checker generate --dir tmpdir --solidity contract_g16.sol
 	cmd := exec.Command("go", "tool", "gnark-solidity-checker", "generate", "--dir", tmpDir, "--solidity", "gnark_verifier.sol")
-	assert.Log("running ", cmd.String())
+	log.Debug("generating assets with gnark-solidity-checker", slog.String("cmd", cmd.String()))
 	out, err := cmd.CombinedOutput()
 	assert.NoError(err, string(out))
 
@@ -122,7 +124,7 @@ func (assert *Assert) solidityVerification(b backend.ID, c ecc.ID, vk solidity.V
 	// verify proof
 	// gnark-solidity-checker verify --dir tmdir --groth16 --nb-public-inputs 1 --proof 1234 --public-inputs dead
 	cmd = exec.Command("go", checkerOpts...)
-	assert.Log("running ", cmd.String())
+	log.Debug("running gnark-solidity-checker verify", slog.String("cmd", cmd.String()))
 	out, err = cmd.CombinedOutput()
 	assert.NoError(err, string(out))
 }

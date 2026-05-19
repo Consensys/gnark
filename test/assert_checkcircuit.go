@@ -156,7 +156,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 								if _vk, ok := vk.(solidity.VerifyingKey); ok {
 									assert.Run(func(assert *Assert) {
 										logger.Trace(log, "running Solidity verification")
-										assert.solidityVerification(b, curve, _vk, proof, w.public, opt.solidityOpts)
+										assert.solidityVerification(b, curve, _vk, proof, w.public, opt.solidityOpts, log)
 									}, "solidity")
 								}
 							}
