@@ -53,6 +53,12 @@ func TestSolverConsistency(t *testing.T) {
 				return
 			}
 			tc := circuits.Circuits[name]
+			if tc.U64Only {
+				// skip circuits that are not compatible with tinyfield, as the
+				// goal of this test is to flag potential solver issues, and not
+				// to test tinyfield itself.
+				return
+			}
 			t.Parallel()
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
 			if err != nil {
