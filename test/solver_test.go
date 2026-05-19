@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -187,7 +188,7 @@ func formatWitness(witness []tinyfield.Element) string {
 
 func (p *permutter) solve(i int) error {
 	pw := newPermutterWitness(p.witness)
-	_, err := p.constraintSystems[i].Solve(pw, solver.WithHints(p.hints...))
+	_, err := p.constraintSystems[i].Solve(pw, solver.WithLogger[*slog.Logger](nil), solver.WithHints(p.hints...))
 	return err
 }
 
