@@ -24,12 +24,11 @@ var (
 func RegisterHint(hintFns ...Hint) {
 	registryM.Lock()
 	defer registryM.Unlock()
-	log := logger.Logger()
 	for _, hintFn := range hintFns {
 		key := GetHintID(hintFn)
 		name := GetHintName(hintFn)
 		if _, ok := registry[key]; ok {
-			logger.Trace(log, "hint registered multiple times", slog.String("name", name))
+			logger.Trace(logger.Logger(), "hint registered multiple times", slog.String("name", name))
 			continue
 		}
 		registry[key] = hintFn
