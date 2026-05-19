@@ -1,6 +1,7 @@
 package test
 
 import (
+	"log/slog"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -13,7 +14,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/test/unsafekzg"
 )
 
@@ -35,13 +36,13 @@ import (
 func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOption) {
 	// get the testing configuration
 	opt := assert.options(opts...)
-	log := logger.Logger()
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
 
 		// run in sub-test to contextualize with curve
 		assert.Run(func(assert *Assert) {
+			log := opt.logger.With(slog.String("curve", curve.String()))
 
 			// parse valid / invalid assignments
 			var invalidWitnesses, validWitnesses []_witness
@@ -51,6 +52,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 				// check that the assignment is valid with the test engine
 				if !opt.skipTestEngine {
+					logger.Trace(log, "checking valid assignment with test engine")
 					err := IsSolved(circuit, w.assignment, curve.ScalarField())
 					assert.noError(curve.ScalarField(), err, &w)
 				}
@@ -62,6 +64,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 				// check that the assignment is invalid with the test engine
 				if !opt.skipTestEngine {
+					logger.Trace(log, "checking invalid assignment with test engine")
 					err := IsSolved(circuit, w.assignment, curve.ScalarField())
 					assert.error(curve.ScalarField(), err, &w)
 				}
@@ -72,8 +75,10 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 				// run in sub-test to contextualize with backend
 				assert.Run(func(assert *Assert) {
+					log := log.With(slog.String("backend", b.String()))
 
 					// 1- check that the circuit compiles
+					logger.Trace(log, "checking circuit compilation")
 					ccs, err := assert.compile(circuit, curve.ScalarField(), b, opt.compileOpts)
 					assert.noError(curve.ScalarField(), err, nil)
 
@@ -84,6 +89,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					if !opt.checkProver {
 						for _, w := range invalidWitnesses {
 							assert.Run(func(assert *Assert) {
+								logger.Trace(log, "checking invalid assignment with constraint system solver")
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.error(curve.ScalarField(), err, &w)
 							}, "invalid_witness")
@@ -91,6 +97,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 						for _, w := range validWitnesses {
 							assert.Run(func(assert *Assert) {
+								logger.Trace(log, "checking valid assignment with constraint system solver")
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.noError(curve.ScalarField(), err, &w)
 							}, "valid_witness")
@@ -116,6 +123,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					}
 
 					// proof system setup.
+					logger.Trace(log, "running setup for backend")
 					pk, vk, pkBuilder, vkBuilder, proofBuilder, err := concreteBackend.setup(ccs, curve)
 					assert.noError(curve.ScalarField(), err, nil)
 
@@ -128,18 +136,18 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 							if b == backend.GROTH16 {
 								// currently groth16 Solidity checker only supports circuits with up to 1 commitment
 								if len(ccs.GetCommitments().CommitmentIndexes()) > 1 {
-									log.Warn().
-										Int("nb_commitments", len(ccs.GetCommitments().CommitmentIndexes())).
-										Msg("skipping solidity check, too many commitments")
+									log.Warn("skipping solidity check, too many commitments", slog.Int("nb_commitments", len(ccs.GetCommitments().CommitmentIndexes())))
 								}
 								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
 								// set the default hash function in case of	custom hash function not set. This is to ensure that the proof can be verified by gnark-solidity-checker
 								proverOpts = append([]backend.ProverOption{solidity.WithProverTargetSolidityVerifier(b)}, opt.proverOpts...)
 								verifierOpts = append([]backend.VerifierOption{solidity.WithVerifierTargetSolidityVerifier(b)}, opt.verifierOpts...)
 							}
+							logger.Trace(log, "running prover with valid witness")
 							proof, err := concreteBackend.prove(ccs, pk, w.full, proverOpts...)
 							assert.noError(curve.ScalarField(), err, &w)
 
+							logger.Trace(log, "running verifier")
 							err = concreteBackend.verify(proof, vk, w.public, verifierOpts...)
 							assert.noError(curve.ScalarField(), err, &w)
 
@@ -147,12 +155,14 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 								// check that the proof can be verified by gnark-solidity-checker
 								if _vk, ok := vk.(solidity.VerifyingKey); ok {
 									assert.Run(func(assert *Assert) {
+										logger.Trace(log, "running Solidity verification")
 										assert.solidityVerification(b, curve, _vk, proof, w.public, opt.solidityOpts)
 									}, "solidity")
 								}
 							}
 
 							// check proof serialization
+							logger.Trace(log, "checking proof serialization")
 							assert.roundTripCheck(proof, proofBuilder, "proof")
 						}, "valid_witness")
 					}
@@ -160,6 +170,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// for each invalid witness, run the prover only, it should fail.
 					for _, w := range invalidWitnesses {
 						assert.Run(func(assert *Assert) {
+							logger.Trace(log, "checking invalid assignment with prover")
 							_, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.error(curve.ScalarField(), err, &w)
 						}, "invalid_witness")
@@ -167,6 +178,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					// check serialization of proving and verifying keys
 					if opt.checkSerialization && ccs.GetNbConstraints() <= serializationThreshold && (curve == ecc.BN254 || curve == ecc.BLS12_381) {
+						logger.Trace(log, "checking serialization of proving and verifying keys")
 						assert.roundTripCheck(pk, pkBuilder, "proving_key")
 						assert.roundTripCheck(vk, vkBuilder, "verifying_key")
 					}
