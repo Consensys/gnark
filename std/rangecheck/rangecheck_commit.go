@@ -2,6 +2,7 @@ package rangecheck
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"math/big"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
@@ -47,9 +47,8 @@ func newCommitRangechecker(api frontend.API, opts ...Option) *commitChecker {
 	if ch != nil {
 		if cht, ok := ch.(*commitChecker); ok {
 			if cfg.baseLength > 0 && cht.cfg.baseLength != cfg.baseLength {
-				log := logger.Logger()
 				if cht.cfg.baseLength > 0 {
-					log.Warn().Msgf("rangechecker: existing checker has base length %d, requested %d. overwriting", cht.cfg.baseLength, cfg.baseLength)
+					api.Compiler().Logger().Warn("rangechecker: existing checker has base length %d, requested %d. overwriting", slog.Int("existingBaseLength", cht.cfg.baseLength), slog.Int("requestedBaseLength", cfg.baseLength))
 				}
 				cht.cfg.baseLength = cfg.baseLength
 			}

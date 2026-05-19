@@ -4,10 +4,11 @@
 package compilelogger
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/logger"
-	"github.com/rs/zerolog"
 )
 
 type compileLoggerKey struct {
@@ -25,7 +26,7 @@ type compileLoggerKey struct {
 //
 // LogOnce panics if the api does not implement [kvstore.Store], which should
 // never happen since the compiler is expected to implement it.
-func LogOnce(api frontend.Compiler, level zerolog.Level, identifier, msg string, args ...any) {
+func LogOnce(api frontend.Compiler, level slog.Level, identifier, msg string, args ...any) {
 	kv, ok := api.(kvstore.Store)
 	if !ok {
 		panic("compiler should implement key-value store")
@@ -37,6 +38,5 @@ func LogOnce(api frontend.Compiler, level zerolog.Level, identifier, msg string,
 	// set the key to avoid logging again with the same identifier
 	kv.SetKeyValue(key, struct{}{})
 
-	l := logger.Logger()
-	l.WithLevel(level).Msgf(msg, args...)
+	api.Logger().Log(context.Background(), level, msg, args...)
 }
