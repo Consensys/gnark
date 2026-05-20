@@ -1,4 +1,4 @@
-package gkr_poseidon2
+package gkr_poseidon2_test
 
 import (
 	"errors"
@@ -10,19 +10,21 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	_ "github.com/consensys/gnark/std/hash/all"
 	"github.com/consensys/gnark/std/permutation/poseidon2"
+	gkr_poseidon2 "github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2"
+	"github.com/consensys/gnark/std/permutation/poseidon2/gkr-poseidon2/gkrposeidon2testing"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
 
-func gkrCompressionsCircuits(n int) (circuit, assignment testGkrCompressionCircuit) {
+func gkrCompressionsCircuits(n int) (circuit, assignment gkrposeidon2testing.Circuit) {
 	ins := make([][2]frontend.Variable, n)
 	for i := range n {
 		ins[i] = [2]frontend.Variable{i * 2, i*2 + 1}
 	}
 
-	return testGkrCompressionCircuit{
+	return gkrposeidon2testing.Circuit{
 			Ins: make([][2]frontend.Variable, len(ins)),
-		}, testGkrCompressionCircuit{
+		}, gkrposeidon2testing.Circuit{
 			Ins: ins,
 		}
 }
@@ -33,36 +35,11 @@ func TestGkrCompression(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
 
-type testGkrCompressionCircuit struct {
-	Ins       [][2]frontend.Variable
-	skipCheck bool
-}
-
-func (c *testGkrCompressionCircuit) Define(api frontend.API) error {
-
-	gkr, err := NewCompressor(api)
-	if err != nil {
-		return err
-	}
-	pos2, err := poseidon2.NewPoseidon2(api)
-	if err != nil {
-		return err
-	}
-	for i := range c.Ins {
-		fromGkr := gkr.Compress(c.Ins[i][0], c.Ins[i][1])
-		if !c.skipCheck {
-			api.AssertIsEqual(pos2.Compress(c.Ins[i][0], c.Ins[i][1]), fromGkr)
-		}
-	}
-
-	return nil
-}
-
 func TestGkrCompressionCompiles(t *testing.T) {
 	// just measure the number of constraints
-	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &testGkrCompressionCircuit{
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &gkrposeidon2testing.Circuit{
 		Ins:       make([][2]frontend.Variable, 52000),
-		skipCheck: true,
+		SkipCheck: true,
 	})
 	require.NoError(t, err)
 	fmt.Println(cs.GetNbConstraints(), "constraints")
@@ -107,7 +84,7 @@ type gkrPoseidon2Circuit struct {
 }
 
 func (c *gkrPoseidon2Circuit) Define(api frontend.API) error {
-	gkr, err := NewCompressor(api)
+	gkr, err := gkr_poseidon2.NewCompressor(api)
 	if err != nil {
 		return err
 	}
@@ -126,7 +103,7 @@ func (c *poseidon2MerkleTreeCircuit) Define(api frontend.API) error {
 		return errors.New("no hashing to do")
 	}
 
-	comp, err := NewCompressor(api)
+	comp, err := gkr_poseidon2.NewCompressor(api)
 	if err != nil {
 		return err
 	}

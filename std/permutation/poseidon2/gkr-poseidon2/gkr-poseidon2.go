@@ -114,7 +114,7 @@ type compressor struct {
 	in1, in2, out gkr.Variable
 }
 
-// NewCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
+// NewCompressor returns an object that can compute the Poseidon2 compression function
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proved using GKR.
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
