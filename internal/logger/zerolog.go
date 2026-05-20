@@ -123,6 +123,7 @@ func (w slogLevelWriter) Write(p []byte) (int, error) {
 
 func (w slogLevelWriter) WriteLevel(level zerolog.Level, p []byte) (int, error) {
 	level, msg, attrs := decodeZerologEvent(level, p)
+	//nolint:sloglint // The compatibility bridge forwards messages decoded from zerolog events.
 	w.logger.LogAttrs(context.Background(), slogLevel(level), msg, attrs...)
 	return len(p), nil
 }

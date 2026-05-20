@@ -39,5 +39,6 @@ func LogOnce(api frontend.Compiler, level slog.Level, identifier, msg string, ar
 	// set the key to avoid logging again with the same identifier
 	kv.SetKeyValue(key, struct{}{})
 
+	//nolint:sloglint // LogOnce is a compile-time logging wrapper; call sites are responsible for static messages and attrs.
 	api.Logger().Log(context.Background(), level, msg, args...)
 }

@@ -51,6 +51,7 @@ func DisabledLogger() *slog.Logger {
 }
 
 func Trace(log *slog.Logger, msg string, attrs ...slog.Attr) {
+	//nolint:sloglint // Trace is the package-level wrapper that validates call sites via sloglint custom-funcs.
 	log.LogAttrs(context.Background(), LevelTrace, msg, attrs...)
 }
 
