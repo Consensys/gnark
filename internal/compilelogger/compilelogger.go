@@ -22,7 +22,8 @@ type compileLoggerKey struct {
 // Recommended identifier format is "component/feature" to allow filtering by
 // component and grouping related messages together.
 //
-// msg can be a format string and args are the corresponding arguments, as in logger.Logger().Msgf(msg, args...).
+// msg and args are passed directly to the logger, allowing for structured
+// logging. See [slog.Logger.Log] for details on supported formats.
 //
 // LogOnce panics if the api does not implement [kvstore.Store], which should
 // never happen since the compiler is expected to implement it.
