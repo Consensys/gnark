@@ -178,6 +178,35 @@ func TestLoggerTraceLevelEmitsSource(t *testing.T) {
 	}
 }
 
+func TestTraceUsesCallerSource(t *testing.T) {
+	var buf bytes.Buffer
+	withLoggerOutput(t, &buf)
+	t.Setenv(EnvLevel, "trace")
+
+	Trace(Logger(), "visible")
+
+	output := buf.String()
+	traceLine := lineContaining(output, "msg=visible")
+	if traceLine == "" {
+		t.Fatalf("expected visible trace line, got %q", output)
+	}
+	if !strings.Contains(traceLine, "source=") || !strings.Contains(traceLine, "logger_test.go") {
+		t.Fatalf("expected trace source to point at test caller, got %q", output)
+	}
+	if strings.Contains(traceLine, "internal/logger/logger.go") {
+		t.Fatalf("trace source should not point at logger.Trace wrapper, got %q", output)
+	}
+}
+
+func lineContaining(output, substr string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, substr) {
+			return line
+		}
+	}
+	return ""
+}
+
 func withLoggerOutput(t *testing.T, w *bytes.Buffer) {
 	t.Helper()
 

@@ -11,6 +11,7 @@ import (
 	runtimedebug "runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/utils/cpu"
@@ -52,8 +53,16 @@ func DisabledLogger() *slog.Logger {
 }
 
 func Trace(log *slog.Logger, msg string, attrs ...slog.Attr) {
-	//nolint:sloglint // Trace is the package-level wrapper that validates call sites via sloglint custom-funcs.
-	log.LogAttrs(context.Background(), LevelTrace, msg, attrs...)
+	ctx := context.Background()
+	if !log.Enabled(ctx, LevelTrace) {
+		return
+	}
+
+	var pcs [1]uintptr
+	runtime.Callers(2, pcs[:])
+	record := slog.NewRecord(time.Now(), LevelTrace, msg, pcs[0])
+	record.AddAttrs(attrs...)
+	_ = log.Handler().Handle(ctx, record)
 }
 
 func newHandler(w io.Writer, level slog.Level) slog.Handler {
