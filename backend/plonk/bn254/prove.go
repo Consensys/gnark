@@ -38,6 +38,7 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/constraint/solver"
 	fcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -113,6 +114,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, fmt.Errorf("new instance: %w", err)
 	}
+	instance.log = log
 
 	// solve constraints
 	g.Go(instance.solveConstraints)
@@ -197,6 +199,7 @@ type instance struct {
 	domain0, domain1 *fft.Domain
 
 	trace *Trace
+	log   *slog.Logger
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
@@ -314,6 +317,10 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 // solveConstraints computes the evaluation of the polynomials L, R, O
 // and sets x[id_L], x[id_R], x[id_O] in Lagrange form
 func (s *instance) solveConstraints() error {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "solve constraints", slog.Duration("took", time.Since(start)))
+	}()
 	solverOpts := make([]solver.Option, 0, len(s.opt.SolverOpts)+1)
 	solverOpts = append(solverOpts, solver.WithLogger(s.opt.Logger))
 	solverOpts = append(solverOpts, s.opt.SolverOpts...)
@@ -402,6 +409,10 @@ func (s *instance) computeLagrangeOneOnCoset(cosetExpMinusOne fr.Element, index 
 // the non-padding entries. For a 2.2M-constraint circuit on a 4M domain,
 // this nearly halves each MSM.
 func (s *instance) commitToLRO() error {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "commit LRO", slog.Duration("took", time.Since(start)))
+	}()
 	// wait for blinding polynomials to be initialized or context to be done
 	select {
 	case <-s.ctx.Done():
@@ -435,9 +446,11 @@ func (s *instance) commitToLRO() error {
 			coeffs[i].Sub(&coeffs[i], &s0)
 		}
 		var commit curve.G1Affine
+		msmStart := time.Now()
 		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[:offset], coeffs[:offset], ecc.MultiExpConfig{}); err != nil {
 			return
 		}
+		logger.Trace(s.log, "MSM LRO", slog.String("poly", "L"), slog.Duration("took", time.Since(msmStart)), slog.Int("size", offset))
 		for i := 0; i < offset; i++ {
 			coeffs[i].Add(&coeffs[i], &s0)
 		}
@@ -454,9 +467,11 @@ func (s *instance) commitToLRO() error {
 			coeffs[i].Sub(&coeffs[i], &s0)
 		}
 		var commit curve.G1Affine
+		msmStart := time.Now()
 		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[nbPublic:offset], coeffs[nbPublic:offset], ecc.MultiExpConfig{}); err != nil {
 			return
 		}
+		logger.Trace(s.log, "MSM LRO", slog.String("poly", "R"), slog.Duration("took", time.Since(msmStart)), slog.Int("size", offset-nbPublic))
 		for i := nbPublic; i < offset; i++ {
 			coeffs[i].Add(&coeffs[i], &s0)
 		}
@@ -473,9 +488,11 @@ func (s *instance) commitToLRO() error {
 			coeffs[i].Sub(&coeffs[i], &s0)
 		}
 		var commit curve.G1Affine
+		msmStart := time.Now()
 		if _, err = commit.MultiExp(s.pk.KzgLagrange.G1[nbPublic:offset], coeffs[nbPublic:offset], ecc.MultiExpConfig{}); err != nil {
 			return
 		}
+		logger.Trace(s.log, "MSM LRO", slog.String("poly", "O"), slog.Duration("took", time.Since(msmStart)), slog.Int("size", offset-nbPublic))
 		for i := nbPublic; i < offset; i++ {
 			coeffs[i].Add(&coeffs[i], &s0)
 		}
@@ -556,6 +573,10 @@ func (s *instance) deriveZeta() (err error) {
 
 // computeQuotient computes H
 func (s *instance) computeQuotient() (err error) {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "compute quotient", slog.Duration("took", time.Since(start)))
+	}()
 	s.x[id_Ql] = s.trace.Ql
 	s.x[id_Qr] = s.trace.Qr
 	s.x[id_Qm] = s.trace.Qm
@@ -601,20 +622,26 @@ func (s *instance) computeQuotient() (err error) {
 
 	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
 
+	stepStart := time.Now()
 	numerator, err := s.computeNumerator()
 	if err != nil {
 		return err
 	}
+	logger.Trace(s.log, "compute quotient numerator", slog.Duration("took", time.Since(stepStart)), slog.Int("domain0", int(s.domain0.Cardinality)), slog.Int("domain1", int(s.domain1.Cardinality)))
 
+	stepStart = time.Now()
 	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
 	if err != nil {
 		return err
 	}
+	logger.Trace(s.log, "divide quotient", slog.Duration("took", time.Since(stepStart)), slog.Int("size", s.h.Size()))
 
 	// commit to h
+	stepStart = time.Now()
 	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
 		return err
 	}
+	logger.Trace(s.log, "commit quotient", slog.Duration("took", time.Since(stepStart)), slog.Int("nbParts", len(s.proof.H)))
 
 	if err := s.deriveZeta(); err != nil {
 		return err
@@ -633,6 +660,10 @@ func (s *instance) computeQuotient() (err error) {
 }
 
 func (s *instance) buildRatioCopyConstraint() (err error) {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "build ratio copy constraint", slog.Duration("took", time.Since(start)))
+	}()
 	// wait for gamma and beta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -659,7 +690,9 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	}
 
 	// commit to the blinded version of z
+	commitStart := time.Now()
 	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz])
+	logger.Trace(s.log, "commit Z", slog.Duration("took", time.Since(commitStart)), slog.Int("size", s.x[id_Z].Size()))
 
 	close(s.chZ)
 
@@ -668,6 +701,10 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 // open Z (blinded) at ωζ
 func (s *instance) openZ() (err error) {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "open Z", slog.Duration("took", time.Since(start)))
+	}()
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -724,6 +761,10 @@ func (s *instance) h3() []fr.Element {
 }
 
 func (s *instance) computeLinearizedPolynomial() error {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "compute linearized polynomial", slog.Duration("took", time.Since(start)))
+	}()
 
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
@@ -785,7 +826,9 @@ func (s *instance) computeLinearizedPolynomial() error {
 	)
 
 	var err error
+	commitStart := time.Now()
 	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
+	logger.Trace(s.log, "commit linearized polynomial", slog.Duration("took", time.Since(commitStart)), slog.Int("size", len(s.linearizedPolynomial)))
 	if err != nil {
 		return err
 	}
@@ -794,6 +837,10 @@ func (s *instance) computeLinearizedPolynomial() error {
 }
 
 func (s *instance) batchOpening() error {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "batch opening", slog.Duration("took", time.Since(start)))
+	}()
 
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
@@ -839,6 +886,10 @@ func (s *instance) batchOpening() error {
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
 func (s *instance) computeNumerator() (*iop.Polynomial, error) {
+	start := time.Now()
+	defer func() {
+		logger.Trace(s.log, "compute numerator", slog.Duration("took", time.Since(start)))
+	}()
 	// init vectors that are used multiple times throughout the computation
 	n := s.domain0.Cardinality
 	twiddles0 := make([]fr.Element, n)
@@ -994,6 +1045,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	bufBatchInvert := make([]fr.Element, s.domain0.Cardinality)
 
 	for i := 0; i < rho; i++ {
+		iterationStart := time.Now()
 
 		coset.Mul(&coset, &shifters[i])
 		cosetExponentiatedToNMinusOne.Exp(coset, bn).
@@ -1084,6 +1136,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				cq[j].Mul(&cq[j], &cosetExponentiatedToNMinusOne)
 			}
 		}
+		logger.Trace(s.log, "compute numerator iteration", slog.Duration("took", time.Since(iterationStart)), slog.Int("iteration", i), slog.Int("rho", rho), slog.Int("size", int(n)))
 	}
 
 	// scale everything back

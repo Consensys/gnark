@@ -19,6 +19,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark/backend"
@@ -101,15 +102,18 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil
 	}))
 
+	solveStart := time.Now()
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
 	if err != nil {
 		return nil, err
 	}
+	logger.Trace(log, "solving done", slog.Duration("took", time.Since(solveStart)))
 
 	solution := _solution.(*cs.R1CSSolution)
 	wireValues := []fr.Element(solution.W)
 
 	start := time.Now()
+	commitmentStart := time.Now()
 	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
 
 	for i := range pk.CommitmentKeys {
@@ -130,12 +134,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
 		return nil, err
 	}
+	logger.Trace(log, "commitment proof of knowledge", slog.Duration("took", time.Since(commitmentStart)), slog.Int("nbCommitments", len(pk.CommitmentKeys)))
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
+		hStart := time.Now()
 		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		logger.Trace(log, "computeH", slog.Duration("took", time.Since(hStart)), slog.Int("size", len(h)))
 		solution.A = nil
 		solution.B = nil
 		solution.C = nil
@@ -194,11 +201,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chBs1Done := make(chan error, 1)
 	computeBS1 := func() {
 		<-chWireValuesB
+		msmStart := time.Now()
 		if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chBs1Done <- err
 			close(chBs1Done)
 			return
 		}
+		logger.Trace(log, "MSM Bs1", slog.Duration("took", time.Since(msmStart)), slog.Int("size", len(wireValuesB)))
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 		chBs1Done <- nil
@@ -207,11 +216,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chArDone := make(chan error, 1)
 	computeAR1 := func() {
 		<-chWireValuesA
+		msmStart := time.Now()
 		if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chArDone <- err
 			close(chArDone)
 			return
 		}
+		logger.Trace(log, "MSM Ar1", slog.Duration("took", time.Since(msmStart)), slog.Int("size", len(wireValuesA)))
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -227,7 +238,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		chKrs2Done := make(chan error, 1)
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 		go func() {
+			msmStart := time.Now()
 			_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: n / 2})
+			if err == nil {
+				logger.Trace(log, "MSM Krs2", slog.Duration("took", time.Since(msmStart)), slog.Int("size", sizeH))
+			}
 			chKrs2Done <- err
 		}()
 
@@ -235,12 +250,16 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
+		filterStart := time.Now()
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		logger.Trace(log, "filter wire values", slog.Duration("took", time.Since(filterStart)), slog.Int("size", len(_wireValues)))
 
+		msmStart := time.Now()
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
+		logger.Trace(log, "MSM Krs", slog.Duration("took", time.Since(msmStart)), slog.Int("size", len(_wireValues)))
 		krs.AddMixed(&deltas[2])
 		n := 3
 		for n != 0 {
@@ -283,10 +302,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			nbTasks *= 2
 		}
 		<-chWireValuesB
+		msmStart := time.Now()
 		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
 			return err
 		}
 
+		logger.Trace(log, "MSM Bs2 G2", slog.Duration("took", time.Since(msmStart)), slog.Int("size", len(wireValuesB)), slog.Int("nbTasks", nbTasks))
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
 		Bs.AddAssign(&deltaS)
