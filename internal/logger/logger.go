@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"runtime"
 	runtimedebug "runtime/debug"
@@ -116,7 +117,7 @@ func logDebugRuntimeInfo(log *slog.Logger) {
 func runtimeInfoAttrs(buildInfo *runtimedebug.BuildInfo) []slog.Attr {
 	attrs := []slog.Attr{
 		slog.Int("gomaxprocs", runtime.GOMAXPROCS(0)),
-		slog.Int64("gomemlimit", runtimedebug.SetMemoryLimit(-1)),
+		gomemlimitAttr(runtimedebug.SetMemoryLimit(-1)),
 		slog.String("goarch", runtime.GOARCH),
 		slog.String("goos", runtime.GOOS),
 		slog.Bool("support_neon", cpu.SupportNEON),
@@ -136,6 +137,13 @@ func runtimeInfoAttrs(buildInfo *runtimedebug.BuildInfo) []slog.Attr {
 		)
 	}
 	return attrs
+}
+
+func gomemlimitAttr(limit int64) slog.Attr {
+	if limit == math.MaxInt64 {
+		return slog.String("gomemlimit", "∞")
+	}
+	return slog.Int64("gomemlimit", limit)
 }
 
 func buildSetting(buildInfo *runtimedebug.BuildInfo, key string) string {

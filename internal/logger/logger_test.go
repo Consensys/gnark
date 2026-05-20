@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"math"
 	"os"
 	"runtime"
 	"strings"
@@ -146,6 +147,18 @@ func TestLoggerDebugLevelEmitsRuntimeInfo(t *testing.T) {
 		}
 	} else if strings.Contains(output, "goarm=") {
 		t.Fatalf("did not expect goarm in debug runtime output for %s, got %q", runtime.GOARCH, output)
+	}
+}
+
+func TestGOMEMLIMITAttrUsesInfinityForUnlimitedMemory(t *testing.T) {
+	attr := gomemlimitAttr(math.MaxInt64)
+	if attr.Value.Kind() != slog.KindString || attr.Value.String() != "∞" {
+		t.Fatalf("expected unlimited gomemlimit to be rendered as infinity, got %s", attr)
+	}
+
+	attr = gomemlimitAttr(1024)
+	if attr.Value.Kind() != slog.KindInt64 || attr.Value.Int64() != 1024 {
+		t.Fatalf("expected finite gomemlimit to remain an int64, got %s", attr)
 	}
 }
 
