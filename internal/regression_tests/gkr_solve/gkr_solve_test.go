@@ -3,9 +3,8 @@
 // importing gkrapi or any package that builds GKR circuits in-process.
 //
 // The testdata is produced by internal/gkr/test_vectors/generate.go, which
-// compiles a small Poseidon2 GKR validator circuit (defined in
-// std/permutation/poseidon2/gkr-poseidon2/gkrposeidon2testing) and writes
-// both the constraint system and a matching witness to testdata/.
+// compiles a small GKR-Poseidon2 circuit and writes both the constraint system
+// and a matching witness to testdata/.
 //
 // The point of the separation is to mirror a production solver/prover
 // process, which loads a pre-compiled constraint system and proves new
