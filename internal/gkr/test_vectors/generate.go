@@ -55,9 +55,9 @@ func (c *gkrPoseidon2Circuit) Define(api frontend.API) error {
 
 // generateGkrSolveTestdata compiles a small GKR-Poseidon2 validator circuit for
 // BLS12-377 and writes its constraint system and a matching witness to the
-// testdata directory consumed by internal/regression_tests/gkr_solve. That test
-// reads them back in a process that does not import gkrapi and calls Solve,
-// exercising the full CBOR round-trip of the GKR proving schedule end-to-end.
+// integration_test/ directory. The test there reads them back in a process that
+// does not import gkrapi and calls Solve, exercising the full CBOR round-trip
+// of the GKR proving schedule end-to-end.
 func generateGkrSolveTestdata() error {
 	fmt.Println("generating GKR-Poseidon2 integration testdata")
 
@@ -74,7 +74,7 @@ func generateGkrSolveTestdata() error {
 		return fmt.Errorf("failed to build witness: %w", err)
 	}
 
-	testDataDir := filepath.Join("../../regression_tests/gkr_solve/testdata")
+	const testDataDir = "integration_test"
 	if err = os.MkdirAll(testDataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create testdata directory: %w", err)
 	}
