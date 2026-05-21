@@ -186,6 +186,8 @@ func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
 			levelType = 1
 		case *constraint.GkrSingleSourceZeroCheckLevel:
 			levelType = 2
+		default:
+			return fmt.Errorf("unknown proving level type %T", level)
 		}
 		if err := writeUint8(w, levelType); err != nil {
 			return err
