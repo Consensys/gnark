@@ -712,6 +712,8 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	s2bits := c.scalarApi.ToBits(s2)
 	var st S
 	nbits := st.Modulus().BitLen()>>1 + 2
+	c.assertBitLength(s1bits, nbits)
+	c.assertBitLength(s2bits, nbits)
 
 	// precompute -Q, Q, 3Q, -Φ(Q), Φ(Q), 3Φ(Q)
 	var tableQ, tablePhiQ [3]*AffinePoint[B]
@@ -1143,6 +1145,10 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	t2bits := c.scalarApi.ToBits(t2)
 	var st S
 	nbits := st.Modulus().BitLen()>>1 + 2
+	c.assertBitLength(s1bits, nbits)
+	c.assertBitLength(s2bits, nbits)
+	c.assertBitLength(t1bits, nbits)
+	c.assertBitLength(t2bits, nbits)
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +Q + R + Φ(Q) + Φ(R)

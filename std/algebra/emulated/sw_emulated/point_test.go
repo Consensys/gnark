@@ -2701,6 +2701,19 @@ func scalarMulMinusOneHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	})
 }
 
+func wideRationalReconstruct(mod *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		_, emuOutputs := hc.InputsOutputs(moduli[0])
+		emuOutputs[0].SetUint64(1)
+		emuOutputs[0].SetBit(emuOutputs[0], (moduli[0].BitLen()+1)/2, 1)
+		emuOutputs[1].SetUint64(1)
+		nativeOutputs[0].SetUint64(0)
+		return nil
+	})
+}
+
 // TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
 // soundness issue in scalarMulGLVAndFakeGLV. A malicious rationalReconstructExt
 // hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=0) makes
@@ -2736,6 +2749,34 @@ func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("malicious all-zeros Eisenstein decomposition was accepted — soundness break")
+	}
+}
+
+func TestScalarMulFakeGLVRejectsWideSubscalars(t *testing.T) {
+	p256 := elliptic.P256()
+	nbits := (p256.Params().N.BitLen() + 1) / 2
+	h := new(big.Int).Lsh(big.NewInt(1), uint(nbits))
+	s := new(big.Int).Sub(p256.Params().N, h)
+	s.Sub(s, big.NewInt(1))
+
+	q := AffinePoint[emulated.P256Fp]{
+		X: emulated.ValueOf[emulated.P256Fp](p256.Params().Gx),
+		Y: emulated.ValueOf[emulated.P256Fp](p256.Params().Gy),
+	}
+	r := q
+	r.Y = emulated.ValueOf[emulated.P256Fp](new(big.Int).Sub(p256.Params().P, p256.Params().Gy))
+	witness := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](s),
+		Q: q,
+		R: r,
+	}
+
+	err := test.IsSolved(&ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}, &witness, testCurve.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstruct), wideRationalReconstruct),
+		test.WithReplacementHint(solver.GetHintID(scalarMulHint), scalarMulMinusOneHint),
+	)
+	if err == nil {
+		t.Fatal("malicious fake-GLV decomposition with ignored high bits was accepted")
 	}
 }
 
