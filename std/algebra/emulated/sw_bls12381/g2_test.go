@@ -9,6 +9,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -49,6 +50,57 @@ func TestScalarMulG2TestSolve(t *testing.T) {
 	}
 	err := test.IsSolved(&mulG2Circuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+type glvOnlyG2Circuit struct {
+	In, Res G2Affine
+	S       Scalar
+}
+
+func (c *glvOnlyG2Circuit) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	res := g2.scalarMulGLV(&c.In, &c.S)
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func wideDecomposeScalarG1(mod *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		_, emuOutputs := hc.InputsOutputs(moduli[0])
+		emuOutputs[0].SetUint64(1)
+		emuOutputs[0].SetBit(emuOutputs[0], 130, 1)
+		emuOutputs[1].SetUint64(0)
+		nativeOutputs[0].SetUint64(1)
+		nativeOutputs[1].SetUint64(0)
+		return nil
+	})
+}
+
+func TestScalarMulG2RejectsWideSubscalars(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, _, gen := bls12381.Generators()
+	h := new(big.Int).Lsh(big.NewInt(1), 130)
+	s := new(big.Int).Sub(fr_bls12381.Modulus(), h)
+	s.Sub(s, big.NewInt(1))
+	var r fr_bls12381.Element
+	r.SetBigInt(s)
+	res := gen
+	res.Neg(&res)
+
+	witness := glvOnlyG2Circuit{
+		In:  NewG2Affine(gen),
+		S:   NewScalar(r),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&glvOnlyG2Circuit{}, &witness, ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(decomposeScalarG1), wideDecomposeScalarG1),
+	)
+	assert.Error(err)
 }
 
 type addG2Circuit struct {

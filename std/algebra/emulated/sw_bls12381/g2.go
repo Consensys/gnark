@@ -674,6 +674,12 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	s1bits := g2.fr.ToBits(s1)
 	s2bits := g2.fr.ToBits(s2)
 
+	nbits := 130
+	for i := nbits; i < len(s1bits); i++ {
+		g2.api.AssertIsEqual(s1bits[i], 0)
+		g2.api.AssertIsEqual(s2bits[i], 0)
+	}
+
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [3]*G2Affine
 	negQY := g2.Ext2.Neg(&Q.P.Y)
@@ -757,7 +763,6 @@ func (g2 *G2) scalarMulGLV(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption
 	// note that half the points are negatives of the other half,
 	// hence have the same X coordinates.
 
-	nbits := 130
 	for i := nbits - 2; i > 0; i -= 2 {
 		// selectorY takes values in [0,15]
 		selectorY := g2.api.Add(
