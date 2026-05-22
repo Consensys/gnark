@@ -2673,6 +2673,34 @@ func zeroRationalReconstructExt(_ *big.Int, _, outputs []*big.Int) error {
 	return nil
 }
 
+func wideRationalReconstructExt(mod *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		_, emuOutputs := hc.InputsOutputs(moduli[0])
+		emuOutputs[0].SetUint64(1)
+		emuOutputs[0].SetBit(emuOutputs[0], (moduli[0].BitLen()+3)/4+2, 1)
+		emuOutputs[1].SetUint64(0)
+		emuOutputs[2].SetUint64(1)
+		emuOutputs[3].SetUint64(0)
+		for i := range nativeOutputs {
+			nativeOutputs[i].SetUint64(0)
+		}
+		return nil
+	})
+}
+
+func scalarMulMinusOneHint(mod *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		baseInputs, baseOutputs := hc.InputsOutputs(moduli[0])
+		baseOutputs[0].Set(baseInputs[0])
+		baseOutputs[1].Sub(moduli[0], baseInputs[1])
+		baseOutputs[1].Mod(baseOutputs[1], moduli[0])
+		return nil
+	})
+}
+
 // TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
 // soundness issue in scalarMulGLVAndFakeGLV. A malicious rationalReconstructExt
 // hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=0) makes
@@ -2708,5 +2736,33 @@ func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("malicious all-zeros Eisenstein decomposition was accepted — soundness break")
+	}
+}
+
+func TestScalarMulGLVAndFakeGLVRejectsWideSubscalars(t *testing.T) {
+	_, g := secp256k1.Generators()
+	nbits := (fr_secp.Modulus().BitLen()+3)/4 + 2
+	h := new(big.Int).Lsh(big.NewInt(1), uint(nbits))
+	s := new(big.Int).Sub(fr_secp.Modulus(), h)
+	s.Sub(s, big.NewInt(1))
+
+	p := AffinePoint[emulated.Secp256k1Fp]{
+		X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+		Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+	}
+	r := p
+	r.Y = emulated.ValueOf[emulated.Secp256k1Fp](new(big.Int).Sub(fp_secp.Modulus(), g.Y.BigInt(new(big.Int))))
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: p,
+		R: r,
+	}
+
+	err := test.IsSolved(&ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}, &witness, testCurve.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstructExt), wideRationalReconstructExt),
+		test.WithReplacementHint(solver.GetHintID(scalarMulHint), scalarMulMinusOneHint),
+	)
+	if err == nil {
+		t.Fatal("malicious decomposition with ignored high bits was accepted")
 	}
 }

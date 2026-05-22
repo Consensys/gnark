@@ -90,6 +90,12 @@ func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 	return c.gm
 }
 
+func (c *Curve[B, S]) assertBitLength(bits []frontend.Variable, nbits int) {
+	for i := nbits; i < len(bits); i++ {
+		c.api.AssertIsEqual(bits[i], 0)
+	}
+}
+
 // AffinePoint represents a point on the elliptic curve. We do not check that
 // the point is actually on the curve.
 //
@@ -1413,6 +1419,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	nbits := (st.Modulus().BitLen() + 1) / 2
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
+	c.assertBitLength(s1bits, nbits)
+	c.assertBitLength(s2bits, nbits)
 
 	// Precomputations:
 	// 		tableQ[0] = -Q
@@ -1808,6 +1816,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	u2bits := c.scalarApi.ToBits(u2)
 	v1bits := c.scalarApi.ToBits(v1)
 	v2bits := c.scalarApi.ToBits(v2)
+	c.assertBitLength(u1bits, nbits)
+	c.assertBitLength(u2bits, nbits)
+	c.assertBitLength(v1bits, nbits)
+	c.assertBitLength(v2bits, nbits)
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +P + Q + Φ(P) + Φ(Q)
