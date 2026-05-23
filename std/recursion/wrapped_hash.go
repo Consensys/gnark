@@ -76,7 +76,7 @@ func newShortFromParam(hf hash.Hash, bitBlockSize, outSize int) hash.Hash {
 func (h *shortNativeHash) Write(p []byte) (n int, err error) {
 	// we first write to the buffer. We want to be able to partition the inputs
 	// into smaller parts and buffer is good to keep track of the excess.
-	h.ringBuf.Write(p) // nosec: doesnt fail
+	h.ringBuf.Write(p) // nosec: doesn't fail
 	for h.ringBuf.Len() >= (len(h.buf) - 1) {
 		// the buffer contains now enough bytes so that we can write it to the
 		// underlying hash.

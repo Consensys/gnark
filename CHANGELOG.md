@@ -1553,7 +1553,7 @@
 - flatten mpc structure, idomify APIs
 - expose all typed backends in gnark/backend (moved from internal/)
 - compute lagrange basis from scratch
-- dont need nativemod in emulated hint unwrapper
+- don't need nativemod in emulated hint unwrapper
 - solving and compilation in accordance with commitmentInfo struct changes
 - SparceCS.CommitmentConstraint instead of C; more "honest" constraints
 - take api.Commit to api.go
