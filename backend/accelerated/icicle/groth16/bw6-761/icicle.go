@@ -1340,13 +1340,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, cfg *icic
 	// free device/GPU memory that is not needed for future proofs (scalars/hpoly)
 	icicle_runtime.RunOnDevice(&device, func(args ...any) {
 		if err := wireValuesADevice.Free(); err != icicle_runtime.Success {
-			log.Error(fmt.Sprintf("free wireValuesADevice failed: %s", err.AsString()))
+			log.Error("free device memory failed", slog.String("buffer", "wireValuesADevice"), slog.String("error", err.AsString()))
 		}
 		if err := wireValuesBDevice.Free(); err != icicle_runtime.Success {
-			log.Error(fmt.Sprintf("free wireValuesBDevice failed: %s", err.AsString()))
+			log.Error("free device memory failed", slog.String("buffer", "wireValuesBDevice"), slog.String("error", err.AsString()))
 		}
 		if err := h.Free(); err != icicle_runtime.Success {
-			log.Error(fmt.Sprintf("free h failed: %s", err.AsString()))
+			log.Error("free device memory failed", slog.String("buffer", "h"), slog.String("error", err.AsString()))
 		}
 	})
 
