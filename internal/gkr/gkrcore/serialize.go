@@ -180,12 +180,14 @@ func SerializeSchedule(w io.Writer, s constraint.GkrProvingSchedule) error {
 	for _, level := range s {
 		var levelType int
 		switch level.(type) {
-		case constraint.GkrSumcheckLevel:
+		case *constraint.GkrSumcheckLevel:
 			levelType = 0
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			levelType = 1
-		case constraint.GkrSingleSourceZeroCheckLevel:
+		case *constraint.GkrSingleSourceZeroCheckLevel:
 			levelType = 2
+		default:
+			return fmt.Errorf("unknown proving level type %T", level)
 		}
 		if err := writeUint8(w, levelType); err != nil {
 			return err
