@@ -3,6 +3,7 @@ package maptocurve_kb8
 import (
 	"encoding/binary"
 	"errors"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/kb8"
 	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
@@ -21,7 +22,7 @@ const (
 	PqWidth           = 16
 	PqSqueezeRate     = 8
 	PqPermutations    = 3  // ceil(PqN / PqSqueezeRate)
-	pqRangeS          = 23 // ⌊p/(2T)⌋ = 4_161_536 < 2^23 (with T=256)
+	pqRangeS          = 22 // B = ⌊p/(2T)⌋ = 2^22 - 2^15 < 2^22 (with T=256)
 	pqRangeQ          = 9  // q ≤ ⌊(p-1)/B⌋ = 2T-1 = 511 < 2^9
 	pqRangeK          = 8  // k < T = 256
 	pqOutputsPerCoord = 11 // q, s, k + 8 E8 coefficients of x
@@ -97,6 +98,7 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 	_, b := kb8.CurveCoefficients()
 	bE8 := newE8(b)
 	bound := multisethash.PqReducerBound()
+	boundMinusOne := new(big.Int).Sub(bound, big.NewInt(1))
 
 	rc := rangecheck.New(api)
 	for i := 0; i < PqN; i++ {
@@ -109,9 +111,12 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 		// squeezed[i] = q * B + s
 		api.AssertIsEqual(squeezed[i], api.Add(api.Mul(q, bound), s))
 
-		// Range checks. (We range-check s to one less bit than the bound width
-		// since s < B = 4_161_536 ⇒ s ≤ 4_161_535 < 2^pqRangeS.)
+		// Enforce s ∈ [0, B-1] exactly: two pqRangeS-bit checks on s and B-1-s.
+		// A single 2^pqRangeS-bit check would let the prover wrap modulo p and
+		// pick s ∈ [B, 2^pqRangeS), violating the inverse-freeness invariant
+		// y = T*s + k < p/2.
 		rc.Check(s, pqRangeS)
+		rc.Check(api.Sub(boundMinusOne, s), pqRangeS)
 		rc.Check(q, pqRangeQ)
 		rc.Check(k, pqRangeK)
 
