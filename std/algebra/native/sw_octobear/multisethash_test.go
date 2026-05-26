@@ -1,10 +1,10 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
-	nativemsh "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
+	nativemsh "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-// multisetHashCircuit is the 1-point kb8 multiset-hash verification circuit.
+// multisetHashCircuit is the 1-point octobear multiset-hash verification circuit.
 type multisetHashCircuit struct {
 	Msgs   [4]frontend.Variable
 	Digest G1Affine
@@ -130,13 +130,13 @@ func BenchmarkMultisetHashCircuitSolve(b *testing.B) {
 	})
 }
 
-func shiftedDigest(d kb8.G1Affine) kb8.G1Affine {
-	_, offset := kb8.Generators()
-	var jd, jo kb8.G1Jac
+func shiftedDigest(d octobear.G1Affine) octobear.G1Affine {
+	_, offset := octobear.Generators()
+	var jd, jo octobear.G1Jac
 	jd.FromAffine(&d)
 	jo.FromAffine(&offset)
 	jd.AddAssign(&jo)
-	var shifted kb8.G1Affine
+	var shifted octobear.G1Affine
 	shifted.FromJacobian(&jd)
 	return shifted
 }

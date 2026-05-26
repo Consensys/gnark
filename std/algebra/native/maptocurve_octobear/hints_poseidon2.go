@@ -1,17 +1,17 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"fmt"
 	"math/big"
 
-	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	multisethash "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 )
 
 // yIncrementPoseidon2Hint, given the PqN squeezed koalabear elements (already
 // computed in-circuit by the Poseidon2 sponge), produces per-coordinate
 // (q, s, k, x_coeffs[8]) where:
 //   - q*B + s = squeezed[i] with s < B = ⌊p/(2T)⌋
-//   - k < PqT and y = PqT*s + k yields a valid kb8 point with abscissa x.
+//   - k < PqT and y = PqT*s + k yields a valid octobear point with abscissa x.
 //
 // The cubic solve runs natively via gnark-crypto's MapAtSlot helper.
 func yIncrementPoseidon2Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {

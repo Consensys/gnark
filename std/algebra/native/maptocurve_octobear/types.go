@@ -1,21 +1,21 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/fields_kb8"
+	"github.com/consensys/gnark/std/algebra/native/fields_octobear"
 )
 
-type E2 = fields_kb8.E2
-type E4 = fields_kb8.E4
-type E8 = fields_kb8.E8
+type E2 = fields_octobear.E2
+type E4 = fields_octobear.E4
+type E8 = fields_octobear.E8
 
 type G1Affine struct {
 	X, Y E8
 }
 
 func newE8(v extensions.E8) E8 {
-	return fields_kb8.NewE8(v)
+	return fields_octobear.NewE8(v)
 }
 
 func fromCoeffs(v []frontend.Variable) E8 {

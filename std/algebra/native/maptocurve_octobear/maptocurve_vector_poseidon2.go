@@ -1,21 +1,21 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"encoding/binary"
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
-	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
+	multisethash "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/fields_kb8"
+	"github.com/consensys/gnark/std/algebra/native/fields_octobear"
 	"github.com/consensys/gnark/std/permutation/poseidon2"
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
 // Poseidon2-sponge vector ECMSH parameters (paper §4.3 "preferred" derivation).
 // These must match the native side
-// (ecc/kb8/multiset-hash/vector_multiset_hash_poseidon2.go).
+// (ecc/octobear/multiset-hash/vector_multiset_hash_poseidon2.go).
 const (
 	PqN               = 23
 	PqT               = 256
@@ -29,7 +29,7 @@ const (
 )
 
 // MapPoseidon2 maps a 64-bit message (split into a low and a high 32-bit half
-// to fit into the koalabear field) to PqN points on kb8 using a width-16
+// to fit into the koalabear field) to PqN points on octobear using a width-16
 // Poseidon2 sponge with rate PqSqueezeRate.
 //
 // Both halves are expected to be ≤ 2^32 − 1. The function constrains each
@@ -50,7 +50,7 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 	var pts [PqN]G1Affine
 
 	if !IsCompatible(api) {
-		return pts, errors.New("expected KoalaBear native field for kb8 Poseidon2 map-to-curve")
+		return pts, errors.New("expected KoalaBear native field for octobear Poseidon2 map-to-curve")
 	}
 
 	// Constrain msgLow, msgHigh < 2^32.
@@ -95,7 +95,7 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 		return pts, err
 	}
 
-	_, b := kb8.CurveCoefficients()
+	_, b := octobear.CurveCoefficients()
 	bE8 := newE8(b)
 	bound := multisethash.PqReducerBound()
 	boundMinusOne := new(big.Int).Sub(bound, big.NewInt(1))
@@ -122,7 +122,7 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 
 		// baseY = T * s; y = (T*s + k, 0, ..., 0) in E8.
 		baseY := api.Mul(PqT, s)
-		var y fields_kb8.E8
+		var y fields_octobear.E8
 		y.SetZero()
 		y.C0.B0.A0 = api.Add(baseY, k)
 		pt := G1Affine{X: x, Y: y}

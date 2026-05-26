@@ -1,8 +1,8 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/maptocurve_kb8"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_octobear"
 )
 
 // Accumulator stores the 1-point multiset hash state.
@@ -21,7 +21,7 @@ func NewAccumulator(curve *Curve) *Accumulator {
 
 // Insert maps msg and adds it to the accumulator.
 func (a *Accumulator) Insert(msg frontend.Variable) error {
-	p, err := maptocurve_kb8.YIncrement(a.curve.api, msg)
+	p, err := maptocurve_octobear.YIncrement(a.curve.api, msg)
 	if err != nil {
 		return err
 	}

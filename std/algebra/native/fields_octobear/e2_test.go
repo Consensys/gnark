@@ -1,4 +1,4 @@
-package fields_kb8
+package fields_octobear
 
 import (
 	"testing"

@@ -1,24 +1,24 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
-	nativemsh "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
+	nativemsh "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/widecommitter"
-	"github.com/consensys/gnark/std/algebra/native/maptocurve_kb8"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_octobear"
 	"github.com/consensys/gnark/test"
 )
 
 // linearHashCircuit verifies LinearAccumulator over a small batch of inserts.
 type linearHashCircuit struct {
 	Msgs   [4]frontend.Variable
-	Digest [maptocurve_kb8.LinearN]G1Affine
+	Digest [maptocurve_octobear.LinearN]G1Affine
 }
 
 func (c *linearHashCircuit) Define(api frontend.API) error {
@@ -40,7 +40,7 @@ func (c *linearHashCircuit) Define(api frontend.API) error {
 // linearSingleInsertCircuit measures the per-Insert constraint cost.
 type linearSingleInsertCircuit struct {
 	Msg    frontend.Variable
-	Digest [maptocurve_kb8.LinearN]G1Affine
+	Digest [maptocurve_octobear.LinearN]G1Affine
 }
 
 func (c *linearSingleInsertCircuit) Define(api frontend.API) error {
@@ -63,11 +63,11 @@ func (c *linearSingleInsertCircuit) Define(api frontend.API) error {
 // LinearAccumulator (each coordinate starts at the generator G). The native
 // HashLinear returns un-shifted sums starting at infinity, so we add G to each
 // coordinate to bring them in sync with what the circuit accumulator computes.
-func shiftedLinearDigest(d [maptocurve_kb8.LinearN]kb8.G1Affine) [maptocurve_kb8.LinearN]kb8.G1Affine {
-	_, offset := kb8.Generators()
-	var out [maptocurve_kb8.LinearN]kb8.G1Affine
+func shiftedLinearDigest(d [maptocurve_octobear.LinearN]octobear.G1Affine) [maptocurve_octobear.LinearN]octobear.G1Affine {
+	_, offset := octobear.Generators()
+	var out [maptocurve_octobear.LinearN]octobear.G1Affine
 	for i := range d {
-		var jd, jo kb8.G1Jac
+		var jd, jo octobear.G1Jac
 		jd.FromAffine(&d[i])
 		jo.FromAffine(&offset)
 		jd.AddAssign(&jo)
@@ -76,8 +76,8 @@ func shiftedLinearDigest(d [maptocurve_kb8.LinearN]kb8.G1Affine) [maptocurve_kb8
 	return out
 }
 
-func newLinearWitnessDigest(d [maptocurve_kb8.LinearN]kb8.G1Affine) [maptocurve_kb8.LinearN]G1Affine {
-	var out [maptocurve_kb8.LinearN]G1Affine
+func newLinearWitnessDigest(d [maptocurve_octobear.LinearN]octobear.G1Affine) [maptocurve_octobear.LinearN]G1Affine {
+	var out [maptocurve_octobear.LinearN]G1Affine
 	for i := range d {
 		out[i] = NewG1Affine(d[i])
 	}
@@ -120,7 +120,7 @@ func TestLinearHashHomomorphic(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range full {
-		var sum kb8.G1Affine
+		var sum octobear.G1Affine
 		sum.Add(&dA[i], &dB[i])
 		if !sum.Equal(&full[i]) {
 			t.Fatalf("native HashLinear is not additive at coord %d", i)

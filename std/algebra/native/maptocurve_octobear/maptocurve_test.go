@@ -1,9 +1,9 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"testing"
 
-	nativemsh "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	nativemsh "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )

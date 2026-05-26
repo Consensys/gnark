@@ -1,23 +1,23 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"errors"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/fields_kb8"
+	"github.com/consensys/gnark/std/algebra/native/fields_octobear"
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
 // Linear-separator vector ECMSH parameters (paper §4, App. B "T=128" row).
-// These must match the native side (ecc/kb8/multiset-hash/vector_multiset_hash_linear.go).
+// These must match the native side (ecc/octobear/multiset-hash/vector_multiset_hash_linear.go).
 const (
 	LinearN = 23
 	LinearT = 128
 	LinearM = 1 << 18
 )
 
-// MapLinear maps msg to LinearN points on kb8 using the linear domain
+// MapLinear maps msg to LinearN points on octobear using the linear domain
 // separator y_i(msg, k_i) = LinearT*(msg + i*LinearM) + k_i.
 //
 // The expensive cubic solve for each coordinate is performed outside the
@@ -32,7 +32,7 @@ func MapLinear(api frontend.API, msg frontend.Variable) ([LinearN]G1Affine, erro
 	var pts [LinearN]G1Affine
 
 	if !IsCompatible(api) {
-		return pts, errors.New("expected KoalaBear native field for kb8 linear map-to-curve")
+		return pts, errors.New("expected KoalaBear native field for octobear linear map-to-curve")
 	}
 
 	// msg < 2^18 = LinearM
@@ -44,7 +44,7 @@ func MapLinear(api frontend.API, msg frontend.Variable) ([LinearN]G1Affine, erro
 		return pts, err
 	}
 
-	_, b := kb8.CurveCoefficients()
+	_, b := octobear.CurveCoefficients()
 	bE8 := newE8(b)
 
 	rc := rangecheck.New(api)
@@ -60,7 +60,7 @@ func MapLinear(api frontend.API, msg frontend.Variable) ([LinearN]G1Affine, erro
 		// compile-time constant, so the api.Add folds into a linear combination.
 		baseY := api.Mul(LinearT, api.Add(msg, i*LinearM))
 
-		var y fields_kb8.E8
+		var y fields_octobear.E8
 		y.SetZero()
 		y.C0.B0.A0 = api.Add(baseY, k)
 		p := G1Affine{X: x, Y: y}
@@ -74,13 +74,13 @@ func MapLinear(api frontend.API, msg frontend.Variable) ([LinearN]G1Affine, erro
 // assertIsOnCurveWithB is the per-coordinate version of assertIsOnCurve that
 // takes the precomputed b ∈ Fp^8 to avoid recomputing CurveCoefficients in the
 // inner loop. Behaviour matches assertIsOnCurve in maptocurve.go.
-func assertIsOnCurveWithB(api frontend.API, p *G1Affine, bE8 fields_kb8.E8) {
-	var ySquared fields_kb8.E8
+func assertIsOnCurveWithB(api frontend.API, p *G1Affine, bE8 fields_octobear.E8) {
+	var ySquared fields_octobear.E8
 	ySquared.SetZero()
 	ySquared.C0.B0.A0 = api.Mul(p.Y.C0.B0.A0, p.Y.C0.B0.A0)
 
-	rhs := *new(fields_kb8.E8).Cube(api, p.X)
-	rhs.Sub(api, rhs, *new(fields_kb8.E8).MulByFp(api, p.X, 3))
+	rhs := *new(fields_octobear.E8).Cube(api, p.X)
+	rhs.Sub(api, rhs, *new(fields_octobear.E8).MulByFp(api, p.X, 3))
 	rhs.Add(api, rhs, bE8)
 
 	ySquared.AssertIsEqual(api, rhs)

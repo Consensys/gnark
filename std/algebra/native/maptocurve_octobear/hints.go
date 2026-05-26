@@ -1,10 +1,10 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"fmt"
 	"math/big"
 
-	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	multisethash "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
 	"github.com/consensys/gnark/constraint/solver"
 )

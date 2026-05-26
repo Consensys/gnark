@@ -1,57 +1,57 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"errors"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
 	kbfp "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/fields_kb8"
-	"github.com/consensys/gnark/std/algebra/native/maptocurve_kb8"
+	"github.com/consensys/gnark/std/algebra/native/fields_octobear"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_octobear"
 )
 
-// Curve exposes kb8 point operations in circuits over the KoalaBear field.
+// Curve exposes octobear point operations in circuits over the KoalaBear field.
 type Curve struct {
 	api frontend.API
 }
 
 var (
 	curveA, curveB, accumulatorOffset = func() (E8, E8, G1Affine) {
-		a, b := kb8.CurveCoefficients()
-		_, offsetNative := kb8.Generators()
-		return fields_kb8.NewE8(a), fields_kb8.NewE8(b), NewG1Affine(offsetNative)
+		a, b := octobear.CurveCoefficients()
+		_, offsetNative := octobear.Generators()
+		return fields_octobear.NewE8(a), fields_octobear.NewE8(b), NewG1Affine(offsetNative)
 	}()
 )
 
-func fromMapE2(v maptocurve_kb8.E2) E2 {
-	return E2{A0: v.A0, A1: v.A1}
+func fromMapE2(v maptocurve_octobear.E2) E2 {
+	return E2(v)
 }
 
-func fromMapE4(v maptocurve_kb8.E4) E4 {
+func fromMapE4(v maptocurve_octobear.E4) E4 {
 	return E4{
 		B0: fromMapE2(v.B0),
 		B1: fromMapE2(v.B1),
 	}
 }
 
-func fromMapE8(v maptocurve_kb8.E8) E8 {
+func fromMapE8(v maptocurve_octobear.E8) E8 {
 	return E8{
 		C0: fromMapE4(v.C0),
 		C1: fromMapE4(v.C1),
 	}
 }
 
-func fromMapPoint(v maptocurve_kb8.G1Affine) G1Affine {
+func fromMapPoint(v maptocurve_octobear.G1Affine) G1Affine {
 	return G1Affine{
 		X: fromMapE8(v.X),
 		Y: fromMapE8(v.Y),
 	}
 }
 
-// NewCurve initializes a new kb8 curve gadget.
+// NewCurve initializes a new octobear curve gadget.
 func NewCurve(api frontend.API) (*Curve, error) {
 	if api.Compiler().Field().Cmp(kbfp.Modulus()) != 0 {
-		return nil, errors.New("expected KoalaBear native field for kb8 operations")
+		return nil, errors.New("expected KoalaBear native field for octobear operations")
 	}
 	return &Curve{api: api}, nil
 }
@@ -222,7 +222,7 @@ func (c *Curve) isInfinity(p *G1Affine) frontend.Variable {
 	return c.api.And(p.X.IsZero(c.api), p.Y.IsZero(c.api))
 }
 
-// AssertIsOnCurve asserts that p is infinity or lies on kb8.
+// AssertIsOnCurve asserts that p is infinity or lies on octobear.
 func (c *Curve) AssertIsOnCurve(p *G1Affine) {
 	isInf := c.isInfinity(p)
 	left := *new(E8).Square(c.api, p.Y)
@@ -234,7 +234,7 @@ func (c *Curve) AssertIsOnCurve(p *G1Affine) {
 	c.api.AssertIsEqual(c.api.Or(isInf, isCurve), 1)
 }
 
-// AssertIsInSubGroup asserts subgroup membership. kb8 has prime order, so this
+// AssertIsInSubGroup asserts subgroup membership. octobear has prime order, so this
 // is equivalent to the on-curve check.
 func (c *Curve) AssertIsInSubGroup(p *G1Affine) {
 	c.AssertIsOnCurve(p)

@@ -1,17 +1,17 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
-	nativemsh "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
+	nativemsh "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 	"github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/widecommitter"
-	"github.com/consensys/gnark/std/algebra/native/maptocurve_kb8"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_octobear"
 	"github.com/consensys/gnark/test"
 )
 
@@ -19,7 +19,7 @@ import (
 type poseidon2HashCircuit struct {
 	MsgsLow  [4]frontend.Variable
 	MsgsHigh [4]frontend.Variable
-	Digest   [maptocurve_kb8.PqN]G1Affine
+	Digest   [maptocurve_octobear.PqN]G1Affine
 }
 
 func (c *poseidon2HashCircuit) Define(api frontend.API) error {
@@ -41,7 +41,7 @@ func (c *poseidon2HashCircuit) Define(api frontend.API) error {
 type poseidon2SingleInsertCircuit struct {
 	MsgLow  frontend.Variable
 	MsgHigh frontend.Variable
-	Digest  [maptocurve_kb8.PqN]G1Affine
+	Digest  [maptocurve_octobear.PqN]G1Affine
 }
 
 func (c *poseidon2SingleInsertCircuit) Define(api frontend.API) error {
@@ -60,11 +60,11 @@ func (c *poseidon2SingleInsertCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func shiftedPoseidon2Digest(d [maptocurve_kb8.PqN]kb8.G1Affine) [maptocurve_kb8.PqN]kb8.G1Affine {
-	_, offset := kb8.Generators()
-	var out [maptocurve_kb8.PqN]kb8.G1Affine
+func shiftedPoseidon2Digest(d [maptocurve_octobear.PqN]octobear.G1Affine) [maptocurve_octobear.PqN]octobear.G1Affine {
+	_, offset := octobear.Generators()
+	var out [maptocurve_octobear.PqN]octobear.G1Affine
 	for i := range d {
-		var jd, jo kb8.G1Jac
+		var jd, jo octobear.G1Jac
 		jd.FromAffine(&d[i])
 		jo.FromAffine(&offset)
 		jd.AddAssign(&jo)
@@ -73,8 +73,8 @@ func shiftedPoseidon2Digest(d [maptocurve_kb8.PqN]kb8.G1Affine) [maptocurve_kb8.
 	return out
 }
 
-func newPoseidon2WitnessDigest(d [maptocurve_kb8.PqN]kb8.G1Affine) [maptocurve_kb8.PqN]G1Affine {
-	var out [maptocurve_kb8.PqN]G1Affine
+func newPoseidon2WitnessDigest(d [maptocurve_octobear.PqN]octobear.G1Affine) [maptocurve_octobear.PqN]G1Affine {
+	var out [maptocurve_octobear.PqN]G1Affine
 	for i := range d {
 		out[i] = NewG1Affine(d[i])
 	}
@@ -126,7 +126,7 @@ func TestPoseidon2HashHomomorphic(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range full {
-		var sum kb8.G1Affine
+		var sum octobear.G1Affine
 		sum.Add(&dA[i], &dB[i])
 		if !sum.Equal(&full[i]) {
 			t.Fatalf("native HashPoseidon2 is not additive at coord %d", i)

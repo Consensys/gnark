@@ -1,10 +1,10 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"fmt"
 	"math/big"
 
-	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
+	multisethash "github.com/consensys/gnark-crypto/ecc/octobear/multiset-hash"
 )
 
 // yIncrementLinearHint maps msg to LinearN points natively (using gnark-crypto's

@@ -1,21 +1,21 @@
-package maptocurve_kb8
+package maptocurve_octobear
 
 import (
 	"errors"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
 	kbfp "github.com/consensys/gnark-crypto/field/koalabear"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/native/fields_kb8"
+	"github.com/consensys/gnark/std/algebra/native/fields_octobear"
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
 const T = 256
 
-// YIncrement maps msg to a point on kb8 with y = msg*256 + k.
+// YIncrement maps msg to a point on octobear with y = msg*256 + k.
 func YIncrement(api frontend.API, msg frontend.Variable) (G1Affine, error) {
 	if !IsCompatible(api) {
-		return G1Affine{}, errors.New("expected KoalaBear native field for kb8 map-to-curve")
+		return G1Affine{}, errors.New("expected KoalaBear native field for octobear map-to-curve")
 	}
 	_ = api.ToBinary(msg, 16)
 
@@ -27,7 +27,7 @@ func YIncrement(api frontend.API, msg frontend.Variable) (G1Affine, error) {
 	rangecheck.New(api).Check(k, 8)
 
 	x := fromCoeffs(res[1:])
-	var y fields_kb8.E8
+	var y fields_octobear.E8
 	y0 := api.Add(api.Mul(msg, T), k)
 	y.SetZero()
 	y.C0.B0.A0 = y0
@@ -45,7 +45,7 @@ func YIncrement(api frontend.API, msg frontend.Variable) (G1Affine, error) {
 //   - The map never produces infinity, so the isInf branch is removed (~30 gates).
 //   - The result is checked via direct AssertIsEqual instead of IsZero+Or (~15 gates).
 func assertIsOnCurve(api frontend.API, p *G1Affine) {
-	_, b := kb8.CurveCoefficients()
+	_, b := octobear.CurveCoefficients()
 
 	// y² — exploit that y is in the base subfield: only y.C0.B0.A0 is nonzero
 	var ySquared E8

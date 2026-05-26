@@ -1,9 +1,9 @@
-package sw_kb8
+package sw_octobear
 
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/kb8"
+	"github.com/consensys/gnark-crypto/ecc/octobear"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -23,7 +23,7 @@ func (circuit *g1AddAssignAffine) Define(api frontend.API) error {
 func TestAddAssignAffineG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac, bJac := distinctPointsG1(t)
-	var a, b, c kb8.G1Affine
+	var a, b, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	b.FromJacobian(&bJac)
 	aJac.AddAssign(&bJac)
@@ -52,7 +52,7 @@ func (circuit *g1DoubleAffine) Define(api frontend.API) error {
 func TestDoubleAffineG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac := randomPointG1(t)
-	var a, c kb8.G1Affine
+	var a, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	aJac.DoubleAssign()
 	c.FromJacobian(&aJac)
@@ -79,7 +79,7 @@ func (circuit *g1AddUnifiedAffine) Define(api frontend.API) error {
 func TestAddUnifiedAffineG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac, bJac := distinctPointsG1(t)
-	var a, b, c kb8.G1Affine
+	var a, b, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	b.FromJacobian(&bJac)
 	aJac.AddAssign(&bJac)
@@ -108,7 +108,7 @@ func (circuit *g1DoubleAndAddAffine) Define(api frontend.API) error {
 func TestDoubleAndAddAffineG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac, bJac := distinctPointsG1(t)
-	var a, b, c kb8.G1Affine
+	var a, b, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	b.FromJacobian(&bJac)
 	aJac.DoubleAssign().AddAssign(&bJac)
@@ -137,7 +137,7 @@ func (circuit *g1AddBrierJoyeAffine) Define(api frontend.API) error {
 func TestAddBrierJoyeAffineG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac, bJac := distinctPointsG1(t)
-	var a, b, c kb8.G1Affine
+	var a, b, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	b.FromJacobian(&bJac)
 	aJac.AddAssign(&bJac)
@@ -154,7 +154,7 @@ func TestAddBrierJoyeAffineG1(t *testing.T) {
 func TestAddBrierJoyeDoubleG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac := randomPointG1(t)
-	var a, c kb8.G1Affine
+	var a, c octobear.G1Affine
 	a.FromJacobian(&aJac)
 	aJac.DoubleAssign()
 	c.FromJacobian(&aJac)
@@ -170,10 +170,10 @@ func TestAddBrierJoyeDoubleG1(t *testing.T) {
 func TestAddBrierJoyeOppositeG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	aJac := randomPointG1(t)
-	var a kb8.G1Affine
+	var a octobear.G1Affine
 	a.FromJacobian(&aJac)
 
-	var negA kb8.G1Affine
+	var negA octobear.G1Affine
 	negA.Neg(&a)
 
 	var witness g1AddBrierJoyeAffine
@@ -185,10 +185,10 @@ func TestAddBrierJoyeOppositeG1(t *testing.T) {
 	assert.CheckCircuit(&g1AddBrierJoyeAffine{}, test.WithValidAssignment(&witness), test.WithoutCurveChecks(), test.WithSmallfieldCheck())
 }
 
-func randomPointG1(t *testing.T) kb8.G1Jac {
+func randomPointG1(t *testing.T) octobear.G1Jac {
 	t.Helper()
-	_, g := kb8.Generators()
-	var s kb8.G1Jac
+	_, g := octobear.Generators()
+	var s octobear.G1Jac
 	s.FromAffine(&g)
 	for s.Z.IsZero() {
 		// impossible path, keep non-zero point invariant
@@ -197,7 +197,7 @@ func randomPointG1(t *testing.T) kb8.G1Jac {
 	return s
 }
 
-func distinctPointsG1(t *testing.T) (kb8.G1Jac, kb8.G1Jac) {
+func distinctPointsG1(t *testing.T) (octobear.G1Jac, octobear.G1Jac) {
 	t.Helper()
 	a := randomPointG1(t)
 	b := a

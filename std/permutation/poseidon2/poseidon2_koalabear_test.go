@@ -24,9 +24,7 @@ func (c *poseidon2KoalaBearCircuit) Define(api frontend.API) error {
 		return err
 	}
 	state := make([]frontend.Variable, koalaBearWidth)
-	for i := range c.Input {
-		state[i] = c.Input[i]
-	}
+	copy(state, c.Input[:])
 	if err := h.Permutation(state); err != nil {
 		return err
 	}

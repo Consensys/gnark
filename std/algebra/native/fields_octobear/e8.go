@@ -1,4 +1,4 @@
-package fields_kb8
+package fields_octobear
 
 import (
 	"github.com/consensys/gnark-crypto/field/koalabear/extensions"
