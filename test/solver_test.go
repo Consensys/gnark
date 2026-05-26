@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -52,6 +53,12 @@ func TestSolverConsistency(t *testing.T) {
 				return
 			}
 			tc := circuits.Circuits[name]
+			if tc.U64Only {
+				// skip circuits that are not compatible with tinyfield, as the
+				// goal of this test is to flag potential solver issues, and not
+				// to test tinyfield itself.
+				return
+			}
 			t.Parallel()
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
 			if err != nil {
@@ -187,7 +194,7 @@ func formatWitness(witness []tinyfield.Element) string {
 
 func (p *permutter) solve(i int) error {
 	pw := newPermutterWitness(p.witness)
-	_, err := p.constraintSystems[i].Solve(pw, solver.WithHints(p.hints...))
+	_, err := p.constraintSystems[i].Solve(pw, solver.WithLogger[*slog.Logger](nil), solver.WithHints(p.hints...))
 	return err
 }
 

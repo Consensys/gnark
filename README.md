@@ -46,6 +46,19 @@ go run ./examples/cubic
 
 To design your first circuit, follow the tutorial in [`gnark` User Documentation].
 
+## Logging
+
+`gnark` reads `GNARK_LOG_LEVEL` to configure internal logs:
+
+- `trace`: logs all records and includes source locations.
+- `debug`: logs debug records and startup runtime/build metadata.
+- `info`: logs info records and above. This is the default.
+- `warning` or `warn`: logs warning records and above.
+- `error`: logs error records only.
+- `quiet` or `none`: disables logs.
+
+When built with the `debug` build tag and `GNARK_LOG_LEVEL` is unset, the default level is `debug`.
+
 ## Supported Proving Systems and Curves
 
 `gnark` currently supports:

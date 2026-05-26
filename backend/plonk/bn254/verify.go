@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"text/template"
 	"time"
@@ -22,7 +23,6 @@ import (
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/solidity"
-	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -32,13 +32,12 @@ var (
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
-
-	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
-	start := time.Now()
 	cfg, err := backend.NewVerifierConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("create backend config: %w", err)
 	}
+	log := cfg.Logger.With(slog.String("curve", "bn254"), slog.String("backend", "plonk"))
+	start := time.Now()
 
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return errors.New("BSB22 Commitment number mismatch")
@@ -307,7 +306,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		vk.Kzg,
 	)
 
-	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
+	log.Debug("verifier done", slog.Duration("took", time.Since(start)))
 
 	return err
 }
