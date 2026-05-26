@@ -15,7 +15,7 @@ func init() {
 
 // GetHints returns all hint functions used in the package.
 func GetHints() []solver.Hint {
-	return []solver.Hint{yIncrementHint}
+	return []solver.Hint{yIncrementHint, yIncrementLinearHint, yIncrementPoseidon2Hint}
 }
 
 func yIncrementHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {

@@ -5,12 +5,7 @@ import (
 	"math/big"
 
 	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
-	"github.com/consensys/gnark/constraint/solver"
 )
-
-func init() {
-	solver.RegisterHint(yIncrementLinearHint)
-}
 
 // yIncrementLinearHint maps msg to LinearN points natively (using gnark-crypto's
 // MapLinear) and writes (k_i, x_i.coeffs[8]) for each coordinate, in order.

@@ -5,12 +5,7 @@ import (
 	"math/big"
 
 	multisethash "github.com/consensys/gnark-crypto/ecc/kb8/multiset-hash"
-	"github.com/consensys/gnark/constraint/solver"
 )
-
-func init() {
-	solver.RegisterHint(yIncrementPoseidon2Hint)
-}
 
 // yIncrementPoseidon2Hint, given the PqN squeezed koalabear elements (already
 // computed in-circuit by the Poseidon2 sponge), produces per-coordinate
