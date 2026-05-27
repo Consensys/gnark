@@ -527,10 +527,13 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	g2.fr.AssertIsEqual(lhs, rhs)
 
-	// Soundness: forbid the trivial all-zeros decomposition. With v1 + λ·v2 ≠ 0
-	// the relation forces (u1, u2) to the unique LLL lattice point and pins
-	// the hinted R = [s]Q.
-	g2.fr.AssertIsDifferent(g2.fr.Add(v1, g2.fr.Mul(g2.eigenvalue, v2)), g2.fr.Zero())
+	// Soundness: forbid the trivial all-zeros decomposition. The MSM consumes
+	// the signed coefficient (±v1) + λ·(±v2) of R, so the non-zero check must
+	// be on that signed value — not on the unsigned hinted limbs — otherwise an
+	// adversarial hint could zero the signed coefficient and leave R unconstrained.
+	signedV1 := g2.fr.Select(isNegv1, g2.fr.Neg(v1), v1)
+	signedV2 := g2.fr.Select(isNegv2, g2.fr.Neg(v2), v2)
+	g2.fr.AssertIsDifferent(g2.fr.Add(signedV1, g2.fr.Mul(g2.eigenvalue, signedV2)), g2.fr.Zero())
 
 	// Hint R = [s]Q.
 	_, point, _, err := emulated.NewVarGenericHint(g2.api, 0, 4, 0, nil,
