@@ -11,7 +11,9 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/maptocurve_octobear"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_octobear"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 	"github.com/consensys/gnark/std/conversion"
 	"github.com/consensys/gnark/std/evmprecompiles"
@@ -63,6 +65,8 @@ func registerHints() {
 	solver.RegisterHint(sw_bw6761.GetHints()...)
 	// native curves
 	solver.RegisterHint(sw_bls12377.GetHints()...)
+	solver.RegisterHint(maptocurve_octobear.GetHints()...)
+	solver.RegisterHint(sw_octobear.GetHints()...)
 	// field extensions
 	solver.RegisterHint(fieldextension.GetHints()...)
 }
