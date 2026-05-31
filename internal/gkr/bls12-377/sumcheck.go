@@ -206,7 +206,7 @@ func (c *zeroCheckClaims) roundPolynomial() polynomial.Polynomial {
 	if len(c.eqs[0]) == 1<<c.resources.nbVars {
 		return c.firstRoundPolynomial()
 	}
-	level := c.resources.schedule[c.levelI].(constraint.GkrSumcheckLevel)
+	level := c.resources.schedule[c.levelI].(*constraint.GkrSumcheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
 	nbWires := len(c.eqs)
@@ -700,7 +700,7 @@ func (r *resources) verifyLevelSetup(levelI int, proof Proof) (fr.Element, *zero
 
 func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
-	level := r.schedule[levelI].(constraint.GkrSumcheckLevel)
+	level := r.schedule[levelI].(*constraint.GkrSumcheckLevel)
 	return sumcheckVerify(lazyClaims, proof[levelI], claimedSum, r.circuit.ZeroCheckDegree(level), &r.transcript)
 }
 
@@ -726,7 +726,7 @@ type singleSourceZeroCheckClaims struct {
 // The wire contributions are accumulated via Horner's method in α (= foldingCoeff),
 // eliminating precomputed batchCoeffs and the multiply-by-one for wire 0.
 func (c *singleSourceZeroCheckClaims) roundPolynomial() polynomial.Polynomial {
-	level := c.resources.schedule[c.levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	level := c.resources.schedule[c.levelI].(*constraint.GkrSingleSourceZeroCheckLevel)
 	degree := c.resources.circuit.ZeroCheckDegree(level)
 	nbUniqueInputs := len(c.input)
 	nbWires := len(c.gateEvaluatorPools)
@@ -885,7 +885,7 @@ func (r *resources) buildSuffixEq(q []fr.Element) polynomial.MultiLin {
 }
 
 func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
-	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	level := r.schedule[levelI].(*constraint.GkrSingleSourceZeroCheckLevel)
 
 	var claims singleSourceZeroCheckClaims
 	claims.init(r, levelI)
@@ -901,7 +901,7 @@ func (r *resources) proveSingleSourceZeroCheckLevel(levelI int) sumcheckProof {
 func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
 	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
 
-	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	level := r.schedule[levelI].(*constraint.GkrSingleSourceZeroCheckLevel)
 	src := level.ClaimSources[0]
 	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
 	degree := r.circuit.ZeroCheckDegree(level)

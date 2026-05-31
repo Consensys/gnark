@@ -59,11 +59,11 @@ func (c Circuit[G]) ZeroCheckDegree(level constraint.GkrProvingLevel) int {
 	}
 
 	switch level.(type) {
-	case constraint.GkrSumcheckLevel:
+	case *constraint.GkrSumcheckLevel:
 		return maxDeg + 1
-	case constraint.GkrSingleSourceZeroCheckLevel:
+	case *constraint.GkrSingleSourceZeroCheckLevel:
 		return maxDeg
-	case constraint.GkrSkipLevel:
+	case *constraint.GkrSkipLevel:
 		return 0
 	}
 	panic(fmt.Sprintf("ZeroCheckDegree: unknown proving level type %T", level))
@@ -142,7 +142,8 @@ func (b *scheduleBuilder[G]) addSumcheckLevel(batches ...[]int) error {
 	if err != nil {
 		return err
 	}
-	b.levels = append(b.levels, constraint.GkrSumcheckLevel(claimGroups))
+	lvl := constraint.GkrSumcheckLevel(claimGroups)
+	b.levels = append(b.levels, &lvl)
 	return nil
 }
 
@@ -156,7 +157,8 @@ func (b *scheduleBuilder[G]) addSingleSourceZeroCheckLevel(wireIndices []int) er
 	if len(claimGroups[0].ClaimSources) != 1 {
 		return fmt.Errorf("single source zerocheck level requires exactly 1 claim source, got %d", len(claimGroups[0].ClaimSources))
 	}
-	b.levels = append(b.levels, constraint.GkrSingleSourceZeroCheckLevel(claimGroups[0]))
+	lvl := constraint.GkrSingleSourceZeroCheckLevel(claimGroups[0])
+	b.levels = append(b.levels, &lvl)
 	return nil
 }
 
@@ -167,7 +169,8 @@ func (b *scheduleBuilder[G]) addSkipLevel(wireIndices []int) error {
 	if err != nil {
 		return err
 	}
-	b.levels = append(b.levels, constraint.GkrSkipLevel(claimGroups[0]))
+	lvl := constraint.GkrSkipLevel(claimGroups[0])
+	b.levels = append(b.levels, &lvl)
 	return nil
 }
 
@@ -238,7 +241,7 @@ func (b *scheduleBuilder[G]) claimSources(wI int) ([]constraint.GkrClaimSource, 
 		}
 		consumerLevel := b.wireLevels[consumerWI]
 		switch b.levels[consumerLevel].(type) {
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			// SkipLevel inherits M evaluation points from its own claim sources.
 			M := b.levels[consumerLevel].NbOutgoingEvalPoints()
 			for k := range M {
@@ -378,7 +381,7 @@ func WireIndices(level constraint.GkrProvingLevel) []int {
 }
 
 // CollectOutgoingEvalPoints sets the outgoing evaluation points of a skip level, equal to its incoming ones.
-func CollectOutgoingEvalPoints[F any](level constraint.GkrSkipLevel, levelI int, outgoingEvalPoints [][][]F) [][]F {
+func CollectOutgoingEvalPoints[F any](level *constraint.GkrSkipLevel, levelI int, outgoingEvalPoints [][][]F) [][]F {
 	outPoints := make([][]F, level.NbOutgoingEvalPoints())
 	for k, src := range level.ClaimSources {
 		outPoints[k] = outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]

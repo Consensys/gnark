@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
@@ -16,7 +17,7 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		halfGCD,
+		rationalReconstruct,
 		scalarMulHint,
 		decomposeScalar,
 	}
@@ -63,40 +64,55 @@ func decomposeScalar(scalarField *big.Int, inputs []*big.Int, res []*big.Int) er
 	return nil
 }
 
-func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
+// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, s2, signBit, k) such
+// that s1 + s2·s = k·r in the integers, with |s1|, |s2| < γ₂·√r ≈ 1.15·√r
+// (proven LLL/Hermite bound). Replaces the older heuristic-bound HalfGCD.
+//
+// The bit-decomposition convention: s1 ≥ 0 always, s2 = ±|s2| with signBit = 1
+// iff the underlying signed s2 was negative. The integer k is signed.
+func rationalReconstruct(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return errors.New("expecting two inputs")
+		return errors.New("expecting two inputs (s, r)")
 	}
 	if len(outputs) != 4 {
-		return errors.New("expecting four outputs")
+		return errors.New("expecting four outputs (s1, |s2|, signBit, k)")
 	}
-	// using PrecomputeLattice for scalar decomposition is a hack and it doesn't
-	// work in case the scalar is zero. override it for now to avoid division by
-	// zero until a long-term solution is found.
+	// Zero scalar: trivial (s1=s2=k=0). The in-circuit IsZero(s2)=0 guard
+	// rejects this; the caller must pre-route scalar=1 (mirrors the existing
+	// scalarMulFakeGLV: checkedScalar = Select(isScalarZero, 1, scalar)).
 	if inputs[0].Sign() == 0 {
-		outputs[0].SetUint64(0)
-		outputs[1].SetUint64(0)
-		outputs[2].SetUint64(0)
-		outputs[3].SetUint64(0)
+		for i := range outputs {
+			outputs[i].SetUint64(0)
+		}
 		return nil
 	}
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(inputs[1], inputs[0], glvBasis)
-	outputs[0].Set(&glvBasis.V1[0])
-	outputs[1].Set(&glvBasis.V1[1])
 
-	// figure out how many times we have overflowed
-	// s2 * s + s1 = k*r
-	outputs[3].Mul(outputs[1], inputs[0]).
-		Add(outputs[3], outputs[0]).
-		Div(outputs[3], inputs[1])
+	// lattice.RationalReconstruct returns (x, z) with x ≡ z·s mod r,
+	// so x − z·s = m·r for some signed integer m, with |x|, |z| < γ₂·√r.
+	// Map onto our convention: s1 + s2·s = k·r ⇒ s1 = x, s2 = −z, k = m.
+	res := lattice.RationalReconstruct(inputs[0], inputs[1])
+	x, z := new(big.Int).Set(res[0]), new(big.Int).Set(res[1])
 
+	// Normalise so s1 ≥ 0. Flipping signs of (x, z) preserves x − z·s = m·r
+	// (with m negated).
+	if x.Sign() < 0 {
+		x.Neg(x)
+		z.Neg(z)
+	}
+	outputs[0].Set(x) // s1 = x ≥ 0
+
+	// k = (x − z·s) / r computed in signed integers.
+	k := new(big.Int).Mul(z, inputs[0])
+	k.Sub(x, k)
+	k.Quo(k, inputs[1])
+	outputs[3].Set(k)
+
+	// s2 = −z, encoded as |s2| + signBit. signBit = 1 iff −z < 0 iff z > 0.
+	outputs[1].Abs(z)
 	outputs[2].SetUint64(0)
-	if outputs[1].Sign() == -1 {
-		outputs[1].Neg(outputs[1])
+	if z.Sign() > 0 {
 		outputs[2].SetUint64(1)
 	}
-
 	return nil
 }
 
