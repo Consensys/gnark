@@ -223,6 +223,10 @@ func (c *Curve) isInfinity(p *G1Affine) frontend.Variable {
 }
 
 // AssertIsOnCurve asserts that p is infinity or lies on octobear.
+//
+// Implements y² = x³ + a·x + b with a = -3 hardcoded. The a = -3 assumption
+// is enforced at package init in maptocurve_octobear (imported transitively),
+// so any future change to octobear.CurveCoefficients() will panic at load.
 func (c *Curve) AssertIsOnCurve(p *G1Affine) {
 	isInf := c.isInfinity(p)
 	left := *new(E8).Square(c.api, p.Y)

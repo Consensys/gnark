@@ -1458,11 +1458,8 @@ func TestElementCbrt(t *testing.T) {
 			// verify that c^3 == a (since there's no big.Int.ModCbrt)
 			// Cbrt returns nil if the element is not a cubic residue
 			var c Element
-			result := c.Cbrt(&a.element)
-			if result == nil {
-				// a is not a cubic residue, this is valid
-				return true
-			}
+			// q ≡ 2 (mod 3): every element has a unique cube root, Cbrt never returns nil.
+			c.Cbrt(&a.element)
 			var cube, e big.Int
 			c.BigInt(&e)
 			cube.Exp(&e, big.NewInt(3), Modulus())
@@ -1475,9 +1472,7 @@ func TestElementCbrt(t *testing.T) {
 			// b = a³ is guaranteed to be a cubic residue
 			var b, c Element
 			b.Square(&a.element).Mul(&b, &a.element)
-			if c.Cbrt(&b) == nil {
-				return false
-			}
+			c.Cbrt(&b)
 			var check Element
 			check.Square(&c).Mul(&check, &c)
 			return check.Equal(&b)
@@ -1506,11 +1501,8 @@ func TestElementCbrt(t *testing.T) {
 			var c Element
 			// verify that c^3 == a (since there's no big.Int.ModCbrt)
 			// Cbrt returns nil if the element is not a cubic residue
-			result := c.Cbrt(&a)
-			if result == nil {
-				// a is not a cubic residue, this is valid, continue
-				continue
-			}
+			// q ≡ 2 (mod 3): every element has a unique cube root, Cbrt never returns nil.
+			c.Cbrt(&a)
 			var cube, e big.Int
 			c.BigInt(&e)
 			cube.Exp(&e, big.NewInt(3), Modulus())

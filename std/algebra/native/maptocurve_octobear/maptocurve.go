@@ -37,7 +37,9 @@ func YIncrement(api frontend.API, msg frontend.Variable) (G1Affine, error) {
 	return p, nil
 }
 
-// assertIsOnCurve asserts y² = x³ - 3x + b for a point from the y-increment map.
+// assertIsOnCurve asserts y² = x³ + a·x + b for a point from the y-increment map.
+// a = -3 is enforced at package init (see types.go) so the formula uses
+// `Sub(rhs, 3·x)` rather than a full E8 mul by curveA, saving constraints.
 //
 // Optimizations over a generic on-curve check:
 //   - y is in the base subfield (y = (y0,0,...,0)), so y² = (y0²,0,...,0) costs

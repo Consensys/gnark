@@ -913,8 +913,8 @@ func init() {
 }
 
 // Cbrt z = ∛x (mod q)
-// if the cube root doesn't exist (x is not a cube mod q)
-// Cbrt leaves z unchanged and returns nil
+// Since q ≡ 2 (mod 3), cubing is a bijection on Fq, so every input has a unique
+// cube root and Cbrt always returns z.
 func (z *Element) Cbrt(x *Element) *Element {
 	// q ≡ 2 (mod 3)
 	// using z = x^((2q-1)/3) (mod q)
