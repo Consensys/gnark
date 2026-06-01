@@ -117,12 +117,12 @@ func (e *zeroCheckLazyClaims) verifyFinalEval(api frontend.API, r []frontend.Var
 }
 
 func (r *resources) verifySkipLevel(levelI int, proof Proof) {
-	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	level := r.schedule[levelI].(*constraint.GkrSkipLevel)
 	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	finalEval := proof[levelI].FinalEvalProof
 	_, inputIndices := r.circuit.InputMapping(level)
-	group := constraint.GkrClaimGroup(level)
+	group := constraint.GkrClaimGroup(*level)
 	initialChallengeI := len(r.schedule)
 
 	for levelWireI, wI := range group.Wires {
@@ -199,7 +199,7 @@ func (r *resources) verifySumcheckLevel(levelI int, proof Proof) error {
 func (r *resources) verifySingleSourceZeroCheckLevel(levelI int, proof Proof) error {
 	claimedSum, lazyClaims := r.verifyLevelSetup(levelI, proof)
 
-	level := r.schedule[levelI].(constraint.GkrSingleSourceZeroCheckLevel)
+	level := r.schedule[levelI].(*constraint.GkrSingleSourceZeroCheckLevel)
 	src := level.ClaimSources[0]
 	q := r.outgoingEvalPoints[src.Level][src.OutgoingClaimIndex]
 	degree := r.circuit.ZeroCheckDegree(level)
@@ -261,9 +261,9 @@ func Verify(api frontend.API, c Circuit, schedule constraint.GkrProvingSchedule,
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
 		switch schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			r.verifySkipLevel(levelI, proof)
-		case constraint.GkrSingleSourceZeroCheckLevel:
+		case *constraint.GkrSingleSourceZeroCheckLevel:
 			if err := r.verifySingleSourceZeroCheckLevel(levelI, proof); err != nil {
 				return err
 			}
@@ -297,7 +297,7 @@ func ComputeLogNbInstances(circuit Circuit, schedule constraint.GkrProvingSchedu
 	for _, level := range schedule {
 		nbUniqueInputs := len(circuit.UniqueGateInputs(level))
 		switch level.(type) {
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			serializedProofLen -= nbUniqueInputs * level.NbOutgoingEvalPoints()
 		default:
 			perVar += circuit.ZeroCheckDegree(level)
@@ -337,7 +337,7 @@ func DeserializeProof(circuit Circuit, schedule constraint.GkrProvingSchedule, s
 	reader := variablesReader(serializedProof)
 	for levelI, level := range schedule {
 		nbUniqueInputs := len(circuit.UniqueGateInputs(level))
-		if _, isSkip := level.(constraint.GkrSkipLevel); isSkip {
+		if _, isSkip := level.(*constraint.GkrSkipLevel); isSkip {
 			proof[levelI].FinalEvalProof = reader.nextN(nbUniqueInputs * level.NbOutgoingEvalPoints())
 		} else {
 			degree := circuit.ZeroCheckDegree(level)

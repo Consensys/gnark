@@ -10,16 +10,15 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	gkr "github.com/consensys/gnark/internal/gkr/small_rational"
-	"github.com/consensys/gnark/std/gkrapi"
-	stdgkr "github.com/consensys/gnark/std/gkrapi/gkr"
 	_ "github.com/consensys/gnark/std/hash/mimc" // register MIMC hash
+	gkr_poseidon2 "github.com/consensys/gnark/std/hash/poseidon2/gkr-poseidon2"
 )
 
 func main() {
 	tasks := []func() error{
 		gkr.GenerateSumcheckVectors,
 		gkr.GenerateVectors,
-		generateSerializationTestData,
+		generateGkrSolveTestdata,
 	}
 
 	var wg sync.WaitGroup
@@ -39,67 +38,68 @@ func assertNoError(err error) {
 	}
 }
 
-// doubleCircuit is a simple GKR circuit for serialization testing
-type doubleCircuit struct {
-	X []frontend.Variable
+// gkrPoseidon2Circuit computes H(X,Y) using gkr-poseidon2.
+type gkrPoseidon2Circuit struct {
+	X, Y frontend.Variable
 }
 
-func (c *doubleCircuit) Define(api frontend.API) error {
-	gkrApi, err := gkrapi.New(api)
+func (c *gkrPoseidon2Circuit) Define(api frontend.API) error {
+	h, err := gkr_poseidon2.New(api)
 	if err != nil {
 		return err
 	}
-	x := gkrApi.NewInput()
-	z := gkrApi.Add(x, x)
-
-	gkrCircuit, err := gkrApi.Compile("MIMC")
-	if err != nil {
-		return err
-	}
-
-	instanceIn := make(map[stdgkr.Variable]frontend.Variable)
-	for i := range c.X {
-		instanceIn[x] = c.X[i]
-		instanceOut, err := gkrCircuit.AddInstance(instanceIn)
-		if err != nil {
-			return err
-		}
-		api.AssertIsEqual(instanceOut[z], api.Mul(2, c.X[i]))
-	}
+	h.Write(c.X, c.Y)
+	api.AssertIsDifferent(h.Sum(), 0)
 	return nil
 }
 
-func generateSerializationTestData() error {
-	fmt.Println("generating GKR serialization test data")
+// generateGkrSolveTestdata compiles a small GKR-Poseidon2 validator circuit for
+// BLS12-377 and writes its constraint system and a matching witness to the
+// integration_test/ directory. The test there reads them back in a process that
+// does not import gkrapi and calls Solve, exercising the full CBOR round-trip
+// of the GKR proving schedule end-to-end.
+func generateGkrSolveTestdata() error {
+	fmt.Println("generating GKR-Poseidon2 integration testdata")
 
-	circuit := &doubleCircuit{
-		X: make([]frontend.Variable, 2),
-	}
+	assignment := gkrPoseidon2Circuit{1, 2}
+	var circuit gkrPoseidon2Circuit
 
-	// Compile for BN254
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
 	if err != nil {
 		return fmt.Errorf("failed to compile circuit: %w", err)
 	}
 
-	// Create testdata directory if needed
-	testDataDir := filepath.Join("../../gkr/test_vectors/testdata")
-	if err := os.MkdirAll(testDataDir, 0755); err != nil {
+	w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	if err != nil {
+		return fmt.Errorf("failed to build witness: %w", err)
+	}
+
+	const testDataDir = "integration_test"
+	if err = os.MkdirAll(testDataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create testdata directory: %w", err)
 	}
 
-	// Write serialized constraint system
-	outPath := filepath.Join(testDataDir, "gkr_circuit_bn254.scs")
-	f, err := os.Create(outPath)
+	scsPath := filepath.Join(testDataDir, "gkr_poseidon2.scs")
+	scsFile, err := os.Create(scsPath)
 	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+		return fmt.Errorf("failed to create scs file: %w", err)
 	}
-	defer f.Close()
-
-	if _, err := ccs.WriteTo(f); err != nil {
+	defer scsFile.Close()
+	if _, err = ccs.WriteTo(scsFile); err != nil {
 		return fmt.Errorf("failed to write constraint system: %w", err)
 	}
+	fmt.Printf("\twrote %s\n", scsPath)
 
-	fmt.Printf("\twrote %s\n", outPath)
+	wtnsPath := filepath.Join(testDataDir, "gkr_poseidon2.wtns")
+	wtnsFile, err := os.Create(wtnsPath)
+	if err != nil {
+		return fmt.Errorf("failed to create witness file: %w", err)
+	}
+	defer wtnsFile.Close()
+	if _, err = w.WriteTo(wtnsFile); err != nil {
+		return fmt.Errorf("failed to write witness: %w", err)
+	}
+	fmt.Printf("\twrote %s\n", wtnsPath)
+
 	return nil
 }
