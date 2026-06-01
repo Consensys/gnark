@@ -53,22 +53,33 @@ func MapPoseidon2(api frontend.API, msgLow, msgHigh frontend.Variable) ([PqN]G1A
 		return pts, errors.New("expected KoalaBear native field for octobear Poseidon2 map-to-curve")
 	}
 
-	// Constrain msgLow, msgHigh < 2^32.
-	_ = api.ToBinary(msgLow, 32)
-	_ = api.ToBinary(msgHigh, 32)
+	// Constrain msgLow, msgHigh < 2^32 and reuse the bit decomposition to
+	// extract the four 16-bit chunks the native side absorbs.
+	lowBits := api.ToBinary(msgLow, 32)
+	highBits := api.ToBinary(msgHigh, 32)
+	msgLowLo := api.FromBinary(lowBits[0:16]...)
+	msgLowHi := api.FromBinary(lowBits[16:32]...)
+	msgHighLo := api.FromBinary(highBits[0:16]...)
+	msgHighHi := api.FromBinary(highBits[16:32]...)
 
-	// Build sponge state and absorb (domainTag, msgLow, msgHigh) into the
-	// rate slots. The 8-byte tag is split into two big-endian uint32 halves to
-	// match the native packing in vector_multiset_hash_poseidon2.go.
+	// Build sponge state and absorb (domainTag, msg) into the rate slots.
+	// The 8-byte tag occupies state[0..1] as two big-endian uint32 halves.
+	// The 64-bit message is split into four 16-bit big-endian chunks across
+	// state[2..5] — each chunk < 2^16 < p, so the encoding is injective for
+	// the full uint64 domain. Must match the native packing in
+	// vector_multiset_hash_poseidon2.go (a 32-bit-half encoding would collide
+	// because koalabear p = 2^31 - 2^24 + 1 < 2^32).
 	tag := multisethash.PqDomainTag()
 	tag0 := binary.BigEndian.Uint32(tag[0:4])
 	tag1 := binary.BigEndian.Uint32(tag[4:8])
 	state := make([]frontend.Variable, PqWidth)
 	state[0] = tag0
 	state[1] = tag1
-	state[2] = msgLow
-	state[3] = msgHigh
-	for i := 4; i < PqWidth; i++ {
+	state[2] = msgHighHi
+	state[3] = msgHighLo
+	state[4] = msgLowHi
+	state[5] = msgLowLo
+	for i := 6; i < PqWidth; i++ {
 		state[i] = frontend.Variable(0)
 	}
 
