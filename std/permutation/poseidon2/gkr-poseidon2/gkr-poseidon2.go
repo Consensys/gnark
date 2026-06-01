@@ -13,8 +13,8 @@ import (
 	"github.com/consensys/gnark/std/permutation/poseidon2"
 )
 
-// extKeyGate applies the external matrix mul, then adds the round key
-// because of its symmetry, we don't need to define distinct x1 and x2 versions of it
+// extKeyGate applies the external matrix mul, then adds the round key.
+// Because of its symmetry, we don't need to define distinct x1 and x2 versions of it
 func extKeyGate(roundKey frontend.Variable) gkr.GateFunction {
 	return func(api gkr.GateAPI, x ...frontend.Variable) frontend.Variable {
 		if len(x) != 2 {
@@ -114,7 +114,7 @@ type compressor struct {
 	in1, in2, out gkr.Variable
 }
 
-// NewCompressor returns an object that can compute the Poseidon2 compression function (currently only for BLS12-377)
+// NewCompressor returns an object that can compute the Poseidon2 compression function
 // which consists of a permutation along with the input fed forward.
 // The correctness of the compression functions is proved using GKR.
 func NewCompressor(api frontend.API) (hash.Compressor, error) {
@@ -155,9 +155,9 @@ func (p *compressor) Compress(a, b frontend.Variable) frontend.Variable {
 	return outs[p.out]
 }
 
-// defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377
-// insLeft and insRight are the inputs to the permutation
-// they must be padded to a power of 2
+// defineCircuit defines the GKR circuit for the Poseidon2 permutation over BLS12-377.
+// insLeft and insRight are the inputs to the permutation.
+// They must be padded to a power of 2
 func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out gkr.Variable, err error) {
 	// variable indexes
 	const (
@@ -183,13 +183,13 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 
 	// *** shorthands for gate functions ***
 
-	// Poseidon2 is a sequence of additions, exponentiations (s-Box), and linear operations
-	// but here we group the operations so that every round consists of a degree-1 operation followed by the s-Box
-	// this allows for more efficient result sharing among the gates
-	// but also breaks the uniformity of the circuit a bit, in that the matrix operation
-	// in every round comes from the previous (canonical) round.
+	// Poseidon2 is a sequence of additions, exponentiations (s-Box), and linear operations.
+	// But here we group the operations so that every round consists of a degree-1 operation followed by the s-Box.
+	// This allows for more efficient result sharing among the gates.
+	// But also breaks the uniformity of the circuit a bit, in that the matrix operation.
+	// In every round comes from the previous (canonical) round.
 
-	// apply the s-Box to u
+	// Apply the s-Box to u
 
 	var sBox func(gkr.Variable) gkr.Variable
 	switch p.DegreeSBox {
@@ -213,15 +213,14 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 		return
 	}
 
-	// apply external matrix multiplication and round key addition
-	// round dependent due to the round key
+	// Apply external matrix multiplication and round key addition.
+	// Round-dependent due to the round key
 	extKeySBox := func(round, varI int, a, b gkr.Variable) gkr.Variable {
 		return sBox(gkrApi.Gate(extKeyGate(&p.RoundKeys[round][varI]), a, b))
 	}
 
-	// apply internal matrix multiplication and round key addition
-	// then apply the s-Box
-	// for the second variable
+	// Apply internal matrix multiplication and round key addition,
+	// then apply the s-Box for the second variable
 	intKeySBox2 := func(round int, a, b gkr.Variable) gkr.Variable {
 		return sBox(gkrApi.Gate(intKeyGate2(&p.RoundKeys[round][1]), a, b))
 	}
@@ -253,8 +252,8 @@ func defineCircuit(api frontend.API) (gkrCircuit *gkrapi.Circuit, in1, in2, out 
 
 	{
 		i := p.NbFullRounds/2 + p.NbPartialRounds
-		// first iteration of the final batch of full rounds
-		// still using the internal matrix, since the linear operation still belongs to a partial (canonical) round
+		// The first iteration of the final batch of full rounds.
+		// Still using the internal matrix, since the linear operation still belongs to a partial (canonical) round
 		x1 := extKeySBox(i, xI, x, y)
 		x, y = x1, intKeySBox2(i, x, y)
 	}

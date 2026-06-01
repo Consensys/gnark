@@ -552,6 +552,89 @@ func initSnippets() {
 		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
 	}, ecc.BLS12_381)
 
+	// G2 scalar mul snippets — exercise the GLV+FakeGLV path to track its cost.
+	registerSnippet("scalar_mul_G2_bls12381", func(api frontend.API, newVariable func() frontend.Variable) {
+		bls12381fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
+		newFp := func() *emulated.Element[emulated.BLS12381Fp] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BLS12381Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bls12381fp.NewElement(limbs)
+		}
+		bls12381fr, _ := emulated.NewField[emulated.BLS12381Fr](api)
+		newFr := func() *emulated.Element[emulated.BLS12381Fr] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BLS12381Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bls12381fr.NewElement(limbs)
+		}
+		g2, _ := sw_bls12381.NewG2(api)
+		var dummyQ sw_bls12381.G2Affine
+		dummyQ.P.X.A0 = *newFp()
+		dummyQ.P.X.A1 = *newFp()
+		dummyQ.P.Y.A0 = *newFp()
+		dummyQ.P.Y.A1 = *newFp()
+		_ = g2.ScalarMul(&dummyQ, newFr())
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_G2_bn254", func(api frontend.API, newVariable func() frontend.Variable) {
+		bn254fp, _ := emulated.NewField[emulated.BN254Fp](api)
+		newFp := func() *emulated.Element[emulated.BN254Fp] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bn254fp.NewElement(limbs)
+		}
+		bn254fr, _ := emulated.NewField[emulated.BN254Fr](api)
+		newFr := func() *emulated.Element[emulated.BN254Fr] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bn254fr.NewElement(limbs)
+		}
+		g2, _ := sw_bn254.NewG2(api)
+		var dummyQ sw_bn254.G2Affine
+		dummyQ.P.X.A0 = *newFp()
+		dummyQ.P.X.A1 = *newFp()
+		dummyQ.P.Y.A0 = *newFp()
+		dummyQ.P.Y.A1 = *newFp()
+		_ = g2.ScalarMul(&dummyQ, newFr())
+	}, ecc.BN254)
+
+	registerSnippet("scalar_mul_G2_bw6761", func(api frontend.API, newVariable func() frontend.Variable) {
+		bw6fp, _ := emulated.NewField[emulated.BW6761Fp](api)
+		newFp := func() *emulated.Element[emulated.BW6761Fp] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BW6761Fp](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bw6fp.NewElement(limbs)
+		}
+		bw6fr, _ := emulated.NewField[emulated.BW6761Fr](api)
+		newFr := func() *emulated.Element[emulated.BW6761Fr] {
+			nbLimbs, _ := emulated.GetEffectiveFieldParams[emulated.BW6761Fr](api.Compiler().Field())
+			limbs := make([]frontend.Variable, nbLimbs)
+			for i := range limbs {
+				limbs[i] = newVariable()
+			}
+			return bw6fr.NewElement(limbs)
+		}
+		g2, _ := sw_bw6761.NewG2(api)
+		var dummyQ sw_bw6761.G2Affine
+		dummyQ.P.X = *newFp()
+		dummyQ.P.Y = *newFp()
+		_ = g2.ScalarMul(&dummyQ, newFr())
+	}, ecc.BN254)
+
 	registerSnippet("selector/mux_3", func(api frontend.API, newVariable func() frontend.Variable) {
 		selector.Mux(api, newVariable(), newVariable(), newVariable(), newVariable())
 	})

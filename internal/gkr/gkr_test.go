@@ -244,7 +244,7 @@ func unmarshalProof(printable printableProof) (proof Proof) {
 
 func hasSumcheck(s constraint.GkrProvingSchedule) bool {
 	for _, l := range s {
-		if _, ok := l.(constraint.GkrSumcheckLevel); ok {
+		if _, ok := l.(*constraint.GkrSumcheckLevel); ok {
 			return true
 		}
 	}
