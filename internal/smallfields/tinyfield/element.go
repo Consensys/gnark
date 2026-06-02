@@ -498,7 +498,6 @@ func (z *Element) Exp(x Element, k *big.Int) *Element {
 		defer pool.BigInt.Put(e)
 		e.Neg(k)
 	}
-
 	z.Set(&x)
 
 	for i := e.BitLen() - 2; i >= 0; i-- {
