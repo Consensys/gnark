@@ -211,13 +211,17 @@ func (f *Field[T]) modulusPrev() *Element[T] {
 // less constraints will be generated.
 // If strict is false, each limbs is constrained to have width as defined by field parameter.
 func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
+	nbBits := len(limbs) * int(f.fParams.BitsPerLimb())
+	if strict {
+		nbBits = f.fParams.Modulus().BitLen()
+	}
 	if !f.useSmallFieldOptimization() {
 		e := f.newInternalElement(limbs, 0)
-		f.enforceWidth(e, strict)
+		f.enforceWidth(e, nbBits)
 		return e
 	} else {
 		e := f.newInternalElement(limbs, uint(f.smallAdditionalOverflow()))
-		f.smallEnforceWidth(e, strict)
+		f.smallEnforceWidth(e, nbBits)
 		return e
 	}
 }
@@ -279,9 +283,9 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 	}
 	if didConstrain {
 		if !f.useSmallFieldOptimization() {
-			f.enforceWidth(a, true)
+			f.enforceWidth(a, f.fParams.Modulus().BitLen())
 		} else {
-			f.smallEnforceWidth(a, true)
+			f.smallEnforceWidth(a, f.fParams.Modulus().BitLen())
 		}
 	}
 	return

@@ -7,37 +7,44 @@ import (
 	"github.com/consensys/gnark/profile"
 )
 
-// enforceWidth enforces the width of the limbs. When modWidth is true, then the
-// limbs are asserted to be the width of the modulus (highest limb may be less
-// than full limb width). Otherwise, every limb is assumed to have same width
-// (defined by the field parameter).
-func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
+// enforceWidth enforces the width of the limbs to nbBits. The number of limbs
+// must be exactly ceil(nbBits / BitsPerLimb()); it panics otherwise. All limbs
+// except the last are range-checked to BitsPerLimb() bits; the last limb is
+// range-checked to ((nbBits-1) % BitsPerLimb()) + 1 bits.
+func (f *Field[T]) enforceWidth(a *Element[T], nbBits int) {
+	bitsPerLimb := int(f.fParams.BitsPerLimb())
+	expectedNbLimbs := (nbBits + bitsPerLimb - 1) / bitsPerLimb
 	if _, aConst := f.constantValue(a); aConst {
-		if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		if len(a.Limbs) != expectedNbLimbs {
 			panic("constant limb width doesn't match parametrized field")
 		}
 	}
-	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
-		panic("enforcing modulus width element with inexact number of limbs")
+	if len(a.Limbs) != expectedNbLimbs {
+		panic("enforcing width element with inexact number of limbs")
 	}
 
 	for i := range a.Limbs {
-		limbNbBits := int(f.fParams.BitsPerLimb())
-		if modWidth && i == len(a.Limbs)-1 {
+		limbNbBits := bitsPerLimb
+		if i == len(a.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
+			limbNbBits = ((nbBits - 1) % bitsPerLimb) + 1
 		}
 		f.rangeCheck(a.Limbs[i], limbNbBits)
 	}
 }
 
-func (f *Field[T]) smallEnforceWidth(a *Element[T], modWidth bool) {
-	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
-		panic("enforcing modulus width element with inexact number of limbs")
+// smallEnforceWidthBits enforces a custom bit width on an element via the small
+// field optimization path. Unlike smallEnforceWidth, each limb is range-checked
+// to nbBits+overflow. The limb count must equal ceil(nbBits / BitsPerLimb()).
+func (f *Field[T]) smallEnforceWidth(a *Element[T], nbBits int) {
+	bitsPerLimb := int(f.fParams.BitsPerLimb())
+	expectedNbLimbs := (nbBits + bitsPerLimb - 1) / bitsPerLimb
+	if len(a.Limbs) != expectedNbLimbs {
+		panic("enforcing width element with inexact number of limbs")
 	}
 
 	for i := range a.Limbs {
-		f.rangeCheck(a.Limbs[i], f.fParams.Modulus().BitLen()+int(a.overflow))
+		f.rangeCheck(a.Limbs[i], nbBits+int(a.overflow))
 	}
 }
 
