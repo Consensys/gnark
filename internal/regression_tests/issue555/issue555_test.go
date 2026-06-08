@@ -13,6 +13,7 @@ import (
 )
 
 const nbEqualities = 16
+const nbBenchmarkEqualities = 1024
 
 type internalEqualityCircuit struct {
 	WithEqualities bool `gnark:"-"`
@@ -60,6 +61,65 @@ func TestInternalEqualitiesAreCanonicalized(t *testing.T) {
 			}
 			if err := withEqualities.IsSolved(invalidWitness); err == nil {
 				t.Fatal("invalid witness should fail after rewriting stale pre-merge constraints")
+			}
+		})
+	}
+}
+
+type internalEqualityBenchmarkCircuit struct {
+	WithEqualities bool `gnark:"-"`
+	A, B           [nbBenchmarkEqualities]frontend.Variable
+	C, D           [nbBenchmarkEqualities]frontend.Variable
+}
+
+func (c *internalEqualityBenchmarkCircuit) Define(api frontend.API) error {
+	for i := 0; i < nbBenchmarkEqualities; i++ {
+		left := api.Mul(c.A[i], c.B[i])
+		right := api.Mul(c.C[i], c.D[i])
+		if c.WithEqualities {
+			api.AssertIsEqual(left, right)
+		}
+	}
+	return nil
+}
+
+func BenchmarkInternalEqualityCanonicalizationCompile(b *testing.B) {
+	for _, tc := range builderCases {
+		b.Run(tc.name, func(b *testing.B) {
+			for _, withEqualities := range []bool{false, true} {
+				name := "base"
+				if withEqualities {
+					name = "with_equalities"
+				}
+
+				b.Run(name, func(b *testing.B) {
+					b.ReportAllocs()
+
+					var nbConstraints, nbInternalVariables, nbInstructions int
+					for i := 0; i < b.N; i++ {
+						ccs, err := frontend.Compile(ecc.BN254.ScalarField(), tc.builder, &internalEqualityBenchmarkCircuit{
+							WithEqualities: withEqualities,
+						})
+						if err != nil {
+							b.Fatal(err)
+						}
+						nbConstraints = ccs.GetNbConstraints()
+						nbInternalVariables = ccs.GetNbInternalVariables()
+						nbInstructions = ccs.GetNbInstructions()
+					}
+
+					want := 2 * nbBenchmarkEqualities
+					if nbConstraints != want {
+						b.Fatalf("expected %s/%s to have %d constraints, got %d", tc.name, name, want, nbConstraints)
+					}
+					if nbInternalVariables != want {
+						b.Fatalf("expected %s/%s to have %d internal variables, got %d", tc.name, name, want, nbInternalVariables)
+					}
+
+					b.ReportMetric(float64(nbConstraints), "constraints/op")
+					b.ReportMetric(float64(nbInternalVariables), "internal_variables/op")
+					b.ReportMetric(float64(nbInstructions), "instructions/op")
+				})
 			}
 		})
 	}
