@@ -51,7 +51,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2 frontend
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := sapi.NewHintWithNativeInput(decomposeScalar, 2, s)
+	_, sd, err := sapi.NewHintGeneric(decomposeScalar, 0, 2, nil, []*emulated.Element[ScalarField]{sapi.NewElement(s)}, emulated.WithHintOutputRangeCheckBits(map[int]int{0: 127, 1: 127}))
 	if err != nil {
 		panic(err)
 	}
