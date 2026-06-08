@@ -397,6 +397,8 @@ func getTagSet() cbor.TagSet {
 
 	addType(reflect.TypeOf(BlueprintBatchInverse[U32]{}))
 	addType(reflect.TypeOf(BlueprintBatchInverse[U64]{}))
+	addType(reflect.TypeOf(&BlueprintWireAliases[U32]{}))
+	addType(reflect.TypeOf(&BlueprintWireAliases[U64]{}))
 
 	addType(reflect.TypeOf(&GkrSkipLevel{}))
 	addType(reflect.TypeOf(&GkrSumcheckLevel{}))

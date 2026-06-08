@@ -241,7 +241,7 @@ func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variab
 			res[j] = builder.cs.ToBigInt(c)
 			continue
 		}
-		varEntries = append(varEntries, varEntry{outputIdx: j, inTerm: v.(expr.Term[E])})
+		varEntries = append(varEntries, varEntry{outputIdx: j, inTerm: builder.canonicalTerm(v.(expr.Term[E]))})
 	}
 
 	if len(varEntries) == 0 {
@@ -260,6 +260,7 @@ func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variab
 	calldata[0] = uint32(len(calldata))
 
 	outputWires := builder.cs.AddInstruction(builder.batchInverseGate, calldata)
+	builder.markInstructionOutputsNoAlias(outputWires)
 
 	// For each variable input add a verification constraint: outWire * inTerm - 1 == 0
 	for k, e := range varEntries {
@@ -659,6 +660,13 @@ func (builder *builder[E]) Compiler() frontend.Compiler {
 func (builder *builder[E]) AddPlonkCommitmentInputs(inputs []frontend.Variable) []int {
 	committed := make([]int, len(inputs))
 	for i, vI := range inputs { // TODO @Tabaie Perf; If public, just hash it
+		if t, ok := vI.(expr.Term[E]); ok {
+			t = builder.canonicalTerm(t)
+			if !t.Coeff.IsZero() {
+				builder.aliases.MarkNoAlias(t.VID)
+			}
+			vI = t
+		}
 		vINeg, ok := builder.Neg(vI).(expr.Term[E])
 		if !ok {
 			// in Commit method we already ensure that we only commit to
@@ -686,6 +694,13 @@ func (builder *builder[E]) AddPlonkCommitmentInputs(inputs []frontend.Variable) 
 func (builder *builder[E]) AddPlonkCommitmentOutputs(committed []int, outs []frontend.Variable) error {
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
 	for _, out := range outs {
+		if t, ok := out.(expr.Term[E]); ok {
+			t = builder.canonicalTerm(t)
+			if !t.Coeff.IsZero() {
+				builder.aliases.MarkNoAlias(t.VID)
+			}
+			out = t
+		}
 		outNeg, ok := builder.Neg(out).(expr.Term[E])
 		if !ok {
 			// the outputs come from a hint, so they must be variables. If not,
@@ -720,6 +735,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 			// constants (or other non-term variables) are not committed, so we skip them here
 			continue
 		}
+		viTerm = builder.canonicalTerm(viTerm)
 		if viTerm.Coeff.IsZero() {
 			// if the variable has a zero coefficient, then it is effectively a
 			// constant and we don't need to commit to it, so we skip it here
@@ -734,7 +750,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 		// committing to x only as it doesn't give prover any extra power in
 		// predicting the commitment value.
 		isCommitted[viTerm.VID] = struct{}{}
-		dedup = append(dedup, vi)
+		dedup = append(dedup, viTerm)
 	}
 
 	if len(dedup) == 1 {
