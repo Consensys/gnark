@@ -88,6 +88,12 @@ func (b *BlueprintLookupHint[E]) Reset() {
 	b.cachedOffset = 0
 }
 
+func (b *BlueprintLookupHint[E]) resetLevelCache() {
+	b.maxLevel = 0
+	b.maxLevelPosition = 0
+	b.maxLevelOffset = 0
+}
+
 func (b *BlueprintLookupHint[E]) CalldataSize() int {
 	// variable size
 	return -1

@@ -16,6 +16,17 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 	newInstructions := make([]PackedInstruction, 0, len(oldInstructions)+1)
 	newCallData := make([]uint32, 0, len(system.CallData))
 
+	for _, blueprint := range system.Blueprints {
+		switch b := blueprint.(type) {
+		case *BlueprintLookupHint[U64]:
+			b.resetLevelCache()
+			rewriteLookupHintEntriesCalldata(b.EntriesCalldata, rep)
+		case *BlueprintLookupHint[U32]:
+			b.resetLevelCache()
+			rewriteLookupHintEntriesCalldata(b.EntriesCalldata, rep)
+		}
+	}
+
 	system.lbWireLevel = make([]Level, system.NbInternalVariables)
 	for i := range system.lbWireLevel {
 		system.lbWireLevel[i] = LevelUnset
@@ -59,6 +70,14 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 		case *BlueprintBatchInverse[U64], *BlueprintBatchInverse[U32]:
 			newCallData = append(newCallData, inst.Calldata...)
 			rewriteBatchInverseCalldata(newCallData[start:], rep)
+
+		case *BlueprintLookupHint[U64]:
+			newCallData = append(newCallData, inst.Calldata...)
+			rewriteLookupHintCalldata(newCallData[start:], rep)
+
+		case *BlueprintLookupHint[U32]:
+			newCallData = append(newCallData, inst.Calldata...)
+			rewriteLookupHintCalldata(newCallData[start:], rep)
 
 		default:
 			newCallData = append(newCallData, inst.Calldata...)
@@ -127,6 +146,20 @@ func rewriteBatchInverseCalldata(calldata []uint32, rep func(uint32) uint32) {
 	n := int(calldata[1])
 	j := 2
 	for i := 0; i < n; i++ {
+		j = rewriteLinearExpressionCalldata(calldata, j, rep)
+	}
+}
+
+func rewriteLookupHintEntriesCalldata(calldata []uint32, rep func(uint32) uint32) {
+	for j := 0; j < len(calldata); {
+		j = rewriteLinearExpressionCalldata(calldata, j, rep)
+	}
+}
+
+func rewriteLookupHintCalldata(calldata []uint32, rep func(uint32) uint32) {
+	nbInputs := int(calldata[2])
+	j := 3
+	for i := 0; i < nbInputs; i++ {
 		j = rewriteLinearExpressionCalldata(calldata, j, rep)
 	}
 }
