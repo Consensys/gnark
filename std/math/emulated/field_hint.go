@@ -623,3 +623,102 @@ func NewVarGenericHint[T1, T2 FieldParams](
 		nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs,
 		outputs)
 }
+
+// genericHintConfig holds the configuration for a generic hint.
+type genericHintConfig struct {
+	// outputRangeCheckBits holds the number of bits being range checked for
+	// each output of the hint. The indexing starts from native outputs and then
+	// goes through emulated outputs in order. If not set, then we range check
+	// the default number of bits for the field (i.e. the bit size of the
+	// modulus), except for the native field where we do not perform range
+	// checks by default (as it is natively enforced by the field). This is used
+	// to optimize the hint when we know that the outputs will be in a certain
+	// range, so we can perform range checks on the outputs and avoid some
+	// constraints in the hint logic.
+	outputRangeCheckBits map[uint]int
+}
+
+// GenericHintOption is a functional option for configuring the generic hint.
+// The generic hint functions [Field.NewHintGeneric] and [NewVarGenericHint] accept a
+// variable number of these options to customize the behavior of the hint.
+type GenericHintOption func(*genericHintConfig) error
+
+// WithHintOutputRangeCheckBits allows to set the number of bits being range
+// checked for each output of the hint. The indexing starts from native outputs
+// and then goes through emulated outputs in order.
+//
+// When not set for any specific output, then we perform the default range checking:
+//
+//   - for native outputs, we do not perform range checks by default (as it is natively
+//     enforced by the field)
+//
+//   - for emulated outputs, we range check the default number of bits for the field
+//     (i.e. the bit size of the modulus). But we don't perform strict range checking
+//     against the modulus, only for the bit length. In case the modulus is not a power
+//     of 2, then it means that we can have some values which are in the range of the
+//     bit length but are still larger than the modulus. This is to avoid some
+//     constraints in the hint logic and it is still safe as long as the hint logic
+//     does not rely on strict range checks against the modulus.
+//
+//     There is a method [Field.AssertIsInRange] if such strict range checks are needed.
+//
+// When set, then we perform range checking as follows:
+//   - when the bits > 0, then we range check the output to be less than 2^bits.
+//     This is useful when we know that the output will be in a certain range which is
+//     smaller than the field modulus, so we can perform range checks on the outputs
+//     and avoid some constraints in the hint logic.
+//   - when the bits = 0, we ensure that the output has no limbs, i.e. ensuring it is zero.
+//   - when the bits < 0, then we do not perform range checks on the outputs, not even
+//     the default ones. This is useful in case where we want to enforce range checking
+//     logic in the circuit itself. By default it is unsafe to use.
+//
+// This also affects how many limbs the returned outputs have. When the bits >
+// 0, then we ensure that the number of limbs is sufficient to represent values
+// up to 2^bits. When the bits = 0, then we ensure that the number of limbs is
+// zero (i.e. the output is zero). When the bits < 0, then we do not perform any
+// checks on the number of limbs and it is default, given by the emulation
+// parameters.
+//
+// All checks are done in-circuit, the solver does not enforce any checks on the
+// hint outputs, so it is the responsibility of the user to ensure that the hint
+// logic is consistent with the range checks being performed.
+//
+// For example when we work over native field BN254, emulated fields BLS12381Fp
+// and BLS12381Fr, having correpondingly 2, 3, 4 outputs, then the indexing of
+// the outputs is as follows:
+//   - output 0 and 1 are native outputs
+//   - output 2, 3, 4 are emulated outputs for BLS12381Fp
+//   - output 5, 6, 7, 8 are emulated outputs for BLS12381Fr
+//
+// We would call the NewVarGenericHint function as follows:
+//
+//	 nativeOutputs, emulatedFpOutputs, emulatedFrOutputs, err := emulated.NewVarGenericHint(
+//		 api,
+//		 3,
+//		 4,
+//		 5,
+//		 nativeInputs,
+//		 emulatedFpInputs,
+//		 emulatedFrInputs,
+//		 MyHintFn,
+//		 emulated.WithHintOutputRangeCheckBits(map[uint]int{
+//		     0: 4, // range check the first native output to be less than 16
+//		     1: 8, // range check the second native output to be less than 256
+//		     2: 10, // range check the first emulated output for BLS12381Fp to be less than 1024
+//		     // no range check for the second and third emulated outputs for BLS12381Fp
+//		     // no range check for the emulated outputs for BLS12381Fr
+//		 }),
+//
+// )
+func WithHintOutputRangeCheckBits(outputRangeCheckBits map[uint]int) func(*genericHintConfig) error {
+	return func(cfg *genericHintConfig) error {
+		if outputRangeCheckBits == nil {
+			return errors.New("output range check bits map cannot be nil")
+		}
+		if cfg.outputRangeCheckBits != nil {
+			return errors.New("output range check bits map is already set")
+		}
+		cfg.outputRangeCheckBits = outputRangeCheckBits
+		return nil
+	}
+}
