@@ -739,9 +739,10 @@ func TestCustomRangeCheckHint(t *testing.T) {
 // two emulated fields must use distinct moduli (and distinct from the native
 // modulus), as the hint context looks up inputs/outputs by modulus value.
 type varGenericHintCircuit[T1, T2 FieldParams] struct {
-	NativeIn    [2]frontend.Variable
-	Emulated1In [2]Element[T1]
-	Emulated2In [2]Element[T2]
+	NativeIn         [2]frontend.Variable
+	Emulated1In      [2]Element[T1]
+	Emulated2In      [2]Element[T2]
+	rangeCheckAmount map[int]int
 }
 
 func (c *varGenericHintCircuit[T1, T2]) Define(api frontend.API) error {
@@ -753,11 +754,13 @@ func (c *varGenericHintCircuit[T1, T2]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new field 2: %w", err)
 	}
-	outNat, outEm1, outEm2, err := NewVarGenericHint[T1, T2](api, 2, 2, 2,
+	outNat, outEm1, outEm2, err := NewVarGenericHint(api, 2, 2, 2,
 		c.NativeIn[:],
 		[]*Element[T1]{&c.Emulated1In[0], &c.Emulated1In[1]},
 		[]*Element[T2]{&c.Emulated2In[0], &c.Emulated2In[1]},
-		hintSquareAllInputs)
+		hintSquareAllInputs,
+		WithHintOutputRangeCheckBits(c.rangeCheckAmount),
+	)
 	if err != nil {
 		return fmt.Errorf("new var generic hint: %w", err)
 	}
@@ -775,29 +778,30 @@ func (c *varGenericHintCircuit[T1, T2]) Define(api frontend.API) error {
 
 func TestVarGenericHint(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{}
+	circuit := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
+		rangeCheckAmount: map[int]int{0: 8, 2: 8, 4: 8},
+	}
 	witness := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
 		NativeIn:    [2]frontend.Variable{3, 4},
 		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](5), ValueOf[Secp256k1Fp](6)},
 		Emulated2In: [2]Element[BLS12381Fr]{ValueOf[BLS12381Fr](7), ValueOf[BLS12381Fr](8)},
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness),
+	invalidWitness := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
+		NativeIn:    [2]frontend.Variable{1 << 32, 1 << 8},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](1 << 32), ValueOf[Secp256k1Fp](1 << 8)},
+		Emulated2In: [2]Element[BLS12381Fr]{ValueOf[BLS12381Fr](1 << 32), ValueOf[BLS12381Fr](1 << 8)},
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
 		test.WithCurves(ecc.BN254),
 		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
 }
 
-// zeroBitsHintCircuit exercises the bits==0 range check option, which asserts
-// that an output is zero.
-//
-// Note the native/emulated asymmetry of bits==0 (see unwrapGenericHintOutputs):
-//   - native: the hint output is constrained to zero (api.AssertIsEqual(out, 0)),
-//     so a nonzero hint output makes the circuit unsatisfiable.
-//   - emulated: a fresh zero element is returned and the hint's limbs are
-//     discarded, so the returned element is zero by construction regardless of
-//     what the hint computed. It cannot be made unsatisfiable via the witness.
+// zeroBitsHintCircuit exercises the bits==0 range check option, which disables
+// range checking (same as bits<0). The hint outputs are returned as-is, not
+// forced to zero, and no range check constraints are emitted.
 type zeroBitsHintCircuit[T1 FieldParams] struct {
-	NativeIn    [1]frontend.Variable
-	Emulated1In [1]Element[T1]
+	NativeIn    frontend.Variable
+	Emulated1In Element[T1]
 }
 
 func (c *zeroBitsHintCircuit[T1]) Define(api frontend.API) error {
@@ -806,33 +810,28 @@ func (c *zeroBitsHintCircuit[T1]) Define(api frontend.API) error {
 		return fmt.Errorf("new field: %w", err)
 	}
 	// output index 0 is the native output, index 1 is the emulated output; both
-	// range checked to 0 bits (must be zero).
-	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 1, 1, c.NativeIn[:], []*Element[T1]{&c.Emulated1In[0]},
+	// with bits==0, i.e. no range check.
+	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 1, 1, []frontend.Variable{c.NativeIn}, []*Element[T1]{&c.Emulated1In},
 		WithHintOutputRangeCheckBits(map[int]int{0: 0, 1: 0}))
 	if err != nil {
 		return fmt.Errorf("new hint: %w", err)
 	}
-	// native output must be zero, otherwise the 0-bit range check fails.
-	api.AssertIsEqual(outNat[0], 0)
-	// emulated output is returned as a fresh zero element.
-	f.AssertIsEqual(outEm[0], f.Zero())
+	// the actual hint outputs are returned (not forced to zero) and are usable.
+	nRes := api.Mul(c.NativeIn, c.NativeIn)
+	api.AssertIsEqual(outNat[0], nRes)
+	emRes := f.Mul(&c.Emulated1In, &c.Emulated1In)
+	f.AssertIsEqual(outEm[0], emRes)
 	return nil
 }
 
 func TestZeroBitsHint(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit := zeroBitsHintCircuit[Secp256k1Fp]{}
-	// valid: native input 0 squares to 0, satisfying the 0-bit range check.
 	witness := zeroBitsHintCircuit[Secp256k1Fp]{
-		NativeIn:    [1]frontend.Variable{0},
-		Emulated1In: [1]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](6)},
+		NativeIn:    5,
+		Emulated1In: ValueOf[Secp256k1Fp](6),
 	}
-	// invalid: native input 5 squares to 25, which is not zero.
-	invalidWitness := zeroBitsHintCircuit[Secp256k1Fp]{
-		NativeIn:    [1]frontend.Variable{5},
-		Emulated1In: [1]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](6)},
-	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness),
 		test.WithCurves(ecc.BN254),
 		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
 }

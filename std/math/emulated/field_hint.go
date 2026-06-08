@@ -328,12 +328,10 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.I
 		if !ok {
 			continue
 		}
-		if bits == 0 {
-			api.AssertIsEqual(nativeOutputs[i], 0)
-		} else if bits > 0 {
+		if bits > 0 {
 			rchecker.Check(nativeOutputs[i], bits)
 		}
-		// bits < 0: no check
+		// bits <= 0: no check
 	}
 	if nbEmulated1Outputs > 0 {
 		if fp1 == nil {
@@ -367,8 +365,7 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 		outputs[idx] = fp.packLimbs(limbs, true)
 		return
 	}
-	switch {
-	case bits > 0:
+	if bits > 0 {
 		// if there is an override with positive bits, then we need to apply
 		// range check to the limbs and pack with custom width
 
@@ -379,11 +376,8 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 		// can never access the potentially non-zero limbs beyond nbCustomLimbs,
 		// and thus there is no soundness issue.
 		outputs[idx] = fp.packLimbsWithWidth(limbs[:nbCustomLimbs], bits)
-	case bits == 0:
-		// for zero case we return non-native element with zero limb.
-		outputs[idx] = fp.Zero()
-	case bits < 0:
-		// if there is an override with negative bits, then we need to pack with default width but without range check
+	} else {
+		// bits <= 0: pack with default width but without range check.
 		outputs[idx] = fp.newInternalElement(limbs, 0)
 	}
 }
@@ -749,17 +743,14 @@ func applyHintOptions(opts []HintOption, nbOutputs []int) (*hintConfig, error) {
 //     This is useful when we know that the output will be in a certain range which is
 //     smaller than the field modulus, so we can perform range checks on the outputs
 //     and avoid some constraints in the hint logic.
-//   - when the bits = 0, we ensure that the output has no limbs, i.e. ensuring it is zero.
-//   - when the bits < 0, then we do not perform range checks on the outputs, not even
+//   - when the bits <= 0, then we do not perform range checks on the outputs, not even
 //     the default ones. This is useful in case where we want to enforce range checking
 //     logic in the circuit itself. By default it is unsafe to use.
 //
 // This also affects how many limbs the returned outputs have. When the bits >
 // 0, then we ensure that the number of limbs is sufficient to represent values
-// up to 2^bits. When the bits = 0, then we ensure that the number of limbs is
-// zero (i.e. the output is zero). When the bits < 0, then we do not perform any
-// checks on the number of limbs and it is default, given by the emulation
-// parameters.
+// up to 2^bits. When the bits <= 0, then we do not perform any checks on the
+// number of limbs and it is default, given by the emulation parameters.
 //
 // All checks are done in-circuit, the solver does not enforce any checks on the
 // hint outputs, so it is the responsibility of the user to ensure that the hint
