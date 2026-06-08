@@ -669,6 +669,8 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	if err != nil {
 		panic(err)
 	}
+	var st S
+	nbits := st.Modulus().BitLen()>>1 + 2
 	addFn := c.Add
 	var isPointAtInfinity frontend.Variable
 	if !cfg.IncompleteArithmetic {
@@ -688,7 +690,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// sub-scalars.
 
 	// decompose s into s1 and s2
-	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue})
+	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue},
+		emulated.WithHintOutputRangeCheckBits(map[int]int{2: nbits, 3: nbits}),
+	)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
@@ -704,8 +708,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
-	var st S
-	nbits := st.Modulus().BitLen()>>1 + 2
 
 	// precompute -Q, Q, 3Q, -Φ(Q), Φ(Q), 3Φ(Q)
 	var tableQ, tablePhiQ [3]*AffinePoint[B]
@@ -1024,8 +1026,12 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// and boolean flags sdBits and tdBits to negate the points Q, Φ(Q), R and
 	// Φ(R) instead of the corresponding sub-scalars.
 
+	var st S
+	nbits := st.Modulus().BitLen()>>1 + 2
 	// decompose s into s1 and s2
-	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue})
+	sdBits, sd, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{s, c.eigenvalue},
+		emulated.WithHintOutputRangeCheckBits(map[int]int{2: nbits, 3: nbits}),
+	)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition s: %v", err))
 	}
@@ -1040,7 +1046,9 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	)
 
 	// decompose t into t1 and t2
-	tdBits, td, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{t, c.eigenvalue})
+	tdBits, td, err := c.scalarApi.NewHintGeneric(decomposeScalarG1, 2, 2, nil, []*emulated.Element[S]{t, c.eigenvalue},
+		emulated.WithHintOutputRangeCheckBits(map[int]int{2: nbits, 3: nbits}),
+	)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition t: %v", err))
 	}
@@ -1135,8 +1143,6 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	s2bits := c.scalarApi.ToBits(s2)
 	t1bits := c.scalarApi.ToBits(t1)
 	t2bits := c.scalarApi.ToBits(t2)
-	var st S
-	nbits := st.Modulus().BitLen()>>1 + 2
 
 	// At each iteration we look up the point Bi from:
 	// 		B1  = +Q + R + Φ(Q) + Φ(R)
@@ -1362,6 +1368,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if err != nil {
 		panic(err)
 	}
+	var st S
+	nbits := (st.Modulus().BitLen() + 1) / 2
 
 	var isScalarZero frontend.Variable
 	_s := s
@@ -1372,7 +1380,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 
 	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
 	// we also output the sign in case s2 is negative. In that case we compute _s2 = -s2 mod r.
-	sign, sd, err := c.scalarApi.NewHintGeneric(rationalReconstruct, 1, 2, nil, []*emulated.Element[S]{_s})
+	sign, sd, err := c.scalarApi.NewHintGeneric(rationalReconstruct, 1, 2, nil, []*emulated.Element[S]{_s},
+		// we know that the hint will return s1, s2 < sqrt(r) so we can set the hint output range check bits to nbits = ceil(log2(sqrt(r))) = ceil(log2(r)/2)
+		emulated.WithHintOutputRangeCheckBits(map[int]int{1: nbits, 2: nbits}))
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstruct hint: %v", err))
 	}
@@ -1409,8 +1419,6 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		r1 = c.baseApi.Select(isInputPointAtInfinity, &dummy.Y, r1)
 	}
 
-	var st S
-	nbits := (st.Modulus().BitLen() + 1) / 2
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
 
@@ -1635,6 +1643,11 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	if err != nil {
 		panic(err)
 	}
+	var st S
+	// LLL Hermite bound (gnark-crypto/algebra/lattice): u1, u2, v1, v2 are
+	// bounded by γ₄·r^(1/4) ≈ 1.25·r^(1/4), which fits in (BitLen+3)/4 + 2 bits.
+	// This is tighter than the previous heuristic BitLen/4 + 9 (saves ~7 iters).
+	nbits := (st.Modulus().BitLen()+3)/4 + 2
 
 	// handle 0-scalar and (-1)-scalar cases
 	var isScalarZero, isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
@@ -1676,7 +1689,10 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	signs, sd, err := c.scalarApi.NewHintGeneric(rationalReconstructExt, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue})
+	signs, sd, err := c.scalarApi.NewHintGeneric(rationalReconstructExt, 4, 4, nil, []*emulated.Element[S]{_s, c.eigenvalue},
+		// we later need to check that u1, u2, v1, v2 < c*r^(1/4) so we provide a hint output range check with nbits = (BitLen+3)/4 + 2
+		emulated.WithHintOutputRangeCheckBits(map[int]int{4: nbits, 5: nbits, 6: nbits, 7: nbits}),
+	)
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
@@ -1685,7 +1701,6 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 
 	// We need to check that:
 	// 		s*(v1 + λ*v2) + u1 + λ*u2 = 0
-	var st S
 	sv1 := c.scalarApi.Mul(_s, v1)
 	sλv2 := c.scalarApi.Mul(_s, c.scalarApi.Mul(c.eigenvalue, v2))
 	λu2 := c.scalarApi.Mul(c.eigenvalue, u2)
@@ -1800,10 +1815,6 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	g := c.Generator()
 	Acc = addFn(Acc, g)
 
-	// LLL Hermite bound (gnark-crypto/algebra/lattice): u1, u2, v1, v2 are
-	// bounded by γ₄·r^(1/4) ≈ 1.25·r^(1/4), which fits in (BitLen+3)/4 + 2 bits.
-	// This is tighter than the previous heuristic BitLen/4 + 9 (saves ~7 iters).
-	nbits := (st.Modulus().BitLen()+3)/4 + 2
 	u1bits := c.scalarApi.ToBits(u1)
 	u2bits := c.scalarApi.ToBits(u2)
 	v1bits := c.scalarApi.ToBits(v1)
