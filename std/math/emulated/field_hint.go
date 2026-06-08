@@ -654,9 +654,6 @@ type HintOption func(*hintConfig) error
 
 // applyHintOptions applies the given options to a new genericHintConfig.
 func applyHintOptions(opts []HintOption) (*hintConfig, error) {
-	if len(opts) == 0 {
-		return nil, nil
-	}
 	cfg := &hintConfig{}
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
