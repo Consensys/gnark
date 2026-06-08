@@ -391,7 +391,11 @@ type Hint func(HintContext) error
 //	         // here we can use hc to access inputs and outputs for the given field modulus
 //	    })
 //	}
-func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOutputs int, nativeInputs []frontend.Variable, nonNativeInputs []*Element[T]) ([]frontend.Variable, []*Element[T], error) {
+func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOutputs int, nativeInputs []frontend.Variable, nonNativeInputs []*Element[T], opts ...HintOption) ([]frontend.Variable, []*Element[T], error) {
+	cfg, err := applyHintOptions(opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("apply hint options: %w", err)
+	}
 	for i := range nonNativeInputs {
 		nonNativeInputs[i].Initialize(f.api.Compiler().Field())
 	}
@@ -594,7 +598,12 @@ func NewVarGenericHint[T1, T2 FieldParams](
 	emulated1Inputs []*Element[T1],
 	emulated2Inputs []*Element[T2],
 	hf solver.Hint,
+	opts ...HintOption,
 ) (nativeOutputs []frontend.Variable, emulated1Outputs []*Element[T1], emulated2Outputs []*Element[T2], err error) {
+	cfg, err := applyHintOptions(opts)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("apply hint options: %w", err)
+	}
 	fp1, err := NewField[T1](api)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create emulated1 field: %w", err)
@@ -624,8 +633,8 @@ func NewVarGenericHint[T1, T2 FieldParams](
 		outputs)
 }
 
-// genericHintConfig holds the configuration for a generic hint.
-type genericHintConfig struct {
+// hintConfig holds the configuration for a generic hint.
+type hintConfig struct {
 	// outputRangeCheckBits holds the number of bits being range checked for
 	// each output of the hint. The indexing starts from native outputs and then
 	// goes through emulated outputs in order. If not set, then we range check
@@ -638,10 +647,24 @@ type genericHintConfig struct {
 	outputRangeCheckBits map[uint]int
 }
 
-// GenericHintOption is a functional option for configuring the generic hint.
+// HintOption is a functional option for configuring the generic hint.
 // The generic hint functions [Field.NewHintGeneric] and [NewVarGenericHint] accept a
 // variable number of these options to customize the behavior of the hint.
-type GenericHintOption func(*genericHintConfig) error
+type HintOption func(*hintConfig) error
+
+// applyHintOptions applies the given options to a new genericHintConfig.
+func applyHintOptions(opts []HintOption) (*hintConfig, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+	cfg := &hintConfig{}
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			return nil, err
+		}
+	}
+	return cfg, nil
+}
 
 // WithHintOutputRangeCheckBits allows to set the number of bits being range
 // checked for each output of the hint. The indexing starts from native outputs
@@ -710,8 +733,8 @@ type GenericHintOption func(*genericHintConfig) error
 //		 }),
 //
 // )
-func WithHintOutputRangeCheckBits(outputRangeCheckBits map[uint]int) func(*genericHintConfig) error {
-	return func(cfg *genericHintConfig) error {
+func WithHintOutputRangeCheckBits(outputRangeCheckBits map[uint]int) func(*hintConfig) error {
+	return func(cfg *hintConfig) error {
 		if outputRangeCheckBits == nil {
 			return errors.New("output range check bits map cannot be nil")
 		}
