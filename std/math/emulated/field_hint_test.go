@@ -662,3 +662,72 @@ func TestMatchingFieldHint(t *testing.T) {
 	testMatchingFieldHint[BN254Fr](t)
 	testMatchingFieldHint[BLS12381Fr](t)
 }
+
+func hintSquareAllInputs(mod *big.Int, inputs, outputs []*big.Int) error {
+	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
+		nativeInputs, nativeOutputs := ctx.NativeInputsOutputs()
+		if len(nativeInputs) != len(nativeOutputs) {
+			return fmt.Errorf("expected same number of native inputs and outputs, got %d inputs and %d outputs", len(nativeInputs), len(nativeOutputs))
+		}
+		for i := range nativeOutputs {
+			nativeOutputs[i].Mul(nativeInputs[i], nativeInputs[i])
+			nativeOutputs[i].Mod(nativeOutputs[i], ctx.NativeModulus())
+		}
+		for _, m := range ctx.EmulatedModuli() {
+			emulatedInputs, emulatedOutputs := ctx.InputsOutputs(m)
+			if len(emulatedInputs) != len(emulatedOutputs) {
+				return fmt.Errorf("expected same number of emulated inputs and outputs for modulus %s, got %d inputs and %d outputs", m.String(), len(emulatedInputs), len(emulatedOutputs))
+			}
+			for i := range emulatedOutputs {
+				emulatedOutputs[i].Mul(emulatedInputs[i], emulatedInputs[i])
+				emulatedOutputs[i].Mod(emulatedOutputs[i], m)
+			}
+		}
+
+		return nil
+	})
+}
+
+type customRangeCheckHintCircuit1[T1 FieldParams] struct {
+	NativeIn         [2]frontend.Variable
+	Emulated1In      [2]Element[T1]
+	rangeCheckAmount map[int]int
+}
+
+func (c *customRangeCheckHintCircuit1[T1]) Define(api frontend.API) error {
+	f, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	// request 1 emulated output with a 16-bit range check (output index 0)
+	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 2, 2, c.NativeIn[:], []*Element[T1]{&c.Emulated1In[0], &c.Emulated1In[1]},
+		WithHintOutputRangeCheckBits(c.rangeCheckAmount))
+	if err != nil {
+		return fmt.Errorf("new hint: %w", err)
+	}
+	for i := range outNat {
+		api.AssertIsDifferent(outNat[i], c.NativeIn[i])
+	}
+	for i := range outEm {
+		f.AssertIsDifferent(outEm[i], &c.Emulated1In[i])
+	}
+	return nil
+}
+
+func TestCustomRangeCheckHint(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		rangeCheckAmount: map[int]int{1: 8, 3: 8},
+	}
+	witness := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		NativeIn:    [2]frontend.Variable{3, 4},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](5), ValueOf[Secp256k1Fp](6)},
+	}
+	invalidWitness := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		NativeIn:    [2]frontend.Variable{1 << 7, 1 << 6},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](1 << 7), ValueOf[Secp256k1Fp](1 << 6)},
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
+		test.WithCurves(ecc.BN254),
+		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
+}
