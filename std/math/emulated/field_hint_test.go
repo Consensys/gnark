@@ -700,7 +700,7 @@ func (c *customRangeCheckHintCircuit1[T1]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new field: %w", err)
 	}
-	// request 1 emulated output with a 16-bit range check (output index 0)
+	// reqguest 2 native and 2 emulated outputs, with a range check option
 	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 2, 2, c.NativeIn[:], []*Element[T1]{&c.Emulated1In[0], &c.Emulated1In[1]},
 		WithHintOutputRangeCheckBits(c.rangeCheckAmount))
 	if err != nil {
