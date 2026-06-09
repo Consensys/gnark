@@ -390,7 +390,10 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 		outputs[idx] = fp.packLimbsWithWidth(limbs[:nbCustomLimbs], bits)
 	} else {
 		// bits <= 0: pack with default width but without range check.
-		outputs[idx] = fp.newInternalElement(limbs, 0)
+		// however, return it as non-internal so that when it is used as input to another operation,
+		// it will be properly range checked.
+		outputs[idx] = &Element[T]{Limbs: limbs, overflow: 0, internal: false}
+		// outputs[idx] = fp.newInternalElement(limbs, 0)
 	}
 	return nil
 }
