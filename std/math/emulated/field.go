@@ -220,9 +220,7 @@ func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T]
 
 // packLimbsWithWidth returns an element from the given limbs with range check to nbBits.
 // The number of limbs must be exactly ceil(nbBits / BitsPerLimb()), and each limb is
-// range-checked accordingly. For the small field optimization path, each limb is
-// range-checked to nbBits (with no overflow); for the standard path the last limb
-// gets the partial remainder bits.
+// range-checked accordingly.
 func (f *Field[T]) packLimbsWithWidth(limbs []frontend.Variable, nbBits int) *Element[T] {
 	if !f.useSmallFieldOptimization() {
 		e := f.newInternalElement(limbs, 0)
