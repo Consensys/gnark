@@ -344,7 +344,9 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.I
 		for i := range nbEmulated1Outputs {
 			allLimbs := hintOutputs[nbNativeOutputs+i*int(effNbLimbs1) : nbNativeOutputs+(i+1)*int(effNbLimbs1)]
 			// apply range checks on emulated outputs when requested.
-			unwrapOutputRangeCheck(cfg, nbNativeOutputs, i, fp1, allLimbs, emulated1Outputs)
+			if err := unwrapOutputRangeCheck(cfg, nbNativeOutputs, i, fp1, allLimbs, emulated1Outputs); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 	if nbEmulated2Outputs > 0 {
@@ -355,18 +357,20 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.I
 		for i := range nbEmulated2Outputs {
 			allLimbs := hintOutputs[nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+i*int(effNbLimbs2) : nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+(i+1)*int(effNbLimbs2)]
 			// apply range checks on emulated outputs when requested.
-			unwrapOutputRangeCheck(cfg, nbNativeOutputs+nbEmulated1Outputs, i, fp2, allLimbs, emulated2Outputs)
+			if err := unwrapOutputRangeCheck(cfg, nbNativeOutputs+nbEmulated1Outputs, i, fp2, allLimbs, emulated2Outputs); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 	return nativeOutputs, emulated1Outputs, emulated2Outputs, nil
 }
 
-func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, fp *Field[T], limbs []frontend.Variable, outputs []*Element[T]) {
+func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, fp *Field[T], limbs []frontend.Variable, outputs []*Element[T]) error {
 	bits, ok := cfg.outputRangeCheckBits[startIdx+idx]
 	if !ok {
 		// there is no override
 		outputs[idx] = fp.packLimbs(limbs, true)
-		return
+		return nil
 	}
 	if bits > 0 {
 		// if there is an override with positive bits, then we need to apply
@@ -374,7 +378,7 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 
 		// sanity check that the given bound is not larger than the field modulus bit size
 		if bits > int(fp.fParams.Modulus().BitLen()) {
-			panic(fmt.Sprintf("range check output %d bits override %d exceed field modulus bit size %d", startIdx+idx, bits, fp.fParams.Modulus().BitLen()))
+			return fmt.Errorf("range check output %d bits override %d exceed field modulus bit size %d", startIdx+idx, bits, fp.fParams.Modulus().BitLen())
 		}
 
 		// lets compute the expected number of limbs we have based on the bits
@@ -388,6 +392,7 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 		// bits <= 0: pack with default width but without range check.
 		outputs[idx] = fp.newInternalElement(limbs, 0)
 	}
+	return nil
 }
 
 // Hint is a non-native hint function which takes a [HintContext] as an argument
