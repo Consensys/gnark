@@ -329,6 +329,9 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.I
 			continue
 		}
 		if bits > 0 {
+			if bits > int(fp1.fParams.Modulus().BitLen()) {
+				return nil, nil, nil, fmt.Errorf("range check bits for native output %d exceed field modulus bit size %d", i, fp1.fParams.Modulus().BitLen())
+			}
 			rchecker.Check(nativeOutputs[i], bits)
 		}
 		// bits <= 0: no check
@@ -368,6 +371,11 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 	if bits > 0 {
 		// if there is an override with positive bits, then we need to apply
 		// range check to the limbs and pack with custom width
+
+		// sanity check that the given bound is not larger than the field modulus bit size
+		if bits > int(fp.fParams.Modulus().BitLen()) {
+			panic(fmt.Sprintf("range check output %d bits override %d exceed field modulus bit size %d", startIdx+idx, bits, fp.fParams.Modulus().BitLen()))
+		}
 
 		// lets compute the expected number of limbs we have based on the bits
 		nbCustomLimbs := (bits + int(fp.fParams.BitsPerLimb()) - 1) / int(fp.fParams.BitsPerLimb())
