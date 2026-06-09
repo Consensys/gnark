@@ -328,6 +328,7 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.I
 		if !ok {
 			continue
 		}
+		if bits > 0 {
 			if bits > field.BitLen() {
 				return nil, nil, nil, fmt.Errorf("range check bits for native output %d exceed native field modulus bit size %d", i, field.BitLen())
 			}
