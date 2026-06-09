@@ -33,8 +33,8 @@ func (f *Field[T]) enforceWidth(a *Element[T], nbBits int) {
 	}
 }
 
-// smallEnforceWidthBits enforces a custom bit width on an element via the small
-// field optimization path. Unlike smallEnforceWidth, each limb is range-checked
+// smallEnforceWidth enforces a custom bit width on an element via the small
+// field optimization path. Unlike enforceWidth, each limb is range-checked
 // to nbBits+overflow. The limb count must equal ceil(nbBits / BitsPerLimb()).
 func (f *Field[T]) smallEnforceWidth(a *Element[T], nbBits int) {
 	bitsPerLimb := int(f.fParams.BitsPerLimb())
