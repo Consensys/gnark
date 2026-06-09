@@ -44,7 +44,12 @@ func (f *Field[T]) smallEnforceWidth(a *Element[T], nbBits int) {
 	}
 
 	for i := range a.Limbs {
-		f.rangeCheck(a.Limbs[i], nbBits+int(a.overflow))
+		limbNbBits := bitsPerLimb
+		if i == len(a.Limbs)-1 {
+			// take only required bits from the most significant limb
+			limbNbBits = ((nbBits - 1) % bitsPerLimb) + 1
+		}
+		f.rangeCheck(a.Limbs[i], limbNbBits+int(a.overflow))
 	}
 }
 
