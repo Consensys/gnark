@@ -2,6 +2,7 @@ package constraint
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strconv"
 	"sync"
@@ -11,9 +12,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
 )
 
@@ -189,7 +190,7 @@ func (system *System) CheckSerializationHeader() error {
 
 	if binaryVersion.Compare(objectVersion) != 0 {
 		log := logger.Logger()
-		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibility")
+		log.Warn("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibility", slog.String("binary", binaryVersion.String()), slog.String("object", objectVersion.String()))
 	}
 
 	// TODO @gbotrel maintain version changes and compare versions properly

@@ -6,14 +6,24 @@
 package plonk
 
 import (
+	"context"
 	"fmt"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
+
+	"github.com/consensys/gnark/internal/logger"
 )
+
+func logSerializationDebug(start time.Time, n int64, err error, attrs ...slog.Attr) {
+	attrs = append(attrs, slog.Duration("took", time.Since(start)), slog.Int64("bytes", n), slog.Bool("success", err == nil))
+	logger.Logger().LogAttrs(context.Background(), slog.LevelDebug, "backend serialization", attrs...)
+}
 
 // WriteRawTo writes binary encoding of Proof to w without point compression
 func (proof *Proof) WriteRawTo(w io.Writer) (int64, error) {
@@ -25,7 +35,12 @@ func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
 	return proof.writeTo(w)
 }
 
-func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64, error) {
+func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "serialize"), slog.String("object", "proof"), slog.Bool("raw", len(options) != 0))
+	}()
+
 	enc := curve.NewEncoder(w, options...)
 
 	toEncode := []interface{}{
@@ -53,7 +68,12 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 }
 
 // ReadFrom reads binary representation of Proof from r
-func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
+func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "deserialize"), slog.String("object", "proof"))
+	}()
+
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
 		&proof.LRO[0],
@@ -71,7 +91,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	for _, v := range toDecode {
-		if err := dec.Decode(v); err != nil {
+		if err = dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
 	}
@@ -80,7 +100,8 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		proof.Bsb22Commitments = []kzg.Digest{}
 	}
 
-	return dec.BytesRead(), nil
+	n = dec.BytesRead()
+	return n, nil
 }
 
 // WriteTo writes binary encoding of ProvingKey to w
@@ -94,6 +115,11 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 }
 
 func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "serialize"), slog.String("object", "proving_key"), slog.Bool("raw", !withCompression))
+	}()
+
 	// encode the verifying key
 	if withCompression {
 		n, err = pk.Vk.WriteTo(w)
@@ -138,9 +164,14 @@ func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 	return pk.readFrom(r, false)
 }
 
-func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, error) {
+func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "deserialize"), slog.String("object", "proving_key"), slog.Bool("subgroup_checks", withSubgroupChecks))
+	}()
+
 	pk.Vk = &VerifyingKey{}
-	n, err := pk.Vk.ReadFrom(r)
+	n, err = pk.Vk.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
@@ -175,6 +206,11 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (int64, error) {
 }
 
 func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "serialize"), slog.String("object", "verifying_key"), slog.Bool("raw", len(options) != 0))
+	}()
+
 	enc := curve.NewEncoder(w, options...)
 	vk.version = currentKeyVersion
 
@@ -226,17 +262,22 @@ func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 //     decodes it accordingly.
 //
 // An error is returned if the encoded version is not supported.
-func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
+func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "plonk"), slog.String("operation", "deserialize"), slog.String("object", "verifying_key"))
+	}()
+
 	dec := curve.NewDecoder(r)
 	var firstWord uint64
-	if err := dec.Decode(&firstWord); err != nil {
+	if err = dec.Decode(&firstWord); err != nil {
 		return dec.BytesRead(), err
 	}
 
 	var toDecode []interface{}
 	if firstWord == keyVersionMarker {
 		var version uint64
-		if err := dec.Decode(&version); err != nil {
+		if err = dec.Decode(&version); err != nil {
 			return dec.BytesRead(), err
 		}
 
@@ -293,7 +334,7 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	for _, v := range toDecode {
-		if err := dec.Decode(v); err != nil {
+		if err = dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
 	}
@@ -302,5 +343,6 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		vk.Qcp = []kzg.Digest{}
 	}
 
-	return dec.BytesRead(), nil
+	n = dec.BytesRead()
+	return n, nil
 }

@@ -8,10 +8,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
+    "github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/rs/zerolog"
+    "context"
+	"log/slog"
+	"github.com/consensys/gnark-crypto/ecc"
 	{{ template "import_fr" . }}
 )
 
@@ -31,7 +32,7 @@ type solver struct {
 	nativeHints map[csolver.HintID]nativeHintFn
 
 	// used to out api.Println
-	logger  zerolog.Logger
+	logger  *slog.Logger
 	nbTasks int
 
 	a, b, c fr.Vector // R1CS solver builds the a,b,c matrices
@@ -63,13 +64,7 @@ var nativeHintByName = map[string]nativeHintFn{
 	"github.com/consensys/gnark/std/math/bits.nBits":                        (*solver).solveBitsNBits,
 }
 
-func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
-	// parse options
-	opt, err := csolver.NewConfig(opts...)
-	if err != nil {
-		return nil, err
-	}
-
+func newSolver(cs *system, witness fr.Vector, opt *csolver.Config) (*solver, error) {
 	// check witness size
 	witnessOffset := 0
 	if cs.Type == constraint.SystemR1CS {
@@ -247,13 +242,13 @@ func (s *solver) valueWithCoeff(cID, vID uint32) fr.Element {
 }
 
 func (s *solver) printLogs(logs []constraint.LogEntry) {
-	if s.logger.GetLevel() == zerolog.Disabled {
+	if !s.logger.Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		s.logger.Debug().Str(zerolog.CallerFieldName, logs[i].Caller).Msg(logLine)
+		s.logger.Debug("api.Println", slog.String(slog.SourceKey, logs[i].Caller), slog.String("debug", logLine))
 	}
 }
 

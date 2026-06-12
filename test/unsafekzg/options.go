@@ -3,11 +3,12 @@ package unsafekzg
 import (
 	"crypto/sha256"
 	"errors"
+	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
 
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // Option allows changing the behaviour of the unsafe KZG SRS generation.
@@ -99,7 +100,7 @@ func initCache(cacheDir string) {
 	log := logger.Logger()
 
 	// populate cache from disk
-	log.Warn().Str("cacheDir", cacheDir).Msg("using kzg srs cache")
+	log.Warn("using kzg srs cache", slog.String("cacheDir", cacheDir))
 
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
 		err := os.MkdirAll(cacheDir, 0700)

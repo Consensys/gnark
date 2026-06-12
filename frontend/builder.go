@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"log/slog"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint"
@@ -68,6 +69,9 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Logger returns the compiler logger.
+	Logger() *slog.Logger
 
 	// Defer is called after circuit.Define() and before Compile(). This method
 	// allows for the circuits to register callbacks which finalize batching

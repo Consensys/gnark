@@ -5,6 +5,7 @@ package test
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -12,13 +13,14 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -46,6 +48,7 @@ type engine struct {
 	internalVariables         []*big.Int
 	noSmallFieldCompatibility bool
 	hintMapping               map[solver.HintID]solver.Hint
+	logger                    *slog.Logger
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -90,6 +93,18 @@ func WithReplacementHint(id solver.HintID, f solver.Hint) TestEngineOption {
 	}
 }
 
+// WithEngineLogger sets the logger used by the test engine. If this option is
+// not provided, then the default logger is used. Passing nil disables logging.
+func WithEngineLogger(log *slog.Logger) TestEngineOption {
+	return func(e *engine) error {
+		if log == nil {
+			log = logger.DisabledLogger()
+		}
+		e.logger = log
+		return nil
+	}
+}
+
 // IsSolved returns an error if the test execution engine failed to execute the given circuit
 // with provided witness as input.
 //
@@ -102,14 +117,13 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		q:         new(big.Int).Set(field),
 		constVars: false,
 		Store:     kvstore.New(),
+		logger:    logger.Logger(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
 		}
 	}
-
-	// TODO handle opt.LoggerOut ?
 
 	// we clone the circuit, in case the circuit has some attributes it uses in its Define function
 	// set by the user.
@@ -127,30 +141,34 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		}
 	}()
 
-	log := logger.Logger()
-	log.Debug().Msg("running circuit in test engine")
+	logger.Trace(e.logger, "running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
 
 	var apiEngine frontend.API
 	if smallfields.IsSmallField(e.modulus()) && !e.noSmallFieldCompatibility {
+		logger.Trace(e.logger, "using small field compatibility mode for test engine")
 		apiEngine = &smallfieldEngine{engine: e}
 	} else {
 		apiEngine = e
 	}
 
+	start := time.Now()
 	if err = c.Define(apiEngine); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
 	if err = callDeferred(apiEngine); err != nil {
 		return fmt.Errorf("deferred: %w", err)
 	}
+	e.logger.Debug("circuit executed in test engine", slog.Duration("took", time.Since(start)))
 
-	log.Debug().Uint64("add", cptAdd).
-		Uint64("sub", cptSub).
-		Uint64("mul", cptMul).
-		Uint64("equals", cptAssertIsEqual).
-		Uint64("toBinary", cptToBinary).
-		Uint64("fromBinary", cptFromBinary).Msg("counters")
+	logger.Trace(e.logger, "counters",
+		slog.Uint64("add", cptAdd),
+		slog.Uint64("sub", cptSub),
+		slog.Uint64("mul", cptMul),
+		slog.Uint64("equals", cptAssertIsEqual),
+		slog.Uint64("toBinary", cptToBinary),
+		slog.Uint64("fromBinary", cptFromBinary),
+	)
 
 	return
 }
@@ -692,6 +710,10 @@ func (e *engine) Field() *big.Int {
 
 func (e *engine) Compiler() frontend.Compiler {
 	return e
+}
+
+func (e *engine) Logger() *slog.Logger {
+	return e.logger
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {

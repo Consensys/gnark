@@ -8,8 +8,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
+	"log/slog"
 
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // ID represent a unique ID for a proving scheme
@@ -62,6 +64,7 @@ type ProverConfig struct {
 	ChallengeHash  hash.Hash
 	KZGFoldingHash hash.Hash
 	StatisticalZK  bool
+	Logger         *slog.Logger
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -72,6 +75,7 @@ func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 		// separation tags for PLONK and Groth16
 		ChallengeHash:  sha256.New(),
 		KZGFoldingHash: sha256.New(),
+		Logger:         logger.Logger(),
 	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
@@ -79,6 +83,19 @@ func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 		}
 	}
 	return opt, nil
+}
+
+// WithProverLogger sets the logger used by the prover and its internal solver.
+// If this option is not provided, the default logger is used. Passing nil
+// disables logging.
+func WithProverLogger(log *slog.Logger) ProverOption {
+	return func(opt *ProverConfig) error {
+		if log == nil {
+			log = logger.DisabledLogger()
+		}
+		opt.Logger = log
+		return nil
+	}
 }
 
 // WithSolverOptions specifies the constraint system solver options.
@@ -157,6 +174,8 @@ type VerifierConfig struct {
 	HashToFieldFn  hash.Hash
 	ChallengeHash  hash.Hash
 	KZGFoldingHash hash.Hash
+
+	Logger *slog.Logger
 }
 
 // NewVerifierConfig returns a default [VerifierConfig] with given verifier
@@ -167,6 +186,7 @@ func NewVerifierConfig(opts ...VerifierOption) (VerifierConfig, error) {
 		// separation tags for PLONK and Groth16
 		ChallengeHash:  sha256.New(),
 		KZGFoldingHash: sha256.New(),
+		Logger:         logger.Logger(),
 	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
@@ -205,6 +225,18 @@ func WithVerifierChallengeHashFunction(hFunc hash.Hash) VerifierOption {
 func WithVerifierKZGFoldingHashFunction(hFunc hash.Hash) VerifierOption {
 	return func(pc *VerifierConfig) error {
 		pc.KZGFoldingHash = hFunc
+		return nil
+	}
+}
+
+// WithVerifierLogger sets the logger used by the verifier. If this option is
+// not provided, the default logger is used. Passing nil disables logging.
+func WithVerifierLogger(log *slog.Logger) VerifierOption {
+	return func(vc *VerifierConfig) error {
+		if log == nil {
+			log = logger.DisabledLogger()
+		}
+		vc.Logger = log
 		return nil
 	}
 }
