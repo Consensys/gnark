@@ -393,7 +393,6 @@ func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, f
 		// however, return it as non-internal so that when it is used as input to another operation,
 		// it will be properly range checked.
 		outputs[idx] = &Element[T]{Limbs: limbs, overflow: 0, internal: false}
-		// outputs[idx] = fp.newInternalElement(limbs, 0)
 	}
 	return nil
 }
