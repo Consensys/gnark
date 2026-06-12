@@ -1378,7 +1378,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		_s = c.scalarApi.Select(isScalarZero, c.scalarApi.One(), s)
 	}
 
-	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
+	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and |s1|,|s2| < γ₂·√r ≈ 1.15·√r.
 	// we also output the sign in case s2 is negative. In that case we compute _s2 = -s2 mod r.
 	sign, sd, err := c.scalarApi.NewHintGeneric(rationalReconstruct, 1, 2, nil, []*emulated.Element[S]{_s},
 		// we know that the hint will return s1, s2 < sqrt(r) so we can set the hint output range check bits to nbits = ceil(log2(sqrt(r))) = ceil(log2(r)/2)
