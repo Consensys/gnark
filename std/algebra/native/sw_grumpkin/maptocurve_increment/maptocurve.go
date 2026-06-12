@@ -1,4 +1,4 @@
-package maptocurve_bls12377
+package maptocurve_increment
 
 import (
 	"github.com/consensys/gnark/frontend"
@@ -6,15 +6,21 @@ import (
 )
 
 const (
-	T = 256 // increment window size (8 bits)
-	B = 1   // curve coefficient b for BLS12-377: y² = x³ + 1
-	S = 46  // 2-adicity v₂(q-1) for BLS12-377 Fp
+	// T is the increment window size: K is searched in [0, T).
+	T = 256
+	// B is the curve coefficient: Grumpkin is y² = x³ − 17.
+	B = -17
 )
 
-// YIncrement maps msg to a point (x, y) on y² = x³ + 1 using y-increment:
+// YIncrement maps msg to a point (x, y) on the Grumpkin curve y² = x³ − 17
+// using the y-increment method:
 //
-//	Y = msg·256 + k, Y² = X³ + 1
+//	Y = msg·256 + K, Y² = X³ − 17
+//
+// Caller-side precondition: msg < q/256. The precondition is NOT enforced
+// in-circuit — see the package doc.
 func YIncrement(api frontend.API, msg frontend.Variable) (x, y frontend.Variable, err error) {
+	// hint outputs: [K, X]
 	res, err := api.Compiler().NewHint(yIncrementHint, 2, msg)
 	if err != nil {
 		return nil, nil, err
@@ -22,16 +28,17 @@ func YIncrement(api frontend.API, msg frontend.Variable) (x, y frontend.Variable
 	k := res[0]
 	x = res[1]
 
+	// reconstruct Y = msg·T + K
 	y = api.Add(api.Mul(msg, T), k)
 
-	// Y² = X³ + B
+	// (1) Y² = X³ + B
 	lhs := api.Mul(y, y)
 	rhs := api.Mul(x, x)
 	rhs = api.Mul(rhs, x)
 	rhs = api.Add(rhs, B)
 	api.AssertIsEqual(lhs, rhs)
 
-	// 0 ≤ K < 256
+	// (2) 0 ≤ K < T
 	rangecheck.New(api).Check(k, 8)
 
 	return x, y, nil
