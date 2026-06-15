@@ -3,7 +3,6 @@ package twistededwards
 import (
 	"errors"
 	"math/big"
-	"sync"
 
 	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -19,7 +18,6 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		rationalReconstruct,
 		scalarMulHint,
-		decomposeScalar,
 		doubleBaseScalarMulHint,
 		multiRationalReconstructHint,
 		multiRationalReconstructExtHint,
@@ -30,45 +28,8 @@ func init() {
 	solver.RegisterHint(GetHints()...)
 }
 
-type glvParams struct {
-	lambda, order big.Int
-	glvBasis      ecc.Lattice
-}
-
-func decomposeScalar(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
-	// the efficient endomorphism exists on Bandersnatch only
-	if scalarField.Cmp(ecc.BLS12_381.ScalarField()) != 0 {
-		return errors.New("no efficient endomorphism is available on this curve")
-	}
-	var glv glvParams
-	var init sync.Once
-	init.Do(func() {
-		glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
-		glv.order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
-		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
-	})
-
-	// sp[0] is always negative because, in SplitScalar(), we always round above
-	// the determinant/2 computed in PrecomputeLattice() which is negative for Bandersnatch.
-	// Thus taking -sp[0] here and negating the point in ScalarMul().
-	// If we keep -sp[0] it will be reduced mod r (the BLS12-381 prime order)
-	// and not the Bandersnatch prime order (Order) and the result will be incorrect.
-	// Also, if we reduce it mod Order here, we can't use api.ToBinary(sp[0], 129)
-	// and hence we can't reduce optimally the number of constraints.
-	sp := ecc.SplitScalar(inputs[0], &glv.glvBasis)
-	res[0].Neg(&(sp[0]))
-	res[1].Set(&(sp[1]))
-
-	// figure out how many times we have overflowed
-	res[2].Mul(res[1], &glv.lambda).Sub(res[2], res[0])
-	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], &glv.order)
-
-	return nil
-}
-
-// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, s2, signBit) such
-// that s1 + s2·s = 0 mod r, with |s1|, |s2| < γ₂·√r ≈ 1.15·√r
+// rationalReconstruct decomposes a scalar s ∈ Fr into (s1, s2, signBit, k) such
+// that s1 + s2·s = k·r in the integers, with |s1|, |s2| < γ₂·√r ≈ 1.15·√r
 // (proven LLL/Hermite bound). Replaces the older heuristic-bound HalfGCD.
 //
 // The bit-decomposition convention: s1 ≥ 0 always, s2 = ±|s2| with signBit = 1

@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/algebra/lattice"
-	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/hash_to_curve"
@@ -24,7 +23,6 @@ func GetHints() []solver.Hint {
 		finalExpHint,
 		pairingCheckHint,
 		millerLoopAndCheckFinalExpHint,
-		decomposeScalarG1,
 		scalarMulG2Hint,
 		rationalReconstructExtG2,
 		g1SqrtRatioHint,
@@ -285,49 +283,6 @@ func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutp
 
 			return nil
 		})
-}
-
-func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
-		moduli := hc.EmulatedModuli()
-		if len(moduli) != 1 {
-			return fmt.Errorf("expecting one moduli, got %d", len(moduli))
-		}
-		_, nativeOutputs := hc.NativeInputsOutputs()
-		if len(nativeOutputs) != 2 {
-			return fmt.Errorf("expecting two outputs, got %d", len(nativeOutputs))
-		}
-		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
-		if len(emuInputs) != 2 {
-			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
-		}
-		if len(emuOutputs) != 2 {
-			return fmt.Errorf("expecting two outputs, got %d", len(emuOutputs))
-		}
-
-		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(moduli[0], emuInputs[1], glvBasis)
-		sp := ecc.SplitScalar(emuInputs[0], glvBasis)
-		emuOutputs[0].Set(&sp[0])
-		emuOutputs[1].Set(&sp[1])
-		nativeOutputs[0].SetUint64(0)
-		nativeOutputs[1].SetUint64(0)
-		// we need the absolute values for the in-circuit computations,
-		// otherwise the negative values will be reduced modulo the SNARK scalar
-		// field and not the emulated field.
-		// 		output0 = |s0| mod r
-		// 		output1 = |s1| mod r
-		if emuOutputs[0].Sign() == -1 {
-			emuOutputs[0].Neg(emuOutputs[0])
-			nativeOutputs[0].SetUint64(1)
-		}
-		if emuOutputs[1].Sign() == -1 {
-			emuOutputs[1].Neg(emuOutputs[1])
-			nativeOutputs[1].SetUint64(1)
-		}
-
-		return nil
-	})
 }
 
 // g1SqrtRatio computes the square root of u/v and returns 0 iff u/v was indeed a quadratic residue
