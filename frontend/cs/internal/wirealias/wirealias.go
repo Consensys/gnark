@@ -50,23 +50,52 @@ func (s *Set) CanAlias(x, y int) bool {
 	s.ensure(x)
 	s.ensure(y)
 	rx, ry := s.find(x), s.find(y)
-	return s.internal[x] && s.internal[y] &&
-		s.internal[rx] && s.internal[ry] &&
-		!s.noAlias[x] && !s.noAlias[y] &&
-		!s.noAlias[rx] && !s.noAlias[ry]
+	return s.canEliminateRoot(rx) && s.canEliminateRoot(ry)
 }
 
 // Union records x == y and prefers the lower wire ID as deterministic
-// representative. The method returns false when the equality is unsafe to
-// optimize and must remain an explicit constraint.
+// representative for internal-only aliases. It may also eliminate an internal
+// wire into a no-alias non-internal representative, such as a public or secret
+// input wire. The method returns false when the equality is unsafe to optimize
+// and must remain an explicit constraint.
 func (s *Set) Union(x, y int) bool {
-	if !s.CanAlias(x, y) {
-		return false
-	}
+	s.ensure(x)
+	s.ensure(y)
 	rx, ry := s.find(x), s.find(y)
 	if rx == ry {
 		return true
 	}
+
+	if s.canEliminateRoot(rx) && s.canEliminateRoot(ry) {
+		s.unionInternal(rx, ry)
+		return true
+	}
+
+	if s.canEliminateRoot(rx) && s.canRepresentAliasRoot(ry) {
+		s.parent[rx] = ry
+		s.aliased = true
+		return true
+	}
+	if s.canEliminateRoot(ry) && s.canRepresentAliasRoot(rx) {
+		s.parent[ry] = rx
+		s.aliased = true
+		return true
+	}
+
+	return false
+}
+
+func (s *Set) canEliminateRoot(root int) bool {
+	return s.internal[root] && !s.noAlias[root]
+}
+
+func (s *Set) canRepresentAliasRoot(root int) bool {
+	// Public and secret inputs are marked no-alias without being internal.
+	// Escaped builder-owned wires must be marked internal before MarkNoAlias.
+	return !s.internal[root] && s.noAlias[root]
+}
+
+func (s *Set) unionInternal(rx, ry int) {
 	if ry < rx {
 		rx, ry = ry, rx
 	}
@@ -74,7 +103,6 @@ func (s *Set) Union(x, y int) bool {
 	s.internal[rx] = s.internal[rx] && s.internal[ry]
 	s.noAlias[rx] = s.noAlias[rx] || s.noAlias[ry]
 	s.aliased = true
-	return true
 }
 
 // Rep returns the current representative for vid.
