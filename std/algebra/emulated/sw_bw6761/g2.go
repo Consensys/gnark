@@ -408,6 +408,9 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	if err != nil {
 		panic(err)
 	}
+	var st ScalarField
+	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25
+	nbits := (st.Modulus().BitLen()+3)/4 + 2
 
 	// handle 0-scalar and (-1)-scalar cases
 	var isScalarZero, isScalarZeroOrMinusOne, isScalarOne, isScalarMinusOne frontend.Variable
@@ -423,7 +426,8 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 
 	// Decompose s into (u1, u2, v1, v2) via LLL: s·(v1 + λ·v2) + u1 + λ·u2 ≡ 0
 	// (mod r), with each sub-scalar bounded by ~r^(1/4).
-	signs, sd, err := g2.fr.NewHintGeneric(rationalReconstructExtG2, 4, 4, nil, []*emulated.Element[ScalarField]{_s, g2.eigenvalue})
+	signs, sd, err := g2.fr.NewHintGeneric(rationalReconstructExtG2, 4, 4, nil, []*emulated.Element[ScalarField]{_s, g2.eigenvalue},
+		emulated.WithHintOutputRangeCheckBits(map[int]int{4: nbits, 5: nbits, 6: nbits, 7: nbits}))
 	if err != nil {
 		panic(fmt.Sprintf("rationalReconstructExtG2 hint: %v", err))
 	}
@@ -431,7 +435,6 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	isNegu1, isNegu2, isNegv1, isNegv2 := signs[0], signs[1], signs[2], signs[3]
 
 	// Verify s·(v1 + λ·v2) + u1 + λ·u2 ≡ 0 (mod r).
-	var st ScalarField
 	sv1 := g2.fr.Mul(_s, v1)
 	sλv2 := g2.fr.Mul(_s, g2.fr.Mul(g2.eigenvalue, v2))
 	λu2 := g2.fr.Mul(g2.eigenvalue, u2)
@@ -559,8 +562,6 @@ func (g2 *G2) scalarMulGLVAndFakeGLV(Q *G2Affine, s *Scalar, opts ...algopts.Alg
 	g2GenPoint := &G2Affine{P: *g2.g2Gen}
 	Acc = addFn(Acc, g2GenPoint)
 
-	// u1, u2, v1, v2 < c*r^{1/4} where c ≈ 1.25
-	nbits := (st.Modulus().BitLen()+3)/4 + 2
 	u1bits := g2.fr.ToBits(u1)
 	u2bits := g2.fr.ToBits(u2)
 	v1bits := g2.fr.ToBits(v1)

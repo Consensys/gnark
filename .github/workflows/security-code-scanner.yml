@@ -17,7 +17,7 @@ on:
 
 jobs:
   security-scan:
-    uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@1cd598629833fa9fc1694f03abfce8d21b72eb5d # v2.0.6
+    uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@ff5edd492dfd4a70813066fe9f1552a2ac13766f # v2.1.0
     permissions:
       actions: read
       contents: read
