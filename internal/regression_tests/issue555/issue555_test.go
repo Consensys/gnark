@@ -161,6 +161,74 @@ func TestWitnessEqualityRemainsConstrained(t *testing.T) {
 	}
 }
 
+type internalToSecretInputEqualityCircuit struct {
+	A, B, C frontend.Variable
+}
+
+func (c *internalToSecretInputEqualityCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(api.Mul(c.A, c.B), c.C)
+	return nil
+}
+
+type internalToPublicInputEqualityCircuit struct {
+	A, B frontend.Variable
+	C    frontend.Variable `gnark:",public"`
+}
+
+func (c *internalToPublicInputEqualityCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(api.Mul(c.A, c.B), c.C)
+	return nil
+}
+
+func TestInternalToInputEqualityIsCanonicalized(t *testing.T) {
+	inputCases := []struct {
+		name    string
+		circuit frontend.Circuit
+		valid   frontend.Circuit
+		invalid frontend.Circuit
+	}{
+		{
+			name:    "secret",
+			circuit: &internalToSecretInputEqualityCircuit{},
+			valid:   &internalToSecretInputEqualityCircuit{A: 2, B: 3, C: 6},
+			invalid: &internalToSecretInputEqualityCircuit{A: 2, B: 3, C: 7},
+		},
+		{
+			name:    "public",
+			circuit: &internalToPublicInputEqualityCircuit{},
+			valid:   &internalToPublicInputEqualityCircuit{A: 2, B: 3, C: 6},
+			invalid: &internalToPublicInputEqualityCircuit{A: 2, B: 3, C: 7},
+		},
+	}
+
+	for _, tc := range builderCases {
+		for _, input := range inputCases {
+			t.Run(tc.name+"/"+input.name, func(t *testing.T) {
+				ccs := compile(t, tc.builder, input.circuit)
+				if got := ccs.GetNbConstraints(); got != 1 {
+					t.Fatalf("expected internal-to-input equality to add no constraint, got %d", got)
+				}
+
+				validWitness, err := frontend.NewWitness(input.valid, ecc.BN254.ScalarField())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := ccs.IsSolved(validWitness); err != nil {
+					t.Fatalf("valid witness should solve internal-to-input equality: %v", err)
+				}
+
+				invalidWitness, err := frontend.NewWitness(input.invalid, ecc.BN254.ScalarField())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := ccs.IsSolved(invalidWitness); err == nil {
+					t.Fatal("invalid witness should fail because the input remains bound to the producer constraint")
+				}
+			})
+		}
+	}
+}
+
 type chainEqualityCircuit struct {
 	A, B, C, D, E, F frontend.Variable
 }
