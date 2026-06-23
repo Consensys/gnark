@@ -4,12 +4,11 @@ on:
       - "master"
 name: push_master
 
+permissions: {} # lock everything by default (least-privilege)
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-permissions:
-  contents: read
 
 env:
   ABIGEN_VERSION: v1.14.8
@@ -19,6 +18,8 @@ env:
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -66,6 +67,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs:
       - staticcheck
+    permissions:
+      contents: read
     steps:
       - name: checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -103,6 +106,7 @@ jobs:
   notify:
     needs: test
     if: always()
+    permissions: {}
     uses: ./.github/workflows/slack-notifications.yml
     with:
       status: ${{ needs.test.result == 'success' && 'success' || 'failure' }}
