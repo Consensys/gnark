@@ -1,0 +1,92 @@
+// Copyright 2020-2025 Consensys Software Inc.
+// Licensed under the Apache License, Version 2.0. See the LICENSE file for details.
+
+package wirealias
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestSetAliasesOnlyInternalWires(t *testing.T) {
+	var aliases Set
+	aliases.MarkInternal(8)
+
+	if aliases.Union(7, 8) {
+		t.Fatal("non-internal wires must not be aliased")
+	}
+	if aliases.HasAliases() {
+		t.Fatal("rejected union must not mark set as aliased")
+	}
+
+	aliases.MarkInternal(7)
+	if !aliases.Union(7, 8) {
+		t.Fatal("internal wires should be aliased")
+	}
+	if got := aliases.Rep(8); got != 7 {
+		t.Fatalf("expected lower wire representative 7, got %d", got)
+	}
+	if got, want := aliases.Mappings(), [][2]int{{8, 7}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mappings: got %v want %v", got, want)
+	}
+}
+
+func TestSetLateNoAliasBlocksFutureUnion(t *testing.T) {
+	var aliases Set
+	for _, wire := range []int{2, 3, 4} {
+		aliases.MarkInternal(wire)
+	}
+
+	if !aliases.Union(3, 4) {
+		t.Fatal("initial internal alias should be accepted")
+	}
+	aliases.MarkNoAlias(4)
+
+	if aliases.Union(2, 3) {
+		t.Fatal("no-alias class must reject later unions")
+	}
+	if got := aliases.Rep(4); got != 3 {
+		t.Fatalf("existing alias should remain canonicalized, got representative %d", got)
+	}
+	if got, want := aliases.Mappings(), [][2]int{{4, 3}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mappings: got %v want %v", got, want)
+	}
+}
+
+func TestSetAliasesInternalWireToNoAliasRepresentative(t *testing.T) {
+	var aliases Set
+	aliases.MarkNoAlias(1)
+	aliases.MarkInternal(4)
+	aliases.MarkInternal(5)
+
+	if !aliases.Union(4, 1) {
+		t.Fatal("internal wire should alias to a no-alias non-internal representative")
+	}
+	if got := aliases.Rep(4); got != 1 {
+		t.Fatalf("expected input representative 1, got %d", got)
+	}
+	if !aliases.Union(5, 4) {
+		t.Fatal("later internal wire should alias to the canonical input representative")
+	}
+	if got, want := aliases.Mappings(), [][2]int{{4, 1}, {5, 1}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mappings: got %v want %v", got, want)
+	}
+}
+
+func TestSetRejectsUnsafeInternalToNonInternalAliases(t *testing.T) {
+	var aliases Set
+	aliases.MarkInternal(3)
+
+	if aliases.Union(3, 9) {
+		t.Fatal("internal wire must not alias to an unmarked raw wire")
+	}
+
+	aliases.MarkInternal(4)
+	aliases.MarkNoAlias(4)
+	if aliases.Union(3, 4) {
+		t.Fatal("no-alias internal wire must not represent another internal wire")
+	}
+	if aliases.HasAliases() {
+		t.Fatal("rejected unions must not mark set as aliased")
+	}
+}

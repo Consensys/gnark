@@ -15,6 +15,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/internal/wirealias"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
@@ -66,6 +67,8 @@ type builder[E constraint.Element] struct {
 	// used to avoid repeated allocations
 	bufL expr.LinearExpression[E]
 	bufH []constraint.LinearExpression
+
+	aliases wirealias.Set
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -153,6 +156,10 @@ type sparseR1C[E constraint.Element] struct {
 
 // a * b == c
 func (builder *builder[E]) addMulGate(a, b, c expr.Term[E]) {
+	a = builder.canonicalTerm(a)
+	b = builder.canonicalTerm(b)
+	c = builder.canonicalTerm(c)
+
 	qM := builder.cs.Mul(a.Coeff, b.Coeff)
 	QM := builder.cs.AddCoeff(qM)
 
@@ -167,6 +174,12 @@ func (builder *builder[E]) addMulGate(a, b, c expr.Term[E]) {
 
 // a + b + k == c
 func (builder *builder[E]) addAddGate(a, b expr.Term[E], xc uint32, k E) {
+	a = builder.canonicalTerm(a)
+	b = builder.canonicalTerm(b)
+	if builder.aliases.HasAliases() {
+		xc = uint32(builder.aliases.Rep(int(xc)))
+	}
+
 	qL := builder.cs.AddCoeff(a.Coeff)
 	qR := builder.cs.AddCoeff(b.Coeff)
 	qC := builder.cs.AddCoeff(k)
@@ -183,6 +196,10 @@ func (builder *builder[E]) addAddGate(a, b expr.Term[E], xc uint32, k E) {
 }
 
 func (builder *builder[E]) addBoolGate(c sparseR1C[E], debugInfo ...constraint.DebugInfo) {
+	if builder.aliases.HasAliases() && (!c.qL.IsZero() || !c.qM.IsZero()) {
+		c.xa = builder.aliases.Rep(c.xa)
+	}
+
 	QL := builder.cs.AddCoeff(c.qL)
 	QM := builder.cs.AddCoeff(c.qM)
 
@@ -198,6 +215,18 @@ func (builder *builder[E]) addBoolGate(c sparseR1C[E], debugInfo ...constraint.D
 
 // addPlonkConstraint adds a sparseR1C to the underlying constraint system
 func (builder *builder[E]) addPlonkConstraint(c sparseR1C[E], debugInfo ...constraint.DebugInfo) {
+	if builder.aliases.HasAliases() {
+		if !c.qL.IsZero() || !c.qM.IsZero() {
+			c.xa = builder.aliases.Rep(c.xa)
+		}
+		if !c.qR.IsZero() || !c.qM.IsZero() {
+			c.xb = builder.aliases.Rep(c.xb)
+		}
+		if !c.qO.IsZero() {
+			c.xc = builder.aliases.Rep(c.xc)
+		}
+	}
+
 	QL := builder.cs.AddCoeff(c.qL)
 	QR := builder.cs.AddCoeff(c.qR)
 	QO := builder.cs.AddCoeff(c.qO)
@@ -222,18 +251,21 @@ func (builder *builder[E]) addPlonkConstraint(c sparseR1C[E], debugInfo ...const
 // the wire's id to the number of wires, and returns it
 func (builder *builder[E]) newInternalVariable() expr.Term[E] {
 	idx := builder.cs.AddInternalVariable()
+	builder.aliases.MarkInternal(idx)
 	return expr.NewTerm(idx, builder.tOne)
 }
 
 // PublicVariable creates a new Public Variable
 func (builder *builder[E]) PublicVariable(f schema.LeafInfo) frontend.Variable {
 	idx := builder.cs.AddPublicVariable(f.FullName())
+	builder.aliases.MarkNoAlias(idx)
 	return expr.NewTerm(idx, builder.tOne)
 }
 
 // SecretVariable creates a new Secret Variable
 func (builder *builder[E]) SecretVariable(f schema.LeafInfo) frontend.Variable {
 	idx := builder.cs.AddSecretVariable(f.FullName())
+	builder.aliases.MarkNoAlias(idx)
 	return expr.NewTerm(idx, builder.tOne)
 }
 
@@ -292,6 +324,8 @@ func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], err
 	log.Info().
 		Int("nbConstraints", builder.cs.GetNbConstraints()).
 		Msg("building constraint builder")
+
+	builder.applyWireAliases()
 
 	// ensure all inputs and hints are constrained
 	err := builder.cs.CheckUnconstrainedWires()
@@ -359,6 +393,10 @@ func (builder *builder[E]) newHint(f solver.Hint, id solver.HintID, nbOutputs in
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case expr.Term[E]:
+			t = builder.canonicalTerm(t)
+			if !t.Coeff.IsZero() {
+				builder.aliases.MarkNoAlias(t.VID)
+			}
 			hintInputs[i][0] = builder.cs.MakeTerm(t.Coeff, t.VID)
 		default:
 			c := builder.cs.FromInterface(in)
@@ -376,6 +414,8 @@ func (builder *builder[E]) newHint(f solver.Hint, id solver.HintID, nbOutputs in
 	// make the variables
 	res := make([]frontend.Variable, len(internalVariables))
 	for i, idx := range internalVariables {
+		builder.aliases.MarkInternal(idx)
+		builder.aliases.MarkNoAlias(idx)
 		res[i] = expr.NewTerm(idx, builder.tOne)
 	}
 	return res, nil
@@ -673,7 +713,9 @@ func (builder *builder[E]) Defer(cb func(frontend.API) error) {
 
 // AddInstruction is used to add custom instructions to the constraint system.
 func (builder *builder[E]) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
-	return builder.cs.AddInstruction(bID, calldata)
+	wires := builder.cs.AddInstruction(bID, calldata)
+	builder.markInstructionOutputsNoAlias(wires)
+	return wires
 }
 
 // AddBlueprint adds a custom blueprint to the constraint system.
@@ -682,7 +724,11 @@ func (builder *builder[E]) AddBlueprint(b constraint.Blueprint) constraint.Bluep
 }
 
 func (builder *builder[E]) InternalVariable(wireID uint32) frontend.Variable {
-	return expr.NewTerm(int(wireID), builder.tOne)
+	builder.aliases.MarkNoAlias(int(wireID))
+	if !builder.aliases.HasAliases() {
+		return expr.NewTerm(int(wireID), builder.tOne)
+	}
+	return expr.NewTerm(builder.aliases.Rep(int(wireID)), builder.tOne)
 }
 
 // ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
@@ -690,6 +736,10 @@ func (builder *builder[E]) InternalVariable(wireID uint32) frontend.Variable {
 func (builder *builder[E]) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
 	switch t := v.(type) {
 	case expr.Term[E]:
+		t = builder.canonicalTerm(t)
+		if !t.Coeff.IsZero() {
+			builder.aliases.MarkNoAlias(t.VID)
+		}
 		return builder.cs.MakeTerm(t.Coeff, t.VID)
 	default:
 		c := builder.cs.FromInterface(v)
@@ -697,6 +747,45 @@ func (builder *builder[E]) ToCanonicalVariable(v frontend.Variable) frontend.Can
 		term.MarkConstant()
 		return term
 	}
+}
+
+type wireAliasApplier interface {
+	ApplyWireAliases(func(uint32) uint32, constraint.BlueprintID, constraint.BlueprintID, [][2]uint32)
+}
+
+func (builder *builder[E]) canonicalTerm(t expr.Term[E]) expr.Term[E] {
+	if builder.aliases.HasAliases() && !t.Coeff.IsZero() {
+		t.VID = builder.aliases.Rep(t.VID)
+	}
+	return t
+}
+
+func (builder *builder[E]) markInstructionOutputsNoAlias(wires []uint32) {
+	for _, wire := range wires {
+		vid := int(wire)
+		builder.aliases.MarkInternal(vid)
+		builder.aliases.MarkNoAlias(vid)
+	}
+}
+
+func (builder *builder[E]) applyWireAliases() {
+	if !builder.aliases.HasAliases() {
+		return
+	}
+	aliases := builder.aliasMappings()
+	aliasGate := builder.cs.AddBlueprint(&constraint.BlueprintWireAliases[E]{})
+	builder.cs.(wireAliasApplier).ApplyWireAliases(func(vid uint32) uint32 {
+		return uint32(builder.aliases.Rep(int(vid)))
+	}, builder.genericGate, aliasGate, aliases)
+}
+
+func (builder *builder[E]) aliasMappings() [][2]uint32 {
+	mappings := builder.aliases.Mappings()
+	res := make([][2]uint32, len(mappings))
+	for i, mapping := range mappings {
+		res[i] = [2]uint32{uint32(mapping[0]), uint32(mapping[1])}
+	}
+	return res
 }
 
 // GetWireConstraints returns the pairs (constraintID, wireLocation) for the
@@ -721,6 +810,10 @@ func (builder *builder[E]) GetWireConstraints(wires []frontend.Variable, addMiss
 		ww, ok := w.(expr.Term[E])
 		if !ok {
 			panic("input wire is not a Term")
+		}
+		ww = builder.canonicalTerm(ww)
+		if !ww.Coeff.IsZero() {
+			builder.aliases.MarkNoAlias(ww.VID)
 		}
 		lookup[ww.WireID()] = struct{}{}
 		wireTerms[i] = ww
@@ -847,6 +940,10 @@ func (builder *builder[E]) GetWiresConstraintExact(wires []frontend.Variable, ad
 			var zero E
 			builder.addAddGate(ww, expr.Term[E]{}, uint32(o.VID), zero)
 			ww = o
+		}
+		ww = builder.canonicalTerm(ww)
+		if !ww.Coeff.IsZero() {
+			builder.aliases.MarkNoAlias(ww.VID)
 		}
 
 		wireIDsSet[ww.VID] = struct{}{}
