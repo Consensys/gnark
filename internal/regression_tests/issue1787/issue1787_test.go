@@ -1,4 +1,4 @@
-package issue0000
+package issue1787
 
 import (
 	"bytes"
