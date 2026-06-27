@@ -749,8 +749,10 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
 				continue
 			}
-			// the wires stay device-resident for the on-device openings; don't download them
-			if residentWires && (i == id_L || i == id_R || i == id_O) {
+			// the wires + S1/S2/S3 stay device-resident for the on-device openings; don't download.
+			// (S3 feeds the linearized poly from getPoly(id_S3); S1/S2 the openings; l/r/o(ζ) and
+			// the s1/s2(ζ) evals read resident/Lagrange — none need the host canonical copy.)
+			if residentWires && (i == id_L || i == id_R || i == id_O || i == id_S1 || i == id_S2 || i == id_S3) {
 				continue
 			}
 			cp := s.x[i].Coefficients()
@@ -1030,9 +1032,9 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 		if err := gpu.VecMulDevice(dp, dp, dScale, n); err != nil {
 			return err
 		}
-		// keep the canonical wires device-resident for the on-device openings — skip the
-		// host download (the un-coset above already left them canonical in dp).
-		if residentWires && (i == id_L || i == id_R || i == id_O) {
+		// keep the canonical wires + S1/S2/S3 device-resident for the on-device openings —
+		// skip the host download (the un-coset above already left them canonical in dp).
+		if residentWires && (i == id_L || i == id_R || i == id_O || i == id_S1 || i == id_S2 || i == id_S3) {
 			continue
 		}
 		cp := s.x[i].Coefficients()
@@ -1132,7 +1134,22 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 		return d
 	}
 	dBZ := mk(blindedZ)
-	dS3 := mk(s.trace.S3.Coefficients())
+	// S3: with resident openings the restore leaves the canonical S3 in the resident
+	// buffer (getPoly(id_S3)), so use it directly instead of re-uploading s.trace.S3 —
+	// which lets us skip the S3 host download entirely. Wait for the restore first.
+	var dS3 unsafe.Pointer
+	if s.residentOpenings() {
+		select {
+		case <-s.ctx.Done():
+			return nil, false
+		case <-s.chRestoreLRO:
+		}
+		if dS3 = s.gpuCtx.getPoly(id_S3); dS3 == nil {
+			return nil, false
+		}
+	} else {
+		dS3 = mk(s.trace.S3.Coefficients())
+	}
 	dQl := mk(s.trace.Ql.Coefficients())
 	dQr := mk(s.trace.Qr.Coefficients())
 	dQm := mk(s.trace.Qm.Coefficients())
