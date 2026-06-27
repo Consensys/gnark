@@ -330,6 +330,17 @@ func (ctx *proverGPUContext) ensurePolySlot(size int) {
 	}
 }
 
+// isResidentOpeningPoly reports whether poly id is consumed by the openings/linearized poly
+// directly from its device-resident canonical buffer (getPoly) — so its host download is
+// skipped under resident openings. (Qk uses the cached canonical; Qcp still downloads.)
+func isResidentOpeningPoly(id int) bool {
+	switch id {
+	case id_L, id_R, id_O, id_S1, id_S2, id_S3, id_Ql, id_Qr, id_Qm, id_Qo:
+		return true
+	}
+	return false
+}
+
 func (ctx *proverGPUContext) getPoly(id int) unsafe.Pointer {
 	if id < 0 || id >= len(ctx.polyPtrs) {
 		return nil
@@ -749,10 +760,10 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
 				continue
 			}
-			// the wires + S1/S2/S3 stay device-resident for the on-device openings; don't download.
-			// (S3 feeds the linearized poly from getPoly(id_S3); S1/S2 the openings; l/r/o(ζ) and
-			// the s1/s2(ζ) evals read resident/Lagrange — none need the host canonical copy.)
-			if residentWires && (i == id_L || i == id_R || i == id_O || i == id_S1 || i == id_S2 || i == id_S3) {
+			// the wires + S1/S2/S3 + Ql/Qr/Qm/Qo stay device-resident for the on-device openings;
+			// don't download. (S3/Ql..Qo feed the linearized poly from getPoly; S1/S2 the openings;
+			// l/r/o(ζ) and s1/s2(ζ) evals read resident/Lagrange — none need the host canonical copy.)
+			if residentWires && isResidentOpeningPoly(i) {
 				continue
 			}
 			cp := s.x[i].Coefficients()
@@ -1032,9 +1043,9 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 		if err := gpu.VecMulDevice(dp, dp, dScale, n); err != nil {
 			return err
 		}
-		// keep the canonical wires + S1/S2/S3 device-resident for the on-device openings —
-		// skip the host download (the un-coset above already left them canonical in dp).
-		if residentWires && (i == id_L || i == id_R || i == id_O || i == id_S1 || i == id_S2 || i == id_S3) {
+		// keep the canonical wires + S1/S2/S3 + Ql/Qr/Qm/Qo device-resident for the on-device
+		// openings — skip the host download (the un-coset above already left them canonical in dp).
+		if residentWires && isResidentOpeningPoly(i) {
 			continue
 		}
 		cp := s.x[i].Coefficients()
@@ -1137,23 +1148,28 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	// S3: with resident openings the restore leaves the canonical S3 in the resident
 	// buffer (getPoly(id_S3)), so use it directly instead of re-uploading s.trace.S3 —
 	// which lets us skip the S3 host download entirely. Wait for the restore first.
-	var dS3 unsafe.Pointer
+	var dS3, dQl, dQr, dQm, dQo unsafe.Pointer
 	if s.residentOpenings() {
 		select {
 		case <-s.ctx.Done():
 			return nil, false
 		case <-s.chRestoreLRO:
 		}
-		if dS3 = s.gpuCtx.getPoly(id_S3); dS3 == nil {
+		dS3 = s.gpuCtx.getPoly(id_S3)
+		dQl = s.gpuCtx.getPoly(id_Ql)
+		dQr = s.gpuCtx.getPoly(id_Qr)
+		dQm = s.gpuCtx.getPoly(id_Qm)
+		dQo = s.gpuCtx.getPoly(id_Qo)
+		if dS3 == nil || dQl == nil || dQr == nil || dQm == nil || dQo == nil {
 			return nil, false
 		}
 	} else {
 		dS3 = mk(s.trace.S3.Coefficients())
+		dQl = mk(s.trace.Ql.Coefficients())
+		dQr = mk(s.trace.Qr.Coefficients())
+		dQm = mk(s.trace.Qm.Coefficients())
+		dQo = mk(s.trace.Qo.Coefficients())
 	}
-	dQl := mk(s.trace.Ql.Coefficients())
-	dQr := mk(s.trace.Qr.Coefficients())
-	dQm := mk(s.trace.Qm.Coefficients())
-	dQo := mk(s.trace.Qo.Coefficients())
 	dQk := mk(qkCanon)
 	// hFolded[i] = h1[i] + zNP2*h2[i] + zNP2^2*h3[i], where the shards h1/h2/h3 are
 	// the three contiguous thirds of the device-resident quotient (dNumerator) — see
