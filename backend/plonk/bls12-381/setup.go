@@ -90,6 +90,13 @@ type ProvingKey struct {
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
+
+	// trace is the circuit-fixed Lagrange-basis trace (selectors + permutation),
+	// captured at Setup so the prover clones it per-proof instead of rebuilding it
+	// with NewTrace on every Prove (~2.3s for a 7M-constraint circuit). Transient:
+	// not serialized — a proving key read from disk has trace == nil and the prover
+	// falls back to NewTrace.
+	trace *Trace
 }
 
 func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -132,10 +139,13 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	// Note: at this stage, the permutation takes in account the placeholders
 	trace := NewTrace(spr, domain)
 
+	// keep the circuit-fixed Lagrange-basis trace on the proving key so the prover can
+	// clone it per-proof instead of rebuilding it with NewTrace on every Prove. commitTrace
+	// below only reads coefficients (kzg.Commit), so pk.trace stays in Lagrange form — which
+	// is what the prover needs (it does its own per-proof Lagrange->canonical conversions).
+	pk.trace = trace
+
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
-	// All the above polynomials are expressed in canonical basis afterwards. This is why
-	// we save lqk before, because the prover needs to complete it in Lagrange form, and
-	// then express it on the Lagrange coset basis.
 	if err := vk.commitTrace(trace, domain, pk.KzgLagrange); err != nil {
 		return nil, nil, err
 	}
@@ -228,6 +238,34 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 	trace.S3 = s[2]
 
 	return &trace
+}
+
+// clone returns a deep copy of the trace. Every polynomial is copied so the prover's
+// in-place Lagrange->canonical conversions (computeNumerator / completeQk / the
+// linearized poly's Qk.ToCanonical) operate on per-proof memory and never mutate the
+// cached pk.trace. The raw permutation S is copied too (it is only read by the prover,
+// but copying keeps the cache fully isolated).
+func (t *Trace) clone() *Trace {
+	cp := func(p *iop.Polynomial) *iop.Polynomial {
+		if p == nil {
+			return nil
+		}
+		return p.Clone()
+	}
+	c := &Trace{
+		Ql: cp(t.Ql), Qr: cp(t.Qr), Qm: cp(t.Qm), Qo: cp(t.Qo), Qk: cp(t.Qk),
+		S1: cp(t.S1), S2: cp(t.S2), S3: cp(t.S3),
+	}
+	if t.S != nil {
+		c.S = append([]int64(nil), t.S...)
+	}
+	if t.Qcp != nil {
+		c.Qcp = make([]*iop.Polynomial, len(t.Qcp))
+		for i := range t.Qcp {
+			c.Qcp[i] = cp(t.Qcp[i])
+		}
+	}
+	return c
 }
 
 // commitTrace commits to every polynomial in the trace, and put

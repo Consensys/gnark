@@ -376,7 +376,9 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	// init fft domains
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
+	tDom0 := time.Now()
 	s.domain0 = fft.NewDomain(sizeSystem)
+	traceProvef("[newInstance] domain0 precompute (n=%d) %v\n", sizeSystem, time.Since(tDom0))
 
 	// sampling random numbers for blinding the quotient
 	if opts.StatisticalZK {
@@ -393,8 +395,16 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		s.domain1 = fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	}
 
-	// build trace
-	s.trace = NewTrace(spr, s.domain0)
+	// build trace — reuse the circuit-fixed Lagrange trace captured at Setup (cloned so
+	// the prover's in-place Lagrange->canonical conversions stay per-proof), falling back
+	// to building it when absent (e.g. a proving key deserialized from disk).
+	tTrace := time.Now()
+	if pk.trace != nil {
+		s.trace = pk.trace.clone()
+	} else {
+		s.trace = NewTrace(spr, s.domain0)
+	}
+	traceProvef("[newInstance] trace (reused=%v) %v\n", pk.trace != nil, time.Since(tTrace))
 
 	return &s, nil
 }
