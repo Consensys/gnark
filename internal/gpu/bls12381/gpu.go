@@ -46,6 +46,9 @@ int gpu_ntt_dif_noscale(void* d_data, uint32_t log_n, int direction, void* strea
 // MSM
 int gpu_msm(const void* d_points, const void* d_scalars, uint32_t n,
             void* h_result, uint32_t window_size, void* stream);
+size_t gpu_msm_proj_bytes(void);
+int gpu_msm_async(const void* d_points, const void* d_scalars, uint32_t n, void* h_proj, uint32_t window_size, void* stream);
+int gpu_msm_marshal(const void* h_proj, void* h_result);
 
 // Fused FFT: IFFT → element-wise multiply → FFT, all on device
 int gpu_fft_scale_fft(void* d_data, void* d_scale, uint32_t log_n,
@@ -726,4 +729,63 @@ func FFT(dataPtr unsafe.Pointer, n int, inverse bool, mode FFTMode) error {
 		}
 		return C.gpu_ntt_dit(dData, ln, direction, stream)
 	})
+}
+
+// ── Async stream MSM (overlap independent commits on the GPU) ────────────────
+
+// MSMProjBytes is the size of the host landing buffer for an async MSM result.
+func MSMProjBytes() int { return int(C.gpu_msm_proj_bytes()) }
+
+// MallocHost / FreeHost allocate stable (non-Go-GC) host memory for the async
+// MSM projective results, which icicle D2H's after the issuing call returns.
+func MallocHost(bytes int) unsafe.Pointer { return C.malloc(C.size_t(bytes)) }
+func FreeHost(p unsafe.Pointer)           { C.free(p) }
+
+// StreamCreate / StreamSync / StreamDestroy expose the shim's CUDA streams.
+func StreamCreate() unsafe.Pointer   { return C.gpu_stream_create() }
+func StreamDestroy(s unsafe.Pointer) { C.gpu_stream_destroy(s) }
+
+// DeviceSync blocks until all device work completes.
+func DeviceSync() { C.gpu_sync() }
+
+// PrewarmPoints converts + caches the canonical SRS points for (pointsPtr, n) so
+// later async MSMs hit the cache without triggering a (serializing) conversion.
+func PrewarmPoints(pointsPtr unsafe.Pointer, n int) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	C.gpu_set_device(0)
+	_, _, err := getCanonicalPoints(pointsPtr, n)
+	return err
+}
+
+// MSMDeviceScalarsAsync issues an MSM asynchronously on `stream`: it converts the
+// device-resident Montgomery scalars to canonical (into a fresh buffer) and runs
+// the MSM, writing the projective result to hProj (host, MSMProjBytes). It does
+// NOT sync — the caller syncs `stream`, then MSMMarshalProj(hProj, &jac). The
+// returned scratch pointer must be freed by the caller AFTER the sync. Points
+// should be pre-warmed (PrewarmPoints) so this is a cache hit. The calling
+// goroutine must already be bound (LockOSThread + SetDevice).
+func MSMDeviceScalarsAsync(pointsPtr, dScalars unsafe.Pointer, n int, hProj, stream unsafe.Pointer) (unsafe.Pointer, error) {
+	dPoints, _, perr := getCanonicalPoints(pointsPtr, n)
+	if perr != nil {
+		return nil, perr
+	}
+	dCanon := C.gpu_malloc(C.size_t(n * 32))
+	if dCanon == nil {
+		return nil, fmt.Errorf("MSMDeviceScalarsAsync: scalar alloc failed")
+	}
+	if C.vec_from_mont(dCanon, dScalars, C.uint32_t(n), stream) != 0 {
+		C.gpu_free(dCanon)
+		return nil, fmt.Errorf("MSMDeviceScalarsAsync: from_mont failed")
+	}
+	if C.gpu_msm_async(dPoints, dCanon, C.uint32_t(n), hProj, 0, stream) != 0 {
+		C.gpu_free(dCanon)
+		return nil, fmt.Errorf("MSMDeviceScalarsAsync: msm failed")
+	}
+	return dCanon, nil
+}
+
+// MSMMarshalProj converts a settled async projective result into a gnark G1Jac.
+func MSMMarshalProj(hProj, resultPtr unsafe.Pointer) {
+	C.gpu_msm_marshal(hProj, resultPtr)
 }

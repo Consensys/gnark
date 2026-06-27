@@ -46,5 +46,3 @@ tool (
 	github.com/klauspost/asmfmt/cmd/asmfmt
 	golang.org/x/tools/cmd/goimports
 )
-
-replace github.com/consensys/gnark-crypto => github.com/polytope-labs/gnark-crypto v0.19.3-0.20260627065507-29332550599a

@@ -238,6 +238,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, fmt.Errorf("new instance: %w", err)
 	}
 	instance.timings.add("init.newInstance", time.Since(initStart))
+	defer instance.freeGPUContext()
 	traceStage := func(name string, fn func() error) func() error {
 		return func() error {
 			t0 := time.Now()
@@ -433,7 +434,9 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	setRandomDebugAware(&committedValues[offset+commitmentInfo.CommitmentIndex]) // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 	setRandomDebugAware(&committedValues[offset+s.spr.GetNbConstraints()-1])     // Last constraint has qcp = 0. Safe to use for blinding
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
+	if c, ok := s.residentCommitMaybe(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange.G1); ok {
+		s.proof.Bsb22Commitments[commDepth] = c
+	} else if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 		return err
 	}
 
@@ -554,6 +557,10 @@ func (s *instance) commitToLRO() error {
 	case <-s.ctx.Done():
 		return errContextDone
 	case <-s.chbp:
+	}
+
+	if handled, err := s.gpuCommitLRO(); handled {
+		return err
 	}
 
 	n := int(s.domain0.Cardinality)
@@ -677,7 +684,11 @@ func (s *instance) deriveGammaAndBeta() error {
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
 
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
+	if c, ok := s.residentCommitMaybe(p.Coefficients(), s.pk.KzgLagrange.G1); ok {
+		commit = c
+	} else if commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange); err != nil {
+		return
+	}
 
 	// we add in the blinding contribution
 	n := int(s.domain0.Cardinality)
@@ -750,6 +761,7 @@ func (s *instance) computeQuotient() (err error) {
 	identity := make([]fr.Element, n)
 	identity[1].Set(&s.beta)
 
+	s.setupGPUResidentContext(int(n))
 	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
 
 	numerator, err := s.computeNumerator()
@@ -761,22 +773,32 @@ func (s *instance) computeQuotient() (err error) {
 	traceProvef("[prove detail] computeQuotient.computeNumerator %v\n", dNumerator)
 
 	t1 := time.Now()
-	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+	handled, err := s.gpuDivideAndCommitQuotient()
 	if err != nil {
 		return err
 	}
-	dDivide := time.Since(t1)
-	s.timings.add("detail.computeQuotient.divideByZH", dDivide)
-	traceProvef("[prove detail] computeQuotient.divideByZH %v\n", dDivide)
+	if !handled {
+		s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+		if err != nil {
+			return err
+		}
+		dDivide := time.Since(t1)
+		s.timings.add("detail.computeQuotient.divideByZH", dDivide)
+		traceProvef("[prove detail] computeQuotient.divideByZH %v\n", dDivide)
 
-	// commit to h
-	t2 := time.Now()
-	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
-		return err
+		// commit to h
+		t2 := time.Now()
+		if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+			return err
+		}
+		dCommit := time.Since(t2)
+		s.timings.add("detail.computeQuotient.commitToQuotient", dCommit)
+		traceProvef("[prove detail] computeQuotient.commitToQuotient %v\n", dCommit)
+	} else {
+		dGPU := time.Since(t1)
+		s.timings.add("detail.computeQuotient.gpuDivideAndCommit", dGPU)
+		traceProvef("[prove detail] computeQuotient.gpuDivideAndCommit %v\n", dGPU)
 	}
-	dCommit := time.Since(t2)
-	s.timings.add("detail.computeQuotient.commitToQuotient", dCommit)
-	traceProvef("[prove detail] computeQuotient.commitToQuotient %v\n", dCommit)
 
 	t3 := time.Now()
 	if err := s.deriveZeta(); err != nil {
@@ -811,18 +833,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something
 	// with capacity = len() + 4 would avoid extra alloc / copy during openZ
-	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
-		[]*iop.Polynomial{
-			s.x[id_L],
-			s.x[id_R],
-			s.x[id_O],
-		},
-		s.trace.S,
-		s.beta,
-		s.gamma,
-		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
-		s.domain0,
-	)
+	s.x[id_Z], err = s.buildZ()
 	if err != nil {
 		return err
 	}
@@ -839,6 +850,23 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	close(s.chZ)
 
 	return
+}
+
+// buildZ computes the permutation grand-product Z (Lagrange/Regular). It tries
+// the device-resident path first (gpuBuildZ); on miss it falls back to the CPU
+// iop.BuildRatioCopyConstraint.
+func (s *instance) buildZ() (*iop.Polynomial, error) {
+	if devZ, ok := s.gpuBuildZ(); ok {
+		return iop.NewPolynomial(&devZ, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}), nil
+	}
+	return iop.BuildRatioCopyConstraint(
+		[]*iop.Polynomial{s.x[id_L], s.x[id_R], s.x[id_O]},
+		s.trace.S,
+		s.beta,
+		s.gamma,
+		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
+		s.domain0,
+	)
 }
 
 // open Z (blinded) at ωζ
@@ -859,8 +887,9 @@ func (s *instance) openZ() (err error) {
 	traceProvef("[prove detail] openZ.blind %v\n", dBlind)
 	// open z at zeta
 	t1 := time.Now()
-	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
-	if err != nil {
+	if proof, ok := s.gpuOpenMaybe(s.blindedZ, zetaShifted, s.pk.Kzg); ok {
+		s.proof.ZShiftedOpening = proof
+	} else if s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg); err != nil {
 		return err
 	}
 	if debugOpeningsEnabled() {
@@ -968,28 +997,40 @@ func (s *instance) computeLinearizedPolynomial() error {
 	traceProvef("[prove detail] computeLinearizedPolynomial.evals %v\n", dEvals)
 
 	t1 := time.Now()
-	s.linearizedPolynomial = s.innerComputeLinearizedPoly(
-		blzeta,
-		brzeta,
-		bozeta,
-		s.alpha,
-		s.beta,
-		s.gamma,
-		s.zeta,
-		bzuzeta,
-		qcpzeta,
-		s.blindedZ,
-		coefficients(s.cCommitments),
-		s.pk,
-	)
+	if devLin, ok := s.gpuComputeLinearizedPoly(blzeta, brzeta, bozeta, s.alpha, s.beta, s.gamma, s.zeta, bzuzeta, qcpzeta, coefficients(s.cCommitments), s.blindedZ, s.pk); ok {
+		if os.Getenv("GNARK_GPU_RESIDENT_SHADOW") != "" {
+			cpyZ := append([]fr.Element(nil), s.blindedZ...)
+			cpuLin := s.innerComputeLinearizedPoly(blzeta, brzeta, bozeta, s.alpha, s.beta, s.gamma, s.zeta, bzuzeta, qcpzeta, cpyZ, coefficients(s.cCommitments), s.pk)
+			mism := 0
+			for i := range cpuLin {
+				if i < len(devLin) && !devLin[i].Equal(&cpuLin[i]) {
+					mism++
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[LINPOLY SHADOW] mismatches=%d of %d\n", mism, len(cpuLin))
+			if mism > 0 {
+				s.linearizedPolynomial = cpuLin
+			} else {
+				s.linearizedPolynomial = devLin
+			}
+		} else {
+			s.linearizedPolynomial = devLin
+		}
+	} else {
+		s.linearizedPolynomial = s.innerComputeLinearizedPoly(
+			blzeta, brzeta, bozeta, s.alpha, s.beta, s.gamma, s.zeta, bzuzeta,
+			qcpzeta, s.blindedZ, coefficients(s.cCommitments), s.pk,
+		)
+	}
 	dInner := time.Since(t1)
 	s.timings.add("detail.computeLinearizedPolynomial.inner", dInner)
 	traceProvef("[prove detail] computeLinearizedPolynomial.inner %v\n", dInner)
 
 	var err error
 	t2 := time.Now()
-	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
-	if err != nil {
+	if c, ok := s.residentCommitMaybe(s.linearizedPolynomial, s.pk.Kzg.G1); ok {
+		s.linearizedPolynomialDigest = c
+	} else if s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2); err != nil {
 		return err
 	}
 	dCommit := time.Since(t2)
@@ -1044,14 +1085,18 @@ func (s *instance) batchOpening() error {
 
 	var err error
 	t4 := time.Now()
-	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		polysToOpen,
-		digestsToOpen,
-		s.zeta,
-		s.kzgFoldingHash,
-		s.pk.Kzg,
-		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
-	)
+	if proof, ok := s.gpuBatchOpenMaybe(polysToOpen, digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
+		s.proof.BatchedProof = proof
+	} else {
+		s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
+			polysToOpen,
+			digestsToOpen,
+			s.zeta,
+			s.kzgFoldingHash,
+			s.pk.Kzg,
+			s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
+		)
+	}
 	s.timings.add("detail.batchOpening.kzgBatchOpenSinglePoint", time.Since(t4))
 	dOpen := time.Since(t0)
 	s.timings.add("detail.batchOpening.batchOpen", dOpen)
@@ -1332,13 +1377,19 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		cs.Inverse(&cs)
 
-		batchApply(s.x, func(p *iop.Polynomial) {
-			if p == nil {
-				return
+		if s.gpuCtx != nil {
+			if err := s.gpuRestoreLRO(cs); err != nil {
+				panic("gpuRestoreLRO: " + err.Error())
 			}
-			p.ToCanonical(s.domain0, 8).ToRegular()
-			scalePowers(p, cs)
-		})
+		} else {
+			batchApply(s.x, func(p *iop.Polynomial) {
+				if p == nil {
+					return
+				}
+				p.ToCanonical(s.domain0, 8).ToRegular()
+				scalePowers(p, cs)
+			})
+		}
 
 		for _, q := range s.bp {
 			scalePowers(q, cs)

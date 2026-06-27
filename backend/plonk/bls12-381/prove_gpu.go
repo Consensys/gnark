@@ -13,11 +13,216 @@ import (
 	"time"
 	"unsafe"
 
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 	gpu "github.com/consensys/gnark/internal/gpu/bls12381"
+	p2 "github.com/consensys/gnark/internal/gpu/bls12381/p2"
 )
+
+// gpuBuildZ computes the permutation grand-product Z on-device via the resident
+// p2.RatioBuildZ pipeline (gpu_ratio_copy_terms -> prefix_scan -> apply_inverse),
+// reproducing iop.BuildRatioCopyConstraint. Gated by GNARK_P2_GRANDPRODUCT.
+// With GNARK_P2_GRANDPRODUCT_SHADOW set it cross-checks against the CPU result
+// and falls back to it on any mismatch (so the proof is always valid).
+func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
+	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+		return nil, false
+	}
+	n := int(s.domain0.Cardinality)
+	dev, err := p2.NewDevice()
+	if err != nil {
+		return nil, false
+	}
+	t0 := time.Now()
+
+	// twiddles0 = identity support for j=0 = [ω⁰, ω¹, …, ωⁿ⁻¹]
+	tw0 := make([]fr.Element, n)
+	tw0[0].SetOne()
+	for i := 1; i < n; i++ {
+		tw0[i].Mul(&tw0[i-1], &s.domain0.Generator)
+	}
+	u := s.domain0.FrMultiplicativeGen
+	var u2 fr.Element
+	u2.Mul(&u, &u)
+	ch := [4]fr.Element{s.beta, s.gamma, u, u2}
+
+	vecs := make([]*p2.FrVector, 0, 8)
+	defer func() {
+		for _, v := range vecs {
+			if v != nil {
+				v.Free()
+			}
+		}
+	}()
+	mk := func(h []fr.Element) *p2.FrVector {
+		v, e := dev.NewFrVector(n)
+		if e != nil {
+			return nil
+		}
+		vecs = append(vecs, v)
+		if e := v.CopyFromHost(h); e != nil {
+			return nil
+		}
+		return v
+	}
+	vl := mk(s.x[id_L].Coefficients())
+	vr := mk(s.x[id_R].Coefficients())
+	vo := mk(s.x[id_O].Coefficients())
+	vs1 := mk(s.trace.S1.Coefficients())
+	vs2 := mk(s.trace.S2.Coefficients())
+	vs3 := mk(s.trace.S3.Coefficients())
+	vtw := mk(tw0)
+	z, _ := dev.NewFrVector(n)
+	if z != nil {
+		vecs = append(vecs, z)
+	}
+	if vl == nil || vr == nil || vo == nil || vs1 == nil || vs2 == nil || vs3 == nil || vtw == nil || z == nil {
+		return nil, false
+	}
+	if err := dev.RatioBuildZ(z, vl, vr, vo, vs1, vs2, vs3, vtw, ch); err != nil {
+		return nil, false
+	}
+	out := make([]fr.Element, n)
+	if err := z.CopyToHost(out); err != nil {
+		return nil, false
+	}
+	traceProvef("[P2 grandproduct] device build %v\n", time.Since(t0))
+
+	if os.Getenv("GNARK_P2_GRANDPRODUCT_SHADOW") != "" {
+		ref, e := iop.BuildRatioCopyConstraint(
+			[]*iop.Polynomial{s.x[id_L], s.x[id_R], s.x[id_O]},
+			s.trace.S, s.beta, s.gamma,
+			iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}, s.domain0)
+		if e == nil {
+			rc := ref.Coefficients()
+			mism := 0
+			for i := range rc {
+				if rc[i] != out[i] {
+					mism++
+				}
+			}
+			traceProvef("[P2 GRANDPRODUCT SHADOW] mismatches=%d of %d\n", mism, len(rc))
+			if mism > 0 {
+				return rc, true
+			}
+		}
+	}
+	return out, true
+}
+
+// gpuCommitLRO commits the L,R,O wire polynomials resident: it subtracts s0,
+// commits each window against the Lagrange SRS via the resident-scalar G1MSM,
+// restores, and adds the correction point + blinding — byte-identical to the CPU
+// commitToLRO. Gated by GNARK_P2_COMMITLRO; the apk proof verifying is the check
+// (a wrong commitment fails Fiat-Shamir downstream). Returns (handled, err).
+func (s *instance) gpuCommitLRO() (bool, error) {
+	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+		return false, nil
+	}
+	n := int(s.domain0.Cardinality)
+	nbPublic := len(s.spr.Public)
+	offset := nbPublic + s.spr.GetNbConstraints()
+
+	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return false, nil
+	}
+	s0 := wWitness[0]
+	var s0BigInt big.Int
+	s0.BigInt(&s0BigInt)
+	var correctionPoint curve.G1Affine
+	correctionPoint.ScalarMultiplication(&s.pk.Kzg.G1[0], &s0BigInt)
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	gpu.SetDevice()
+
+	lagG1 := s.pk.KzgLagrange.G1
+	// pre-warm (convert + cache) the two SRS base ranges so the async MSMs below
+	// are cache hits and don't trigger a serializing point conversion mid-stream.
+	if err := gpu.PrewarmPoints(unsafe.Pointer(&lagG1[0]), offset); err != nil {
+		return false, err
+	}
+	if err := gpu.PrewarmPoints(unsafe.Pointer(&lagG1[nbPublic]), offset-nbPublic); err != nil {
+		return false, err
+	}
+	gpu.DeviceSync()
+
+	type win struct {
+		coeffs []fr.Element
+		lo, hi int
+		bp     int
+		out    *curve.G1Affine
+	}
+	wins := [3]win{
+		{s.x[id_L].Coefficients(), 0, offset, id_Bl, &s.proof.LRO[0]},
+		{s.x[id_R].Coefficients(), nbPublic, offset, id_Br, &s.proof.LRO[1]},
+		{s.x[id_O].Coefficients(), nbPublic, offset, id_Bo, &s.proof.LRO[2]},
+	}
+	projBytes := gpu.MSMProjBytes()
+	var streams, hProjs, dScalars, dCanons [3]unsafe.Pointer
+	defer func() {
+		for k := 0; k < 3; k++ {
+			if dScalars[k] != nil {
+				gpu.Free(dScalars[k])
+			}
+			if dCanons[k] != nil {
+				gpu.Free(dCanons[k])
+			}
+			if hProjs[k] != nil {
+				gpu.FreeHost(hProjs[k])
+			}
+			if streams[k] != nil {
+				gpu.StreamDestroy(streams[k])
+			}
+		}
+	}()
+
+	// issue the 3 MSMs asynchronously, one per stream, so they overlap on the GPU.
+	// The s0-subtract / upload / restore is synchronous per window, so the host
+	// coeffs are untouched once the MSM is in flight.
+	for k := range wins {
+		w := wins[k]
+		m := w.hi - w.lo
+		for i := w.lo; i < w.hi; i++ {
+			w.coeffs[i].Sub(&w.coeffs[i], &s0)
+		}
+		dScalars[k] = gpu.Malloc(m * 32)
+		if dScalars[k] == nil {
+			return false, fmt.Errorf("gpuCommitLRO: scalar alloc failed")
+		}
+		if err := gpu.MemcpyH2D(dScalars[k], unsafe.Pointer(&w.coeffs[w.lo]), m*32); err != nil {
+			return false, err
+		}
+		for i := w.lo; i < w.hi; i++ {
+			w.coeffs[i].Add(&w.coeffs[i], &s0)
+		}
+		streams[k] = gpu.StreamCreate()
+		hProjs[k] = gpu.MallocHost(projBytes)
+		dc, err := gpu.MSMDeviceScalarsAsync(unsafe.Pointer(&lagG1[w.lo]), dScalars[k], m, hProjs[k], streams[k])
+		if err != nil {
+			return false, err
+		}
+		dCanons[k] = dc
+	}
+
+	for k := range wins {
+		gpu.StreamSync(streams[k])
+	}
+	for k := range wins {
+		w := wins[k]
+		var jac curve.G1Jac
+		gpu.MSMMarshalProj(hProjs[k], unsafe.Pointer(&jac))
+		var commit curve.G1Affine
+		commit.FromJacobian(&jac)
+		commit.Add(&commit, &correctionPoint)
+		cb := commitBlindingFactor(n, s.bp[w.bp], s.pk.Kzg)
+		w.out.Add(&commit, &cb)
+	}
+	return true, nil
+}
 
 type restoreDebugShadow struct {
 	polyIdx int
@@ -373,6 +578,10 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		return fmt.Errorf("GPU malloc failed for cres")
 	}
 	keepNumeratorResident := s.gpuCtx != nil
+	// Stage 1: openings still run host-side, so the wire polys must be downloaded
+	// for the CPU restore even though the numerator stays resident. Flip
+	// GNARK_GPU_RESIDENT_RESTORE once the restore itself is device-resident.
+	residentRestore := os.Getenv("GNARK_GPU_RESIDENT_RESTORE") != ""
 	if !keepNumeratorResident {
 		defer gpu.Free(dCres)
 	}
@@ -586,10 +795,9 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		s.timings.add("detail.gpuRho.iterResultD2H", time.Since(tPhase))
 	}
 
-	// If we have a resident GPU context, keep the trace on device for the
-	// restore phase and later download restored canonical coefficients only once.
-	// Otherwise, fall back to the original eager D2H behavior.
-	if !keepNumeratorResident {
+	// Download the wire polys for the host-side restore/openings unless the
+	// restore is itself device-resident (residentRestore).
+	if !residentRestore {
 		tPhase = time.Now()
 		for i := 0; i < npolys; i++ {
 			if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
@@ -626,3 +834,373 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 // gpuEvaluateBlinded evaluates a device-resident polynomial at a point using
 // GPU chunked Horner, then adds the blinding polynomial contribution on CPU.
 // gpuLinearizedPoly computes the linearized polynomial on GPU.
+
+// --- Stage 1: device-resident quotient (divideByZH + H-chunk commits) ----------
+
+// setupGPUResidentContext activates the device-resident prover pipeline so the
+// quotient numerator stays on the GPU through divideByZH and the H-chunk commits
+// (no 2GB host round-trip). Gated off for statistical ZK (quotient blinding not
+// yet replicated on device) and when the GPU is unavailable.
+func (s *instance) setupGPUResidentContext(n int) {
+	if os.Getenv("GNARK_DISABLE_GPU_RESIDENT") != "" || s.opt.StatisticalZK || !gpu.Available() {
+		return
+	}
+	s.gpuCtx = &proverGPUContext{n: n}
+}
+
+// freeGPUContext releases all device-resident buffers held for this prove.
+func (s *instance) freeGPUContext() {
+	if s.gpuCtx != nil {
+		s.gpuCtx.free()
+		s.gpuCtx = nil
+	}
+}
+
+// gpuDivideAndCommitQuotient performs divideByZH and the three H-chunk commits on
+// device, reusing the rho-loop's resident numerator, then downloads the canonical
+// quotient coefficients into s.h for the (still host-side) linearized polynomial.
+// Returns (true,nil) if it handled the quotient; (false,nil) => CPU fallback.
+func (s *instance) gpuDivideAndCommitQuotient() (bool, error) {
+	if s.gpuCtx == nil || s.gpuCtx.dNumerator == nil {
+		return false, nil
+	}
+	// Pin to one OS thread + select the device once so the device ops below don't
+	// each re-bind the icicle context on a fresh thread (re-entrant LockOSThread in
+	// the inner ops keeps them on this thread).
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	gpu.SetDevice()
+	bigN := int(s.domain1.Cardinality)
+	n2 := int(s.domain0.Cardinality) + 2
+	dH := s.gpuCtx.dNumerator
+
+	var shadowNum []fr.Element
+	if os.Getenv("GNARK_GPU_RESIDENT_SHADOW") != "" {
+		shadowNum = make([]fr.Element, bigN)
+		if err := gpu.MemcpyD2H(unsafe.Pointer(&shadowNum[0]), dH, bigN*32); err != nil {
+			return false, err
+		}
+	}
+
+	// divideByZH = (1) * Xⁿ-1 inverse [BitReverse], (2) inverse butterflies (no 1/n),
+	// (3) * cosetTableInv * CardinalityInv [natural] — replicates the CPU scale +
+	// ToCanonical(bigDomain) exactly (the tested FFTInverseNoScale + coset post).
+	dInvRho, err := gpuResidentInvRho(s.domain0, s.domain1)
+	if err != nil {
+		return false, err
+	}
+	if err := gpu.VecMulDevice(dH, dH, dInvRho, bigN); err != nil {
+		return false, err
+	}
+	if err := gpu.InverseButterfliesDevice(dH, bigN); err != nil {
+		return false, err
+	}
+	dCosetInv, err := gpuResidentCosetInvScale(s.domain1)
+	if err != nil {
+		return false, err
+	}
+	if err := gpu.VecMulDevice(dH, dH, dCosetInv, bigN); err != nil {
+		return false, err
+	}
+
+	// download the quotient coefficients (h1/h2/h3 = first 3*n2 coefficients).
+	hc := make([]fr.Element, 3*n2)
+	if err := gpu.MemcpyD2H(unsafe.Pointer(&hc[0]), dH, 3*n2*32); err != nil {
+		return false, err
+	}
+	s.h = iop.NewPolynomial(&hc, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+
+	if shadowNum != nil {
+		cpuNum := iop.NewPolynomial(&shadowNum, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
+		cpuH, derr := divideByZH(cpuNum, [2]*fft.Domain{s.domain0, s.domain1})
+		if derr == nil {
+			cpuHc := cpuH.Coefficients()
+			mism := 0
+			for i := 0; i < 3*n2 && i < len(cpuHc); i++ {
+				if !hc[i].Equal(&cpuHc[i]) {
+					if mism == 0 {
+						var r fr.Element
+						if !hc[i].IsZero() {
+							r.Div(&cpuHc[i], &hc[i])
+						}
+						fmt.Fprintf(os.Stderr, "[RESIDENT SHADOW] first mismatch i=%d cpu=%s dev=%s ratio(cpu/dev)=%s\n", i, cpuHc[i].String(), hc[i].String(), r.String())
+					}
+					mism++
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[RESIDENT SHADOW] mismatches=%d of %d\n", mism, 3*n2)
+		}
+	}
+
+	// DEBUG isolation: commit on host from the device-computed h. If the proof
+	// verifies this way, the device divideByZH is correct and the device MSM is
+	// the culprit; if it still fails, the device h itself is wrong.
+	if os.Getenv("GNARK_GPU_RESIDENT_CPU_COMMIT") != "" {
+		if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	// commit h[i*n2 : i*n2+n2] for i=0,1,2 — async on 3 streams so the chunks
+	// overlap on the GPU (same SRS base, scalars already resident in dH, no upload).
+	if err := gpu.PrewarmPoints(unsafe.Pointer(&s.pk.Kzg.G1[0]), n2); err != nil {
+		return false, err
+	}
+	gpu.DeviceSync()
+	projBytes := gpu.MSMProjBytes()
+	var hStreams, hProjs, hCanons [3]unsafe.Pointer
+	defer func() {
+		for i := 0; i < 3; i++ {
+			if hCanons[i] != nil {
+				gpu.Free(hCanons[i])
+			}
+			if hProjs[i] != nil {
+				gpu.FreeHost(hProjs[i])
+			}
+			if hStreams[i] != nil {
+				gpu.StreamDestroy(hStreams[i])
+			}
+		}
+	}()
+	for i := 0; i < 3; i++ {
+		off := unsafe.Add(dH, i*n2*32)
+		hStreams[i] = gpu.StreamCreate()
+		hProjs[i] = gpu.MallocHost(projBytes)
+		dc, err := gpu.MSMDeviceScalarsAsync(unsafe.Pointer(&s.pk.Kzg.G1[0]), off, n2, hProjs[i], hStreams[i])
+		if err != nil {
+			return false, err
+		}
+		hCanons[i] = dc
+	}
+	for i := 0; i < 3; i++ {
+		gpu.StreamSync(hStreams[i])
+	}
+	for i := 0; i < 3; i++ {
+		var jac curve.G1Jac
+		gpu.MSMMarshalProj(hProjs[i], unsafe.Pointer(&jac))
+		s.proof.H[i].FromJacobian(&jac)
+	}
+	return true, nil
+}
+
+var (
+	residentScaleMu sync.Mutex
+	dInvRhoCache    unsafe.Pointer
+	dInvRhoCacheN   int
+	dCosetInvCache  unsafe.Pointer
+	dCosetInvCacheN int
+)
+
+// gpuResidentInvRho returns the device-resident Xⁿ-1 inverse scale vector
+// S[i] = xnMinusOneInverse[bitrev(i) % rho] (BitReverse indexing), cached across
+// proves (circuit-fixed).
+func gpuResidentInvRho(domain0, domain1 *fft.Domain) (unsafe.Pointer, error) {
+	bigN := int(domain1.Cardinality)
+	residentScaleMu.Lock()
+	defer residentScaleMu.Unlock()
+	if dInvRhoCache != nil && dInvRhoCacheN == bigN {
+		return dInvRhoCache, nil
+	}
+	table := evaluateXnMinusOneDomainBigCoset([2]*fft.Domain{domain0, domain1})
+	rho := len(table)
+	scale := make([]fr.Element, bigN)
+	nn := uint64(64 - bits.TrailingZeros64(uint64(bigN)))
+	for i := 0; i < bigN; i++ {
+		scale[i] = table[int(bits.Reverse64(uint64(i))>>nn)%rho]
+	}
+	if err := uploadResidentSlice(&dInvRhoCache, &dInvRhoCacheN, scale); err != nil {
+		return nil, err
+	}
+	return dInvRhoCache, nil
+}
+
+// gpuResidentCosetInvScale returns the device-resident coset-inverse postprocess
+// vector C[i] = FrMultiplicativeGenInv^i * CardinalityInv (natural order) for the
+// big domain — the cosetTableInv * CardinalityInv the CPU applies after the
+// inverse butterflies. Cached across proves.
+func gpuResidentCosetInvScale(domain1 *fft.Domain) (unsafe.Pointer, error) {
+	bigN := int(domain1.Cardinality)
+	residentScaleMu.Lock()
+	defer residentScaleMu.Unlock()
+	if dCosetInvCache != nil && dCosetInvCacheN == bigN {
+		return dCosetInvCache, nil
+	}
+	scale := make([]fr.Element, bigN)
+	var acc fr.Element
+	acc.Set(&domain1.CardinalityInv)
+	for i := 0; i < bigN; i++ {
+		scale[i].Set(&acc)
+		acc.Mul(&acc, &domain1.FrMultiplicativeGenInv)
+	}
+	if err := uploadResidentSlice(&dCosetInvCache, &dCosetInvCacheN, scale); err != nil {
+		return nil, err
+	}
+	return dCosetInvCache, nil
+}
+
+// gpuRestoreLRO restores the device-resident wire polynomials to Canonical/Regular
+// (inverse FFT + scalePowers by cs) without re-uploading them, then downloads the
+// canonical coefficients into s.x for the host-side openings. Replaces the CPU
+// batchApply(ToCanonical + scalePowers) when the GPU context is active.
+func (s *instance) gpuRestoreLRO(cs fr.Element) error {
+	n := s.gpuCtx.n
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	gpu.SetDevice()
+
+	powers := make([]fr.Element, n)
+	var acc fr.Element
+	acc.SetOne()
+	for i := 0; i < n; i++ {
+		powers[i].Set(&acc)
+		acc.Mul(&acc, &cs)
+	}
+	dScale := gpu.Malloc(n * 32)
+	if dScale == nil {
+		return fmt.Errorf("gpuRestoreLRO: malloc cs-powers failed")
+	}
+	defer gpu.Free(dScale)
+	if err := gpu.MemcpyH2D(dScale, unsafe.Pointer(&powers[0]), n*32); err != nil {
+		return err
+	}
+
+	for i := 0; i < len(s.x); i++ {
+		if s.x[i] == nil {
+			continue
+		}
+		dp := s.gpuCtx.getPoly(i)
+		if dp == nil {
+			continue
+		}
+		if err := gpu.InverseFFTDevice(dp, n); err != nil {
+			return err
+		}
+		if err := gpu.VecMulDevice(dp, dp, dScale, n); err != nil {
+			return err
+		}
+		cp := s.x[i].Coefficients()
+		if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dp, n*32); err != nil {
+			return err
+		}
+		s.x[i].Basis = iop.Canonical
+		s.x[i].Layout = iop.Regular
+	}
+	return nil
+}
+
+// gpuComputeLinearizedPoly computes the PLONK linearized polynomial on device via
+// the fused kernel (no Bsb22 qcp terms). Correctness-first: uploads the inputs,
+// returns the canonical result. (false => caller uses the CPU path.)
+func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta []fr.Element, pi2Canonical [][]fr.Element, blindedZ []fr.Element, pk *ProvingKey) ([]fr.Element, bool) {
+	if s.gpuCtx == nil || !gpu.Available() {
+		return nil, false
+	}
+	fmt.Fprintf(os.Stderr, "[LINPOLY] engaging device path: nbCommitments=%d gpuCtx=%v\n", len(s.commitmentInfo), s.gpuCtx != nil)
+	n := int(s.domain0.Cardinality)
+	nB := len(blindedZ)
+	n2 := n + 2
+
+	// scalars (mirror innerComputeLinearizedPoly)
+	var rl fr.Element
+	rl.Mul(&rZeta, &lZeta)
+	var s1, s2, tmp fr.Element
+	s1 = s.trace.S1.Evaluate(zeta)
+	s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma)
+	tmp = s.trace.S2.Evaluate(zeta)
+	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma)
+	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta).Mul(&s1, &alpha)
+	var uzeta, uuzeta fr.Element
+	uzeta.Mul(&zeta, &pk.Vk.CosetShift)
+	uuzeta.Mul(&uzeta, &pk.Vk.CosetShift)
+	s2.Mul(&beta, &zeta).Add(&s2, &lZeta).Add(&s2, &gamma)
+	tmp.Mul(&beta, &uzeta).Add(&tmp, &rZeta).Add(&tmp, &gamma)
+	s2.Mul(&s2, &tmp)
+	tmp.Mul(&beta, &uuzeta).Add(&tmp, &oZeta).Add(&tmp, &gamma)
+	s2.Mul(&s2, &tmp)
+	s2.Neg(&s2).Mul(&s2, &alpha)
+	var zhZeta, zetaN, zetaNP2, a2l, one, den fr.Element
+	one.SetOne()
+	zetaN.Exp(zeta, big.NewInt(int64(n)))
+	zetaNP2.Mul(&zetaN, &zeta).Mul(&zetaNP2, &zeta)
+	zhZeta.Sub(&zetaN, &one)
+	den.Sub(&zeta, &one)
+	den.Inverse(&den)
+	a2l.Mul(&zhZeta, &den).Mul(&a2l, &alpha).Mul(&a2l, &alpha).Mul(&a2l, &s.domain0.CardinalityInv)
+	scalars := []fr.Element{s1, s2, rl, lZeta, rZeta, oZeta, a2l, zhZeta}
+
+	// fold H on host: hFolded[i] = h1[i] + zNP2*h2[i] + zNP2^2*h3[i]
+	h1, h2, h3 := s.h1(), s.h2(), s.h3()
+	hFolded := make([]fr.Element, n2)
+	for i := 0; i < n2; i++ {
+		var t fr.Element
+		t.Mul(&h3[i], &zetaNP2).Add(&t, &h2[i]).Mul(&t, &zetaNP2).Add(&t, &h1[i])
+		hFolded[i].Set(&t)
+	}
+
+	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	gpu.SetDevice()
+	up := func(src []fr.Element) (unsafe.Pointer, bool) {
+		d := gpu.Malloc(len(src) * 32)
+		if d == nil {
+			return nil, false
+		}
+		if err := gpu.MemcpyH2D(d, unsafe.Pointer(&src[0]), len(src)*32); err != nil {
+			gpu.Free(d)
+			return nil, false
+		}
+		return d, true
+	}
+	bufs := []unsafe.Pointer{}
+	free := func() {
+		for _, b := range bufs {
+			gpu.Free(b)
+		}
+	}
+	defer free()
+	mk := func(src []fr.Element) unsafe.Pointer {
+		d, ok := up(src)
+		if !ok {
+			return nil
+		}
+		bufs = append(bufs, d)
+		return d
+	}
+	dBZ := mk(blindedZ)
+	dS3 := mk(s.trace.S3.Coefficients())
+	dQl := mk(s.trace.Ql.Coefficients())
+	dQr := mk(s.trace.Qr.Coefficients())
+	dQm := mk(s.trace.Qm.Coefficients())
+	dQo := mk(s.trace.Qo.Coefficients())
+	dQk := mk(s.trace.Qk.Coefficients())
+	dHF := mk(hFolded)
+	dSc := mk(scalars)
+	if dBZ == nil || dS3 == nil || dQl == nil || dQr == nil || dQm == nil || dQo == nil || dQk == nil || dHF == nil || dSc == nil {
+		return nil, false
+	}
+	dRes := gpu.Malloc(nB * 32)
+	if dRes == nil {
+		return nil, false
+	}
+	bufs = append(bufs, dRes)
+	if err := gpu.LinearizedPolyDevice(dBZ, dS3, dQl, dQr, dQm, dQo, dQk, dHF, dSc, dRes, n, nB, n2); err != nil {
+		return nil, false
+	}
+	out := make([]fr.Element, nB)
+	if err := gpu.MemcpyD2H(unsafe.Pointer(&out[0]), dRes, nB*32); err != nil {
+		return nil, false
+	}
+	// add the Bsb22 commitment terms: linPol += sum_j qcpZeta[j] * Pi_j(X)
+	for j := range qcpZeta {
+		pij := pi2Canonical[j]
+		for i := 0; i < len(out) && i < len(pij); i++ {
+			var t fr.Element
+			t.Mul(&pij[i], &qcpZeta[j])
+			out[i].Add(&out[i], &t)
+		}
+	}
+	return out, true
+}
