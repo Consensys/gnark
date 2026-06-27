@@ -250,6 +250,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		}
 	}
 
+	// warm the GPU (SRS point conversion + NTT twiddles) concurrently with the
+	// witness-independent CPU solve, so the GPU isn't idle during solveConstraints
+	g.Go(traceStage("prewarmGPU", instance.prewarmGPU))
+
 	// solve constraints
 	g.Go(traceStage("solveConstraints", instance.solveConstraints))
 

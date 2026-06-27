@@ -40,6 +40,7 @@ func (s *instance) freeGPUContext()                           {}
 func (s *instance) gpuDivideAndCommitQuotient() (bool, error) { return false, nil }
 func (s *instance) gpuBuildZ() ([]fr.Element, bool)           { return nil, false }
 func (s *instance) gpuCommitLRO() (bool, error)               { return false, nil }
+func (s *instance) prewarmGPU() error                         { return nil }
 
 func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affine) (curve.G1Affine, bool) {
 	return curve.G1Affine{}, false

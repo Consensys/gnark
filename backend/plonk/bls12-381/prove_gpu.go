@@ -223,6 +223,37 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 	return true, nil
 }
 
+// prewarmGPU pulls the witness-independent GPU prep — SRS point Montgomery→canonical
+// conversion and the big-domain NTT twiddle init, both otherwise done lazily inside
+// the commit/quotient phases — forward so it overlaps the CPU witness solve (during
+// which the GPU is otherwise 100% idle). Best-effort: errors are swallowed so the
+// real phases just do the work themselves. The point/NTT caches are mutex-guarded,
+// so racing the commit phases is safe.
+func (s *instance) prewarmGPU() error {
+	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+		return nil
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	gpu.SetDevice()
+
+	nbPublic := len(s.spr.Public)
+	offset := nbPublic + s.spr.GetNbConstraints()
+	if len(s.pk.KzgLagrange.G1) >= offset && offset > 0 {
+		_ = gpu.PrewarmPoints(unsafe.Pointer(&s.pk.KzgLagrange.G1[0]), offset)
+		if offset-nbPublic > 0 {
+			_ = gpu.PrewarmPoints(unsafe.Pointer(&s.pk.KzgLagrange.G1[nbPublic]), offset-nbPublic)
+		}
+	}
+	if n2 := int(s.domain0.Cardinality) + 2; len(s.pk.Kzg.G1) >= n2 {
+		_ = gpu.PrewarmPoints(unsafe.Pointer(&s.pk.Kzg.G1[0]), n2)
+	}
+	if bigN := int(s.domain1.Cardinality); bigN > 1 {
+		_ = gpu.NTTInit(uint32(bits.TrailingZeros(uint(bigN))))
+	}
+	return nil
+}
+
 type proverGPUContext struct {
 	mu         sync.Mutex
 	n          int
