@@ -584,10 +584,30 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		}
 	}
 
-	scalingVectorDomain1Rev := make([]fr.Element, n)
-	w := s.domain1.Generator
-	fft.BuildExpTable(w, scalingVectorDomain1Rev)
-	fft.BitReverse(scalingVectorDomain1Rev)
+	// domain1 scale table ([w^i] then bit-reversed, w=domain1.Generator) generated on-device —
+	// no host BuildExpTable + 256MB upload. Used from iteration 1 onward (see below).
+	dScaleD1 := gpu.Malloc(elemSize)
+	if dScaleD1 == nil {
+		return fmt.Errorf("gpuRho: malloc dScaleD1 failed")
+	}
+	defer gpu.Free(dScaleD1)
+	{
+		w := s.domain1.Generator
+		dW := gpu.Malloc(32)
+		if dW == nil {
+			return fmt.Errorf("gpuRho: malloc dW failed")
+		}
+		defer gpu.Free(dW)
+		if err := gpu.MemcpyH2D(dW, unsafe.Pointer(&w), 32); err != nil {
+			return err
+		}
+		if err := gpu.VecPowersDevice(dScaleD1, dW, n); err != nil {
+			return err
+		}
+		if err := gpu.BitReverseDevice(dScaleD1, n); err != nil {
+			return err
+		}
+	}
 
 	// Upload initial scaling vector (coset table)
 	// For iteration 0, scaling is applied based on polynomial layout.
@@ -632,10 +652,8 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 
 		tPhase = time.Now()
 		if i == 1 {
-			scalingVectorRev = scalingVectorDomain1Rev
-
-			// Re-upload scale vector
-			if err := gpu.MemcpyH2D(dScale, unsafe.Pointer(&scalingVectorRev[0]), elemSize); err != nil {
+			// switch to the domain1 scale generated on-device above (no host upload)
+			if err := gpu.MemcpyD2D(dScale, dScaleD1, elemSize); err != nil {
 				return err
 			}
 		}

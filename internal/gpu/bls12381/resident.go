@@ -44,6 +44,10 @@ int gpu_poly_eval_async(const void* d_coeffs, uint32_t n, const void* d_point, v
 int gpu_vec_set_zero(void* v, uint32_t n, void* stream);
 // v[i] += a[i] * (*d_c)  for i<n.
 int gpu_vec_add_scalar_mul(void* v, const void* a, const void* d_c, uint32_t n, void* stream);
+// v[i] = (*d_g)^i  for i<n.
+int gpu_vec_powers(void* v, const void* d_g, uint32_t n, void* stream);
+// bit-reverse permutation of d_data in place (n = 1<<log_n).
+int gpu_bitreverse(void* d_data, uint32_t log_n, void* stream);
 */
 import "C"
 
@@ -219,6 +223,34 @@ func PolyEvalBatchDevice(ptrs []unsafe.Pointer, lengths []int, dPoint unsafe.Poi
 		return out, err
 	}
 	return out, nil
+}
+
+// VecPowersDevice fills dV[i] = (*dG)^i for i<n on-device (prefix product) — generates an
+// exp/twiddle table without a host BuildExpTable + upload. dG is a device Fr.
+func VecPowersDevice(dV, dG unsafe.Pointer, n int) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	SetDevice()
+	if C.gpu_vec_powers(dV, dG, C.uint32_t(n), nil) != 0 {
+		return fmt.Errorf("VecPowersDevice: kernel failed")
+	}
+	return nil
+}
+
+// BitReverseDevice applies the bit-reverse permutation to the n (= power of two) Fr elements
+// of dData in place — matches fft.BitReverse.
+func BitReverseDevice(dData unsafe.Pointer, n int) error {
+	logN := uint32(bits.TrailingZeros64(uint64(n)))
+	if 1<<logN != n {
+		return fmt.Errorf("BitReverseDevice: size must be a power of 2, got %d", n)
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	SetDevice()
+	if C.gpu_bitreverse(dData, C.uint32_t(logN), nil) != 0 {
+		return fmt.Errorf("BitReverseDevice: kernel failed")
+	}
+	return nil
 }
 
 // VecSetZeroDevice zeroes the first n Fr elements of dV.
