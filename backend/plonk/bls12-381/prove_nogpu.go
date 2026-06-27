@@ -52,6 +52,14 @@ func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Aff
 	return kzg.BatchOpeningProof{}, false
 }
 
+func (s *instance) gpuBatchOpenResidentMaybe(polys [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
+	return kzg.BatchOpeningProof{}, false
+}
+
+func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.Element) (fr.Element, bool) {
+	return fr.Element{}, false
+}
+
 func (s *instance) gpuRestoreLRO(cs fr.Element) error { return nil }
 
 func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta []fr.Element, pi2Canonical [][]fr.Element, blindedZ []fr.Element, pk *ProvingKey) ([]fr.Element, bool) {

@@ -4,6 +4,7 @@ package plonk
 
 import (
 	"hash"
+	"math/big"
 	"os"
 	"runtime"
 	"sync"
@@ -50,6 +51,150 @@ func parallelExecute(n int, work func(start, end int)) {
 // kzg/multiexp functions — the last dependency on our gnark-crypto fork. Gated by
 // GNARK_P2_OPENINGS, with GNARK_P2_OPENINGS_SHADOW cross-checking byte-identity
 // against the (fork) kzg.* path before the vanilla switch.
+
+// gpuEvalBlindedMaybe computes blinded_wire(ζ) = wire(ζ) + bp(ζ)·(ζⁿ−1) using the
+// device-resident canonical wire (getPoly(id)) instead of the host s.x[id] — so the wires
+// never need to come back to the host for the linearized poly's l/r/o(ζ). bpCoeffs is the
+// blinding poly's coefficients. Returns false to fall back to the host evaluateBlinded.
+func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.Element) (fr.Element, bool) {
+	var res fr.Element
+	if !s.residentOpenings() {
+		return res, false
+	}
+	select {
+	case <-s.ctx.Done():
+		return res, false
+	case <-s.chRestoreLRO:
+	}
+	dWire := s.gpuCtx.getPoly(id)
+	if dWire == nil {
+		return res, false
+	}
+	n := int(s.domain0.Cardinality)
+	dPoint := gpu.Malloc(32)
+	if dPoint == nil {
+		return res, false
+	}
+	defer gpu.Free(dPoint)
+	if err := gpu.MemcpyH2D(dPoint, unsafe.Pointer(&zeta), 32); err != nil {
+		return res, false
+	}
+	wEval, err := gpu.PolyEvalDevice(dWire, n, dPoint)
+	if err != nil {
+		return res, false
+	}
+	// blinded(ζ) = wire(ζ) + bp(ζ)·(ζⁿ − 1)
+	var t, one fr.Element
+	one.SetOne()
+	t.Exp(zeta, big.NewInt(int64(n))).Sub(&t, &one)
+	t.Mul(&t, &bpEvalAtZeta)
+	wEval.Add(&wEval, &t)
+	return wEval, true
+}
+
+func (s *instance) residentOpenings() bool {
+	return p2OpeningsEnabled() && s.gpuCtx != nil && !s.opt.StatisticalZK &&
+		os.Getenv("GNARK_DISABLE_RESIDENT_OPENINGS") == ""
+}
+
+// gpuBatchOpenResidentMaybe opens batchOpening's polynomials entirely from device-resident
+// handles: the wires + S1/S2 are the canonical buffers left in gpuCtx by the restore (no
+// host download needed), blinded on-device; only the linearized poly + Qcp are uploaded.
+// polysToOpen is used solely for the GNARK_P2_OPENINGS_SHADOW byte-check (valid only while
+// the host download is still on). Returns false to fall back to the host/upload paths.
+func (s *instance) gpuBatchOpenResidentMaybe(polysToOpen [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
+	if !s.residentOpenings() {
+		return kzg.BatchOpeningProof{}, false
+	}
+	// the wire/S1/S2 buffers are canonical only after the restore goroutine finishes
+	select {
+	case <-s.ctx.Done():
+		return kzg.BatchOpeningProof{}, false
+	case <-s.chRestoreLRO:
+	}
+	dev, err := p2.NewDevice()
+	if err != nil {
+		return kzg.BatchOpeningProof{}, false
+	}
+	n := int(s.domain0.Cardinality)
+	var owned []*p2.FrVector
+	defer func() {
+		for _, v := range owned {
+			v.Free()
+		}
+	}()
+	upload := func(coeffs []fr.Element) (residentPoly, bool) {
+		if len(coeffs) == 0 {
+			return residentPoly{}, true
+		}
+		v, e := dev.NewFrVector(len(coeffs))
+		if e != nil {
+			return residentPoly{}, false
+		}
+		owned = append(owned, v)
+		if e := v.CopyFromHost(coeffs); e != nil {
+			return residentPoly{}, false
+		}
+		return residentPoly{ptr: v.Ptr(), n: len(coeffs)}, true
+	}
+	blind := func(id int, bpCoeffs []fr.Element) (residentPoly, bool) {
+		dWire := s.gpuCtx.getPoly(id)
+		if dWire == nil {
+			return residentPoly{}, false
+		}
+		v, e := blindResidentWire(dev, dWire, n, bpCoeffs)
+		if e != nil {
+			return residentPoly{}, false
+		}
+		owned = append(owned, v)
+		return residentPoly{ptr: v.Ptr(), n: v.Len()}, true
+	}
+	qcp := coefficients(s.trace.Qcp)
+	polys := make([]residentPoly, 6+len(qcp))
+	var o bool
+	if polys[0], o = upload(s.linearizedPolynomial); !o {
+		return kzg.BatchOpeningProof{}, false
+	}
+	if polys[1], o = blind(id_L, s.bp[id_Bl].Coefficients()); !o {
+		return kzg.BatchOpeningProof{}, false
+	}
+	if polys[2], o = blind(id_R, s.bp[id_Br].Coefficients()); !o {
+		return kzg.BatchOpeningProof{}, false
+	}
+	if polys[3], o = blind(id_O, s.bp[id_Bo].Coefficients()); !o {
+		return kzg.BatchOpeningProof{}, false
+	}
+	polys[4] = residentPoly{ptr: s.gpuCtx.getPoly(id_S1), n: n}
+	polys[5] = residentPoly{ptr: s.gpuCtx.getPoly(id_S2), n: n}
+	if polys[4].ptr == nil || polys[5].ptr == nil {
+		return kzg.BatchOpeningProof{}, false
+	}
+	for i := range qcp {
+		if polys[6+i], o = upload(qcp[i]); !o {
+			return kzg.BatchOpeningProof{}, false
+		}
+	}
+	res, err := gpuBatchOpenResident(polys, digests, point, hf, pk, dataTranscript...)
+	if err != nil {
+		return kzg.BatchOpeningProof{}, false
+	}
+	if os.Getenv("GNARK_P2_OPENINGS_SHADOW") != "" {
+		if ref, e := kzg.BatchOpenSinglePoint(polysToOpen, digests, point, hf, pk, dataTranscript...); e == nil {
+			mism := !res.H.Equal(&ref.H)
+			for i := range res.ClaimedValues {
+				if i < len(ref.ClaimedValues) && !res.ClaimedValues[i].Equal(&ref.ClaimedValues[i]) {
+					mism = true
+				}
+			}
+			if mism {
+				traceProvef("[P2 RESIDENT OPEN SHADOW] MISMATCH — using CPU\n")
+				return ref, true
+			}
+			traceProvef("[P2 RESIDENT OPEN SHADOW] match\n")
+		}
+	}
+	return res, true
+}
 
 func p2OpeningsEnabled() bool {
 	return gpu.Available() && os.Getenv("GNARK_DISABLE_P2") == ""
@@ -259,6 +404,43 @@ func gpuBatchOpenUpload(polys [][]fr.Element, digests []curve.G1Affine, point fr
 type residentPoly struct {
 	ptr unsafe.Pointer
 	n   int
+}
+
+// blindResidentWire builds the blinded wire on device (length n+len(bp)) from the resident
+// canonical wire dWire (length n) and the host blinding poly bp, matching getBlindedCoefficients:
+//
+//	blinded = wire ++ bp ; blinded[i] -= bp[i] for i < len(bp).
+//
+// The low/high len(bp) coefficients (len(bp)≤3) are patched via a tiny host round-trip.
+func blindResidentWire(dev *p2.Device, dWire unsafe.Pointer, n int, bp []fr.Element) (*p2.FrVector, error) {
+	lbp := len(bp)
+	v, err := dev.NewFrVector(n + lbp)
+	if err != nil {
+		return nil, err
+	}
+	if err := gpu.MemcpyD2D(v.Ptr(), dWire, n*32); err != nil {
+		v.Free()
+		return nil, err
+	}
+	lo := make([]fr.Element, lbp)
+	if err := gpu.MemcpyD2H(unsafe.Pointer(&lo[0]), dWire, lbp*32); err != nil {
+		v.Free()
+		return nil, err
+	}
+	hi := make([]fr.Element, lbp)
+	for i := 0; i < lbp; i++ {
+		lo[i].Sub(&lo[i], &bp[i]) // blinded[i] = wire[i] - bp[i]
+		hi[i].Set(&bp[i])         // blinded[n+i] = bp[i]
+	}
+	if err := gpu.MemcpyH2D(v.Ptr(), unsafe.Pointer(&lo[0]), lbp*32); err != nil {
+		v.Free()
+		return nil, err
+	}
+	if err := gpu.MemcpyH2D(unsafe.Add(v.Ptr(), n*32), unsafe.Pointer(&hi[0]), lbp*32); err != nil {
+		v.Free()
+		return nil, err
+	}
+	return v, nil
 }
 
 // gpuBatchOpenResident is gpuBatchOpen for polynomials that are ALREADY device-resident

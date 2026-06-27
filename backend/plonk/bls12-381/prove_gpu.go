@@ -744,8 +744,13 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// restore is itself device-resident (residentRestore).
 	if !residentRestore {
 		tPhase = time.Now()
+		residentWires := s.residentOpenings()
 		for i := 0; i < npolys; i++ {
 			if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
+				continue
+			}
+			// the wires stay device-resident for the on-device openings; don't download them
+			if residentWires && (i == id_L || i == id_R || i == id_O) {
 				continue
 			}
 			cp := s.x[i].Coefficients()
@@ -990,6 +995,7 @@ func gpuResidentCosetInvScale(domain1 *fft.Domain) (unsafe.Pointer, error) {
 // batchApply(ToCanonical + scalePowers) when the GPU context is active.
 func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 	n := s.gpuCtx.n
+	residentWires := s.residentOpenings()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	gpu.SetDevice()
@@ -1023,6 +1029,11 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 		}
 		if err := gpu.VecMulDevice(dp, dp, dScale, n); err != nil {
 			return err
+		}
+		// keep the canonical wires device-resident for the on-device openings — skip the
+		// host download (the un-coset above already left them canonical in dp).
+		if residentWires && (i == id_L || i == id_R || i == id_O) {
+			continue
 		}
 		cp := s.x[i].Coefficients()
 		if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dp, n*32); err != nil {

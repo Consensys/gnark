@@ -976,17 +976,29 @@ func (s *instance) computeLinearizedPolynomial() error {
 	}
 
 	go func() {
-		blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
+		if v, ok := s.gpuEvalBlindedMaybe(id_L, s.bp[id_Bl].Evaluate(s.zeta), s.zeta); ok {
+			blzeta = v
+		} else {
+			blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
+		}
 		wg.Done()
 	}()
 
 	go func() {
-		brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
+		if v, ok := s.gpuEvalBlindedMaybe(id_R, s.bp[id_Br].Evaluate(s.zeta), s.zeta); ok {
+			brzeta = v
+		} else {
+			brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
+		}
 		wg.Done()
 	}()
 
 	go func() {
-		bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
+		if v, ok := s.gpuEvalBlindedMaybe(id_O, s.bp[id_Bo].Evaluate(s.zeta), s.zeta); ok {
+			bozeta = v
+		} else {
+			bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
+		}
 		wg.Done()
 	}()
 
@@ -1098,7 +1110,9 @@ func (s *instance) batchOpening() error {
 
 	var err error
 	t4 := time.Now()
-	if proof, ok := s.gpuBatchOpenMaybe(polysToOpen, digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
+	if proof, ok := s.gpuBatchOpenResidentMaybe(polysToOpen, digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
+		s.proof.BatchedProof = proof
+	} else if proof, ok := s.gpuBatchOpenMaybe(polysToOpen, digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
 		s.proof.BatchedProof = proof
 	} else {
 		s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(

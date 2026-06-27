@@ -29,6 +29,7 @@ int gpu_memcpy_h2d(void* dst, const void* src, size_t size);
 int gpu_memcpy_d2h(void* dst, const void* src, size_t size);
 int gpu_memcpy_h2d_on_stream(void* dst, const void* src, size_t size, void* stream);
 int gpu_memcpy_d2h_on_stream(void* dst, const void* src, size_t size, void* stream);
+int gpu_memcpy_d2d_on_stream(void* dst, const void* src, size_t size, void* stream);
 
 // Streams
 void* gpu_stream_create();
@@ -388,6 +389,14 @@ func MemcpyH2D(dst unsafe.Pointer, src unsafe.Pointer, size int) error {
 func MemcpyD2H(dst unsafe.Pointer, src unsafe.Pointer, size int) error {
 	if C.gpu_memcpy_d2h(dst, src, C.size_t(size)) != 0 {
 		return fmt.Errorf("GPU D2H failed (%d bytes)", size)
+	}
+	return nil
+}
+
+// MemcpyD2D copies device-to-device (synchronous on the default stream).
+func MemcpyD2D(dst unsafe.Pointer, src unsafe.Pointer, size int) error {
+	if C.gpu_memcpy_d2d_on_stream(dst, src, C.size_t(size), nil) != 0 {
+		return fmt.Errorf("GPU D2D failed (%d bytes)", size)
 	}
 	return nil
 }
