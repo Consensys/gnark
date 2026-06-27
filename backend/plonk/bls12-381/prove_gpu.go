@@ -1073,7 +1073,13 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	a2l.Mul(&zhZeta, &den).Mul(&a2l, &alpha).Mul(&a2l, &alpha).Mul(&a2l, &s.domain0.CardinalityInv)
 	scalars := []fr.Element{s1, s2, rl, lZeta, rZeta, oZeta, a2l, zhZeta}
 
-	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
+	// canonical base Qk: use the circuit-fixed cache from Setup (skips a per-proof
+	// inverse-FFT); fall back to canonicalizing per-proof for a deserialized proving key.
+	qkCanon := s.pk.qkCanonical
+	if qkCanon == nil {
+		s.trace.Qk.ToCanonical(s.domain0).ToRegular()
+		qkCanon = s.trace.Qk.Coefficients()
+	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -1110,7 +1116,7 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	dQr := mk(s.trace.Qr.Coefficients())
 	dQm := mk(s.trace.Qm.Coefficients())
 	dQo := mk(s.trace.Qo.Coefficients())
-	dQk := mk(s.trace.Qk.Coefficients())
+	dQk := mk(qkCanon)
 	// hFolded[i] = h1[i] + zNP2*h2[i] + zNP2^2*h3[i], where the shards h1/h2/h3 are
 	// the three contiguous thirds of the device-resident quotient (dNumerator) — see
 	// gpuDivideAndCommitQuotient, which leaves the canonical quotient in dNumerator and

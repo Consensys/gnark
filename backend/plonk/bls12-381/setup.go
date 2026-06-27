@@ -97,6 +97,12 @@ type ProvingKey struct {
 	// not serialized — a proving key read from disk has trace == nil and the prover
 	// falls back to NewTrace.
 	trace *Trace
+
+	// qkCanonical is the base Qk selector in canonical/Regular basis. The base Qk is
+	// circuit-fixed (the prover completes a *clone* with the public inputs), so its
+	// canonical form is too — caching it lets the linearized polynomial skip a per-proof
+	// inverse-FFT. Transient like trace; nil => the prover canonicalizes per-proof.
+	qkCanonical []fr.Element
 }
 
 func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -144,6 +150,13 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	// below only reads coefficients (kzg.Commit), so pk.trace stays in Lagrange form — which
 	// is what the prover needs (it does its own per-proof Lagrange->canonical conversions).
 	pk.trace = trace
+
+	// cache the canonical/Regular base Qk so the linearized polynomial skips the per-proof
+	// inverse-FFT (the base Qk is circuit-fixed; the prover completes a clone with the
+	// public inputs). Computed off a clone so pk.trace.Qk stays in Lagrange form.
+	qkCanon := trace.Qk.Clone()
+	qkCanon.ToCanonical(domain).ToRegular()
+	pk.qkCanonical = qkCanon.Coefficients()
 
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	if err := vk.commitTrace(trace, domain, pk.KzgLagrange); err != nil {
