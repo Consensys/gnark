@@ -222,6 +222,39 @@ func gpuBatchOpen(polynomials [][]fr.Element, digests []curve.G1Affine, point fr
 	return res, nil
 }
 
+// gpuBatchOpenUpload uploads each (host, canonical) polynomial to device once and runs
+// the whole opening on device — claimed values via on-device Horner and the γ-fold via
+// on-device accumulation (gpuBatchOpenResident) — replacing the sequential host Horner
+// evals + host coefficient-blend fold. Byte-identical to gpuBatchOpen.
+func gpuBatchOpenUpload(polys [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, error) {
+	dev, err := p2.NewDevice()
+	if err != nil {
+		return kzg.BatchOpeningProof{}, err
+	}
+	vecs := make([]*p2.FrVector, 0, len(polys))
+	defer func() {
+		for _, v := range vecs {
+			v.Free()
+		}
+	}()
+	rp := make([]residentPoly, len(polys))
+	for i := range polys {
+		if len(polys[i]) == 0 {
+			continue // rp[i] stays {nil,0}; eval=0, skipped in the fold
+		}
+		v, err := dev.NewFrVector(len(polys[i]))
+		if err != nil {
+			return kzg.BatchOpeningProof{}, err
+		}
+		vecs = append(vecs, v)
+		if err := v.CopyFromHost(polys[i]); err != nil {
+			return kzg.BatchOpeningProof{}, err
+		}
+		rp[i] = residentPoly{ptr: v.Ptr(), n: len(polys[i])}
+	}
+	return gpuBatchOpenResident(rp, digests, point, hf, pk, dataTranscript...)
+}
+
 // residentPoly is a device-resident polynomial (canonical coefficients) to be opened.
 type residentPoly struct {
 	ptr unsafe.Pointer
@@ -254,6 +287,9 @@ func gpuBatchOpenResident(polys []residentPoly, digests []curve.G1Affine, point 
 	for i := range polys {
 		if polys[i].n > largest {
 			largest = polys[i].n
+		}
+		if polys[i].n == 0 {
+			continue // empty polynomial evaluates to 0 (the zero value)
 		}
 		cv, err := gpu.PolyEvalDevice(polys[i].ptr, polys[i].n, dPoint.Ptr())
 		if err != nil {
@@ -289,6 +325,9 @@ func gpuBatchOpenResident(polys []residentPoly, digests []curve.G1Affine, point 
 		return res, err
 	}
 	for i := range polys {
+		if polys[i].n == 0 {
+			continue
+		}
 		dGi := unsafe.Add(dGammas.Ptr(), i*32) // fr.Element = 32 bytes
 		if err := gpu.VecAddScalarMulDevice(dFolded.Ptr(), polys[i].ptr, dGi, polys[i].n); err != nil {
 			return res, err

@@ -55,7 +55,7 @@ func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Aff
 	if !p2OpeningsEnabled() {
 		return kzg.BatchOpeningProof{}, false
 	}
-	res, err := gpuBatchOpen(polys, digests, point, hf, pk, dataTranscript...)
+	res, err := gpuBatchOpenUpload(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
 		return kzg.BatchOpeningProof{}, false
 	}
