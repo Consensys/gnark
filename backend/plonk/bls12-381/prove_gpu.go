@@ -8,7 +8,6 @@ import (
 	"math/bits"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -224,37 +223,20 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 	return true, nil
 }
 
-type restoreDebugShadow struct {
-	polyIdx int
-	coeffs  []fr.Element
-}
-
 type proverGPUContext struct {
-	mu            sync.Mutex
-	n             int
-	polyPtrs      []unsafe.Pointer
-	dL            unsafe.Pointer
-	dR            unsafe.Pointer
-	dO            unsafe.Pointer
-	dS1           unsafe.Pointer
-	dS2           unsafe.Pointer
-	dS3           unsafe.Pointer
-	dTwiddles0    unsafe.Pointer
-	dNumerator    unsafe.Pointer
-	dHFolded      unsafe.Pointer
-	hFoldedLen    int
-	dBlindedZ     unsafe.Pointer
-	blindedZLen   int
-	dBlindedL     unsafe.Pointer
-	blindedLLen   int
-	dBlindedR     unsafe.Pointer
-	blindedRLen   int
-	dBlindedO     unsafe.Pointer
-	blindedOLen   int
-	dLinearized   unsafe.Pointer
-	linearizedLen int
-	dInvRho       unsafe.Pointer
-	invRhoLen     int
+	mu         sync.Mutex
+	n          int
+	polyPtrs   []unsafe.Pointer
+	dL         unsafe.Pointer
+	dR         unsafe.Pointer
+	dO         unsafe.Pointer
+	dS1        unsafe.Pointer
+	dS2        unsafe.Pointer
+	dS3        unsafe.Pointer
+	dTwiddles0 unsafe.Pointer
+	dNumerator unsafe.Pointer
+	dInvRho    unsafe.Pointer
+	invRhoLen  int
 }
 
 func (ctx *proverGPUContext) free() {
@@ -263,8 +245,7 @@ func (ctx *proverGPUContext) free() {
 	}
 	for _, ptr := range []unsafe.Pointer{
 		ctx.dL, ctx.dR, ctx.dO, ctx.dS1, ctx.dS2, ctx.dS3, ctx.dTwiddles0,
-		ctx.dNumerator, ctx.dHFolded, ctx.dBlindedZ, ctx.dBlindedL, ctx.dBlindedR, ctx.dBlindedO,
-		ctx.dLinearized, ctx.dInvRho,
+		ctx.dNumerator, ctx.dInvRho,
 	} {
 		if ptr != nil {
 			gpu.Free(ptr)
@@ -274,18 +255,6 @@ func (ctx *proverGPUContext) free() {
 	ctx.dS1, ctx.dS2, ctx.dS3 = nil, nil, nil
 	ctx.dTwiddles0 = nil
 	ctx.dNumerator = nil
-	ctx.dHFolded = nil
-	ctx.hFoldedLen = 0
-	ctx.dBlindedZ = nil
-	ctx.blindedZLen = 0
-	ctx.dBlindedL = nil
-	ctx.blindedLLen = 0
-	ctx.dBlindedR = nil
-	ctx.blindedRLen = 0
-	ctx.dBlindedO = nil
-	ctx.blindedOLen = 0
-	ctx.dLinearized = nil
-	ctx.linearizedLen = 0
 	ctx.dInvRho = nil
 	ctx.invRhoLen = 0
 	for i, ptr := range ctx.polyPtrs {
@@ -296,26 +265,6 @@ func (ctx *proverGPUContext) free() {
 	}
 	ctx.polyPtrs = nil
 	ctx.n = 0
-}
-
-func uploadResidentPoly(dst *unsafe.Pointer, src []fr.Element, size int) error {
-	if len(src) == 0 {
-		return nil
-	}
-	if *dst == nil {
-		*dst = gpu.Malloc(size)
-		if *dst == nil {
-			return fmt.Errorf("GPU malloc failed for resident poly")
-		}
-	}
-	return gpu.MemcpyH2D(*dst, unsafe.Pointer(&src[0]), size)
-}
-
-func ensureResidentPoly(dst *unsafe.Pointer, src []fr.Element, size int) error {
-	if *dst != nil {
-		return nil
-	}
-	return uploadResidentPoly(dst, src, size)
 }
 
 func uploadResidentSlice(dst *unsafe.Pointer, dstLen *int, src []fr.Element) error {
@@ -341,25 +290,6 @@ func uploadResidentSlice(dst *unsafe.Pointer, dstLen *int, src []fr.Element) err
 	return nil
 }
 
-func releaseResidentSlice(dst *unsafe.Pointer, dstLen *int) {
-	if *dst != nil {
-		gpu.Free(*dst)
-		*dst = nil
-	}
-	*dstLen = 0
-}
-
-func bestEffortUploadResidentSlice(dst *unsafe.Pointer, dstLen *int, src []fr.Element) error {
-	if err := uploadResidentSlice(dst, dstLen, src); err != nil {
-		if strings.Contains(err.Error(), "GPU malloc failed") {
-			releaseResidentSlice(dst, dstLen)
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
 func (ctx *proverGPUContext) ensurePolySlot(size int) {
 	if len(ctx.polyPtrs) < size {
 		old := ctx.polyPtrs
@@ -373,23 +303,6 @@ func (ctx *proverGPUContext) getPoly(id int) unsafe.Pointer {
 		return nil
 	}
 	return ctx.polyPtrs[id]
-}
-
-func (ctx *proverGPUContext) ensurePoly(id int, coeffs []fr.Element, size int) error {
-	ctx.ensurePolySlot(id + 1)
-	if ctx.polyPtrs[id] != nil {
-		return nil
-	}
-	ptr := gpu.Malloc(size)
-	if ptr == nil {
-		return fmt.Errorf("GPU malloc failed for resident poly %d", id)
-	}
-	if err := gpu.MemcpyH2D(ptr, unsafe.Pointer(&coeffs[0]), size); err != nil {
-		gpu.Free(ptr)
-		return err
-	}
-	ctx.polyPtrs[id] = ptr
-	return nil
 }
 
 // gpuComputeNumeratorRhoLoop runs the rho-loop of computeNumerator on GPU.

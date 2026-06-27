@@ -11,11 +11,6 @@ package gpu
 /*
 #include <stdint.h>
 
-// DIT coset inverse NTT in place: IFFT (incl 1/n) then * g^{-i} in natural order.
-// This is exactly gnark's a.ToCanonical(bigDomain) for a LagrangeCoset/BitReverse
-// polynomial (divideByZH).
-int gpu_ntt_coset_dit(void* d_data, uint32_t log_n, int direction, void* stream);
-
 // Element-wise r[i] = a[i] * b[i], all device-resident.
 int gpu_vec_mul(void* d_r, const void* d_a, const void* d_b, uint32_t n, void* stream);
 
@@ -46,30 +41,6 @@ import (
 	"runtime"
 	"unsafe"
 )
-
-// CosetIFFTInverseDevice performs gnark's coset inverse FFT (a.ToCanonical on the
-// coset: DIT inverse FFT + 1/n + g^{-i} scaling) in place on a device-resident
-// buffer of n fr.Elements. Input must be LagrangeCoset / BitReverse; output is
-// Canonical / Regular — matching divideByZH's a.ToCanonical(bigDomain).ToRegular().
-func CosetIFFTInverseDevice(dData unsafe.Pointer, n int) error {
-	if n == 0 {
-		return nil
-	}
-	logN := uint32(bits.TrailingZeros64(uint64(n)))
-	if 1<<logN != n {
-		return fmt.Errorf("CosetIFFTInverseDevice: size must be a power of 2, got %d", n)
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	SetDevice()
-	if err := NTTInit(logN); err != nil {
-		return err
-	}
-	if C.gpu_ntt_coset_dit(dData, C.uint32_t(logN), 1, nil) != 0 {
-		return fmt.Errorf("CosetIFFTInverseDevice: kernel failed")
-	}
-	return nil
-}
 
 // InverseButterfliesDevice runs the DIT inverse-FFT butterflies in place on a
 // device buffer WITHOUT the 1/n scaling (matches FFTInverseNoScale): BitReverse

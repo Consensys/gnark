@@ -305,9 +305,8 @@ type instance struct {
 	x                         []*iop.Polynomial // x stores tracks the polynomial we need
 	bp                        []*iop.Polynomial // blinding polynomials
 	h                         *iop.Polynomial   // h is the quotient polynomial
-	hFoldedForLinearized      []fr.Element
-	blindedZ                  []fr.Element  // blindedZ is the blinded version of Z
-	quotientShardsRandomizers [2]fr.Element // random elements for blinding the shards of the quotient
+	blindedZ                  []fr.Element      // blindedZ is the blinded version of Z
+	quotientShardsRandomizers [2]fr.Element     // random elements for blinding the shards of the quotient
 
 	precomputedDenominators    []fr.Element // stores the denominators of the Lagrange polynomials
 	linearizedPolynomial       []fr.Element
@@ -1561,46 +1560,6 @@ func scalePowers(p *iop.Polynomial, w fr.Element) {
 	}
 }
 
-func buildPowerTable(n int, w fr.Element) []fr.Element {
-	if n == 0 {
-		return nil
-	}
-	powers := make([]fr.Element, n)
-	nbTasks := runtime.NumCPU()
-	if nbTasks < 1 {
-		nbTasks = 1
-	}
-	utils.Parallelize(n, func(start, end int) {
-		var acc fr.Element
-		if start == 0 {
-			acc.SetOne()
-		} else {
-			acc.Exp(w, big.NewInt(int64(start)))
-		}
-		for i := start; i < end; i++ {
-			powers[i].Set(&acc)
-			acc.Mul(&acc, &w)
-		}
-	}, nbTasks)
-	if n > 0 {
-		powers[0].SetOne()
-	}
-	return powers
-}
-
-func scalePowersPrecomputed(p *iop.Polynomial, powers []fr.Element) {
-	cp := p.Coefficients()
-	nbTasks := runtime.NumCPU()
-	if nbTasks < 1 {
-		nbTasks = 1
-	}
-	utils.Parallelize(len(cp), func(start, end int) {
-		for i := start; i < end; i++ {
-			cp[i].Mul(&cp[i], &powers[i])
-		}
-	}, nbTasks)
-}
-
 func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	// Get the size of the polynomial
 	n := big.NewInt(int64(p.Size()))
@@ -1900,12 +1859,7 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 
 			// if statistical zeroknowledge is deactivated, len(h1)=len(h2)=len(h3)=len(blindedZ)-1.
 			// Else len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1
-			if s.hFoldedForLinearized != nil {
-				if i < len(s.hFoldedForLinearized) {
-					t.Mul(&s.hFoldedForLinearized[i], &zhZeta)
-					blindedZCanonical[i].Sub(&blindedZCanonical[i], &t)
-				}
-			} else if i < len(h3) {
+			if i < len(h3) {
 				t.Mul(&h3[i], &zetaNPlusTwo).
 					Add(&t, &h2[i]).
 					Mul(&t, &zetaNPlusTwo).

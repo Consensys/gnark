@@ -44,19 +44,3 @@ func (m *G1MSM) MultiExp(v *FrVector) (curve.G1Affine, error) {
 	aff.FromJacobian(&jac)
 	return aff, nil
 }
-
-// MultiExpOffset commits n scalars against bases starting at base index off — for
-// the L-vs-R/O windows of commitToLRO and the H1/H2/H3 chunks of the quotient.
-func (m *G1MSM) MultiExpOffset(v *FrVector, off, n int) (curve.G1Affine, error) {
-	var aff curve.G1Affine
-	if off+n > m.maxN {
-		return aff, fmt.Errorf("p2: MSM window [%d,%d) exceeds %d SRS bases", off, off+n, m.maxN)
-	}
-	basesOff := unsafe.Add(m.hostBases, off*int(unsafe.Sizeof(curve.G1Affine{})))
-	var jac curve.G1Jac
-	if _, err := gpu.MSMDeviceScalarsWithStats(basesOff, v.Ptr(), n, unsafe.Pointer(&jac)); err != nil {
-		return aff, err
-	}
-	aff.FromJacobian(&jac)
-	return aff, nil
-}

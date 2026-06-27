@@ -12,6 +12,23 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 )
 
+func randVec(n int) []fr.Element {
+	v := make([]fr.Element, n)
+	for i := range v {
+		v[i].SetRandom()
+	}
+	return v
+}
+
+func assertEq(t *testing.T, name string, got, want []fr.Element) {
+	t.Helper()
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("%s: mismatch at %d: got %s want %s", name, i, got[i].String(), want[i].String())
+		}
+	}
+}
+
 // TestGrandProductDevice proves the resident permutation grand-product (the
 // ~4.5s buildRatioCopyConstraint phase) byte-matches iop.BuildRatioCopyConstraint
 // for the same inputs — validating the gpu_ratio_* pipeline end-to-end on

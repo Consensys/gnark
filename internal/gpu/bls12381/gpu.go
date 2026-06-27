@@ -65,7 +65,6 @@ import "C"
 
 import (
 	"fmt"
-	"math/bits"
 	"os"
 	"runtime"
 	"sync"
@@ -89,11 +88,6 @@ var (
 	pointsCache    []pointsCacheEntry
 	pointsCacheMax = 8 // 8 entries × 768MB max = 6GB of 20GB VRAM
 
-	// FFT device buffer pool — eliminates per-call cudaMalloc/cudaFree.
-	fftPoolMu  sync.Mutex
-	fftPool    []fftBufEntry
-	fftPoolCap = 8
-
 	// CUDA stream pool
 	streamPoolMu  sync.Mutex
 	streamPool    []unsafe.Pointer
@@ -112,15 +106,6 @@ func releaseReusableMemory() {
 	pointsCache = nil
 	pointsMu.Unlock()
 
-	fftPoolMu.Lock()
-	for _, buf := range fftPool {
-		if buf.devPtr != nil {
-			C.gpu_free(buf.devPtr)
-		}
-	}
-	fftPool = nil
-	fftPoolMu.Unlock()
-
 	streamPoolMu.Lock()
 	for _, s := range streamPool {
 		if s != nil {
@@ -129,11 +114,6 @@ func releaseReusableMemory() {
 	}
 	streamPool = nil
 	streamPoolMu.Unlock()
-}
-
-type fftBufEntry struct {
-	devPtr unsafe.Pointer
-	size   int // capacity in bytes
 }
 
 type pointsCacheEntry struct {
@@ -233,68 +213,6 @@ func freeCanonicalPoints() {
 	}
 	canonCache = map[uintptr]canonEntry{}
 	canonMu.Unlock()
-}
-
-func MSMWithStats(pointsPtr unsafe.Pointer, scalarsPtr unsafe.Pointer, n int, resultPtr unsafe.Pointer) (MSMStats, error) {
-	var stats MSMStats
-	if n == 0 {
-		return stats, nil
-	}
-	// icicle's device is per-thread; pin this goroutine and select CUDA so all
-	// cgo calls below run on a CUDA thread (else icicle uses the CPU backend and
-	// segfaults on our device pointers).
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	C.gpu_set_device(0)
-	tStart := time.Now()
-
-	scalarsSize := C.size_t(n * 32)
-
-	// Points: converted Montgomery->canonical once and cached by host pointer
-	// (the SRS bases are reused across the prove's ~20 MSMs).
-	tPoints := time.Now()
-	dPoints, pstatus, perr := getCanonicalPoints(pointsPtr, n)
-	if perr != nil {
-		return stats, perr
-	}
-	stats.PointTransfer = time.Since(tPoints)
-	stats.PointCacheStatus = pstatus
-
-	// Scalars: upload + convert Montgomery->canonical each call (they change).
-	tScalars := time.Now()
-	dScalars := C.gpu_malloc(scalarsSize)
-	if dScalars == nil {
-		return stats, fmt.Errorf("GPU malloc failed for scalars")
-	}
-	defer C.gpu_free(dScalars)
-	if C.gpu_memcpy_h2d(dScalars, scalarsPtr, scalarsSize) != 0 {
-		return stats, fmt.Errorf("GPU memcpy H2D failed for scalars")
-	}
-	if C.vec_from_mont(dScalars, dScalars, C.uint32_t(n), nil) != 0 {
-		return stats, fmt.Errorf("GPU scalar from_mont failed")
-	}
-	stats.ScalarTransfer = time.Since(tScalars)
-
-	if os.Getenv("GNARK_GPU_TRACE_MSM") != "" {
-		fmt.Fprintf(os.Stderr, "[MSM attempt] MSMWithStats n=%d cache=%s ptr=%p\n", n, pstatus, pointsPtr)
-	}
-	tKernel := time.Now()
-	if C.gpu_msm(dPoints, dScalars, C.uint32_t(n), resultPtr, 0, nil) != 0 {
-		return stats, fmt.Errorf("GPU MSM execution failed")
-	}
-
-	C.gpu_sync()
-	stats.Kernel = time.Since(tKernel)
-	stats.Total = time.Since(tStart)
-
-	if os.Getenv("GNARK_GPU_TRACE_MSM") != "" {
-		fmt.Fprintf(os.Stderr,
-			"[GPU MSM trace] n=%-8d points=%s point_h2d=%v scalar_h2d=%v kernel=%v total=%v host_points=%p host_scalars=%p\n",
-			n, stats.PointCacheStatus, stats.PointTransfer, stats.ScalarTransfer, stats.Kernel, stats.Total, pointsPtr, scalarsPtr,
-		)
-	}
-
-	return stats, nil
 }
 
 // MSMDeviceScalarsWithStats computes MSM on GPU where points are identified by the
@@ -448,14 +366,6 @@ func NTTInit(logN uint32) error {
 	return nil
 }
 
-// FFTMode specifies DIT or DIF decimation.
-type FFTMode int
-
-const (
-	FFT_DIT FFTMode = 0 // Decimation in time: bit-reversed input → normal output
-	FFT_DIF FFTMode = 1 // Decimation in frequency: normal input → bit-reversed output
-)
-
 // Malloc allocates GPU device memory.
 func Malloc(size int) unsafe.Pointer {
 	return C.gpu_malloc(C.size_t(size))
@@ -508,35 +418,6 @@ func VecDenominators(dst, twiddles, coset unsafe.Pointer, n int, stream unsafe.P
 	return nil
 }
 
-// fftBufAcquire gets a device buffer from the pool, or allocates one.
-func fftBufAcquire(size int) unsafe.Pointer {
-	fftPoolMu.Lock()
-	for i, buf := range fftPool {
-		if buf.size >= size {
-			// Remove from pool and return
-			fftPool[i] = fftPool[len(fftPool)-1]
-			fftPool = fftPool[:len(fftPool)-1]
-			fftPoolMu.Unlock()
-			return buf.devPtr
-		}
-	}
-	fftPoolMu.Unlock()
-	// Pool empty or no buffer big enough — allocate new
-	return C.gpu_malloc(C.size_t(size))
-}
-
-// fftBufRelease returns a device buffer to the pool (or frees if pool full).
-func fftBufRelease(devPtr unsafe.Pointer, size int) {
-	fftPoolMu.Lock()
-	if len(fftPool) < fftPoolCap {
-		fftPool = append(fftPool, fftBufEntry{devPtr: devPtr, size: size})
-		fftPoolMu.Unlock()
-		return
-	}
-	fftPoolMu.Unlock()
-	C.gpu_free(devPtr)
-}
-
 // streamAcquire gets a CUDA stream from the pool or creates one.
 func streamAcquire() unsafe.Pointer {
 	streamPoolMu.Lock()
@@ -560,175 +441,6 @@ func streamRelease(s unsafe.Pointer) {
 	}
 	streamPoolMu.Unlock()
 	C.gpu_stream_destroy(s)
-}
-
-// FFTScaleFFT performs fused IFFT → element-wise multiply → FFT on GPU.
-// Eliminates H2D→D2H round-trip between IFFT and FFT phases.
-// dataPtr: polynomial data, scalePtr: scaling vector (both n fr.Elements).
-// ifftMode/fftMode: FFT_DIT or FFT_DIF for respective phases.
-func FFTScaleFFT(dataPtr unsafe.Pointer, scalePtr unsafe.Pointer, n int,
-	ifftMode FFTMode, fftMode FFTMode) error {
-	if n == 0 {
-		return nil
-	}
-
-	logN := uint32(bits.TrailingZeros64(uint64(n)))
-	if 1<<logN != n {
-		return fmt.Errorf("FFT size must be a power of 2, got %d", n)
-	}
-
-	if err := NTTInit(logN); err != nil {
-		return err
-	}
-
-	dataBytes := n * 32
-	dataSize := C.size_t(dataBytes)
-
-	// Allocate device buffers for data and scaling vector
-	dData := fftBufAcquire(dataBytes)
-	if dData == nil {
-		return fmt.Errorf("GPU malloc failed for FFTScaleFFT data")
-	}
-	defer fftBufRelease(dData, dataBytes)
-
-	dScale := fftBufAcquire(dataBytes)
-	if dScale == nil {
-		return fmt.Errorf("GPU malloc failed for FFTScaleFFT scale")
-	}
-	defer fftBufRelease(dScale, dataBytes)
-
-	stream := streamAcquire()
-	if stream == nil {
-		return fmt.Errorf("GPU stream create failed")
-	}
-	defer streamRelease(stream)
-
-	// Upload data and scaling vector
-	if C.gpu_memcpy_h2d_on_stream(dData, dataPtr, dataSize, stream) != 0 {
-		return fmt.Errorf("FFTScaleFFT: H2D data failed")
-	}
-	if C.gpu_memcpy_h2d_on_stream(dScale, scalePtr, dataSize, stream) != 0 {
-		return fmt.Errorf("FFTScaleFFT: H2D scale failed")
-	}
-
-	// Fused IFFT → multiply → FFT on device
-	ifftDir := C.int(0) // DIT
-	if ifftMode == FFT_DIF {
-		ifftDir = 1
-	}
-	fftDir := C.int(0) // DIT
-	if fftMode == FFT_DIF {
-		fftDir = 1
-	}
-
-	if C.gpu_fft_scale_fft(dData, dScale, C.uint32_t(logN), ifftDir, fftDir, stream) != 0 {
-		return fmt.Errorf("FFTScaleFFT: kernel failed")
-	}
-
-	// Download result
-	if C.gpu_memcpy_d2h_on_stream(dataPtr, dData, dataSize, stream) != 0 {
-		return fmt.Errorf("FFTScaleFFT: D2H failed")
-	}
-
-	C.gpu_stream_sync(stream)
-	return nil
-}
-
-// fftExec runs an FFT on GPU with a pooled buffer and per-call stream.
-// The per-call stream ensures cudaStreamSynchronize only waits for THIS FFT,
-// not all GPU work from other goroutines.
-func fftExec(dataPtr unsafe.Pointer, n int, logN uint32, kernelFn func(unsafe.Pointer, C.uint32_t, unsafe.Pointer) C.int) error {
-	dataBytes := n * 32
-	dataSize := C.size_t(dataBytes)
-
-	dData := fftBufAcquire(dataBytes)
-	if dData == nil {
-		return fmt.Errorf("GPU malloc failed for FFT data (%d bytes)", dataBytes)
-	}
-	defer fftBufRelease(dData, dataBytes)
-
-	stream := streamAcquire()
-	if stream == nil {
-		return fmt.Errorf("GPU stream create failed")
-	}
-	defer streamRelease(stream)
-
-	if C.gpu_memcpy_h2d_on_stream(dData, dataPtr, dataSize, stream) != 0 {
-		return fmt.Errorf("GPU H2D failed for FFT data")
-	}
-
-	if kernelFn(dData, C.uint32_t(logN), stream) != 0 {
-		return fmt.Errorf("GPU NTT kernel failed")
-	}
-
-	if C.gpu_memcpy_d2h_on_stream(dataPtr, dData, dataSize, stream) != 0 {
-		return fmt.Errorf("GPU D2H failed for FFT data")
-	}
-
-	// Only waits for this stream's work — other goroutines' FFTs proceed independently
-	C.gpu_stream_sync(stream)
-	return nil
-}
-
-// FFTInverseNoScale performs inverse FFT on GPU WITHOUT 1/n scaling.
-// Used for coset inverse FFT where the caller handles cosetTableInv * CardinalityInv.
-func FFTInverseNoScale(dataPtr unsafe.Pointer, n int, mode FFTMode) error {
-	if n == 0 {
-		return nil
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	C.gpu_set_device(0)
-
-	logN := uint32(bits.TrailingZeros64(uint64(n)))
-	if 1<<logN != n {
-		return fmt.Errorf("FFT size must be a power of 2, got %d", n)
-	}
-
-	if err := NTTInit(logN); err != nil {
-		return fmt.Errorf("FFTInverseNoScale: NTTInit(logN=%d) failed: %w", logN, err)
-	}
-
-	return fftExec(dataPtr, n, logN, func(dData unsafe.Pointer, ln C.uint32_t, stream unsafe.Pointer) C.int {
-		if mode == FFT_DIF {
-			return C.gpu_ntt_dif_noscale(dData, ln, 1, stream)
-		}
-		return C.gpu_ntt_dit_noscale(dData, ln, 1, stream)
-	})
-}
-
-// FFT performs forward or inverse FFT on GPU.
-// Uses pooled buffers and per-call streams for concurrent goroutine safety.
-func FFT(dataPtr unsafe.Pointer, n int, inverse bool, mode FFTMode) error {
-	if n == 0 {
-		return nil
-	}
-	// icicle's device is per-thread; pin + select CUDA (else CPU-backend NTT
-	// segfaults on our device pointers).
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	C.gpu_set_device(0)
-
-	logN := uint32(bits.TrailingZeros64(uint64(n)))
-	if 1<<logN != n {
-		return fmt.Errorf("FFT size must be a power of 2, got %d", n)
-	}
-
-	if err := NTTInit(logN); err != nil {
-		return err
-	}
-
-	direction := C.int(0)
-	if inverse {
-		direction = 1
-	}
-
-	return fftExec(dataPtr, n, logN, func(dData unsafe.Pointer, ln C.uint32_t, stream unsafe.Pointer) C.int {
-		if mode == FFT_DIF {
-			return C.gpu_ntt_dif(dData, ln, direction, stream)
-		}
-		return C.gpu_ntt_dit(dData, ln, direction, stream)
-	})
 }
 
 // ── Async stream MSM (overlap independent commits on the GPU) ────────────────
