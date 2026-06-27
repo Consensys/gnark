@@ -1073,15 +1073,6 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	a2l.Mul(&zhZeta, &den).Mul(&a2l, &alpha).Mul(&a2l, &alpha).Mul(&a2l, &s.domain0.CardinalityInv)
 	scalars := []fr.Element{s1, s2, rl, lZeta, rZeta, oZeta, a2l, zhZeta}
 
-	// fold H on host: hFolded[i] = h1[i] + zNP2*h2[i] + zNP2^2*h3[i]
-	h1, h2, h3 := s.h1(), s.h2(), s.h3()
-	hFolded := make([]fr.Element, n2)
-	for i := 0; i < n2; i++ {
-		var t fr.Element
-		t.Mul(&h3[i], &zetaNP2).Add(&t, &h2[i]).Mul(&t, &zetaNP2).Add(&t, &h1[i])
-		hFolded[i].Set(&t)
-	}
-
 	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
 
 	runtime.LockOSThread()
@@ -1120,7 +1111,34 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	dQm := mk(s.trace.Qm.Coefficients())
 	dQo := mk(s.trace.Qo.Coefficients())
 	dQk := mk(s.trace.Qk.Coefficients())
-	dHF := mk(hFolded)
+	// hFolded[i] = h1[i] + zNP2*h2[i] + zNP2^2*h3[i], where the shards h1/h2/h3 are
+	// the three contiguous thirds of the device-resident quotient (dNumerator) — see
+	// gpuDivideAndCommitQuotient, which leaves the canonical quotient in dNumerator and
+	// memcpys its first 3*n2 coeffs into s.h. Non-ZK: fold straight from dNumerator at
+	// its shard offsets (no host fold, no 256MB upload). ZK injects randomizers into
+	// the shards (see s.h1/h2/h3), so that path keeps the host fold + upload.
+	var dHF unsafe.Pointer
+	if !s.opt.StatisticalZK && s.gpuCtx.dNumerator != nil {
+		dHF = gpu.Malloc(n2 * 32)
+		if dHF == nil {
+			return nil, false
+		}
+		bufs = append(bufs, dHF)
+		dZeta := mk([]fr.Element{zetaNP2})
+		dq := s.gpuCtx.dNumerator
+		if dZeta == nil || gpu.FoldQuotientDevice(dq, unsafe.Add(dq, n2*32), unsafe.Add(dq, 2*n2*32), dHF, dZeta, n2) != nil {
+			return nil, false
+		}
+	} else {
+		h1, h2, h3 := s.h1(), s.h2(), s.h3()
+		hFolded := make([]fr.Element, n2)
+		for i := 0; i < n2; i++ {
+			var t fr.Element
+			t.Mul(&h3[i], &zetaNP2).Add(&t, &h2[i]).Mul(&t, &zetaNP2).Add(&t, &h1[i])
+			hFolded[i].Set(&t)
+		}
+		dHF = mk(hFolded)
+	}
 	dSc := mk(scalars)
 	if dBZ == nil || dS3 == nil || dQl == nil || dQr == nil || dQm == nil || dQo == nil || dQk == nil || dHF == nil || dSc == nil {
 		return nil, false

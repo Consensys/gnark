@@ -32,6 +32,9 @@ int gpu_plonk_linearized_poly(const void* d_blindedZ, const void* d_s3, const vo
     const void* d_qr, const void* d_qm, const void* d_qo, const void* d_qk, const void* d_hFolded,
     const void* d_scalars, uint32_t n, uint32_t n_blindedZ, uint32_t n_hFolded, void* d_result, void* stream);
 int gpu_kzg_divide(const void* d_f, const void* d_a, const void* d_ainv, const void* d_one, uint32_t n, void* d_q, void* stream);
+
+// Fold the three quotient shards: out[i] = h1[i] + z*h2[i] + z^2*h3[i], z=zeta^(n+2).
+int gpu_plonk_fold_quotient(const void* d_h1, const void* d_h2, const void* d_h3, void* d_out, const void* d_zeta_n_plus_2, uint32_t n, void* stream);
 */
 import "C"
 
@@ -125,6 +128,23 @@ func KzgDivideDevice(dF, dA, dAinv, dOne, dQ unsafe.Pointer, n int) error {
 	SetDevice()
 	if C.gpu_kzg_divide(dF, dA, dAinv, dOne, C.uint32_t(n), dQ, nil) != 0 {
 		return fmt.Errorf("KzgDivideDevice: kernel failed")
+	}
+	return nil
+}
+
+// FoldQuotientDevice folds the three quotient shards on-device:
+//
+//	dOut[i] = dH1[i] + z*dH2[i] + z^2*dH3[i],  z = zeta^(n+2) (a single device scalar dZeta).
+//
+// The shards are the three contiguous thirds of the device-resident quotient, so
+// the caller passes dH1 = quotient base and dH2/dH3 = that base offset by n/2n
+// elements — no host transfer of the (256MB) folded polynomial.
+func FoldQuotientDevice(dH1, dH2, dH3, dOut, dZeta unsafe.Pointer, n int) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	SetDevice()
+	if C.gpu_plonk_fold_quotient(dH1, dH2, dH3, dOut, dZeta, C.uint32_t(n), nil) != 0 {
+		return fmt.Errorf("FoldQuotientDevice: kernel failed")
 	}
 	return nil
 }
