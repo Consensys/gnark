@@ -59,3 +59,8 @@ go.work.sum
 .claude/
 
 examples/gbotrel/**
+
+# WebGPU accelerated backend build outputs.
+backend/accelerated/webgpu/web/node_modules/
+backend/accelerated/webgpu/web/dist/
+backend/accelerated/webgpu/web/src/curvegpu/shader_bundle.generated.ts
