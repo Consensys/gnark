@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"unsafe"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -205,6 +206,95 @@ func gpuBatchOpen(polynomials [][]fr.Element, digests []curve.G1Affine, point fr
 		return res, err
 	}
 	q, err := dev.KzgDivide(vf, point)
+	if err != nil {
+		return res, err
+	}
+	defer q.Free()
+	msm, err := dev.NewG1MSM(pk.G1)
+	if err != nil {
+		return res, err
+	}
+	h, err := msm.MultiExp(q)
+	if err != nil {
+		return res, err
+	}
+	res.H.Set(&h)
+	return res, nil
+}
+
+// residentPoly is a device-resident polynomial (canonical coefficients) to be opened.
+type residentPoly struct {
+	ptr unsafe.Pointer
+	n   int
+}
+
+// gpuBatchOpenResident is gpuBatchOpen for polynomials that are ALREADY device-resident
+// in canonical basis (the wires after restore, S1/S2, Qcp, the linearized poly, Z): the
+// claimed values come from on-device Horner (PolyEvalDevice), the γ-fold from on-device
+// scalar-mul-accumulate (VecAddScalarMulDevice over the γ powers), then the usual
+// KzgDivide + MSM. Only the claimed scalars + the witness point H cross the bus — the
+// ~1GB wire download is never paid. Result is byte-identical to gpuBatchOpen.
+func gpuBatchOpenResident(polys []residentPoly, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, error) {
+	var res kzg.BatchOpeningProof
+	res.ClaimedValues = make([]fr.Element, len(polys))
+	dev, err := p2.NewDevice()
+	if err != nil {
+		return res, err
+	}
+	// ζ on device for the Horner evaluations
+	dPoint, err := dev.NewFrVector(1)
+	if err != nil {
+		return res, err
+	}
+	defer dPoint.Free()
+	if err := dPoint.CopyFromHost([]fr.Element{point}); err != nil {
+		return res, err
+	}
+	largest := 0
+	for i := range polys {
+		if polys[i].n > largest {
+			largest = polys[i].n
+		}
+		cv, err := gpu.PolyEvalDevice(polys[i].ptr, polys[i].n, dPoint.Ptr())
+		if err != nil {
+			return res, err
+		}
+		res.ClaimedValues[i] = cv
+	}
+	gamma, err := gpuDeriveGamma(point, digests, res.ClaimedValues, hf, dataTranscript...)
+	if err != nil {
+		return res, err
+	}
+	// γ powers, uploaded once as a device vector so the fold reads them per-poly
+	gammas := make([]fr.Element, len(polys))
+	gammas[0].SetOne()
+	for i := 1; i < len(polys); i++ {
+		gammas[i].Mul(&gammas[i-1], &gamma)
+	}
+	dGammas, err := dev.NewFrVector(len(polys))
+	if err != nil {
+		return res, err
+	}
+	defer dGammas.Free()
+	if err := dGammas.CopyFromHost(gammas); err != nil {
+		return res, err
+	}
+	// folded[j] = Σᵢ γⁱ·polys[i][j], accumulated on device (shorter polys stop early)
+	dFolded, err := dev.NewFrVector(largest)
+	if err != nil {
+		return res, err
+	}
+	defer dFolded.Free()
+	if err := gpu.VecSetZeroDevice(dFolded.Ptr(), largest); err != nil {
+		return res, err
+	}
+	for i := range polys {
+		dGi := unsafe.Add(dGammas.Ptr(), i*32) // fr.Element = 32 bytes
+		if err := gpu.VecAddScalarMulDevice(dFolded.Ptr(), polys[i].ptr, dGi, polys[i].n); err != nil {
+			return res, err
+		}
+	}
+	q, err := dev.KzgDivide(dFolded, point)
 	if err != nil {
 		return res, err
 	}
