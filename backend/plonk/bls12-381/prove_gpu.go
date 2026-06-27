@@ -16,7 +16,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/gpu"
+	gpu "github.com/consensys/gnark/internal/gpu/bls12381"
 )
 
 type restoreDebugShadow struct {
