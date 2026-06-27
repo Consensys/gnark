@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 	gpu "github.com/consensys/gnark/internal/gpu/bls12381"
 	p2 "github.com/consensys/gnark/internal/gpu/bls12381/p2"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // gpuBuildZ computes the permutation grand-product Z on-device via the resident
@@ -1049,10 +1050,19 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
 	var s1, s2, tmp fr.Element
-	s1 = s.trace.S1.Evaluate(zeta)
-	s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma)
+	// S1(ζ) and S2(ζ) are independent O(n) Horner evaluations; overlap them on separate
+	// goroutines (the GPU path used to run them serially; the CPU path already overlaps S1).
+	var s1eval fr.Element
+	chS1 := make(chan struct{}, 1)
+	go func() {
+		s1eval = s.trace.S1.Evaluate(zeta)
+		close(chS1)
+	}()
 	tmp = s.trace.S2.Evaluate(zeta)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma)
+	<-chS1
+	s1 = s1eval
+	s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma)
 	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta).Mul(&s1, &alpha)
 	var uzeta, uuzeta fr.Element
 	uzeta.Mul(&zeta, &pk.Vk.CosetShift)
@@ -1164,11 +1174,18 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	// add the Bsb22 commitment terms: linPol += sum_j qcpZeta[j] * Pi_j(X)
 	for j := range qcpZeta {
 		pij := pi2Canonical[j]
-		for i := 0; i < len(out) && i < len(pij); i++ {
-			var t fr.Element
-			t.Mul(&pij[i], &qcpZeta[j])
-			out[i].Add(&out[i], &t)
+		qz := qcpZeta[j]
+		m := len(out)
+		if len(pij) < m {
+			m = len(pij)
 		}
+		utils.Parallelize(m, func(start, end int) {
+			for i := start; i < end; i++ {
+				var t fr.Element
+				t.Mul(&pij[i], &qz)
+				out[i].Add(&out[i], &t)
+			}
+		})
 	}
 	return out, true
 }
