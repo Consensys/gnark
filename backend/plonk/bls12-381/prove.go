@@ -285,6 +285,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
+	// the proof is built; recycle the trace clone (its buffers will be reset by cloneInto)
+	if instance.traceScratch != nil {
+		pk.tracePool.Put(instance.traceScratch)
+	}
+
 	total := time.Since(start)
 	instance.timings.add("stage.total", total)
 	instance.timings.printSummary(total)
@@ -339,9 +344,10 @@ type instance struct {
 
 	domain0, domain1 *fft.Domain
 
-	trace   *Trace
-	timings *proveTimings
-	gpuCtx  *proverGPUContext
+	trace        *Trace
+	traceScratch *Trace // pooled trace clone to return to pk.tracePool after the proof
+	timings      *proveTimings
+	gpuCtx       *proverGPUContext
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
@@ -400,7 +406,13 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	// to building it when absent (e.g. a proving key deserialized from disk).
 	tTrace := time.Now()
 	if pk.trace != nil {
-		s.trace = pk.trace.clone()
+		// recycle a pooled clone (memcpy into reused buffers) when available, else allocate one
+		if scratch, _ := pk.tracePool.Get().(*Trace); scratch != nil && pk.trace.cloneInto(scratch) {
+			s.trace = scratch
+		} else {
+			s.trace = pk.trace.clone()
+		}
+		s.traceScratch = s.trace // returned to the pool after the proof
 	} else {
 		s.trace = NewTrace(spr, s.domain0)
 	}
@@ -966,41 +978,41 @@ func (s *instance) computeLinearizedPolynomial() error {
 	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
 	var blzeta, brzeta, bozeta fr.Element
 	var wg sync.WaitGroup
-	wg.Add(3 + len(s.commitmentInfo))
 
+	// l/r/o(ζ): one batched on-device eval over the resident wires when available, else 3 host evals
+	residentLRO := false
+	if vals, ok := s.gpuEvalBlindedBatchMaybe(
+		[]int{id_L, id_R, id_O},
+		[]fr.Element{s.bp[id_Bl].Evaluate(s.zeta), s.bp[id_Br].Evaluate(s.zeta), s.bp[id_Bo].Evaluate(s.zeta)},
+		s.zeta); ok {
+		blzeta, brzeta, bozeta = vals[0], vals[1], vals[2]
+		residentLRO = true
+	}
+
+	wg.Add(len(s.commitmentInfo))
+	if !residentLRO {
+		wg.Add(3)
+	}
 	for i := 0; i < len(s.commitmentInfo); i++ {
 		go func(i int) {
 			qcpzeta[i] = s.trace.Qcp[i].Evaluate(s.zeta)
 			wg.Done()
 		}(i)
 	}
-
-	go func() {
-		if v, ok := s.gpuEvalBlindedMaybe(id_L, s.bp[id_Bl].Evaluate(s.zeta), s.zeta); ok {
-			blzeta = v
-		} else {
+	if !residentLRO {
+		go func() {
 			blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if v, ok := s.gpuEvalBlindedMaybe(id_R, s.bp[id_Br].Evaluate(s.zeta), s.zeta); ok {
-			brzeta = v
-		} else {
+			wg.Done()
+		}()
+		go func() {
 			brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if v, ok := s.gpuEvalBlindedMaybe(id_O, s.bp[id_Bo].Evaluate(s.zeta), s.zeta); ok {
-			bozeta = v
-		} else {
+			wg.Done()
+		}()
+		go func() {
 			bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
-		}
-		wg.Done()
-	}()
+			wg.Done()
+		}()
+	}
 
 	// wait for Z to be opened at zeta (or ctx.Done())
 	select {

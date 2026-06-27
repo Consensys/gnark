@@ -92,6 +92,50 @@ func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.
 	return wEval, true
 }
 
+// gpuEvalBlindedBatchMaybe evaluates blinded_wire(ζ) = wire(ζ) + bp(ζ)·(ζⁿ−1) for several
+// resident wires in ONE batched device call (shared scratch, one sync) — replacing the
+// per-wire gpuEvalBlindedMaybe. bpEvals[i] is bp_i(ζ). Returns false to fall back to host.
+func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zeta fr.Element) ([]fr.Element, bool) {
+	if !s.residentOpenings() {
+		return nil, false
+	}
+	select {
+	case <-s.ctx.Done():
+		return nil, false
+	case <-s.chRestoreLRO:
+	}
+	n := int(s.domain0.Cardinality)
+	ptrs := make([]unsafe.Pointer, len(ids))
+	lengths := make([]int, len(ids))
+	for i, id := range ids {
+		if ptrs[i] = s.gpuCtx.getPoly(id); ptrs[i] == nil {
+			return nil, false
+		}
+		lengths[i] = n
+	}
+	dPoint := gpu.Malloc(32)
+	if dPoint == nil {
+		return nil, false
+	}
+	defer gpu.Free(dPoint)
+	if err := gpu.MemcpyH2D(dPoint, unsafe.Pointer(&zeta), 32); err != nil {
+		return nil, false
+	}
+	vals, err := gpu.PolyEvalBatchDevice(ptrs, lengths, dPoint)
+	if err != nil {
+		return nil, false
+	}
+	var t, one fr.Element
+	one.SetOne()
+	t.Exp(zeta, big.NewInt(int64(n))).Sub(&t, &one) // ζⁿ − 1
+	for i := range vals {
+		var c fr.Element
+		c.Mul(&bpEvals[i], &t)
+		vals[i].Add(&vals[i], &c)
+	}
+	return vals, true
+}
+
 func (s *instance) residentOpenings() bool {
 	return p2OpeningsEnabled() && s.gpuCtx != nil && !s.opt.StatisticalZK &&
 		os.Getenv("GNARK_DISABLE_RESIDENT_OPENINGS") == ""
@@ -466,19 +510,21 @@ func gpuBatchOpenResident(polys []residentPoly, digests []curve.G1Affine, point 
 		return res, err
 	}
 	largest := 0
+	ptrs := make([]unsafe.Pointer, len(polys))
+	lengths := make([]int, len(polys))
 	for i := range polys {
+		ptrs[i] = polys[i].ptr
+		lengths[i] = polys[i].n
 		if polys[i].n > largest {
 			largest = polys[i].n
 		}
-		if polys[i].n == 0 {
-			continue // empty polynomial evaluates to 0 (the zero value)
-		}
-		cv, err := gpu.PolyEvalDevice(polys[i].ptr, polys[i].n, dPoint.Ptr())
-		if err != nil {
-			return res, err
-		}
-		res.ClaimedValues[i] = cv
 	}
+	// one batched eval call (shared scratch, one sync) for all claimed values
+	vals, err := gpu.PolyEvalBatchDevice(ptrs, lengths, dPoint.Ptr())
+	if err != nil {
+		return res, err
+	}
+	copy(res.ClaimedValues, vals)
 	gamma, err := gpuDeriveGamma(point, digests, res.ClaimedValues, hf, dataTranscript...)
 	if err != nil {
 		return res, err

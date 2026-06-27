@@ -7,6 +7,7 @@ package plonk
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
@@ -103,6 +104,10 @@ type ProvingKey struct {
 	// canonical form is too — caching it lets the linearized polynomial skip a per-proof
 	// inverse-FFT. Transient like trace; nil => the prover canonicalizes per-proof.
 	qkCanonical []fr.Element
+
+	// tracePool recycles per-proof trace clones (each ~2.4GB) so steady-state proves pay a
+	// memcpy (cloneInto) instead of allocating + zeroing fresh buffers. Transient.
+	tracePool sync.Pool
 }
 
 func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -157,6 +162,10 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	qkCanon := trace.Qk.Clone()
 	qkCanon.ToCanonical(domain).ToRegular()
 	pk.qkCanonical = qkCanon.Coefficients()
+
+	// pre-warm one trace clone so even the first Prove pays a cloneInto memcpy rather than
+	// a 2.4GB allocate+zero (the allocation happens here, at untimed Setup).
+	pk.tracePool.Put(trace.clone())
 
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	if err := vk.commitTrace(trace, domain, pk.KzgLagrange); err != nil {
@@ -279,6 +288,39 @@ func (t *Trace) clone() *Trace {
 		}
 	}
 	return c
+}
+
+// cloneInto resets dst to a fresh copy of t, reusing dst's already-allocated coefficient
+// buffers — the per-proof clone without the 2.4GB allocate+zero. dst must be a prior
+// t.clone() for the same circuit (matching sizes). Resets basis/layout (the prover mutates
+// them in place) and overwrites the coefficients. Returns false if the structure mismatches
+// (caller then falls back to a fresh clone).
+func (t *Trace) cloneInto(dst *Trace) bool {
+	cp := func(src, d *iop.Polynomial) bool {
+		if src == nil || d == nil {
+			return src == d
+		}
+		sc, dc := src.Coefficients(), d.Coefficients()
+		if len(sc) != len(dc) {
+			return false
+		}
+		d.Basis, d.Layout = src.Basis, src.Layout
+		copy(dc, sc)
+		return true
+	}
+	if len(t.Qcp) != len(dst.Qcp) || len(t.S) != len(dst.S) {
+		return false
+	}
+	ok := cp(t.Ql, dst.Ql) && cp(t.Qr, dst.Qr) && cp(t.Qm, dst.Qm) && cp(t.Qo, dst.Qo) && cp(t.Qk, dst.Qk) &&
+		cp(t.S1, dst.S1) && cp(t.S2, dst.S2) && cp(t.S3, dst.S3)
+	for i := range t.Qcp {
+		ok = ok && cp(t.Qcp[i], dst.Qcp[i])
+	}
+	if !ok {
+		return false
+	}
+	copy(dst.S, t.S)
+	return true
 }
 
 // commitTrace commits to every polynomial in the trace, and put

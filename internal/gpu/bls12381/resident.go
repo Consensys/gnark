@@ -38,6 +38,8 @@ int gpu_plonk_fold_quotient(const void* d_h1, const void* d_h2, const void* d_h3
 
 // Evaluate a polynomial (canonical coeffs) at a device point; writes one Fr to host h_result.
 int gpu_poly_eval(const void* d_coeffs, uint32_t n, const void* d_point, void* h_result, void* stream);
+// Async, no-alloc, no-sync poly eval: caller-supplied scratch + device result, sync once per batch.
+int gpu_poly_eval_async(const void* d_coeffs, uint32_t n, const void* d_point, void* d_partials, void* d_point_power, void* d_result, void* stream);
 // v[i] = 0 for i<n.
 int gpu_vec_set_zero(void* v, uint32_t n, void* stream);
 // v[i] += a[i] * (*d_c)  for i<n.
@@ -168,6 +170,53 @@ func PolyEvalDevice(dCoeffs unsafe.Pointer, n int, dPoint unsafe.Pointer) (fr.El
 	var out fr.Element
 	if C.gpu_poly_eval(dCoeffs, C.uint32_t(n), dPoint, unsafe.Pointer(&out), nil) != 0 {
 		return out, fmt.Errorf("PolyEvalDevice: kernel failed")
+	}
+	return out, nil
+}
+
+// PolyEvalBatchDevice evaluates many resident canonical polynomials at one device point
+// (dPoint) in a single locked-thread call: shared scratch + one stream sync, instead of N
+// separate PolyEvalDevice calls each with its own cudaMalloc + full-device sync. Empty
+// polynomials (length 0) evaluate to zero. Results are returned in ptrs order.
+func PolyEvalBatchDevice(ptrs []unsafe.Pointer, lengths []int, dPoint unsafe.Pointer) ([]fr.Element, error) {
+	out := make([]fr.Element, len(ptrs))
+	if len(ptrs) == 0 {
+		return out, nil
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	SetDevice()
+	dPartials := Malloc(256 * 32) // EVAL_CHUNKS
+	dPower := Malloc(32)
+	dResults := Malloc(len(ptrs) * 32)
+	if dPartials == nil || dPower == nil || dResults == nil {
+		for _, p := range []unsafe.Pointer{dPartials, dPower, dResults} {
+			if p != nil {
+				Free(p)
+			}
+		}
+		return out, fmt.Errorf("PolyEvalBatchDevice: alloc failed")
+	}
+	defer Free(dPartials)
+	defer Free(dPower)
+	defer Free(dResults)
+	if C.gpu_vec_set_zero(dResults, C.uint32_t(len(ptrs)), nil) != 0 {
+		return out, fmt.Errorf("PolyEvalBatchDevice: set_zero failed")
+	}
+	stream := StreamAcquire()
+	defer StreamRelease(stream)
+	for i := range ptrs {
+		if lengths[i] == 0 || ptrs[i] == nil {
+			continue
+		}
+		dRes := unsafe.Add(dResults, i*32)
+		if C.gpu_poly_eval_async(ptrs[i], C.uint32_t(lengths[i]), dPoint, dPartials, dPower, dRes, stream) != 0 {
+			return out, fmt.Errorf("PolyEvalBatchDevice: eval %d failed", i)
+		}
+	}
+	StreamSync(stream)
+	if err := MemcpyD2H(unsafe.Pointer(&out[0]), dResults, len(ptrs)*32); err != nil {
+		return out, err
 	}
 	return out, nil
 }

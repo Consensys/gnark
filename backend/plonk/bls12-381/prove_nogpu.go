@@ -60,6 +60,10 @@ func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.
 	return fr.Element{}, false
 }
 
+func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zeta fr.Element) ([]fr.Element, bool) {
+	return nil, false
+}
+
 func (s *instance) gpuRestoreLRO(cs fr.Element) error { return nil }
 
 func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta []fr.Element, pi2Canonical [][]fr.Element, blindedZ []fr.Element, pk *ProvingKey) ([]fr.Element, bool) {
