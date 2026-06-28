@@ -16,9 +16,6 @@ import (
 // on any device error.
 
 func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affine) (curve.G1Affine, bool) {
-	if !p2OpeningsEnabled() {
-		return curve.G1Affine{}, false
-	}
 	dev, err := p2.NewDevice()
 	if err != nil {
 		return curve.G1Affine{}, false
@@ -31,9 +28,6 @@ func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affi
 }
 
 func (s *instance) gpuOpenMaybe(p []fr.Element, point fr.Element, pk kzg.ProvingKey) (kzg.OpeningProof, bool) {
-	if !p2OpeningsEnabled() {
-		return kzg.OpeningProof{}, false
-	}
 	res, err := gpuOpen(p, point, pk)
 	if err != nil {
 		return kzg.OpeningProof{}, false
@@ -42,9 +36,6 @@ func (s *instance) gpuOpenMaybe(p []fr.Element, point fr.Element, pk kzg.Proving
 }
 
 func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
-	if !p2OpeningsEnabled() {
-		return kzg.BatchOpeningProof{}, false
-	}
 	res, err := gpuBatchOpenUpload(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
 		return kzg.BatchOpeningProof{}, false

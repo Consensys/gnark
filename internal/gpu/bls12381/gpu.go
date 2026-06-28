@@ -72,9 +72,8 @@ import (
 )
 
 var (
-	initOnce    sync.Once
-	initialized bool
-	initErr     error
+	initOnce sync.Once
+	initErr  error
 
 	// NTT domain tracking
 	nttMu   sync.Mutex
@@ -126,6 +125,9 @@ type pointsCacheEntry struct {
 // per-thread; goroutines doing a sequence of GPU calls should LockOSThread and
 // call this first, else icicle silently uses the CPU backend on device pointers.
 func SetDevice() {
+	// Lazily initialize the device (idempotent) before selecting it, so every GPU
+	// op path is covered without an explicit availability check.
+	Init()
 	C.gpu_set_device(0)
 }
 
@@ -140,15 +142,8 @@ func Init() error {
 			initErr = fmt.Errorf("failed to initialize GPU device 0")
 			return
 		}
-		initialized = true
 	})
 	return initErr
-}
-
-// Available returns whether GPU acceleration is available.
-func Available() bool {
-	Init()
-	return initialized
 }
 
 // --- Canonical-points cache --------------------------------------------------

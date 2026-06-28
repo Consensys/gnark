@@ -23,9 +23,6 @@ import (
 // p2.RatioBuildZ pipeline (gpu_ratio_copy_terms -> prefix_scan -> apply_inverse),
 // reproducing iop.BuildRatioCopyConstraint.
 func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
-	if !gpu.Available() {
-		return nil, false
-	}
 	n := int(s.domain0.Cardinality)
 	dev, err := p2.NewDevice()
 	if err != nil {
@@ -91,9 +88,6 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 // restores, and adds the correction point + blinding — byte-identical to the CPU
 // commitToLRO — byte-identical to the CPU commitToLRO. Returns (handled, err).
 func (s *instance) gpuCommitLRO() (bool, error) {
-	if !gpu.Available() {
-		return false, nil
-	}
 	n := int(s.domain0.Cardinality)
 	nbPublic := len(s.spr.Public)
 	offset := nbPublic + s.spr.GetNbConstraints()
@@ -204,9 +198,6 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 // real phases just do the work themselves. The point/NTT caches are mutex-guarded,
 // so racing the commit phases is safe.
 func (s *instance) prewarmGPU() error {
-	if !gpu.Available() {
-		return nil
-	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	gpu.SetDevice()
@@ -240,8 +231,6 @@ type proverGPUContext struct {
 	dS3        unsafe.Pointer
 	dTwiddles0 unsafe.Pointer
 	dNumerator unsafe.Pointer
-	dInvRho    unsafe.Pointer
-	invRhoLen  int
 }
 
 func (ctx *proverGPUContext) free() {
@@ -250,7 +239,7 @@ func (ctx *proverGPUContext) free() {
 	}
 	for _, ptr := range []unsafe.Pointer{
 		ctx.dL, ctx.dR, ctx.dO, ctx.dS1, ctx.dS2, ctx.dS3, ctx.dTwiddles0,
-		ctx.dNumerator, ctx.dInvRho,
+		ctx.dNumerator,
 	} {
 		if ptr != nil {
 			gpu.Free(ptr)
@@ -260,8 +249,6 @@ func (ctx *proverGPUContext) free() {
 	ctx.dS1, ctx.dS2, ctx.dS3 = nil, nil, nil
 	ctx.dTwiddles0 = nil
 	ctx.dNumerator = nil
-	ctx.dInvRho = nil
-	ctx.invRhoLen = 0
 	for i, ptr := range ctx.polyPtrs {
 		if ptr != nil {
 			gpu.Free(ptr)
@@ -723,9 +710,9 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 // setupGPUResidentContext activates the device-resident prover pipeline so the
 // quotient numerator stays on the GPU through divideByZH and the H-chunk commits
 // (no 2GB host round-trip). Gated off for statistical ZK (quotient blinding not
-// yet replicated on device) and when the GPU is unavailable.
+// yet replicated on device).
 func (s *instance) setupGPUResidentContext(n int) {
-	if s.opt.StatisticalZK || !gpu.Available() {
+	if s.opt.StatisticalZK {
 		return
 	}
 	s.gpuCtx = &proverGPUContext{n: n}
@@ -942,7 +929,7 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 // the fused kernel (no Bsb22 qcp terms). Correctness-first: uploads the inputs,
 // returns the canonical result. (false => caller uses the CPU path.)
 func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta []fr.Element, pi2Canonical [][]fr.Element, blindedZ []fr.Element, pk *ProvingKey) ([]fr.Element, bool) {
-	if s.gpuCtx == nil || !gpu.Available() {
+	if s.gpuCtx == nil {
 		return nil, false
 	}
 	n := int(s.domain0.Cardinality)
