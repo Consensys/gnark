@@ -314,8 +314,14 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	for i := range ins {
 		committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
 	}
-	committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom() // Commitment injection constraint has qcp = 0. Safe to use for blinding.
-	committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom()     // Last constraint has qcp = 0. Safe to use for blinding
+	// Commitment injection constraint has qcp = 0. Safe to use for blinding.
+	if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+		return err
+	}
+	// Last constraint has qcp = 0. Safe to use for blinding.
+	if _, err = committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom(); err != nil {
+		return err
+	}
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 	if c, ok := s.residentCommitMaybe(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange.G1); ok {
 		s.proof.Bsb22Commitments[commDepth] = c

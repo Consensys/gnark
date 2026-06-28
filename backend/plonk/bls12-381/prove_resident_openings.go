@@ -23,7 +23,8 @@ import (
 // gpuEvalBlindedMaybe computes blinded_wire(ζ) = wire(ζ) + bp(ζ)·(ζⁿ−1) using the
 // device-resident canonical wire (getPoly(id)) instead of the host s.x[id] — so the wires
 // never need to come back to the host for the linearized poly's l/r/o(ζ). bpCoeffs is the
-// blinding poly's coefficients. Returns false to fall back to the host evaluateBlinded.
+// blinding poly's coefficients. Returns false only when resident openings are not engaged
+// (non-resident config or cancellation); a missing resident handle in the resident path aborts.
 func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.Element) (fr.Element, bool) {
 	var res fr.Element
 	if !s.residentOpenings() {
@@ -36,7 +37,7 @@ func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.
 	}
 	dWire := s.gpuCtx.getPoly(id)
 	if dWire == nil {
-		return res, false
+		gpuFatal("gpuEvalBlindedMaybe: resident wire missing", fmt.Errorf("getPoly(%d) returned nil in resident path", id))
 	}
 	n := int(s.domain0.Cardinality)
 	dPoint := gpu.Malloc(32)
@@ -62,7 +63,8 @@ func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.
 
 // gpuEvalBlindedBatchMaybe evaluates blinded_wire(ζ) = wire(ζ) + bp(ζ)·(ζⁿ−1) for several
 // resident wires in ONE batched device call (shared scratch, one sync) — replacing the
-// per-wire gpuEvalBlindedMaybe. bpEvals[i] is bp_i(ζ). Returns false to fall back to host.
+// per-wire gpuEvalBlindedMaybe. bpEvals[i] is bp_i(ζ). Returns false only when resident
+// openings are not engaged (non-resident config or cancellation).
 func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zeta fr.Element) ([]fr.Element, bool) {
 	if !s.residentOpenings() {
 		return nil, false
@@ -77,7 +79,7 @@ func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zet
 	lengths := make([]int, len(ids))
 	for i, id := range ids {
 		if ptrs[i] = s.gpuCtx.getPoly(id); ptrs[i] == nil {
-			return nil, false
+			gpuFatal("gpuEvalBlindedBatchMaybe: resident wire missing", fmt.Errorf("getPoly(%d) returned nil in resident path", id))
 		}
 		lengths[i] = n
 	}
@@ -111,7 +113,8 @@ func (s *instance) residentOpenings() bool {
 // gpuBatchOpenResidentMaybe opens batchOpening's polynomials entirely from device-resident
 // handles: the wires + S1/S2 are the canonical buffers left in gpuCtx by the restore (no
 // host download needed), blinded on-device; only the linearized poly + Qcp are uploaded.
-// Returns false to fall back to the host/upload paths.
+// Returns false only when resident openings are not engaged (non-resident config or
+// cancellation); a structural miss inside the resident path aborts (host buffers are stale).
 func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
 	if !s.residentOpenings() {
 		return kzg.BatchOpeningProof{}, false
@@ -133,9 +136,9 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 			v.Free()
 		}
 	}()
-	upload := func(coeffs []fr.Element) (residentPoly, bool) {
+	upload := func(coeffs []fr.Element) residentPoly {
 		if len(coeffs) == 0 {
-			return residentPoly{}, true
+			return residentPoly{}
 		}
 		v, e := dev.NewFrVector(len(coeffs))
 		if e != nil {
@@ -145,44 +148,36 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 		if e := v.CopyFromHost(coeffs); e != nil {
 			gpuFatal("gpuBatchOpenResidentMaybe: CopyFromHost", e)
 		}
-		return residentPoly{ptr: v.Ptr(), n: len(coeffs)}, true
+		return residentPoly{ptr: v.Ptr(), n: len(coeffs)}
 	}
-	blind := func(id int, bpCoeffs []fr.Element) (residentPoly, bool) {
+	// In the resident path the host wire buffers are stale (the rho-loop skipped
+	// their download), so a missing resident handle must abort loudly: falling
+	// through to the host/upload path would open stale coefficients.
+	blind := func(id int, bpCoeffs []fr.Element) residentPoly {
 		dWire := s.gpuCtx.getPoly(id)
 		if dWire == nil {
-			return residentPoly{}, false
+			gpuFatal("gpuBatchOpenResidentMaybe: resident wire missing", fmt.Errorf("getPoly(%d) returned nil in resident path", id))
 		}
 		v, e := blindResidentWire(dev, dWire, n, bpCoeffs)
 		if e != nil {
 			gpuFatal("gpuBatchOpenResidentMaybe: blindResidentWire", e)
 		}
 		owned = append(owned, v)
-		return residentPoly{ptr: v.Ptr(), n: v.Len()}, true
+		return residentPoly{ptr: v.Ptr(), n: v.Len()}
 	}
 	qcp := coefficients(s.trace.Qcp)
 	polys := make([]residentPoly, 6+len(qcp))
-	var o bool
-	if polys[0], o = upload(s.linearizedPolynomial); !o {
-		return kzg.BatchOpeningProof{}, false
-	}
-	if polys[1], o = blind(id_L, s.bp[id_Bl].Coefficients()); !o {
-		return kzg.BatchOpeningProof{}, false
-	}
-	if polys[2], o = blind(id_R, s.bp[id_Br].Coefficients()); !o {
-		return kzg.BatchOpeningProof{}, false
-	}
-	if polys[3], o = blind(id_O, s.bp[id_Bo].Coefficients()); !o {
-		return kzg.BatchOpeningProof{}, false
-	}
+	polys[0] = upload(s.linearizedPolynomial)
+	polys[1] = blind(id_L, s.bp[id_Bl].Coefficients())
+	polys[2] = blind(id_R, s.bp[id_Br].Coefficients())
+	polys[3] = blind(id_O, s.bp[id_Bo].Coefficients())
 	polys[4] = residentPoly{ptr: s.gpuCtx.getPoly(id_S1), n: n}
 	polys[5] = residentPoly{ptr: s.gpuCtx.getPoly(id_S2), n: n}
 	if polys[4].ptr == nil || polys[5].ptr == nil {
-		return kzg.BatchOpeningProof{}, false
+		gpuFatal("gpuBatchOpenResidentMaybe: resident S1/S2 missing", fmt.Errorf("getPoly(S1/S2) returned nil in resident path"))
 	}
 	for i := range qcp {
-		if polys[6+i], o = upload(qcp[i]); !o {
-			return kzg.BatchOpeningProof{}, false
-		}
+		polys[6+i] = upload(qcp[i])
 	}
 	res, err := gpuBatchOpenResident(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
