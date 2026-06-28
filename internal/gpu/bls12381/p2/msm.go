@@ -11,7 +11,7 @@ import (
 )
 
 // G1MSM commits resident FrVectors against a fixed SRS base array. The bases are
-// referenced by their host pointer; the underlying MSMDeviceScalarsWithStats
+// referenced by their host pointer; the underlying MSMDeviceScalars
 // caches the canonical-form device points by that pointer, so the SRS is
 // converted+uploaded exactly once across all proves.
 type G1MSM struct {
@@ -38,7 +38,7 @@ func (m *G1MSM) MultiExp(v *FrVector) (curve.G1Affine, error) {
 		return aff, fmt.Errorf("p2: MSM size %d exceeds %d SRS bases", v.Len(), m.maxN)
 	}
 	var jac curve.G1Jac
-	if _, err := gpu.MSMDeviceScalarsWithStats(m.hostBases, v.Ptr(), v.Len(), unsafe.Pointer(&jac)); err != nil {
+	if err := gpu.MSMDeviceScalars(m.hostBases, v.Ptr(), v.Len(), unsafe.Pointer(&jac)); err != nil {
 		return aff, err
 	}
 	aff.FromJacobian(&jac)

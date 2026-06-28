@@ -4,7 +4,6 @@ package plonk
 
 import (
 	"hash"
-	"os"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -12,9 +11,9 @@ import (
 	p2 "github.com/consensys/gnark/internal/gpu/bls12381/p2"
 )
 
-// Gated shadow wrappers, called from the tag-agnostic prove sites. Each computes
-// the resident result and, with GNARK_P2_OPENINGS_SHADOW set, cross-checks it
-// against the (fork) kzg.* path, falling back on any mismatch.
+// Resident wrappers, called from the tag-agnostic prove sites. Each computes the
+// resident result on the device-resident p2 layer, falling back to the host path
+// on any device error.
 
 func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affine) (curve.G1Affine, bool) {
 	if !p2OpeningsEnabled() {
@@ -39,15 +38,6 @@ func (s *instance) gpuOpenMaybe(p []fr.Element, point fr.Element, pk kzg.Proving
 	if err != nil {
 		return kzg.OpeningProof{}, false
 	}
-	if os.Getenv("GNARK_P2_OPENINGS_SHADOW") != "" {
-		if ref, e := kzg.Open(p, point, pk); e == nil {
-			if !res.H.Equal(&ref.H) || !res.ClaimedValue.Equal(&ref.ClaimedValue) {
-				traceProvef("[P2 OPENZ SHADOW] MISMATCH — using CPU result\n")
-				return ref, true
-			}
-			traceProvef("[P2 OPENZ SHADOW] match\n")
-		}
-	}
 	return res, true
 }
 
@@ -58,21 +48,6 @@ func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Aff
 	res, err := gpuBatchOpenUpload(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
 		return kzg.BatchOpeningProof{}, false
-	}
-	if os.Getenv("GNARK_P2_OPENINGS_SHADOW") != "" {
-		if ref, e := kzg.BatchOpenSinglePoint(polys, digests, point, hf, pk, dataTranscript...); e == nil {
-			mism := !res.H.Equal(&ref.H)
-			for i := range res.ClaimedValues {
-				if !res.ClaimedValues[i].Equal(&ref.ClaimedValues[i]) {
-					mism = true
-				}
-			}
-			if mism {
-				traceProvef("[P2 BATCHOPEN SHADOW] MISMATCH — using CPU result\n")
-				return ref, true
-			}
-			traceProvef("[P2 BATCHOPEN SHADOW] match\n")
-		}
 	}
 	return res, true
 }

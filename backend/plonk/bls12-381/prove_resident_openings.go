@@ -5,7 +5,6 @@ package plonk
 import (
 	"hash"
 	"math/big"
-	"os"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -48,9 +47,7 @@ func parallelExecute(n int, work func(start, end int)) {
 
 // This file reimplements the KZG commit + opening protocol on the device-resident
 // p2 layer so the prover no longer routes those through gnark-crypto's hooked
-// kzg/multiexp functions — the last dependency on our gnark-crypto fork. Gated by
-// GNARK_P2_OPENINGS, with GNARK_P2_OPENINGS_SHADOW cross-checking byte-identity
-// against the (fork) kzg.* path before the vanilla switch.
+// kzg/multiexp functions — the last dependency on our gnark-crypto fork.
 
 // gpuEvalBlindedMaybe computes blinded_wire(ζ) = wire(ζ) + bp(ζ)·(ζⁿ−1) using the
 // device-resident canonical wire (getPoly(id)) instead of the host s.x[id] — so the wires
@@ -137,16 +134,14 @@ func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zet
 }
 
 func (s *instance) residentOpenings() bool {
-	return p2OpeningsEnabled() && s.gpuCtx != nil && !s.opt.StatisticalZK &&
-		os.Getenv("GNARK_DISABLE_RESIDENT_OPENINGS") == ""
+	return p2OpeningsEnabled() && s.gpuCtx != nil && !s.opt.StatisticalZK
 }
 
 // gpuBatchOpenResidentMaybe opens batchOpening's polynomials entirely from device-resident
 // handles: the wires + S1/S2 are the canonical buffers left in gpuCtx by the restore (no
 // host download needed), blinded on-device; only the linearized poly + Qcp are uploaded.
-// polysToOpen is used solely for the GNARK_P2_OPENINGS_SHADOW byte-check (valid only while
-// the host download is still on). Returns false to fall back to the host/upload paths.
-func (s *instance) gpuBatchOpenResidentMaybe(polysToOpen [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
+// Returns false to fall back to the host/upload paths.
+func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
 	if !s.residentOpenings() {
 		return kzg.BatchOpeningProof{}, false
 	}
@@ -222,26 +217,11 @@ func (s *instance) gpuBatchOpenResidentMaybe(polysToOpen [][]fr.Element, digests
 	if err != nil {
 		return kzg.BatchOpeningProof{}, false
 	}
-	if os.Getenv("GNARK_P2_OPENINGS_SHADOW") != "" {
-		if ref, e := kzg.BatchOpenSinglePoint(polysToOpen, digests, point, hf, pk, dataTranscript...); e == nil {
-			mism := !res.H.Equal(&ref.H)
-			for i := range res.ClaimedValues {
-				if i < len(ref.ClaimedValues) && !res.ClaimedValues[i].Equal(&ref.ClaimedValues[i]) {
-					mism = true
-				}
-			}
-			if mism {
-				traceProvef("[P2 RESIDENT OPEN SHADOW] MISMATCH — using CPU\n")
-				return ref, true
-			}
-			traceProvef("[P2 RESIDENT OPEN SHADOW] match\n")
-		}
-	}
 	return res, true
 }
 
 func p2OpeningsEnabled() bool {
-	return gpu.Available() && os.Getenv("GNARK_DISABLE_P2") == ""
+	return gpu.Available()
 }
 
 // evalPoly evaluates p at x by Horner (matches gnark-crypto kzg.eval).

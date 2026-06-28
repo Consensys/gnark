@@ -34,16 +34,8 @@ import "C"
 import (
 	"fmt"
 	"math/bits"
-	"time"
 	"unsafe"
 )
-
-type PlonkRhoStats struct {
-	FusedFFT    time.Duration
-	Constraints time.Duration
-	Sync        time.Duration
-	ResultD2H   time.Duration
-}
 
 // PlonkRhoIteration runs one iteration of the PLONK rho loop on GPU:
 // 1. For each polynomial: fused IFFT → scale → FFT (on device, no D2H)
@@ -78,12 +70,10 @@ func PlonkRhoIteration(
 	fftDirs []int,
 	skipIdx int,
 	stream unsafe.Pointer,
-) (PlonkRhoStats, error) {
-	var stats PlonkRhoStats
+) error {
 	logN := uint32(bits.TrailingZeros64(uint64(n)))
 
 	// Phase 1: Fused IFFT → scale → FFT for each polynomial on device
-	tPhase := time.Now()
 	uniformDirs := true
 	var commonIFFT, commonFFT int
 	firstDir := true
@@ -104,7 +94,6 @@ func PlonkRhoIteration(
 	}
 
 	if uniformDirs && !firstDir {
-		tSync := time.Now()
 		if C.gpu_fft_scale_fft_batch(
 			dPtrArray,
 			C.uint32_t(npolys),
@@ -115,10 +104,9 @@ func PlonkRhoIteration(
 			C.int(commonFFT),
 			stream,
 		) != 0 {
-			return stats, fmt.Errorf("PlonkRhoIteration: batched fused FFT failed")
+			return fmt.Errorf("PlonkRhoIteration: batched fused FFT failed")
 		}
 		C.gpu_stream_sync(stream)
-		stats.Sync += time.Since(tSync)
 	} else {
 		streamCount := npolys - 1
 		if streamCount > 4 {
@@ -135,7 +123,7 @@ func PlonkRhoIteration(
 				for _, extra := range fftStreams[1:] {
 					StreamRelease(extra)
 				}
-				return stats, fmt.Errorf("PlonkRhoIteration: stream acquire failed")
+				return fmt.Errorf("PlonkRhoIteration: stream acquire failed")
 			}
 			fftStreams = append(fftStreams, s)
 		}
@@ -158,39 +146,32 @@ func PlonkRhoIteration(
 				C.int(ifftDirs[i]), C.int(fftDirs[i]),
 				s,
 			) != 0 {
-				return stats, fmt.Errorf("PlonkRhoIteration: fused FFT failed for poly %d", i)
+				return fmt.Errorf("PlonkRhoIteration: fused FFT failed for poly %d", i)
 			}
 		}
 		for _, s := range fftStreams {
-			tSync := time.Now()
 			C.gpu_stream_sync(s)
-			stats.Sync += time.Since(tSync)
 		}
 	}
-	stats.FusedFFT = time.Since(tPhase)
 
 	// Phase 2: Constraint evaluation kernel
 	if dPtrArray == nil {
-		return stats, fmt.Errorf("PlonkRhoIteration: nil ptr array")
+		return fmt.Errorf("PlonkRhoIteration: nil ptr array")
 	}
 
-	tPhase = time.Now()
 	if C.gpu_plonk_evaluate(
 		(*unsafe.Pointer)(dPtrArray),
 		dTwiddles0, dBP, dChallenges, dPrecompDenoms,
 		C.uint32_t(n), C.uint32_t(npolys), C.uint32_t(nbBsbGates),
 		dResult, stream,
 	) != 0 {
-		return stats, fmt.Errorf("PlonkRhoIteration: constraint eval failed")
+		return fmt.Errorf("PlonkRhoIteration: constraint eval failed")
 	}
-	stats.Constraints = time.Since(tPhase)
 
 	// Phase 3: sync only
-	tPhase = time.Now()
 	C.gpu_stream_sync(stream)
-	stats.Sync += time.Since(tPhase)
 
-	return stats, nil
+	return nil
 }
 
 func PlonkScatterResult(dSrc unsafe.Pointer, dDst unsafe.Pointer, n int, rho int, iter int, shiftBits uint64, stream unsafe.Pointer) error {

@@ -66,10 +66,8 @@ import "C"
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"sync"
-	"time"
 	"unsafe"
 )
 
@@ -121,14 +119,6 @@ type pointsCacheEntry struct {
 	hostPtr unsafe.Pointer // host base pointer (identity key)
 	devPtr  unsafe.Pointer // device pointer
 	n       int            // number of points cached
-}
-
-type MSMStats struct {
-	PointCacheStatus string
-	PointTransfer    time.Duration
-	ScalarTransfer   time.Duration
-	Kernel           time.Duration
-	Total            time.Duration
 }
 
 // Init initializes the GPU. Safe to call multiple times.
@@ -216,53 +206,38 @@ func freeCanonicalPoints() {
 	canonMu.Unlock()
 }
 
-// MSMDeviceScalarsWithStats computes MSM on GPU where points are identified by the
+// MSMDeviceScalars computes MSM on GPU where points are identified by the
 // host pointer for cache lookup, and scalars are already resident on device.
-func MSMDeviceScalarsWithStats(pointsPtr unsafe.Pointer, dScalars unsafe.Pointer, n int, resultPtr unsafe.Pointer) (MSMStats, error) {
-	var stats MSMStats
+func MSMDeviceScalars(pointsPtr unsafe.Pointer, dScalars unsafe.Pointer, n int, resultPtr unsafe.Pointer) error {
 	if n == 0 {
-		return stats, nil
+		return nil
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	C.gpu_set_device(0)
-	tStart := time.Now()
 
 	// Points: canonical, cached by host pointer (converted once).
-	tPoints := time.Now()
-	dPoints, pstatus, perr := getCanonicalPoints(pointsPtr, n)
+	dPoints, _, perr := getCanonicalPoints(pointsPtr, n)
 	if perr != nil {
-		return stats, perr
+		return perr
 	}
-	stats.PointTransfer = time.Since(tPoints)
-	stats.PointCacheStatus = pstatus
 
 	// Device-resident scalars are Montgomery; convert to canonical in a temp buffer.
 	dCanonScalars := C.gpu_malloc(C.size_t(n * 32))
 	if dCanonScalars == nil {
-		return stats, fmt.Errorf("GPU malloc failed for scalars")
+		return fmt.Errorf("GPU malloc failed for scalars")
 	}
 	defer C.gpu_free(dCanonScalars)
 	if C.vec_from_mont(dCanonScalars, dScalars, C.uint32_t(n), nil) != 0 {
-		return stats, fmt.Errorf("GPU scalar from_mont failed")
+		return fmt.Errorf("GPU scalar from_mont failed")
 	}
 
-	tKernel := time.Now()
 	if C.gpu_msm(dPoints, dCanonScalars, C.uint32_t(n), resultPtr, 0, nil) != 0 {
-		return stats, fmt.Errorf("GPU MSM execution failed")
+		return fmt.Errorf("GPU MSM execution failed")
 	}
 	C.gpu_sync()
-	stats.Kernel = time.Since(tKernel)
-	stats.Total = time.Since(tStart)
 
-	if os.Getenv("GNARK_GPU_TRACE_MSM") != "" {
-		fmt.Fprintf(os.Stderr,
-			"[GPU MSM device-scalars] n=%-8d points=%s point_h2d=%v kernel=%v total=%v host_points=%p device_scalars=%p\n",
-			n, stats.PointCacheStatus, stats.PointTransfer, stats.Kernel, stats.Total, pointsPtr, dScalars,
-		)
-	}
-
-	return stats, nil
+	return nil
 }
 
 // pointsCacheLookupFull finds a cached device pointer for the given host pointer.

@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
-	"os"
 	"runtime"
 	"sync"
-	"time"
 	"unsafe"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
@@ -23,11 +21,9 @@ import (
 
 // gpuBuildZ computes the permutation grand-product Z on-device via the resident
 // p2.RatioBuildZ pipeline (gpu_ratio_copy_terms -> prefix_scan -> apply_inverse),
-// reproducing iop.BuildRatioCopyConstraint. Gated by GNARK_P2_GRANDPRODUCT.
-// With GNARK_P2_GRANDPRODUCT_SHADOW set it cross-checks against the CPU result
-// and falls back to it on any mismatch (so the proof is always valid).
+// reproducing iop.BuildRatioCopyConstraint.
 func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
-	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+	if !gpu.Available() {
 		return nil, false
 	}
 	n := int(s.domain0.Cardinality)
@@ -35,7 +31,6 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 	if err != nil {
 		return nil, false
 	}
-	t0 := time.Now()
 
 	// twiddles0 = identity support for j=0 = [ω⁰, ω¹, …, ωⁿ⁻¹]
 	tw0 := make([]fr.Element, n)
@@ -88,37 +83,15 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 	if err := z.CopyToHost(out); err != nil {
 		return nil, false
 	}
-	traceProvef("[P2 grandproduct] device build %v\n", time.Since(t0))
-
-	if os.Getenv("GNARK_P2_GRANDPRODUCT_SHADOW") != "" {
-		ref, e := iop.BuildRatioCopyConstraint(
-			[]*iop.Polynomial{s.x[id_L], s.x[id_R], s.x[id_O]},
-			s.trace.S, s.beta, s.gamma,
-			iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}, s.domain0)
-		if e == nil {
-			rc := ref.Coefficients()
-			mism := 0
-			for i := range rc {
-				if rc[i] != out[i] {
-					mism++
-				}
-			}
-			traceProvef("[P2 GRANDPRODUCT SHADOW] mismatches=%d of %d\n", mism, len(rc))
-			if mism > 0 {
-				return rc, true
-			}
-		}
-	}
 	return out, true
 }
 
 // gpuCommitLRO commits the L,R,O wire polynomials resident: it subtracts s0,
 // commits each window against the Lagrange SRS via the resident-scalar G1MSM,
 // restores, and adds the correction point + blinding — byte-identical to the CPU
-// commitToLRO. Gated by GNARK_P2_COMMITLRO; the apk proof verifying is the check
-// (a wrong commitment fails Fiat-Shamir downstream). Returns (handled, err).
+// commitToLRO — byte-identical to the CPU commitToLRO. Returns (handled, err).
 func (s *instance) gpuCommitLRO() (bool, error) {
-	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+	if !gpu.Available() {
 		return false, nil
 	}
 	n := int(s.domain0.Cardinality)
@@ -231,7 +204,7 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 // real phases just do the work themselves. The point/NTT caches are mutex-guarded,
 // so racing the commit phases is safe.
 func (s *instance) prewarmGPU() error {
-	if !gpu.Available() || os.Getenv("GNARK_DISABLE_P2") != "" {
+	if !gpu.Available() {
 		return nil
 	}
 	runtime.LockOSThread()
@@ -367,17 +340,9 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	gpu.SetDevice()
-	defer s.timings.timed("detail.gpuComputeNumeratorRhoLoop.total")()
-	t0 := time.Now()
-	traceRho := os.Getenv("GNARK_GPU_TRACE_RHO") != ""
-	var uploadPolysTime time.Duration
-	var uploadMetaTime time.Duration
-	var downloadPolysTime time.Duration
 
 	npolys := len(s.x)
 	elemSize := n * 32 // sizeof(Fr) = 32
-
-	fmt.Fprintf(os.Stderr, "[GPU rho] starting: npolys=%d n=%d rho=%d\n", npolys, n, rho)
 
 	// Ensure NTT domain is initialized
 	logN := uint32(bits.TrailingZeros64(uint64(n)))
@@ -397,7 +362,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// On GPU we make ZS point to Z's buffer so fused FFT on Z is visible to ZS.
 	dPolys := make([]unsafe.Pointer, npolys)
 	ownedPolys := make([]bool, npolys)
-	tPhase := time.Now()
 	for i := 0; i < npolys; i++ {
 		if i == id_ZS {
 			continue // handled below
@@ -451,8 +415,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			return err
 		}
 	}
-	uploadPolysTime = time.Since(tPhase)
-	s.timings.add("detail.gpuRho.uploadPolys", uploadPolysTime)
 	// ZS shares Z's device buffer — kernel accesses ZS[(tid+1)%n] = Z[(tid+1)%n]
 	dPolys[id_ZS] = dPolys[id_Z]
 
@@ -470,7 +432,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		return fmt.Errorf("GPU malloc failed for poly pointer array")
 	}
 	defer gpu.Free(dPtrArray)
-	tPhase = time.Now()
 	if err := gpu.MemcpyH2D(dPtrArray, unsafe.Pointer(&dPolys[0]), ptrArrayBytes); err != nil {
 		for i, dp := range dPolys {
 			if i == id_ZS {
@@ -482,9 +443,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		}
 		return fmt.Errorf("poly pointer array H2D failed: %w", err)
 	}
-	dPtrArrayUpload := time.Since(tPhase)
-	uploadMetaTime += dPtrArrayUpload
-	s.timings.add("detail.gpuRho.uploadPtrArray", dPtrArrayUpload)
 
 	defer func() {
 		for i, dp := range dPolys {
@@ -507,13 +465,9 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			return fmt.Errorf("GPU malloc failed for twiddles0")
 		}
 		defer gpu.Free(dTwiddles0)
-		tPhase = time.Now()
 		if err := gpu.MemcpyH2D(dTwiddles0, unsafe.Pointer(&twiddles0[0]), elemSize); err != nil {
 			return err
 		}
-		dTwiddlesUpload := time.Since(tPhase)
-		uploadMetaTime += dTwiddlesUpload
-		s.timings.add("detail.gpuRho.uploadTwiddles", dTwiddlesUpload)
 	}
 
 	// Upload scaling vector (will be updated at iteration 1)
@@ -534,10 +488,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		return fmt.Errorf("GPU malloc failed for cres")
 	}
 	keepNumeratorResident := s.gpuCtx != nil
-	// Stage 1: openings still run host-side, so the wire polys must be downloaded
-	// for the CPU restore even though the numerator stays resident. Flip
-	// GNARK_GPU_RESIDENT_RESTORE once the restore itself is device-resident.
-	residentRestore := os.Getenv("GNARK_GPU_RESIDENT_RESTORE") != ""
 	if !keepNumeratorResident {
 		defer gpu.Free(dCres)
 	}
@@ -624,8 +574,6 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	css.Square(&cs)
 
 	for i := 0; i < rho; i++ {
-		iterStart := time.Now()
-		tPhase := time.Now()
 		coset.Mul(coset, &shifters[i])
 		cosetExpNm1.Exp(*coset, bn).Sub(cosetExpNm1, one)
 		if err := gpu.MemcpyH2D(dCoset, unsafe.Pointer(coset), 32); err != nil {
@@ -634,11 +582,8 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		if err := gpu.VecDenominators(dPrecompDenoms, dTwiddles0, dCoset, n, stream); err != nil {
 			return err
 		}
-		denomTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.denominators", denomTime)
 
 		// Scale blinding polynomials
-		tPhase = time.Now()
 		for _, q := range s.bp {
 			cq := q.Coefficients()
 			acc := *cosetExpNm1
@@ -647,18 +592,13 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 				acc.Mul(&acc, &shifters[i])
 			}
 		}
-		blindScaleTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.blindScale", blindScaleTime)
 
-		tPhase = time.Now()
 		if i == 1 {
 			// switch to the domain1 scale generated on-device above (no host upload)
 			if err := gpu.MemcpyD2D(dScale, dScaleD1, elemSize); err != nil {
 				return err
 			}
 		}
-		scaleUpdateTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.scaleUpdate", scaleUpdateTime)
 
 		// Pack and upload blinding coefficients
 		// bp layout: [bl0,bl1, br0,br1, bo0,bo1, bz0,bz1,bz2]
@@ -703,37 +643,23 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		if err := gpu.MemcpyH2D(dChallenges, unsafe.Pointer(&challenges[0]), 8*32); err != nil {
 			return err
 		}
-		uploadTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.iterationUploads", uploadTime)
 
 		// Run GPU rho iteration: fused IFFT→scale→FFT + constraint eval + D2H
-		tPhase = time.Now()
-		rhoStats, err := gpu.PlonkRhoIteration(
+		if err := gpu.PlonkRhoIteration(
 			dPolys, dPtrArray, dScale, dTwiddles0, dBP, dChallenges, dPrecompDenoms,
 			dResult,
 			n, npolys, nbBsbGates,
 			ifftDirs, fftDirs, id_ZS, stream,
-		)
-		if err != nil {
+		); err != nil {
 			return err
 		}
-		gpuIterTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.kernelAndTransfers", gpuIterTime)
-		s.timings.add("detail.gpuRho.iterFusedFFT", rhoStats.FusedFFT)
-		s.timings.add("detail.gpuRho.iterConstraints", rhoStats.Constraints)
-		s.timings.add("detail.gpuRho.iterSync", rhoStats.Sync)
-		s.timings.add("detail.gpuRho.iterResultD2H", rhoStats.ResultD2H)
 
 		// Scatter result into the final numerator buffer on device
-		tPhase = time.Now()
 		if err := gpu.PlonkScatterResult(dResult, dCres, n, rho, i, mm, stream); err != nil {
 			return err
 		}
-		scatterScheduleTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.scatterSchedule", scatterScheduleTime)
 
 		// Inverse scale blinding polynomials
-		tPhase = time.Now()
 		cosetExpNm1.Inverse(cosetExpNm1)
 		for _, q := range s.bp {
 			cq := q.Coefficients()
@@ -741,19 +667,8 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 				cq[j].Mul(&cq[j], cosetExpNm1)
 			}
 		}
-		blindRestoreTime := time.Since(tPhase)
-		s.timings.add("detail.gpuRho.blindRestore", blindRestoreTime)
-
-		if traceRho {
-			fmt.Fprintf(os.Stderr,
-				"[GPU rho iter %d] total=%v denoms=%v blind_scale=%v scale_update=%v uploads=%v gpu=%v fft=%v constraints=%v sync=%v d2h=%v scatter=%v blind_restore=%v\n",
-				i, time.Since(iterStart), denomTime, blindScaleTime, scaleUpdateTime, uploadTime, gpuIterTime,
-				rhoStats.FusedFFT, rhoStats.Constraints, rhoStats.Sync, rhoStats.ResultD2H,
-				scatterScheduleTime, blindRestoreTime)
-		}
 	}
 
-	tPhase = time.Now()
 	gpu.StreamSync(stream)
 	if keepNumeratorResident {
 		s.gpuCtx.mu.Lock()
@@ -766,41 +681,28 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		if err := gpu.MemcpyD2H(unsafe.Pointer(&cres[0]), dCres, rho*n*32); err != nil {
 			return err
 		}
-		s.timings.add("detail.gpuRho.iterResultD2H", time.Since(tPhase))
 	}
 
-	// Download the wire polys for the host-side restore/openings unless the
-	// restore is itself device-resident (residentRestore).
-	if !residentRestore {
-		tPhase = time.Now()
-		residentWires := s.residentOpenings()
-		for i := 0; i < npolys; i++ {
-			if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
-				continue
-			}
-			// the wires + S1/S2/S3 + Ql/Qr/Qm/Qo stay device-resident for the on-device openings;
-			// don't download. (S3/Ql..Qo feed the linearized poly from getPoly; S1/S2 the openings;
-			// l/r/o(ζ) and s1/s2(ζ) evals read resident/Lagrange — none need the host canonical copy.)
-			if residentWires && isResidentOpeningPoly(i) {
-				continue
-			}
-			cp := s.x[i].Coefficients()
-			if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dPolys[i], elemSize); err != nil {
-				return err
-			}
-			s.x[i].Basis = iop.Lagrange
-			s.x[i].Layout = iop.Regular
+	// Download the wire polys for the host-side restore/openings.
+	residentWires := s.residentOpenings()
+	for i := 0; i < npolys; i++ {
+		if i == id_ZS || s.x[i] == nil || dPolys[i] == nil {
+			continue
 		}
-		downloadPolysTime = time.Since(tPhase)
-		s.timings.add("detail.gpuRho.downloadPolys", downloadPolysTime)
+		// the wires + S1/S2/S3 + Ql/Qr/Qm/Qo stay device-resident for the on-device openings;
+		// don't download. (S3/Ql..Qo feed the linearized poly from getPoly; S1/S2 the openings;
+		// l/r/o(ζ) and s1/s2(ζ) evals read resident/Lagrange — none need the host canonical copy.)
+		if residentWires && isResidentOpeningPoly(i) {
+			continue
+		}
+		cp := s.x[i].Coefficients()
+		if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dPolys[i], elemSize); err != nil {
+			return err
+		}
+		s.x[i].Basis = iop.Lagrange
+		s.x[i].Layout = iop.Regular
 	}
 
-	if traceRho {
-		fmt.Fprintf(os.Stderr,
-			"[GPU rho summary] upload_polys=%v upload_meta=%v download_polys=%v total=%v\n",
-			uploadPolysTime, uploadMetaTime, downloadPolysTime, time.Since(t0))
-	}
-	fmt.Fprintf(os.Stderr, "[GPU PLONK rho-loop] %v\n", time.Since(t0))
 	return nil
 }
 
@@ -823,7 +725,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 // (no 2GB host round-trip). Gated off for statistical ZK (quotient blinding not
 // yet replicated on device) and when the GPU is unavailable.
 func (s *instance) setupGPUResidentContext(n int) {
-	if os.Getenv("GNARK_DISABLE_GPU_RESIDENT") != "" || s.opt.StatisticalZK || !gpu.Available() {
+	if s.opt.StatisticalZK || !gpu.Available() {
 		return
 	}
 	s.gpuCtx = &proverGPUContext{n: n}
@@ -855,14 +757,6 @@ func (s *instance) gpuDivideAndCommitQuotient() (bool, error) {
 	n2 := int(s.domain0.Cardinality) + 2
 	dH := s.gpuCtx.dNumerator
 
-	var shadowNum []fr.Element
-	if os.Getenv("GNARK_GPU_RESIDENT_SHADOW") != "" {
-		shadowNum = make([]fr.Element, bigN)
-		if err := gpu.MemcpyD2H(unsafe.Pointer(&shadowNum[0]), dH, bigN*32); err != nil {
-			return false, err
-		}
-	}
-
 	// divideByZH = (1) * Xⁿ-1 inverse [BitReverse], (2) inverse butterflies (no 1/n),
 	// (3) * cosetTableInv * CardinalityInv [natural] — replicates the CPU scale +
 	// ToCanonical(bigDomain) exactly (the tested FFTInverseNoScale + coset post).
@@ -890,38 +784,6 @@ func (s *instance) gpuDivideAndCommitQuotient() (bool, error) {
 		return false, err
 	}
 	s.h = iop.NewPolynomial(&hc, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-
-	if shadowNum != nil {
-		cpuNum := iop.NewPolynomial(&shadowNum, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
-		cpuH, derr := divideByZH(cpuNum, [2]*fft.Domain{s.domain0, s.domain1})
-		if derr == nil {
-			cpuHc := cpuH.Coefficients()
-			mism := 0
-			for i := 0; i < 3*n2 && i < len(cpuHc); i++ {
-				if !hc[i].Equal(&cpuHc[i]) {
-					if mism == 0 {
-						var r fr.Element
-						if !hc[i].IsZero() {
-							r.Div(&cpuHc[i], &hc[i])
-						}
-						fmt.Fprintf(os.Stderr, "[RESIDENT SHADOW] first mismatch i=%d cpu=%s dev=%s ratio(cpu/dev)=%s\n", i, cpuHc[i].String(), hc[i].String(), r.String())
-					}
-					mism++
-				}
-			}
-			fmt.Fprintf(os.Stderr, "[RESIDENT SHADOW] mismatches=%d of %d\n", mism, 3*n2)
-		}
-	}
-
-	// DEBUG isolation: commit on host from the device-computed h. If the proof
-	// verifies this way, the device divideByZH is correct and the device MSM is
-	// the culprit; if it still fails, the device h itself is wrong.
-	if os.Getenv("GNARK_GPU_RESIDENT_CPU_COMMIT") != "" {
-		if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
-			return false, err
-		}
-		return true, nil
-	}
 
 	// commit h[i*n2 : i*n2+n2] for i=0,1,2 — async on 3 streams so the chunks
 	// overlap on the GPU (same SRS base, scalars already resident in dH, no upload).
@@ -1083,7 +945,6 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	if s.gpuCtx == nil || !gpu.Available() {
 		return nil, false
 	}
-	fmt.Fprintf(os.Stderr, "[LINPOLY] engaging device path: nbCommitments=%d gpuCtx=%v\n", len(s.commitmentInfo), s.gpuCtx != nil)
 	n := int(s.domain0.Cardinality)
 	nB := len(blindedZ)
 	n2 := n + 2

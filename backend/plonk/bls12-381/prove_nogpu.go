@@ -52,7 +52,7 @@ func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Aff
 	return kzg.BatchOpeningProof{}, false
 }
 
-func (s *instance) gpuBatchOpenResidentMaybe(polys [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
+func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
 	return kzg.BatchOpeningProof{}, false
 }
 
