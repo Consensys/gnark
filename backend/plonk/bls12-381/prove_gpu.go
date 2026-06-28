@@ -19,6 +19,12 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// gpuFatal aborts the prove on an unrecoverable GPU error. The cuda build is
+// strict GPU-or-die: device failures are not silently recovered on the CPU.
+func gpuFatal(op string, err error) {
+	panic(fmt.Errorf("gnark cuda prover: %s: %w", op, err))
+}
+
 // gpuBuildZ computes the permutation grand-product Z on-device via the resident
 // p2.RatioBuildZ pipeline (gpu_ratio_copy_terms -> prefix_scan -> apply_inverse),
 // reproducing iop.BuildRatioCopyConstraint.
@@ -26,7 +32,7 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 	n := int(s.domain0.Cardinality)
 	dev, err := p2.NewDevice()
 	if err != nil {
-		return nil, false
+		gpuFatal("gpuBuildZ: NewDevice", err)
 	}
 
 	// twiddles0 = identity support for j=0 = [ω⁰, ω¹, …, ωⁿ⁻¹]
@@ -51,11 +57,11 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 	mk := func(h []fr.Element) *p2.FrVector {
 		v, e := dev.NewFrVector(n)
 		if e != nil {
-			return nil
+			gpuFatal("gpuBuildZ: NewFrVector", e)
 		}
 		vecs = append(vecs, v)
 		if e := v.CopyFromHost(h); e != nil {
-			return nil
+			gpuFatal("gpuBuildZ: CopyFromHost", e)
 		}
 		return v
 	}
@@ -66,19 +72,17 @@ func (s *instance) gpuBuildZ() ([]fr.Element, bool) {
 	vs2 := mk(s.trace.S2.Coefficients())
 	vs3 := mk(s.trace.S3.Coefficients())
 	vtw := mk(tw0)
-	z, _ := dev.NewFrVector(n)
-	if z != nil {
-		vecs = append(vecs, z)
+	z, errZ := dev.NewFrVector(n)
+	if errZ != nil {
+		gpuFatal("gpuBuildZ: NewFrVector z", errZ)
 	}
-	if vl == nil || vr == nil || vo == nil || vs1 == nil || vs2 == nil || vs3 == nil || vtw == nil || z == nil {
-		return nil, false
-	}
+	vecs = append(vecs, z)
 	if err := dev.RatioBuildZ(z, vl, vr, vo, vs1, vs2, vs3, vtw, ch); err != nil {
-		return nil, false
+		gpuFatal("gpuBuildZ: RatioBuildZ", err)
 	}
 	out := make([]fr.Element, n)
 	if err := z.CopyToHost(out); err != nil {
-		return nil, false
+		gpuFatal("gpuBuildZ: CopyToHost", err)
 	}
 	return out, true
 }
@@ -110,10 +114,10 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 	// pre-warm (convert + cache) the two SRS base ranges so the async MSMs below
 	// are cache hits and don't trigger a serializing point conversion mid-stream.
 	if err := gpu.PrewarmPoints(unsafe.Pointer(&lagG1[0]), offset); err != nil {
-		return false, err
+		gpuFatal("gpuCommitLRO: PrewarmPoints", err)
 	}
 	if err := gpu.PrewarmPoints(unsafe.Pointer(&lagG1[nbPublic]), offset-nbPublic); err != nil {
-		return false, err
+		gpuFatal("gpuCommitLRO: PrewarmPoints", err)
 	}
 	gpu.DeviceSync()
 
@@ -158,10 +162,10 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 		}
 		dScalars[k] = gpu.Malloc(m * 32)
 		if dScalars[k] == nil {
-			return false, fmt.Errorf("gpuCommitLRO: scalar alloc failed")
+			gpuFatal("gpuCommitLRO: scalar alloc", fmt.Errorf("scalar alloc failed"))
 		}
 		if err := gpu.MemcpyH2D(dScalars[k], unsafe.Pointer(&w.coeffs[w.lo]), m*32); err != nil {
-			return false, err
+			gpuFatal("gpuCommitLRO: MemcpyH2D", err)
 		}
 		for i := w.lo; i < w.hi; i++ {
 			w.coeffs[i].Add(&w.coeffs[i], &s0)
@@ -170,7 +174,7 @@ func (s *instance) gpuCommitLRO() (bool, error) {
 		hProjs[k] = gpu.MallocHost(projBytes)
 		dc, err := gpu.MSMDeviceScalarsAsync(unsafe.Pointer(&lagG1[w.lo]), dScalars[k], m, hProjs[k], streams[k])
 		if err != nil {
-			return false, err
+			gpuFatal("gpuCommitLRO: MSMDeviceScalarsAsync", err)
 		}
 		dCanons[k] = dc
 	}
@@ -334,13 +338,13 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// Ensure NTT domain is initialized
 	logN := uint32(bits.TrailingZeros64(uint64(n)))
 	if err := gpu.NTTInit(logN); err != nil {
-		return fmt.Errorf("NTTInit failed: %w", err)
+		gpuFatal("gpuRhoLoop: NTTInit", err)
 	}
 
 	// Allocate stream
 	stream := gpu.StreamAcquire()
 	if stream == nil {
-		return fmt.Errorf("GPU stream create failed")
+		gpuFatal("gpuRhoLoop: StreamAcquire", fmt.Errorf("GPU stream create failed"))
 	}
 	defer gpu.StreamRelease(stream)
 
@@ -386,7 +390,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 					gpu.Free(dPolys[j])
 				}
 			}
-			return fmt.Errorf("GPU malloc failed for poly %d", i)
+			gpuFatal("gpuRhoLoop: Malloc poly", fmt.Errorf("GPU malloc failed for poly %d", i))
 		}
 		if s.gpuCtx != nil && s.gpuCtx.n == n {
 			s.gpuCtx.mu.Lock()
@@ -399,7 +403,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		}
 		cp := s.x[i].Coefficients()
 		if err := gpu.MemcpyH2D(dPolys[i], unsafe.Pointer(&cp[0]), elemSize); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D poly", err)
 		}
 	}
 	// ZS shares Z's device buffer — kernel accesses ZS[(tid+1)%n] = Z[(tid+1)%n]
@@ -416,7 +420,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 				gpu.Free(dp)
 			}
 		}
-		return fmt.Errorf("GPU malloc failed for poly pointer array")
+		gpuFatal("gpuRhoLoop: Malloc ptr array", fmt.Errorf("GPU malloc failed for poly pointer array"))
 	}
 	defer gpu.Free(dPtrArray)
 	if err := gpu.MemcpyH2D(dPtrArray, unsafe.Pointer(&dPolys[0]), ptrArrayBytes); err != nil {
@@ -428,7 +432,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 				gpu.Free(dp)
 			}
 		}
-		return fmt.Errorf("poly pointer array H2D failed: %w", err)
+		gpuFatal("gpuRhoLoop: MemcpyH2D ptr array", err)
 	}
 
 	defer func() {
@@ -449,30 +453,30 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	} else {
 		dTwiddles0 = gpu.Malloc(elemSize)
 		if dTwiddles0 == nil {
-			return fmt.Errorf("GPU malloc failed for twiddles0")
+			gpuFatal("gpuRhoLoop: Malloc twiddles0", fmt.Errorf("GPU malloc failed for twiddles0"))
 		}
 		defer gpu.Free(dTwiddles0)
 		if err := gpu.MemcpyH2D(dTwiddles0, unsafe.Pointer(&twiddles0[0]), elemSize); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D twiddles0", err)
 		}
 	}
 
 	// Upload scaling vector (will be updated at iteration 1)
 	dScale := gpu.Malloc(elemSize)
 	if dScale == nil {
-		return fmt.Errorf("GPU malloc failed for scale")
+		gpuFatal("gpuRhoLoop: Malloc scale", fmt.Errorf("GPU malloc failed for scale"))
 	}
 	defer gpu.Free(dScale)
 
 	// Allocate result buffer on device
 	dResult := gpu.Malloc(elemSize)
 	if dResult == nil {
-		return fmt.Errorf("GPU malloc failed for result")
+		gpuFatal("gpuRhoLoop: Malloc result", fmt.Errorf("GPU malloc failed for result"))
 	}
 	defer gpu.Free(dResult)
 	dCres := gpu.Malloc(rho * n * 32)
 	if dCres == nil {
-		return fmt.Errorf("GPU malloc failed for cres")
+		gpuFatal("gpuRhoLoop: Malloc cres", fmt.Errorf("GPU malloc failed for cres"))
 	}
 	keepNumeratorResident := s.gpuCtx != nil
 	if !keepNumeratorResident {
@@ -482,25 +486,25 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// Allocate device buffers for challenges, blinding, denominators
 	dChallenges := gpu.Malloc(8 * 32) // 8 Fr values
 	if dChallenges == nil {
-		return fmt.Errorf("GPU malloc failed for challenges")
+		gpuFatal("gpuRhoLoop: Malloc challenges", fmt.Errorf("GPU malloc failed for challenges"))
 	}
 	defer gpu.Free(dChallenges)
 
 	dBP := gpu.Malloc(9 * 32) // 9 Fr values (bl:2 + br:2 + bo:2 + bz:3)
 	if dBP == nil {
-		return fmt.Errorf("GPU malloc failed for bp")
+		gpuFatal("gpuRhoLoop: Malloc bp", fmt.Errorf("GPU malloc failed for bp"))
 	}
 	defer gpu.Free(dBP)
 
 	dPrecompDenoms := gpu.Malloc(elemSize)
 	if dPrecompDenoms == nil {
-		return fmt.Errorf("GPU malloc failed for denoms")
+		gpuFatal("gpuRhoLoop: Malloc denoms", fmt.Errorf("GPU malloc failed for denoms"))
 	}
 	defer gpu.Free(dPrecompDenoms)
 
 	dCoset := gpu.Malloc(32)
 	if dCoset == nil {
-		return fmt.Errorf("GPU malloc failed for coset")
+		gpuFatal("gpuRhoLoop: Malloc coset", fmt.Errorf("GPU malloc failed for coset"))
 	}
 	defer gpu.Free(dCoset)
 
@@ -525,24 +529,24 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// no host BuildExpTable + 256MB upload. Used from iteration 1 onward (see below).
 	dScaleD1 := gpu.Malloc(elemSize)
 	if dScaleD1 == nil {
-		return fmt.Errorf("gpuRho: malloc dScaleD1 failed")
+		gpuFatal("gpuRhoLoop: Malloc dScaleD1", fmt.Errorf("gpuRho: malloc dScaleD1 failed"))
 	}
 	defer gpu.Free(dScaleD1)
 	{
 		w := s.domain1.Generator
 		dW := gpu.Malloc(32)
 		if dW == nil {
-			return fmt.Errorf("gpuRho: malloc dW failed")
+			gpuFatal("gpuRhoLoop: Malloc dW", fmt.Errorf("gpuRho: malloc dW failed"))
 		}
 		defer gpu.Free(dW)
 		if err := gpu.MemcpyH2D(dW, unsafe.Pointer(&w), 32); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D dW", err)
 		}
 		if err := gpu.VecPowersDevice(dScaleD1, dW, n); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: VecPowersDevice", err)
 		}
 		if err := gpu.BitReverseDevice(dScaleD1, n); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: BitReverseDevice", err)
 		}
 	}
 
@@ -553,7 +557,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 	// Since all polys are the same layout, we pick one scale vector.
 	// TODO: handle mixed layouts by uploading both and selecting per-poly
 	if err := gpu.MemcpyH2D(dScale, unsafe.Pointer(&scalingVectorRev[0]), elemSize); err != nil {
-		return err
+		gpuFatal("gpuRhoLoop: MemcpyH2D scale", err)
 	}
 
 	var cs, css fr.Element
@@ -564,10 +568,10 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		coset.Mul(coset, &shifters[i])
 		cosetExpNm1.Exp(*coset, bn).Sub(cosetExpNm1, one)
 		if err := gpu.MemcpyH2D(dCoset, unsafe.Pointer(coset), 32); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D coset", err)
 		}
 		if err := gpu.VecDenominators(dPrecompDenoms, dTwiddles0, dCoset, n, stream); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: VecDenominators", err)
 		}
 
 		// Scale blinding polynomials
@@ -583,7 +587,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		if i == 1 {
 			// switch to the domain1 scale generated on-device above (no host upload)
 			if err := gpu.MemcpyD2D(dScale, dScaleD1, elemSize); err != nil {
-				return err
+				gpuFatal("gpuRhoLoop: MemcpyD2D scale", err)
 			}
 		}
 
@@ -614,7 +618,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			bpArr[8] = bzCoeffs[2]
 		}
 		if err := gpu.MemcpyH2D(dBP, unsafe.Pointer(&bpArr[0]), 9*32); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D bp", err)
 		}
 
 		// Pack and upload challenges
@@ -628,7 +632,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		challenges[6] = *cosetExpNm1
 		challenges[7] = s.domain0.CardinalityInv
 		if err := gpu.MemcpyH2D(dChallenges, unsafe.Pointer(&challenges[0]), 8*32); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyH2D challenges", err)
 		}
 
 		// Run GPU rho iteration: fused IFFT→scale→FFT + constraint eval + D2H
@@ -638,12 +642,12 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 			n, npolys, nbBsbGates,
 			ifftDirs, fftDirs, id_ZS, stream,
 		); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: PlonkRhoIteration", err)
 		}
 
 		// Scatter result into the final numerator buffer on device
 		if err := gpu.PlonkScatterResult(dResult, dCres, n, rho, i, mm, stream); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: PlonkScatterResult", err)
 		}
 
 		// Inverse scale blinding polynomials
@@ -666,7 +670,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		s.gpuCtx.mu.Unlock()
 	} else {
 		if err := gpu.MemcpyD2H(unsafe.Pointer(&cres[0]), dCres, rho*n*32); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyD2H cres", err)
 		}
 	}
 
@@ -684,7 +688,7 @@ func (s *instance) gpuComputeNumeratorRhoLoop(
 		}
 		cp := s.x[i].Coefficients()
 		if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dPolys[i], elemSize); err != nil {
-			return err
+			gpuFatal("gpuRhoLoop: MemcpyD2H wire", err)
 		}
 		s.x[i].Basis = iop.Lagrange
 		s.x[i].Layout = iop.Regular
@@ -749,33 +753,33 @@ func (s *instance) gpuDivideAndCommitQuotient() (bool, error) {
 	// ToCanonical(bigDomain) exactly (the tested FFTInverseNoScale + coset post).
 	dInvRho, err := gpuResidentInvRho(s.domain0, s.domain1)
 	if err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: residentInvRho", err)
 	}
 	if err := gpu.VecMulDevice(dH, dH, dInvRho, bigN); err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: VecMulDevice invRho", err)
 	}
 	if err := gpu.InverseButterfliesDevice(dH, bigN); err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: InverseButterfliesDevice", err)
 	}
 	dCosetInv, err := gpuResidentCosetInvScale(s.domain1)
 	if err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: residentCosetInvScale", err)
 	}
 	if err := gpu.VecMulDevice(dH, dH, dCosetInv, bigN); err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: VecMulDevice cosetInv", err)
 	}
 
 	// download the quotient coefficients (h1/h2/h3 = first 3*n2 coefficients).
 	hc := make([]fr.Element, 3*n2)
 	if err := gpu.MemcpyD2H(unsafe.Pointer(&hc[0]), dH, 3*n2*32); err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: MemcpyD2H quotient", err)
 	}
 	s.h = iop.NewPolynomial(&hc, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
 	// commit h[i*n2 : i*n2+n2] for i=0,1,2 — async on 3 streams so the chunks
 	// overlap on the GPU (same SRS base, scalars already resident in dH, no upload).
 	if err := gpu.PrewarmPoints(unsafe.Pointer(&s.pk.Kzg.G1[0]), n2); err != nil {
-		return false, err
+		gpuFatal("gpuDivideAndCommitQuotient: PrewarmPoints", err)
 	}
 	gpu.DeviceSync()
 	projBytes := gpu.MSMProjBytes()
@@ -799,7 +803,7 @@ func (s *instance) gpuDivideAndCommitQuotient() (bool, error) {
 		hProjs[i] = gpu.MallocHost(projBytes)
 		dc, err := gpu.MSMDeviceScalarsAsync(unsafe.Pointer(&s.pk.Kzg.G1[0]), off, n2, hProjs[i], hStreams[i])
 		if err != nil {
-			return false, err
+			gpuFatal("gpuDivideAndCommitQuotient: MSMDeviceScalarsAsync", err)
 		}
 		hCanons[i] = dc
 	}
@@ -889,11 +893,11 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 	}
 	dScale := gpu.Malloc(n * 32)
 	if dScale == nil {
-		return fmt.Errorf("gpuRestoreLRO: malloc cs-powers failed")
+		gpuFatal("gpuRestoreLRO: Malloc cs-powers", fmt.Errorf("malloc cs-powers failed"))
 	}
 	defer gpu.Free(dScale)
 	if err := gpu.MemcpyH2D(dScale, unsafe.Pointer(&powers[0]), n*32); err != nil {
-		return err
+		gpuFatal("gpuRestoreLRO: MemcpyH2D cs-powers", err)
 	}
 
 	for i := 0; i < len(s.x); i++ {
@@ -905,10 +909,10 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 			continue
 		}
 		if err := gpu.InverseFFTDevice(dp, n); err != nil {
-			return err
+			gpuFatal("gpuRestoreLRO: InverseFFTDevice", err)
 		}
 		if err := gpu.VecMulDevice(dp, dp, dScale, n); err != nil {
-			return err
+			gpuFatal("gpuRestoreLRO: VecMulDevice", err)
 		}
 		// keep the canonical wires + S1/S2/S3 + Ql/Qr/Qm/Qo device-resident for the on-device
 		// openings — skip the host download (the un-coset above already left them canonical in dp).
@@ -917,7 +921,7 @@ func (s *instance) gpuRestoreLRO(cs fr.Element) error {
 		}
 		cp := s.x[i].Coefficients()
 		if err := gpu.MemcpyD2H(unsafe.Pointer(&cp[0]), dp, n*32); err != nil {
-			return err
+			gpuFatal("gpuRestoreLRO: MemcpyD2H", err)
 		}
 		s.x[i].Basis = iop.Canonical
 		s.x[i].Layout = iop.Regular
@@ -987,11 +991,11 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	up := func(src []fr.Element) (unsafe.Pointer, bool) {
 		d := gpu.Malloc(len(src) * 32)
 		if d == nil {
-			return nil, false
+			gpuFatal("gpuComputeLinearizedPoly: Malloc upload", fmt.Errorf("GPU malloc failed"))
 		}
 		if err := gpu.MemcpyH2D(d, unsafe.Pointer(&src[0]), len(src)*32); err != nil {
 			gpu.Free(d)
-			return nil, false
+			gpuFatal("gpuComputeLinearizedPoly: MemcpyH2D upload", err)
 		}
 		return d, true
 	}
@@ -1047,13 +1051,16 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	if !s.opt.StatisticalZK && s.gpuCtx.dNumerator != nil {
 		dHF = gpu.Malloc(n2 * 32)
 		if dHF == nil {
-			return nil, false
+			gpuFatal("gpuComputeLinearizedPoly: Malloc hFolded", fmt.Errorf("GPU malloc failed"))
 		}
 		bufs = append(bufs, dHF)
 		dZeta := mk([]fr.Element{zetaNP2})
 		dq := s.gpuCtx.dNumerator
-		if dZeta == nil || gpu.FoldQuotientDevice(dq, unsafe.Add(dq, n2*32), unsafe.Add(dq, 2*n2*32), dHF, dZeta, n2) != nil {
-			return nil, false
+		if dZeta == nil {
+			gpuFatal("gpuComputeLinearizedPoly: upload zeta", fmt.Errorf("GPU upload failed"))
+		}
+		if err := gpu.FoldQuotientDevice(dq, unsafe.Add(dq, n2*32), unsafe.Add(dq, 2*n2*32), dHF, dZeta, n2); err != nil {
+			gpuFatal("gpuComputeLinearizedPoly: FoldQuotientDevice", err)
 		}
 	} else {
 		h1, h2, h3 := s.h1(), s.h2(), s.h3()
@@ -1071,15 +1078,15 @@ func (s *instance) gpuComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, ga
 	}
 	dRes := gpu.Malloc(nB * 32)
 	if dRes == nil {
-		return nil, false
+		gpuFatal("gpuComputeLinearizedPoly: Malloc result", fmt.Errorf("GPU malloc failed"))
 	}
 	bufs = append(bufs, dRes)
 	if err := gpu.LinearizedPolyDevice(dBZ, dS3, dQl, dQr, dQm, dQo, dQk, dHF, dSc, dRes, n, nB, n2); err != nil {
-		return nil, false
+		gpuFatal("gpuComputeLinearizedPoly: LinearizedPolyDevice", err)
 	}
 	out := make([]fr.Element, nB)
 	if err := gpu.MemcpyD2H(unsafe.Pointer(&out[0]), dRes, nB*32); err != nil {
-		return nil, false
+		gpuFatal("gpuComputeLinearizedPoly: MemcpyD2H result", err)
 	}
 	// add the Bsb22 commitment terms: linPol += sum_j qcpZeta[j] * Pi_j(X)
 	for j := range qcpZeta {

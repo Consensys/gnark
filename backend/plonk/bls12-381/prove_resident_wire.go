@@ -18,11 +18,11 @@ import (
 func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affine) (curve.G1Affine, bool) {
 	dev, err := p2.NewDevice()
 	if err != nil {
-		return curve.G1Affine{}, false
+		gpuFatal("residentCommitMaybe: NewDevice", err)
 	}
 	c, err := residentCommit(dev, coeffs, bases)
 	if err != nil {
-		return curve.G1Affine{}, false
+		gpuFatal("residentCommitMaybe: residentCommit", err)
 	}
 	return c, true
 }
@@ -30,7 +30,7 @@ func (s *instance) residentCommitMaybe(coeffs []fr.Element, bases []curve.G1Affi
 func (s *instance) gpuOpenMaybe(p []fr.Element, point fr.Element, pk kzg.ProvingKey) (kzg.OpeningProof, bool) {
 	res, err := gpuOpen(p, point, pk)
 	if err != nil {
-		return kzg.OpeningProof{}, false
+		gpuFatal("gpuOpenMaybe: gpuOpen", err)
 	}
 	return res, true
 }
@@ -38,7 +38,7 @@ func (s *instance) gpuOpenMaybe(p []fr.Element, point fr.Element, pk kzg.Proving
 func (s *instance) gpuBatchOpenMaybe(polys [][]fr.Element, digests []curve.G1Affine, point fr.Element, hf hash.Hash, pk kzg.ProvingKey, dataTranscript ...[]byte) (kzg.BatchOpeningProof, bool) {
 	res, err := gpuBatchOpenUpload(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
-		return kzg.BatchOpeningProof{}, false
+		gpuFatal("gpuBatchOpenMaybe: gpuBatchOpenUpload", err)
 	}
 	return res, true
 }

@@ -3,6 +3,7 @@
 package plonk
 
 import (
+	"fmt"
 	"hash"
 	"math/big"
 	"unsafe"
@@ -40,15 +41,15 @@ func (s *instance) gpuEvalBlindedMaybe(id int, bpEvalAtZeta fr.Element, zeta fr.
 	n := int(s.domain0.Cardinality)
 	dPoint := gpu.Malloc(32)
 	if dPoint == nil {
-		return res, false
+		gpuFatal("gpuEvalBlindedMaybe: Malloc point", fmt.Errorf("GPU malloc failed"))
 	}
 	defer gpu.Free(dPoint)
 	if err := gpu.MemcpyH2D(dPoint, unsafe.Pointer(&zeta), 32); err != nil {
-		return res, false
+		gpuFatal("gpuEvalBlindedMaybe: MemcpyH2D point", err)
 	}
 	wEval, err := gpu.PolyEvalDevice(dWire, n, dPoint)
 	if err != nil {
-		return res, false
+		gpuFatal("gpuEvalBlindedMaybe: PolyEvalDevice", err)
 	}
 	// blinded(ζ) = wire(ζ) + bp(ζ)·(ζⁿ − 1)
 	var t, one fr.Element
@@ -82,15 +83,15 @@ func (s *instance) gpuEvalBlindedBatchMaybe(ids []int, bpEvals []fr.Element, zet
 	}
 	dPoint := gpu.Malloc(32)
 	if dPoint == nil {
-		return nil, false
+		gpuFatal("gpuEvalBlindedBatchMaybe: Malloc point", fmt.Errorf("GPU malloc failed"))
 	}
 	defer gpu.Free(dPoint)
 	if err := gpu.MemcpyH2D(dPoint, unsafe.Pointer(&zeta), 32); err != nil {
-		return nil, false
+		gpuFatal("gpuEvalBlindedBatchMaybe: MemcpyH2D point", err)
 	}
 	vals, err := gpu.PolyEvalBatchDevice(ptrs, lengths, dPoint)
 	if err != nil {
-		return nil, false
+		gpuFatal("gpuEvalBlindedBatchMaybe: PolyEvalBatchDevice", err)
 	}
 	var t, one fr.Element
 	one.SetOne()
@@ -123,7 +124,7 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 	}
 	dev, err := p2.NewDevice()
 	if err != nil {
-		return kzg.BatchOpeningProof{}, false
+		gpuFatal("gpuBatchOpenResidentMaybe: NewDevice", err)
 	}
 	n := int(s.domain0.Cardinality)
 	var owned []*p2.FrVector
@@ -138,11 +139,11 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 		}
 		v, e := dev.NewFrVector(len(coeffs))
 		if e != nil {
-			return residentPoly{}, false
+			gpuFatal("gpuBatchOpenResidentMaybe: NewFrVector", e)
 		}
 		owned = append(owned, v)
 		if e := v.CopyFromHost(coeffs); e != nil {
-			return residentPoly{}, false
+			gpuFatal("gpuBatchOpenResidentMaybe: CopyFromHost", e)
 		}
 		return residentPoly{ptr: v.Ptr(), n: len(coeffs)}, true
 	}
@@ -153,7 +154,7 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 		}
 		v, e := blindResidentWire(dev, dWire, n, bpCoeffs)
 		if e != nil {
-			return residentPoly{}, false
+			gpuFatal("gpuBatchOpenResidentMaybe: blindResidentWire", e)
 		}
 		owned = append(owned, v)
 		return residentPoly{ptr: v.Ptr(), n: v.Len()}, true
@@ -185,7 +186,7 @@ func (s *instance) gpuBatchOpenResidentMaybe(digests []curve.G1Affine, point fr.
 	}
 	res, err := gpuBatchOpenResident(polys, digests, point, hf, pk, dataTranscript...)
 	if err != nil {
-		return kzg.BatchOpeningProof{}, false
+		gpuFatal("gpuBatchOpenResidentMaybe: gpuBatchOpenResident", err)
 	}
 	return res, true
 }
