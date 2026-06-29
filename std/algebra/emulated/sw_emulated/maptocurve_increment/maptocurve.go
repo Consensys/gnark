@@ -9,8 +9,8 @@ import (
 	secp256r1fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/rangecheck"
 )
 
 // T is the increment window size: K is searched in [0, T).
@@ -103,15 +103,13 @@ func (m *Mapper[B, S]) XIncrement(msg *emulated.Element[B]) (*sw_emulated.Affine
 	p := &sw_emulated.AffinePoint[B]{X: *xEl, Y: *yEl}
 	m.curve.AssertIsOnCurve(p)
 
-	// (2) encoding: X = msg·T + K
-	kEl := m.nativeAsEmulated(k)
+	// (2) encoding: X = msg·T + K. The 8-bit decomposition of K both enforces
+	// the range 0 ≤ K < T and packs K into a single-limb emulated element.
+	kEl := m.field.FromBits(bits.ToBinary(m.api, k, bits.WithNbDigits(8))...)
 	tEl := m.field.NewElement(big.NewInt(T))
 	m.field.AssertIsEqual(xEl, m.field.Add(m.field.Mul(msg, tEl), kEl))
 
-	// (3) range: 0 ≤ K < T
-	rangecheck.New(m.api).Check(k, 8)
-
-	// (4) 2^s-th power witness: Z^{2^s} = Y
+	// (3) 2^s-th power witness: Z^{2^s} = Y
 	w := zEl
 	for i := 0; i < m.s; i++ {
 		w = m.field.Mul(w, w)
@@ -139,8 +137,9 @@ func (m *Mapper[B, S]) YIncrement(msg *emulated.Element[B]) (*sw_emulated.Affine
 	k := nOut[0]
 	xEl := emOut[0]
 
-	// reconstruct Y = msg·T + K
-	kEl := m.nativeAsEmulated(k)
+	// reconstruct Y = msg·T + K. The 8-bit decomposition of K both enforces
+	// the range 0 ≤ K < T and packs K into a single-limb emulated element.
+	kEl := m.field.FromBits(bits.ToBinary(m.api, k, bits.WithNbDigits(8))...)
 	tEl := m.field.NewElement(big.NewInt(T))
 	yEl := m.field.Add(m.field.Mul(msg, tEl), kEl)
 
@@ -148,24 +147,7 @@ func (m *Mapper[B, S]) YIncrement(msg *emulated.Element[B]) (*sw_emulated.Affine
 	p := &sw_emulated.AffinePoint[B]{X: *xEl, Y: *yEl}
 	m.curve.AssertIsOnCurve(p)
 
-	// (2) range: 0 ≤ K < T
-	rangecheck.New(m.api).Check(k, 8)
-
 	return p, nil
-}
-
-// nativeAsEmulated lifts a small native variable (must fit in one limb; the
-// caller enforces the range) into an emulated element of width nbLimbs by
-// padding the higher limbs with zero. We can't use [emulated.Field.NewElement]
-// directly here because it expects exactly nbLimbs limbs.
-func (m *Mapper[B, S]) nativeAsEmulated(v frontend.Variable) *emulated.Element[B] {
-	nbLimbs, _ := emulated.GetEffectiveFieldParams[B](m.api.Compiler().Field())
-	limbs := make([]frontend.Variable, nbLimbs)
-	limbs[0] = v
-	for i := uint(1); i < nbLimbs; i++ {
-		limbs[i] = 0
-	}
-	return m.field.NewElement(limbs)
 }
 
 // isSupportedField reports whether the base field B is one of the curves the
