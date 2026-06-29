@@ -40,24 +40,31 @@ func testMessages[F emulated.FieldParams]() []*big.Int {
 
 // --- supported-field gating ---
 
-// TestIsSupportedField pins the compile-time guard in NewMapper: only the
-// curves the hints can solve (BN254, secp256k1, P-256) are accepted; any other
-// base field must be rejected at circuit-definition time rather than at proving
-// time.
-func TestIsSupportedField(t *testing.T) {
-	if !isSupportedField[emulated.BN254Fp]() {
-		t.Error("BN254 should be supported")
+// TestSupportedCurve pins the compile-time guard in NewMapper: only the curves
+// the hints can solve (BN254, secp256k1, P-256) are accepted — any other base
+// field must be rejected at circuit-definition time rather than at proving time
+// — and the hardcoded 2-adicity must match the hints (s = 1 for all three).
+func TestSupportedCurve(t *testing.T) {
+	supported := func(name string, s int, ok bool) {
+		t.Helper()
+		if !ok {
+			t.Errorf("%s should be supported", name)
+		}
+		if s != 1 {
+			t.Errorf("%s: 2-adicity = %d, want 1", name, s)
+		}
 	}
-	if !isSupportedField[emulated.Secp256k1Fp]() {
-		t.Error("secp256k1 should be supported")
-	}
-	if !isSupportedField[emulated.P256Fp]() {
-		t.Error("P-256 should be supported")
-	}
-	if isSupportedField[emulated.P384Fp]() {
+	bn, ok := supportedCurve[emulated.BN254Fp]()
+	supported("BN254", bn, ok)
+	k1, ok := supportedCurve[emulated.Secp256k1Fp]()
+	supported("secp256k1", k1, ok)
+	r1, ok := supportedCurve[emulated.P256Fp]()
+	supported("P-256", r1, ok)
+
+	if _, ok := supportedCurve[emulated.P384Fp](); ok {
 		t.Error("P-384 should not be supported")
 	}
-	if isSupportedField[emulated.BLS12381Fp]() {
+	if _, ok := supportedCurve[emulated.BLS12381Fp](); ok {
 		t.Error("BLS12-381 should not be supported")
 	}
 }

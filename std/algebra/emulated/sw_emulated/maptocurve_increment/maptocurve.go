@@ -37,7 +37,8 @@ func NewMapper[B, S emulated.FieldParams](api frontend.API, curve *sw_emulated.C
 	if curve == nil {
 		return nil, fmt.Errorf("curve is nil")
 	}
-	if !isSupportedField[B]() {
+	s, ok := supportedCurve[B]()
+	if !ok {
 		var fp B
 		return nil, fmt.Errorf("unsupported base field modulus %s: only BN254, secp256k1 and P-256 are supported", fp.Modulus().String())
 	}
@@ -52,7 +53,7 @@ func NewMapper[B, S emulated.FieldParams](api frontend.API, curve *sw_emulated.C
 		field: field,
 		a:     params.A,
 		b:     params.B,
-		s:     twoAdicity[B](),
+		s:     s,
 	}, nil
 }
 
@@ -150,29 +151,22 @@ func (m *Mapper[B, S]) YIncrement(msg *emulated.Element[B]) (*sw_emulated.Affine
 	return p, nil
 }
 
-// isSupportedField reports whether the base field B is one of the curves the
-// increment hints know how to solve (BN254, secp256k1, P-256). It must stay in
-// sync with the modulus dispatch in xIncrementHint / yIncrementHint.
-func isSupportedField[F emulated.FieldParams]() bool {
+// supportedCurve reports whether the base field B is one of the curves the
+// increment hints know how to solve (BN254, secp256k1, P-256) and, if so,
+// returns the 2-adicity v₂(q-1) of its base field. The 2-adicity is hardcoded
+// per curve to match the corresponding hint implementations (which all use
+// s = 1); this must stay in sync with the modulus dispatch in xIncrementHint /
+// yIncrementHint.
+func supportedCurve[F emulated.FieldParams]() (s int, ok bool) {
 	var t F
 	q := t.Modulus()
 	switch {
 	case q.Cmp(bn254fp.Modulus()) == 0,
 		q.Cmp(secp256k1fp.Modulus()) == 0,
 		q.Cmp(secp256r1fp.Modulus()) == 0:
-		return true
+		// BN254, secp256k1 and P-256 base fields all have v₂(q-1) = 1.
+		return 1, true
 	default:
-		return false
+		return 0, false
 	}
-}
-
-// twoAdicity returns v₂(q-1) for the field modulus q.
-func twoAdicity[F emulated.FieldParams]() int {
-	var t F
-	qm1 := new(big.Int).Sub(t.Modulus(), big.NewInt(1))
-	s := 0
-	for qm1.Bit(s) == 0 {
-		s++
-	}
-	return s
 }
