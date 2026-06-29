@@ -38,6 +38,30 @@ func testMessages[F emulated.FieldParams]() []*big.Int {
 	}
 }
 
+// --- supported-field gating ---
+
+// TestIsSupportedField pins the compile-time guard in NewMapper: only the
+// curves the hints can solve (BN254, secp256k1, P-256) are accepted; any other
+// base field must be rejected at circuit-definition time rather than at proving
+// time.
+func TestIsSupportedField(t *testing.T) {
+	if !isSupportedField[emulated.BN254Fp]() {
+		t.Error("BN254 should be supported")
+	}
+	if !isSupportedField[emulated.Secp256k1Fp]() {
+		t.Error("secp256k1 should be supported")
+	}
+	if !isSupportedField[emulated.P256Fp]() {
+		t.Error("P-256 should be supported")
+	}
+	if isSupportedField[emulated.P384Fp]() {
+		t.Error("P-384 should not be supported")
+	}
+	if isSupportedField[emulated.BLS12381Fp]() {
+		t.Error("BLS12-381 should not be supported")
+	}
+}
+
 // --- X-Increment tests ---
 
 type xIncrementCircuit[B, S emulated.FieldParams] struct {

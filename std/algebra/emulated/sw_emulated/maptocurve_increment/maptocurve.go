@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
+	bn254fp "github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	secp256k1fp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	secp256r1fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -28,10 +31,15 @@ type Mapper[B, S emulated.FieldParams] struct {
 
 // NewMapper returns a [Mapper] bound to the given emulated curve. The curve
 // must use a supported base field — currently BN254, secp256k1 or P-256.
-// Other moduli will surface as an error at hint-execution time.
+// Any other base field is rejected here so that an unsupported curve fails at
+// circuit-definition time rather than at proving time.
 func NewMapper[B, S emulated.FieldParams](api frontend.API, curve *sw_emulated.Curve[B, S]) (*Mapper[B, S], error) {
 	if curve == nil {
 		return nil, fmt.Errorf("curve is nil")
+	}
+	if !isSupportedField[B]() {
+		var fp B
+		return nil, fmt.Errorf("unsupported base field modulus %s: only BN254, secp256k1 and P-256 are supported", fp.Modulus().String())
 	}
 	field, err := emulated.NewField[B](api)
 	if err != nil {
@@ -158,6 +166,22 @@ func (m *Mapper[B, S]) nativeAsEmulated(v frontend.Variable) *emulated.Element[B
 		limbs[i] = 0
 	}
 	return m.field.NewElement(limbs)
+}
+
+// isSupportedField reports whether the base field B is one of the curves the
+// increment hints know how to solve (BN254, secp256k1, P-256). It must stay in
+// sync with the modulus dispatch in xIncrementHint / yIncrementHint.
+func isSupportedField[F emulated.FieldParams]() bool {
+	var t F
+	q := t.Modulus()
+	switch {
+	case q.Cmp(bn254fp.Modulus()) == 0,
+		q.Cmp(secp256k1fp.Modulus()) == 0,
+		q.Cmp(secp256r1fp.Modulus()) == 0:
+		return true
+	default:
+		return false
+	}
 }
 
 // twoAdicity returns v₂(q-1) for the field modulus q.
