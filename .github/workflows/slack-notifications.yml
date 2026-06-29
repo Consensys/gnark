@@ -27,9 +27,12 @@ on:
         required: true
         type: string
 
+permissions: {} # lock everything by default (least-privilege)
+
 jobs:
   notify_slack:
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Post to Slack
         env:
