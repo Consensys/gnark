@@ -115,7 +115,7 @@ func (c *xIncrementCircuit[B, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	m, err := NewMapper[B, S](api, crv)
+	m, err := NewMapper(api, crv)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (c *yIncrementCircuit[B, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	m, err := NewMapper[B, S](api, crv)
+	m, err := NewMapper(api, crv)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func (c *incrementCircuit[B, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	m, err := NewMapper[B, S](api, crv)
+	m, err := NewMapper(api, crv)
 	if err != nil {
 		return err
 	}
