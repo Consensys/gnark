@@ -62,10 +62,52 @@ func TestIsSupportedField(t *testing.T) {
 	}
 }
 
+// leafHint is the signature of the per-curve search routines (xIncrementBN254,
+// yIncrementSecp256k1, …): given msg it fills natOut[0]=K and the emulated
+// outputs emOut (x[,y,z]).
+type leafHint = func(msg *big.Int, natOut, emOut []*big.Int) error
+
+// expectedFn returns the honest map-to-curve point (x, y) for msg over the
+// modulus q, as produced by the reference (out-of-circuit) search.
+type expectedFn = func(t *testing.T, msg, q *big.Int) (x, y *big.Int)
+
+// xExpected builds the expected point for an x-increment leaf. The leaf returns
+// x, y directly (emOut[0], emOut[1]).
+func xExpected(leaf leafHint) expectedFn {
+	return func(t *testing.T, msg, _ *big.Int) (*big.Int, *big.Int) {
+		t.Helper()
+		natOut := []*big.Int{new(big.Int)}
+		emOut := []*big.Int{new(big.Int), new(big.Int), new(big.Int)}
+		if err := leaf(msg, natOut, emOut); err != nil {
+			t.Fatalf("reference x-increment search: %v", err)
+		}
+		return emOut[0], emOut[1]
+	}
+}
+
+// yExpected builds the expected point for a y-increment leaf. The leaf returns
+// only x (emOut[0]); the y-coordinate is reconstructed as Y = msg·T + K mod q,
+// exactly as the in-circuit gadget does.
+func yExpected(leaf leafHint) expectedFn {
+	return func(t *testing.T, msg, q *big.Int) (*big.Int, *big.Int) {
+		t.Helper()
+		natOut := []*big.Int{new(big.Int)}
+		emOut := []*big.Int{new(big.Int)}
+		if err := leaf(msg, natOut, emOut); err != nil {
+			t.Fatalf("reference y-increment search: %v", err)
+		}
+		y := new(big.Int).Mul(msg, big.NewInt(T))
+		y.Add(y, natOut[0])
+		y.Mod(y, q)
+		return emOut[0], y
+	}
+}
+
 // --- X-Increment tests ---
 
 type xIncrementCircuit[B, S emulated.FieldParams] struct {
-	M emulated.Element[B]
+	M    emulated.Element[B]
+	X, Y emulated.Element[B] // expected honest map-to-curve point
 }
 
 func (c *xIncrementCircuit[B, S]) Define(api frontend.API) error {
@@ -81,37 +123,44 @@ func (c *xIncrementCircuit[B, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	// touch the returned point so the compiler keeps it constrained.
 	crv.AssertIsOnCurve(p)
+	// correctness: the computed point must match the honest reference point.
+	crv.AssertIsEqual(p, &sw_emulated.AffinePoint[B]{X: c.X, Y: c.Y})
 	return nil
 }
 
-func testXIncrement[B, S emulated.FieldParams](t *testing.T) {
+func testXIncrement[B, S emulated.FieldParams](t *testing.T, expected expectedFn) {
 	t.Helper()
 	assert := test.NewAssert(t)
+	var fp B
+	q := fp.Modulus()
 	opts := []test.TestingOption{test.WithCurves(ecc.BN254)}
 	for _, msg := range testMessages[B]() {
+		x, y := expected(t, msg, q)
 		opts = append(opts, test.WithValidAssignment(&xIncrementCircuit[B, S]{
 			M: emulated.ValueOf[B](msg),
+			X: emulated.ValueOf[B](x),
+			Y: emulated.ValueOf[B](y),
 		}))
 	}
 	assert.CheckCircuit(&xIncrementCircuit[B, S]{}, opts...)
 }
 
 func TestXIncrementEmulatedBN254(t *testing.T) {
-	testXIncrement[emulated.BN254Fp, emulated.BN254Fr](t)
+	testXIncrement[emulated.BN254Fp, emulated.BN254Fr](t, xExpected(xIncrementBN254))
 }
 func TestXIncrementEmulatedSecp256k1(t *testing.T) {
-	testXIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t)
+	testXIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t, xExpected(xIncrementSecp256k1))
 }
 func TestXIncrementEmulatedP256(t *testing.T) {
-	testXIncrement[emulated.P256Fp, emulated.P256Fr](t)
+	testXIncrement[emulated.P256Fp, emulated.P256Fr](t, xExpected(xIncrementSecp256r1))
 }
 
 // --- Y-Increment tests ---
 
 type yIncrementCircuit[B, S emulated.FieldParams] struct {
-	M emulated.Element[B]
+	M    emulated.Element[B]
+	X, Y emulated.Element[B] // expected honest map-to-curve point
 }
 
 func (c *yIncrementCircuit[B, S]) Define(api frontend.API) error {
@@ -128,35 +177,42 @@ func (c *yIncrementCircuit[B, S]) Define(api frontend.API) error {
 		return err
 	}
 	crv.AssertIsOnCurve(p)
+	crv.AssertIsEqual(p, &sw_emulated.AffinePoint[B]{X: c.X, Y: c.Y})
 	return nil
 }
 
-func testYIncrement[B, S emulated.FieldParams](t *testing.T) {
+func testYIncrement[B, S emulated.FieldParams](t *testing.T, expected expectedFn) {
 	t.Helper()
 	assert := test.NewAssert(t)
+	var fp B
+	q := fp.Modulus()
 	opts := []test.TestingOption{test.WithCurves(ecc.BN254)}
 	for _, msg := range testMessages[B]() {
+		x, y := expected(t, msg, q)
 		opts = append(opts, test.WithValidAssignment(&yIncrementCircuit[B, S]{
 			M: emulated.ValueOf[B](msg),
+			X: emulated.ValueOf[B](x),
+			Y: emulated.ValueOf[B](y),
 		}))
 	}
 	assert.CheckCircuit(&yIncrementCircuit[B, S]{}, opts...)
 }
 
 func TestYIncrementEmulatedBN254(t *testing.T) {
-	testYIncrement[emulated.BN254Fp, emulated.BN254Fr](t)
+	testYIncrement[emulated.BN254Fp, emulated.BN254Fr](t, yExpected(yIncrementBN254))
 }
 func TestYIncrementEmulatedSecp256k1(t *testing.T) {
-	testYIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t)
+	testYIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t, yExpected(yIncrementSecp256k1))
 }
 func TestYIncrementEmulatedP256(t *testing.T) {
-	testYIncrement[emulated.P256Fp, emulated.P256Fr](t)
+	testYIncrement[emulated.P256Fp, emulated.P256Fr](t, yExpected(yIncrementSecp256r1))
 }
 
 // --- Increment dispatcher tests ---
 
 type incrementCircuit[B, S emulated.FieldParams] struct {
-	M emulated.Element[B]
+	M    emulated.Element[B]
+	X, Y emulated.Element[B] // expected honest map-to-curve point
 }
 
 func (c *incrementCircuit[B, S]) Define(api frontend.API) error {
@@ -173,27 +229,36 @@ func (c *incrementCircuit[B, S]) Define(api frontend.API) error {
 		return err
 	}
 	crv.AssertIsOnCurve(p)
+	crv.AssertIsEqual(p, &sw_emulated.AffinePoint[B]{X: c.X, Y: c.Y})
 	return nil
 }
 
-func testIncrement[B, S emulated.FieldParams](t *testing.T) {
+func testIncrement[B, S emulated.FieldParams](t *testing.T, expected expectedFn) {
 	t.Helper()
 	assert := test.NewAssert(t)
+	var fp B
+	q := fp.Modulus()
 	opts := []test.TestingOption{test.WithCurves(ecc.BN254)}
 	for _, msg := range testMessages[B]() {
+		x, y := expected(t, msg, q)
 		opts = append(opts, test.WithValidAssignment(&incrementCircuit[B, S]{
 			M: emulated.ValueOf[B](msg),
+			X: emulated.ValueOf[B](x),
+			Y: emulated.ValueOf[B](y),
 		}))
 	}
 	assert.CheckCircuit(&incrementCircuit[B, S]{}, opts...)
 }
 
+// Increment dispatches to YIncrement for the j=0 curves (BN254, secp256k1) and
+// to XIncrement for P-256 (a ≠ 0, low 2-adicity); the expected oracle mirrors
+// that choice.
 func TestIncrementEmulatedBN254(t *testing.T) {
-	testIncrement[emulated.BN254Fp, emulated.BN254Fr](t)
+	testIncrement[emulated.BN254Fp, emulated.BN254Fr](t, yExpected(yIncrementBN254))
 }
 func TestIncrementEmulatedSecp256k1(t *testing.T) {
-	testIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t)
+	testIncrement[emulated.Secp256k1Fp, emulated.Secp256k1Fr](t, yExpected(yIncrementSecp256k1))
 }
 func TestIncrementEmulatedP256(t *testing.T) {
-	testIncrement[emulated.P256Fp, emulated.P256Fr](t)
+	testIncrement[emulated.P256Fp, emulated.P256Fr](t, xExpected(xIncrementSecp256r1))
 }
