@@ -33,7 +33,7 @@ func (pr *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 
 	// check Q is on curve
 	Qaff := G2Affine{P: *Q, Lines: nil}
-	pr.IsOnTwist(&Qaff)
+	pr.AssertIsOnTwist(&Qaff)
 
 	var cLines lineEvaluations
 	Qacc := Q
