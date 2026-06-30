@@ -43,6 +43,12 @@ type Parameters struct {
 	// For width 2 and 3 the internal matrix is hardcoded and this field is unused.
 	// See https://eprint.iacr.org/2023/323.pdf page 15.
 	DiagM1 []big.Int
+
+	// useKoalaBearM4 selects the Plonky3 circulant M4 = circ(2,3,1,1) used by
+	// the koalabear native Poseidon2 in gnark-crypto, instead of the default
+	// pairing-curve M4 = circ(5,7,1,3) / (1,3,5,7) etc. Internal flag set by
+	// the koalabear constructor.
+	useKoalaBearM4 bool
 }
 
 func GetDefaultParameters(curve ecc.ID) (Parameters, error) {
@@ -140,6 +146,15 @@ func NewPoseidon2(api frontend.API) (*Permutation, error) {
 // is deterministic and depends on the curve ID. See the corresponding NewParameters
 // function in the gnark-crypto library poseidon2 packages for more details.
 func NewPoseidon2FromParameters(api frontend.API, width, nbFullRounds, nbPartialRounds int) (*Permutation, error) {
+	// koalabear isn't a curve, so FieldToCurve would return UNKNOWN; intercept
+	// it here so the koalabear-specific round-key derivation runs.
+	if isKoalaBearField(api.Compiler().Field()) {
+		params, err := koalaBearParameters(width, nbFullRounds, nbPartialRounds)
+		if err != nil {
+			return nil, err
+		}
+		return &Permutation{api: api, params: params}, nil
+	}
 	params := Parameters{Width: width, NbFullRounds: nbFullRounds, NbPartialRounds: nbPartialRounds}
 	switch utils.FieldToCurve(api.Compiler().Field()) { // TODO: assumes pairing based builder, reconsider when supporting other backends
 	case ecc.BN254:
@@ -233,6 +248,10 @@ func (h *Permutation) sBox(index int, input []frontend.Variable) {
 // on chunks of 4 elements on each part of the buffer
 // see https://eprint.iacr.org/2023/323.pdf appendix B for the addition chain
 func (h *Permutation) matMulM4InPlace(s []frontend.Variable) {
+	if h.params.useKoalaBearM4 {
+		h.matMulM4KoalaBearInPlace(s)
+		return
+	}
 	c := len(s) / 4
 	for i := 0; i < c; i++ {
 		t0 := h.api.Add(s[4*i], s[4*i+1])   // s0+s1
@@ -251,6 +270,32 @@ func (h *Permutation) matMulM4InPlace(s []frontend.Variable) {
 		s[4*i+1] = t5
 		s[4*i+2] = t7
 		s[4*i+3] = t4
+	}
+}
+
+// matMulM4KoalaBearInPlace multiplies each 4-element chunk by the circulant
+// M4 = circ(2,3,1,1) used by gnark-crypto's koalabear Poseidon2 (Plonky3-style).
+// Output row 0 = (2,3,1,1)·s, row 1 = (1,2,3,1)·s, row 2 = (1,1,2,3)·s,
+// row 3 = (3,1,1,2)·s. Addition chain mirrors
+// field/koalabear/poseidon2/poseidon2.go:176-191.
+func (h *Permutation) matMulM4KoalaBearInPlace(s []frontend.Variable) {
+	c := len(s) / 4
+	for i := 0; i < c; i++ {
+		t01 := h.api.Add(s[4*i], s[4*i+1])
+		t23 := h.api.Add(s[4*i+2], s[4*i+3])
+		t0123 := h.api.Add(t01, t23)
+		t01123 := h.api.Add(t0123, s[4*i+1])
+		t01233 := h.api.Add(t0123, s[4*i+3])
+		// The order matches the native one — assign indices 3 and 1 before 0 and 2,
+		// since the native code overwrites in place.
+		out3 := h.api.Add(h.api.Mul(s[4*i], 2), t01233)
+		out1 := h.api.Add(h.api.Mul(s[4*i+2], 2), t01123)
+		out0 := h.api.Add(t01, t01123)
+		out2 := h.api.Add(t23, t01233)
+		s[4*i] = out0
+		s[4*i+1] = out1
+		s[4*i+2] = out2
+		s[4*i+3] = out3
 	}
 }
 

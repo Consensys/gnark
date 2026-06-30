@@ -20,6 +20,9 @@ linters:
       excludes:
         - G115
         - G602
+    misspell:
+      ignore-rules:
+        - octobear
   exclusions:
     generated: disable
     presets:
