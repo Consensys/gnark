@@ -23,8 +23,9 @@ export interface CurveDefinition {
   readonly frArithShaderPath: string;
   readonly frVectorShaderPath: string;
   readonly frNTTShaderPath: string;
-  readonly frNTTDomainPath?: string;
   readonly frModulusHex?: string;
+  readonly frMultiplicativeGeneratorHex?: string;
+  readonly frCosetGeneratorHex?: string;
   readonly fpArithShaderPath: string;
   readonly g1ArithShaderParts: readonly string[];
   readonly g1MSMShaderParts: readonly string[];
@@ -91,8 +92,9 @@ const CURVE_DEFINITIONS: Record<SupportedCurveID, CurveDefinition> = {
     frArithShaderPath: "/shaders/curves/bn254/fr_arith.wgsl",
     frVectorShaderPath: "/shaders/curves/bn254/fr_vector.wgsl",
     frNTTShaderPath: "/shaders/curves/bn254/fr_ntt.wgsl",
-    frNTTDomainPath: "/testdata/vectors/fr/bn254_ntt_domains.json",
     frModulusHex: "0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
+    frMultiplicativeGeneratorHex: "5",
+    frCosetGeneratorHex: "5",
     fpArithShaderPath: "/shaders/curves/bn254/fp_arith.wgsl",
     g1ArithShaderParts: g1OpsShaderParts("/shaders/curves/bn254/fp_arith.wgsl", "/shaders/curves/bn254/g1_io.wgsl"),
     g1MSMShaderParts: g1MSMShaderParts("/shaders/curves/bn254/fp_arith.wgsl", "/shaders/curves/bn254/g1_io.wgsl"),
@@ -109,8 +111,9 @@ const CURVE_DEFINITIONS: Record<SupportedCurveID, CurveDefinition> = {
     frArithShaderPath: "/shaders/curves/bls12_381/fr_arith.wgsl",
     frVectorShaderPath: "/shaders/curves/bls12_381/fr_vector.wgsl",
     frNTTShaderPath: "/shaders/curves/bls12_381/fr_ntt.wgsl",
-    frNTTDomainPath: "/testdata/vectors/fr/bls12_381_ntt_domains.json",
     frModulusHex: "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001",
+    frMultiplicativeGeneratorHex: "7",
+    frCosetGeneratorHex: "7",
     fpArithShaderPath: "/shaders/curves/bls12_381/fp_arith.wgsl",
     g1ArithShaderParts: g1OpsShaderParts("/shaders/curves/bls12_381/fp_arith.wgsl", "/shaders/curves/bls12_381/g1_io.wgsl"),
     g1MSMShaderParts: g1MSMShaderParts("/shaders/curves/bls12_381/fp_arith.wgsl", "/shaders/curves/bls12_381/g1_io.wgsl"),
@@ -128,8 +131,9 @@ const CURVE_DEFINITIONS: Record<SupportedCurveID, CurveDefinition> = {
     frArithShaderPath: "/shaders/curves/bls12_377/fr_arith.wgsl",
     frVectorShaderPath: "/shaders/curves/bls12_377/fr_vector.wgsl",
     frNTTShaderPath: "/shaders/curves/bls12_377/fr_ntt.wgsl",
-    frNTTDomainPath: "/testdata/vectors/fr/bls12_377_ntt_domains.json",
     frModulusHex: "0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001",
+    frMultiplicativeGeneratorHex: "16",
+    frCosetGeneratorHex: "16",
     fpArithShaderPath: "/shaders/curves/bls12_377/fp_arith.wgsl",
     g1ArithShaderParts: g1OpsShaderParts("/shaders/curves/bls12_377/fp_arith.wgsl", "/shaders/curves/bls12_377/g1_io.wgsl"),
     g1MSMShaderParts: g1MSMShaderParts("/shaders/curves/bls12_377/fp_arith.wgsl", "/shaders/curves/bls12_377/g1_io.wgsl"),
@@ -246,8 +250,9 @@ export async function createCurveModule(context: CurveGPUContext, curve: Support
     context,
     {
       curve: definition.id,
-      domainPath: definition.frNTTDomainPath ?? "",
       modulusHex: definition.frModulusHex ?? "",
+      multiplicativeGeneratorHex: definition.frMultiplicativeGeneratorHex ?? "",
+      cosetGeneratorHex: definition.frCosetGeneratorHex ?? "",
       vectorKernel: registry.getOpsKernel("fr_vector_main"),
       fieldKernel: registry.getOpsKernel("fr_ops_main"),
       nttKernel: registry.getOpsKernel("fr_ntt_stage_main"),

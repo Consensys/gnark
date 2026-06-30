@@ -13,7 +13,6 @@ import {
   submitSimpleKernel,
   unpackElementBatch,
 } from "./runtime_common.js";
-import { fetchJSON } from "./browser_utils.js";
 import { hexToBytesLE } from "./encoding.js";
 
 declare const GPUBufferUsage: {
@@ -39,10 +38,6 @@ type DomainMetadata = {
   coset_den_inv_hex: string;
 };
 
-type DomainMetadataFile = {
-  domains: DomainMetadata[];
-};
-
 type PreparedDomain = {
   forwardStageMont: Uint8Array[];
   inverseStageMont: Uint8Array[];
@@ -55,7 +50,7 @@ type PreparedDomain = {
 };
 
 function hexToBigInt(hex: string): bigint {
-  return BigInt(`0x${hex}`);
+  return BigInt(hex.startsWith("0x") || hex.startsWith("0X") ? hex : `0x${hex}`);
 }
 
 function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
@@ -70,6 +65,34 @@ function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
     power >>= 1n;
   }
   return result;
+}
+
+function modInv(value: bigint, mod: bigint): bigint {
+  if (value === 0n) {
+    throw new Error("cannot invert zero");
+  }
+  return modPow(value, mod - 2n, mod);
+}
+
+function twoAdicity(value: bigint): number {
+  let x = value;
+  let count = 0;
+  while ((x & 1n) === 0n) {
+    count += 1;
+    x >>= 1n;
+  }
+  return count;
+}
+
+function assertPowerOfTwoSize(size: number, label: string): number {
+  if (!Number.isSafeInteger(size) || size <= 0) {
+    throw new Error(`${label}: NTT size must be a positive power of two, got ${size}`);
+  }
+  const logN = Math.log2(size);
+  if (!Number.isInteger(logN)) {
+    throw new Error(`${label}: NTT size must be a positive power of two, got ${size}`);
+  }
+  return logN;
 }
 
 function bigIntToBytesLE(value: bigint, byteSize: number): Uint8Array {
@@ -120,7 +143,7 @@ function buildRegularStageElements(domain: DomainMetadata, inverse: boolean, mod
   const omega = hexToBigInt(inverse ? domain.omega_inv_hex : domain.omega_hex);
   const stages: Uint8Array[][] = [];
   for (let stage = 1; stage <= logN; stage += 1) {
-    const m = 1 << (stage - 1);
+    const m = 2 ** (stage - 1);
     const exponentShift = BigInt(logN - stage);
     const step = modPow(omega, 1n << exponentShift, modulus);
     const stageElements: Uint8Array[] = [];
@@ -141,21 +164,48 @@ export function createNTTModule(
     vectorKernel: SimpleKernel;
     fieldKernel: SimpleKernel;
     nttKernel: SimpleKernel;
-    domainPath: string;
     modulusHex: string;
+    multiplicativeGeneratorHex: string;
+    cosetGeneratorHex: string;
   },
   fr: FieldModule,
 ): NTTModule & Groth16QuotientModule {
-  const { curve, vectorKernel, fieldKernel, nttKernel, domainPath, modulusHex } = options;
+  const { curve, vectorKernel, fieldKernel, nttKernel, modulusHex, multiplicativeGeneratorHex, cosetGeneratorHex } = options;
   const label = `${curve}-fr-ntt`;
   const elementBytes = fr.byteSize;
 
   const getVectorKernel = lazyAsync(async () => vectorKernel);
   const getFieldKernel = lazyAsync(async () => fieldKernel);
   const getNTTKernel = lazyAsync(async () => nttKernel);
-  const getDomains = lazyAsync(async () => fetchJSON<DomainMetadataFile>(domainPath));
   const domainCache = new Map<number, Promise<PreparedDomain>>();
   const modulus = BigInt(modulusHex);
+  const multiplicativeGenerator = hexToBigInt(multiplicativeGeneratorHex);
+  const cosetGenerator = hexToBigInt(cosetGeneratorHex);
+  const maxLogSize = twoAdicity(modulus - 1n);
+
+  function buildDomainMetadata(size: number): DomainMetadata {
+    const logN = assertPowerOfTwoSize(size, label);
+    if (logN > maxLogSize) {
+      throw new Error(`${label}: NTT size ${size} exceeds scalar field two-adicity 2^${maxLogSize}`);
+    }
+    const sizeBig = BigInt(size);
+    const omega = modPow(multiplicativeGenerator, (modulus - 1n) / sizeBig, modulus);
+    const omegaInv = modInv(omega, modulus);
+    const cardinalityInv = modInv(sizeBig, modulus);
+    const cosetGenInv = modInv(cosetGenerator, modulus);
+    const cosetDen = (modPow(cosetGenerator, sizeBig, modulus) - 1n + modulus) % modulus;
+    const cosetDenInv = modInv(cosetDen, modulus);
+    return {
+      log_n: logN,
+      size,
+      omega_hex: omega.toString(16),
+      omega_inv_hex: omegaInv.toString(16),
+      cardinality_inv_hex: cardinalityInv.toString(16),
+      coset_gen_hex: cosetGenerator.toString(16),
+      coset_gen_inv_hex: cosetGenInv.toString(16),
+      coset_den_inv_hex: cosetDenInv.toString(16),
+    };
+  }
 
   async function prepareDomain(size: number): Promise<PreparedDomain> {
     const cached = domainCache.get(size);
@@ -163,11 +213,7 @@ export function createNTTModule(
       return cached;
     }
     const promise = (async (): Promise<PreparedDomain> => {
-      const file = await getDomains();
-      const domain = file.domains.find((item) => item.size === size);
-      if (!domain) {
-        throw new Error(`${label}: missing domain metadata for size ${size}`);
-      }
+      const domain = buildDomainMetadata(size);
       const forwardStageRegular = buildRegularStageElements(domain, false, modulus, elementBytes);
       const inverseStageRegular = buildRegularStageElements(domain, true, modulus, elementBytes);
       const forwardStageMont = await Promise.all(
@@ -544,8 +590,11 @@ export function createNTTModule(
     curve,
     field: "fr",
     async supportedSizes(): Promise<number[]> {
-      const file = await getDomains();
-      return file.domains.map((domain) => domain.size).sort((a, b) => a - b);
+      const sizes: number[] = [];
+      for (let logN = 3; logN <= maxLogSize; logN += 1) {
+        sizes.push(2 ** logN);
+      }
+      return sizes;
     },
     async forward(values: readonly CurveGPUElementBytes[]): Promise<CurveGPUElementBytes[]> {
       values.forEach((value, index) => ensureByteLength(value, elementBytes, `${label}.forward[${index}]`));
