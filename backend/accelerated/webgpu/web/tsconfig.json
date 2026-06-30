@@ -7,6 +7,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noEmitOnError": true,
+    "allowJs": true,
+    "checkJs": false,
     "declaration": true,
     "declarationMap": true,
     "outDir": "dist",

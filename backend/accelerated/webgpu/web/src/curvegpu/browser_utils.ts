@@ -1,3 +1,5 @@
+import { fetchShaderText } from "./shaders.js";
+
 export function mustElement<T>(value: T | null, name: string): T {
   if (value === null) {
     throw new Error(`missing element: ${name}`);
@@ -24,6 +26,9 @@ export function createPageUI(statusEl: HTMLElement | null, logEl: HTMLElement | 
 }
 
 export async function fetchText(path: string): Promise<string> {
+  if (path.startsWith("/shaders/")) {
+    return fetchShaderText(path);
+  }
   const response = await fetch(path);
   if (!response.ok) {
     throw new Error(`failed to load ${path}: ${response.status} ${response.statusText}`);
