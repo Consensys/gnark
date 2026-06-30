@@ -26,9 +26,11 @@ import (
 )
 
 var (
-	errAlgebraicRelation = errors.New("algebraic relation does not hold")
-	errInvalidWitness    = errors.New("witness length is invalid")
-	errInvalidPoint      = errors.New("point is not on the curve")
+	errAlgebraicRelation   = errors.New("algebraic relation does not hold")
+	errInvalidWitness      = errors.New("witness length is invalid")
+	errInvalidProof        = errors.New("proof length is invalid")
+	errInvalidVerifyingKey = errors.New("verifying key length is invalid")
+	errInvalidPoint        = errors.New("point is not on the curve")
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
@@ -39,8 +41,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	log := cfg.Logger.With(slog.String("curve", "bls12-377"), slog.String("backend", "plonk"))
 	start := time.Now()
 
+	if len(vk.CommitmentConstraintIndexes) != len(vk.Qcp) {
+		return errInvalidVerifyingKey
+	}
+
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
-		return errors.New("BSB22 Commitment number mismatch")
+		return errInvalidProof
+	}
+
+	if len(proof.BatchedProof.ClaimedValues) != 6+len(vk.Qcp) {
+		return errInvalidProof
 	}
 
 	if len(publicWitness) != int(vk.NbPublicVariables) {
