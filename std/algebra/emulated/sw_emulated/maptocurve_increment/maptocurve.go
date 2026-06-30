@@ -9,12 +9,12 @@ import (
 	secp256r1fp "github.com/consensys/gnark-crypto/ecc/secp256r1/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
 // T is the increment window size: K is searched in [0, T).
 const T = 256
+const Tbits = 8
 
 // Mapper provides increment-and-check map-to-curve operations for an emulated
 // short Weierstrass curve y² = x³ + ax + b.
@@ -92,22 +92,20 @@ func (m *Mapper[B, S]) Increment(msg *emulated.Element[B]) (*sw_emulated.AffineP
 // Caller-side precondition: msg < q/256 (q is the curve base modulus). The
 // precondition is NOT enforced in-circuit; see the package doc.
 func (m *Mapper[B, S]) XIncrement(msg *emulated.Element[B]) (*sw_emulated.AffinePoint[B], error) {
-	// hint outputs: 1 native (k), 3 emulated (x, y, z).
-	nOut, emOut, err := m.field.NewHintGeneric(xIncrementHint, 1, 3, nil, []*emulated.Element[B]{msg})
+	// hint outputs: 4 emulated (k, x, y, z), k restricted to [0, T)
+	_, emOut, err := m.field.NewHintGeneric(xIncrementHint, 0, 4, nil, []*emulated.Element[B]{msg}, emulated.WithHintOutputRangeCheckBits(map[int]int{0: Tbits}))
 	if err != nil {
 		return nil, fmt.Errorf("x-increment hint: %w", err)
 	}
-	k := nOut[0]
-	xEl, yEl, zEl := emOut[0], emOut[1], emOut[2]
+	kEl := emOut[0]
+	xEl, yEl, zEl := emOut[1], emOut[2], emOut[3]
 
 	// (1) curve equation: Y² = X³ + aX + b
 	p := &sw_emulated.AffinePoint[B]{X: *xEl, Y: *yEl}
 	m.curve.AssertIsOnCurve(p)
 
-	// (2) encoding: X = msg·T + K. The 8-bit decomposition of K both enforces
-	// the range 0 ≤ K < T and packs K into a single-limb emulated element.
-	kEl := m.field.FromBits(bits.ToBinary(m.api, k, bits.WithNbDigits(8))...)
-	tEl := m.field.NewElement(big.NewInt(T))
+	// (2) encoding: X = msg·T + K.
+	tEl := m.field.NewElement(T)
 	m.field.AssertIsEqual(xEl, m.field.Add(m.field.Mul(msg, tEl), kEl))
 
 	// (3) 2^s-th power witness: Z^{2^s} = Y
@@ -130,18 +128,16 @@ func (m *Mapper[B, S]) XIncrement(msg *emulated.Element[B]) (*sw_emulated.Affine
 // Caller-side precondition: msg < q/256 (q is the curve base modulus). The
 // precondition is NOT enforced in-circuit; see the package doc.
 func (m *Mapper[B, S]) YIncrement(msg *emulated.Element[B]) (*sw_emulated.AffinePoint[B], error) {
-	// hint outputs: 1 native (k), 1 emulated (x).
-	nOut, emOut, err := m.field.NewHintGeneric(yIncrementHint, 1, 1, nil, []*emulated.Element[B]{msg})
+	// hint outputs: 2 emulated (k, x), k restricted to [0, T)
+	_, emOut, err := m.field.NewHintGeneric(yIncrementHint, 0, 2, nil, []*emulated.Element[B]{msg}, emulated.WithHintOutputRangeCheckBits(map[int]int{0: Tbits}))
 	if err != nil {
 		return nil, fmt.Errorf("y-increment hint: %w", err)
 	}
-	k := nOut[0]
-	xEl := emOut[0]
+	kEl := emOut[0]
+	xEl := emOut[1]
 
-	// reconstruct Y = msg·T + K. The 8-bit decomposition of K both enforces
-	// the range 0 ≤ K < T and packs K into a single-limb emulated element.
-	kEl := m.field.FromBits(bits.ToBinary(m.api, k, bits.WithNbDigits(8))...)
-	tEl := m.field.NewElement(big.NewInt(T))
+	// reconstruct Y = msg·T + K.
+	tEl := m.field.NewElement(T)
 	yEl := m.field.Add(m.field.Mul(msg, tEl), kEl)
 
 	// (1) curve equation: Y² = X³ + aX + b

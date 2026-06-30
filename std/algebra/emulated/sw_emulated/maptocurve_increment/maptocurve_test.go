@@ -70,43 +70,41 @@ func TestSupportedCurve(t *testing.T) {
 }
 
 // leafHint is the signature of the per-curve search routines (xIncrementBN254,
-// yIncrementSecp256k1, …): given msg it fills natOut[0]=K and the emulated
-// outputs emOut (x[,y,z]).
-type leafHint = func(msg *big.Int, natOut, emOut []*big.Int) error
+// yIncrementSecp256k1, …): given msg it fills emulated outputs emOut (K,
+// x[,y,z]).
+type leafHint = func(msg *big.Int, emOut []*big.Int) error
 
 // expectedFn returns the honest map-to-curve point (x, y) for msg over the
 // modulus q, as produced by the reference (out-of-circuit) search.
 type expectedFn = func(t *testing.T, msg, q *big.Int) (x, y *big.Int)
 
 // xExpected builds the expected point for an x-increment leaf. The leaf returns
-// x, y directly (emOut[0], emOut[1]).
+// x, y directly (emOut[1], emOut[2]).
 func xExpected(leaf leafHint) expectedFn {
 	return func(t *testing.T, msg, _ *big.Int) (*big.Int, *big.Int) {
 		t.Helper()
-		natOut := []*big.Int{new(big.Int)}
-		emOut := []*big.Int{new(big.Int), new(big.Int), new(big.Int)}
-		if err := leaf(msg, natOut, emOut); err != nil {
+		emOut := []*big.Int{new(big.Int), new(big.Int), new(big.Int), new(big.Int)}
+		if err := leaf(msg, emOut); err != nil {
 			t.Fatalf("reference x-increment search: %v", err)
 		}
-		return emOut[0], emOut[1]
+		return emOut[1], emOut[2]
 	}
 }
 
 // yExpected builds the expected point for a y-increment leaf. The leaf returns
-// only x (emOut[0]); the y-coordinate is reconstructed as Y = msg·T + K mod q,
+// only x (emOut[1]); the y-coordinate is reconstructed as Y = msg·T + K mod q,
 // exactly as the in-circuit gadget does.
 func yExpected(leaf leafHint) expectedFn {
 	return func(t *testing.T, msg, q *big.Int) (*big.Int, *big.Int) {
 		t.Helper()
-		natOut := []*big.Int{new(big.Int)}
-		emOut := []*big.Int{new(big.Int)}
-		if err := leaf(msg, natOut, emOut); err != nil {
+		emOut := []*big.Int{new(big.Int), new(big.Int)}
+		if err := leaf(msg, emOut); err != nil {
 			t.Fatalf("reference y-increment search: %v", err)
 		}
 		y := new(big.Int).Mul(msg, big.NewInt(T))
-		y.Add(y, natOut[0])
+		y.Add(y, emOut[0])
 		y.Mod(y, q)
-		return emOut[0], y
+		return emOut[1], y
 	}
 }
 

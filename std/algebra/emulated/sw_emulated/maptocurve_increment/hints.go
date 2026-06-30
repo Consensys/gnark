@@ -40,17 +40,17 @@ func xIncrementHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 		if len(emIn) != 1 {
 			return fmt.Errorf("x-increment hint: expected 1 emulated input, got %d", len(emIn))
 		}
-		if len(natOut) != 1 || len(emOut) != 3 {
-			return fmt.Errorf("x-increment hint: expected 1 native + 3 emulated outputs, got %d + %d", len(natOut), len(emOut))
+		if len(natOut) != 0 || len(emOut) != 4 {
+			return fmt.Errorf("x-increment hint: expected 0 native + 4 emulated outputs, got %d + %d", len(natOut), len(emOut))
 		}
 		msg := emIn[0]
 		switch {
 		case q.Cmp(bn254fp.Modulus()) == 0:
-			return xIncrementBN254(msg, natOut, emOut)
+			return xIncrementBN254(msg, emOut)
 		case q.Cmp(secp256k1fp.Modulus()) == 0:
-			return xIncrementSecp256k1(msg, natOut, emOut)
+			return xIncrementSecp256k1(msg, emOut)
 		case q.Cmp(secp256r1fp.Modulus()) == 0:
-			return xIncrementSecp256r1(msg, natOut, emOut)
+			return xIncrementSecp256r1(msg, emOut)
 		default:
 			return fmt.Errorf("x-increment hint: unsupported field modulus %s", q.String())
 		}
@@ -72,17 +72,17 @@ func yIncrementHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 		if len(emIn) != 1 {
 			return fmt.Errorf("y-increment hint: expected 1 emulated input, got %d", len(emIn))
 		}
-		if len(natOut) != 1 || len(emOut) != 1 {
-			return fmt.Errorf("y-increment hint: expected 1 native + 1 emulated outputs, got %d + %d", len(natOut), len(emOut))
+		if len(natOut) != 0 || len(emOut) != 2 {
+			return fmt.Errorf("y-increment hint: expected 0 native + 2 emulated outputs, got %d + %d", len(natOut), len(emOut))
 		}
 		msg := emIn[0]
 		switch {
 		case q.Cmp(bn254fp.Modulus()) == 0:
-			return yIncrementBN254(msg, natOut, emOut)
+			return yIncrementBN254(msg, emOut)
 		case q.Cmp(secp256k1fp.Modulus()) == 0:
-			return yIncrementSecp256k1(msg, natOut, emOut)
+			return yIncrementSecp256k1(msg, emOut)
 		case q.Cmp(secp256r1fp.Modulus()) == 0:
-			return yIncrementSecp256r1(msg, natOut, emOut)
+			return yIncrementSecp256r1(msg, emOut)
 		default:
 			return fmt.Errorf("y-increment hint: unsupported field modulus %s", q.String())
 		}
@@ -91,7 +91,7 @@ func yIncrementHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 
 // --- BN254 (y² = x³ + 3, S=1) ---
 
-func xIncrementBN254(msg *big.Int, natOut, emOut []*big.Int) error {
+func xIncrementBN254(msg *big.Int, emOut []*big.Int) error {
 	const s = 1
 	var msgFp, bFp, tFp, xBase bn254fp.Element
 	msgFp.SetBigInt(msg)
@@ -136,17 +136,17 @@ func xIncrementBN254(msg *big.Int, natOut, emOut []*big.Int) error {
 			}
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig, yBig, zBig big.Int
-		emOut[0].Set(x.BigInt(&xBig))
-		emOut[1].Set(y.BigInt(&yBig))
-		emOut[2].Set(z.BigInt(&zBig))
+		emOut[1].Set(x.BigInt(&xBig))
+		emOut[2].Set(y.BigInt(&yBig))
+		emOut[3].Set(z.BigInt(&zBig))
 		return nil
 	}
 	return fmt.Errorf("x-increment hint: no valid k found for BN254")
 }
 
-func yIncrementBN254(msg *big.Int, natOut, emOut []*big.Int) error {
+func yIncrementBN254(msg *big.Int, emOut []*big.Int) error {
 	var msgFp, bFp, tFp, yBase bn254fp.Element
 	msgFp.SetBigInt(msg)
 	bFp.SetUint64(3)
@@ -165,9 +165,9 @@ func yIncrementBN254(msg *big.Int, natOut, emOut []*big.Int) error {
 			continue
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig big.Int
-		emOut[0].Set(x.BigInt(&xBig))
+		emOut[1].Set(x.BigInt(&xBig))
 		return nil
 	}
 	return fmt.Errorf("y-increment hint: no valid k found for BN254")
@@ -175,7 +175,7 @@ func yIncrementBN254(msg *big.Int, natOut, emOut []*big.Int) error {
 
 // --- secp256k1 (y² = x³ + 7, S=1) ---
 
-func xIncrementSecp256k1(msg *big.Int, natOut, emOut []*big.Int) error {
+func xIncrementSecp256k1(msg *big.Int, emOut []*big.Int) error {
 	const s = 1
 	var msgFp, bFp, tFp, xBase secp256k1fp.Element
 	msgFp.SetBigInt(msg)
@@ -219,17 +219,17 @@ func xIncrementSecp256k1(msg *big.Int, natOut, emOut []*big.Int) error {
 			}
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig, yBig, zBig big.Int
-		emOut[0].Set(x.BigInt(&xBig))
-		emOut[1].Set(y.BigInt(&yBig))
-		emOut[2].Set(z.BigInt(&zBig))
+		emOut[1].Set(x.BigInt(&xBig))
+		emOut[2].Set(y.BigInt(&yBig))
+		emOut[3].Set(z.BigInt(&zBig))
 		return nil
 	}
 	return fmt.Errorf("x-increment hint: no valid k found for secp256k1")
 }
 
-func yIncrementSecp256k1(msg *big.Int, natOut, emOut []*big.Int) error {
+func yIncrementSecp256k1(msg *big.Int, emOut []*big.Int) error {
 	var msgFp, bFp, tFp, yBase secp256k1fp.Element
 	msgFp.SetBigInt(msg)
 	bFp.SetUint64(7)
@@ -248,9 +248,9 @@ func yIncrementSecp256k1(msg *big.Int, natOut, emOut []*big.Int) error {
 			continue
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig big.Int
-		emOut[0].Set(x.BigInt(&xBig))
+		emOut[1].Set(x.BigInt(&xBig))
 		return nil
 	}
 	return fmt.Errorf("y-increment hint: no valid k found for secp256k1")
@@ -258,7 +258,7 @@ func yIncrementSecp256k1(msg *big.Int, natOut, emOut []*big.Int) error {
 
 // --- secp256r1 / P-256 (y² = x³ − 3x + b, S=1) ---
 
-func xIncrementSecp256r1(msg *big.Int, natOut, emOut []*big.Int) error {
+func xIncrementSecp256r1(msg *big.Int, emOut []*big.Int) error {
 	const s = 1
 	p := sw_emulated.GetP256Params()
 	var msgFp, aFp, bFp, tFp, xBase secp256r1fp.Element
@@ -306,11 +306,11 @@ func xIncrementSecp256r1(msg *big.Int, natOut, emOut []*big.Int) error {
 			}
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig, yBig, zBig big.Int
-		emOut[0].Set(x.BigInt(&xBig))
-		emOut[1].Set(y.BigInt(&yBig))
-		emOut[2].Set(z.BigInt(&zBig))
+		emOut[1].Set(x.BigInt(&xBig))
+		emOut[2].Set(y.BigInt(&yBig))
+		emOut[3].Set(z.BigInt(&zBig))
 		return nil
 	}
 	return fmt.Errorf("x-increment hint: no valid k found for secp256r1")
@@ -320,7 +320,7 @@ func xIncrementSecp256r1(msg *big.Int, natOut, emOut []*big.Int) error {
 // a = -3 the curve equation x³ − 3x + (b − y²) = 0 has the depressed form
 // supported by [secp256r1.CardanoRoots]. A future helper Sqrt2th(s) in
 // gnark-crypto would let xIncrement* read just as cleanly.
-func yIncrementSecp256r1(msg *big.Int, natOut, emOut []*big.Int) error {
+func yIncrementSecp256r1(msg *big.Int, emOut []*big.Int) error {
 	p := sw_emulated.GetP256Params()
 	var bFp, tFp, msgFp, yBase secp256r1fp.Element
 	msgFp.SetBigInt(msg)
@@ -341,9 +341,9 @@ func yIncrementSecp256r1(msg *big.Int, natOut, emOut []*big.Int) error {
 			continue
 		}
 
-		natOut[0].SetUint64(k)
+		emOut[0].SetUint64(k)
 		var xBig big.Int
-		emOut[0].Set(roots[0].BigInt(&xBig))
+		emOut[1].Set(roots[0].BigInt(&xBig))
 		return nil
 	}
 	return fmt.Errorf("y-increment hint: no valid k found for secp256r1")
