@@ -6,7 +6,9 @@
 package groth16
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"runtime"
 	"time"
@@ -386,4 +388,46 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
 
 	return a
+}
+
+// ExportProof serializes a Groth16 proof into a JSON format compatible with snarkjs
+// and writes it to the provided writer.
+// This is an experimental feature and the export format / compatibility with external tools
+// has not been thoroughly tested.
+func (proof *Proof) ExportProof(publicSignals []string, w io.Writer) error {
+	// G1 -> [x,y,"1"]
+	g1 := func(P curve.G1Affine) []string {
+		return []string{
+			P.X.BigInt(new(big.Int)).String(),
+			P.Y.BigInt(new(big.Int)).String(),
+			"1",
+		}
+	}
+	// G2 -> [[x0,x1],[y0,y1],["1","0"]]
+	g2 := func(P curve.G2Affine) [][]string {
+		return [][]string{
+			{P.X.A0.BigInt(new(big.Int)).String(), P.X.A1.BigInt(new(big.Int)).String()},
+			{P.Y.A0.BigInt(new(big.Int)).String(), P.Y.A1.BigInt(new(big.Int)).String()},
+			{"1", "0"},
+		}
+	}
+
+	out := map[string]any{
+		"protocol": "groth16",
+		"curve":    "bls12381",
+		"pi_a":     g1(proof.Ar),  // A
+		"pi_b":     g2(proof.Bs),  // B
+		"pi_c":     g1(proof.Krs), // C
+	}
+	if len(publicSignals) > 0 {
+		out["publicSignals"] = publicSignals
+	}
+
+	if len(proof.Commitments) > 0 {
+		return fmt.Errorf("proof contains commitments, but snarkjs verifier does not support them")
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
