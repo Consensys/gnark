@@ -2,13 +2,14 @@ package schema
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/frontend/schema/internal/reflectwalk"
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
@@ -90,7 +91,7 @@ func (w *walker) Slice(value reflect.Value) error {
 	if value.Type() == w.targetSlice {
 		if value.Len() == 0 {
 			log := logger.Logger()
-			log.Warn().Str("slice name", w.name()).Str("slice type", reflect.SliceOf(w.target).String()).Msg("ignoring uninitialized slice")
+			log.Warn("ignoring uninitialized slice", slog.String("slice name", w.name()), slog.String("slice type", reflect.SliceOf(w.target).String()))
 			return nil
 		}
 		return w.handleLeaves(value)
