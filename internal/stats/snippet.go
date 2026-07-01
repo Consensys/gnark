@@ -6,15 +6,16 @@ import (
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	twistededwardsCryptoID "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
+	sw_emulated_maptocurve "github.com/consensys/gnark/std/algebra/emulated/sw_emulated/maptocurve_increment"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/twistededwards"
+	sw_bls12377_maptocurve "github.com/consensys/gnark/std/algebra/native/sw_bls12377/maptocurve_increment"
+	sw_grumpkin_maptocurve "github.com/consensys/gnark/std/algebra/native/sw_grumpkin/maptocurve_increment"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -414,144 +415,6 @@ func initSnippets() {
 
 	}, ecc.BN254)
 
-	// MSM(2, n) snippets for the four curve classes — used to evaluate which
-	// MSM-size variant is best in complete-arithmetic mode (Phase 4 of plan).
-	// Baselines: existing scalar_mul_* divided by 2 gives lower bound for
-	// MSM(2, n) via two ScalarMul + Add.
-	registerSnippet("msm_secp256k1_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		cr, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp]())
-		if err != nil {
-			panic(err)
-		}
-		fr, _ := emulated.NewField[emulated.Secp256k1Fr](api)
-		newFr := func() *emulated.Element[emulated.Secp256k1Fr] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fr](api.Compiler().Field())
-			limbs := make([]frontend.Variable, n)
-			for i := range limbs {
-				limbs[i] = newVariable()
-			}
-			return fr.NewElement(limbs)
-		}
-		fp, _ := emulated.NewField[emulated.Secp256k1Fp](api)
-		newPoint := func() *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.Secp256k1Fp](api.Compiler().Field())
-			x := make([]frontend.Variable, n)
-			y := make([]frontend.Variable, n)
-			for i := range x {
-				x[i] = newVariable()
-				y[i] = newVariable()
-			}
-			return &sw_emulated.AffinePoint[emulated.Secp256k1Fp]{X: *fp.NewElement(x), Y: *fp.NewElement(y)}
-		}
-		_, _ = cr.MultiScalarMul(
-			[]*sw_emulated.AffinePoint[emulated.Secp256k1Fp]{newPoint(), newPoint()},
-			[]*emulated.Element[emulated.Secp256k1Fr]{newFr(), newFr()},
-		)
-	}, ecc.BN254)
-
-	registerSnippet("msm_P256_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		cr, err := sw_emulated.New[emulated.P256Fp, emulated.P256Fr](api, sw_emulated.GetCurveParams[emulated.P256Fp]())
-		if err != nil {
-			panic(err)
-		}
-		fr, _ := emulated.NewField[emulated.P256Fr](api)
-		newFr := func() *emulated.Element[emulated.P256Fr] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.P256Fr](api.Compiler().Field())
-			limbs := make([]frontend.Variable, n)
-			for i := range limbs {
-				limbs[i] = newVariable()
-			}
-			return fr.NewElement(limbs)
-		}
-		fp, _ := emulated.NewField[emulated.P256Fp](api)
-		newPoint := func() *sw_emulated.AffinePoint[emulated.P256Fp] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.P256Fp](api.Compiler().Field())
-			x := make([]frontend.Variable, n)
-			y := make([]frontend.Variable, n)
-			for i := range x {
-				x[i] = newVariable()
-				y[i] = newVariable()
-			}
-			return &sw_emulated.AffinePoint[emulated.P256Fp]{X: *fp.NewElement(x), Y: *fp.NewElement(y)}
-		}
-		_, _ = cr.MultiScalarMul(
-			[]*sw_emulated.AffinePoint[emulated.P256Fp]{newPoint(), newPoint()},
-			[]*emulated.Element[emulated.P256Fr]{newFr(), newFr()},
-		)
-	}, ecc.BN254)
-
-	registerSnippet("msm_G1_bn254_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		cr, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetCurveParams[emulated.BN254Fp]())
-		if err != nil {
-			panic(err)
-		}
-		fr, _ := emulated.NewField[emulated.BN254Fr](api)
-		newFr := func() *emulated.Element[emulated.BN254Fr] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fr](api.Compiler().Field())
-			limbs := make([]frontend.Variable, n)
-			for i := range limbs {
-				limbs[i] = newVariable()
-			}
-			return fr.NewElement(limbs)
-		}
-		fp, _ := emulated.NewField[emulated.BN254Fp](api)
-		newPoint := func() *sw_emulated.AffinePoint[emulated.BN254Fp] {
-			n, _ := emulated.GetEffectiveFieldParams[emulated.BN254Fp](api.Compiler().Field())
-			x := make([]frontend.Variable, n)
-			y := make([]frontend.Variable, n)
-			for i := range x {
-				x[i] = newVariable()
-				y[i] = newVariable()
-			}
-			return &sw_emulated.AffinePoint[emulated.BN254Fp]{X: *fp.NewElement(x), Y: *fp.NewElement(y)}
-		}
-		_, _ = cr.MultiScalarMul(
-			[]*sw_emulated.AffinePoint[emulated.BN254Fp]{newPoint(), newPoint()},
-			[]*emulated.Element[emulated.BN254Fr]{newFr(), newFr()},
-		)
-	}, ecc.BN254)
-
-	// Twisted Edwards DoubleBaseScalarMul snippets — exercise the new
-	// MSM(3, 2n/3) (no GLV) and MSM(6, n/3) (GLV) variants from PR #1697.
-	registerSnippet("msm_babyjubjub_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		curve, err := twistededwards.NewEdCurve(api, twistededwardsCryptoID.BN254)
-		if err != nil {
-			panic(err)
-		}
-		var P1, P2 twistededwards.Point
-		P1.X = newVariable()
-		P1.Y = newVariable()
-		P2.X = newVariable()
-		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
-	}, ecc.BN254)
-
-	registerSnippet("msm_jubjub_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		curve, err := twistededwards.NewEdCurve(api, twistededwardsCryptoID.BLS12_381)
-		if err != nil {
-			panic(err)
-		}
-		var P1, P2 twistededwards.Point
-		P1.X = newVariable()
-		P1.Y = newVariable()
-		P2.X = newVariable()
-		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
-	}, ecc.BLS12_381)
-
-	registerSnippet("msm_bandersnatch_2", func(api frontend.API, newVariable func() frontend.Variable) {
-		curve, err := twistededwards.NewEdCurve(api, twistededwardsCryptoID.BLS12_381_BANDERSNATCH)
-		if err != nil {
-			panic(err)
-		}
-		var P1, P2 twistededwards.Point
-		P1.X = newVariable()
-		P1.Y = newVariable()
-		P2.X = newVariable()
-		P2.Y = newVariable()
-		_ = curve.DoubleBaseScalarMulNonZero(P1, P2, newVariable(), newVariable())
-	}, ecc.BLS12_381)
-
 	// G2 scalar mul snippets — exercise the GLV+FakeGLV path to track its cost.
 	registerSnippet("scalar_mul_G2_bls12381", func(api frontend.API, newVariable func() frontend.Variable) {
 		bls12381fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
@@ -655,6 +518,54 @@ func initSnippets() {
 		selector.BinaryMux(api, []frontend.Variable{newVariable(), newVariable(), newVariable()}, []frontend.Variable{newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable(), newVariable()})
 	})
 
+	// --- map-to-curve increment-and-check gadgets ---
+
+	registerEmulatedMaptocurveSnippet[emulated.BN254Fp, emulated.BN254Fr]("maptocurve_increment/x_bn254", true, ecc.BN254)
+	registerEmulatedMaptocurveSnippet[emulated.BN254Fp, emulated.BN254Fr]("maptocurve_increment/y_bn254", false, ecc.BN254)
+	registerEmulatedMaptocurveSnippet[emulated.Secp256k1Fp, emulated.Secp256k1Fr]("maptocurve_increment/x_secp256k1", true, ecc.BN254)
+	registerEmulatedMaptocurveSnippet[emulated.Secp256k1Fp, emulated.Secp256k1Fr]("maptocurve_increment/y_secp256k1", false, ecc.BN254)
+	registerEmulatedMaptocurveSnippet[emulated.P256Fp, emulated.P256Fr]("maptocurve_increment/x_p256", true, ecc.BN254)
+	registerEmulatedMaptocurveSnippet[emulated.P256Fp, emulated.P256Fr]("maptocurve_increment/y_p256", false, ecc.BN254)
+
+	registerSnippet("maptocurve_increment/y_grumpkin", func(api frontend.API, newVariable func() frontend.Variable) {
+		_, _, _ = sw_grumpkin_maptocurve.YIncrement(api, newVariable())
+	}, ecc.BN254)
+
+	registerSnippet("maptocurve_increment/y_bls12377", func(api frontend.API, newVariable func() frontend.Variable) {
+		_, _, _ = sw_bls12377_maptocurve.YIncrement(api, newVariable())
+	}, ecc.BW6_761)
+}
+
+// registerEmulatedMaptocurveSnippet wires up an emulated map-to-curve
+// increment-and-check gadget snippet for the given base/scalar field pair.
+// When xVariant is true, it exercises [Mapper.XIncrement]; otherwise it
+// exercises [Mapper.YIncrement].
+func registerEmulatedMaptocurveSnippet[B, S emulated.FieldParams](name string, xVariant bool, curves ...ecc.ID) {
+	registerSnippet(name, func(api frontend.API, newVariable func() frontend.Variable) {
+		crv, err := sw_emulated.New[B, S](api, sw_emulated.GetCurveParams[B]())
+		if err != nil {
+			panic(err)
+		}
+		m, err := sw_emulated_maptocurve.NewMapper[B, S](api, crv)
+		if err != nil {
+			panic(err)
+		}
+		field, err := emulated.NewField[B](api)
+		if err != nil {
+			panic(err)
+		}
+		nbLimbs, _ := emulated.GetEffectiveFieldParams[B](api.Compiler().Field())
+		limbs := make([]frontend.Variable, nbLimbs)
+		for i := range limbs {
+			limbs[i] = newVariable()
+		}
+		msg := field.NewElement(limbs)
+		if xVariant {
+			_, _ = m.XIncrement(msg)
+		} else {
+			_, _ = m.YIncrement(msg)
+		}
+	}, curves...)
 }
 
 type snippetCircuit struct {
