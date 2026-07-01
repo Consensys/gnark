@@ -15,6 +15,7 @@ import (
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
 // Curve methods implemented by a twisted edwards curve inside a circuit
@@ -32,10 +33,13 @@ type Curve interface {
 	// scalar inputs, including zero.
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
 	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
-	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
+	// It is complete by default; passing algopts.WithIncompleteArithmetic
+	// dispatches to the faster lattice MSM path (see DoubleBaseScalarMulNonZero).
+	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable, opts ...algopts.AlgebraOption) Point
 	// DoubleBaseScalarMulNonZero computes [s1]p1+[s2]p2 with the optimized
-	// lattice MSM path. It requires s1, s2 to be nonzero and p1, p2 to be
-	// non-identity points.
+	// lattice MSM path. It requires p1, p2 to lie in the prime-order subgroup and
+	// to be non-identity, and s1, s2 to be nonzero; for the GLV path the result
+	// must also be non-identity.
 	DoubleBaseScalarMulNonZero(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }

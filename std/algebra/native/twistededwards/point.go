@@ -194,22 +194,53 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 	return p
 }
 
+// assertInSubgroup constrains R to lie in the prime-order subgroup by checking
+// [cofactor]S == R for the hinted preimage S. The cofactor of every supported
+// twisted Edwards curve is a power of two, so multiplication by it annihilates
+// the entire 2-Sylow and [cofactor]·E equals the prime-order subgroup. Hence a
+// satisfying preimage S exists iff R is already in the subgroup; a
+// torsion-shifted R (e.g. R + (0,-1)) has no preimage and is rejected.
+//
+// This is the binding that makes the scaled MSM relation
+// [z]R = [x1]P1 + [x2]P2 sound over the full (cofactored) group: on its own
+// that relation only pins R modulo the z-torsion, so an even denominator z
+// would leave the 2-torsion component of R unconstrained.
+func assertInSubgroup(api frontend.API, R, S *Point, curve *CurveParams) {
+	cofactor := curve.Cofactor.Uint64()
+	if cofactor == 0 || cofactor&(cofactor-1) != 0 {
+		panic("twistededwards: cofactor must be a power of two")
+	}
+	var cS Point
+	cS.X, cS.Y = S.X, S.Y
+	for c := cofactor; c > 1; c /= 2 {
+		cS.double(api, &cS, curve)
+	}
+	api.AssertIsEqual(cS.X, R.X)
+	api.AssertIsEqual(cS.Y, R.Y)
+}
+
 // doubleBaseScalarMul3MSMLogUp computes s1*P1+s2*P2 using MultiRationalReconstruct.
 // This decomposes both scalars with a shared denominator in Z, giving
 // ~r^(2/3)-bit scalars. It verifies [x1]P1 + [x2]P2 - [z]R = O where
-// R = [s1]P1 + [s2]P2 is hinted.
+// R = [s1]P1 + [s2]P2 is hinted, and binds R to the prime-order subgroup so the
+// scaled relation is sound over the full cofactored group.
 func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams) *Point {
-	// Get hinted results Q1 = [s1]P1 and Q2 = [s2]P2
-	q, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order)
+	// Get hinted results Q1 = [s1]P1, Q2 = [s2]P2 and the subgroup preimage S of R.
+	q, err := api.NewHint(doubleBaseScalarMulHint, 6, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order, curve.Cofactor)
 	if err != nil {
 		panic(err)
 	}
-	var Q1, Q2 Point
+	var Q1, Q2, S Point
 	Q1.X, Q1.Y = q[0], q[1]
 	Q2.X, Q2.Y = q[2], q[3]
+	S.X, S.Y = q[4], q[5]
 
 	var R Point
 	R.add(api, &Q1, &Q2, curve)
+
+	// Bind R to the prime-order subgroup: [cofactor]S == R. Without this, an
+	// even denominator z lets a prover return R + T for a 2-torsion point T.
+	assertInSubgroup(api, &R, &S, curve)
 
 	// Decompose (s1, s2) into (x1, x2, z) such that
 	// s1*z ≡ x1 and s2*z ≡ x2 (mod Order).
@@ -293,17 +324,23 @@ func (p *Point) doubleBaseScalarMul3MSMLogUp(api frontend.API, p1, p2 *Point, s1
 // where R = [s1]P + [s2]Q (hinted).
 // Only works for curves with efficient endomorphism (e.g., Bandersnatch).
 func (p *Point) doubleBaseScalarMul6MSMLogUp(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
-	// Get hinted result R = [s1]P + [s2]Q
-	qHint, err := api.NewHint(doubleBaseScalarMulHint, 4, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order)
+	// Get hinted result R = [s1]P + [s2]Q and the subgroup preimage S of R.
+	qHint, err := api.NewHint(doubleBaseScalarMulHint, 6, p1.X, p1.Y, s1, p2.X, p2.Y, s2, curve.Order, curve.Cofactor)
 	if err != nil {
 		panic(err)
 	}
 	var R Point
 	// We need Q1 + Q2 = R
-	var Q1, Q2 Point
+	var Q1, Q2, S Point
 	Q1.X, Q1.Y = qHint[0], qHint[1]
 	Q2.X, Q2.Y = qHint[2], qHint[3]
+	S.X, S.Y = qHint[4], qHint[5]
 	R.add(api, &Q1, &Q2, curve)
+
+	// Bind R to the prime-order subgroup. This both rules out torsion-shifted
+	// forgeries and guarantees the GLV endomorphism φ acts as [λ] on R below
+	// (φ = [λ] only holds on the prime-order subgroup).
+	assertInSubgroup(api, &R, &S, curve)
 
 	// Decompose (s1, s2) using MultiRationalReconstructExt. Returns
 	// |x1|, |y1|, |x2|, |y2|, |z|, |t| and their signs.

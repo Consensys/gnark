@@ -125,82 +125,115 @@ func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error 
 	return nil
 }
 
-// doubleBaseScalarMulHint computes [s1]P1 and [s2]P2 separately and returns
-// their (X, Y) coords. Inputs: P1.X, P1.Y, s1, P2.X, P2.Y, s2, order.
-// Outputs: Q1.X, Q1.Y, Q2.X, Q2.Y where Q1=[s1]P1 and Q2=[s2]P2.
+// doubleBaseScalarMulHint computes Q1=[s1]P1 and Q2=[s2]P2 separately, together
+// with a prime-order-subgroup preimage S of R = Q1+Q2 satisfying [cofactor]S = R.
 //
-// Used by `doubleBaseScalarMul3MSMLogUp` and `doubleBaseScalarMul6MSMLogUp` to
-// hint the result that the in-circuit MSM verifies.
+// Inputs:  P1.X, P1.Y, s1, P2.X, P2.Y, s2, order, cofactor.
+// Outputs: Q1.X, Q1.Y, Q2.X, Q2.Y, S.X, S.Y.
+//
+// S = [cofactor⁻¹ mod order]·R. Since the honest R lies in the prime-order
+// subgroup, [cofactor]S = R and the in-circuit check [cofactor]S == R forces R
+// into the subgroup (any torsion component would make R = [cofactor]S
+// unsatisfiable, because [cofactor]·E = the prime-order subgroup for these
+// power-of-two cofactors). This is what binds the hinted R against a
+// torsion-shifted forgery in the scaled MSM relation.
+//
+// Used by `doubleBaseScalarMul3MSMLogUp` and `doubleBaseScalarMul6MSMLogUp`.
 func doubleBaseScalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 7 {
-		return errors.New("expecting seven inputs")
+	if len(inputs) != 8 {
+		return errors.New("expecting eight inputs")
 	}
-	if len(outputs) != 4 {
-		return errors.New("expecting four outputs")
+	if len(outputs) != 6 {
+		return errors.New("expecting six outputs")
+	}
+	order, cofactor := inputs[6], inputs[7]
+	m := new(big.Int).ModInverse(cofactor, order)
+	if m == nil {
+		return errors.New("cofactor not invertible modulo order")
 	}
 	if field.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-		order, _ := new(big.Int).SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
-		if inputs[6].Cmp(order) == 0 {
-			var P1, P2 bandersnatch.PointAffine
+		bandersnatchOrder, _ := new(big.Int).SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		if inputs[6].Cmp(bandersnatchOrder) == 0 {
+			var P1, P2, R, S bandersnatch.PointAffine
 			P1.X.SetBigInt(inputs[0])
 			P1.Y.SetBigInt(inputs[1])
 			P1.ScalarMultiplication(&P1, inputs[2])
 			P2.X.SetBigInt(inputs[3])
 			P2.Y.SetBigInt(inputs[4])
 			P2.ScalarMultiplication(&P2, inputs[5])
+			R.Add(&P1, &P2)
+			S.ScalarMultiplication(&R, m)
 			P1.X.BigInt(outputs[0])
 			P1.Y.BigInt(outputs[1])
 			P2.X.BigInt(outputs[2])
 			P2.Y.BigInt(outputs[3])
+			S.X.BigInt(outputs[4])
+			S.Y.BigInt(outputs[5])
 		} else {
-			var P1, P2 jubjub.PointAffine
+			var P1, P2, R, S jubjub.PointAffine
 			P1.X.SetBigInt(inputs[0])
 			P1.Y.SetBigInt(inputs[1])
 			P1.ScalarMultiplication(&P1, inputs[2])
 			P2.X.SetBigInt(inputs[3])
 			P2.Y.SetBigInt(inputs[4])
 			P2.ScalarMultiplication(&P2, inputs[5])
+			R.Add(&P1, &P2)
+			S.ScalarMultiplication(&R, m)
 			P1.X.BigInt(outputs[0])
 			P1.Y.BigInt(outputs[1])
 			P2.X.BigInt(outputs[2])
 			P2.Y.BigInt(outputs[3])
+			S.X.BigInt(outputs[4])
+			S.Y.BigInt(outputs[5])
 		}
 	} else if field.Cmp(ecc.BN254.ScalarField()) == 0 {
-		var P1, P2 babyjubjub.PointAffine
+		var P1, P2, R, S babyjubjub.PointAffine
 		P1.X.SetBigInt(inputs[0])
 		P1.Y.SetBigInt(inputs[1])
 		P1.ScalarMultiplication(&P1, inputs[2])
 		P2.X.SetBigInt(inputs[3])
 		P2.Y.SetBigInt(inputs[4])
 		P2.ScalarMultiplication(&P2, inputs[5])
+		R.Add(&P1, &P2)
+		S.ScalarMultiplication(&R, m)
 		P1.X.BigInt(outputs[0])
 		P1.Y.BigInt(outputs[1])
 		P2.X.BigInt(outputs[2])
 		P2.Y.BigInt(outputs[3])
+		S.X.BigInt(outputs[4])
+		S.Y.BigInt(outputs[5])
 	} else if field.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-		var P1, P2 edbls12377.PointAffine
+		var P1, P2, R, S edbls12377.PointAffine
 		P1.X.SetBigInt(inputs[0])
 		P1.Y.SetBigInt(inputs[1])
 		P1.ScalarMultiplication(&P1, inputs[2])
 		P2.X.SetBigInt(inputs[3])
 		P2.Y.SetBigInt(inputs[4])
 		P2.ScalarMultiplication(&P2, inputs[5])
+		R.Add(&P1, &P2)
+		S.ScalarMultiplication(&R, m)
 		P1.X.BigInt(outputs[0])
 		P1.Y.BigInt(outputs[1])
 		P2.X.BigInt(outputs[2])
 		P2.Y.BigInt(outputs[3])
+		S.X.BigInt(outputs[4])
+		S.Y.BigInt(outputs[5])
 	} else if field.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-		var P1, P2 edbw6761.PointAffine
+		var P1, P2, R, S edbw6761.PointAffine
 		P1.X.SetBigInt(inputs[0])
 		P1.Y.SetBigInt(inputs[1])
 		P1.ScalarMultiplication(&P1, inputs[2])
 		P2.X.SetBigInt(inputs[3])
 		P2.Y.SetBigInt(inputs[4])
 		P2.ScalarMultiplication(&P2, inputs[5])
+		R.Add(&P1, &P2)
+		S.ScalarMultiplication(&R, m)
 		P1.X.BigInt(outputs[0])
 		P1.Y.BigInt(outputs[1])
 		P2.X.BigInt(outputs[2])
 		P2.Y.BigInt(outputs[3])
+		S.X.BigInt(outputs[4])
+		S.Y.BigInt(outputs[5])
 	} else {
 		return errors.New("doubleBaseScalarMulHint: unknown curve")
 	}
