@@ -83,7 +83,9 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 }
 
 // scalarMul computes [scalar]p1 for a point on the twisted Edwards curve.
-// For on-curve points, this method is complete for all scalar inputs, including zero.
+// p1 must lie in the prime-order subgroup (the hinted result is bound back into
+// it via [cofactor]S == q). For such points the method is complete for all
+// scalar inputs, including zero.
 func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams) *Point {
 	return p.scalarMulFakeGLV(api, p1, scalar, curve)
 }
@@ -148,11 +150,19 @@ func (p *Point) scalarMulFakeGLV(api frontend.API, p1 *Point, scalar frontend.Va
 	n := len(b1)
 
 	var res, p2, p3, tmp Point
-	q, err := api.NewHint(scalarMulHint, 2, p1.X, p1.Y, checkedScalar, curve.Order)
+	q, err := api.NewHint(scalarMulHint, 4, p1.X, p1.Y, checkedScalar, curve.Order, curve.Cofactor)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
+	// Bind the hinted result q into the prime-order subgroup ([cofactor]S == q).
+	// Without this, a prover could return q + T for a 2-torsion point T whenever
+	// s2 is even, since the check [s1]p1 + [s2]q = O only pins q modulo the
+	// s2-torsion. Requires p1 to lie in the prime-order subgroup.
+	qPoint := Point{X: q[0], Y: q[1]}
+	subgroupPreimage := Point{X: q[2], Y: q[3]}
+	assertInSubgroup(api, &qPoint, &subgroupPreimage, curve)
+
 	p2.X = api.Select(bit, api.Neg(q[0]), q[0])
 	p2.Y = q[1]
 

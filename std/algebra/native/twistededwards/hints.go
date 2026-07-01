@@ -73,52 +73,83 @@ func rationalReconstruct(_ *big.Int, inputs, outputs []*big.Int) error {
 	return nil
 }
 
+// scalarMulHint computes q = [s]P together with a prime-order-subgroup preimage
+// S of q satisfying [cofactor]S = q.
+//
+// Inputs:  P.X, P.Y, s, order, cofactor.
+// Outputs: q.X, q.Y, S.X, S.Y  with S = [cofactor⁻¹ mod order]·q.
+//
+// The in-circuit check [cofactor]S == q forces q into the prime-order subgroup:
+// since the cofactor is a power of two, [cofactor]·E equals the subgroup, so a
+// torsion-shifted q (e.g. q + (0,-1)) has no preimage. This binds the hinted
+// result against a torsion forgery that the relation [s1]P + [s2]q = O alone
+// would accept when s2 is even.
 func scalarMulHint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 4 {
-		return errors.New("expecting four inputs")
+	if len(inputs) != 5 {
+		return errors.New("expecting five inputs")
 	}
-	if len(outputs) != 2 {
-		return errors.New("expecting two outputs")
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
 	}
-	// compute the resulting point [s]Q
+	order, cofactor := inputs[3], inputs[4]
+	m := new(big.Int).ModInverse(cofactor, order)
+	if m == nil {
+		return errors.New("cofactor not invertible modulo order")
+	}
+	// compute the resulting point q = [s]P and its subgroup preimage S = [m]q
 	if field.Cmp(ecc.BLS12_381.ScalarField()) == 0 {
-		order, _ := new(big.Int).SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
-		if inputs[3].Cmp(order) == 0 {
-			var P bandersnatch.PointAffine
+		bandersnatchOrder, _ := new(big.Int).SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		if inputs[3].Cmp(bandersnatchOrder) == 0 {
+			var P, S bandersnatch.PointAffine
 			P.X.SetBigInt(inputs[0])
 			P.Y.SetBigInt(inputs[1])
 			P.ScalarMultiplication(&P, inputs[2])
+			S.ScalarMultiplication(&P, m)
 			P.X.BigInt(outputs[0])
 			P.Y.BigInt(outputs[1])
+			S.X.BigInt(outputs[2])
+			S.Y.BigInt(outputs[3])
 		} else {
-			var P jubjub.PointAffine
+			var P, S jubjub.PointAffine
 			P.X.SetBigInt(inputs[0])
 			P.Y.SetBigInt(inputs[1])
 			P.ScalarMultiplication(&P, inputs[2])
+			S.ScalarMultiplication(&P, m)
 			P.X.BigInt(outputs[0])
 			P.Y.BigInt(outputs[1])
+			S.X.BigInt(outputs[2])
+			S.Y.BigInt(outputs[3])
 		}
 	} else if field.Cmp(ecc.BN254.ScalarField()) == 0 {
-		var P babyjubjub.PointAffine
+		var P, S babyjubjub.PointAffine
 		P.X.SetBigInt(inputs[0])
 		P.Y.SetBigInt(inputs[1])
 		P.ScalarMultiplication(&P, inputs[2])
+		S.ScalarMultiplication(&P, m)
 		P.X.BigInt(outputs[0])
 		P.Y.BigInt(outputs[1])
+		S.X.BigInt(outputs[2])
+		S.Y.BigInt(outputs[3])
 	} else if field.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
-		var P edbls12377.PointAffine
+		var P, S edbls12377.PointAffine
 		P.X.SetBigInt(inputs[0])
 		P.Y.SetBigInt(inputs[1])
 		P.ScalarMultiplication(&P, inputs[2])
+		S.ScalarMultiplication(&P, m)
 		P.X.BigInt(outputs[0])
 		P.Y.BigInt(outputs[1])
+		S.X.BigInt(outputs[2])
+		S.Y.BigInt(outputs[3])
 	} else if field.Cmp(ecc.BW6_761.ScalarField()) == 0 {
-		var P edbw6761.PointAffine
+		var P, S edbw6761.PointAffine
 		P.X.SetBigInt(inputs[0])
 		P.Y.SetBigInt(inputs[1])
 		P.ScalarMultiplication(&P, inputs[2])
+		S.ScalarMultiplication(&P, m)
 		P.X.BigInt(outputs[0])
 		P.Y.BigInt(outputs[1])
+		S.X.BigInt(outputs[2])
+		S.Y.BigInt(outputs[3])
 	} else {
 		return errors.New("scalarMulHint: unknown curve")
 	}

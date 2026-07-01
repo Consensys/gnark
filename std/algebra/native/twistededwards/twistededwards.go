@@ -29,8 +29,8 @@ type Curve interface {
 	Neg(p1 Point) Point
 	// AssertIsOnCurve constrains p1 to satisfy the twisted Edwards curve equation.
 	AssertIsOnCurve(p1 Point)
-	// ScalarMul computes [scalar]p1. For on-curve points, it is complete for all
-	// scalar inputs, including zero.
+	// ScalarMul computes [scalar]p1. p1 must lie in the prime-order subgroup; for
+	// such points it is complete for all scalar inputs, including zero.
 	ScalarMul(p1 Point, scalar frontend.Variable) Point
 	// DoubleBaseScalarMul computes [s1]p1+[s2]p2 for points that lie on the curve.
 	// It is complete by default; passing algopts.WithIncompleteArithmetic

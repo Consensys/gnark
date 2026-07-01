@@ -698,6 +698,91 @@ func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
 	assert.Error(err)
 }
 
+// torsionForgedScalarMulHint returns [s]P + (0,-1) instead of [s]P, along with
+// the honest subgroup preimage of the resulting (out-of-subgroup) point.
+func torsionForgedScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 5 {
+		return errors.New("expecting five inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	var P, tors, S tbn254.PointAffine
+	P.X.SetBigInt(inputs[0])
+	P.Y.SetBigInt(inputs[1])
+	P.ScalarMultiplication(&P, inputs[2])
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	P.Add(&P, &tors)
+	m := new(big.Int).ModInverse(inputs[4], inputs[3])
+	S.ScalarMultiplication(&P, m)
+	P.X.BigInt(outputs[0])
+	P.Y.BigInt(outputs[1])
+	S.X.BigInt(outputs[2])
+	S.Y.BigInt(outputs[3])
+	return nil
+}
+
+// TestScalarMulFakeGLVRejectsTorsionResult is a regression test for the
+// cofactor-torsion soundness issue in scalarMulFakeGLV: a prover returning
+// [s]P + (0,-1) would pass the [s1]P + [s2]q = O check whenever s2 is even. The
+// [cofactor]S subgroup binding on the hinted result q rejects it. We pick a
+// scalar whose decomposition denominator s2 is even so the rejection can only
+// come from the subgroup binding, not the accumulator check.
+func TestScalarMulFakeGLVRejectsTorsionResult(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+	r := params.Order
+
+	var s *big.Int
+	step := new(big.Int).Div(r, big.NewInt(9973))
+	cand := new(big.Int).Rsh(r, 1)
+	for i := 0; i < 4000 && s == nil; i++ {
+		cand.Add(cand, step)
+		cand.Mod(cand, r)
+		if cand.Sign() == 0 {
+			continue
+		}
+		out := []*big.Int{new(big.Int), new(big.Int), new(big.Int)}
+		assert.NoError(rationalReconstruct(ecc.BN254.ScalarField(), []*big.Int{cand, r}, out))
+		if out[1].Sign() != 0 && out[1].Bit(0) == 0 { // |s2| even and nonzero
+			s = new(big.Int).Set(cand)
+		}
+	}
+	assert.NotNil(s, "no even-s2 scalar found")
+
+	var base, q, tors, qForged tbn254.PointAffine
+	base.X.SetBigInt(params.Base[0])
+	base.Y.SetBigInt(params.Base[1])
+	q.ScalarMultiplication(&base, s)
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	qForged.Add(&q, &tors)
+
+	baseX, baseY := new(big.Int), new(big.Int)
+	base.X.BigInt(baseX)
+	base.Y.BigInt(baseY)
+	fX, fY := new(big.Int), new(big.Int)
+	qForged.X.BigInt(fX)
+	qForged.Y.BigInt(fY)
+
+	witness := scalarMulCircuit{
+		P:      Point{X: baseX, Y: baseY},
+		Scalar: s,
+		Result: Point{X: fX, Y: fY},
+	}
+	err = test.IsSolved(
+		&scalarMulCircuit{curveID: twistededwards.BN254},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(scalarMulHint), torsionForgedScalarMulHint),
+	)
+	assert.Error(err)
+}
+
 // bn254DoubleBaseInputs builds the doubleBaseScalarMulHint inputs matching the
 // circuit's witness produced by testDataForScalars: the points are P1=[s1]base
 // and P2=[s2]base and the scalars are s1, s2 (8 inputs, incl. order & cofactor).
