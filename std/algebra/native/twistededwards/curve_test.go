@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
@@ -191,6 +192,22 @@ func (circuit *doubleBaseScalarMulCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type doubleBaseScalarMulNonZeroCircuit struct {
+	curveID twistededwards.ID
+	P1, P2  Point
+	S1, S2  frontend.Variable
+	Result  Point
+}
+
+func (circuit *doubleBaseScalarMulNonZeroCircuit) Define(api frontend.API) error {
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+	assertPointEqual(api, curve.DoubleBaseScalarMulNonZero(circuit.P1, circuit.P2, circuit.S1, circuit.S2), circuit.Result)
+	return nil
+}
+
 func TestAdd(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -296,6 +313,21 @@ func TestDoubleBaseScalarMul(t *testing.T) {
 	}
 }
 
+func TestDoubleBaseScalarMulNonZero(t *testing.T) {
+	for _, curveID := range curves {
+		params, err := GetCurveParams(curveID)
+		if err != nil {
+			t.Fatalf("%s: get curve params: %v", curveLabel(curveID), err)
+		}
+		data := randomTestData(params, curveID)
+		circuit := &doubleBaseScalarMulNonZeroCircuit{curveID: curveID}
+		witness := &doubleBaseScalarMulNonZeroCircuit{P1: data.P1, P2: data.P2, S1: data.S1, S2: data.S2, Result: data.DoubleScalarMulResult}
+		invalidWitness := *witness
+		invalidWitness.Result = offCurvePoint()
+		checkCircuitForCurve(t, curveID, circuit, witness, &invalidWitness)
+	}
+}
+
 func TestAddEdgeCases(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -380,6 +412,9 @@ func TestFixedScalarMulEdgeCases(t *testing.T) {
 	}
 }
 
+// TestDoubleBaseScalarMulEdgeCases covers the complete public method, including
+// zero scalars and identity points. The optimized NonZero variant is tested
+// separately.
 func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 	for _, curveID := range curves {
 		params, err := GetCurveParams(curveID)
@@ -387,11 +422,14 @@ func TestDoubleBaseScalarMulEdgeCases(t *testing.T) {
 			t.Fatalf("%s: get curve params: %v", curveLabel(curveID), err)
 		}
 		data := testDataForScalars(params, curveID, big.NewInt(1), big.NewInt(2))
+		base := Point{X: params.Base[0], Y: params.Base[1]}
 
 		t.Run(curveLabel(curveID), func(t *testing.T) {
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 0, Result: identityPoint()})
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 0, Result: data.P1})
-			assertSolvedForCurve(t, curveID, &doubleBaseScalarMulCircuit{curveID: curveID}, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 1, Result: data.P2})
+			circuit := &doubleBaseScalarMulCircuit{curveID: curveID}
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 0, Result: identityPoint()})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 1, S2: 0, Result: data.P1})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: data.P1, P2: data.P2, S1: 0, S2: 1, Result: data.P2})
+			assertSolvedForCurve(t, curveID, circuit, &doubleBaseScalarMulCircuit{P1: identityPoint(), P2: base, S1: 1, S2: 2, Result: data.P2})
 		})
 	}
 }
@@ -630,8 +668,8 @@ func zeroRationalReconstructHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 2 {
 		return errors.New("expecting two inputs")
 	}
-	if len(outputs) != 4 {
-		return errors.New("expecting four outputs")
+	if len(outputs) != 3 {
+		return errors.New("expecting three outputs")
 	}
 	for i := range outputs {
 		outputs[i].SetUint64(0)
@@ -656,6 +694,380 @@ func TestScalarMulFakeGLVRegressionTrivialDecomposition(t *testing.T) {
 		&witness,
 		ecc.BN254.ScalarField(),
 		test.WithReplacementHint(solver.GetHintID(rationalReconstruct), zeroRationalReconstructHint),
+	)
+	assert.Error(err)
+}
+
+// torsionForgedScalarMulHint returns [s]P + (0,-1) instead of [s]P, along with
+// the honest subgroup preimage of the resulting (out-of-subgroup) point.
+func torsionForgedScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 5 {
+		return errors.New("expecting five inputs")
+	}
+	if len(outputs) != 4 {
+		return errors.New("expecting four outputs")
+	}
+	var P, tors, S tbn254.PointAffine
+	P.X.SetBigInt(inputs[0])
+	P.Y.SetBigInt(inputs[1])
+	P.ScalarMultiplication(&P, inputs[2])
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	P.Add(&P, &tors)
+	m := new(big.Int).ModInverse(inputs[4], inputs[3])
+	S.ScalarMultiplication(&P, m)
+	P.X.BigInt(outputs[0])
+	P.Y.BigInt(outputs[1])
+	S.X.BigInt(outputs[2])
+	S.Y.BigInt(outputs[3])
+	return nil
+}
+
+// TestScalarMulFakeGLVRejectsTorsionResult is a regression test for the
+// cofactor-torsion soundness issue in scalarMulFakeGLV: a prover returning
+// [s]P + (0,-1) would pass the [s1]P + [s2]q = O check whenever s2 is even. The
+// [cofactor]S subgroup binding on the hinted result q rejects it. We pick a
+// scalar whose decomposition denominator s2 is even so the rejection can only
+// come from the subgroup binding, not the accumulator check.
+func TestScalarMulFakeGLVRejectsTorsionResult(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+	r := params.Order
+
+	var s *big.Int
+	step := new(big.Int).Div(r, big.NewInt(9973))
+	cand := new(big.Int).Rsh(r, 1)
+	for i := 0; i < 4000 && s == nil; i++ {
+		cand.Add(cand, step)
+		cand.Mod(cand, r)
+		if cand.Sign() == 0 {
+			continue
+		}
+		out := []*big.Int{new(big.Int), new(big.Int), new(big.Int)}
+		assert.NoError(rationalReconstruct(ecc.BN254.ScalarField(), []*big.Int{cand, r}, out))
+		if out[1].Sign() != 0 && out[1].Bit(0) == 0 { // |s2| even and nonzero
+			s = new(big.Int).Set(cand)
+		}
+	}
+	assert.NotNil(s, "no even-s2 scalar found")
+
+	var base, q, tors, qForged tbn254.PointAffine
+	base.X.SetBigInt(params.Base[0])
+	base.Y.SetBigInt(params.Base[1])
+	q.ScalarMultiplication(&base, s)
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	qForged.Add(&q, &tors)
+
+	baseX, baseY := new(big.Int), new(big.Int)
+	base.X.BigInt(baseX)
+	base.Y.BigInt(baseY)
+	fX, fY := new(big.Int), new(big.Int)
+	qForged.X.BigInt(fX)
+	qForged.Y.BigInt(fY)
+
+	witness := scalarMulCircuit{
+		P:      Point{X: baseX, Y: baseY},
+		Scalar: s,
+		Result: Point{X: fX, Y: fY},
+	}
+	err = test.IsSolved(
+		&scalarMulCircuit{curveID: twistededwards.BN254},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(scalarMulHint), torsionForgedScalarMulHint),
+	)
+	assert.Error(err)
+}
+
+// bn254DoubleBaseInputs builds the doubleBaseScalarMulHint inputs matching the
+// circuit's witness produced by testDataForScalars: the points are P1=[s1]base
+// and P2=[s2]base and the scalars are s1, s2 (8 inputs, incl. order & cofactor).
+func bn254DoubleBaseInputs(params *CurveParams, s1, s2 *big.Int) []*big.Int {
+	var base, p1, p2 tbn254.PointAffine
+	base.X.SetBigInt(params.Base[0])
+	base.Y.SetBigInt(params.Base[1])
+	p1.ScalarMultiplication(&base, s1)
+	p2.ScalarMultiplication(&base, s2)
+	p1X, p1Y := new(big.Int), new(big.Int)
+	p2X, p2Y := new(big.Int), new(big.Int)
+	p1.X.BigInt(p1X)
+	p1.Y.BigInt(p1Y)
+	p2.X.BigInt(p2X)
+	p2.Y.BigInt(p2Y)
+	return []*big.Int{
+		p1X, p1Y, new(big.Int).Set(s1),
+		p2X, p2Y, new(big.Int).Set(s2),
+		new(big.Int).Set(params.Order),
+		new(big.Int).Set(params.Cofactor),
+	}
+}
+
+// resultFromHint runs a doubleBaseScalarMulHint variant and returns R = Q1+Q2.
+func resultFromHint(hint solver.Hint, inputs []*big.Int) (Point, error) {
+	outputs := make([]*big.Int, 6)
+	for i := range outputs {
+		outputs[i] = new(big.Int)
+	}
+	if err := hint(ecc.BN254.ScalarField(), inputs, outputs); err != nil {
+		return Point{}, err
+	}
+	var q1, q2, r tbn254.PointAffine
+	q1.X.SetBigInt(outputs[0])
+	q1.Y.SetBigInt(outputs[1])
+	q2.X.SetBigInt(outputs[2])
+	q2.Y.SetBigInt(outputs[3])
+	r.Add(&q1, &q2)
+	rX, rY := new(big.Int), new(big.Int)
+	r.X.BigInt(rX)
+	r.Y.BigInt(rY)
+	return Point{X: rX, Y: rY}, nil
+}
+
+// forgedBN254DoubleBaseScalarMulHint offsets Q1 by a prime-subgroup element
+// (P1). The forged R stays in the subgroup, so the [cofactor]S subgroup check
+// passes but the scaled MSM relation [z]R = [x1]P1+[x2]P2 rejects it.
+func forgedBN254DoubleBaseScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 8 {
+		return errors.New("expecting eight inputs")
+	}
+	if len(outputs) != 6 {
+		return errors.New("expecting six outputs")
+	}
+	var p1, p2, q1, q2, r, s tbn254.PointAffine
+	p1.X.SetBigInt(inputs[0])
+	p1.Y.SetBigInt(inputs[1])
+	p2.X.SetBigInt(inputs[3])
+	p2.Y.SetBigInt(inputs[4])
+	q1.ScalarMultiplication(&p1, inputs[2])
+	q2.ScalarMultiplication(&p2, inputs[5])
+
+	// offset by the prime-subgroup element P1
+	q1.Add(&q1, &p1)
+
+	// honest subgroup preimage of the (still in-subgroup) forged R
+	r.Add(&q1, &q2)
+	m := new(big.Int).ModInverse(inputs[7], inputs[6])
+	s.ScalarMultiplication(&r, m)
+
+	q1.X.BigInt(outputs[0])
+	q1.Y.BigInt(outputs[1])
+	q2.X.BigInt(outputs[2])
+	q2.Y.BigInt(outputs[3])
+	s.X.BigInt(outputs[4])
+	s.Y.BigInt(outputs[5])
+	return nil
+}
+
+// torsionForgedBN254DoubleBaseScalarMulHint offsets Q1 by the 2-torsion point
+// (0,-1) and returns the honest preimage of the resulting subgroup point R. The
+// forged R = R_true+(0,-1) is NOT in the subgroup, so [cofactor]S = R_true != R
+// and the subgroup check rejects it. This is Ivo's cofactor-torsion attack.
+func torsionForgedBN254DoubleBaseScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 8 {
+		return errors.New("expecting eight inputs")
+	}
+	if len(outputs) != 6 {
+		return errors.New("expecting six outputs")
+	}
+	var p1, p2, q1, q2, tors, r, s tbn254.PointAffine
+	p1.X.SetBigInt(inputs[0])
+	p1.Y.SetBigInt(inputs[1])
+	p2.X.SetBigInt(inputs[3])
+	p2.Y.SetBigInt(inputs[4])
+	q1.ScalarMultiplication(&p1, inputs[2])
+	q2.ScalarMultiplication(&p2, inputs[5])
+
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	q1.Add(&q1, &tors)
+
+	// best-effort preimage: [cofactor]S recovers only the subgroup part
+	r.Add(&q1, &q2)
+	m := new(big.Int).ModInverse(inputs[7], inputs[6])
+	s.ScalarMultiplication(&r, m)
+
+	q1.X.BigInt(outputs[0])
+	q1.Y.BigInt(outputs[1])
+	q2.X.BigInt(outputs[2])
+	q2.Y.BigInt(outputs[3])
+	s.X.BigInt(outputs[4])
+	s.Y.BigInt(outputs[5])
+	return nil
+}
+
+func TestDoubleBaseScalarMulNonZeroRejectsForgedPartialHints(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+
+	data := testDataForScalars(params, twistededwards.BN254, big.NewInt(5), big.NewInt(7))
+	inputs := bn254DoubleBaseInputs(params, data.S1, data.S2)
+	forged, err := resultFromHint(forgedBN254DoubleBaseScalarMulHint, inputs)
+	assert.NoError(err)
+
+	witness := doubleBaseScalarMulNonZeroCircuit{
+		P1:     data.P1,
+		P2:     data.P2,
+		S1:     data.S1,
+		S2:     data.S2,
+		Result: forged,
+	}
+	err = test.IsSolved(
+		&doubleBaseScalarMulNonZeroCircuit{curveID: twistededwards.BN254},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(doubleBaseScalarMulHint), forgedBN254DoubleBaseScalarMulHint),
+	)
+	assert.Error(err)
+}
+
+// TestDoubleBaseScalarMulNonZeroRejectsTorsionResult is a regression test for
+// the cofactor-torsion soundness issue: a malicious prover returns
+// R_true + (0,-1) with an (honest, possibly even) denominator z. The scaled MSM
+// relation [z]R = [x1]P1+[x2]P2 alone would accept it when z is even, but the
+// [cofactor]S subgroup binding rejects it.
+func TestDoubleBaseScalarMulNonZeroRejectsTorsionResult(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+
+	// Pick scalars whose honest shared denominator z is EVEN. Then the scaled
+	// MSM relation [z]R = [x1]P1+[x2]P2 accepts R_true+(0,-1) on its own (since
+	// [z](0,-1)=O), so the rejection must come from the [cofactor]S subgroup
+	// binding, not the MSM check.
+	r := params.Order
+	rc := lattice.NewReconstructor(r)
+	step := new(big.Int).Div(r, big.NewInt(9973))
+	a := new(big.Int).Rsh(r, 1)
+	b := new(big.Int).Add(a, step)
+	var s1, s2 *big.Int
+	for i := 0; i < 4000 && s1 == nil; i++ {
+		a.Add(a, step)
+		a.Mod(a, r)
+		b.Add(b, step)
+		b.Mod(b, r)
+		if a.Sign() == 0 || b.Sign() == 0 {
+			continue
+		}
+		if z := rc.MultiRationalReconstruct(a, b)[2]; z.Sign() != 0 && z.Bit(0) == 0 {
+			s1, s2 = new(big.Int).Set(a), new(big.Int).Set(b)
+		}
+	}
+	assert.NotNil(s1, "no even-denominator decomposition found")
+
+	data := testDataForScalars(params, twistededwards.BN254, s1, s2)
+	inputs := bn254DoubleBaseInputs(params, data.S1, data.S2)
+	forged, err := resultFromHint(torsionForgedBN254DoubleBaseScalarMulHint, inputs)
+	assert.NoError(err)
+
+	witness := doubleBaseScalarMulNonZeroCircuit{
+		P1:     data.P1,
+		P2:     data.P2,
+		S1:     data.S1,
+		S2:     data.S2,
+		Result: forged,
+	}
+	err = test.IsSolved(
+		&doubleBaseScalarMulNonZeroCircuit{curveID: twistededwards.BN254},
+		&witness,
+		ecc.BN254.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(doubleBaseScalarMulHint), torsionForgedBN254DoubleBaseScalarMulHint),
+	)
+	assert.Error(err)
+}
+
+// torsionForgedBandersnatchDoubleBaseScalarMulHint is the Bandersnatch (GLV,
+// 6-MSM path) analogue: it offsets Q1 by the 2-torsion point (0,-1). The
+// subgroup binding runs before the endomorphism is applied, so the torsion R is
+// rejected there.
+func torsionForgedBandersnatchDoubleBaseScalarMulHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) != 8 {
+		return errors.New("expecting eight inputs")
+	}
+	if len(outputs) != 6 {
+		return errors.New("expecting six outputs")
+	}
+	var p1, p2, q1, q2, tors, r, s tbls12381_bandersnatch.PointAffine
+	p1.X.SetBigInt(inputs[0])
+	p1.Y.SetBigInt(inputs[1])
+	p2.X.SetBigInt(inputs[3])
+	p2.Y.SetBigInt(inputs[4])
+	q1.ScalarMultiplication(&p1, inputs[2])
+	q2.ScalarMultiplication(&p2, inputs[5])
+
+	tors.X.SetZero()
+	tors.Y.SetOne()
+	tors.Y.Neg(&tors.Y)
+	q1.Add(&q1, &tors)
+
+	r.Add(&q1, &q2)
+	m := new(big.Int).ModInverse(inputs[7], inputs[6])
+	s.ScalarMultiplication(&r, m)
+
+	q1.X.BigInt(outputs[0])
+	q1.Y.BigInt(outputs[1])
+	q2.X.BigInt(outputs[2])
+	q2.Y.BigInt(outputs[3])
+	s.X.BigInt(outputs[4])
+	s.Y.BigInt(outputs[5])
+	return nil
+}
+
+func TestDoubleBaseScalarMulNonZeroRejectsTorsionResultGLV(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BLS12_381_BANDERSNATCH)
+	assert.NoError(err)
+
+	data := testDataForScalars(params, twistededwards.BLS12_381_BANDERSNATCH, big.NewInt(5), big.NewInt(7))
+
+	var base, p1, p2 tbls12381_bandersnatch.PointAffine
+	base.X.SetBigInt(params.Base[0])
+	base.Y.SetBigInt(params.Base[1])
+	p1.ScalarMultiplication(&base, data.S1)
+	p2.ScalarMultiplication(&base, data.S2)
+	p1X, p1Y, p2X, p2Y := new(big.Int), new(big.Int), new(big.Int), new(big.Int)
+	p1.X.BigInt(p1X)
+	p1.Y.BigInt(p1Y)
+	p2.X.BigInt(p2X)
+	p2.Y.BigInt(p2Y)
+	inputs := []*big.Int{
+		p1X, p1Y, new(big.Int).Set(data.S1),
+		p2X, p2Y, new(big.Int).Set(data.S2),
+		new(big.Int).Set(params.Order),
+		new(big.Int).Set(params.Cofactor),
+	}
+	outputs := make([]*big.Int, 6)
+	for i := range outputs {
+		outputs[i] = new(big.Int)
+	}
+	assert.NoError(torsionForgedBandersnatchDoubleBaseScalarMulHint(nil, inputs, outputs))
+	var q1, q2, r tbls12381_bandersnatch.PointAffine
+	q1.X.SetBigInt(outputs[0])
+	q1.Y.SetBigInt(outputs[1])
+	q2.X.SetBigInt(outputs[2])
+	q2.Y.SetBigInt(outputs[3])
+	r.Add(&q1, &q2)
+	rX, rY := new(big.Int), new(big.Int)
+	r.X.BigInt(rX)
+	r.Y.BigInt(rY)
+
+	witness := doubleBaseScalarMulNonZeroCircuit{
+		P1:     Point{X: p1X, Y: p1Y},
+		P2:     Point{X: p2X, Y: p2Y},
+		S1:     data.S1,
+		S2:     data.S2,
+		Result: Point{X: rX, Y: rY},
+	}
+	err = test.IsSolved(
+		&doubleBaseScalarMulNonZeroCircuit{curveID: twistededwards.BLS12_381_BANDERSNATCH},
+		&witness,
+		ecc.BLS12_381.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(doubleBaseScalarMulHint), torsionForgedBandersnatchDoubleBaseScalarMulHint),
 	)
 	assert.Error(err)
 }
