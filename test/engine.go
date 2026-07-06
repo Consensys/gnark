@@ -45,6 +45,7 @@ type engine struct {
 	blueprints                []constraint.Blueprint
 	internalVariables         []*big.Int
 	noSmallFieldCompatibility bool
+	hintMapping               map[solver.HintID]solver.Hint
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -71,6 +72,20 @@ func SetAllVariablesAsConstants() TestEngineOption {
 func WithNoSmallFieldCompatibility() TestEngineOption {
 	return func(e *engine) error {
 		e.noSmallFieldCompatibility = true
+		return nil
+	}
+}
+
+// WithReplacementHint allows to replace a hint function in the test engine with
+// a custom one, for a given hint ID. This is useful for testing edge cases,
+// such as when the hint function returns incorrect values.
+func WithReplacementHint(id solver.HintID, f solver.Hint) TestEngineOption {
+	return func(e *engine) error {
+		if e.hintMapping == nil {
+			e.hintMapping = make(map[solver.HintID]solver.Hint)
+		}
+		// Later calls override earlier ones for the same hint ID, matching solver.OverrideHint behavior.
+		e.hintMapping[id] = f
 		return nil
 	}
 }
@@ -527,6 +542,12 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
+	hintFn := f
+	if e.hintMapping != nil {
+		if mappedFn, exists := e.hintMapping[solver.GetHintID(f)]; exists {
+			hintFn = mappedFn
+		}
+	}
 
 	in := make([]*big.Int, len(inputs))
 
@@ -538,7 +559,7 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 		res[i] = new(big.Int)
 	}
 
-	err := f(e.Field(), in, res)
+	err := hintFn(e.Field(), in, res)
 
 	if err != nil {
 		panic("NewHint: " + err.Error())

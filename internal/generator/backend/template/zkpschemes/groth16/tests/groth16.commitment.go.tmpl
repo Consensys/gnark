@@ -1,11 +1,13 @@
 import (
-	"testing"
 	"fmt"
+	"math/big"
+	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
+	{{- template "import_curve" . }}
+	{{- template "import_fr" . }}
+	{{- template "import_backend_cs" . }}
+	{{- template "import_groth16" . }}
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/assert"
@@ -29,35 +31,46 @@ func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey) {
-	_r1cs, err := frontend.Compile(ecc.{{.CurveID}}.ScalarField(), r1cs.NewBuilder, circuit)
+func setup(t *testing.T, circuit frontend.Circuit) (*cs.R1CS, *{{toLower .CurveID}}groth16.ProvingKey, *{{toLower .CurveID}}groth16.VerifyingKey) {
+	_ccs, err := frontend.Compile(ecc.{{.CurveID}}.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(t, err)
 
-	pk, vk, err := groth16.Setup(_r1cs)
+	ccs, ok := _ccs.(*cs.R1CS)
+	if !assert.True(t, ok) {
+		return nil, nil, nil
+	}
+
+	pk := new({{toLower .CurveID}}groth16.ProvingKey)
+	vk := new({{toLower .CurveID}}groth16.VerifyingKey)
+	err = {{toLower .CurveID}}groth16.Setup(ccs, pk, vk)
 	assert.NoError(t, err)
 
-	return _r1cs, pk, vk
+	return ccs, pk, vk
 }
 
-func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (witness.Witness, groth16.Proof) {
+func prove(t *testing.T, assignment frontend.Circuit, ccs *cs.R1CS, pk *{{toLower .CurveID}}groth16.ProvingKey) (fr.Vector, *{{toLower .CurveID}}groth16.Proof) {
 	_witness, err := frontend.NewWitness(assignment, ecc.{{.CurveID}}.ScalarField())
 	assert.NoError(t, err)
 
-	proof, err := groth16.Prove(cs, pk, _witness)
+	proof, err := {{toLower .CurveID}}groth16.Prove(ccs, pk, _witness)
 	assert.NoError(t, err)
 
 	public, err := _witness.Public()
 	assert.NoError(t, err)
-	return public, proof
+	vector, ok := public.Vector().(fr.Vector)
+	if !assert.True(t, ok) {
+		return nil, nil
+	}
+	return vector, proof
 }
 
 func test(t *testing.T, circuit frontend.Circuit, assignment frontend.Circuit) {
 
-	_r1cs, pk, vk := setup(t, circuit)
+	ccs, pk, vk := setup(t, circuit)
 
-	public, proof := prove(t, assignment, _r1cs, pk)
+	public, proof := prove(t, assignment, ccs, pk)
 
-	assert.NoError(t, groth16.Verify(proof, vk, public))
+	assert.NoError(t, {{toLower .CurveID}}groth16.Verify(proof, vk, public))
 }
 
 func TestSingleSecretCommitted(t *testing.T) {
@@ -160,4 +173,72 @@ func TestTwoSecretCommitments(t *testing.T) {
 		One: 1,
 		Two: 2,
 	})
+}
+
+func TestVerifyCommitmentCountInvariant(t *testing.T) {
+	testCases := []struct {
+		name             string
+		circuit          frontend.Circuit
+		assignment       frontend.Circuit
+		proofCommitments int
+		expectedErr      string
+	}{
+		{
+			name:             "circuit_no_commitment_proof_has_commitment",
+			circuit:          &noCommitmentCircuit{},
+			assignment:       &noCommitmentCircuit{One: 1},
+			proofCommitments: 1,
+			expectedErr:      "invalid proof: got 1 commitments, expected 0",
+		},
+		{
+			name:             "circuit_one_commitment_proof_has_no_commitment",
+			circuit:          &singleSecretCommittedCircuit{},
+			assignment:       &singleSecretCommittedCircuit{One: 1},
+			proofCommitments: 0,
+			expectedErr:      "invalid proof: got 0 commitments, expected 1",
+		},
+		{
+			name:             "circuit_one_commitment_proof_has_two_commitments",
+			circuit:          &singleSecretCommittedCircuit{},
+			assignment:       &singleSecretCommittedCircuit{One: 1},
+			proofCommitments: 2,
+			expectedErr:      "invalid proof: got 2 commitments, expected 1",
+		},
+		{
+			name:             "circuit_two_commitment_proof_has_single_commitment",
+			circuit:          &twoSecretCommitmentsCircuit{},
+			assignment:       &twoSecretCommitmentsCircuit{One: 1, Two: 2},
+			proofCommitments: 1,
+			expectedErr:      "invalid proof: got 1 commitments, expected 2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_r1cs, pk, vk := setup(t, tc.circuit)
+			public, proof := prove(t, tc.assignment, _r1cs, pk)
+
+			if len(proof.Commitments) > tc.proofCommitments {
+				proof.Commitments = proof.Commitments[:tc.proofCommitments]
+			}
+			for len(proof.Commitments) < tc.proofCommitments {
+				var s fr.Element
+				_, err := s.SetRandom()
+				assert.NoError(t, err)
+				var sBigInt big.Int
+				s.BigInt(&sBigInt)
+				var randomG1El curve.G1Affine
+				randomG1El.ScalarMultiplicationBase(&sBigInt)
+				proof.Commitments = append(proof.Commitments, randomG1El)
+			}
+
+			var err error
+			ok := assert.NotPanics(t, func() {
+				err = {{toLower .CurveID}}groth16.Verify(proof, vk, public)
+			}, "Verify should reject malformed commitment counts without panicking")
+			if ok {
+				assert.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
 }

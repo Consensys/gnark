@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/algebra/eisenstein"
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint/solver"
@@ -12,11 +12,9 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		decomposeScalarG1,
 		decomposeScalarG1Simple,
-		decomposeScalarG2,
 		scalarMulGLVG1Hint,
-		halfGCDEisenstein,
+		rationalReconstructExt,
 		pairingCheckHint,
 		pairingCheckTorusHint,
 	}
@@ -139,12 +137,14 @@ func pairingCheckHint(scalarField *big.Int, inputs, outputs []*big.Int) error {
 	n := len(inputs)
 	p := make([]bls12377.G1Affine, 0, n/6)
 	q := make([]bls12377.G2Affine, 0, n/6)
-	for k := 0; k < n/6+1; k += 2 {
+	// first one-third is G1 points
+	for k := 0; k < n/3; k += 2 {
 		P.X.SetBigInt(inputs[k])
 		P.Y.SetBigInt(inputs[k+1])
 		p = append(p, P)
 	}
-	for k := n / 3; k < n/2+3; k += 4 {
+	// subsequent two-thirds are G2 points
+	for k := n / 3; k < n; k += 4 {
 		Q.X.A0.SetBigInt(inputs[k])
 		Q.X.A1.SetBigInt(inputs[k+1])
 		Q.Y.A0.SetBigInt(inputs[k+2])
@@ -232,60 +232,6 @@ func decomposeScalarG1Simple(scalarField *big.Int, inputs []*big.Int, outputs []
 	return nil
 }
 
-func decomposeScalarG1(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 1 {
-		return errors.New("expecting one input")
-	}
-	if len(outputs) != 3 {
-		return errors.New("expecting three outputs")
-	}
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	outputs[0].Set(&(sp[0]))
-	outputs[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for outputs[0].Cmp(cc.lambda) < 1 && outputs[1].Cmp(cc.lambda) < 1 {
-		outputs[0].Add(outputs[0], cc.lambda)
-		outputs[0].Add(outputs[0], one)
-		outputs[1].Add(outputs[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	outputs[2].Mul(outputs[1], cc.lambda).Add(outputs[2], outputs[0])
-	outputs[2].Sub(outputs[2], inputs[0])
-	outputs[2].Div(outputs[2], cc.fr)
-
-	return nil
-}
-
-func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 1 {
-		return errors.New("expecting one input")
-	}
-	if len(outputs) != 3 {
-		return errors.New("expecting three outputs")
-	}
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	outputs[0].Set(&(sp[0]))
-	outputs[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for outputs[0].Cmp(cc.lambda) < 1 && outputs[1].Cmp(cc.lambda) < 1 {
-		outputs[0].Add(outputs[0], cc.lambda)
-		outputs[0].Add(outputs[0], one)
-		outputs[1].Add(outputs[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	outputs[2].Mul(outputs[1], cc.lambda).Add(outputs[2], outputs[0])
-	outputs[2].Sub(outputs[2], inputs[0])
-	outputs[2].Div(outputs[2], cc.fr)
-
-	return nil
-}
-
 func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 3 {
 		return errors.New("expecting three inputs")
@@ -304,68 +250,76 @@ func scalarMulGLVG1Hint(scalarField *big.Int, inputs []*big.Int, outputs []*big.
 	return nil
 }
 
-func halfGCDEisenstein(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+// rationalReconstructExt is the 4-D Eisenstein-style scalar decomposition for
+// BLS12-377 G1's GLV+FakeGLV scalar mul, backed by LLL-based lattice rational
+// reconstruction with proven Hermite bound |u_i|, |v_i| < γ₄·r^(1/4) ≈
+// 1.25·r^(1/4). Replaces the older Eisenstein HalfGCD.
+//
+// Inputs: [s, λ] (scalar and GLV eigenvalue, both bounded by inner curve order).
+// Outputs: [|u1|, |u2|, |v1|, |v2|, |q|, sign(u1), sign(u2), sign(v1), sign(v2), sign(q)] (10).
+//
+// The relation (in signed integers) is
+//
+//	s·(v1 + λ·v2) + u1 + λ·u2 = q·r
+//
+// where r is the inner curve order. The in-circuit check at sw_bls12377/g1.go::
+// scalarMulGLVAndFakeGLV verifies this in the outer SNARK scalar field.
+func rationalReconstructExt(scalarField *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 2 {
-		return errors.New("expecting two input")
+		return errors.New("expecting two inputs (s, λ)")
 	}
 	if len(outputs) != 10 {
-		return errors.New("expecting ten outputs")
+		return errors.New("expecting ten outputs (4 abs values + 1 |q| + 5 sign bits)")
 	}
 	cc := getInnerCurveConfig(scalarField)
-	glvBasis := new(ecc.Lattice)
-	ecc.PrecomputeLattice(cc.fr, inputs[1], glvBasis)
-	r := eisenstein.ComplexNumber{
-		A0: glvBasis.V1[0],
-		A1: glvBasis.V1[1],
-	}
-	sp := ecc.SplitScalar(inputs[0], glvBasis)
-	// in-circuit we check that Q - [s]P = 0 or equivalently Q + [-s]P = 0
-	// so here we return -s instead of s.
-	s := eisenstein.ComplexNumber{
-		A0: sp[0],
-		A1: sp[1],
-	}
-	s.Neg(&s)
-	res := eisenstein.HalfGCD(&r, &s)
-	outputs[0].Set(&res[0].A0)
-	outputs[1].Set(&res[0].A1)
-	outputs[2].Set(&res[1].A0)
-	outputs[3].Set(&res[1].A1)
-	outputs[4].Mul(&res[1].A1, inputs[1]).
-		Add(outputs[4], &res[1].A0).
-		Mul(outputs[4], inputs[0]).
-		Add(outputs[4], &res[0].A0)
-	s.A0.Mul(&res[0].A1, inputs[1])
-	outputs[4].Add(outputs[4], &s.A0).
-		Div(outputs[4], cc.fr)
 
-	// set the signs
-	outputs[5].SetUint64(0)
-	outputs[6].SetUint64(0)
-	outputs[7].SetUint64(0)
-	outputs[8].SetUint64(0)
-	outputs[9].SetUint64(0)
+	// In-circuit we check Q − [s]P = 0, equivalently Q + [−s]P = 0, so we
+	// negate the scalar before reconstruction (matches the previous convention).
+	k := new(big.Int).Neg(inputs[0])
+	k.Mod(k, cc.fr)
 
-	if outputs[0].Sign() == -1 {
-		outputs[0].Neg(outputs[0])
+	rc := lattice.NewReconstructor(cc.fr).SetLambda(inputs[1])
+	res := rc.RationalReconstructExt(k)
+	// res = (x, y, z, t) with k = (x + λ·y)/(z + λ·t) mod r,
+	// i.e., (x + λ·y) − k·(z + λ·t) ≡ 0 (mod r). With k = −s mod r this gives
+	// (x + λ·y) + s·(z + λ·t) ≡ 0 (mod r). Mapping: u1 = x, u2 = y, v1 = z, v2 = t.
+	u1 := new(big.Int).Set(res[0])
+	u2 := new(big.Int).Set(res[1])
+	v1 := new(big.Int).Set(res[2])
+	v2 := new(big.Int).Set(res[3])
+
+	// q = (s·(v1 + λ·v2) + u1 + λ·u2) / r computed in signed integers.
+	q := new(big.Int).Mul(v2, inputs[1])
+	q.Add(q, v1)
+	q.Mul(q, inputs[0])
+	tmp := new(big.Int).Mul(u2, inputs[1])
+	q.Add(q, tmp)
+	q.Add(q, u1)
+	q.Quo(q, cc.fr)
+
+	outputs[0].Abs(u1)
+	outputs[1].Abs(u2)
+	outputs[2].Abs(v1)
+	outputs[3].Abs(v2)
+	outputs[4].Abs(q)
+
+	for i := 5; i <= 9; i++ {
+		outputs[i].SetUint64(0)
+	}
+	if u1.Sign() < 0 {
 		outputs[5].SetUint64(1)
 	}
-	if outputs[1].Sign() == -1 {
-		outputs[1].Neg(outputs[1])
+	if u2.Sign() < 0 {
 		outputs[6].SetUint64(1)
 	}
-	if outputs[2].Sign() == -1 {
-		outputs[2].Neg(outputs[2])
+	if v1.Sign() < 0 {
 		outputs[7].SetUint64(1)
 	}
-	if outputs[3].Sign() == -1 {
-		outputs[3].Neg(outputs[3])
+	if v2.Sign() < 0 {
 		outputs[8].SetUint64(1)
 	}
-	if outputs[4].Sign() == -1 {
-		outputs[4].Neg(outputs[4])
+	if q.Sign() < 0 {
 		outputs[9].SetUint64(1)
 	}
-
 	return nil
 }

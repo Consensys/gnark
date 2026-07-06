@@ -102,6 +102,74 @@ func (vector *Vector) unmarshalBinaryAsync(data []byte) error {
 	return <-chErr
 }
 
+func deterministicVector(size int, seed uint64) Vector {
+	v := make(Vector, size)
+	var mixer, tweak Element
+	mixer.SetUint64(seed)
+	if mixer.IsZero() {
+		mixer.SetOne()
+	}
+	tweak.SetUint64(seed*17 + 3)
+	for i := range v {
+		v[i].SetUint64(uint64(i + 1))
+		v[i].Mul(&v[i], &mixer)
+		v[i].Add(&v[i], &tweak)
+		mixer.Mul(&mixer, &tweak)
+		mixer.Add(&mixer, &v[i])
+		tweak.Add(&tweak, &v[i])
+	}
+	return v
+}
+
+func TestVectorAliasing(t *testing.T) {
+	assert := require.New(t)
+	sizes := []int{1, 8, 9, 64, 65}
+
+	for _, size := range sizes {
+		t.Run(fmt.Sprintf("size-%d", size), func(t *testing.T) {
+			a := deterministicVector(size, 11)
+			b := deterministicVector(size, 29)
+			var scalar Element
+			scalar.SetUint64(37)
+
+			want := make(Vector, size)
+			got := make(Vector, size)
+
+			want.Add(a, b)
+			copy(got, a)
+			got.Add(got, b)
+			assert.True(got.Equal(want), "Add should support res == a")
+
+			copy(got, b)
+			got.Add(a, got)
+			assert.True(got.Equal(want), "Add should support res == b")
+
+			want.Sub(a, b)
+			copy(got, a)
+			got.Sub(got, b)
+			assert.True(got.Equal(want), "Sub should support res == a")
+
+			copy(got, b)
+			got.Sub(a, got)
+			assert.True(got.Equal(want), "Sub should support res == b")
+
+			want.ScalarMul(a, &scalar)
+			copy(got, a)
+			got.ScalarMul(got, &scalar)
+			assert.True(got.Equal(want), "ScalarMul should support res == a")
+
+			want.Mul(a, b)
+			copy(got, a)
+			got.Mul(got, b)
+			assert.True(got.Equal(want), "Mul should support res == a")
+
+			copy(got, b)
+			got.Mul(a, got)
+			assert.True(got.Equal(want), "Mul should support res == b")
+		})
+	}
+}
+
 func TestVectorOps(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	if testing.Short() {
@@ -115,7 +183,7 @@ func TestVectorOps(t *testing.T) {
 		c := make(Vector, len(a))
 		c.Add(a, b)
 
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			var tmp Element
 			tmp.Add(&a[i], &b[i])
 			if !tmp.Equal(&c[i]) {
@@ -129,7 +197,7 @@ func TestVectorOps(t *testing.T) {
 		c := make(Vector, len(a))
 		c.Sub(a, b)
 
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			var tmp Element
 			tmp.Sub(&a[i], &b[i])
 			if !tmp.Equal(&c[i]) {
@@ -143,7 +211,7 @@ func TestVectorOps(t *testing.T) {
 		c := make(Vector, len(a))
 		c.ScalarMul(a, &b)
 
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			var tmp Element
 			tmp.Mul(&a[i], &b)
 			if !tmp.Equal(&c[i]) {
@@ -156,7 +224,7 @@ func TestVectorOps(t *testing.T) {
 	sumVector := func(a Vector) bool {
 		var sum Element
 		computed := a.Sum()
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			sum.Add(&sum, &a[i])
 		}
 
@@ -166,7 +234,7 @@ func TestVectorOps(t *testing.T) {
 	innerProductVector := func(a, b Vector) bool {
 		computed := a.InnerProduct(b)
 		var innerProduct Element
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			var tmp Element
 			tmp.Mul(&a[i], &b[i])
 			innerProduct.Add(&innerProduct, &tmp)
@@ -181,7 +249,7 @@ func TestVectorOps(t *testing.T) {
 		b[0].SetUint64(0x42)
 		c.Mul(a, b)
 
-		for i := 0; i < len(a); i++ {
+		for i := range len(a) {
 			var tmp Element
 			tmp.Mul(&a[i], &b[i])
 			if !tmp.Equal(&c[i]) {
@@ -267,7 +335,7 @@ func BenchmarkVectorOps(b *testing.B) {
 			_b := b1[:n]
 			_c := c1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_c.Add(_a, _b)
 			}
 		})
@@ -277,7 +345,7 @@ func BenchmarkVectorOps(b *testing.B) {
 			_b := b1[:n]
 			_c := c1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_c.Sub(_a, _b)
 			}
 		})
@@ -286,7 +354,7 @@ func BenchmarkVectorOps(b *testing.B) {
 			_a := a1[:n]
 			_c := c1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_c.ScalarMul(_a, &mixer)
 			}
 		})
@@ -294,7 +362,7 @@ func BenchmarkVectorOps(b *testing.B) {
 		b.Run(fmt.Sprintf("sum %d", n), func(b *testing.B) {
 			_a := a1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_ = _a.Sum()
 			}
 		})
@@ -303,7 +371,7 @@ func BenchmarkVectorOps(b *testing.B) {
 			_a := a1[:n]
 			_b := b1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_ = _a.InnerProduct(_b)
 			}
 		})
@@ -313,7 +381,7 @@ func BenchmarkVectorOps(b *testing.B) {
 			_b := b1[:n]
 			_c := c1[:n]
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_c.Mul(_a, _b)
 			}
 		})
@@ -335,7 +403,7 @@ func genMaxVector(size int) gopter.Gen {
 		qMinusOne := qElement
 		qMinusOne[0]--
 
-		for i := 0; i < size; i++ {
+		for i := range size {
 			g[i] = qMinusOne
 		}
 		genResult := gopter.NewGenResult(g, gopter.NoShrinker)

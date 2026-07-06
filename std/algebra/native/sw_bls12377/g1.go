@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
@@ -45,45 +46,71 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 }
 
 func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
-	// selector1 = 1 when p is (0,0) and 0 otherwise
-	selector1 := api.And(api.IsZero(p.X), api.IsZero(p.Y))
-	// selector2 = 1 when q is (0,0) and 0 otherwise
-	selector2 := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+	// ---------------------------------------------------------------
+	// BLS12-377 G1 has j-invariant 0. The Brier–Joye unified formula
+	// λ = (x₁² + x₁x₂ + x₂²) / (y₁ + y₂) is NOT complete on j=0 curves:
+	// Fp contains a primitive cube root of unity ω, and Q = -Φ(P) = (ω·P.x,
+	// -P.y) satisfies y_P + y_Q = 0 with P ≠ -Q. The old formula returned
+	// (0, 0) (infinity) on that pair — a soundness bug exploitable inside
+	// scalarMulGLV's boundary corrections.
+	//
+	// We replace it with the chord/tangent split (one Div via the fold
+	// trick: build num/den with Selects, divide once):
+	//   • chord   λ = (q.Y − p.Y) / (q.X − p.X)   when p.X ≠ q.X
+	//   • tangent λ = 3·p.X² / (2·p.Y)            when p.X = q.X (doubling)
+	// Edge cases (p=O, q=O, p=−q) are handled by selectors at the end. The
+	// inverse-case override is gated by `areFinite` so it doesn't fire when
+	// one input is the SW infinity convention (0,0).
+	//
+	// Note: the only pair that hits the rational 2-torsion case (p=q with
+	// p.Y=0, p.X≠0) is (-1,0), (-ω,0), (-ω²,0). These are NOT in the
+	// prime-order subgroup G1, so the case can only be hit by an off-G1
+	// caller — which is the caller's responsibility to gate.
+	// ---------------------------------------------------------------
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-	pxqx := api.Mul(p.X, q.X)
-	pxplusqx := api.Add(p.X, q.X)
-	num := api.Mul(pxplusqx, pxplusqx)
-	num = api.Sub(num, pxqx)
-	denum := api.Add(p.Y, q.Y)
-	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector3 := api.IsZero(denum)
-	denum = api.Select(selector3, 1, denum)
-	λ := api.Div(num, denum)
+	// isPInf = 1 when p is (0,0) and 0 otherwise
+	isPInf := api.And(api.IsZero(p.X), api.IsZero(p.Y))
+	// isQInf = 1 when q is (0,0) and 0 otherwise
+	isQInf := api.And(api.IsZero(q.X), api.IsZero(q.Y))
 
-	// x = λ^2 - p.x - q.x
-	xr := api.Mul(λ, λ)
-	xr = api.Sub(xr, pxplusqx)
+	xDiff := api.Sub(q.X, p.X)
+	xEqual := api.IsZero(xDiff)
 
-	// y = λ(p.x - xr) - p.y
-	yr := api.Sub(p.X, xr)
-	yr = api.Mul(yr, λ)
-	yr = api.Sub(yr, p.Y)
-	result := G1Affine{
-		X: xr,
-		Y: yr,
-	}
+	// chord:    num = q.Y − p.Y, den = q.X − p.X
+	// tangent:  num = 3·p.X²,     den = 2·p.Y
+	numChord := api.Sub(q.Y, p.Y)
+	denChord := xDiff
+	xx := api.Mul(p.X, p.X)
+	numTangent := api.Mul(xx, 3)  // const × var = free
+	denTangent := api.Mul(p.Y, 2) // free
+
+	num := api.Select(xEqual, numTangent, numChord)
+	den := api.Select(xEqual, denTangent, denChord)
+	denIsZero := api.IsZero(den)
+	denSafe := api.Select(denIsZero, 1, den)
+	λ := api.Div(num, denSafe)
+	λ = api.Select(denIsZero, 0, λ)
+
+	// xr = λ² - p.x - q.x
+	xr := api.Sub(api.Mul(λ, λ), api.Add(p.X, q.X))
+	// yr = λ·(p.x - xr) - p.y
+	yr := api.Sub(api.Mul(λ, api.Sub(p.X, xr)), p.Y)
+
+	result := G1Affine{X: xr, Y: yr}
 
 	// if p=(0,0) return q
-	result.Select(api, selector1, q, result)
+	result.Select(api, isPInf, q, result)
 	// if q=(0,0) return p
-	result.Select(api, selector2, *p, result)
-	// if p.y + q.y = 0, return (0, 0)
-	result.Select(api, selector3, G1Affine{0, 0}, result)
+	result.Select(api, isQInf, *p, result)
+
+	// if p = −q (xEqual=1, yEqual=0, both finite), return (0, 0)
+	yEqual := api.IsZero(api.Sub(p.Y, q.Y))
+	areFinite := api.And(api.Sub(1, isPInf), api.Sub(1, isQInf))
+	isInverse := api.And(api.And(xEqual, api.Sub(1, yEqual)), areFinite)
+	result.Select(api, isInverse, G1Affine{X: 0, Y: 0}, result)
 
 	p.X = result.X
 	p.Y = result.Y
-
 	return p
 }
 
@@ -163,37 +190,38 @@ func (p *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
 
 // ScalarMul sets P = [s] Q and returns P.
 //
-// The method chooses an implementation based on scalar s. If it is constant,
-// then the compiled circuit depends on s. If it is variable type, then
-// the circuit is independent of the inputs.
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (p *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
-	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return p.constScalarMul(api, Q, n, opts...)
-	} else {
-		return p.varScalarMul(api, Q, s, opts...)
-	}
+	return p.scalarMulGLV(api, Q, s, opts...)
 }
 
-// varScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// scalarMulGLV sets P = [s]Q and returns P. It doesn't modify Q nor s.
 // It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
+//
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
 // [Halo]: https://eprint.iacr.org/2019/1021.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+func (p *G1Affine) scalarMulGLV(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	if cfg.IncompleteArithmetic {
+		compilelogger.LogOnce(api.Compiler(), zerolog.InfoLevel,
+			"sw_bls12377/g1/scalarMulGLV",
+			"WithIncompleteArithmetic is deprecated for (*sw_bls12377.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}
+	// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+	selector := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+	Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
 
 	// We use the endomorphism à la GLV to compute [s]Q as
 	// 		[s1]Q + [s2]Φ(Q)
@@ -277,122 +305,20 @@ func (p *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
-		tableQ[0].AddUnified(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableQ[0])
-		tablePhiQ[0].AddUnified(api, Acc)
-		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
-	} else {
-		tableQ[0].AddAssign(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableQ[0])
-		tablePhiQ[0].AddAssign(api, Acc)
-		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-	}
+	// We use AddUnified so that when s=0 then Acc=(0,0) because
+	// AddUnified(Q, -Q) = (0,0).
+	tableQ[0].AddUnified(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddUnified(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 
-	if cfg.CompleteArithmetic {
-		// subtract [2^N]H = (0,1) since we added H at the beginning
-		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
-		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
-	} else {
-		// subtract [2^N]H = (0,1) since we added H at the beginning
-		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
-	}
+	// subtract [2^N]H = (0,1) since we added H at the beginning
+	Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
+	Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 
 	p.X = Acc.X
 	p.Y = Acc.Y
-
-	return p
-}
-
-// constScalarMul sets P = [s] Q and returns P.
-func (p *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(err)
-	}
-	if s.BitLen() == 0 {
-		p.X = 0
-		p.Y = 0
-		return p
-	}
-	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
-	// bits are constant and here it makes sense to use the table in the main
-	// loop.
-	var Acc, negQ, negPhiQ, phiQ G1Affine
-	cc := getInnerCurveConfig(api.Compiler().Field())
-	s.Mod(s, cc.fr)
-	cc.phi1(api, &phiQ, &Q)
-
-	k := ecc.SplitScalar(s, cc.glvBasis)
-	if k[0].Sign() == -1 {
-		k[0].Neg(&k[0])
-		Q.Neg(api, Q)
-	}
-	if k[1].Sign() == -1 {
-		k[1].Neg(&k[1])
-		phiQ.Neg(api, phiQ)
-	}
-	nbits := k[0].BitLen()
-	if k[1].BitLen() > nbits {
-		nbits = k[1].BitLen()
-	}
-	negQ.Neg(api, Q)
-	negPhiQ.Neg(api, phiQ)
-	var table [4]G1Affine
-	table[0] = negQ
-	table[1] = Q
-	table[2] = negQ
-	table[3] = Q
-
-	if cfg.CompleteArithmetic {
-		table[0].AddUnified(api, negPhiQ)
-		table[1].AddUnified(api, negPhiQ)
-		table[2].AddUnified(api, phiQ)
-		table[3].AddUnified(api, phiQ)
-	} else {
-		table[0].AddAssign(api, negPhiQ)
-		table[1].AddAssign(api, negPhiQ)
-		table[2].AddAssign(api, phiQ)
-		table[3].AddAssign(api, phiQ)
-	}
-
-	Acc = table[3]
-	// if both high bits are set, then we would get to the incomplete part,
-	// handle it separately.
-	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.CompleteArithmetic {
-			Acc.AddUnified(api, Acc)
-			Acc.AddUnified(api, table[3])
-		} else {
-			Acc.Double(api, Acc)
-			Acc.AddAssign(api, table[3])
-		}
-		nbits = nbits - 1
-	}
-	for i := nbits - 1; i > 0; i-- {
-		if cfg.CompleteArithmetic {
-			Acc.AddUnified(api, Acc)
-			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
-		} else {
-			Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
-		}
-	}
-
-	// i = 0
-	if cfg.CompleteArithmetic {
-		negQ.AddUnified(api, Acc)
-		Acc.Select(api, k[0].Bit(0), Acc, negQ)
-		negPhiQ.AddUnified(api, Acc)
-	} else {
-		negQ.AddAssign(api, Acc)
-		Acc.Select(api, k[0].Bit(0), Acc, negQ)
-		negPhiQ.AddAssign(api, Acc)
-	}
-	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
-	p.X, p.Y = Acc.X, Acc.Y
 
 	return p
 }
@@ -440,6 +366,10 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 }
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
+//
+// By default, uses complete arithmetic.
+//
+// [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (p *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	_, _, g1aff, _ := bls12377.Generators()
 	generator := G1Affine{
@@ -449,12 +379,21 @@ func (p *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...
 	return p.ScalarMul(api, generator, s, opts...)
 }
 
+// jointScalarMul computes [s]Q + [t]R and returns it. It doesn't modify the
+// inputs.
+//
+// By default, uses complete arithmetic.
+//
+// In incomplete mode, the exceptional set includes at least zero scalars,
+// infinity inputs, and Q = ±R. Additional sparse implementation-dependent
+// failures may arise from precomputations and accumulator collisions in the
+// underlying incomplete formulas.
 func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		var tmp G1Affine
 		p.ScalarMul(api, Q, s, opts...)
 		tmp.ScalarMul(api, R, t, opts...)
@@ -465,7 +404,12 @@ func (p *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	return p
 }
 
-// P = [s]Q + [t]R using Shamir's trick
+// jointScalarMulUnsafe computes [s]Q + [t]R using Shamir's trick.
+//
+// It is faster than the complete path but not complete. The exceptional set
+// includes at least zero scalars, infinity inputs, and Q = ±R. Additional
+// sparse implementation-dependent failures may arise from precomputations and
+// DoubleAndAdd accumulator collisions.
 func (p *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
@@ -559,7 +503,7 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		panic(err)
 	}
 	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
@@ -629,9 +573,9 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 
 	// i = 0
 	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// When not using incomplete arithmetic, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -644,7 +588,7 @@ func (p *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 	}
 
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// subtract [2^N]G = (0,1) since we added H at the beginning
 		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
@@ -673,7 +617,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// handle zero-scalar
 	var selector0 frontend.Variable
 	_s := s
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		selector0 = api.IsZero(s)
 		_s = api.Select(selector0, 1, s)
 	}
@@ -707,9 +651,9 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// Eisenstein integers real and imaginary parts can be negative. So we
 	// return the absolute value in the hint and negate the corresponding
 	// points here when needed.
-	sd, err := api.NewHint(halfGCDEisenstein, 10, _s, cc.lambda)
+	sd, err := api.NewHint(rationalReconstructExt, 10, _s, cc.lambda)
 	if err != nil {
-		panic(fmt.Sprintf("halfGCDEisenstein hint: %v", err))
+		panic(fmt.Sprintf("rationalReconstructExt hint: %v", err))
 	}
 	u1, u2, v1, v2, q := sd[0], sd[1], sd[2], sd[3], sd[4]
 	isNegu1, isNegu2, isNegv1, isNegv2, isNegq := sd[5], sd[6], sd[7], sd[8], sd[9]
@@ -745,6 +689,15 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 
 	api.AssertIsEqual(lhs, rhs)
 
+	// Soundness: forbid the trivial all-zeros Eisenstein decomposition
+	// (v1 = v2 = 0). Without this, a malicious hint can return the all-zeros
+	// solution, making the relation s·(v1 + λ·v2) + u1 + λ·u2 - r·q = 0
+	// satisfied vacuously and the in-circuit accumulator constraint becomes
+	// independent of the hinted scalar-mul output Q — letting any Q pass.
+	// Forbidding v ≠ 0 forces s·(v1 + λ·v2) ≠ 0, which constrains (u1, u2, q)
+	// to the genuine lattice point and Q to [s]P.
+	api.AssertIsEqual(api.Mul(api.IsZero(v1), api.IsZero(v2)), 0)
+
 	// Next we compute the hinted scalar mul Q = [s]P
 	point, err := api.NewHint(scalarMulGLVG1Hint, 2, P.X, P.Y, s)
 	if err != nil {
@@ -755,7 +708,7 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	// handle (0,0)-point
 	var _selector0 frontend.Variable
 	_P := P
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		// if Q=(0,0) we assign a dummy point to Q and continue
 		Q.Select(api, selector0, G1Affine{X: 1, Y: 0}, Q)
 		// if P=(0,0) we assign a dummy point to P and continue
@@ -822,10 +775,10 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 	H := G1Affine{X: 0, Y: 1}
 	Acc.AddAssign(api, H)
 
-	// u1, u2, v1, v2 < r^{1/4} (up to a constant factor).
-	// We prove that the factor is log_(3/sqrt(3)))(r).
-	// so we need to add 9 bits to r^{1/4}.nbits().
-	nbits := cc.lambda.BitLen()>>1 + 9 // 72
+	// LLL Hermite bound (gnark-crypto/algebra/lattice): u1, u2, v1, v2 are
+	// bounded by γ₄·r^(1/4) ≈ 1.25·r^(1/4), which fits in (r.BitLen()+3)/4 + 2
+	// bits. Tighter than the previous heuristic lambda.BitLen()/2 + 9 (saves ~6 iters).
+	nbits := (cc.fr.BitLen()+3)/4 + 2 // 66 for BLS12-377
 	u1bits := api.ToBinary(u1, nbits)
 	u2bits := api.ToBinary(u2, nbits)
 	v1bits := api.ToBinary(v1, nbits)
@@ -854,13 +807,21 @@ func (p *G1Affine) scalarMulGLVAndFakeGLV(api frontend.API, P G1Affine, s fronte
 
 	// Acc should be now equal to H=(0,-1)
 	H = G1Affine{X: 0, Y: -1}
-	if cfg.CompleteArithmetic {
+	if !cfg.IncompleteArithmetic {
 		Acc.Select(api, api.Or(selector0, _selector0), H, Acc)
 	}
 	Acc.AssertIsEqual(api, H)
 
-	p.X = point[0]
-	p.Y = point[1]
+	hintedQ := G1Affine{X: point[0], Y: point[1]}
+	if !cfg.IncompleteArithmetic {
+		// On the zero-scalar and infinity-input branches we replace Q and P with
+		// dummy points to keep the incomplete formulas safe, so the raw hinted
+		// output is no longer constrained there. Select back to the canonical
+		// infinity result instead of returning the unchecked hint.
+		p.Select(api, api.Or(selector0, _selector0), G1Affine{X: 0, Y: 0}, hintedQ)
+	} else {
+		*p = hintedQ
+	}
 
 	return p
 }

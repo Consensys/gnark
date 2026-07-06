@@ -1,8 +1,10 @@
 package sw_bw6761
 
 import (
+	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/algebra/lattice"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -17,6 +19,8 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		finalExpHint,
 		pairingCheckHint,
+		scalarMulG2Hint,
+		rationalReconstructExtG2,
 	}
 }
 
@@ -60,11 +64,13 @@ func pairingCheckHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int
 			n := len(inputs)
 			p := make([]bw6761.G1Affine, 0, n/4)
 			q := make([]bw6761.G2Affine, 0, n/4)
-			for k := 0; k < n/4+1; k += 2 {
+			// first half is G1 points
+			for k := 0; k < n/2; k += 2 {
 				P.X.SetBigInt(inputs[k])
 				P.Y.SetBigInt(inputs[k+1])
 				p = append(p, P)
 			}
+			// second half are G2 points
 			for k := n / 2; k < n; k += 2 {
 				Q.X.SetBigInt(inputs[k])
 				Q.Y.SetBigInt(inputs[k+1])
@@ -108,4 +114,91 @@ func finalExpWitness(millerLoop *bw6761.E6, mInv *big.Int) (residueWitness bw676
 	residueWitness.Exp(residueWitness, mInv)
 
 	return residueWitness
+}
+
+func scalarMulG2Hint(field *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(field, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 2 {
+			return fmt.Errorf("expecting two moduli, got %d", len(moduli))
+		}
+		baseModulus, scalarModulus := moduli[0], moduli[1]
+		baseInputs, baseOutputs := hc.InputsOutputs(baseModulus)
+		scalarInputs, _ := hc.InputsOutputs(scalarModulus)
+		if len(baseInputs) != 2 {
+			return fmt.Errorf("expecting two base inputs (Q.X, Q.Y), got %d", len(baseInputs))
+		}
+		if len(baseOutputs) != 2 {
+			return fmt.Errorf("expecting two base outputs, got %d", len(baseOutputs))
+		}
+		if len(scalarInputs) != 1 {
+			return fmt.Errorf("expecting one scalar input, got %d", len(scalarInputs))
+		}
+
+		// compute the resulting point [s]Q on G2
+		var Q bw6761.G2Affine
+		Q.X.SetBigInt(baseInputs[0])
+		Q.Y.SetBigInt(baseInputs[1])
+		Q.ScalarMultiplication(&Q, scalarInputs[0])
+		Q.X.BigInt(baseOutputs[0])
+		Q.Y.BigInt(baseOutputs[1])
+		return nil
+	})
+}
+
+func rationalReconstructExtG2(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHintContext(mod, inputs, outputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return fmt.Errorf("expecting one modulus, got %d", len(moduli))
+		}
+		_, nativeOutputs := hc.NativeInputsOutputs()
+		if len(nativeOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(nativeOutputs))
+		}
+		emuInputs, emuOutputs := hc.InputsOutputs(moduli[0])
+		if len(emuInputs) != 2 {
+			return fmt.Errorf("expecting two inputs, got %d", len(emuInputs))
+		}
+		if len(emuOutputs) != 4 {
+			return fmt.Errorf("expecting four outputs, got %d", len(emuOutputs))
+		}
+
+		// Use lattice reduction to find (x, y, z, t) such that
+		// k ≡ (x + λ*y) / (z + λ*t) (mod r)
+		//
+		// in-circuit we check that R - [s]Q = 0 or equivalently R + [-s]Q = 0
+		// so here we use k = -s.
+		k := new(big.Int).Neg(emuInputs[0])
+		k.Mod(k, moduli[0])
+		rc := lattice.NewReconstructor(moduli[0]).SetLambda(emuInputs[1])
+		res := rc.RationalReconstructExt(k)
+		x, y, z, t := res[0], res[1], res[2], res[3]
+
+		// u1 = x, u2 = y, v1 = z, v2 = t
+		emuOutputs[0].Abs(x)
+		emuOutputs[1].Abs(y)
+		emuOutputs[2].Abs(z)
+		emuOutputs[3].Abs(t)
+
+		// signs
+		nativeOutputs[0].SetUint64(0)
+		nativeOutputs[1].SetUint64(0)
+		nativeOutputs[2].SetUint64(0)
+		nativeOutputs[3].SetUint64(0)
+
+		if x.Sign() < 0 {
+			nativeOutputs[0].SetUint64(1)
+		}
+		if y.Sign() < 0 {
+			nativeOutputs[1].SetUint64(1)
+		}
+		if z.Sign() < 0 {
+			nativeOutputs[2].SetUint64(1)
+		}
+		if t.Sign() < 0 {
+			nativeOutputs[3].SetUint64(1)
+		}
+		return nil
+	})
 }

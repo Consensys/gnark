@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
@@ -96,7 +97,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
 	if smallfields.IsSmallField(native.Compiler().Field()) {
-		f.log.Debug().Msg("using small native field, multiplication checks will be performed in extension field")
+		compilelogger.LogOnce(native.Compiler(), zerolog.DebugLevel,
+			"emulated/isSmallField",
+			"using small native field, multiplication checks will be performed in extension field")
 		extapi, err := fieldextension.NewExtension(native)
 		if err != nil {
 			return nil, fmt.Errorf("extension field: %w", err)
@@ -208,13 +211,24 @@ func (f *Field[T]) modulusPrev() *Element[T] {
 // less constraints will be generated.
 // If strict is false, each limbs is constrained to have width as defined by field parameter.
 func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
+	nbBits := len(limbs) * int(f.fParams.BitsPerLimb())
+	if strict {
+		nbBits = f.fParams.Modulus().BitLen()
+	}
+	return f.packLimbsWithWidth(limbs, nbBits)
+}
+
+// packLimbsWithWidth returns an element from the given limbs with range check to nbBits.
+// The number of limbs must be exactly ceil(nbBits / BitsPerLimb()), and each limb is
+// range-checked accordingly.
+func (f *Field[T]) packLimbsWithWidth(limbs []frontend.Variable, nbBits int) *Element[T] {
 	if !f.useSmallFieldOptimization() {
 		e := f.newInternalElement(limbs, 0)
-		f.enforceWidth(e, strict)
+		f.enforceWidth(e, nbBits)
 		return e
 	} else {
 		e := f.newInternalElement(limbs, uint(f.smallAdditionalOverflow()))
-		f.smallEnforceWidth(e, strict)
+		f.smallEnforceWidth(e, nbBits)
 		return e
 	}
 }
@@ -276,9 +290,9 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 	}
 	if didConstrain {
 		if !f.useSmallFieldOptimization() {
-			f.enforceWidth(a, true)
+			f.enforceWidth(a, f.fParams.Modulus().BitLen())
 		} else {
-			f.smallEnforceWidth(a, true)
+			f.smallEnforceWidth(a, f.fParams.Modulus().BitLen())
 		}
 	}
 	return
@@ -385,10 +399,9 @@ func (f *Field[T]) useSmallFieldOptimization() bool {
 
 		f.smallFieldMode = 2*modBits+batchingMargin < nativeBits-2
 		if f.smallFieldMode {
-			f.log.Debug().
-				Uint("modBits", modBits).
-				Uint("nativeBits", nativeBits).
-				Msg("using small field optimization for emulated multiplication")
+			compilelogger.LogOnce(f.api.Compiler(), zerolog.DebugLevel,
+				"emulated/useSmallFieldOptimization",
+				"using small field optimization for emulated multiplication (modBits = %d, nativeBits = %d)", modBits, nativeBits)
 		}
 	})
 	return f.smallFieldMode

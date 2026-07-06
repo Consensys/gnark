@@ -15,9 +15,11 @@ on:
         required: false
   workflow_dispatch:
 
+permissions: {} # lock everything by default (least-privilege)
+
 jobs:
   security-scan:
-    uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@v2
+    uses: MetaMask/action-security-code-scanner/.github/workflows/security-scan.yml@ff5edd492dfd4a70813066fe9f1552a2ac13766f # v2.1.0
     permissions:
       actions: read
       contents: read

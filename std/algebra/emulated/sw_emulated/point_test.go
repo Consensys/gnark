@@ -19,6 +19,7 @@ import (
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
 	fr_stark "github.com/consensys/gnark-crypto/ecc/stark-curve/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -480,6 +481,59 @@ func TestAddUnifiedEdgeCases(t *testing.T) {
 	assert.NoError(err)
 }
 
+// TestAddUnifiedCubeRootEdgeCase tests AddUnified on j-invariant 0 curves
+// (e.g. secp256k1, BN254) with two points where p.Y + q.Y = 0 but p.X ≠ q.X.
+// This happens because Fp contains nontrivial cube roots of unity ω: for a
+// curve point P = (x, y), the point (ω·x, -y) is also on the curve and has
+// the same |Y| but different X. The Brier–Joye unified formula divides by
+// (p.Y + q.Y) which is zero in this case, giving the wrong result O instead
+// of the correct sum.
+func TestAddUnifiedCubeRootEdgeCase(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// secp256k1 generator
+	_, g := secp256k1.Generators()
+
+	// Phi(G) = (ω·G.x, G.y), -Phi(G) = (ω·G.x, -G.y)
+	omega, _ := new(big.Int).SetString("55594575648329892869085402983802832744385952214688224221778511981742606582254", 10)
+	var phiGx fp_secp.Element
+	phiGx.SetBigInt(omega)
+	var gx fp_secp.Element
+	gx.Set(&g.X)
+	phiGx.Mul(&phiGx, &gx)
+	negPhiG := secp256k1.G1Affine{X: phiGx, Y: g.Y}
+	negPhiG.Y.Neg(&negPhiG.Y) // (ω·G.x, -G.y)
+
+	// Compute R = G + (-Phi(G)) natively using Jacobian (correct result)
+	var Rjac secp256k1.G1Jac
+	Rjac.FromAffine(&g)
+	var tmp secp256k1.G1Jac
+	tmp.FromAffine(&negPhiG)
+	Rjac.AddAssign(&tmp)
+	var R secp256k1.G1Affine
+	R.FromJacobian(&Rjac)
+
+	circuit := AddUnifiedEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+
+	// G + (-Phi(G)): p.Y + q.Y = G.y + (-G.y) = 0, but p.X ≠ q.X
+	witness := AddUnifiedEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](negPhiG.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](negPhiG.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](R.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](R.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulBaseTest[T, S emulated.FieldParams] struct {
 	Q AffinePoint[T]
 	S emulated.Element[S]
@@ -490,7 +544,7 @@ func (c *ScalarMulBaseTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMulBase(&c.S)
+	res := cr.ScalarMulBase(&c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -631,7 +685,7 @@ func (c *ScalarMulTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S)
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -822,7 +876,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.ScalarMul(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -1005,7 +1059,7 @@ func (c *JointScalarMulBaseTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1)
+	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1092,7 +1146,7 @@ func (c *MultiScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss)
 	if err != nil {
 		return err
 	}
@@ -1223,7 +1277,7 @@ func (c *MultiScalarMulTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss)
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithIncompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1289,7 +1343,7 @@ func (c *MultiScalarMulFoldedEdgeCasesTest[T, S]) Define(api frontend.API) error
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
 	if err != nil {
 		return err
 	}
@@ -1387,7 +1441,7 @@ func (c *MultiScalarMulFoldedTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithIncompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1499,7 +1553,7 @@ func (c *JointScalarMulTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1632,7 +1686,7 @@ func (c *JointScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -2031,7 +2085,7 @@ func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulFakeGLV(&c.Q, &c.S)
+	res := cr.scalarMulFakeGLV(&c.Q, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -2118,7 +2172,7 @@ func (c *ScalarMulFakeGLVEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulFakeGLV(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.scalarMulFakeGLV(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -2304,7 +2358,7 @@ func (c *ScalarMulGLVAndFakeGLVTest[T, S]) Define(api frontend.API) error {
 		return err
 	}
 	res1 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S)
-	res2 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S, algopts.WithCompleteArithmetic())
+	res2 := cr.scalarMulGLVAndFakeGLV(&c.Q, &c.S, algopts.WithIncompleteArithmetic())
 	cr.AssertIsEqual(res1, &c.R)
 	cr.AssertIsEqual(res2, &c.R)
 	return nil
@@ -2346,7 +2400,7 @@ func (c *ScalarMulGLVAndFakeGLVEdgeCasesTest[T, S]) Define(api frontend.API) err
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGLVAndFakeGLV(&c.P, &c.S, algopts.WithCompleteArithmetic())
+	res := cr.scalarMulGLVAndFakeGLV(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -2544,4 +2598,115 @@ func TestScalarMulGLVAndFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 	}
 	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+// This is a regression for the missing complete-formula handling in
+// scalarMulGLVAndFakeGLV. For secp256k1 and s=2, the rationalReconstructExt
+// decomposition yields signs corresponding to
+//
+//	b1 = -P + Q + Phi(P) + Phi(Q).
+//
+// Choosing P = [k]G with k = -(-1+s+lambda)^(-1) mod r forces b1 = -G, so the
+// subsequent biased addition Add(b1, G) hits the incomplete p = -q case even
+// though WithCompleteArithmetic() is set.
+func TestScalarMulGLVAndFakeGLVCompleteBiasCollisionFails(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	s := big.NewInt(2)
+	px, _ := new(big.Int).SetString("94965683177328971411667606145825844139344978940117793175623205041120367451491", 10)
+	py, _ := new(big.Int).SetString("38527804351792152920115251132777683131500237568498526614282003522453447585331", 10)
+	rx, _ := new(big.Int).SetString("77384702278326987461233747693816699041502972512620163658749372669210393534086", 10)
+	ry, _ := new(big.Int).SetString("5133619745831577372541345842802261169510513692806955885865310987294091530663", 10)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](px),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](py),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](rx),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](ry),
+		},
+	}
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// This is a regression for a remaining incomplete-addition hole in the
+// scalarMulGLVAndFakeGLV table construction on the master code path. For
+// secp256k1, P=G and this specific scalar, one of the Bi precomputations still
+// hits an unsafe c.Add even with WithCompleteArithmetic() set.
+func TestScalarMulGLVAndFakeGLVCompletePrecomputeCollisionFails(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+
+	s, _ := new(big.Int).SetString("75436160726311993805852442966950040901855315110965173977233241085775995960037", 10)
+	var expected secp256k1.G1Affine
+	expected.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](expected.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](expected.Y),
+		},
+	}
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// zeroRationalReconstructExt replaces the honest rationalReconstructExt hint with one
+// returning the all-zeros decomposition. Used by the regression below.
+func zeroRationalReconstructExt(_ *big.Int, _, outputs []*big.Int) error {
+	for i := range outputs {
+		outputs[i].SetUint64(0)
+	}
+	return nil
+}
+
+// TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression: regression for a
+// soundness issue in scalarMulGLVAndFakeGLV. A malicious rationalReconstructExt
+// hint returning the trivial all-zeros decomposition (u1=u2=v1=v2=0) makes
+// the relation s·(v1 + λ·v2) + u1 + λ·u2 = 0 vacuous and lets the
+// scalar-mul hint output be any point. The fix asserts NOT (v1=0 AND v2=0).
+func TestScalarMulGLVAndFakeGLV_TrivialDecompositionRegression(t *testing.T) {
+	_, g := secp256k1.Generators()
+	s := big.NewInt(7)
+	var expected secp256k1.G1Affine
+	expected.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulGLVAndFakeGLVEdgeCasesTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](expected.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](expected.Y),
+		},
+	}
+
+	// honest path satisfies the constraints
+	if err := test.IsSolved(&circuit, &witness, testCurve.ScalarField()); err != nil {
+		t.Fatalf("honest path should be satisfiable: %v", err)
+	}
+
+	// malicious all-zeros Eisenstein decomposition must be rejected
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(rationalReconstructExt), zeroRationalReconstructExt),
+	)
+	if err == nil {
+		t.Fatal("malicious all-zeros Eisenstein decomposition was accepted — soundness break")
+	}
 }
