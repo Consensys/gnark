@@ -1,12 +1,11 @@
 on: pull_request
 name: pull_request
 
+permissions: {} # lock everything by default (least-privilege)
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-permissions:
-  contents: read
 
 env:
   ABIGEN_VERSION: v1.14.8
@@ -16,9 +15,11 @@ env:
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: install Go
@@ -52,9 +53,11 @@ jobs:
   test:
     needs: staticcheck
     runs-on: gha-runner-scale-set-ubuntu-24-amd64-xxl
+    permissions:
+      contents: read
     steps:
       - name: checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
@@ -88,6 +91,7 @@ jobs:
   notify:
     needs: test
     if: always()
+    permissions: {}
     uses: ./.github/workflows/slack-notifications.yml
     with:
       status: ${{ needs.test.result == 'success' && 'success' || 'failure' }}
