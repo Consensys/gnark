@@ -52,7 +52,7 @@ func (builder *builder[E]) pureUnitTerm(v frontend.Variable) (expr.Term[E], bool
 	if len(l) != 1 || !builder.cs.IsOne(l[0].Coeff) {
 		return expr.Term[E]{}, false
 	}
-	return builder.canonicalTerm(l[0]), true
+	return l[0], true
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different

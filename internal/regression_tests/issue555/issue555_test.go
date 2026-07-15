@@ -164,6 +164,26 @@ func TestWitnessEqualityRemainsConstrained(t *testing.T) {
 	}
 }
 
+type inputIdentityEqualityCircuit struct {
+	A frontend.Variable
+}
+
+func (c *inputIdentityEqualityCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.A, c.A)
+	return nil
+}
+
+func TestInputIdentityEqualityRemainsConstrained(t *testing.T) {
+	for _, tc := range builderCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ccs := compile(t, tc.builder, &inputIdentityEqualityCircuit{})
+			if got := ccs.GetNbConstraints(); got != 1 {
+				t.Fatalf("expected identity equality to remain constrained, got %d constraints", got)
+			}
+		})
+	}
+}
+
 type internalToSecretInputEqualityCircuit struct {
 	A, B, C frontend.Variable
 }

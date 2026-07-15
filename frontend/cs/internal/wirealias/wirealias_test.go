@@ -31,6 +31,18 @@ func TestSetAliasesOnlyInternalWires(t *testing.T) {
 	}
 }
 
+func TestSetKeepsIdentityEquality(t *testing.T) {
+	var aliases Set
+	aliases.MarkInternal(3)
+
+	if aliases.Union(3, 3) {
+		t.Fatal("identity equality must remain an explicit constraint")
+	}
+	if aliases.HasAliases() {
+		t.Fatal("identity equality must not mark set as aliased")
+	}
+}
+
 func TestSetLateNoAliasBlocksFutureUnion(t *testing.T) {
 	var aliases Set
 	for _, wire := range []int{2, 3, 4} {

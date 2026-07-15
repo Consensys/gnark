@@ -79,7 +79,7 @@ func (c *circuitDupMul) Define(api frontend.API) error {
 	e = api.Mul(e, e)                              // e**2 (no constraints)
 	e = api.Mul(e, api.Mul(c.A, c.B), 1)           // e**3 (no constraints)
 
-	api.AssertIsEqual(f, e)    // internal wire alias
+	api.AssertIsEqual(f, e)    // 1 constraint
 	api.AssertIsEqual(d, c.R1) // 1 constraint
 	api.AssertIsEqual(c.R2, e) // 1 constraint
 
@@ -92,7 +92,7 @@ func TestDuplicateMul(t *testing.T) {
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuitDupMul{})
 	assert.NoError(err)
 
-	assert.Equal(4, ccs.GetNbConstraints(), "comparing expected number of constraints")
+	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
 
 	w, err := frontend.NewWitness(&circuitDupMul{
 		A:  13,
@@ -250,7 +250,7 @@ func TestMulAccFastTrack(t *testing.T) {
 	assert := test.NewAssert(t)
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &mulAccFastTrackCircuit{})
 	assert.NoError(err)
-	assert.Equal(1, ccs.GetNbConstraints())
+	assert.Equal(2, ccs.GetNbConstraints())
 	w, err := frontend.NewWitness(&mulAccFastTrackCircuit{
 		A: 11, B: 21,
 		Res: 242,

@@ -49,6 +49,9 @@ func (s *Set) MarkNoAlias(vid int) {
 // representative for internal-only aliases. The method returns false when the
 // equality is unsafe to optimize and must remain an explicit constraint.
 func (s *Set) Union(x, y int) bool {
+	if x == y {
+		return false
+	}
 	s.ensure(x)
 	s.ensure(y)
 	rx, ry := s.find(x), s.find(y)

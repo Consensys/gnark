@@ -83,7 +83,7 @@ func (builder *builder[E]) pureUnitTerm(v frontend.Variable) (expr.Term[E], bool
 	if !ok || !builder.cs.IsOne(t.Coeff) {
 		return expr.Term[E]{}, false
 	}
-	return builder.canonicalTerm(t), true
+	return t, true
 }
 
 // AssertIsDifferent fails if i1 == i2
