@@ -14,6 +14,7 @@ import (
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	tbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
@@ -1070,4 +1071,137 @@ func TestDoubleBaseScalarMulNonZeroRejectsTorsionResultGLV(t *testing.T) {
 		test.WithReplacementHint(solver.GetHintID(doubleBaseScalarMulHint), torsionForgedBandersnatchDoubleBaseScalarMulHint),
 	)
 	assert.Error(err)
+}
+
+// --- On-curve binding of the hinted subgroup preimage ------------------------
+//
+// assertInSubgroup proves R is in the prime-order subgroup by checking
+// [cofactor]S == R for a hinted preimage S. That group-theoretic argument is
+// only valid if S is itself a curve point: S comes from a hint, and the
+// (DivUnchecked-based) doubling formulas are defined for arbitrary field pairs,
+// so without an on-curve constraint an off-curve S is just an unconstrained
+// field pair driven through the doubling map. The test below pins the on-curve
+// constraint that closes this gap (Ivo's review comment on PR #1765).
+
+// assertInSubgroupCircuit exercises assertInSubgroup directly with a
+// witness-supplied result R and preimage S.
+type assertInSubgroupCircuit struct {
+	curveID twistededwards.ID
+	R, S    Point
+}
+
+func (circuit *assertInSubgroupCircuit) Define(api frontend.API) error {
+	params, err := GetCurveParams(circuit.curveID)
+	if err != nil {
+		return err
+	}
+	assertInSubgroup(api, &circuit.R, &circuit.S, params)
+	return nil
+}
+
+// bn254CircuitDouble applies the in-circuit twisted Edwards doubling (Point.double)
+// over the coordinate field for arbitrary (possibly off-curve) inputs. It returns
+// ok=false if a denominator vanishes.
+func bn254CircuitDouble(x, y, a fr.Element) (X, Y fr.Element, ok bool) {
+	var xx, yy, axx, d1, d2, n1, n2, inv, two fr.Element
+	two.SetUint64(2)
+	xx.Mul(&x, &x)
+	yy.Mul(&y, &y)
+	axx.Mul(&xx, &a)
+	d1.Add(&yy, &axx) // y² + a·x²
+	d2.Sub(&two, &d1) // 2 - (y² + a·x²)
+	if d1.IsZero() || d2.IsZero() {
+		return X, Y, false
+	}
+	n1.Mul(&x, &y)
+	n1.Double(&n1) // 2·x·y
+	inv.Inverse(&d1)
+	X.Mul(&n1, &inv)
+	n2.Sub(&yy, &axx) // y² - a·x²
+	inv.Inverse(&d2)
+	Y.Mul(&n2, &inv)
+	return X, Y, true
+}
+
+// bn254CofactorMul applies bn254CircuitDouble log2(cofactor) times, matching the
+// [cofactor]S computation inside assertInSubgroup.
+func bn254CofactorMul(x, y, a fr.Element, cofactor uint64) (fr.Element, fr.Element, bool) {
+	for c := cofactor; c > 1; c /= 2 {
+		var ok bool
+		x, y, ok = bn254CircuitDouble(x, y, a)
+		if !ok {
+			return x, y, false
+		}
+	}
+	return x, y, true
+}
+
+func bn254OnCurve(x, y, a, d fr.Element) bool {
+	var xx, yy, axx, lhs, dxx, dxxyy, rhs, one fr.Element
+	one.SetOne()
+	xx.Mul(&x, &x)
+	yy.Mul(&y, &y)
+	axx.Mul(&xx, &a)
+	lhs.Add(&axx, &yy)
+	dxx.Mul(&xx, &d)
+	dxxyy.Mul(&dxx, &yy)
+	rhs.Add(&dxxyy, &one)
+	return lhs.Equal(&rhs)
+}
+
+func fePoint(x, y fr.Element) Point {
+	return Point{X: x.BigInt(new(big.Int)), Y: y.BigInt(new(big.Int))}
+}
+
+// TestAssertInSubgroupBindsOnCurvePreimage is a regression test for the on-curve
+// binding of the hinted preimage. It builds R := [cofactor]S with the *exact*
+// in-circuit doubling formulas, so the [cofactor]S == R equality always holds by
+// construction. The rejection of the off-curve case therefore comes solely from
+// the S.assertIsOnCurve constraint added to assertInSubgroup: without that
+// constraint an off-curve S with a matching R would be accepted.
+func TestAssertInSubgroupBindsOnCurvePreimage(t *testing.T) {
+	assert := require.New(t)
+	params, err := GetCurveParams(twistededwards.BN254)
+	assert.NoError(err)
+	cofactor := params.Cofactor.Uint64()
+	a := new(fr.Element).SetBigInt(params.A)
+	d := new(fr.Element).SetBigInt(params.D)
+
+	// Valid case: an honest on-curve preimage S with R = [cofactor]S.
+	var base tbn254.PointAffine
+	base.X.SetBigInt(params.Base[0])
+	base.Y.SetBigInt(params.Base[1])
+	rx, ry, ok := bn254CofactorMul(base.X, base.Y, *a, cofactor)
+	assert.True(ok, "on-curve doubling chain must be defined")
+	assert.True(bn254OnCurve(base.X, base.Y, *a, *d))
+	validWitness := assertInSubgroupCircuit{R: fePoint(rx, ry), S: fePoint(base.X, base.Y)}
+	assert.NoError(test.IsSolved(&assertInSubgroupCircuit{curveID: twistededwards.BN254}, &validWitness, ecc.BN254.ScalarField()))
+
+	// Malicious case: an off-curve preimage S with R := [cofactor]S computed by
+	// the same doubling formulas, so [cofactor]S == R holds. Only the on-curve
+	// constraint can reject this.
+	var sx, sy, ox, oy fr.Element
+	foundOffCurve := false
+	for i := uint64(2); i < 1000 && !foundOffCurve; i++ {
+		for j := uint64(1); j < 8; j++ {
+			sx.SetUint64(i)
+			sy.SetUint64(i + j)
+			if bn254OnCurve(sx, sy, *a, *d) {
+				continue
+			}
+			var okChain bool
+			ox, oy, okChain = bn254CofactorMul(sx, sy, *a, cofactor)
+			if !okChain {
+				continue
+			}
+			foundOffCurve = true
+			break
+		}
+	}
+	assert.True(foundOffCurve, "expected to find an off-curve preimage with a defined doubling chain")
+	assert.False(bn254OnCurve(sx, sy, *a, *d), "preimage S must be off-curve for this regression")
+
+	forgedWitness := assertInSubgroupCircuit{R: fePoint(ox, oy), S: fePoint(sx, sy)}
+	err = test.IsSolved(&assertInSubgroupCircuit{curveID: twistededwards.BN254}, &forgedWitness, ecc.BN254.ScalarField())
+	assert.Error(err, "off-curve preimage must be rejected by the on-curve constraint")
 }

@@ -215,11 +215,19 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 // [z]R = [x1]P1 + [x2]P2 sound over the full (cofactored) group: on its own
 // that relation only pins R modulo the z-torsion, so an even denominator z
 // would leave the 2-torsion component of R unconstrained.
+//
+// The preimage S is hinted, so it must be constrained on-curve for the
+// group-theoretic argument to hold: [cofactor]·E equals the prime-order subgroup
+// only for curve points. Without the constraint, S is just an arbitrary field
+// pair driven through the (DivUnchecked-based) doubling formulas, which are
+// defined off the curve too, so [cofactor]S == R would no longer imply R is in
+// the subgroup.
 func assertInSubgroup(api frontend.API, R, S *Point, curve *CurveParams) {
 	cofactor := curve.Cofactor.Uint64()
 	if cofactor == 0 || cofactor&(cofactor-1) != 0 {
 		panic("twistededwards: cofactor must be a power of two")
 	}
+	S.assertIsOnCurve(api, curve)
 	var cS Point
 	cS.X, cS.Y = S.X, S.Y
 	for c := cofactor; c > 1; c /= 2 {
