@@ -28,6 +28,7 @@ export class BufferPool {
   private readonly pool: Map<PoolKey, PoolEntry[]> = new Map();
   private readonly meta = new WeakMap<GPUBuffer, { size: number; usage: number }>();
   private totalBytes = 0;
+  private closed = false;
 
   constructor(device: GPUDevice, options?: { maxPooledBytes?: number }) {
     this.device = device;
@@ -39,6 +40,9 @@ export class BufferPool {
    * May return a cached buffer from a previous `release` call.
    */
   acquire(size: number, usage: number, label?: string): GPUBuffer {
+    if (this.closed) {
+      throw new Error("buffer pool is closed");
+    }
     const roundedSize = nextPowerOfTwo(Math.max(4, size));
     const key = poolKey(roundedSize, usage);
     const entries = this.pool.get(key);
@@ -63,6 +67,11 @@ export class BufferPool {
       buffer.destroy();
       return;
     }
+    if (this.closed) {
+      buffer.destroy();
+      this.meta.delete(buffer);
+      return;
+    }
     if (this.totalBytes + m.size > this.maxBytes) {
       buffer.destroy();
       this.meta.delete(buffer);
@@ -83,6 +92,7 @@ export class BufferPool {
    * is closed to avoid GPU memory leaks.
    */
   destroy(): void {
+    this.closed = true;
     for (const entries of this.pool.values()) {
       for (const { buffer } of entries) {
         buffer.destroy();

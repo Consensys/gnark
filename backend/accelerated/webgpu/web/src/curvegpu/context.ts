@@ -105,6 +105,7 @@ export async function createCurveGPUContext(options: CurveGPUContextOptions = {}
       }
       closed = true;
       bufferPool.destroy();
+      device.destroy();
     },
   };
 }

@@ -38,7 +38,8 @@
     "build:wasm:plonk": "npm run build:wasm:assets && npm run build:wasm:plonk:webgpu && npm run build:wasm:plonk:native",
     "build:wasm:plonk:native": "GOOS=js GOARCH=wasm go build -o dist/assets/plonk-native.wasm ../plonk/internal/wasmruntime/native",
     "build:wasm:plonk:webgpu": "GOOS=js GOARCH=wasm go build -o dist/assets/plonk-webgpu.wasm ../plonk/internal/wasmruntime/webgpu",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

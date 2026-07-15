@@ -203,17 +203,26 @@ export async function readbackBuffer(
   buffer: GPUBuffer,
   size: number,
 ): Promise<Uint8Array> {
+  let mapped = false;
   const staging = device.createBuffer({
     label: "g1-readback-staging",
     size,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
-  const encoder = device.createCommandEncoder({ label: "g1-readback-encoder" });
-  encoder.copyBufferToBuffer(buffer, 0, staging, 0, size);
-  device.queue.submit([encoder.finish()]);
-  await staging.mapAsync(GPUMapMode.READ);
-  const bytes = new Uint8Array(staging.getMappedRange()).slice();
-  staging.unmap();
-  staging.destroy();
-  return bytes;
+  try {
+    const encoder = device.createCommandEncoder({ label: "g1-readback-encoder" });
+    encoder.copyBufferToBuffer(buffer, 0, staging, 0, size);
+    device.queue.submit([encoder.finish()]);
+    await staging.mapAsync(GPUMapMode.READ);
+    mapped = true;
+    const bytes = new Uint8Array(staging.getMappedRange()).slice();
+    staging.unmap();
+    mapped = false;
+    return bytes;
+  } finally {
+    if (mapped) {
+      staging.unmap();
+    }
+    staging.destroy();
+  }
 }
