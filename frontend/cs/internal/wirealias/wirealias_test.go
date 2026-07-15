@@ -53,23 +53,19 @@ func TestSetLateNoAliasBlocksFutureUnion(t *testing.T) {
 	}
 }
 
-func TestSetAliasesInternalWireToNoAliasRepresentative(t *testing.T) {
+func TestSetRejectsInternalWireToNoAliasRepresentative(t *testing.T) {
 	var aliases Set
 	aliases.MarkNoAlias(1)
 	aliases.MarkInternal(4)
-	aliases.MarkInternal(5)
 
-	if !aliases.Union(4, 1) {
-		t.Fatal("internal wire should alias to a no-alias non-internal representative")
+	if aliases.Union(4, 1) {
+		t.Fatal("internal wire must not alias to a no-alias non-internal representative")
 	}
-	if got := aliases.Rep(4); got != 1 {
-		t.Fatalf("expected input representative 1, got %d", got)
+	if got := aliases.Rep(4); got != 4 {
+		t.Fatalf("internal wire representative = %d, want 4", got)
 	}
-	if !aliases.Union(5, 4) {
-		t.Fatal("later internal wire should alias to the canonical input representative")
-	}
-	if got, want := aliases.Mappings(), [][2]int{{4, 1}, {5, 1}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected mappings: got %v want %v", got, want)
+	if aliases.HasAliases() {
+		t.Fatal("rejected union must not mark set as aliased")
 	}
 }
 

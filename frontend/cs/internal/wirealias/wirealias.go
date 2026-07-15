@@ -46,10 +46,8 @@ func (s *Set) MarkNoAlias(vid int) {
 }
 
 // Union records x == y and prefers the lower wire ID as deterministic
-// representative for internal-only aliases. It may also eliminate an internal
-// wire into a no-alias non-internal representative, such as a public or secret
-// input wire. The method returns false when the equality is unsafe to optimize
-// and must remain an explicit constraint.
+// representative for internal-only aliases. The method returns false when the
+// equality is unsafe to optimize and must remain an explicit constraint.
 func (s *Set) Union(x, y int) bool {
 	s.ensure(x)
 	s.ensure(y)
@@ -63,28 +61,11 @@ func (s *Set) Union(x, y int) bool {
 		return true
 	}
 
-	if s.canEliminateRoot(rx) && s.canRepresentAliasRoot(ry) {
-		s.parent[rx] = ry
-		s.aliased = true
-		return true
-	}
-	if s.canEliminateRoot(ry) && s.canRepresentAliasRoot(rx) {
-		s.parent[ry] = rx
-		s.aliased = true
-		return true
-	}
-
 	return false
 }
 
 func (s *Set) canEliminateRoot(root int) bool {
 	return s.internal[root] && !s.noAlias[root]
-}
-
-func (s *Set) canRepresentAliasRoot(root int) bool {
-	// Public and secret inputs are marked no-alias without being internal.
-	// Escaped builder-owned wires must be marked internal before MarkNoAlias.
-	return !s.internal[root] && s.noAlias[root]
 }
 
 func (s *Set) unionInternal(rx, ry int) {

@@ -183,7 +183,7 @@ func (c *internalToPublicInputEqualityCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestInternalToInputEqualityIsCanonicalized(t *testing.T) {
+func TestInternalToInputEqualityRemainsConstrained(t *testing.T) {
 	inputCases := []struct {
 		name    string
 		circuit frontend.Circuit
@@ -208,8 +208,8 @@ func TestInternalToInputEqualityIsCanonicalized(t *testing.T) {
 		for _, input := range inputCases {
 			t.Run(tc.name+"/"+input.name, func(t *testing.T) {
 				ccs := compile(t, tc.builder, input.circuit)
-				if got := ccs.GetNbConstraints(); got != 1 {
-					t.Fatalf("expected internal-to-input equality to add no constraint, got %d", got)
+				if got := ccs.GetNbConstraints(); got != 2 {
+					t.Fatalf("expected internal-to-input equality to remain constrained, got %d constraints", got)
 				}
 
 				validWitness, err := frontend.NewWitness(input.valid, ecc.BN254.ScalarField())
@@ -225,7 +225,7 @@ func TestInternalToInputEqualityIsCanonicalized(t *testing.T) {
 					t.Fatal(err)
 				}
 				if err := ccs.IsSolved(invalidWitness); err == nil {
-					t.Fatal("invalid witness should fail because the input remains bound to the producer constraint")
+					t.Fatal("invalid witness should fail because the equality remains constrained")
 				}
 			})
 		}
