@@ -100,7 +100,7 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 
 	if len(aliases) > 0 {
 		start := len(newCallData)
-		CompressWireAliases(aliases, &newCallData)
+		compressWireAliases(aliases, &newCallData)
 		pi := PackedInstruction{
 			BlueprintID:      aliasID,
 			ConstraintOffset: uint32(nbConstraints),

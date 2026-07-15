@@ -70,7 +70,7 @@ func (b BlueprintWireAliases[E]) Solve(s Solver[E], inst Instruction) error {
 	return nil
 }
 
-func CompressWireAliases(pairs [][2]uint32, to *[]uint32) {
+func compressWireAliases(pairs [][2]uint32, to *[]uint32) {
 	nbInputs := 2 + 2*len(pairs)
 	*to = append(*to, uint32(nbInputs), uint32(len(pairs)))
 	for _, pair := range pairs {

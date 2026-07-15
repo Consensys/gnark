@@ -45,14 +45,6 @@ func (s *Set) MarkNoAlias(vid int) {
 	s.noAlias[root] = true
 }
 
-// CanAlias reports whether x and y are still safe builder-owned internal wires.
-func (s *Set) CanAlias(x, y int) bool {
-	s.ensure(x)
-	s.ensure(y)
-	rx, ry := s.find(x), s.find(y)
-	return s.canEliminateRoot(rx) && s.canEliminateRoot(ry)
-}
-
 // Union records x == y and prefers the lower wire ID as deterministic
 // representative for internal-only aliases. It may also eliminate an internal
 // wire into a no-alias non-internal representative, such as a public or secret
