@@ -10,7 +10,7 @@ import "math"
 func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID, aliasID BlueprintID, aliases [][2]uint32) {
 	oldInstructions := system.Instructions
 	newInstructions := make([]PackedInstruction, 0, len(oldInstructions)+1)
-	newCallData := make([]uint32, 0, len(system.CallData)+2+2*len(aliases))
+	newCallData := make([]uint32, 0, len(system.CallData))
 
 	for _, blueprint := range system.Blueprints {
 		switch b := blueprint.(type) {

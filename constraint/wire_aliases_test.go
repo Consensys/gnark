@@ -26,7 +26,7 @@ func TestBlueprintWireAliasesSolve(t *testing.T) {
 	}{
 		{name: "copy", values: map[uint32]U64{source: value}, wantWrites: 1},
 		{name: "matching destination", values: map[uint32]U64{source: value, destination: value}},
-		{name: "mismatched destination", values: map[uint32]U64{source: value, destination: U64{2}}, wantErr: true},
+		{name: "mismatched destination", values: map[uint32]U64{source: value, destination: {2}}, wantErr: true},
 		{name: "unsolved source", values: map[uint32]U64{}, wantErr: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
