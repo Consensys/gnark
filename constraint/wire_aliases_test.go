@@ -139,6 +139,30 @@ func TestApplyWireAliasesResetsLookupHintLevelCache(t *testing.T) {
 	}
 }
 
+func TestApplyWireAliasesRewritesLogAndDebugExpressions(t *testing.T) {
+	system := NewSystem(ecc.BN254.ScalarField(), 4, SystemR1CS)
+	genericID := system.AddBlueprint(&BlueprintGenericR1C{})
+	aliasID := system.AddBlueprint(&BlueprintWireAliases[U64]{})
+	source := uint32(system.AddInternalVariable())
+	alias := uint32(system.AddInternalVariable())
+
+	system.Logs = []LogEntry{{ToResolve: []LinearExpression{{{CID: CoeffIdOne, VID: alias}}}}}
+	system.DebugInfo = []LogEntry{{ToResolve: []LinearExpression{{{CID: CoeffIdOne, VID: alias}}}}}
+	system.ApplyWireAliases(func(vid uint32) uint32 {
+		if vid == alias {
+			return source
+		}
+		return vid
+	}, genericID, aliasID, [][2]uint32{{alias, source}})
+
+	if got := system.Logs[0].ToResolve[0][0].VID; got != source {
+		t.Fatalf("log wire = %d, want canonical wire %d", got, source)
+	}
+	if got := system.DebugInfo[0].ToResolve[0][0].VID; got != source {
+		t.Fatalf("debug wire = %d, want canonical wire %d", got, source)
+	}
+}
+
 func lookupInstruction(t *testing.T, system *System, lookupID BlueprintID) Instruction {
 	t.Helper()
 	for _, pi := range system.Instructions {

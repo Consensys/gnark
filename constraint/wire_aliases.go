@@ -26,6 +26,8 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 			rewriteLookupHintEntriesCalldata(b.EntriesCalldata, rep)
 		}
 	}
+	rewriteLogEntries(system.Logs, rep)
+	rewriteLogEntries(system.DebugInfo, rep)
 
 	system.lbWireLevel = make([]Level, system.NbInternalVariables)
 	for i := range system.lbWireLevel {
@@ -126,6 +128,14 @@ func rewriteLinearExpression(l LinearExpression, rep func(uint32) uint32) {
 	for i := range l {
 		if !l[i].IsConstant() {
 			l[i].VID = rep(l[i].VID)
+		}
+	}
+}
+
+func rewriteLogEntries(entries []LogEntry, rep func(uint32) uint32) {
+	for i := range entries {
+		for j := range entries[i].ToResolve {
+			rewriteLinearExpression(entries[i].ToResolve[j], rep)
 		}
 	}
 }
