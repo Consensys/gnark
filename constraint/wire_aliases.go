@@ -8,13 +8,9 @@ import "math"
 // ApplyWireAliases rewrites stored proof-relevant wire references through rep
 // and rebuilds the instruction tree. It does not remove or renumber wires.
 func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID, aliasID BlueprintID, aliases [][2]uint32) {
-	if rep == nil {
-		return
-	}
-
 	oldInstructions := system.Instructions
 	newInstructions := make([]PackedInstruction, 0, len(oldInstructions)+1)
-	newCallData := make([]uint32, 0, len(system.CallData))
+	newCallData := make([]uint32, 0, len(system.CallData)+2+2*len(aliases))
 
 	for _, blueprint := range system.Blueprints {
 		switch b := blueprint.(type) {
@@ -55,7 +51,7 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 			var c SparseR1C
 			b.DecompressSparseR1C(&c, inst)
 			rewriteSparseR1C(&c, rep)
-			if system.Type == SystemSparseR1CS && shouldUseGenericSparse(system, blueprint, genericSparseID, c) {
+			if system.Type == SystemSparseR1CS && shouldUseGenericSparse(system, blueprint, c) {
 				bID = genericSparseID
 				b = system.Blueprints[bID].(BlueprintSparseR1C)
 			}
@@ -73,15 +69,13 @@ func (system *System) ApplyWireAliases(rep func(uint32) uint32, genericSparseID,
 			newCallData = append(newCallData, inst.Calldata...)
 			rewriteBatchInverseCalldata(newCallData[start:], rep)
 
-		case *BlueprintLookupHint[U64]:
-			newCallData = append(newCallData, inst.Calldata...)
-			rewriteLookupHintCalldata(newCallData[start:], rep)
-
-		case *BlueprintLookupHint[U32]:
+		case *BlueprintLookupHint[U64], *BlueprintLookupHint[U32]:
 			newCallData = append(newCallData, inst.Calldata...)
 			rewriteLookupHintCalldata(newCallData[start:], rep)
 
 		default:
+			// Opaque calldata is protected by compiler escape points that exclude
+			// its raw wire IDs from aliasing.
 			newCallData = append(newCallData, inst.Calldata...)
 		}
 
@@ -187,13 +181,12 @@ func rewriteLinearExpressionCalldata(calldata []uint32, j int, rep func(uint32) 
 	return j
 }
 
-func shouldUseGenericSparse(system *System, blueprint Blueprint, genericSparseID BlueprintID, c SparseR1C) bool {
-	if genericSparseID == blueprintIDInvalid || genericSparseID >= BlueprintID(len(system.Blueprints)) {
-		return false
-	}
+func shouldUseGenericSparse(system *System, blueprint Blueprint, c SparseR1C) bool {
 	if !isSparseAssignmentBlueprint(blueprint) {
 		return false
 	}
+	// Specialized add and mul blueprints unconditionally assign XC. Once alias
+	// rewriting gives XC a producer, the generic blueprint must verify it instead.
 	if !system.HasWire(c.XC) {
 		return true
 	}
@@ -220,5 +213,3 @@ func (system *System) appendInstructionToLevel(iID uint32, level Level) {
 	}
 	system.Levels[level] = append(system.Levels[level], iID)
 }
-
-const blueprintIDInvalid BlueprintID = ^BlueprintID(0)

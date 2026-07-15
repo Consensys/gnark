@@ -10,6 +10,65 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 )
 
+func TestBlueprintWireAliasesSolve(t *testing.T) {
+	const source, destination = uint32(3), uint32(4)
+	value := U64{1}
+
+	var calldata []uint32
+	compressWireAliases([][2]uint32{{destination, source}}, &calldata)
+	inst := Instruction{Calldata: calldata}
+
+	for _, test := range []struct {
+		name       string
+		values     map[uint32]U64
+		wantErr    bool
+		wantWrites int
+	}{
+		{name: "copy", values: map[uint32]U64{source: value}, wantWrites: 1},
+		{name: "matching destination", values: map[uint32]U64{source: value, destination: value}},
+		{name: "mismatched destination", values: map[uint32]U64{source: value, destination: U64{2}}, wantErr: true},
+		{name: "unsolved source", values: map[uint32]U64{}, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			solver := wireAliasTestSolver{values: make(map[uint32]U64, len(test.values))}
+			for wire, value := range test.values {
+				solver.values[wire] = value
+			}
+
+			err := (BlueprintWireAliases[U64]{}).Solve(&solver, inst)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Solve() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if got := len(solver.writes); got != test.wantWrites {
+				t.Fatalf("SetValue calls = %d, want %d", got, test.wantWrites)
+			}
+			if !test.wantErr && solver.values[destination] != value {
+				t.Fatalf("destination value = %v, want %v", solver.values[destination], value)
+			}
+		})
+	}
+}
+
+type wireAliasTestSolver struct {
+	Solver[U64]
+	values map[uint32]U64
+	writes []uint32
+}
+
+func (s *wireAliasTestSolver) GetValue(_, wire uint32) U64 {
+	return s.values[wire]
+}
+
+func (s *wireAliasTestSolver) SetValue(wire uint32, value U64) {
+	s.values[wire] = value
+	s.writes = append(s.writes, wire)
+}
+
+func (s *wireAliasTestSolver) IsSolved(wire uint32) bool {
+	_, ok := s.values[wire]
+	return ok
+}
+
 func TestWireAliasesSerializationRoundTrip(t *testing.T) {
 	for _, test := range []struct {
 		name  string

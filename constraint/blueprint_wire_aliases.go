@@ -33,8 +33,10 @@ func (b BlueprintWireAliases[E]) UpdateInstructionTree(inst Instruction, tree In
 				maxLevel = level
 			}
 		}
-		if tree.HasWire(dst) && tree.GetWireLevel(dst) > maxLevel {
-			maxLevel = tree.GetWireLevel(dst)
+		if tree.HasWire(dst) {
+			if level := tree.GetWireLevel(dst); level > maxLevel {
+				maxLevel = level
+			}
 		}
 	}
 
@@ -59,13 +61,14 @@ func (b BlueprintWireAliases[E]) Solve(s Solver[E], inst Instruction) error {
 		if !s.IsSolved(src) {
 			return fmt.Errorf("alias source wire %d is not solved", src)
 		}
+		srcValue := s.GetValue(CoeffIdOne, src)
 		if s.IsSolved(dst) {
-			if s.GetValue(CoeffIdOne, dst) != s.GetValue(CoeffIdOne, src) {
+			if s.GetValue(CoeffIdOne, dst) != srcValue {
 				return fmt.Errorf("alias destination wire %d does not match source wire %d", dst, src)
 			}
 			continue
 		}
-		s.SetValue(dst, s.GetValue(CoeffIdOne, src))
+		s.SetValue(dst, srcValue)
 	}
 	return nil
 }

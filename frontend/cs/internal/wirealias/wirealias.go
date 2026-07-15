@@ -39,7 +39,6 @@ func (s *Set) MarkInternal(vid int) {
 // elimination. Existing aliases are preserved; callers that mark an already
 // aliased wire must first canonicalize the escaped reference through Rep.
 func (s *Set) MarkNoAlias(vid int) {
-	s.ensure(vid)
 	root := s.find(vid)
 	s.noAlias[vid] = true
 	s.noAlias[root] = true
@@ -52,15 +51,17 @@ func (s *Set) Union(x, y int) bool {
 	if x == y {
 		return false
 	}
-	s.ensure(x)
-	s.ensure(y)
 	rx, ry := s.find(x), s.find(y)
 	if rx == ry {
 		return true
 	}
 
 	if s.canEliminateRoot(rx) && s.canEliminateRoot(ry) {
-		s.unionInternal(rx, ry)
+		if ry < rx {
+			rx, ry = ry, rx
+		}
+		s.parent[ry] = rx
+		s.aliased = true
 		return true
 	}
 
@@ -69,16 +70,6 @@ func (s *Set) Union(x, y int) bool {
 
 func (s *Set) canEliminateRoot(root int) bool {
 	return s.internal[root] && !s.noAlias[root]
-}
-
-func (s *Set) unionInternal(rx, ry int) {
-	if ry < rx {
-		rx, ry = ry, rx
-	}
-	s.parent[ry] = rx
-	s.internal[rx] = s.internal[rx] && s.internal[ry]
-	s.noAlias[rx] = s.noAlias[rx] || s.noAlias[ry]
-	s.aliased = true
 }
 
 // Rep returns the current representative for vid.
@@ -99,7 +90,7 @@ func (s *Set) Mappings() [][2]int {
 	res := make([][2]int, 0)
 	for vid := range s.parent {
 		root := s.find(vid)
-		if root != vid && s.internal[vid] {
+		if root != vid {
 			res = append(res, [2]int{vid, root})
 		}
 	}

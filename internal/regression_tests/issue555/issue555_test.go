@@ -99,7 +99,7 @@ func BenchmarkInternalEqualityCanonicalizationCompile(b *testing.B) {
 					b.ReportAllocs()
 
 					var nbConstraints, nbInternalVariables, nbInstructions int
-					for i := 0; i < b.N; i++ {
+					for b.Loop() {
 						ccs, err := frontend.Compile(ecc.BN254.ScalarField(), tc.builder, &internalEqualityBenchmarkCircuit{
 							WithEqualities: withEqualities,
 						})
@@ -424,6 +424,19 @@ func TestAddOutputEqualityIsCanonicalized(t *testing.T) {
 	if err := ccs.IsSolved(witness); err != nil {
 		t.Fatalf("valid add-output witness should solve: %v", err)
 	}
+
+	invalidWitness, err := frontend.NewWitness(&addOutputEqualityCircuit{
+		A: 2, B: 3,
+		C: 1, D: 4,
+		E: 5, F: 1,
+		G: 5, H: 2,
+	}, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ccs.IsSolved(invalidWitness); err == nil {
+		t.Fatal("invalid add-output witness should fail after canonicalization")
+	}
 }
 
 type addOutputEqualityCircuitBase addOutputEqualityCircuit
@@ -463,6 +476,19 @@ func TestBatchInvertUsesCanonicalAlias(t *testing.T) {
 			if err := ccs.IsSolved(witness); err != nil {
 				t.Fatalf("valid batch inversion witness should solve: %v", err)
 			}
+
+			invalidWitness, err := frontend.NewWitness(&batchInvertAfterAliasCircuit{
+				A: 2,
+				B: 3,
+				C: 1,
+				D: 7,
+			}, ecc.BN254.ScalarField())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ccs.IsSolved(invalidWitness); err == nil {
+				t.Fatal("invalid batch inversion witness should fail after canonicalization")
+			}
 		})
 	}
 }
@@ -485,6 +511,58 @@ func TestCanonicalVariableEscapePreventsAlias(t *testing.T) {
 			ccs := compile(t, tc.builder, &canonicalVariableEqualityCircuit{})
 			if got := ccs.GetNbConstraints(); got != 3 {
 				t.Fatalf("expected canonical variable escape to keep equality constrained, got %d constraints", got)
+			}
+		})
+	}
+}
+
+type customInstructionInputCircuit struct {
+	A, B, C, D frontend.Variable
+}
+
+func (c *customInstructionInputCircuit) Define(api frontend.API) error {
+	left := api.Mul(c.A, c.B)
+	right := api.Mul(c.C, c.D)
+	api.AssertIsEqual(left, right)
+
+	calldata := []uint32{0}
+	api.Compiler().ToCanonicalVariable(right).Compress(&calldata)
+	calldata[0] = uint32(len(calldata))
+	blueprintID := api.Compiler().AddBlueprint(&copyInputBlueprint{})
+	outputWires := api.Compiler().AddInstruction(blueprintID, calldata)
+	output := api.Compiler().InternalVariable(outputWires[0])
+	api.AssertIsEqual(output, left)
+	return nil
+}
+
+func TestCustomInstructionInputUsesCanonicalAlias(t *testing.T) {
+	for _, tc := range builderCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ccs := compile(t, tc.builder, &customInstructionInputCircuit{})
+			if got := ccs.GetNbConstraints(); got != 3 {
+				t.Fatalf("expected custom instruction input to use canonical alias, got %d constraints", got)
+			}
+
+			validWitness, err := frontend.NewWitness(&customInstructionInputCircuit{
+				A: 2, B: 3,
+				C: 1, D: 6,
+			}, ecc.BN254.ScalarField())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ccs.IsSolved(validWitness); err != nil {
+				t.Fatalf("valid custom instruction input witness should solve: %v", err)
+			}
+
+			invalidWitness, err := frontend.NewWitness(&customInstructionInputCircuit{
+				A: 2, B: 3,
+				C: 1, D: 7,
+			}, ecc.BN254.ScalarField())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ccs.IsSolved(invalidWitness); err == nil {
+				t.Fatal("invalid custom instruction input witness should fail after canonicalization")
 			}
 		})
 	}
@@ -529,6 +607,45 @@ func TestCustomInstructionOutputEscapePreventsAlias(t *testing.T) {
 		})
 	}
 }
+
+type copyInputBlueprint struct{}
+
+func (b *copyInputBlueprint) CalldataSize() int {
+	return -1
+}
+
+func (b *copyInputBlueprint) NbConstraints() int {
+	return 0
+}
+
+func (b *copyInputBlueprint) NbOutputs(constraint.Instruction) int {
+	return 1
+}
+
+func (b *copyInputBlueprint) UpdateInstructionTree(inst constraint.Instruction, tree constraint.InstructionTree) constraint.Level {
+	maxLevel := constraint.LevelUnset
+	j := 2
+	for i, n := 0, int(inst.Calldata[1]); i < n; i++ {
+		source := inst.Calldata[j+1]
+		j += 2
+		if tree.HasWire(source) {
+			if level := tree.GetWireLevel(source); level > maxLevel {
+				maxLevel = level
+			}
+		}
+	}
+	level := maxLevel + 1
+	tree.InsertWire(inst.WireOffset, level)
+	return level
+}
+
+func (b *copyInputBlueprint) Solve(s constraint.Solver[constraint.U64], inst constraint.Instruction) error {
+	value, _ := s.Read(inst.Calldata[1:])
+	s.SetValue(inst.WireOffset, value)
+	return nil
+}
+
+var _ constraint.BlueprintSolvable[constraint.U64] = (*copyInputBlueprint)(nil)
 
 type constantOutputBlueprint struct{}
 
