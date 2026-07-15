@@ -17,7 +17,7 @@ require (
 	github.com/ronanh/intcomp v1.1.1
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.48.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/sync v0.20.0
 )
 
@@ -34,7 +34,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/mod v0.34.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
