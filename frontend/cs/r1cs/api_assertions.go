@@ -24,6 +24,13 @@ func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 		}
 		return
 	}
+	if !i1Constant && !i2Constant {
+		t1, ok1 := builder.pureUnitTerm(i1)
+		t2, ok2 := builder.pureUnitTerm(i2)
+		if ok1 && ok2 && builder.aliases.Union(t1.VID, t2.VID) {
+			return
+		}
+	}
 	// encoded 1 * i1 == i2
 	r := builder.getLinearExpression(builder.toVariable(i1))
 	o := builder.getLinearExpression(builder.toVariable(i2))
@@ -34,6 +41,18 @@ func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 		debug := builder.newDebugInfo("assertIsEqual", r, " == ", o)
 		builder.cs.AttachDebugInfo(debug, []int{cID})
 	}
+}
+
+func (builder *builder[E]) pureUnitTerm(v frontend.Variable) (expr.Term[E], bool) {
+	l, ok := v.(expr.LinearExpression[E])
+	if !ok {
+		return expr.Term[E]{}, false
+	}
+	assertIsSet(l)
+	if len(l) != 1 || !builder.cs.IsOne(l[0].Coeff) {
+		return expr.Term[E]{}, false
+	}
+	return l[0], true
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different

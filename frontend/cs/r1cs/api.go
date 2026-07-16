@@ -353,7 +353,7 @@ func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variab
 			res[j] = expr.NewLinearExpression(0, c)
 			continue
 		}
-		lc := builder.toVariable(v)
+		lc := builder.canonicalLinearExpression(builder.toVariable(v))
 		varEntries = append(varEntries, varEntry{outputIdx: j, inputLC: lc})
 	}
 
@@ -376,6 +376,7 @@ func (builder *builder[E]) BatchInvert(i1 []frontend.Variable) []frontend.Variab
 	calldata[0] = uint32(len(calldata))
 
 	outputWires := builder.cs.AddInstruction(builder.batchInverseGate, calldata)
+	builder.markInstructionOutputsNoAlias(outputWires)
 
 	// For each variable input add a verification constraint: outWire * input == 1
 	for k, e := range varEntries {
@@ -804,6 +805,9 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 
 	vars, s := builder.toVariables(v...)
+	for i := range vars {
+		vars[i] = builder.canonicalLinearExpression(vars[i])
+	}
 
 	nbPublicCommitted := 0
 	// initialize the min-heap
@@ -838,6 +842,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 		if t.VID == 0 {
 			continue // don't commit to ONE_WIRE
 		}
+		builder.aliases.MarkNoAlias(t.VID)
 		if lastInsertedWireId == t.VID {
 			// it's the same variable ID, do nothing
 			continue

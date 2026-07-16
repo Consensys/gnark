@@ -104,6 +104,16 @@ func TestDuplicateMul(t *testing.T) {
 
 	_, err = ccs.Solve(w)
 	assert.NoError(err, "solving failed")
+
+	for _, invalid := range []circuitDupMul{
+		{A: 13, B: 42, R1: (13*2)*(42*3) + 1, R2: (13 * 42) * (13 * 42) * (13 * 42)},
+		{A: 13, B: 42, R1: (13 * 2) * (42 * 3), R2: (13*42)*(13*42)*(13*42) + 1},
+	} {
+		w, err = frontend.NewWitness(&invalid, ecc.BN254.ScalarField())
+		assert.NoError(err)
+		_, err = ccs.Solve(w)
+		assert.Error(err, "invalid witness should fail")
+	}
 }
 
 type IssueDiv0Circuit struct {
@@ -249,6 +259,14 @@ func TestMulAccFastTrack(t *testing.T) {
 	solution, err := ccs.Solve(w)
 	assert.NoError(err)
 	_ = solution
+
+	w, err = frontend.NewWitness(&mulAccFastTrackCircuit{
+		A: 11, B: 21,
+		Res: 243,
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	_, err = ccs.Solve(w)
+	assert.Error(err, "invalid witness should fail")
 }
 
 type subSameNoConstraintCircuit struct {

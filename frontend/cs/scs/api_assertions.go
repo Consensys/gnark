@@ -26,6 +26,13 @@ func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 		}
 		return
 	}
+	if !i1Constant && !i2Constant {
+		t1, ok1 := builder.pureUnitTerm(i1)
+		t2, ok2 := builder.pureUnitTerm(i2)
+		if ok1 && ok2 && builder.aliases.Union(t1.VID, t2.VID) {
+			return
+		}
+	}
 	if i1Constant {
 		i1, i2 = i2, i1
 		i2Constant = i1Constant
@@ -69,6 +76,14 @@ func (builder *builder[E]) AssertIsEqual(i1, i2 frontend.Variable) {
 	} else {
 		builder.addPlonkConstraint(toAdd)
 	}
+}
+
+func (builder *builder[E]) pureUnitTerm(v frontend.Variable) (expr.Term[E], bool) {
+	t, ok := v.(expr.Term[E])
+	if !ok || !builder.cs.IsOne(t.Coeff) {
+		return expr.Term[E]{}, false
+	}
+	return t, true
 }
 
 // AssertIsDifferent fails if i1 == i2
