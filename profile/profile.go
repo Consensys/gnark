@@ -7,6 +7,7 @@ package profile
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,7 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/profile/internal/report"
 	"github.com/google/pprof/profile"
 )
@@ -150,9 +151,9 @@ func Start(options ...Option) *Profile {
 
 	log := logger.Logger()
 	if p.filePath == "" {
-		log.Warn().Msg("gnark profiling enabled [not writing to disk]")
+		log.Warn("gnark profiling enabled [not writing to disk]")
 	} else {
-		log.Info().Str("path", p.filePath).Msg("gnark profiling enabled")
+		log.Info("gnark profiling enabled", slog.String("path", p.filePath))
 	}
 
 	// add the session to active sessions
@@ -167,7 +168,8 @@ func (p *Profile) Stop() {
 	log := logger.Logger()
 
 	if p.chDone == nil {
-		log.Fatal().Msg("gnark profile stopped multiple times")
+		log.Error("gnark profile stopped multiple times")
+		os.Exit(1)
 	}
 
 	// ask worker routine to remove ourselves from the active sessions
@@ -184,15 +186,16 @@ func (p *Profile) Stop() {
 	if p.filePath != "" {
 		f, err := os.Create(p.filePath)
 		if err != nil {
-			log.Fatal().Err(err).Msg("could not create gnark profile")
+			log.Error("could not create gnark profile", slog.Any("err", err))
+			os.Exit(1)
 		}
 		if err := p.pprof.Write(f); err != nil {
-			log.Error().Err(err).Msg("writing profile")
+			log.Error("writing profile", slog.Any("err", err))
 		}
 		f.Close()
-		log.Info().Str("path", p.filePath).Msg("gnark profiling disabled")
+		log.Info("gnark profiling disabled", slog.String("path", p.filePath))
 	} else {
-		log.Warn().Msg("gnark profiling disabled [not writing to disk]")
+		log.Warn("gnark profiling disabled [not writing to disk]")
 	}
 
 }

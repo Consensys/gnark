@@ -3,6 +3,7 @@ package compilelogger_test
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -10,8 +11,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/compilelogger"
-	"github.com/consensys/gnark/logger"
-	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc"
 )
@@ -26,9 +25,9 @@ func (c *testCircuit) Define(api frontend.API) error {
 	if !ok {
 		panic("api is not a compiler")
 	}
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "dup", "duplicate message")
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "dup", "duplicate message")
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "unique", "unique message")
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "dup", "duplicate message")
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "dup", "duplicate message")
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "unique", "unique message")
 	api.AssertIsEqual(c.X, c.X)
 	return nil
 }
@@ -38,33 +37,40 @@ type exampleCircuit struct{ X frontend.Variable }
 
 func (c *exampleCircuit) Define(api frontend.API) error {
 	compiler := api.(frontend.Compiler)
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "key-a", "warning A")
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "key-a", "warning A") // suppressed: same key
-	compilelogger.LogOnce(compiler, zerolog.WarnLevel, "key-b", "warning B")
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "key-a", "warning A")
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "key-a", "warning A") // suppressed: same key
+	compilelogger.LogOnce(compiler, slog.LevelWarn, "key-b", "warning B")
 	api.AssertIsEqual(c.X, c.X)
 	return nil
 }
 
 func ExampleLogOnce() {
 	// WarnLevel filters the framework's own info logs so only our messages appear.
-	logger.Set(zerolog.New(os.Stdout).Level(zerolog.WarnLevel))
-	defer logger.Disable()
+	log := slog.New(slog.NewJSONHandler(
+		os.Stdout,
+		&slog.HandlerOptions{
+			Level: slog.LevelWarn,
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.TimeKey && a.Value.Kind() == slog.KindTime {
+					return slog.Attr{}
+				}
+				return a
+			}}))
 
-	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &exampleCircuit{})
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &exampleCircuit{}, frontend.WithLogger(log))
 	if err != nil {
 		fmt.Println("compile error:", err)
 	}
 	// Output:
-	// {"level":"warn","message":"warning A"}
-	// {"level":"warn","message":"warning B"}
+	// {"level":"WARN","msg":"warning A"}
+	// {"level":"WARN","msg":"warning B"}
 }
 
 func TestLogOnce(t *testing.T) {
 	var buf bytes.Buffer
-	logger.Set(zerolog.New(&buf).Level(zerolog.WarnLevel))
-	defer logger.Disable()
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &testCircuit{})
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &testCircuit{}, frontend.WithLogger(log))
 	if err != nil {
 		t.Fatal(err)
 	}

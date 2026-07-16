@@ -5,6 +5,7 @@ package sw_grumpkin
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 
 	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -12,7 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/std/algebra/algopts"
-	"github.com/rs/zerolog"
 )
 
 // G1Affine point in affine coords
@@ -173,7 +173,7 @@ func (p *G1Affine) scalarMulGLV(api frontend.API, q G1Affine, s frontend.Variabl
 		panic(err)
 	}
 	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(api.Compiler(), zerolog.InfoLevel,
+		compilelogger.LogOnce(api.Compiler(), slog.LevelInfo,
 			"sw_grumpkin/g1/scalarMulGLV",
 			"WithIncompleteArithmetic is deprecated for (*sw_grumpkin.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}

@@ -4,19 +4,19 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/compilelogger"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/internal/fieldextension"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/rangecheck"
-	"github.com/rs/zerolog"
 )
 
 const (
@@ -57,7 +57,7 @@ type Field[T FieldParams] struct {
 	oneConstOnce   sync.Once
 	oneConst       *Element[T]
 
-	log zerolog.Logger
+	log *slog.Logger
 
 	// constrainedLimbs keeps track of already range checked limbs. The map
 	// value indicates the range check width.
@@ -91,13 +91,13 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	}
 	f := &Field[T]{
 		api:              native,
-		log:              logger.Logger(),
+		log:              native.Compiler().Logger(),
 		constrainedLimbs: make(map[[16]byte]int),
 		checker:          rangecheck.New(native),
 		fParams:          newStaticFieldParams[T](native.Compiler().Field()),
 	}
 	if smallfields.IsSmallField(native.Compiler().Field()) {
-		compilelogger.LogOnce(native.Compiler(), zerolog.DebugLevel,
+		compilelogger.LogOnce(native.Compiler(), logger.LevelTrace,
 			"emulated/isSmallField",
 			"using small native field, multiplication checks will be performed in extension field")
 		extapi, err := fieldextension.NewExtension(native)
@@ -320,7 +320,7 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 
 	res := new(big.Int)
 	if err := limbs.Recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
-		f.log.Error().Err(err).Msg("recomposing constant")
+		f.log.Error("recomposing constant", slog.Any("err", err))
 		return nil, false
 	}
 	return res, true
@@ -399,9 +399,10 @@ func (f *Field[T]) useSmallFieldOptimization() bool {
 
 		f.smallFieldMode = 2*modBits+batchingMargin < nativeBits-2
 		if f.smallFieldMode {
-			compilelogger.LogOnce(f.api.Compiler(), zerolog.DebugLevel,
+			compilelogger.LogOnce(f.api.Compiler(), logger.LevelTrace,
 				"emulated/useSmallFieldOptimization",
-				"using small field optimization for emulated multiplication (modBits = %d, nativeBits = %d)", modBits, nativeBits)
+				"using small field optimization for emulated multiplication",
+				slog.Int("modBits", int(modBits)), slog.Int("nativeBits", int(nativeBits)))
 		}
 	})
 	return f.smallFieldMode
