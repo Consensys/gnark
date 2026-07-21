@@ -1,0 +1,228 @@
+struct PlonkQuotientParams {
+  count: u32,
+  blind_count: u32,
+  coset_count: u32,
+  _pad1: u32,
+}
+
+override COMMITMENT_COUNT: u32 = 0u;
+
+const PLONK_FR_WORDS: u32 = 8u;
+const PLONK_BASE_DYNAMIC_VECTOR_COUNT: u32 = 5u;
+const PLONK_BASE_STATIC_VECTOR_COUNT: u32 = 7u;
+const PLONK_BLIND_COUNT: u32 = 4u;
+const PLONK_SCALAR_COUNT: u32 = 7u;
+
+const PLONK_VEC_L: u32 = 0u;
+const PLONK_VEC_R: u32 = 1u;
+const PLONK_VEC_O: u32 = 2u;
+const PLONK_VEC_Z: u32 = 3u;
+const PLONK_VEC_QK: u32 = 4u;
+
+const PLONK_BLIND_L: u32 = 0u;
+const PLONK_BLIND_R: u32 = 1u;
+const PLONK_BLIND_O: u32 = 2u;
+const PLONK_BLIND_Z: u32 = 3u;
+
+const PLONK_SCALAR_COSET: u32 = 0u;
+const PLONK_SCALAR_LAGRANGE_SCALE: u32 = 1u;
+const PLONK_SCALAR_CS: u32 = 2u;
+const PLONK_SCALAR_CSS: u32 = 3u;
+const PLONK_SCALAR_BETA: u32 = 4u;
+const PLONK_SCALAR_GAMMA: u32 = 5u;
+const PLONK_SCALAR_ALPHA: u32 = 6u;
+
+@group(0) @binding(0) var<storage, read> plonk_vectors: array<u32>;
+@group(0) @binding(1) var<storage, read> plonk_blinds: array<u32>;
+@group(0) @binding(2) var<storage, read> plonk_scalars: array<u32>;
+@group(0) @binding(3) var<storage, read_write> plonk_output: array<u32>;
+@group(0) @binding(4) var<uniform> plonk_params: PlonkQuotientParams;
+
+fn plonk_static_base() -> u32 {
+  return PLONK_BASE_DYNAMIC_VECTOR_COUNT + COMMITMENT_COUNT;
+}
+
+fn plonk_vec_ql() -> u32 {
+  return plonk_static_base();
+}
+
+fn plonk_vec_qr() -> u32 {
+  return plonk_static_base() + 1u;
+}
+
+fn plonk_vec_qm() -> u32 {
+  return plonk_static_base() + 2u;
+}
+
+fn plonk_vec_qo() -> u32 {
+  return plonk_static_base() + 3u;
+}
+
+fn plonk_vec_s1() -> u32 {
+  return plonk_static_base() + 4u;
+}
+
+fn plonk_vec_s2() -> u32 {
+  return plonk_static_base() + 5u;
+}
+
+fn plonk_vec_s3() -> u32 {
+  return plonk_static_base() + 6u;
+}
+
+fn plonk_vec_commitment_value(index: u32) -> u32 {
+  return PLONK_BASE_DYNAMIC_VECTOR_COUNT + index;
+}
+
+fn plonk_vec_qcp(index: u32) -> u32 {
+  return plonk_static_base() + PLONK_BASE_STATIC_VECTOR_COUNT + index;
+}
+
+fn plonk_vec_twiddles() -> u32 {
+  return plonk_static_base() + PLONK_BASE_STATIC_VECTOR_COUNT + COMMITMENT_COUNT;
+}
+
+fn plonk_vec_denominators() -> u32 {
+  return plonk_vec_twiddles() + 1u;
+}
+
+fn plonk_vector_count() -> u32 {
+  return plonk_vec_denominators() + 1u;
+}
+
+fn fr_from_mont(x: Fr) -> Fr {
+  return fr_mul(x, fr_one_regular());
+}
+
+fn plonk_load_words(base: u32) -> Fr {
+  var z: Fr;
+  z.limbs[0] = plonk_vectors[base + 0u];
+  z.limbs[1] = plonk_vectors[base + 1u];
+  z.limbs[2] = plonk_vectors[base + 2u];
+  z.limbs[3] = plonk_vectors[base + 3u];
+  z.limbs[4] = plonk_vectors[base + 4u];
+  z.limbs[5] = plonk_vectors[base + 5u];
+  z.limbs[6] = plonk_vectors[base + 6u];
+  z.limbs[7] = plonk_vectors[base + 7u];
+  return z;
+}
+
+fn plonk_load_vector_mont(coset: u32, vector: u32, index: u32) -> Fr {
+  let base = (((coset * plonk_vector_count() + vector) * plonk_params.count) + index) * PLONK_FR_WORDS;
+  return plonk_load_words(base);
+}
+
+fn plonk_load_blind_mont(coset: u32, poly: u32, index: u32) -> Fr {
+  let base = (((coset * PLONK_BLIND_COUNT + poly) * plonk_params.blind_count) + index) * PLONK_FR_WORDS;
+  var z: Fr;
+  z.limbs[0] = plonk_blinds[base + 0u];
+  z.limbs[1] = plonk_blinds[base + 1u];
+  z.limbs[2] = plonk_blinds[base + 2u];
+  z.limbs[3] = plonk_blinds[base + 3u];
+  z.limbs[4] = plonk_blinds[base + 4u];
+  z.limbs[5] = plonk_blinds[base + 5u];
+  z.limbs[6] = plonk_blinds[base + 6u];
+  z.limbs[7] = plonk_blinds[base + 7u];
+  return z;
+}
+
+fn plonk_load_scalar_mont(coset: u32, index: u32) -> Fr {
+  let base = ((coset * PLONK_SCALAR_COUNT) + index) * PLONK_FR_WORDS;
+  var z: Fr;
+  z.limbs[0] = plonk_scalars[base + 0u];
+  z.limbs[1] = plonk_scalars[base + 1u];
+  z.limbs[2] = plonk_scalars[base + 2u];
+  z.limbs[3] = plonk_scalars[base + 3u];
+  z.limbs[4] = plonk_scalars[base + 4u];
+  z.limbs[5] = plonk_scalars[base + 5u];
+  z.limbs[6] = plonk_scalars[base + 6u];
+  z.limbs[7] = plonk_scalars[base + 7u];
+  return z;
+}
+
+fn plonk_store_regular(coset: u32, index: u32, value: Fr) {
+  let regular = fr_from_mont(value);
+  let base = ((coset * plonk_params.count) + index) * PLONK_FR_WORDS;
+  plonk_output[base + 0u] = regular.limbs[0];
+  plonk_output[base + 1u] = regular.limbs[1];
+  plonk_output[base + 2u] = regular.limbs[2];
+  plonk_output[base + 3u] = regular.limbs[3];
+  plonk_output[base + 4u] = regular.limbs[4];
+  plonk_output[base + 5u] = regular.limbs[5];
+  plonk_output[base + 6u] = regular.limbs[6];
+  plonk_output[base + 7u] = regular.limbs[7];
+}
+
+fn plonk_eval_blind(coset: u32, poly: u32, point: Fr) -> Fr {
+  var res = fr_zero();
+  var i = plonk_params.blind_count;
+  loop {
+    if (i == 0u) {
+      break;
+    }
+    i = i - 1u;
+    res = fr_add(fr_mul(res, point), plonk_load_blind_mont(coset, poly, i));
+  }
+  return res;
+}
+
+fn plonk_evaluate_quotient(coset: u32, index: u32) -> Fr {
+  let twiddle = plonk_load_vector_mont(coset, plonk_vec_twiddles(), index);
+  let next_index = (index + 1u) % plonk_params.count;
+  let next_twiddle = plonk_load_vector_mont(coset, plonk_vec_twiddles(), next_index);
+
+  var l = fr_add(plonk_load_vector_mont(coset, PLONK_VEC_L, index), plonk_eval_blind(coset, PLONK_BLIND_L, twiddle));
+  var r = fr_add(plonk_load_vector_mont(coset, PLONK_VEC_R, index), plonk_eval_blind(coset, PLONK_BLIND_R, twiddle));
+  var o = fr_add(plonk_load_vector_mont(coset, PLONK_VEC_O, index), plonk_eval_blind(coset, PLONK_BLIND_O, twiddle));
+  var z = fr_add(plonk_load_vector_mont(coset, PLONK_VEC_Z, index), plonk_eval_blind(coset, PLONK_BLIND_Z, twiddle));
+  let zs = fr_add(plonk_load_vector_mont(coset, PLONK_VEC_Z, next_index), plonk_eval_blind(coset, PLONK_BLIND_Z, next_twiddle));
+
+  var gate = fr_mul(plonk_load_vector_mont(coset, plonk_vec_ql(), index), l);
+  gate = fr_add(gate, fr_mul(plonk_load_vector_mont(coset, plonk_vec_qr(), index), r));
+  gate = fr_add(gate, fr_mul(fr_mul(plonk_load_vector_mont(coset, plonk_vec_qm(), index), l), r));
+  gate = fr_add(gate, fr_mul(plonk_load_vector_mont(coset, plonk_vec_qo(), index), o));
+  gate = fr_add(gate, plonk_load_vector_mont(coset, PLONK_VEC_QK, index));
+  var commitment_index = 0u;
+  loop {
+    if (commitment_index >= COMMITMENT_COUNT) {
+      break;
+    }
+    let qcp = plonk_load_vector_mont(coset, plonk_vec_qcp(commitment_index), index);
+    let commitment_value = plonk_load_vector_mont(coset, plonk_vec_commitment_value(commitment_index), index);
+    gate = fr_add(gate, fr_mul(qcp, commitment_value));
+    commitment_index = commitment_index + 1u;
+  }
+
+  let beta = plonk_load_scalar_mont(coset, PLONK_SCALAR_BETA);
+  let gamma = plonk_load_scalar_mont(coset, PLONK_SCALAR_GAMMA);
+  let alpha = plonk_load_scalar_mont(coset, PLONK_SCALAR_ALPHA);
+  let id = fr_mul(fr_mul(twiddle, plonk_load_scalar_mont(coset, PLONK_SCALAR_COSET)), beta);
+
+  var a = fr_add(fr_add(gamma, l), id);
+  var b = fr_add(fr_add(fr_mul(id, plonk_load_scalar_mont(coset, PLONK_SCALAR_CS)), r), gamma);
+  var c = fr_add(fr_add(fr_mul(id, plonk_load_scalar_mont(coset, PLONK_SCALAR_CSS)), o), gamma);
+  let right = fr_mul(fr_mul(fr_mul(a, b), c), z);
+
+  a = fr_add(fr_add(fr_mul(plonk_load_vector_mont(coset, plonk_vec_s1(), index), beta), l), gamma);
+  b = fr_add(fr_add(fr_mul(plonk_load_vector_mont(coset, plonk_vec_s2(), index), beta), r), gamma);
+  c = fr_add(fr_add(fr_mul(plonk_load_vector_mont(coset, plonk_vec_s3(), index), beta), o), gamma);
+  let left = fr_mul(fr_mul(fr_mul(a, b), c), zs);
+
+  let ordering = fr_sub(left, right);
+  let lone = fr_mul(plonk_load_scalar_mont(coset, PLONK_SCALAR_LAGRANGE_SCALE), plonk_load_vector_mont(coset, plonk_vec_denominators(), index));
+  var local = fr_mul(fr_sub(z, fr_one()), lone);
+  local = fr_add(fr_mul(local, alpha), ordering);
+  return fr_add(fr_mul(local, alpha), gate);
+}
+
+override WORKGROUP_SIZE: u32 = 64;
+
+@compute @workgroup_size(WORKGROUP_SIZE)
+fn fr_plonk_quotient_main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let i = id.x;
+  let coset = id.y;
+  if (i >= plonk_params.count || coset >= plonk_params.coset_count) {
+    return;
+  }
+  plonk_store_regular(coset, i, plonk_evaluate_quotient(coset, i));
+}
