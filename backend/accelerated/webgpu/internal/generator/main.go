@@ -82,7 +82,7 @@ func main() {
 		panic(err)
 	}
 	runCmd("gofmt", "-w", testdataDir)
-	runCmd("goimports", "-w", testdataDir)
+	runCmd("go", "tool", "goimports", "-w", testdataDir)
 
 	for _, d := range data {
 		entries := []bavard.Entry{
@@ -101,7 +101,7 @@ func main() {
 			panic(err)
 		}
 		runCmd("gofmt", "-w", filepath.Join(testdataDir, d.CurveDir))
-		runCmd("goimports", "-w", filepath.Join(testdataDir, d.CurveDir))
+		runCmd("go", "tool", "goimports", "-w", filepath.Join(testdataDir, d.CurveDir))
 	}
 
 }
