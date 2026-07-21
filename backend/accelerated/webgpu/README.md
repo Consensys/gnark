@@ -1,5 +1,25 @@
 # gnark WebGPU Backend
 
+This package implements gnark prover using WSGL shaders for speeding up most heavy
+cryptographic operations. For the prover coordination, we use Go implementation which
+is compiled to WASM using Go toolchain. The Go implementation then calls the WSGL
+shaders through a Typescrip bridge which in turn executes the WSGL shaders.
+
+It supports Groth16 and PLONK proof systems over BN254, BLS12-377 and BLS12-381.
+
+## Disclaimer
+
+This is very experimental package. The APIs may change. The backend is not audited.
+
+Currently G2 API tests are failing for BLS12-377 and BLS12-381, but the Groth16/PLONK
+prover tests pass.
+
+Due to using Go toolchain for compiling the proving coordinator to WASM, then the
+assets are quite big. We have tried TinyGo, but it is incompatible with gnark-crypto
+dependency as is.
+
+## Overview
+
 This directory contains gnark's browser WebGPU prover backend:
 
 - `groth16/` contains the Go Groth16 accelerated backend and wasm entrypoints.
