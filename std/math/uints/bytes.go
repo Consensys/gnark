@@ -166,14 +166,43 @@ func (bf *Bytes) twoArgFn(tbl *logderivprecomp.Precomputed, a ...U8) U8 {
 	if len(a) == 1 {
 		return a[0]
 	}
-	ret := tbl.Query(a[0].Val, a[1].Val)[0]
+	ret := bf.queryOrFold(tbl, a[0].Val, a[1].Val)
 	for i := 2; i < len(a); i++ {
-		ret = tbl.Query(ret, a[i].Val)[0]
+		ret = bf.queryOrFold(tbl, ret, a[i].Val)
 	}
-	// because the response comes from the lookup table, then (assuming that the
-	// function which built the table is correct) we can assume that the value
-	// is in range. Thus we set the internal flag to true.
+	// because the response comes from the lookup table (or from constant
+	// folding of width-checked operands), then (assuming that the function
+	// which built the table is correct) we can assume that the value is in
+	// range. Thus we set the internal flag to true.
 	return bf.packInternal(ret)
+}
+
+// queryOrFold evaluates the byte operation implemented by tbl natively when
+// both operands are compile-time constants, avoiding the lookup query and its
+// constraints. The operands are already width-checked ([Bytes.enforceWidth]
+// for the inputs, previous lookups or folds for the intermediates), but we
+// still guard on the width so that an out-of-range constant falls back to the
+// lookup path instead of being truncated silently.
+func (bf *Bytes) queryOrFold(tbl *logderivprecomp.Precomputed, x, y frontend.Variable) frontend.Variable {
+	cx, xIsConst := bf.api.ConstantValue(x)
+	if !xIsConst || cx.BitLen() > 8 {
+		return tbl.Query(x, y)[0]
+	}
+	cy, yIsConst := bf.api.ConstantValue(y)
+	if !yIsConst || cy.BitLen() > 8 {
+		return tbl.Query(x, y)[0]
+	}
+	xb, yb := uint8(cx.Uint64()), uint8(cy.Uint64())
+	switch tbl {
+	case bf.xorT:
+		return xb ^ yb
+	case bf.andT:
+		return xb & yb
+	case bf.orT:
+		return xb | yb
+	default:
+		return tbl.Query(x, y)[0]
+	}
 }
 
 func (bf *Bytes) Not(a U8) U8 {
