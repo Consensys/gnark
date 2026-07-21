@@ -14,9 +14,6 @@ import { shapeFor } from "./types.js";
 
 /**
  * Runtime metadata for a supported curve.
- *
- * This is kept separate from the page harnesses so the library can evolve
- * around one shared source of curve-specific facts.
  */
 export interface CurveDefinition {
   readonly id: SupportedCurveID;
