@@ -116,6 +116,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, fmt.Errorf("new instance: %w", err)
 	}
+	defer instance.freeGPUContext()
+
+	// warm the GPU (SRS point conversion + NTT twiddles) concurrently with the
+	// witness-independent CPU solve, so the GPU isn't idle during solveConstraints
+	g.Go(instance.prewarmGPU)
 
 	// solve constraints
 	g.Go(instance.solveConstraints)
@@ -146,6 +151,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	if err := g.Wait(); err != nil {
 		return nil, err
+	}
+
+	// the proof is built; recycle the trace clone (its buffers will be reset by cloneInto)
+	if instance.traceScratch != nil {
+		pk.tracePool.Put(instance.traceScratch)
 	}
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
@@ -199,7 +209,9 @@ type instance struct {
 
 	domain0, domain1 *fft.Domain
 
-	trace *Trace
+	trace        *Trace
+	traceScratch *Trace // pooled trace clone to return to pk.tracePool after the proof
+	gpuCtx       *proverGPUContext
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
@@ -250,8 +262,20 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		s.domain1 = fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	}
 
-	// build trace
-	s.trace = NewTrace(spr, s.domain0)
+	// build trace — reuse the circuit-fixed Lagrange trace captured at Setup (cloned so
+	// the prover's in-place Lagrange->canonical conversions stay per-proof), falling back
+	// to building it when absent (e.g. a proving key deserialized from disk).
+	if pk.trace != nil {
+		// recycle a pooled clone (memcpy into reused buffers) when available, else allocate one
+		if scratch, _ := pk.tracePool.Get().(*Trace); scratch != nil && pk.trace.cloneInto(scratch) {
+			s.trace = scratch
+		} else {
+			s.trace = pk.trace.clone()
+		}
+		s.traceScratch = s.trace // returned to the pool after the proof
+	} else {
+		s.trace = NewTrace(spr, s.domain0)
+	}
 
 	return &s, nil
 }
@@ -290,14 +314,18 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	for i := range ins {
 		committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
 	}
-	if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+	// Commitment injection constraint has qcp = 0. Safe to use for blinding.
+	if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil {
 		return err
 	}
-	if _, err = committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
+	// Last constraint has qcp = 0. Safe to use for blinding.
+	if _, err = committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom(); err != nil {
 		return err
 	}
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
+	if c, ok := s.residentCommitMaybe(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange.G1); ok {
+		s.proof.Bsb22Commitments[commDepth] = c
+	} else if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 		return err
 	}
 
@@ -407,6 +435,10 @@ func (s *instance) commitToLRO() error {
 	case <-s.ctx.Done():
 		return errContextDone
 	case <-s.chbp:
+	}
+
+	if handled, err := s.gpuCommitLRO(); handled {
+		return err
 	}
 
 	n := int(s.domain0.Cardinality)
@@ -529,7 +561,11 @@ func (s *instance) deriveGammaAndBeta() error {
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
 
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
+	if c, ok := s.residentCommitMaybe(p.Coefficients(), s.pk.KzgLagrange.G1); ok {
+		commit = c
+	} else if commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange); err != nil {
+		return
+	}
 
 	// we add in the blinding contribution
 	n := int(s.domain0.Cardinality)
@@ -582,7 +618,6 @@ func (s *instance) computeQuotient() (err error) {
 	for i := 0; i < len(s.commitmentInfo); i++ {
 		s.x[id_Qci+2*i+1] = s.cCommitments[i]
 	}
-
 	// wait for Z to be committed or context done
 	select {
 	case <-s.ctx.Done():
@@ -599,6 +634,7 @@ func (s *instance) computeQuotient() (err error) {
 	identity := make([]fr.Element, n)
 	identity[1].Set(&s.beta)
 
+	s.setupGPUResidentContext(int(n))
 	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
 
 	numerator, err := s.computeNumerator()
@@ -606,14 +642,20 @@ func (s *instance) computeQuotient() (err error) {
 		return err
 	}
 
-	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+	handled, err := s.gpuDivideAndCommitQuotient()
 	if err != nil {
 		return err
 	}
+	if !handled {
+		s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+		if err != nil {
+			return err
+		}
 
-	// commit to h
-	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
-		return err
+		// commit to h
+		if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+			return err
+		}
 	}
 
 	if err := s.deriveZeta(); err != nil {
@@ -642,28 +684,33 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something
 	// with capacity = len() + 4 would avoid extra alloc / copy during openZ
-	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
-		[]*iop.Polynomial{
-			s.x[id_L],
-			s.x[id_R],
-			s.x[id_O],
-		},
-		s.trace.S,
-		s.beta,
-		s.gamma,
-		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
-		s.domain0,
-	)
+	s.x[id_Z], err = s.buildZ()
 	if err != nil {
 		return err
 	}
 
 	// commit to the blinded version of z
 	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz])
-
 	close(s.chZ)
 
 	return
+}
+
+// buildZ computes the permutation grand-product Z (Lagrange/Regular). It tries
+// the device-resident path first (gpuBuildZ); on miss it falls back to the CPU
+// iop.BuildRatioCopyConstraint.
+func (s *instance) buildZ() (*iop.Polynomial, error) {
+	if devZ, ok := s.gpuBuildZ(); ok {
+		return iop.NewPolynomial(&devZ, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}), nil
+	}
+	return iop.BuildRatioCopyConstraint(
+		[]*iop.Polynomial{s.x[id_L], s.x[id_R], s.x[id_O]},
+		s.trace.S,
+		s.beta,
+		s.gamma,
+		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
+		s.domain0,
+	)
 }
 
 // open Z (blinded) at ωζ
@@ -678,8 +725,9 @@ func (s *instance) openZ() (err error) {
 	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
 	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
 	// open z at zeta
-	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
-	if err != nil {
+	if proof, ok := s.gpuOpenMaybe(s.blindedZ, zetaShifted, s.pk.Kzg); ok {
+		s.proof.ZShiftedOpening = proof
+	} else if s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg); err != nil {
 		return err
 	}
 	close(s.chZOpening)
@@ -724,7 +772,6 @@ func (s *instance) h3() []fr.Element {
 }
 
 func (s *instance) computeLinearizedPolynomial() error {
-
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -735,29 +782,41 @@ func (s *instance) computeLinearizedPolynomial() error {
 	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
 	var blzeta, brzeta, bozeta fr.Element
 	var wg sync.WaitGroup
-	wg.Add(3 + len(s.commitmentInfo))
 
+	// l/r/o(ζ): one batched on-device eval over the resident wires when available, else 3 host evals
+	residentLRO := false
+	if vals, ok := s.gpuEvalBlindedBatchMaybe(
+		[]int{id_L, id_R, id_O},
+		[]fr.Element{s.bp[id_Bl].Evaluate(s.zeta), s.bp[id_Br].Evaluate(s.zeta), s.bp[id_Bo].Evaluate(s.zeta)},
+		s.zeta); ok {
+		blzeta, brzeta, bozeta = vals[0], vals[1], vals[2]
+		residentLRO = true
+	}
+
+	wg.Add(len(s.commitmentInfo))
+	if !residentLRO {
+		wg.Add(3)
+	}
 	for i := 0; i < len(s.commitmentInfo); i++ {
 		go func(i int) {
 			qcpzeta[i] = s.trace.Qcp[i].Evaluate(s.zeta)
 			wg.Done()
 		}(i)
 	}
-
-	go func() {
-		blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
-		wg.Done()
-	}()
-
-	go func() {
-		brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
-		wg.Done()
-	}()
-
-	go func() {
-		bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
-		wg.Done()
-	}()
+	if !residentLRO {
+		go func() {
+			blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
+			wg.Done()
+		}()
+		go func() {
+			brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
+			wg.Done()
+		}()
+		go func() {
+			bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
+			wg.Done()
+		}()
+	}
 
 	// wait for Z to be opened at zeta (or ctx.Done())
 	select {
@@ -769,24 +828,19 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	wg.Wait()
 
-	s.linearizedPolynomial = s.innerComputeLinearizedPoly(
-		blzeta,
-		brzeta,
-		bozeta,
-		s.alpha,
-		s.beta,
-		s.gamma,
-		s.zeta,
-		bzuzeta,
-		qcpzeta,
-		s.blindedZ,
-		coefficients(s.cCommitments),
-		s.pk,
-	)
+	if devLin, ok := s.gpuComputeLinearizedPoly(blzeta, brzeta, bozeta, s.alpha, s.beta, s.gamma, s.zeta, bzuzeta, qcpzeta, coefficients(s.cCommitments), s.blindedZ, s.pk); ok {
+		s.linearizedPolynomial = devLin
+	} else {
+		s.linearizedPolynomial = s.innerComputeLinearizedPoly(
+			blzeta, brzeta, bozeta, s.alpha, s.beta, s.gamma, s.zeta, bzuzeta,
+			qcpzeta, s.blindedZ, coefficients(s.cCommitments), s.pk,
+		)
+	}
 
 	var err error
-	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
-	if err != nil {
+	if c, ok := s.residentCommitMaybe(s.linearizedPolynomial, s.pk.Kzg.G1); ok {
+		s.linearizedPolynomialDigest = c
+	} else if s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2); err != nil {
 		return err
 	}
 	close(s.chLinearizedPolynomial)
@@ -794,7 +848,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 }
 
 func (s *instance) batchOpening() error {
-
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -803,6 +856,7 @@ func (s *instance) batchOpening() error {
 	}
 
 	polysQcp := coefficients(s.trace.Qcp)
+
 	polysToOpen := make([][]fr.Element, 6+len(polysQcp))
 	copy(polysToOpen[6:], polysQcp)
 
@@ -824,14 +878,20 @@ func (s *instance) batchOpening() error {
 	digestsToOpen[5] = s.pk.Vk.S[1]
 
 	var err error
-	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		polysToOpen,
-		digestsToOpen,
-		s.zeta,
-		s.kzgFoldingHash,
-		s.pk.Kzg,
-		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
-	)
+	if proof, ok := s.gpuBatchOpenResidentMaybe(digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
+		s.proof.BatchedProof = proof
+	} else if proof, ok := s.gpuBatchOpenMaybe(polysToOpen, digestsToOpen, s.zeta, s.kzgFoldingHash, s.pk.Kzg, s.proof.ZShiftedOpening.ClaimedValue.Marshal()); ok {
+		s.proof.BatchedProof = proof
+	} else {
+		s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
+			polysToOpen,
+			digestsToOpen,
+			s.zeta,
+			s.kzgFoldingHash,
+			s.pk.Kzg,
+			s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
+		)
+	}
 
 	return err
 }
@@ -993,7 +1053,17 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	s.precomputedDenominators = make([]fr.Element, s.domain0.Cardinality)
 	bufBatchInvert := make([]fr.Element, s.domain0.Cardinality)
 
-	for i := 0; i < rho; i++ {
+	// GPU rho-loop: compute the quotient numerator fully on device (polys stay
+	// resident — no per-FFT PCIe). On success the CPU loop below is skipped; the
+	// LRO restore goroutine then handles s.x and s.bp identically to the CPU path.
+	gpuRhoOK := false
+	if err := s.gpuComputeNumeratorRhoLoop(rho, int(n), scalingVector, scalingVectorRev,
+		twiddles0, shifters, &coset, &cosetExponentiatedToNMinusOne, bn, &one,
+		buf, cres, mm, &wgBuf, nbBsbGates); err == nil {
+		gpuRhoOK = true
+	}
+
+	for i := 0; !gpuRhoOK && i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
 		cosetExponentiatedToNMinusOne.Exp(coset, bn).
@@ -1006,7 +1076,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		batchInvert(s.precomputedDenominators, bufBatchInvert)
 
-		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		for _, q := range s.bp {
 			cq := q.Coefficients()
 			acc := cosetExponentiatedToNMinusOne
@@ -1016,43 +1085,28 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			}
 		}
 		if i == 1 {
-			// we have to update the scalingVector; instead of scaling by
-			// cosets we scale by the twiddles of the large domain.
 			w := s.domain1.Generator
 			scalingVector = make([]fr.Element, n)
 			fft.BuildExpTable(w, scalingVector)
-
-			// reuse memory
 			copy(scalingVectorRev, scalingVector)
-			fft.BitReverse(scalingVectorRev) //nolint:staticcheck // method is backwards compatible
+			fft.BitReverse(scalingVectorRev)
 		}
 
-		// we do **a lot** of FFT here, but on the small domain.
-		// note that for all the polynomials in the proving key
-		// (Ql, Qr, Qm, Qo, S1, S2, S3, Qcp, Qc) and ID, LOne
-		// we could pre-compute these rho*2 FFTs and store them
-		// at the cost of a huge memory footprint.
 		batchApply(s.x, func(p *iop.Polynomial) {
 			nbTasks := calculateNbTasks(len(s.x)-1) * 2
-			// shift polynomials to be in the correct coset
 			p.ToCanonical(s.domain0, nbTasks)
-
-			// scale by shifter[i]
 			var w []fr.Element
 			if p.Layout == iop.Regular {
 				w = scalingVector
 			} else {
 				w = scalingVectorRev
 			}
-
 			cp := p.Coefficients()
 			utils.Parallelize(len(cp), func(start, end int) {
 				for j := start; j < end; j++ {
 					cp[j].Mul(&cp[j], &w[j])
 				}
 			}, nbTasks)
-
-			// fft in the correct coset
 			p.ToLagrange(s.domain0, nbTasks).ToRegular()
 		})
 
@@ -1069,7 +1123,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		wgBuf.Add(1)
 		go func(i int) {
 			for j := 0; j < int(n); j++ {
-				// we build the polynomial in bit reverse order
 				cres[bits.Reverse64(uint64(rho*j+i))>>mm] = buf[j]
 			}
 			wgBuf.Done()
@@ -1077,7 +1130,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		cosetExponentiatedToNMinusOne.
 			Inverse(&cosetExponentiatedToNMinusOne)
-		// bl <- bl *( (s*ωⁱ)ⁿ-1 )**-1
 		for _, q := range s.bp {
 			cq := q.Coefficients()
 			for j := 0; j < len(cq); j++ {
@@ -1098,13 +1150,19 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		cs.Inverse(&cs)
 
-		batchApply(s.x, func(p *iop.Polynomial) {
-			if p == nil {
-				return
+		if s.gpuCtx != nil {
+			if err := s.gpuRestoreLRO(cs); err != nil {
+				panic("gpuRestoreLRO: " + err.Error())
 			}
-			p.ToCanonical(s.domain0, 8).ToRegular()
-			scalePowers(p, cs)
-		})
+		} else {
+			batchApply(s.x, func(p *iop.Polynomial) {
+				if p == nil {
+					return
+				}
+				p.ToCanonical(s.domain0, 8).ToRegular()
+				scalePowers(p, cs)
+			})
+		}
 
 		for _, q := range s.bp {
 			scalePowers(q, cs)
@@ -1128,18 +1186,108 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 // /!\ it doesn't check that all vec's inputs or non zero, it is ensured by the size
 // of the field /!\
 func batchInvert(vec, buf []fr.Element) {
-	// local function only, vec and buf are of the same size
+	n := len(vec)
+	if n == 0 {
+		return
+	}
+	if n == 1 {
+		vec[0].Inverse(&vec[0])
+		return
+	}
+
+	// Keep the original values in buf so the backward pass can reconstruct each inverse.
 	copy(buf, vec)
-	for i := 1; i < len(vec); i++ {
-		vec[i].Mul(&vec[i], &vec[i-1])
+
+	nbTasks := runtime.NumCPU()
+	if nbTasks < 1 {
+		nbTasks = 1
 	}
-	acc := vec[len(vec)-1]
-	acc.Inverse(&acc)
-	for i := len(vec) - 1; i > 0; i-- {
-		vec[i].Mul(&acc, &vec[i-1])
-		acc.Mul(&acc, &buf[i])
+	if nbTasks > n {
+		nbTasks = n
 	}
-	vec[0].Set(&acc)
+	if n < 1<<16 || nbTasks == 1 {
+		for i := 1; i < n; i++ {
+			vec[i].Mul(&vec[i], &vec[i-1])
+		}
+		acc := vec[n-1]
+		acc.Inverse(&acc)
+		for i := n - 1; i > 0; i-- {
+			vec[i].Mul(&acc, &vec[i-1])
+			acc.Mul(&acc, &buf[i])
+		}
+		vec[0].Set(&acc)
+		return
+	}
+
+	chunkStarts := make([]int, nbTasks)
+	chunkEnds := make([]int, nbTasks)
+	chunkProd := make([]fr.Element, nbTasks)
+	prefixBefore := make([]fr.Element, nbTasks)
+	suffixAfter := make([]fr.Element, nbTasks)
+
+	base := n / nbTasks
+	extra := n % nbTasks
+	start := 0
+	for i := 0; i < nbTasks; i++ {
+		size := base
+		if i < extra {
+			size++
+		}
+		end := start + size
+		chunkStarts[i] = start
+		chunkEnds[i] = end
+		start = end
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < nbTasks; i++ {
+		start := chunkStarts[i]
+		end := chunkEnds[i]
+		wg.Add(1)
+		go func(chunk, start, end int) {
+			defer wg.Done()
+			vec[start].Set(&buf[start])
+			for j := start + 1; j < end; j++ {
+				vec[j].Mul(&vec[j-1], &buf[j])
+			}
+			chunkProd[chunk].Set(&vec[end-1])
+		}(i, start, end)
+	}
+	wg.Wait()
+
+	prefixBefore[0].SetOne()
+	for i := 1; i < nbTasks; i++ {
+		prefixBefore[i].Mul(&prefixBefore[i-1], &chunkProd[i-1])
+	}
+	suffixAfter[nbTasks-1].SetOne()
+	for i := nbTasks - 2; i >= 0; i-- {
+		suffixAfter[i].Mul(&suffixAfter[i+1], &chunkProd[i+1])
+	}
+
+	var totalInv fr.Element
+	totalInv.Mul(&prefixBefore[nbTasks-1], &chunkProd[nbTasks-1])
+	totalInv.Inverse(&totalInv)
+
+	for i := 0; i < nbTasks; i++ {
+		chunkProd[i].Mul(&totalInv, &prefixBefore[i])
+		chunkProd[i].Mul(&chunkProd[i], &suffixAfter[i])
+	}
+
+	for i := 0; i < nbTasks; i++ {
+		start := chunkStarts[i]
+		end := chunkEnds[i]
+		wg.Add(1)
+		go func(chunk, start, end int) {
+			defer wg.Done()
+			acc := chunkProd[chunk]
+			for j := end - 1; j > start; j-- {
+				vec[j].Mul(&vec[j-1], &acc)
+				acc.Mul(&acc, &buf[j])
+			}
+			vec[start].Set(&acc)
+		}(i, start, end)
+	}
+	wg.Wait()
 }
 
 func calculateNbTasks(n int) int {
