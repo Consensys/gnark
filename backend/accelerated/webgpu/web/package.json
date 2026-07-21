@@ -24,6 +24,9 @@
     "dist/src/**/*.js",
     "dist/src/**/*.d.ts",
     "dist/src/**/*.d.ts.map",
+    "dist/tests/**/*.js",
+    "dist/tests/**/*.d.ts",
+    "dist/tests/**/*.d.ts.map",
     "dist/assets/**/*"
   ],
   "scripts": {
@@ -38,6 +41,10 @@
     "build:wasm:plonk": "npm run build:wasm:assets && npm run build:wasm:plonk:webgpu && npm run build:wasm:plonk:native",
     "build:wasm:plonk:native": "GOOS=js GOARCH=wasm go build -o dist/assets/plonk-native.wasm ../plonk/internal/wasmruntime/native",
     "build:wasm:plonk:webgpu": "GOOS=js GOARCH=wasm go build -o dist/assets/plonk-webgpu.wasm ../plonk/internal/wasmruntime/webgpu",
+    "build:test-fixtures:all": "go run ../internal/testdata/generate --suite all --out tests/fixtures",
+    "build:test-fixtures:api": "go run ../internal/testdata/generate --suite api --out tests/fixtures",
+    "build:test-fixtures:groth16": "go run ../internal/testdata/generate --suite groth16 --out tests/fixtures",
+    "build:test-fixtures:plonk": "go run ../internal/testdata/generate --suite plonk --out tests/fixtures",
     "lint": "eslint ."
   },
   "devDependencies": {

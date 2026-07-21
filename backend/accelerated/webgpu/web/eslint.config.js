@@ -10,6 +10,8 @@ export default tseslint.config(
     ignores: [
       "dist/**",
       "src/curvegpu/shader_bundle.generated.ts",
+      "tests/groth16/main.js",
+      "tests/plonk/main.js",
     ],
   },
   js.configs.recommended,
