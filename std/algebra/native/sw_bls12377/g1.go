@@ -194,6 +194,21 @@ func (p *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
 //
 // [algopts.WithIncompleteArithmetic] is deprecated here and ignored.
 func (p *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
+	// when Q is a compile-time constant point (for example the fixed
+	// generator or a verification-key point), use the fixed-base comb method
+	// with precomputed tables. The comb uses complete arithmetic and handles
+	// the zero scalar; it requires the native field to accommodate the exact
+	// recode identity (always the case over BW6-761).
+	if xc, xok := api.Compiler().ConstantValue(Q.X); xok {
+		if yc, yok := api.Compiler().ConstantValue(Q.Y); yok {
+			if d, err := g1CombDataFor(xc, yc); err == nil && api.Compiler().FieldBitLen() > d.n+2 {
+				res := g1CombScalarMul(api, d, s)
+				p.X = res.X
+				p.Y = res.Y
+				return p
+			}
+		}
+	}
 	return p.scalarMulGLV(api, Q, s, opts...)
 }
 
