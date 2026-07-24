@@ -84,3 +84,38 @@ func TestConstPointScalarMulCount(t *testing.T) {
 	assert.NoError(err)
 	t.Log("constant-point ScalarMul r1cs constraints =", ccs.GetNbConstraints())
 }
+
+type varMulCountCircuit struct {
+	P          AffinePoint[emulated.Secp256k1Fp]
+	S          emulated.Element[emulated.Secp256k1Fr]
+	Q          AffinePoint[emulated.Secp256k1Fp]
+	incomplete bool
+}
+
+func (c *varMulCountCircuit) Define(api frontend.API) error {
+	cr, err := New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, GetCurveParams[emulated.Secp256k1Fp]())
+	if err != nil {
+		return err
+	}
+	var res *AffinePoint[emulated.Secp256k1Fp]
+	if c.incomplete {
+		res = cr.ScalarMul(&c.P, &c.S, algopts.WithIncompleteArithmetic())
+	} else {
+		res = cr.ScalarMul(&c.P, &c.S)
+	}
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestVarMulCount(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	assert := test.NewAssert(t)
+	for _, inc := range []bool{false, true} {
+		circuit := varMulCountCircuit{incomplete: inc}
+		ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+		assert.NoError(err)
+		t.Log("var-base ScalarMul incomplete =", inc, "r1cs constraints =", ccs.GetNbConstraints())
+	}
+}

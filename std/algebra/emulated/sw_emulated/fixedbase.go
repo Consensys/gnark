@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/smallfields"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -271,6 +272,12 @@ func (c *Curve[B, S]) combData(w int) (*combData, error) {
 // field emulation capacity, or a base point which is not a finite curve point
 // of prime order r.
 func (c *Curve[B, S]) combDataFor(gx, gy *big.Int, w int) (*combData, error) {
+	if smallfields.IsSmallField(c.api.Compiler().Field()) {
+		// in small-field mode the emulated field instance uses a different
+		// limb layout than the static field parameters which the comb
+		// selector and recode assume; fall back to the generic methods.
+		return nil, errors.New("fixed-base comb unsupported over small fields")
+	}
 	key := fmt.Sprintf("%d|%s|%s", w, gx.Text(16), gy.Text(16))
 	if d, ok := c.combCache[key]; ok {
 		return d, nil

@@ -195,7 +195,7 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
 	qxpx := c.baseApi.Sub(&q.X, &p.X)
-	λ := c.baseApi.Div(qypy, qxpx)
+	λ := c.assertedRatio(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {c.baseApi.Add(&p.X, &q.X)}}, []int{1, -1})
@@ -277,15 +277,28 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// so we can safely divide by a dummy 1 and force λ to 0.
 		numChord := c.baseApi.Sub(&q.Y, &p.Y)
 		denChord := xDiff
-		xx := c.baseApi.MulMod(&p.X, &p.X)
-		numTangent := c.baseApi.MulConst(xx, big.NewInt(3))
 		denTangent := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 
-		num := c.baseApi.Select(xEqual, numTangent, numChord)
 		den := c.baseApi.Select(xEqual, denTangent, denChord)
 		denIsZero := c.baseApi.IsZero(den)
 		denSafe := c.baseApi.Select(denIsZero, c.baseApi.One(), den)
-		λ := c.baseApi.Div(num, denSafe)
+		// witness the unified slope and certify it with a single deferred
+		// zero-assertion, blending the chord and tangent numerators with the
+		// xEqual indicator instead of materializing 3x² and selecting:
+		//   λ·denSafe − xEqual·3x² − (1−xEqual)·(y2−y1) ≡ 0
+		// λ remains pinned in all cases; when denIsZero the assertion is
+		// satisfied by the hint value and λ is discarded by the select below.
+		lams, err := c.baseApi.NewHint(unifiedSlopeHint, 1, &p.X, &p.Y, &q.X, &q.Y)
+		if err != nil {
+			panic(fmt.Sprintf("unified slope hint: %v", err))
+		}
+		λ := lams[0]
+		zx := c.baseApi.FromBits(xEqual)
+		nzx := c.baseApi.Sub(c.baseApi.One(), zx)
+		c.baseApi.AssertEvalIsZero(
+			[][]*emulated.Element[B]{{λ, denSafe}, {zx, &p.X, &p.X}, {nzx, numChord}},
+			[]int{1, -3, -1},
+		)
 		λ = c.baseApi.Select(denIsZero, c.baseApi.Zero(), λ)
 
 		// compute the result point from λ
@@ -324,17 +337,23 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// the j=0 branch, to avoid turning O + Q into O when Q.Y = 0.
 		// ---------------------------------------------------------------
 
-		// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
-		pxqx := c.baseApi.MulMod(&p.X, &q.X)
+		// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y), certified by a single
+		// deferred zero-assertion without materializing the numerator:
+		//   λ·denum − (p.x+q.x)² + p.x·q.x − a ≡ 0
 		pxplusqx := c.baseApi.Add(&p.X, &q.X)
-		num := c.baseApi.MulMod(pxplusqx, pxplusqx)
-		num = c.baseApi.Sub(num, pxqx)
-		num = c.baseApi.Add(num, &c.a)
 		denum := c.baseApi.Add(&p.Y, &q.Y)
 		// if p.y + q.y = 0, assign dummy 1 to denum and continue
 		isYSumZero := c.baseApi.IsZero(denum)
 		denum = c.baseApi.Select(isYSumZero, c.baseApi.One(), denum)
-		λ := c.baseApi.Div(num, denum)
+		lams, err := c.baseApi.NewHint(bjSlopeHint, 1, &p.X, &p.Y, &q.X, &q.Y, &c.a)
+		if err != nil {
+			panic(fmt.Sprintf("bj slope hint: %v", err))
+		}
+		λ := lams[0]
+		c.baseApi.AssertEvalIsZero(
+			[][]*emulated.Element[B]{{λ, denum}, {pxplusqx, pxplusqx}, {&p.X, &q.X}, {&c.a}},
+			[]int{1, -1, 1, -1},
+		)
 
 		// x = λ^2 - p.x - q.x
 		xr := c.baseApi.MulMod(λ, λ)
@@ -376,23 +395,10 @@ func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 }
 
 func (c *Curve[B, S]) doubleGeneric(p *AffinePoint[B], unified bool) *AffinePoint[B] {
-	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
-	xx3a := c.baseApi.MulMod(&p.X, &p.X)
-	xx3a = c.baseApi.MulConst(xx3a, big.NewInt(3))
-	if c.addA {
-		xx3a = c.baseApi.Add(xx3a, &c.a)
-	}
-	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	var isDoubleYZero frontend.Variable = 0
-	if unified {
-		// if 2*p.y = 0, assign dummy 1 to y2 and continue
-		isDoubleYZero = c.baseApi.IsZero(y2)
-		y2 = c.baseApi.Select(isDoubleYZero, c.baseApi.One(), y2)
-	}
-	λ := c.baseApi.Div(xx3a, y2)
-	if unified {
-		λ = c.baseApi.Select(isDoubleYZero, c.baseApi.Zero(), λ)
-	}
+	// compute λ = (3p.x²+a)/2*p.y via a hinted witness and a single deferred
+	// zero-assertion, without materializing x². In unified mode y ≡ 0 forces
+	// λ = 0 and keeps the assertion satisfiable (see tangentSlope).
+	λ := c.tangentSlope(p, unified)
 
 	// xr = λ²-2p.x
 	xr := c.baseApi.Eval([][]*emulated.Element[B]{{λ, λ}, {&p.X}}, []int{1, -2})
@@ -436,7 +442,7 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 		isDoubleYZero = c.baseApi.IsZero(y2)
 		y2 = c.baseApi.Select(isDoubleYZero, c.baseApi.One(), y2)
 	}
-	λ1 := c.baseApi.Div(xx, y2)
+	λ1 := c.assertedRatio(xx, y2)
 	if unified {
 		λ1 = c.baseApi.Select(isDoubleYZero, c.baseApi.Zero(), λ1)
 	}
@@ -452,7 +458,7 @@ func (c *Curve[B, S]) tripleGeneric(p *AffinePoint[B], unified bool) *AffinePoin
 		isSecondSlopeDenominatorZero = c.baseApi.IsZero(x1x2)
 		x1x2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.One(), x1x2)
 	}
-	λ2 := c.baseApi.Div(y2, x1x2)
+	λ2 := c.assertedRatio(y2, x1x2)
 	if unified {
 		λ2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.Zero(), λ2)
 	}
@@ -496,7 +502,7 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 		isChordDenominatorZero = c.baseApi.IsZero(xqxp)
 		xqxp = c.baseApi.Select(isChordDenominatorZero, c.baseApi.One(), xqxp)
 	}
-	λ1 := c.baseApi.Div(yqyp, xqxp)
+	λ1 := c.assertedRatio(yqyp, xqxp)
 	if unified {
 		λ1 = c.baseApi.Select(isChordDenominatorZero, c.baseApi.Zero(), λ1)
 	}
@@ -514,7 +520,7 @@ func (c *Curve[B, S]) doubleAndAddGeneric(p, q *AffinePoint[B], unified bool) *A
 		isSecondSlopeDenominatorZero = c.baseApi.IsZero(x2xp)
 		x2xp = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.One(), x2xp)
 	}
-	λ2 := c.baseApi.Div(ypyp, x2xp)
+	λ2 := c.assertedRatio(ypyp, x2xp)
 	if unified {
 		λ2 = c.baseApi.Select(isSecondSlopeDenominatorZero, c.baseApi.Zero(), λ2)
 	}
@@ -545,7 +551,7 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
 	xqxp := c.baseApi.Sub(&q.X, &p.X)
-	λ1 := c.baseApi.Div(yqyp, xqxp)
+	λ1 := c.assertedRatio(yqyp, xqxp)
 
 	// compute x2 = λ1²-p.x-q.x
 	x2 := c.baseApi.Eval([][]*emulated.Element[B]{{λ1, λ1}, {&p.X}, {&q.X}}, []int{1, -1, -1})
@@ -558,7 +564,7 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	// compute -λ2 = λ1+2*t.y/(x2-t.x)
 	ypyp := c.baseApi.MulConst(&t.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &t.X)
-	λ2 := c.baseApi.Div(ypyp, x2xp)
+	λ2 := c.assertedRatio(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
 
 	// compute x3 = (-λ2)²-t.x-x2

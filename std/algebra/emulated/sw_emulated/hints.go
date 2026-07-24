@@ -36,6 +36,11 @@ func GetHints() []solver.Hint {
 		rationalReconstructExt,
 		combRecodeHint,
 		combChainLambdaHint,
+		ratioHint,
+		tangentHint,
+		tangentHintA,
+		unifiedSlopeHint,
+		bjSlopeHint,
 	}
 }
 
