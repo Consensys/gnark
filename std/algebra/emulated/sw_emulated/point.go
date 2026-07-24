@@ -1200,6 +1200,12 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// hence have the same X coordinates.
 
 	var Bi *AffinePoint[B]
+	// run the loop with the accumulator y-coordinate in implicit form on
+	// j = 0 curves (see implicitDoubleAndAdd).
+	var iAcc *implicitAcc[B]
+	if !c.addA {
+		iAcc = c.implicitFromAffine(Acc)
+	}
 	for i := nbits - 1; i > 0; i-- {
 		// selectorY takes values in [0,15]
 		selectorY := c.api.Add(
@@ -1226,7 +1232,14 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 			),
 		}
 		// Acc = [2]Acc + Bi
-		Acc = c.doubleAndAdd(Acc, Bi)
+		if iAcc != nil {
+			c.implicitDoubleAndAdd(iAcc, Bi)
+		} else {
+			Acc = c.doubleAndAdd(Acc, Bi)
+		}
+	}
+	if iAcc != nil {
+		Acc = c.implicitToAffine(iAcc)
 	}
 
 	// i = 0
@@ -1899,6 +1912,13 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 	// hence have the same X coordinates.
 
 	var Bi *AffinePoint[B]
+	// in incomplete mode on j = 0 curves, run the loop with the accumulator
+	// y-coordinate in implicit form (see implicitDoubleAndAdd): one deferred
+	// check saved per iteration, y materialized once after the loop.
+	var iAcc *implicitAcc[B]
+	if cfg.IncompleteArithmetic && !c.addA {
+		iAcc = c.implicitFromAffine(Acc)
+	}
 	for i := nbits - 1; i > 0; i-- {
 		// selectorY takes values in [0,15]
 		selectorY := c.api.Add(
@@ -1928,9 +1948,14 @@ func (c *Curve[B, S]) scalarMulGLVAndFakeGLV(P *AffinePoint[B], s *emulated.Elem
 		if !cfg.IncompleteArithmetic {
 			Acc = c.doubleGeneric(Acc, true)
 			Acc = addFn(Acc, Bi)
+		} else if iAcc != nil {
+			c.implicitDoubleAndAdd(iAcc, Bi)
 		} else {
 			Acc = c.doubleAndAdd(Acc, Bi)
 		}
+	}
+	if iAcc != nil {
+		Acc = c.implicitToAffine(iAcc)
 	}
 
 	// i = 0

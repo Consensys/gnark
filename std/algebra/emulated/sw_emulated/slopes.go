@@ -196,3 +196,140 @@ func bjSlopeHint(_ *big.Int, inputs, outputs []*big.Int) error {
 		return nil
 	})
 }
+
+// implicitAcc carries the accumulator of a double-and-add chain with its
+// y-coordinate in implicit form
+//
+//	y = lam·(xT − x) − yT
+//
+// where (xT, yT) is the last added point and lam the slope of that addition.
+// The expression is degree-1 in materialized values, so consecutive chain
+// steps can consume it inside their deferred zero-assertions instead of
+// materializing y at every iteration (one Eval saved per iteration). The
+// encoding resets at every addition — the implicit form always references
+// only the most recent slope — so expressions do not grow with chain length.
+type implicitAcc[B emulated.FieldParams] struct {
+	x   *emulated.Element[B]
+	lam *emulated.Element[B]
+	xT  *emulated.Element[B]
+	yT  *emulated.Element[B]
+}
+
+// implicitFromAffine encodes a materialized point: with xT = x the lam term
+// vanishes identically for any lam, and yT = −y recovers y.
+func (c *Curve[B, S]) implicitFromAffine(p *AffinePoint[B]) *implicitAcc[B] {
+	return &implicitAcc[B]{x: &p.X, lam: &p.X, xT: &p.X, yT: c.baseApi.Neg(&p.Y)}
+}
+
+// implicitToAffine materializes the accumulator y-coordinate.
+func (c *Curve[B, S]) implicitToAffine(acc *implicitAcc[B]) *AffinePoint[B] {
+	y := c.baseApi.Eval(
+		[][]*emulated.Element[B]{{acc.lam, c.baseApi.Sub(acc.xT, acc.x)}, {acc.yT}},
+		[]int{1, -1},
+	)
+	return &AffinePoint[B]{X: *acc.x, Y: *y}
+}
+
+// implicitDoubleAndAdd sets acc = 2·acc + q using incomplete formulas with
+// the accumulator y kept implicit throughout: the doubling tangent and the
+// addition chord are each certified by a single deferred zero-assertion which
+// consumes the implicit y, and only the two x-coordinates are materialized.
+//
+// ⚠️  Incomplete: requires j-invariant 0 (a = 0), acc not 2-torsion and
+// q ≠ ±[2]acc — the same exceptional envelope as the ELM-based doubleAndAdd
+// it replaces in the incomplete scalar-multiplication loops, where the
+// accumulator anchoring excludes these cases for honest witnesses.
+func (c *Curve[B, S]) implicitDoubleAndAdd(acc *implicitAcc[B], q *AffinePoint[B]) {
+	// tangent: λd·2y = 3x² with y = lam·(xT − x) − yT:
+	//   2·λd·lam·(xT − x) − 2·λd·yT − 3·x² ≡ 0
+	lamDs, err := c.baseApi.NewHint(implicitTangentHint, 1, acc.lam, acc.x, acc.xT, acc.yT)
+	if err != nil {
+		panic(fmt.Sprintf("implicit tangent hint: %v", err))
+	}
+	lamD := lamDs[0]
+	dxPrev := c.baseApi.Sub(acc.xT, acc.x)
+	c.baseApi.AssertEvalIsZero(
+		[][]*emulated.Element[B]{{lamD, acc.lam, dxPrev}, {lamD, acc.yT}, {acc.x, acc.x}},
+		[]int{2, -2, -3},
+	)
+	// xd = λd² − 2x
+	xd := c.baseApi.Eval([][]*emulated.Element[B]{{lamD, lamD}, {acc.x}}, []int{1, -2})
+
+	// chord through q: λa·(xq − xd) = yq − yd with
+	// yd = λd·(x − xd) − y = λd·(x − xd) − lam·(xT − x) + yT:
+	//   λa·(xq − xd) + λd·(x − xd) − lam·(xT − x) + yT − yq ≡ 0
+	lamAs, err := c.baseApi.NewHint(implicitChordHint, 1, acc.lam, acc.x, acc.xT, acc.yT, lamD, xd, &q.X, &q.Y)
+	if err != nil {
+		panic(fmt.Sprintf("implicit chord hint: %v", err))
+	}
+	lamA := lamAs[0]
+	dxq := c.baseApi.Sub(&q.X, xd)
+	dxd := c.baseApi.Sub(acc.x, xd)
+	c.baseApi.AssertEvalIsZero(
+		[][]*emulated.Element[B]{{lamA, dxq}, {lamD, dxd}, {acc.lam, dxPrev}, {acc.yT}, {&q.Y}},
+		[]int{1, 1, -1, 1, -1},
+	)
+	// xa = λa² − xd − xq
+	xa := c.baseApi.Eval([][]*emulated.Element[B]{{lamA, lamA}, {xd}, {&q.X}}, []int{1, -1, -1})
+
+	// the new implicit y references only this addition: y = λa·(xq − xa) − yq
+	acc.x = xa
+	acc.lam = lamA
+	acc.xT = &q.X
+	acc.yT = &q.Y
+}
+
+// implicitYVal recomputes the implicit accumulator y = lam·(xT − x) − yT.
+func implicitYVal(p, lam, x, xT, yT *big.Int) *big.Int {
+	y := new(big.Int).Sub(xT, x)
+	y.Mul(y, lam).Sub(y, yT).Mod(y, p)
+	return y
+}
+
+// implicitTangentHint computes the doubling slope 3x²/(2y) (a = 0 curves)
+// with y in implicit form. Inputs: lam, x, xT, yT. Returns 0 when y ≡ 0.
+func implicitTangentHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(p *big.Int, in, out []*big.Int) error {
+		if len(in) != 4 || len(out) != 1 {
+			return errors.New("expecting four inputs and one output")
+		}
+		lam := new(big.Int).Mod(in[0], p)
+		x := new(big.Int).Mod(in[1], p)
+		xT := new(big.Int).Mod(in[2], p)
+		yT := new(big.Int).Mod(in[3], p)
+		y := implicitYVal(p, lam, x, xT, yT)
+		return tangentSlopeVal(p, x, y, nil, out[0])
+	})
+}
+
+// implicitChordHint computes the second slope of the implicit double-and-add:
+// λa = (yq − yd)/(xq − xd) with yd = λd·(x − xd) − y and y in implicit form.
+// Inputs: lam, x, xT, yT, λd, xd, xq, yq. Returns 0 when xq ≡ xd.
+func implicitChordHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(p *big.Int, in, out []*big.Int) error {
+		if len(in) != 8 || len(out) != 1 {
+			return errors.New("expecting eight inputs and one output")
+		}
+		lam := new(big.Int).Mod(in[0], p)
+		x := new(big.Int).Mod(in[1], p)
+		xT := new(big.Int).Mod(in[2], p)
+		yT := new(big.Int).Mod(in[3], p)
+		lamD := new(big.Int).Mod(in[4], p)
+		xd := new(big.Int).Mod(in[5], p)
+		xq := new(big.Int).Mod(in[6], p)
+		yq := new(big.Int).Mod(in[7], p)
+		y := implicitYVal(p, lam, x, xT, yT)
+		yd := new(big.Int).Sub(x, xd)
+		yd.Mul(yd, lamD).Sub(yd, y).Mod(yd, p)
+		den := new(big.Int).Sub(xq, xd)
+		den.Mod(den, p)
+		if den.Sign() == 0 {
+			out[0].SetInt64(0)
+			return nil
+		}
+		den.ModInverse(den, p)
+		out[0].Sub(yq, yd)
+		out[0].Mul(out[0], den).Mod(out[0], p)
+		return nil
+	})
+}

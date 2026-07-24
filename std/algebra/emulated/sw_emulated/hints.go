@@ -41,6 +41,8 @@ func GetHints() []solver.Hint {
 		tangentHintA,
 		unifiedSlopeHint,
 		bjSlopeHint,
+		implicitTangentHint,
+		implicitChordHint,
 	}
 }
 
