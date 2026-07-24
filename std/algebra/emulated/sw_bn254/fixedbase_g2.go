@@ -257,13 +257,53 @@ func (g2 *G2) g2CombSelect(table [][4]*big.Int, bs []frontend.Variable) g2AffP {
 	}
 }
 
-// g2CombAdd is the incomplete chord addition over E2 (complete on the comb
-// chain by the collision-freeness argument).
-func (g2 *G2) g2CombAdd(p, q *g2AffP) *g2AffP {
-	lam := g2.Ext2.DivUnchecked(g2.Ext2.Sub(&q.Y, &p.Y), g2.Ext2.Sub(&q.X, &p.X))
-	xr := g2.Ext2.Sub(g2.Ext2.Square(lam), g2.Ext2.Add(&p.X, &q.X))
-	yr := g2.Ext2.Sub(g2.Ext2.Mul(lam, g2.Ext2.Sub(&p.X, xr)), &p.Y)
-	return &g2AffP{X: *xr, Y: *yr}
+// g2CombChainStep performs one incomplete chord addition of the comb chain
+// with the accumulator y-coordinate kept implicit (y = λprev·(xTprev − x) −
+// yTprev over E2, as in the G1 comb): the slope λ ∈ Fp² is witnessed by a
+// hint and certified by two deferred zero-assertions (one per E2 component,
+// with the u² = −1 cross terms), and only the two x-components are
+// materialized. This costs 4 deferred checks per addition instead of ~9 for
+// the DivUnchecked/Square/Mul formulation.
+func (g2 *G2) g2CombChainStep(lamPrev, xAcc, xTPrev, yTPrev *fields_bn254.E2, q *g2AffP) (lam, xNew *fields_bn254.E2) {
+	lams, err := g2.fp.NewHint(g2CombChainLambdaHint, 2,
+		&lamPrev.A0, &lamPrev.A1, &xAcc.A0, &xAcc.A1,
+		&xTPrev.A0, &xTPrev.A1, &yTPrev.A0, &yTPrev.A1,
+		&q.X.A0, &q.X.A1, &q.Y.A0, &q.Y.A1)
+	if err != nil {
+		panic(fmt.Sprintf("comb chain hint: %v", err))
+	}
+	lam = &fields_bn254.E2{A0: *lams[0], A1: *lams[1]}
+	dxC := g2.Ext2.Sub(&q.X, xAcc)
+	dxP := g2.Ext2.Sub(xTPrev, xAcc)
+	// slope identity λ·(xT − x) + λprev·(xTprev − x) − yT − yTprev = 0 (E2),
+	// component 0 (u² = −1):
+	g2.fp.AssertEvalIsZero(
+		[][]*emulated.Element[BaseField]{
+			{&lam.A0, &dxC.A0}, {&lam.A1, &dxC.A1},
+			{&lamPrev.A0, &dxP.A0}, {&lamPrev.A1, &dxP.A1},
+			{&q.Y.A0}, {&yTPrev.A0},
+		},
+		[]int{1, -1, 1, -1, -1, -1},
+	)
+	// component 1:
+	g2.fp.AssertEvalIsZero(
+		[][]*emulated.Element[BaseField]{
+			{&lam.A0, &dxC.A1}, {&lam.A1, &dxC.A0},
+			{&lamPrev.A0, &dxP.A1}, {&lamPrev.A1, &dxP.A0},
+			{&q.Y.A1}, {&yTPrev.A1},
+		},
+		[]int{1, 1, 1, 1, -1, -1},
+	)
+	// x' = λ² − x − xT componentwise: (λ0² − λ1², 2λ0λ1) − ...
+	x0 := g2.fp.Eval(
+		[][]*emulated.Element[BaseField]{{&lam.A0, &lam.A0}, {&lam.A1, &lam.A1}, {&xAcc.A0}, {&q.X.A0}},
+		[]int{1, -1, -1, -1},
+	)
+	x1 := g2.fp.Eval(
+		[][]*emulated.Element[BaseField]{{&lam.A0, &lam.A1}, {&xAcc.A1}, {&q.X.A1}},
+		[]int{2, -1, -1},
+	)
+	return lam, &fields_bn254.E2{A0: *x0, A1: *x1}
 }
 
 // scalarMulComb computes [s]P for the constant base point of the tables d.
@@ -298,11 +338,34 @@ func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
 	pts[nw-1] = g2.g2CombSelect(stacked, topBits)
 
 	nbInc := nw - 1 - d.nbUnified
-	acc := &pts[0]
-	for t := 1; t <= nbInc; t++ {
-		acc = g2.g2CombAdd(acc, &pts[t])
+	var res *G2Affine
+	if nbInc >= 1 {
+		// implicit-y chain: at the first step the accumulator is T_0 whose
+		// y is directly available; encode it as λprev·(xTprev − x) − yTprev
+		// with xTprev = x = xT0 and yTprev = −yT0, so the λprev term
+		// vanishes identically for any λprev (we pass xT0 as a dummy).
+		xAcc := &pts[0].X
+		lamPrev := &pts[0].X
+		xTPrev := &pts[0].X
+		yTPrev := g2.Ext2.Neg(&pts[0].Y)
+		for t := 1; t <= nbInc; t++ {
+			lamPrev, xAcc = g2.g2CombChainStep(lamPrev, xAcc, xTPrev, yTPrev, &pts[t])
+			xTPrev, yTPrev = &pts[t].X, &pts[t].Y
+		}
+		// materialize y = λprev·(xTprev − x) − yTprev once
+		dy := g2.Ext2.Sub(xTPrev, xAcc)
+		y0 := g2.fp.Eval(
+			[][]*emulated.Element[BaseField]{{&lamPrev.A0, &dy.A0}, {&lamPrev.A1, &dy.A1}, {&yTPrev.A0}},
+			[]int{1, -1, -1},
+		)
+		y1 := g2.fp.Eval(
+			[][]*emulated.Element[BaseField]{{&lamPrev.A0, &dy.A1}, {&lamPrev.A1, &dy.A0}, {&yTPrev.A1}},
+			[]int{1, 1, -1},
+		)
+		res = &G2Affine{P: g2AffP{X: *xAcc, Y: fields_bn254.E2{A0: *y0, A1: *y1}}}
+	} else {
+		res = &G2Affine{P: pts[0]}
 	}
-	res := &G2Affine{P: *acc}
 	for t := nbInc + 1; t <= nw-1; t++ {
 		res = g2.AddUnified(res, &G2Affine{P: pts[t]})
 	}
@@ -362,6 +425,57 @@ func g2CombRecodeHint(_ *big.Int, inputs, outputs []*big.Int) error {
 		for i := 0; i < n; i++ {
 			out[1+i].SetUint64(uint64(cv.Bit(i)))
 		}
+		return nil
+	})
+}
+
+// g2CombChainLambdaHint computes the chord slope of the next comb chain
+// addition over Fp² (u² = −1). Inputs (component pairs): λprev, x, xTprev,
+// yTprev, xT, yT. The accumulator y is recomputed in its implicit form
+// y = λprev·(xTprev − x) − yTprev and the output is λ = (yT − y)/(xT − x).
+func g2CombChainLambdaHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(p *big.Int, in, out []*big.Int) error {
+		if len(in) != 12 || len(out) != 2 {
+			return errors.New("expecting twelve inputs and two outputs")
+		}
+		mod := func(v *big.Int) *big.Int { return new(big.Int).Mod(v, p) }
+		lamP := [2]*big.Int{mod(in[0]), mod(in[1])}
+		x := [2]*big.Int{mod(in[2]), mod(in[3])}
+		xTp := [2]*big.Int{mod(in[4]), mod(in[5])}
+		yTp := [2]*big.Int{mod(in[6]), mod(in[7])}
+		xT := [2]*big.Int{mod(in[8]), mod(in[9])}
+		yT := [2]*big.Int{mod(in[10]), mod(in[11])}
+		e2Sub := func(a, b [2]*big.Int) [2]*big.Int {
+			return [2]*big.Int{
+				new(big.Int).Mod(new(big.Int).Sub(a[0], b[0]), p),
+				new(big.Int).Mod(new(big.Int).Sub(a[1], b[1]), p),
+			}
+		}
+		e2Mul := func(a, b [2]*big.Int) [2]*big.Int {
+			c0 := new(big.Int).Mul(a[0], b[0])
+			c0.Sub(c0, new(big.Int).Mul(a[1], b[1])).Mod(c0, p)
+			c1 := new(big.Int).Mul(a[0], b[1])
+			c1.Add(c1, new(big.Int).Mul(a[1], b[0])).Mod(c1, p)
+			return [2]*big.Int{c0, c1}
+		}
+		// y = λprev·(xTprev − x) − yTprev
+		y := e2Mul(lamP, e2Sub(xTp, x))
+		y = e2Sub(y, yTp)
+		den := e2Sub(xT, x)
+		// den⁻¹ = (den0 − den1·u)/(den0² + den1²)
+		nrm := new(big.Int).Mul(den[0], den[0])
+		nrm.Add(nrm, new(big.Int).Mul(den[1], den[1])).Mod(nrm, p)
+		if nrm.Sign() == 0 {
+			return errors.New("comb chain: x-coordinate collision")
+		}
+		nrm.ModInverse(nrm, p)
+		inv := [2]*big.Int{
+			new(big.Int).Mod(new(big.Int).Mul(den[0], nrm), p),
+			new(big.Int).Mod(new(big.Int).Mul(new(big.Int).Neg(den[1]), nrm), p),
+		}
+		lam := e2Mul(e2Sub(yT, y), inv)
+		out[0].Set(lam[0])
+		out[1].Set(lam[1])
 		return nil
 	})
 }
