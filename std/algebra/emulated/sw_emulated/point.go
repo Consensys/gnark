@@ -667,7 +667,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 			// at compile time that (px, py) is a finite curve point of prime
 			// order r; otherwise we fall back to the variable-base methods
 			// below which have no such requirement.
-			if d, err := c.combDataFor(px, py, combDefaultWindow); err == nil {
+			if d, err := c.combDataFor(px, py, c.combWindow()); err == nil {
 				return c.scalarMulComb(d, s)
 			}
 		}
@@ -1287,8 +1287,8 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 //   - curves with an efficient endomorphism inherit the documented exceptional
 //     set of [Curve.scalarMulGLVAndFakeGLV].
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	if _, err := c.combData(combDefaultWindow); err == nil {
-		return c.scalarMulBaseComb(s, combDefaultWindow)
+	if _, err := c.combData(c.combWindow()); err == nil {
+		return c.scalarMulBaseComb(s, c.combWindow())
 	}
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(c.Generator(), s, opts...)
@@ -1330,7 +1330,7 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	if _, cerr := c.combData(combDefaultWindow); cerr == nil && !cfg.IncompleteArithmetic {
+	if _, cerr := c.combData(c.combWindow()); cerr == nil && !cfg.IncompleteArithmetic {
 		// In complete mode, compute the fixed-base part with the comb method
 		// (complete, handles s1 = 0) and the variable-base part separately,
 		// and merge with the complete addition. This is cheaper than two
@@ -1343,7 +1343,7 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 		// to the generator (e.g. p = [2]g fails for a noticeable fraction of
 		// scalars), whereas the joint Shamir-based algorithm below handles
 		// those points.
-		sm1 := c.scalarMulBaseComb(s1, combDefaultWindow)
+		sm1 := c.scalarMulBaseComb(s1, c.combWindow())
 		sm2 := c.ScalarMul(p, s2, opts...)
 		return c.AddUnified(sm1, sm2)
 	}
@@ -1394,7 +1394,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 			var d *combData
 			if px, ok := c.baseApi.ConstantValue(&p[i].X); ok {
 				if py, ok := c.baseApi.ConstantValue(&p[i].Y); ok {
-					if dd, derr := c.combDataFor(px, py, combDefaultWindow); derr == nil {
+					if dd, derr := c.combDataFor(px, py, c.combWindow()); derr == nil {
 						d = dd
 					}
 				}

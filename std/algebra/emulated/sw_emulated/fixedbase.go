@@ -53,6 +53,22 @@ import (
 // constraint-count optimum in R1CS.
 const combDefaultWindow = 8
 
+// combPlonkWindow is the window width used on PLONKish backends. The one-hot
+// selection's wide constant linear combinations are free in R1CS but expand
+// into one addition gate per term in PLONK, making the selector cost scale
+// with 2^w·nbLimbs per window; a smaller window rebalances selector versus
+// chain-addition cost (measured on secp256k1: w=4 is ~35% cheaper than w=8 in
+// scs, while w=8 remains ~30% cheaper than w=4 in R1CS).
+const combPlonkWindow = 4
+
+// combWindow returns the comb window width for the current backend.
+func (c *Curve[B, S]) combWindow() int {
+	if _, ok := c.api.Compiler().(frontend.PlonkAPI); ok {
+		return combPlonkWindow
+	}
+	return combDefaultWindow
+}
+
 // combData holds the compile-time data of the comb: the constant window
 // tables and the derived parameters.
 type combData struct {

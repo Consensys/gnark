@@ -439,3 +439,36 @@ func TestMSMConstRoutingCount(t *testing.T) {
 	assert.NoError(err)
 	t.Log("MSM 4 terms (2 const + 2 var) r1cs =", ccs.GetNbConstraints())
 }
+
+// TestScalarMulBaseCombPlonkSelector validates the comb on an actual PLONKish
+// (scs) compilation, end-to-end through witness solving.
+func TestScalarMulBaseCombPlonkSelector(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	r := fr_secp.Modulus()
+	randFn := func() *big.Int {
+		var rnd fr_secp.Element
+		_, _ = rnd.SetRandom()
+		return rnd.BigInt(new(big.Int))
+	}
+	// ScalarMulBaseTest goes through the public dispatch, which picks the
+	// PLONK window on scs
+	circuit := ScalarMulBaseTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	ccs, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
+	assert.NoError(err)
+	t.Log("ScalarMulBase scs constraints =", ccs.GetNbConstraints())
+	for _, s := range []*big.Int{big.NewInt(0), big.NewInt(1), new(big.Int).Sub(r, big.NewInt(1)), randFn()} {
+		var S secp256k1.G1Affine
+		S.ScalarMultiplication(&g, s)
+		witness := ScalarMulBaseTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Q: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+			},
+		}
+		w, err := frontend.NewWitness(&witness, testCurve.ScalarField())
+		assert.NoError(err)
+		assert.NoError(ccs.IsSolved(w), "s=%s", s.String())
+	}
+}

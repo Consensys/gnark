@@ -24,6 +24,19 @@ import (
 // complete AddUnified tail.
 const g2CombWindow = 8
 
+// g2CombPlonkWindow is the window width on PLONKish backends, where the
+// one-hot selection's constant linear combinations expand into addition
+// gates (see the G1 comb in sw_emulated).
+const g2CombPlonkWindow = 4
+
+// g2CombWindowFor returns the comb window width for the current backend.
+func (g2 *G2) g2CombWindowFor() int {
+	if _, ok := g2.api.Compiler().(frontend.PlonkAPI); ok {
+		return g2CombPlonkWindow
+	}
+	return g2CombWindow
+}
+
 type g2CombData struct {
 	w         int
 	nw        int
@@ -36,8 +49,8 @@ type g2CombData struct {
 
 var g2CombCache sync.Map
 
-func g2CombDataFor(x0, x1, y0, y1 *big.Int) (*g2CombData, error) {
-	key := x0.Text(16) + "|" + x1.Text(16) + "|" + y0.Text(16) + "|" + y1.Text(16)
+func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
+	key := fmt.Sprintf("%d|%s|%s|%s|%s", w, x0.Text(16), x1.Text(16), y0.Text(16), y1.Text(16))
 	if v, ok := g2CombCache.Load(key); ok {
 		return v.(*g2CombData), nil
 	}
@@ -55,7 +68,6 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int) (*g2CombData, error) {
 	if !P.IsInSubGroup() {
 		return nil, errors.New("base point is not in the prime-order subgroup")
 	}
-	w := g2CombWindow
 	r := fr_bls.Modulus()
 	rBits := r.BitLen()
 	nw := (rBits + w - 1) / w
@@ -395,7 +407,7 @@ func (g2 *G2) g2CombTryConst(Q *G2Affine) (*g2CombData, bool) {
 	if !ok {
 		return nil, false
 	}
-	d, err := g2CombDataFor(x0, x1, y0, y1)
+	d, err := g2CombDataFor(x0, x1, y0, y1, g2.g2CombWindowFor())
 	if err != nil {
 		return nil, false
 	}
