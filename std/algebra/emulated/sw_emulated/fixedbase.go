@@ -120,13 +120,64 @@ func combDouble(p *combAffine, a, prime *big.Int) (*combAffine, error) {
 	return &combAffine{x: xr, y: yr}, nil
 }
 
+// combCheckPoint checks that the base point (gx, gy) is a finite point on the
+// curve y² = x³ + ax + b of prime order r: it verifies the curve equation and
+// that [r−1](gx, gy) = −(gx, gy). Both are required for the comb soundness
+// argument: the window tables must contain no point at infinity and the
+// partial-sum collision analysis works modulo the order of the base point.
+func combCheckPoint(gx, gy, a, b, prime, r *big.Int) error {
+	if gx.Sign() == 0 && gy.Sign() == 0 {
+		return errors.New("base point is the point at infinity")
+	}
+	lhs := new(big.Int).Mul(gy, gy)
+	lhs.Mod(lhs, prime)
+	rhs := new(big.Int).Mul(gx, gx)
+	rhs.Mul(rhs, gx)
+	if a != nil && a.Sign() != 0 {
+		rhs.Add(rhs, new(big.Int).Mul(a, gx))
+	}
+	if b != nil {
+		rhs.Add(rhs, b)
+	}
+	rhs.Mod(rhs, prime)
+	if lhs.Cmp(rhs) != 0 {
+		return errors.New("base point is not on the curve")
+	}
+	// check [r−1]P = −P by double-and-add. The intermediate partial sums are
+	// [m]P with 0 < m < r−1, so if ord(P) = r the chain never encounters the
+	// point at infinity nor an x-collision; conversely any such failure means
+	// ord(P) ≠ r and we reject.
+	P := &combAffine{x: gx, y: gy}
+	e := new(big.Int).Sub(r, big.NewInt(1))
+	acc := P
+	var err error
+	for i := e.BitLen() - 2; i >= 0; i-- {
+		if acc, err = combDouble(acc, a, prime); err != nil {
+			return fmt.Errorf("base point order check: %w", err)
+		}
+		if e.Bit(i) == 1 {
+			if acc, err = combAdd(acc, P, prime); err != nil {
+				return fmt.Errorf("base point order check: %w", err)
+			}
+		}
+	}
+	negP := combNeg(P, prime)
+	if acc.x.Cmp(negP.x) != 0 || acc.y.Cmp(negP.y) != 0 {
+		return errors.New("base point does not have prime order r")
+	}
+	return nil
+}
+
 // computeCombData computes the comb tables for the curve y² = x³ + ax + b
 // over the prime field of modulus prime, with base point (gx, gy) of prime
 // order r, window width w and a recoded-scalar capacity of scalarCap bits
 // (the recomposition capacity of the scalar field emulation).
-func computeCombData(gx, gy, a, prime, r *big.Int, w int, scalarCap int) (*combData, error) {
+func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*combData, error) {
 	if w < 2 || w > 14 {
 		return nil, fmt.Errorf("unsupported window width %d", w)
+	}
+	if err := combCheckPoint(gx, gy, a, b, prime, r); err != nil {
+		return nil, err
 	}
 	rBits := r.BitLen()
 	nw := (rBits + w - 1) / w
@@ -208,21 +259,32 @@ func computeCombData(gx, gy, a, prime, r *big.Int, w int, scalarCap int) (*combD
 	}, nil
 }
 
-// combData returns the (cached) comb tables for the given window width.
+// combData returns the (cached) comb tables for the generator and the given
+// window width.
 func (c *Curve[B, S]) combData(w int) (*combData, error) {
-	if d, ok := c.combCache[w]; ok {
+	return c.combDataFor(c.params.Gx, c.params.Gy, w)
+}
+
+// combDataFor returns the (cached) comb tables for the given constant base
+// point and window width. It returns an error when the tables cannot be
+// constructed: unsupported window width, recoded scalar exceeding the scalar
+// field emulation capacity, or a base point which is not a finite curve point
+// of prime order r.
+func (c *Curve[B, S]) combDataFor(gx, gy *big.Int, w int) (*combData, error) {
+	key := fmt.Sprintf("%d|%s|%s", w, gx.Text(16), gy.Text(16))
+	if d, ok := c.combCache[key]; ok {
 		return d, nil
 	}
 	var fp B
 	var fr S
-	d, err := computeCombData(c.params.Gx, c.params.Gy, c.params.A, fp.Modulus(), fr.Modulus(), w, int(fr.NbLimbs()*fr.BitsPerLimb()))
+	d, err := computeCombData(gx, gy, c.params.A, c.params.B, fp.Modulus(), fr.Modulus(), w, int(fr.NbLimbs()*fr.BitsPerLimb()))
 	if err != nil {
 		return nil, err
 	}
 	if c.combCache == nil {
-		c.combCache = make(map[int]*combData)
+		c.combCache = make(map[string]*combData)
 	}
-	c.combCache[w] = d
+	c.combCache[key] = d
 	return d, nil
 }
 
@@ -346,6 +408,13 @@ func (c *Curve[B, S]) scalarMulBaseComb(s *emulated.Element[S], w int) *AffinePo
 	if err != nil {
 		panic(fmt.Sprintf("comb data: %v", err))
 	}
+	return c.scalarMulComb(d, s)
+}
+
+// scalarMulComb computes [s]P where P is the compile-time constant base point
+// of the comb tables d. It returns (0,0) when s ≡ 0 (mod r).
+func (c *Curve[B, S]) scalarMulComb(d *combData, s *emulated.Element[S]) *AffinePoint[B] {
+	w := d.w
 	n, nw := d.n, d.nw
 
 	// scalar recode: b0 = parity of s, c = (k' + 2^n − 1)/2 with

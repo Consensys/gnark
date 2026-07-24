@@ -53,3 +53,34 @@ func TestJointCombCount(t *testing.T) {
 		t.Log("mode", mode, "r1cs constraints =", ccs.GetNbConstraints())
 	}
 }
+
+type constPointCountCircuit struct {
+	S emulated.Element[emulated.Secp256k1Fr]
+	Q AffinePoint[emulated.Secp256k1Fp]
+}
+
+func (c *constPointCountCircuit) Define(api frontend.API) error {
+	cr, err := New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, GetCurveParams[emulated.Secp256k1Fp]())
+	if err != nil {
+		return err
+	}
+	// constant point (not the generator)
+	P := AffinePoint[emulated.Secp256k1Fp]{
+		X: emulated.ValueOf[emulated.Secp256k1Fp]("89565891926547004231252920425935692360644145829622209833684329913297188986597"),
+		Y: emulated.ValueOf[emulated.Secp256k1Fp]("12158399299693830322967808612713398636155367887041628176798871954788371653930"),
+	}
+	res := cr.ScalarMul(&P, &c.S)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestConstPointScalarMulCount(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	assert := test.NewAssert(t)
+	circuit := constPointCountCircuit{}
+	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(err)
+	t.Log("constant-point ScalarMul r1cs constraints =", ccs.GetNbConstraints())
+}

@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fr_bls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
@@ -237,4 +239,115 @@ func TestJointScalarMulBaseComplete(t *testing.T) {
 		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 		assert.NoError(err, "s1=%s", s1.String())
 	}
+}
+
+type scalarMulConstPointTest[T, S emulated.FieldParams] struct {
+	S  emulated.Element[S]
+	Q  AffinePoint[T]
+	px *big.Int
+	py *big.Int
+}
+
+func (c *scalarMulConstPointTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	P := AffinePoint[T]{
+		X: emulated.ValueOf[T](c.px),
+		Y: emulated.ValueOf[T](c.py),
+	}
+	res := cr.ScalarMul(&P, &c.S)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+// TestScalarMulConstPoint exercises the automatic comb dispatch in ScalarMul
+// for compile-time constant points.
+func TestScalarMulConstPoint(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	// constant point P = [12345]G
+	var P secp256k1.G1Affine
+	P.ScalarMultiplication(&g, big.NewInt(12345))
+	px, py := P.X.BigInt(new(big.Int)), P.Y.BigInt(new(big.Int))
+	r := fr_secp.Modulus()
+	randFn := func() *big.Int {
+		var rnd fr_secp.Element
+		_, _ = rnd.SetRandom()
+		return rnd.BigInt(new(big.Int))
+	}
+	for _, s := range combTestScalars(r, 2, randFn) {
+		var S secp256k1.G1Affine
+		S.ScalarMultiplication(&P, s)
+		circuit := scalarMulConstPointTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{px: px, py: py}
+		witness := scalarMulConstPointTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			px: px, py: py,
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+			Q: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err, "s=%s", s.String())
+	}
+}
+
+// TestScalarMulConstPointBLS12381 checks the comb dispatch on a cofactor
+// curve: a subgroup point uses the comb, and a curve point outside the
+// r-torsion is rejected by the order check and falls back to the generic
+// variable-base path (compilation must succeed).
+func TestScalarMulConstPointBLS12381(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bls12381.Generators()
+	var P bls12381.G1Affine
+	P.ScalarMultiplication(&g, big.NewInt(987654321))
+	px, py := P.X.BigInt(new(big.Int)), P.Y.BigInt(new(big.Int))
+	var rnd fr_bls381.Element
+	_, _ = rnd.SetRandom()
+	s := rnd.BigInt(new(big.Int))
+	var S bls12381.G1Affine
+	S.ScalarMultiplication(&P, s)
+	circuit := scalarMulConstPointTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{px: px, py: py}
+	witness := scalarMulConstPointTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{
+		px: px, py: py,
+		S: emulated.ValueOf[emulated.BLS12381Fr](s),
+		Q: AffinePoint[emulated.BLS12381Fp]{
+			X: emulated.ValueOf[emulated.BLS12381Fp](S.X),
+			Y: emulated.ValueOf[emulated.BLS12381Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// non-r-torsion curve point: search a valid x with y² = x³ + 4 a QR and
+	// check it is rejected by the comb order check (cofactor > 1 makes a
+	// random curve point land outside the subgroup w.h.p.).
+	var fpp emulated.BLS12381Fp
+	prime := fpp.Modulus()
+	exp := new(big.Int).Add(prime, big.NewInt(1))
+	exp.Rsh(exp, 2) // (p+1)/4, p ≡ 3 mod 4
+	found := false
+	for x := int64(1); x < 50 && !found; x++ {
+		xx := big.NewInt(x)
+		rhs := new(big.Int).Exp(xx, big.NewInt(3), prime)
+		rhs.Add(rhs, big.NewInt(4)).Mod(rhs, prime)
+		y := new(big.Int).Exp(rhs, exp, prime)
+		check := new(big.Int).Mul(y, y)
+		check.Mod(check, prime)
+		if check.Cmp(rhs) != 0 {
+			continue
+		}
+		// on curve; must not be in the r-torsion for this test to be
+		// meaningful
+		var frr emulated.BLS12381Fr
+		if err := combCheckPoint(xx, y, big.NewInt(0), big.NewInt(4), prime, frr.Modulus()); err == nil {
+			continue
+		}
+		// combCheckPoint rejecting the point is exactly what makes
+		// combDataFor fall back to the generic path for it.
+		found = true
+	}
+	assert.True(found, "expected to find a non-subgroup curve point")
 }

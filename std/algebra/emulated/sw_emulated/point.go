@@ -77,8 +77,9 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	eigenvalue   *emulated.Element[Scalars]
 	thirdRootOne *emulated.Element[Base]
 
-	// combCache caches the fixed-base comb tables per window width.
-	combCache map[int]*combData
+	// combCache caches the fixed-base comb tables per base point and window
+	// width.
+	combCache map[string]*combData
 }
 
 // Generator returns the base point of the curve. The method does not copy and
@@ -646,7 +647,25 @@ func (c *Curve[B, S]) muxY8Signed(signBit frontend.Variable, selector frontend.V
 // N.B. For scalarMulGLVAndFakeGLV, the result is undefined when the input point is
 // not on the prime order subgroup. For scalarMulFakeGLV the result is well
 // defined for any point on the curve
+//
+// When p is a compile-time constant point of prime order r (for example a
+// point from a fixed verification key or SRS), the method automatically uses
+// the fixed-base comb method with precomputed tables (see
+// [Curve.scalarMulComb]), which uses complete arithmetic and is significantly
+// cheaper. In this case the [algopts.WithIncompleteArithmetic] option is a
+// no-op.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	if px, ok := c.baseApi.ConstantValue(&p.X); ok {
+		if py, ok := c.baseApi.ConstantValue(&p.Y); ok {
+			// constant point: try the fixed-base comb. combDataFor verifies
+			// at compile time that (px, py) is a finite curve point of prime
+			// order r; otherwise we fall back to the variable-base methods
+			// below which have no such requirement.
+			if d, err := c.combDataFor(px, py, combDefaultWindow); err == nil {
+				return c.scalarMulComb(d, s)
+			}
+		}
+	}
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(p, s, opts...)
 

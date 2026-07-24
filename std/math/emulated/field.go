@@ -313,6 +313,18 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 	return
 }
 
+// ConstantValue returns the constant value of the element modulo the field
+// modulus and a boolean indicating if the element is in fact a compile-time
+// constant. It allows gadgets to specialize for constant inputs (for example
+// scalar multiplication by a constant point can use precomputed tables).
+func (f *Field[T]) ConstantValue(v *Element[T]) (*big.Int, bool) {
+	c, ok := f.constantValue(v)
+	if !ok {
+		return nil, false
+	}
+	return c.Mod(c, f.fParams.Modulus()), true
+}
+
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	// this case happens when we have called [ValueOf] inside a circuit as
 	// [Element.Initialize] has not been called (Limbs are nil). In this case,
