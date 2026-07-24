@@ -1383,16 +1383,51 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		if len(p) != len(s) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
-		n := len(p)
+		// route compile-time constant points of prime order through the
+		// fixed-base comb (complete arithmetic, much cheaper) and fold only
+		// the remaining variable points through the joint scalar
+		// multiplications.
 		var res *AffinePoint[B]
-		if n%2 == 1 {
-			res = c.ScalarMul(p[n-1], s[n-1], opts...)
-		} else {
-			res = c.jointScalarMul(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
+		varP := make([]*AffinePoint[B], 0, len(p))
+		varS := make([]*emulated.Element[S], 0, len(s))
+		for i := range p {
+			var d *combData
+			if px, ok := c.baseApi.ConstantValue(&p[i].X); ok {
+				if py, ok := c.baseApi.ConstantValue(&p[i].Y); ok {
+					if dd, derr := c.combDataFor(px, py, combDefaultWindow); derr == nil {
+						d = dd
+					}
+				}
+			}
+			if d == nil {
+				varP = append(varP, p[i])
+				varS = append(varS, s[i])
+				continue
+			}
+			q := c.scalarMulComb(d, s[i])
+			if res == nil {
+				res = q
+			} else {
+				res = addFn(res, q)
+			}
 		}
-		for i := 1; i < n-1; i += 2 {
-			q := c.jointScalarMul(p[i-1], p[i], s[i-1], s[i], opts...)
-			res = addFn(res, q)
+		n := len(varP)
+		if n > 0 {
+			var vres *AffinePoint[B]
+			if n%2 == 1 {
+				vres = c.ScalarMul(varP[n-1], varS[n-1], opts...)
+			} else {
+				vres = c.jointScalarMul(varP[n-2], varP[n-1], varS[n-2], varS[n-1], opts...)
+			}
+			for i := 1; i < n-1; i += 2 {
+				q := c.jointScalarMul(varP[i-1], varP[i], varS[i-1], varS[i], opts...)
+				vres = addFn(vres, q)
+			}
+			if res == nil {
+				res = vres
+			} else {
+				res = addFn(res, vres)
+			}
 		}
 		return res, nil
 	} else {

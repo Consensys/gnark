@@ -351,3 +351,91 @@ func TestScalarMulConstPointBLS12381(t *testing.T) {
 	}
 	assert.True(found, "expected to find a non-subgroup curve point")
 }
+
+type msmMixedTest[T, S emulated.FieldParams] struct {
+	P      AffinePoint[T] // variable point
+	S      [4]emulated.Element[S]
+	Q      AffinePoint[T]
+	useOld bool
+}
+
+func (c *msmMixedTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	// two constant points (G and 2G), two variable (P twice to keep the
+	// witness small)
+	g := cr.Generator()
+	g2 := AffinePoint[T]{
+		X: *cr.baseApi.NewElement(cr.params.Gm[0][0]),
+		Y: *cr.baseApi.NewElement(cr.params.Gm[0][1]),
+	}
+	pts := []*AffinePoint[T]{g, &g2, &c.P, &c.P}
+	scs := []*emulated.Element[S]{&c.S[0], &c.S[1], &c.S[2], &c.S[3]}
+	res, err := cr.MultiScalarMul(pts, scs)
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+// TestMSMConstRouting checks correctness of the constant-term routing in
+// MultiScalarMul against gnark-crypto.
+func TestMSMConstRouting(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var g2, P secp256k1.G1Affine
+	// params.Gm[0] is [3]G
+	g2.ScalarMultiplication(&g, big.NewInt(3))
+	var rp fr_secp.Element
+	_, _ = rp.SetRandom()
+	P.ScalarMultiplication(&g, rp.BigInt(new(big.Int)))
+	var S [4]*big.Int
+	var expected secp256k1.G1Jac
+	pts := []secp256k1.G1Affine{g, g2, P, P}
+	for i := range S {
+		var rs fr_secp.Element
+		_, _ = rs.SetRandom()
+		S[i] = rs.BigInt(new(big.Int))
+		var t secp256k1.G1Jac
+		var ta secp256k1.G1Affine
+		ta.ScalarMultiplication(&pts[i], S[i])
+		t.FromAffine(&ta)
+		if i == 0 {
+			expected = t
+		} else {
+			expected.AddAssign(&t)
+		}
+	}
+	var E secp256k1.G1Affine
+	E.FromJacobian(&expected)
+	circuit := msmMixedTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := msmMixedTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](P.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](P.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](E.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](E.Y),
+		},
+	}
+	for i := range S {
+		witness.S[i] = emulated.ValueOf[emulated.Secp256k1Fr](S[i])
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestMSMConstRoutingCount(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	assert := test.NewAssert(t)
+	circuit := msmMixedTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(err)
+	t.Log("MSM 4 terms (2 const + 2 var) r1cs =", ccs.GetNbConstraints())
+}
