@@ -920,6 +920,98 @@ type multivariate[T FieldParams] struct {
 //
 // The method returns the result of the evaluation.
 func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
+	// it is the obvious case - when we don't have any inputs then we need to
+	// evaluate the zero polynomial which is always zero.
+	if len(at) == 0 && len(coefs) == 0 {
+		return f.Zero()
+	}
+	mv, allElems := f.polyMvPrep(at, coefs)
+
+	// we call the hint to compute the result. The hint returns the reduced
+	// result, the quotient and the carries.
+	k, r, c, kNeg, err := f.callPolyMvHint(mv, allElems, false)
+	if err != nil {
+		panic(err)
+	}
+
+	// finally, we store the deferred check which is performed later. The
+	// `mvCheck` implements the deferredChecker interface, so that we use the
+	// generic deferred check method.
+	mvc := mvCheck[T]{
+		f:    f,
+		mv:   mv,
+		vals: allElems,
+		r:    r,
+		k:    k,
+		c:    c,
+		kNeg: kNeg,
+	}
+
+	f.deferredChecks = append(f.deferredChecks, &mvc)
+
+	// Record operation for profiling
+	nbLimbs := 0
+	for i := range allElems {
+		nbLimbs += len(allElems[i].Limbs)
+	}
+	nbLimbs += len(r.Limbs) + len(k.Limbs) + len(c.Limbs)
+	profile.RecordOperation("emulated.Eval", nbLimbs)
+	return r
+}
+
+// AssertEvalIsZero asserts that the multivariate polynomial given by the terms
+// at and coefficients coefs evaluates to zero modulo the field modulus. The
+// interface is as in [Field.Eval]: the elements of the inner slices of at are
+// multiplied together and summed with the corresponding coefficient.
+//
+// It is functionally equivalent to asserting that the result of [Field.Eval]
+// is zero, but it is cheaper: the reduced remainder is never materialized as a
+// witness (saving its allocation and range checks) and no separate equality
+// check is needed.
+//
+// NB! This is experimental API. It does not check that computing the term
+// wouldn't overflow the field.
+func (f *Field[T]) AssertEvalIsZero(at [][]*Element[T], coefs []int) {
+	// zero polynomial is always zero
+	if len(at) == 0 && len(coefs) == 0 {
+		return
+	}
+	mv, allElems := f.polyMvPrep(at, coefs)
+
+	// we call the hint to compute the quotient and the carries. As the
+	// remainder is asserted to be zero, the hint does not return it and we use
+	// the zero-limb constant zero element in the deferred check instead.
+	k, _, c, kNeg, err := f.callPolyMvHint(mv, allElems, true)
+	if err != nil {
+		panic(err)
+	}
+
+	mvc := mvCheck[T]{
+		f:    f,
+		mv:   mv,
+		vals: allElems,
+		r:    f.Zero(), // constant zero on zero limbs
+		k:    k,
+		c:    c,
+		kNeg: kNeg,
+	}
+
+	f.deferredChecks = append(f.deferredChecks, &mvc)
+
+	// Record operation for profiling
+	nbLimbs := 0
+	for i := range allElems {
+		nbLimbs += len(allElems[i].Limbs)
+	}
+	nbLimbs += len(k.Limbs) + len(c.Limbs)
+	profile.RecordOperation("emulated.AssertEvalIsZero", nbLimbs)
+}
+
+// polyMvPrep prepares the multivariate polynomial evaluation of the terms at
+// with coefficients coefs: it deduplicates the elements appearing in the
+// terms, converts the terms into exponent form and ensures that all elements
+// have their limb widths enforced.
+func (f *Field[T]) polyMvPrep(at [][]*Element[T], coefs []int) (*multivariate[T], []*Element[T]) {
 	if len(at) != len(coefs) {
 		panic("terms and coefficients mismatch")
 	}
@@ -927,11 +1019,6 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		if c == math.MinInt {
 			panic("coefficient math.MinInt overflows on negation")
 		}
-	}
-	// it is the obvious case - when we don't have any inputs then we need to
-	// evaluate the zero polynomial which is always zero.
-	if len(at) == 0 {
-		return f.Zero()
 	}
 	// initialize the multivariate struct from the inputs. The current method
 	// takes as input references to the elements. However, the hint function
@@ -979,44 +1066,19 @@ func (f *Field[T]) Eval(at [][]*Element[T], coefs []int) *Element[T] {
 		Terms:        terms,
 		Coefficients: coefs,
 	}
-
-	// we call the hint to compute the result. The hint returns the reduced
-	// result, the quotient and the carries.
-	k, r, c, kNeg, err := f.callPolyMvHint(mv, allElems)
-	if err != nil {
-		panic(err)
-	}
-
-	// finally, we store the deferred check which is performed later. The
-	// `mvCheck` implements the deferredChecker interface, so that we use the
-	// generic deferred check method.
-	mvc := mvCheck[T]{
-		f:    f,
-		mv:   mv,
-		vals: allElems,
-		r:    r,
-		k:    k,
-		c:    c,
-		kNeg: kNeg,
-	}
-
-	f.deferredChecks = append(f.deferredChecks, &mvc)
-
-	// Record operation for profiling
-	nbLimbs := 0
-	for i := range allElems {
-		nbLimbs += len(allElems[i].Limbs)
-	}
-	nbLimbs += len(r.Limbs) + len(k.Limbs) + len(c.Limbs)
-	profile.RecordOperation("emulated.Eval", nbLimbs)
-	return r
+	return mv, allElems
 }
 
 // callPolyMvHint computes the multivariate evaluation given by mv at at. It
 // returns the remainder (reduced result), the quotient and the carries. The
 // computation is performed inside a hint, so it is the callers responsibility to
 // perform the deferred multiplication check.
-func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, rem, carries *Element[T], kNeg frontend.Variable, err error) {
+//
+// When assertZero is set, the evaluation is asserted to be zero modulo the
+// field modulus: the hint does not output the remainder limbs (the returned
+// rem is the zero-limb constant zero) and it errors at solving time if the
+// evaluation is not divisible by the modulus.
+func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T], assertZero bool) (quo, rem, carries *Element[T], kNeg frontend.Variable, err error) {
 	// first compute the length of the result so that we know how many bits we need for the quotient.
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
 	modBits := uint(f.fParams.Modulus().BitLen())
@@ -1026,14 +1088,17 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 		nbQuoLimbs = (quoSize - modBits + nbBits) / nbBits
 	}
 	nbRemLimbs := nbLimbs
+	if assertZero {
+		nbRemLimbs = 0
+	}
 	nbCarryLimbs := nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs)) - 1
 
-	nbHintInputs := 6 + len(mv.Coefficients) + len(at)*len(mv.Terms) + len(mv.Coefficients) + len(f.Modulus().Limbs)
+	nbHintInputs := 7 + len(mv.Coefficients) + len(at)*len(mv.Terms) + len(mv.Coefficients) + len(f.Modulus().Limbs)
 	for i := range at {
 		nbHintInputs += len(at[i].Limbs) + 1
 	}
 	hintInputs := make([]frontend.Variable, 0, nbHintInputs)
-	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbCarryLimbs)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, len(mv.Terms), len(at), nbQuoLimbs, nbRemLimbs, nbCarryLimbs)
 	// store per-coefficient signs: 0 = positive, 1 = negative
 	for _, c := range mv.Coefficients {
 		if c < 0 {
@@ -1071,7 +1136,11 @@ func (f *Field[T]) callPolyMvHint(mv *multivariate[T], at []*Element[T]) (quo, r
 		return
 	}
 	quo = f.packLimbs(ret[:nbQuoLimbs], false)
-	rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
+	if assertZero {
+		rem = f.Zero()
+	} else {
+		rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
+	}
 	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:nbQuoLimbs+nbRemLimbs+uint(nbCarryLimbs)], 0)
 	kNeg = ret[nbQuoLimbs+nbRemLimbs+uint(nbCarryLimbs)]
 	f.api.AssertIsBoolean(kNeg)
@@ -1248,7 +1317,7 @@ func (f *Field[T]) polyMvEvalQuoSize(mv *multivariate[T], at []*Element[T]) (quo
 // called directly, but rather through [Field.callPolyMvHint] method which
 // handles the input packing and output unpacking.
 func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) < 7 {
+	if len(inputs) < 8 {
 		return errors.New("not enough inputs")
 	}
 	var (
@@ -1257,9 +1326,12 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 		nbTerms      = int(inputs[2].Int64())
 		nbVars       = int(inputs[3].Int64())
 		nbQuoLimbs   = int(inputs[4].Int64())
-		nbRemLimbs   = nbLimbs
-		nbCarryLimbs = int(inputs[5].Int64())
+		nbRemLimbs   = int(inputs[5].Int64())
+		nbCarryLimbs = int(inputs[6].Int64())
 	)
+	// nbRemLimbs == 0 indicates that the caller asserts the evaluation to be
+	// zero modulo the modulus: no remainder limbs are output and a non-zero
+	// remainder is a solving error.
 	if len(outputs) != nbQuoLimbs+nbRemLimbs+nbCarryLimbs+1 {
 		return errors.New("output length mismatch")
 	}
@@ -1272,7 +1344,7 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	outPtr += nbCarryLimbs
 	kNegOut := outputs[outPtr]
 	// read per-coefficient signs: 0 = positive, 1 = negative
-	ptr := 6
+	ptr := 7
 	signs := make([]int, nbTerms)
 	for i := range signs {
 		signs[i] = int(inputs[ptr].Int64())
@@ -1367,7 +1439,13 @@ func polyMvHint(mod *big.Int, inputs, outputs []*big.Int) error {
 	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
 	}
-	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
+	if nbRemLimbs == 0 {
+		// the caller asserts the evaluation to be zero modulo the modulus. A
+		// non-zero remainder means the assertion cannot be satisfied.
+		if rem.Sign() != 0 {
+			return errors.New("asserted zero evaluation has non-zero remainder")
+		}
+	} else if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
 

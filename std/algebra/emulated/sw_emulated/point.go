@@ -76,6 +76,9 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	addA         bool
 	eigenvalue   *emulated.Element[Scalars]
 	thirdRootOne *emulated.Element[Base]
+
+	// combCache caches the fixed-base comb tables per window width.
+	combCache map[int]*combData
 }
 
 // Generator returns the base point of the curve. The method does not copy and
