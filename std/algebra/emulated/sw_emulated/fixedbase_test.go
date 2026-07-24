@@ -185,3 +185,56 @@ func TestScalarMulBaseCombConstraints(t *testing.T) {
 	assert.NoError(err)
 	t.Log("baseline ScalarMulBase scs constraints =", scsBase.GetNbConstraints())
 }
+
+type jointScalarMulBaseCompleteTest[T, S emulated.FieldParams] struct {
+	P      AffinePoint[T]
+	S1, S2 emulated.Element[S]
+	Q      AffinePoint[T]
+}
+
+func (c *jointScalarMulBaseCompleteTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+// TestJointScalarMulBaseComplete exercises the comb-based complete path of
+// JointScalarMulBase, including the zero fixed-base scalar.
+func TestJointScalarMulBaseComplete(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var p secp256k1.G1Affine
+	p.Double(&g)
+	r := fr_secp.Modulus()
+	randFn := func() *big.Int {
+		var rnd fr_secp.Element
+		_, _ = rnd.SetRandom()
+		return rnd.BigInt(new(big.Int))
+	}
+	s2 := randFn()
+	for _, s1 := range combTestScalars(r, 2, randFn) {
+		var sm1, sm2, S secp256k1.G1Affine
+		sm1.ScalarMultiplication(&g, s1)
+		sm2.ScalarMultiplication(&p, s2)
+		S.Add(&sm1, &sm2)
+		circuit := jointScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+		witness := jointScalarMulBaseCompleteTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			S1: emulated.ValueOf[emulated.Secp256k1Fr](s1),
+			S2: emulated.ValueOf[emulated.Secp256k1Fr](s2),
+			P: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+			},
+			Q: AffinePoint[emulated.Secp256k1Fp]{
+				X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+				Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+			},
+		}
+		err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+		assert.NoError(err, "s1=%s", s1.String())
+	}
+}

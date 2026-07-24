@@ -1236,20 +1236,22 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 // ScalarMulBase computes [s]g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
 //
-// By default, uses complete arithmetic.
+// It uses the fixed-base comb method with compile-time constant window tables
+// (see [Curve.scalarMulBaseComb]), which uses complete arithmetic and
+// correctly handles the zero scalar. The [algopts.WithIncompleteArithmetic]
+// option is a no-op for this method as the comb method is both complete and
+// cheaper than the incomplete variable-base fallbacks.
 //
-// ⚠️  When [algopts.WithIncompleteArithmetic] is set, the exact exceptional set
-// depends on the scalar-multiplication algorithm selected for the current
-// curve:
+// For custom curve parameters where the comb tables cannot be constructed, it
+// falls back to the variable-base scalar multiplication with the generator:
 //   - curves without an efficient endomorphism inherit the documented
 //     exceptional set of [Curve.scalarMulFakeGLV]
-//     and currently include P-256, P-384 and STARK curve
 //   - curves with an efficient endomorphism inherit the documented exceptional
-//     set of [Curve.scalarMulGLVAndFakeGLV] and currently include BN254,
-//     BLS12-381, BW6-761 and secp256k1.
-//
-// ScalarMul calls scalarMulBaseGeneric or scalarMulGLVAndFakeGLV depending on whether an efficient endomorphism is available.
+//     set of [Curve.scalarMulGLVAndFakeGLV].
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	if _, err := c.combData(combDefaultWindow); err == nil {
+		return c.scalarMulBaseComb(s, combDefaultWindow)
+	}
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLVAndFakeGLV(c.Generator(), s, opts...)
 
@@ -1286,6 +1288,27 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 // The [EVM] specifies these checks, which are performed on the zkEVM
 // arithmetization side before calling the circuit that uses this method.
 func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	if _, cerr := c.combData(combDefaultWindow); cerr == nil && !cfg.IncompleteArithmetic {
+		// In complete mode, compute the fixed-base part with the comb method
+		// (complete, handles s1 = 0) and the variable-base part separately,
+		// and merge with the complete addition. This is cheaper than two
+		// variable-base scalar multiplications.
+		//
+		// We do NOT take this path in incomplete mode: composing the comb
+		// with the incomplete variable-base [Curve.ScalarMul] would be
+		// cheaper still, but the incomplete scalar multiplication has a
+		// non-negligible exceptional set when p has a small known relation
+		// to the generator (e.g. p = [2]g fails for a noticeable fraction of
+		// scalars), whereas the joint Shamir-based algorithm below handles
+		// those points.
+		sm1 := c.scalarMulBaseComb(s1, combDefaultWindow)
+		sm2 := c.ScalarMul(p, s2, opts...)
+		return c.AddUnified(sm1, sm2)
+	}
 	return c.jointScalarMul(c.Generator(), p, s1, s2, opts...)
 }
 

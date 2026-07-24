@@ -46,6 +46,12 @@ import (
 // checks) plus a y materialization (one check). The y-coordinate is
 // materialized once, before the final complete addition.
 
+// combDefaultWindow is the default window width of the fixed-base comb. With
+// 64-bit limb emulation it is supported by all built-in curves (the recoded
+// scalar fits the scalar-field limb capacity) and is close to the
+// constraint-count optimum in R1CS.
+const combDefaultWindow = 8
+
 // combData holds the compile-time data of the comb: the constant window
 // tables and the derived parameters.
 type combData struct {
