@@ -171,10 +171,19 @@ entirely.
 1. **First run** -- the solver runs normally and writes every wire value
    (Montgomery form, `[]fr.Element`) to a binary file.  BSB22 commitment
    polynomials are saved alongside.
-2. **Subsequent runs** -- the cache file is memory-mapped back, the L/R/O
+2. **Subsequent runs** -- the cache file is read back, the L/R/O
    Lagrange evaluations are derived via `evaluateLROSmallDomain`, and the
    BSB22 commitment is recomputed from the cached committed-wire values.
    The solver is never invoked.
+
+**Zero-knowledge caveat**: for circuits with BSB22 commitments (anything
+using `std/rangecheck` and friends), the cached commitment polynomials
+include their random blinding rows.  Replaying them across proofs would
+make the commitments linkable and progressively leak the committed private
+wires, so in the default (blinding-on) mode the cache is **automatically
+disabled** for such circuits, with a warning.  It stays available for them
+when `GNARK_DISABLE_BLINDING` is set, i.e. when zero-knowledge has already
+been explicitly traded away.
 
 ### Usage
 

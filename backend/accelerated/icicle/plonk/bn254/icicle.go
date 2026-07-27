@@ -264,32 +264,47 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	defer instance.releaseSharedGPUState()
 	defer instance.releaseLinearizedEvalGPUState()
 
+	// goStage runs a prover stage on the errgroup, converting a panic into an
+	// error: several device helpers panic on GPU allocation failure, and an
+	// unrecovered panic in a stage goroutine would kill the embedding process
+	// instead of failing the Prove call.
+	goStage := func(name string, fn func() error) {
+		g.Go(func() (err error) {
+			defer func() {
+				if r := recover(); r != nil && err == nil {
+					err = fmt.Errorf("icicle plonk: stage %s panicked: %v", name, r)
+				}
+			}()
+			return fn()
+		})
+	}
+
 	// solve constraints
-	g.Go(instance.solveConstraints)
+	goStage("solveConstraints", instance.solveConstraints)
 
 	// complete qk
-	g.Go(instance.completeQk)
+	goStage("completeQk", instance.completeQk)
 
 	// init blinding polynomials
-	g.Go(instance.initBlindingPolynomials)
+	goStage("initBlindingPolynomials", instance.initBlindingPolynomials)
 
 	// derive gamma, beta (copy constraint)
-	g.Go(instance.deriveGammaAndBeta)
+	goStage("deriveGammaAndBeta", instance.deriveGammaAndBeta)
 
 	// compute accumulating ratio for the copy constraint
-	g.Go(instance.buildRatioCopyConstraint)
+	goStage("buildRatioCopyConstraint", instance.buildRatioCopyConstraint)
 
 	// compute h
-	g.Go(instance.computeQuotient)
+	goStage("computeQuotient", instance.computeQuotient)
 
 	// open Z (blinded) at ωζ (proof.ZShiftedOpening)
-	g.Go(instance.openZ)
+	goStage("openZ", instance.openZ)
 
 	// linearized polynomial
-	g.Go(instance.computeLinearizedPolynomial)
+	goStage("computeLinearizedPolynomial", instance.computeLinearizedPolynomial)
 
 	// Batch opening (no internal timer of its own — time the whole stage here)
-	g.Go(func() error {
+	goStage("batchOpening", func() error {
 		startBatchOpening := time.Now()
 		err := instance.batchOpening()
 		if isProfileMode {
@@ -502,6 +517,21 @@ func (s *instance) solveConstraints() error {
 
 	// Try to load raw solver values from cache (fastest path)
 	rawCachePath := os.Getenv("GNARK_RAW_SOLVER_CACHE")
+	// The raw solver cache stores the BSB22 commitment polynomials verbatim,
+	// including their two random blinding rows (see bsb22Hint). Replaying them
+	// across proofs makes Bsb22Commitments identical (linkable) and, once the
+	// committed polynomial has been opened at more than two distinct zetas,
+	// leaks linear relations over the committed private wires. Re-randomizing
+	// on load is not possible either: the commitment hash feeds back into a
+	// witness wire, so fresh blinding would invalidate every cached wire
+	// downstream of it. When zero-knowledge matters (blinding enabled, the
+	// default), the cache is therefore disabled for circuits with BSB22
+	// commitments. With GNARK_DISABLE_BLINDING set, zero-knowledge is already
+	// explicitly forfeited and the replay leaks nothing new.
+	if rawCachePath != "" && len(s.commitmentInfo) > 0 && useBlinding {
+		log.Warn().Str("file", rawCachePath).Msg("GNARK_RAW_SOLVER_CACHE ignored: replaying cached BSB22 commitment blinding across proofs would break zero-knowledge (set GNARK_DISABLE_BLINDING to opt out of zero-knowledge and cache anyway)")
+		rawCachePath = ""
+	}
 	if rawCachePath != "" {
 		if rawValues, err := cs.LoadRawSolverValues(rawCachePath); err == nil {
 			// Reconstruct L, R, O from raw values
@@ -988,6 +1018,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	copyDone := make(chan error, 1)
 	var dPersist icicle_core.DeviceSlice
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(copyDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("buildRatioCopyConstraint")
 		if cfgErr != nil {
 			copyDone <- cfgErr
@@ -1078,6 +1109,7 @@ func (s *instance) openZ() (err error) {
 	var dBlindedCanonical icicle_core.DeviceSlice
 	buildDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(buildDone)
 		cfgVec, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("openZ")
 		if cfgErr != nil {
 			buildDone <- cfgErr
@@ -1403,7 +1435,9 @@ func (s *instance) computeLinearizedPolynomial() error {
 	err = s.addZContributionToLinearizedOnGPU(dLin, s.blindedZCanonicalGPU, evals.blzeta, evals.brzeta, evals.bozeta)
 	doneAddZ()
 	if err != nil {
-		freeSliceOnDevice(&dLin, &s.device)
+		// dLin is a pool buffer: return it via Put, not a direct free, so the
+		// pool's outstanding tracking stays consistent.
+		s.putTempDeviceSlice(dLin, dLin.Len())
 		return err
 	}
 
@@ -1411,7 +1445,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 	err = s.subtractQuotientContributionFromLinearizedOnGPU(dLin, s.hGPU)
 	doneSubtractH()
 	if err != nil {
-		freeSliceOnDevice(&dLin, &s.device)
+		s.putTempDeviceSlice(dLin, dLin.Len())
 		return err
 	}
 	s.linearizedPolynomialGPU = dLin
@@ -1452,7 +1486,12 @@ func (s *instance) batchOpening() error {
 	}
 
 	defer func() {
-		freeSliceOnDevice(&s.linearizedPolynomialGPU, &s.device)
+		// The linearized polynomial is a pool buffer: return it via Put, not
+		// a direct free, so the pool's outstanding tracking stays consistent.
+		if !s.linearizedPolynomialGPU.IsEmpty() {
+			s.putTempDeviceSlice(s.linearizedPolynomialGPU, s.linearizedPolynomialGPU.Len())
+			s.linearizedPolynomialGPU = icicle_core.DeviceSlice{}
+		}
 		if s.hGPU != nil {
 			s.freeGPUQuotient(s.hGPU)
 			s.hGPU = nil
@@ -1536,6 +1575,7 @@ func (s *instance) batchOpening() error {
 	var dFold icicle_core.DeviceSlice
 	foldDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(foldDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("batchOpening fold")
 		if cfgErr != nil {
 			foldDone <- cfgErr
@@ -1602,6 +1642,7 @@ func (s *instance) batchOpening() error {
 	divDone := make(chan error, 1)
 	witnessSize := dFold.Len() - 1
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(divDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("batchOpening divideByXMinusA")
 		if cfgErr != nil {
 			divDone <- cfgErr
@@ -1898,12 +1939,15 @@ func (s *instance) batchOpeningHostFoldGPUCommitFromPolynomials(
 
 	hCoeffs := dividePolyByXMinusAHost(foldedPolynomials, foldedEval, s.zeta)
 	var dWitness icicle_core.DeviceSlice
-	uploadDone := make(chan struct{}, 1)
+	uploadDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(uploadDone)
 		dWitness = uploadVector(hCoeffs)
-		close(uploadDone)
+		uploadDone <- nil
 	})
-	<-uploadDone
+	if err := <-uploadDone; err != nil {
+		return kzg.BatchOpeningProof{}, err
+	}
 	h, err := commitOnGPUCanonicalDevice(dWitness, &s.device, s.pk)
 	freeSliceOnDevice(&dWitness, &s.device)
 	if err != nil {
@@ -1995,6 +2039,7 @@ func (s *instance) downloadCanonicalDeviceCoefficients(dPoly icicle_core.DeviceS
 	host := icicle_core.HostSliceFromElements(coeffs)
 	done := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(done)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice(label + " download")
 		if cfgErr != nil {
 			done <- cfgErr
@@ -2283,6 +2328,7 @@ func (s *instance) uploadComputeNumeratorTwiddles(twiddles0 []fr.Element) (icicl
 	var dTwiddles0 icicle_core.DeviceSlice
 	uploadTwiddlesDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(uploadTwiddlesDone)
 		if s.tempGPUMemPool != nil {
 			s.tempGPUMemPool.FreeAll()
 		}
@@ -2355,6 +2401,7 @@ func (s *instance) computeNumeratorIteration(i int, loopCtx *computeNumeratorLoo
 
 	batchInvertDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(batchInvertDone)
 		batchInvertDone <- s.buildAndInvertPrecomputedDenominatorsOnCurrentDevice(loopCtx)
 	})
 	if err := <-batchInvertDone; err != nil {
@@ -2590,6 +2637,7 @@ func (s *instance) downloadNumeratorFromGPU(gpuNumerator *gpuNumeratorPolynomial
 
 	mergeDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(mergeDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("downloadNumeratorFromGPU merge")
 		if cfgErr != nil {
 			mergeDone <- cfgErr
@@ -2620,6 +2668,7 @@ func (s *instance) downloadNumeratorFromGPU(gpuNumerator *gpuNumeratorPolynomial
 	cresHost := icicle_core.HostSliceFromElements(cres)
 	downloadDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(downloadDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("downloadNumeratorFromGPU download")
 		if cfgErr != nil {
 			downloadDone <- cfgErr
@@ -2825,6 +2874,12 @@ func (s *instance) clonePolysOnGPUFromState(source *gpuPolysState, polys []*iop.
 		}
 		var runErr error
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			// Async boundary for snapshot cloning before handing state to caller.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "clonePolysOnGPUFromState"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -2909,6 +2964,12 @@ func (s *instance) uploadPolysToGPUState(polys []*iop.Polynomial, label string) 
 		}
 		var runErr error
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, label); syncErr != nil && runErr == nil {
 				runErr = syncErr
 			}
@@ -2961,14 +3022,29 @@ func (s *instance) releaseTempGPUMemoryPool() {
 	if s == nil || s.tempGPUMemPool == nil {
 		return
 	}
+	// Backstop for instance-owned device buffers whose owning stage may have
+	// exited (via error or ctx cancellation) before registering its own
+	// cleanup defer: openZ owns the two Z buffers, batchOpening owns the
+	// quotient and the linearized polynomial. On the success path these are
+	// already released and zeroed, making every free below a no-op. This must
+	// run before FreeAll so pool-owned buffers (blindedZCanonicalGPU, hGPU)
+	// are back in the pool when it frees everything.
 	freeSliceOnDevice(&s.polyZLagrangeGPU, &s.device)
 	if !s.blindedZCanonicalGPU.IsEmpty() {
 		s.putTempDeviceSlice(s.blindedZCanonicalGPU, s.blindedZCanonicalGPU.Len())
 		s.blindedZCanonicalGPU = icicle_core.DeviceSlice{}
 	}
+	if !s.linearizedPolynomialGPU.IsEmpty() {
+		s.putTempDeviceSlice(s.linearizedPolynomialGPU, s.linearizedPolynomialGPU.Len())
+		s.linearizedPolynomialGPU = icicle_core.DeviceSlice{}
+	}
+	if s.hGPU != nil {
+		s.freeGPUQuotient(s.hGPU)
+		s.hGPU = nil
+	}
 	done := make(chan struct{}, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
-		s.tempGPUMemPool.FreeAll()
+		s.tempGPUMemPool.Shutdown()
 		close(done)
 	})
 	<-done
@@ -3026,6 +3102,12 @@ func (s *instance) ensurePolysOnSharedGPU(polys []*iop.Polynomial) (*gpuPolysSta
 		}
 		var runErr error
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			// Async boundary for GPU uploads in ensurePolysOnSharedGPU.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "ensurePolysOnSharedGPU"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -3080,6 +3162,7 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 	// Upload scaling vectors to GPU
 	uploadDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
+		defer devicePanicToError(uploadDone)
 		scalingVectorDevice = s.getTempDeviceSlice(len(scalingVector))
 		scalingHost := icicle_core.HostSliceFromElements(scalingVector)
 		scalingHost.CopyToDevice(&scalingVectorDevice, false)
@@ -3098,8 +3181,28 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 		}
 		uploadDone <- nil
 	})
+	// Return the scaling vectors to the pool on every exit path. This is safe
+	// because we never return before draining every per-polynomial done
+	// channel, and each worker synchronizes its stream before signalling, so
+	// no in-flight kernel can still reference the slices.
+	defer func() {
+		if !scalingVectorDevice.IsEmpty() {
+			s.putTempDeviceSlice(scalingVectorDevice, scalingVectorDevice.Len())
+		}
+		if !scalingVectorRevDevice.IsEmpty() {
+			s.putTempDeviceSlice(scalingVectorRevDevice, scalingVectorRevDevice.Len())
+		}
+	}()
 	if err := <-uploadDone; err != nil {
 		return err
+	}
+
+	// Validate all polynomials before launching any GPU work so an invalid
+	// entry cannot abandon already-scheduled workers.
+	for _, p := range state.polys {
+		if p != nil && p.Basis != iop.Lagrange && p.Basis != iop.LagrangeCoset {
+			return fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: expected polynomial in Lagrange or LagrangeCoset form, got %v", p.Basis)
+		}
 	}
 
 	doneChans := make([]chan error, len(state.polys))
@@ -3110,10 +3213,6 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 			continue
 		}
 
-		if p.Basis != iop.Lagrange && p.Basis != iop.LagrangeCoset {
-			return fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: expected polynomial in Lagrange or LagrangeCoset form, got %v", p.Basis)
-		}
-
 		done := make(chan error, 1)
 		doneChans[i] = done
 		scalarsDevice := state.deviceSlices[i]
@@ -3122,7 +3221,30 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 
 		icicle_runtime.RunOnDevice(device, func(args ...any) {
 			cfg := icicle_ntt.GetDefaultNttConfig()
-			stream, _ := icicle_runtime.CreateStream()
+			stream, eStream := icicle_runtime.CreateStream()
+			if eStream != icicle_runtime.Success {
+				done <- fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: CreateStream failed: %s", eStream.AsString())
+				return
+			}
+			// Synchronize and destroy the stream on every path (including
+			// errors) before signalling done: the caller may free device
+			// buffers as soon as all workers have reported.
+			var runErr error
+			defer func() {
+				if r := recover(); r != nil && runErr == nil {
+					// Convert a device-goroutine panic (e.g. GPU allocation
+					// failure in the pool/upload helpers) into a prover error;
+					// unrecovered it would kill the embedding process.
+					runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+				}
+				if eSync := icicle_runtime.SynchronizeStream(stream); eSync != icicle_runtime.Success && runErr == nil {
+					runErr = fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: SynchronizeStream failed: %s", eSync.AsString())
+				}
+				if eDestroy := icicle_runtime.DestroyStream(stream); eDestroy != icicle_runtime.Success && runErr == nil {
+					runErr = fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: DestroyStream failed: %s", eDestroy.AsString())
+				}
+				done <- runErr
+			}()
 			cfg.StreamHandle = stream
 			cfg.IsAsync = true
 
@@ -3136,7 +3258,7 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 				cfg.Ordering = icicle_core.KRN
 			}
 			if err := icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice); err != icicle_runtime.Success {
-				done <- fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: inverse NTT failed: %s", err.AsString())
+				runErr = fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: inverse NTT failed: %s", err.AsString())
 				return
 			}
 
@@ -3155,7 +3277,7 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 			}
 
 			if err := icicle_vecops.VecOp(scalarsDevice, scaleDevice, scalarsDevice, vecCfg, icicle_core.Mul); err != icicle_runtime.Success {
-				done <- fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: VecOp mul failed: %s", err.AsString())
+				runErr = fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: VecOp mul failed: %s", err.AsString())
 				return
 			}
 
@@ -3168,25 +3290,25 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 				cfg.Ordering = icicle_core.KNR // Regular → BitReverse
 			}
 			if err := icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice); err != icicle_runtime.Success {
-				done <- fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: forward NTT failed: %s", err.AsString())
+				runErr = fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: forward NTT failed: %s", err.AsString())
 				return
 			}
-
-			if eSync := icicle_runtime.SynchronizeStream(stream); eSync != icicle_runtime.Success {
-				done <- fmt.Errorf("gpuNTTInverseScaleForwardOnDevice: SynchronizeStream failed: %s", eSync.AsString())
-				return
-			}
-			done <- nil
 		})
 	}
 
-	// Wait for all scheduled tasks
+	// Wait for ALL scheduled tasks even when one fails: returning on the
+	// first error would let the caller free device slices that sibling
+	// workers are still writing to.
+	var firstErr error
 	for i := range doneChans {
 		if doneChans[i] != nil {
-			if err := <-doneChans[i]; err != nil {
-				return err
+			if err := <-doneChans[i]; err != nil && firstErr == nil {
+				firstErr = err
 			}
 		}
+	}
+	if firstErr != nil {
+		return firstErr
 	}
 
 	// Update polynomial metadata: final result is in Lagrange, same layout as original
@@ -3195,10 +3317,6 @@ func (s *instance) gpuNTTInverseScaleForwardOnDevice(state *gpuPolysState, scali
 			p.Basis = iop.Lagrange
 		}
 	}
-
-	// Free scaling vectors from device
-	s.putTempDeviceSlice(scalingVectorDevice, scalingVectorDevice.Len())
-	s.putTempDeviceSlice(scalingVectorRevDevice, scalingVectorRevDevice.Len())
 	return nil
 }
 
@@ -3270,7 +3388,11 @@ func (s *instance) gpuNTTInverseBatchOnState(state *gpuPolysState, pk *ProvingKe
 
 			icicle_runtime.RunOnDevice(device, func(args ...any) {
 				cfg := icicle_ntt.GetDefaultNttConfig()
-				stream, _ := icicle_runtime.CreateStream()
+				stream, eStream := icicle_runtime.CreateStream()
+				if eStream != icicle_runtime.Success {
+					panic(fmt.Sprintf("icicle: CreateStream failed: %s", eStream.AsString()))
+				}
+				defer icicle_runtime.DestroyStream(stream)
 				cfg.StreamHandle = stream
 				cfg.IsAsync = true
 
@@ -3292,7 +3414,9 @@ func (s *instance) gpuNTTInverseBatchOnState(state *gpuPolysState, pk *ProvingKe
 				if err := icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice); err != icicle_runtime.Success {
 					panic(fmt.Sprintf("icicle: inverse NTT failed: %s", err.AsString()))
 				}
-				icicle_runtime.SynchronizeStream(stream)
+				if eSync := icicle_runtime.SynchronizeStream(stream); eSync != icicle_runtime.Success {
+					panic(fmt.Sprintf("icicle: SynchronizeStream failed: %s", eSync.AsString()))
+				}
 
 				// Update metadata inside closure to avoid race
 				p.Basis = iop.Canonical
@@ -3341,13 +3465,20 @@ func (s *instance) freeGPUPolys(state *gpuPolysState) {
 // Must be used within RunOnDevice context to ensure thread safety per device.
 type gpuMemoryPool struct {
 	freeSlices map[int][]icicle_core.DeviceSlice // map[size][]slice
-	mu         sync.Mutex
+	// outstanding tracks slices handed out by Get and not yet returned so
+	// Shutdown can reclaim buffers abandoned by error paths. Keyed by the
+	// device pointer, not the slice value: CopyToDevice mutates the slice's
+	// length field, so the value at Put time may differ from the one at Get
+	// time while the underlying buffer is the same.
+	outstanding map[unsafe.Pointer]icicle_core.DeviceSlice
+	mu          sync.Mutex
 }
 
 // newGPUMemoryPool creates a new GPU memory pool.
 func newGPUMemoryPool() *gpuMemoryPool {
 	return &gpuMemoryPool{
-		freeSlices: make(map[int][]icicle_core.DeviceSlice),
+		freeSlices:  make(map[int][]icicle_core.DeviceSlice),
+		outstanding: make(map[unsafe.Pointer]icicle_core.DeviceSlice),
 	}
 }
 
@@ -3361,12 +3492,14 @@ func (p *gpuMemoryPool) Get(n int) icicle_core.DeviceSlice {
 		// Reuse the last slice
 		slice := slices[len(slices)-1]
 		p.freeSlices[n] = slices[:len(slices)-1]
+		p.outstanding[slice.AsUnsafePointer()] = slice
 		return slice
 	}
 
 	// No free slice available, allocate a new one.
 	// If allocation fails (e.g. memory pressure), release idle cached slices and retry once.
 	if ds, err := allocDeviceUninitialized(n); err == nil {
+		p.outstanding[ds.AsUnsafePointer()] = ds
 		return ds
 	}
 
@@ -3379,6 +3512,7 @@ func (p *gpuMemoryPool) Get(n int) icicle_core.DeviceSlice {
 	p.freeSlices = make(map[int][]icicle_core.DeviceSlice)
 
 	if ds, err := allocDeviceUninitialized(n); err == nil {
+		p.outstanding[ds.AsUnsafePointer()] = ds
 		return ds
 	}
 
@@ -3394,11 +3528,14 @@ func (p *gpuMemoryPool) Put(ds icicle_core.DeviceSlice, n int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	delete(p.outstanding, ds.AsUnsafePointer())
 	// Add to the pool
 	p.freeSlices[n] = append(p.freeSlices[n], ds)
 }
 
-// FreeAll releases all pooled device slices.
+// FreeAll releases all idle pooled device slices. Outstanding slices (handed
+// out by Get and not yet returned) are left alone: FreeAll is also used
+// mid-prove to relieve memory pressure while pool buffers are still live.
 func (p *gpuMemoryPool) FreeAll() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -3409,6 +3546,27 @@ func (p *gpuMemoryPool) FreeAll() {
 		}
 	}
 	p.freeSlices = make(map[int][]icicle_core.DeviceSlice)
+}
+
+// Shutdown releases every pooled slice, including outstanding ones that were
+// abandoned by error paths (a failed stage returns without Put-ing its
+// temporaries; without this they would leak for the lifetime of the process).
+// Only safe once no GPU work can still reference pool buffers, i.e. at the
+// end of Prove after every stage goroutine has completed.
+func (p *gpuMemoryPool) Shutdown() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, slices := range p.freeSlices {
+		for _, ds := range slices {
+			_ = ds.Free()
+		}
+	}
+	p.freeSlices = make(map[int][]icicle_core.DeviceSlice)
+	for _, ds := range p.outstanding {
+		_ = ds.Free()
+	}
+	p.outstanding = make(map[unsafe.Pointer]icicle_core.DeviceSlice)
 }
 
 // allocDeviceUninitialized allocates device memory without uploading a zeroed host buffer.
@@ -3536,6 +3694,26 @@ func makeFinisher(stream icicle_runtime.Stream, label string, done chan<- error)
 			runErr = syncErr
 		}
 		done <- runErr
+	}
+}
+
+// devicePanicToError is deferred at the top of RunOnDevice closures that
+// report completion by sending on an error channel. The pool and upload
+// helpers panic on GPU allocation failure — the expected failure mode for a
+// memory-hungry prover — and a panic in a goroutine cannot be recovered by
+// the caller, so without this boundary it kills the whole embedding process
+// instead of failing the Prove call.
+func devicePanicToError(done chan<- error) {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("icicle: device task panicked: %v", r)
+		select {
+		case done <- err:
+		default:
+			// The closure already reported success and the caller has moved
+			// on; all we can do is log.
+			log := logger.Logger()
+			log.Error().Err(err).Msg("icicle: panic on device goroutine after completion was signalled")
+		}
 	}
 }
 
@@ -3779,8 +3957,11 @@ func (s *gpuConstraintEvalState) freeAllocatedPolyBuffers() {
 }
 
 // computeBlindingPolynomials computes and uploads blinding polynomial evaluations to GPU.
-// Returns device slices for the blinding polynomials.
+// Returns device slices for the blinding polynomials. The buffers come from
+// the shared temp pool (via state) so an aborted iteration cannot leak them
+// past the end of Prove.
 func computeBlindingPolynomials(
+	state *gpuConstraintEvalState,
 	n int,
 	twiddles0 []fr.Element,
 	bp []*iop.Polynomial,
@@ -3803,11 +3984,17 @@ func computeBlindingPolynomials(
 		}
 	})
 
-	dBlindL = uploadVector(blindL)
-	dBlindR = uploadVector(blindR)
-	dBlindO = uploadVector(blindO)
-	dBlindZ = uploadVector(blindZ)
-	dBlindZS = uploadVector(blindZS)
+	uploadFromPool := func(vec []fr.Element) icicle_core.DeviceSlice {
+		d := state.getTempDeviceSlice(n)
+		host := icicle_core.HostSliceFromElements(vec)
+		host.CopyToDevice(&d, false)
+		return d
+	}
+	dBlindL = uploadFromPool(blindL)
+	dBlindR = uploadFromPool(blindR)
+	dBlindO = uploadFromPool(blindO)
+	dBlindZ = uploadFromPool(blindZ)
+	dBlindZS = uploadFromPool(blindZS)
 
 	return dBlindL, dBlindR, dBlindO, dBlindZ, dBlindZS
 }
@@ -3855,12 +4042,12 @@ func applyBlindingToPolynomials(
 		return fmt.Errorf("applyBlindingToPolynomials: VecOp add ZS failed: %s", err.AsString())
 	}
 
-	// Free blinding vectors - no longer needed after creating blinded polynomials
-	dBlindL.Free()
-	dBlindR.Free()
-	dBlindO.Free()
-	dBlindZ.Free()
-	dBlindZS.Free()
+	// Return blinding vectors to the pool - no longer needed after creating blinded polynomials
+	state.putTempDeviceSlice(dBlindL, params.n)
+	state.putTempDeviceSlice(dBlindR, params.n)
+	state.putTempDeviceSlice(dBlindO, params.n)
+	state.putTempDeviceSlice(dBlindZ, params.n)
+	state.putTempDeviceSlice(dBlindZS, params.n)
 	return nil
 }
 
@@ -4123,7 +4310,8 @@ func computeOrderingConstraint(
 
 	// Free dGammaScalar - no longer needed after computing a2, b2, c2
 	// Note: dL, dR, dO, dS1, dS2, dS3 are part of gpuState and will be freed later.
-	state.dGammaScalar.Free()
+	// Zero the field so the caller's cleanup defer does not double-free it.
+	freeDeviceSlice(&state.dGammaScalar)
 	state.putTempDeviceSlice(dScaledS, params.n)
 	dBetaStd.Free()
 
@@ -4366,21 +4554,45 @@ func (s *instance) gpuEvaluateConstraints(
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
 		state := initializeConstraintEvalState(getDeviceSlice, s.getTempDeviceSlice, s.putTempDeviceSlice)
 
+		var runErr error
+		var dTmp icicle_core.DeviceSlice
+		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// The pool and upload helpers panic on GPU allocation
+				// failure; a panic in a goroutine cannot be recovered by the
+				// caller, so convert it into a prover error here instead of
+				// killing the embedding process.
+				runErr = fmt.Errorf("gpuEvaluateConstraints: device task panicked: %v", r)
+			}
+			// Free everything an aborted pipeline may have left behind. On
+			// the success path every release below is a no-op: state fields
+			// are zeroed when returned and the tracked list is emptied.
+			state.freeAllocatedPolyBuffers()
+			for _, t := range []*icicle_core.DeviceSlice{&state.dZS, &state.dOrdering, &state.dLocal, &state.dGate, &state.dResult, &dTmp} {
+				if !t.IsEmpty() {
+					state.putTempDeviceSlice(*t, t.Len())
+					*t = icicle_core.DeviceSlice{}
+				}
+			}
+			freeDeviceSlice(&state.dGammaScalar)
+			done <- runErr
+		}()
+
 		// Upload gamma as a scalar (inside RunOnDevice to ensure same device context).
 		// For addition, we keep it in Montgomery form (unlike multiplication which needs standard form).
 		state.dGammaScalar = uploadScalarMont(params.gamma)
 
 		state.dZS = state.getTempDeviceSlice(n)
 		if err := icicle_vecops.ShiftVec(state.dZ, state.dZS, state.vecCfg); err != icicle_runtime.Success {
-			done <- fmt.Errorf("ShiftVec failed while preparing ZS: %s", err.AsString())
+			runErr = fmt.Errorf("ShiftVec failed while preparing ZS: %s", err.AsString())
 			return
 		}
 
 		// Step 1: Compute and apply blinding polynomial evaluations (if enabled)
 		if useBlinding {
-			dBlindL, dBlindR, dBlindO, dBlindZ, dBlindZS := computeBlindingPolynomials(n, twiddles0, bp)
+			dBlindL, dBlindR, dBlindO, dBlindZ, dBlindZS := computeBlindingPolynomials(state, n, twiddles0, bp)
 			if err := applyBlindingToPolynomials(state, params, dBlindL, dBlindR, dBlindO, dBlindZ, dBlindZS); err != nil {
-				done <- err
+				runErr = err
 				return
 			}
 		}
@@ -4401,7 +4613,7 @@ func (s *instance) gpuEvaluateConstraints(
 		var err error
 		state.dOrdering, err = computeOrderingConstraint(state, params, dTwiddles0, seqVecCfg)
 		if err != nil {
-			done <- fmt.Errorf("gpuEvaluateConstraints: ordering: %w", err)
+			runErr = fmt.Errorf("gpuEvaluateConstraints: ordering: %w", err)
 			return
 		}
 
@@ -4410,48 +4622,50 @@ func (s *instance) gpuEvaluateConstraints(
 		dAlphaStd := uploadScalarStd(params.alpha)
 		if err := icicle_vecops.ScalarMulVec(dAlphaStd, state.dOrdering, state.dResult, seqVecCfg); err != icicle_runtime.Success {
 			dAlphaStd.Free()
-			done <- fmt.Errorf("gpuEvaluateConstraints: combine alpha*ordering failed: %s", err.AsString())
+			runErr = fmt.Errorf("gpuEvaluateConstraints: combine alpha*ordering failed: %s", err.AsString())
 			return
 		}
 		dAlphaStd.Free()
 		state.putTempDeviceSlice(state.dOrdering, params.n)
+		state.dOrdering = icicle_core.DeviceSlice{}
 
 		// dResult += alpha^2 * local
 		state.dLocal, err = computeLocalConstraint(state, params, dPrecomputedDenominators, seqVecCfg)
 		if err != nil {
-			done <- fmt.Errorf("gpuEvaluateConstraints: local: %w", err)
+			runErr = fmt.Errorf("gpuEvaluateConstraints: local: %w", err)
 			return
 		}
 		var alphaSquared fr.Element
 		alphaSquared.Mul(&params.alpha, &params.alpha)
 		dAlphaSquaredStd := uploadScalarStd(alphaSquared)
-		dTmp := state.getTempDeviceSlice(params.n)
+		dTmp = state.getTempDeviceSlice(params.n)
 		if err := icicle_vecops.ScalarMulVec(dAlphaSquaredStd, state.dLocal, dTmp, seqVecCfg); err != icicle_runtime.Success {
 			dAlphaSquaredStd.Free()
-			state.putTempDeviceSlice(dTmp, params.n)
-			done <- fmt.Errorf("gpuEvaluateConstraints: combine alpha^2*local failed: %s", err.AsString())
+			runErr = fmt.Errorf("gpuEvaluateConstraints: combine alpha^2*local failed: %s", err.AsString())
 			return
 		}
 		dAlphaSquaredStd.Free()
 		if err := icicle_vecops.VecOp(state.dResult, dTmp, state.dResult, seqVecCfg, icicle_core.Add); err != icicle_runtime.Success {
-			state.putTempDeviceSlice(dTmp, params.n)
-			done <- fmt.Errorf("gpuEvaluateConstraints: VecOp add local failed: %s", err.AsString())
+			runErr = fmt.Errorf("gpuEvaluateConstraints: VecOp add local failed: %s", err.AsString())
 			return
 		}
 		state.putTempDeviceSlice(state.dLocal, params.n)
+		state.dLocal = icicle_core.DeviceSlice{}
 		state.putTempDeviceSlice(dTmp, params.n)
+		dTmp = icicle_core.DeviceSlice{}
 
 		// dResult += gate
 		state.dGate, err = computeGateConstraint(state, params, seqVecCfg)
 		if err != nil {
-			done <- fmt.Errorf("gpuEvaluateConstraints: gate: %w", err)
+			runErr = fmt.Errorf("gpuEvaluateConstraints: gate: %w", err)
 			return
 		}
 		if err := icicle_vecops.VecOp(state.dResult, state.dGate, state.dResult, seqVecCfg, icicle_core.Add); err != icicle_runtime.Success {
-			done <- fmt.Errorf("gpuEvaluateConstraints: VecOp add gate failed: %s", err.AsString())
+			runErr = fmt.Errorf("gpuEvaluateConstraints: VecOp add gate failed: %s", err.AsString())
 			return
 		}
 		state.putTempDeviceSlice(state.dGate, params.n)
+		state.dGate = icicle_core.DeviceSlice{}
 
 		// Step 5: materialize result either on host or as a persistent device slice.
 		if result != nil {
@@ -4460,22 +4674,15 @@ func (s *instance) gpuEvaluateConstraints(
 		} else {
 			resultOnDevice = s.getTempDeviceSlice(params.n)
 			if err := copyDeviceSliceIntoOnCurrentDevice(resultOnDevice, state.dResult, state.vecCfg); err != icicle_runtime.Success {
-				done <- fmt.Errorf("gpuEvaluateConstraints: failed to copy result to persistent device slice: %s", err.AsString())
+				runErr = fmt.Errorf("gpuEvaluateConstraints: failed to copy result to persistent device slice: %s", err.AsString())
 				return
 			}
 		}
 
-		// Return dResult pool slice after materialization.
-		state.putTempDeviceSlice(state.dResult, params.n)
-
-		// Return all allocated polynomial buffers to the pool.
-		// This automatically frees L, R, O, Z (if blinding was used) and S1, S2, S3 (always allocated).
-		// Note: dZS is freed in computeOrderingConstraint, and Q* working copies are
-		// returned to pool inside computeGateConstraint. dQk and the original gpuState slices
-		// are owned by gpuState and will be freed separately.
-		state.freeAllocatedPolyBuffers()
-
-		done <- nil
+		// dResult and the tracked polynomial buffers (blinded L, R, O, Z and
+		// scaled S1, S2, S3) are returned to the pool by the cleanup defer.
+		// dQk and the original gpuState slices are owned by gpuState and will
+		// be freed separately.
 	})
 
 	err := <-done
@@ -4608,6 +4815,7 @@ func (s *instance) prepareStatisticalZKQuotientShards(
 
 	prepareDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(prepareDone)
 		cfg := icicle_core.DefaultVecOpsConfig()
 		cfg.IsAsync = false
 
@@ -4812,6 +5020,7 @@ func (s *instance) inverseAndMergeShards(
 	var dMerged icicle_core.DeviceSlice
 
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(done)
 		cfgVec, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("inverseAndMergeShards")
 		if cfgErr != nil {
 			done <- cfgErr
@@ -4985,6 +5194,7 @@ func (s *instance) divideByZHOnGPU(
 	// So we can divide by Z_H by scaling each shard with its corresponding inverse.
 	scaleDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(scaleDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("divideByZHOnGPU")
 		if cfgErr != nil {
 			scaleDone <- cfgErr
@@ -5034,6 +5244,7 @@ func (s *instance) downloadQuotientFromGPU(quotient *gpuQuotientPolynomial) (*io
 	host := icicle_core.HostSliceFromElements(coeffs)
 	done := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(done)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("downloadQuotientFromGPU")
 		if cfgErr != nil {
 			done <- cfgErr
@@ -5081,8 +5292,15 @@ func commitOnGPUWithDeviceBasesChunked(
 	var msmErr error
 	done := make(chan struct{}, 1)
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
+		defer func() {
+			if r := recover(); r != nil && msmErr == nil {
+				// Convert a device-goroutine panic into an error instead of
+				// killing the embedding process.
+				msmErr = fmt.Errorf("icicle: MSM device task panicked: %v", r)
+			}
+			close(done)
+		}()
 		commit, msmErr = commitOnGPUWithDeviceBasesChunkedOnCurrentDevice(scalarsDevice, basesDevice, chunkSize)
-		close(done)
 	})
 	<-done
 	if msmErr != nil {
@@ -5256,6 +5474,7 @@ func (s *instance) evalDevicePolynomialAtPoint(coeffsDevice icicle_core.DeviceSl
 	var out fr.Element
 	done := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(done)
 		cfg := icicle_core.DefaultVecOpsConfig()
 		cfg.IsAsync = false
 
@@ -5429,6 +5648,7 @@ func (s *instance) prepareBatchOpeningPolynomialsOnGPU(
 
 	prepDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(prepDone)
 		cfg, stream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("prepareBatchOpeningPolynomialsOnGPU")
 		if cfgErr != nil {
 			prepDone <- cfgErr
@@ -5704,6 +5924,7 @@ func (s *instance) evalPolynomialInCurrentFormOnGPU(
 	var out fr.Element
 	done := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(done)
 		cfgVec, evalStream, cfgErr := createAsyncVecOpsConfigOnCurrentDevice("evalPolynomialInCurrentFormOnGPU")
 		if cfgErr != nil {
 			done <- cfgErr
@@ -5781,6 +6002,7 @@ func (s *instance) openPolynomialOnGPUCanonical(coeffs []fr.Element, point fr.El
 	witnessSize := len(coeffs) - 1
 	divDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(divDone)
 		cfg := icicle_core.DefaultVecOpsConfig()
 		cfg.IsAsync = false
 		dCoeffs := uploadVector(coeffs)
@@ -5845,6 +6067,7 @@ func (s *instance) openPolynomialOnGPUCanonicalDevice(coeffsDevice icicle_core.D
 	}
 	divDone := make(chan error, 1)
 	icicle_runtime.RunOnDevice(&s.device, func(args ...any) {
+		defer devicePanicToError(divDone)
 		cfg := icicle_core.DefaultVecOpsConfig()
 		cfg.IsAsync = false
 		dPoint := uploadScalarStd(point)
@@ -5970,6 +6193,12 @@ func (s *instance) buildLinearizedSelectorTermsOnGPU(
 		}
 		var runErr error
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "buildLinearizedSelectorTermsOnGPU"); syncErr != nil && runErr == nil {
 				runErr = syncErr
 			}
@@ -6158,6 +6387,12 @@ func (s *instance) addZContributionToLinearizedOnGPU(
 		var dScale icicle_core.DeviceSlice
 		var dScaledZ icicle_core.DeviceSlice
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			// Async boundary before returning temporary buffers to the pool.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "addZContributionToLinearizedOnGPU"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -6225,6 +6460,12 @@ func (s *instance) subtractQuotientContributionFromLinearizedOnGPU(
 		var dZetaStd icicle_core.DeviceSlice
 		var dZhStd icicle_core.DeviceSlice
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			// Async boundary before reusing temporary quotient vectors.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "subtractQuotientContributionFromLinearizedOnGPU"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -6595,9 +6836,10 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 		copy(pk.deviceInfo.CosetGenerator[:], cosetLimbs[:fr.Limbs*2])
 	}
 
-	chInitDomain := make(chan struct{})
+	chInitDomain := make(chan error, 1)
 	initDomainQueuedAt := time.Now()
 	icicle_runtime.RunOnDevice(device, func(args ...any) {
+		defer devicePanicToError(chInitDomain)
 		initDomainStartedAt := time.Now()
 		initCfg := icicle_core.GetDefaultNTTInitDomainConfig()
 		ext := config_extension.Create()
@@ -6625,41 +6867,52 @@ func (pk *ProvingKey) setupDevicePointers(device *icicle_runtime.Device) error {
 			)
 		}
 		if e != icicle_runtime.Success {
-			panic("icicle: InitDomain failed")
+			chInitDomain <- fmt.Errorf("icicle: InitDomain failed: %s", e.AsString())
+			return
 		}
-		close(chInitDomain)
+		chInitDomain <- nil
 	})
 
-	<-chInitDomain
+	if err := <-chInitDomain; err != nil {
+		return err
+	}
 	if isNttTrace {
 		fmt.Fprintf(os.Stderr, "[ICICLE_NTT_TRACE] InitDomain total_wait_took=%s\n", time.Since(initDomainQueuedAt))
 	}
 
-	chLag := make(chan struct{})
-	chCan := make(chan struct{})
+	chLag := make(chan error, 1)
+	chCan := make(chan error, 1)
 
 	if len(pk.KzgLagrange.G1) > 0 {
 		icicle_runtime.RunOnDevice(device, func(args ...any) {
+			defer devicePanicToError(chLag)
 			g1LagHost := (icicle_core.HostSlice[curve.G1Affine])(pk.KzgLagrange.G1)
 			g1LagHost.CopyToDevice(&pk.deviceInfo.KzgLagrangeDevice.G1, true)
-			close(chLag)
+			chLag <- nil
 		})
 	} else {
-		close(chLag)
+		chLag <- nil
 	}
 
 	if len(pk.Kzg.G1) > 0 {
 		icicle_runtime.RunOnDevice(device, func(args ...any) {
+			defer devicePanicToError(chCan)
 			g1CanHost := (icicle_core.HostSlice[curve.G1Affine])(pk.Kzg.G1)
 			g1CanHost.CopyToDevice(&pk.deviceInfo.KzgDevice.G1, true)
-			close(chCan)
+			chCan <- nil
 		})
 	} else {
-		close(chCan)
+		chCan <- nil
 	}
 
-	<-chLag
-	<-chCan
+	errLag := <-chLag
+	errCan := <-chCan
+	if errLag != nil {
+		return fmt.Errorf("icicle: uploading Lagrange SRS to device failed: %w", errLag)
+	}
+	if errCan != nil {
+		return fmt.Errorf("icicle: uploading canonical SRS to device failed: %w", errCan)
+	}
 	return nil
 }
 
@@ -6989,6 +7242,12 @@ func (s *instance) BuildRatioCopyConstraintIcicle(
 		var dNum, dDen icicle_core.DeviceSlice
 		var dSupportFlat, dPermFlat icicle_core.DeviceSlice
 		defer func() {
+			if r := recover(); r != nil && runErr == nil {
+				// Convert a device-goroutine panic (e.g. GPU allocation
+				// failure in the pool/upload helpers) into a prover error;
+				// unrecovered it would kill the embedding process.
+				runErr = fmt.Errorf("icicle: device task panicked: %v", r)
+			}
 			// Async boundary for copy-constraint accumulation before cleanup.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "BuildRatioCopyConstraintIcicle"); syncErr != nil && runErr == nil {
 				runErr = syncErr
