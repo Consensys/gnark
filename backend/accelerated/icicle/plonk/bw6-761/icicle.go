@@ -1025,7 +1025,8 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 			copyDone <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "buildRatioCopyConstraint", copyDone)
+		finish, guard := makeFinisher(stream, "buildRatioCopyConstraint", copyDone)
+		defer guard()
 		var allocErr error
 		dPersist, allocErr = allocDeviceUninitialized(dZ.Len())
 		if allocErr != nil {
@@ -1116,7 +1117,9 @@ func (s *instance) openZ() (err error) {
 			buildDone <- cfgErr
 			return
 		}
+		finalized := false
 		finalize := func(runErr error, dZCanonical icicle_core.DeviceSlice, releaseBlinded bool) {
+			finalized = true
 			// Async boundary for canonicalization/blinding before exposing output.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, "openZ"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -1130,6 +1133,14 @@ func (s *instance) openZ() (err error) {
 			}
 			buildDone <- runErr
 		}
+		// If the closure panics before finalize runs (recovered by
+		// devicePanicToError), still release the stream so the GPU-OOM path
+		// cannot leak it.
+		defer func() {
+			if !finalized {
+				_ = syncAndDestroyStreamOnCurrentDevice(stream, "openZ")
+			}
+		}()
 
 		n := dZLagrange.Len()
 		dZCanonical := s.getTempDeviceSlice(n)
@@ -1582,7 +1593,8 @@ func (s *instance) batchOpening() error {
 			foldDone <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "batchOpening fold", foldDone)
+		finish, guard := makeFinisher(stream, "batchOpening fold", foldDone)
+		defer guard()
 
 		dFold = s.getTempDeviceSlice(s.linearizedPolynomialGPU.Len())
 		if e := copyDeviceSliceIntoOnCurrentDevice(dFold, s.linearizedPolynomialGPU, cfg); e != icicle_runtime.Success {
@@ -1649,7 +1661,8 @@ func (s *instance) batchOpening() error {
 			divDone <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "batchOpening divideByXMinusA", divDone)
+		finish, guard := makeFinisher(stream, "batchOpening divideByXMinusA", divDone)
+		defer guard()
 		// For Montgomery vectors, scalar multipliers must be standard-form.
 		dPoint := uploadScalarStdOnCurrentDevice(s.zeta, cfg)
 		dWitness = s.getTempDeviceSlice(witnessSize)
@@ -2046,8 +2059,10 @@ func (s *instance) downloadCanonicalDeviceCoefficients(dPoly icicle_core.DeviceS
 			done <- cfgErr
 			return
 		}
+		finish, guard := makeFinisher(stream, label+" download", done)
+		defer guard()
 		host.CopyFromDeviceAsync(&dPoly, cfg.StreamHandle)
-		done <- syncAndDestroyStreamOnCurrentDevice(stream, label+" download")
+		finish(nil)
 	})
 	if err := <-done; err != nil {
 		return nil, err
@@ -2644,6 +2659,8 @@ func (s *instance) downloadNumeratorFromGPU(gpuNumerator *gpuNumeratorPolynomial
 			mergeDone <- cfgErr
 			return
 		}
+		finish, guard := makeFinisher(stream, "downloadNumeratorFromGPU merge", mergeDone)
+		defer guard()
 		dMerged = s.getTempDeviceSlice(totalSize)
 		mergeErr := icicle_vecops.MergeShardsBitReverse(
 			gpuNumerator.shards,
@@ -2653,12 +2670,11 @@ func (s *instance) downloadNumeratorFromGPU(gpuNumerator *gpuNumeratorPolynomial
 			cfg,
 		)
 		if mergeErr != icicle_runtime.Success {
-			_ = syncAndDestroyStreamOnCurrentDevice(stream, "downloadNumeratorFromGPU merge")
-			mergeDone <- fmt.Errorf("downloadNumeratorFromGPU: merge shards kernel failed: %s", mergeErr.AsString())
+			finish(fmt.Errorf("downloadNumeratorFromGPU: merge shards kernel failed: %s", mergeErr.AsString()))
 			return
 		}
 		// Async boundary before merged slice is consumed by host copy.
-		mergeDone <- syncAndDestroyStreamOnCurrentDevice(stream, "downloadNumeratorFromGPU merge")
+		finish(nil)
 	})
 	if mergeErr := <-mergeDone; mergeErr != nil {
 		s.putTempDeviceSlice(dMerged, totalSize)
@@ -2675,8 +2691,10 @@ func (s *instance) downloadNumeratorFromGPU(gpuNumerator *gpuNumeratorPolynomial
 			downloadDone <- cfgErr
 			return
 		}
+		finish, guard := makeFinisher(stream, "downloadNumeratorFromGPU download", downloadDone)
+		defer guard()
 		cresHost.CopyFromDeviceAsync(&dMerged, cfg.StreamHandle)
-		downloadDone <- syncAndDestroyStreamOnCurrentDevice(stream, "downloadNumeratorFromGPU download")
+		finish(nil)
 	})
 	if err := <-downloadDone; err != nil {
 		s.putTempDeviceSlice(dMerged, totalSize)
@@ -3689,13 +3707,25 @@ func syncAndDestroyStreamOnCurrentDevice(stream icicle_runtime.Stream, label str
 
 // makeFinisher returns a closure that synchronizes and destroys the stream,
 // then sends the (possibly merged) error to done. Use inside RunOnDevice closures.
-func makeFinisher(stream icicle_runtime.Stream, label string, done chan<- error) func(error) {
-	return func(runErr error) {
+func makeFinisher(stream icicle_runtime.Stream, label string, done chan<- error) (finish func(error), guard func()) {
+	finished := false
+	finish = func(runErr error) {
+		finished = true
 		if syncErr := syncAndDestroyStreamOnCurrentDevice(stream, label); syncErr != nil && runErr == nil {
 			runErr = syncErr
 		}
 		done <- runErr
 	}
+	// guard must be deferred right after the stream is created: if the
+	// closure panics before finish runs (the panic itself is recovered and
+	// reported by devicePanicToError), the guard still synchronizes and
+	// destroys the stream so the GPU-OOM path cannot leak it.
+	guard = func() {
+		if !finished {
+			_ = syncAndDestroyStreamOnCurrentDevice(stream, label)
+		}
+	}
+	return finish, guard
 }
 
 // devicePanicToError is deferred at the top of RunOnDevice closures that
@@ -5027,7 +5057,8 @@ func (s *instance) inverseAndMergeShards(
 			done <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "inverseAndMergeShards", done)
+		finish, guard := makeFinisher(stream, "inverseAndMergeShards", done)
+		defer guard()
 
 		cfgNtt := icicle_ntt.GetDefaultNttConfig()
 		cfgNtt.IsAsync = true
@@ -5201,7 +5232,8 @@ func (s *instance) divideByZHOnGPU(
 			scaleDone <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "divideByZHOnGPU", scaleDone)
+		finish, guard := makeFinisher(stream, "divideByZHOnGPU", scaleDone)
+		defer guard()
 		for i := 0; i < gpuNumerator.rho; i++ {
 			dScale := uploadScalarStdOnCurrentDevice(xnMinusOneInverseLagrangeCoset[i], cfg)
 			vecErr := icicle_vecops.ScalarMulVec(dScale, gpuNumerator.shards[i], gpuNumerator.shards[i], cfg)
@@ -5251,9 +5283,11 @@ func (s *instance) downloadQuotientFromGPU(quotient *gpuQuotientPolynomial) (*io
 			done <- cfgErr
 			return
 		}
+		finish, guard := makeFinisher(stream, "downloadQuotientFromGPU", done)
+		defer guard()
 		host.CopyFromDeviceAsync(&quotient.coeffs, cfg.StreamHandle)
 		// Async boundary for host materialization of quotient coefficients.
-		done <- syncAndDestroyStreamOnCurrentDevice(stream, "downloadQuotientFromGPU")
+		finish(nil)
 	})
 	if err := <-done; err != nil {
 		return nil, err
@@ -5655,7 +5689,8 @@ func (s *instance) prepareBatchOpeningPolynomialsOnGPU(
 			prepDone <- cfgErr
 			return
 		}
-		finish := makeFinisher(stream, "prepareBatchOpeningPolynomialsOnGPU", prepDone)
+		finish, guard := makeFinisher(stream, "prepareBatchOpeningPolynomialsOnGPU", prepDone)
+		defer guard()
 
 		cleanupOwned := func(from int) {
 			for i := from; i < len(devicePolys); i++ {
@@ -5940,7 +5975,9 @@ func (s *instance) evalPolynomialInCurrentFormOnGPU(
 				ownedLen = 0
 			}
 		}
+		finished := false
 		finish := func(runErr error) {
+			finished = true
 			// Async boundary for eval path before handing result back to caller.
 			if syncErr := syncAndDestroyStreamOnCurrentDevice(evalStream, "evalPolynomialInCurrentFormOnGPU"); syncErr != nil && runErr == nil {
 				runErr = syncErr
@@ -5948,6 +5985,15 @@ func (s *instance) evalPolynomialInCurrentFormOnGPU(
 			releaseEval()
 			done <- runErr
 		}
+		// If the closure panics before finish runs (recovered by
+		// devicePanicToError), still release the stream and any owned eval
+		// buffer so the GPU-OOM path cannot leak them.
+		defer func() {
+			if !finished {
+				_ = syncAndDestroyStreamOnCurrentDevice(evalStream, "evalPolynomialInCurrentFormOnGPU")
+				releaseEval()
+			}
+		}()
 
 		prepareResult, prepErr := s.prepareEvalPolynomialInputOnCurrentDevice(p, dSrc, cfgVec)
 		dEval = prepareResult.dEval
