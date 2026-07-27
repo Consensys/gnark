@@ -170,14 +170,14 @@ func SaveR1CSSolution(path string, solution *R1CSSolution) error {
 	tmpName := tmp.Name()
 	if _, err := solution.WriteTo(tmp); err != nil {
 		tmp.Close()
-		os.Remove(tmpName)
+		os.Remove(tmpName) // #nosec G703 -- tmpName comes from os.CreateTemp in the caller-chosen cache directory
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		os.Remove(tmpName) // #nosec G703 -- tmpName comes from os.CreateTemp in the caller-chosen cache directory
 		return err
 	}
-	return os.Rename(tmpName, path)
+	return os.Rename(tmpName, path) // #nosec G703 -- path is the caller-provided cache location
 }
 
 // SaveRawSolverValues writes a wire-value vector as raw bytes (Montgomery form,
@@ -194,7 +194,7 @@ func SaveRawSolverValues(path string, values []fr.Element) error {
 	nWires := uint64(len(values))
 	if err := binary.Write(tmp, binary.LittleEndian, nWires); err != nil {
 		tmp.Close()
-		os.Remove(tmpName)
+		os.Remove(tmpName) // #nosec G703 -- tmpName comes from os.CreateTemp in the caller-chosen cache directory
 		return err
 	}
 	if nWires > 0 {
@@ -202,15 +202,15 @@ func SaveRawSolverValues(path string, values []fr.Element) error {
 		byteSlice := unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*fr.Bytes)
 		if _, err := tmp.Write(byteSlice); err != nil {
 			tmp.Close()
-			os.Remove(tmpName)
+			os.Remove(tmpName) // #nosec G703 -- tmpName comes from os.CreateTemp in the caller-chosen cache directory
 			return err
 		}
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		os.Remove(tmpName) // #nosec G703 -- tmpName comes from os.CreateTemp in the caller-chosen cache directory
 		return err
 	}
-	return os.Rename(tmpName, path)
+	return os.Rename(tmpName, path) // #nosec G703 -- path is the caller-provided cache location
 }
 
 // LoadRawSolverValues reads a wire-value vector written by SaveRawSolverValues.

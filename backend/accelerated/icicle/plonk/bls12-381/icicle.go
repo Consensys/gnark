@@ -34,6 +34,8 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	fcs "github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/utils"
+
+	crypto_utils "github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -870,8 +872,7 @@ func (s *instance) computeQuotient() (err error) {
 	case <-s.chLRO:
 	}
 	if isProfileMode {
-		var startComputeQuotient time.Time
-		startComputeQuotient = time.Now()
+		startComputeQuotient := time.Now()
 		defer func() {
 			l := logger.Logger()
 			if err != nil {
@@ -2149,7 +2150,7 @@ func (s *instance) computeNumerator(gpuState *gpuPolysState) (*gpuNumeratorPolyn
 	scalingVector := cosetTable
 	scalingVectorRev := make([]fr.Element, len(cosetTable))
 	copy(scalingVectorRev, cosetTable)
-	fft.BitReverse(scalingVectorRev)
+	crypto_utils.BitReverse(scalingVectorRev)
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
@@ -2418,7 +2419,7 @@ func (s *instance) computeNumeratorIteration(i int, loopCtx *computeNumeratorLoo
 
 		// Reuse memory.
 		copy(loopCtx.scalingVectorRev, loopCtx.scalingVector)
-		fft.BitReverse(loopCtx.scalingVectorRev)
+		crypto_utils.BitReverse(loopCtx.scalingVectorRev)
 	}
 
 	// We do **a lot** of FFT here, but on the small domain.
