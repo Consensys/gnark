@@ -9,6 +9,7 @@ import (
 	fr_bls "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -39,6 +40,9 @@ func TestG2FixedMulCount(t *testing.T) {
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
 	t.Log("emulated G2 ScalarMul (const gen) r1cs constraints =", ccs.GetNbConstraints())
+	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	assert.NoError(err)
+	t.Log("emulated G2 ScalarMul (const gen) scs constraints =", ccs.GetNbConstraints())
 }
 
 func TestG2FixedMulCorrectness(t *testing.T) {

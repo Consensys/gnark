@@ -19,15 +19,16 @@ import (
 //
 //	k' = Σ_{i<n} d_i·2^i,   d_i = 2c_i − 1,   c = (k' + 2^n − 1)/2.
 //
-// The digits are grouped into nw windows of w bits. Every window value
-// d(j) = Σ_{i<w} (2j_i − 1)·2^i is a non-zero odd integer, so the window
-// points [d(j)·2^{w·t}]G are precomputed constants which are never the point
-// at infinity, and the running partial sums [m_t]G are always odd non-zero
+// The digits are grouped into nw windows: the lower windows have w bits and
+// the top window may be narrower. Every window value
+// d(j) = Σ_i (2j_i − 1)·2^i is a non-zero odd integer, so the window points
+// [d(j)·2^{w·t}]G are precomputed constants which are never the point at
+// infinity, and the running partial sums [m_t]G are always odd non-zero
 // multiples of G. This makes the incomplete (chord) addition formulas
-// provably complete for all windows t with 2^{w·(t+1)} ≤ r: an x-coordinate
-// collision would need m ≡ ±v·2^{w·t} (mod r) with |m ∓ v·2^{w·t}| < r and
-// m ∓ v·2^{w·t} odd, which is impossible. Only the last addition(s) use the
-// complete [Curve.AddUnified] formulas.
+// provably complete for all windows t where the covered scalar range is below
+// r: an x-coordinate collision would need m ≡ ±v·2^{w·t} (mod r) with
+// |m ∓ v·2^{w·t}| < r and m ∓ v·2^{w·t} odd, which is impossible. Only the
+// last addition(s) use the complete [Curve.AddUnified] formulas.
 //
 // The −(1−b0) parity correction is folded into the top window: when the
 // scalar is even, the top window selects from the shifted constant table
@@ -57,9 +58,9 @@ const combDefaultWindow = 8
 // selection's wide constant linear combinations are free in R1CS but expand
 // into one addition gate per term in PLONK, making the selector cost scale
 // with 2^w·nbLimbs per window; a smaller window rebalances selector versus
-// chain-addition cost (measured on secp256k1: w=4 is ~35% cheaper than w=8 in
-// scs, while w=8 remains ~30% cheaper than w=4 in R1CS).
-const combPlonkWindow = 4
+// chain-addition cost. With a partial top window, w=5 is the current SCS
+// optimum measured on secp256k1.
+const combPlonkWindow = 5
 
 // combWindow returns the comb window width for the current backend.
 func (c *Curve[B, S]) combWindow() int {
@@ -74,12 +75,13 @@ func (c *Curve[B, S]) combWindow() int {
 type combData struct {
 	w  int // window width in bits
 	nw int // number of windows
-	n  int // number of recoded signed digits, n = w·nw ≥ bitlen(r)
+	n  int // number of recoded signed digits, n = bitlen(r)
+	tw int // width of the top window, in bits
 	// nbUnified is the number of trailing window additions which must use the
 	// complete addition formulas.
 	nbUnified int
-	// windows[t][j] is the affine point [d(j)·2^{w·t} mod r]G where
-	// d(j) = 2j − 2^w + 1 is the signed digit value of window index j.
+	// windows[t][j] is the affine point [d(j)·2^{w·t} mod r]G. For the lower
+	// windows d(j) = 2j − 2^w + 1; for the top window w is replaced by tw.
 	windows [][][2]*big.Int
 	// topEven[j] is [d(j)·2^{w·(nw−1)} − 1 mod r]G: the parity-folded top
 	// window table selected when the scalar is even.
@@ -201,16 +203,23 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 	if nw < 2 {
 		return nil, fmt.Errorf("window width %d too large for %d-bit scalar field", w, rBits)
 	}
-	n := w * nw
+	n := rBits
 	if n > scalarCap {
 		return nil, fmt.Errorf("recoded scalar needs %d bits, scalar field emulation has capacity %d", n, scalarCap)
 	}
-	// adding window t (t ≥ 1) with incomplete formulas is safe iff
-	// 2^{w·(t+1)} ≤ r; the final addition is always complete as it may cancel
-	// to the point at infinity or double.
+	tw := n - w*(nw-1)
+	// Adding window t (t ≥ 1) with incomplete formulas is safe iff the absolute
+	// value of every running sum is below r. For a partial top window this
+	// bound is 2^n on the top window and 2^{w·(t+1)} otherwise. The final
+	// addition is always complete as it may cancel to the point at infinity or
+	// double.
 	nbUnified := 0
 	for t := nw - 1; t >= 1; t-- {
-		if new(big.Int).Lsh(big.NewInt(1), uint(w*(t+1))).Cmp(r) <= 0 {
+		endBit := w * (t + 1)
+		if t == nw-1 {
+			endBit = n
+		}
+		if new(big.Int).Lsh(big.NewInt(1), uint(endBit)).Cmp(r) <= 0 {
 			break
 		}
 		nbUnified++
@@ -218,7 +227,6 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 	nbUnified = max(nbUnified, 1)
 
 	G := &combAffine{x: new(big.Int).Set(gx), y: new(big.Int).Set(gy)}
-	half := 1 << (w - 1)
 	windows := make([][][2]*big.Int, nw)
 	Bt := G
 	var err error
@@ -230,11 +238,16 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 				}
 			}
 		}
+		tw := w
+		if t == nw-1 {
+			tw = n - w*(nw-1)
+		}
 		// odd multiples odd[m] = [(2m+1)·2^{w·t}]G
 		D, err := combDouble(Bt, a, prime)
 		if err != nil {
 			return nil, err
 		}
+		half := 1 << (tw - 1)
 		odd := make([]*combAffine, half)
 		odd[0] = Bt
 		for m := 1; m < half; m++ {
@@ -242,9 +255,9 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 				return nil, err
 			}
 		}
-		tab := make([][2]*big.Int, 1<<w)
+		tab := make([][2]*big.Int, 1<<tw)
 		for j := range tab {
-			d := 2*j - (1 << w) + 1
+			d := 2*j - (1 << tw) + 1
 			var pt *combAffine
 			if d > 0 {
 				pt = odd[(d-1)/2]
@@ -257,7 +270,7 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 	}
 	// parity-folded top window: topEven[j] = windows[nw−1][j] + (−G)
 	negG := combNeg(G, prime)
-	topEven := make([][2]*big.Int, 1<<w)
+	topEven := make([][2]*big.Int, 1<<tw)
 	for j := range topEven {
 		q := &combAffine{x: windows[nw-1][j][0], y: windows[nw-1][j][1]}
 		s, err := combAdd(q, negG, prime)
@@ -270,6 +283,7 @@ func computeCombData(gx, gy, a, b, prime, r *big.Int, w int, scalarCap int) (*co
 		w:         w,
 		nw:        nw,
 		n:         n,
+		tw:        tw,
 		nbUnified: nbUnified,
 		windows:   windows,
 		topEven:   topEven,
@@ -438,7 +452,7 @@ func (c *Curve[B, S]) scalarMulBaseComb(s *emulated.Element[S], w int) *AffinePo
 // of the comb tables d. It returns (0,0) when s ≡ 0 (mod r).
 func (c *Curve[B, S]) scalarMulComb(d *combData, s *emulated.Element[S]) *AffinePoint[B] {
 	w := d.w
-	n, nw := d.n, d.nw
+	n, nw, tw := d.n, d.nw, d.tw
 
 	// scalar recode: b0 = parity of s, c = (k' + 2^n − 1)/2 with
 	// k' = s + 1 − b0.
@@ -468,10 +482,10 @@ func (c *Curve[B, S]) scalarMulComb(d *combData, s *emulated.Element[S]) *Affine
 	// top window with the parity fold: b0 acts as an extra index bit
 	// selecting between the even-scalar table (with the −G correction folded
 	// in) and the regular table.
-	stacked := make([][2]*big.Int, 0, 2<<w)
+	stacked := make([][2]*big.Int, 0, 2<<tw)
 	stacked = append(stacked, d.topEven...)
 	stacked = append(stacked, d.windows[nw-1]...)
-	topBits := make([]frontend.Variable, 0, w+1)
+	topBits := make([]frontend.Variable, 0, tw+1)
 	topBits = append(topBits, cbits[(nw-1)*w:]...)
 	topBits = append(topBits, b0)
 	xT[nw-1], yT[nw-1] = c.combSelect(stacked, topBits)

@@ -26,8 +26,9 @@ const g2CombWindow = 8
 
 // g2CombPlonkWindow is the window width on PLONKish backends, where the
 // one-hot selection's constant linear combinations expand into addition
-// gates (see the G1 comb in sw_emulated).
-const g2CombPlonkWindow = 4
+// gates (see the G1 comb in sw_emulated). Width 5 is the current SCS optimum
+// measured on BN254 and BLS12-381 G2.
+const g2CombPlonkWindow = 5
 
 // g2CombWindowFor returns the comb window width for the current backend.
 func (g2 *G2) g2CombWindowFor() int {
@@ -41,8 +42,11 @@ type g2CombData struct {
 	w         int
 	nw        int
 	n         int
+	tw        int
 	nbUnified int
-	// windows[t][j] = [d(j)·2^{w·t} mod r]P as (X.A0, X.A1, Y.A0, Y.A1)
+	// windows[t][j] = [d(j)·2^{w·t} mod r]P as (X.A0, X.A1, Y.A0, Y.A1).
+	// For the lower windows d(j) = 2j − 2^w + 1; for the top window w is
+	// replaced by tw.
 	windows [][][4]*big.Int
 	topEven [][4]*big.Int
 }
@@ -71,14 +75,19 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 	r := fr_bn.Modulus()
 	rBits := r.BitLen()
 	nw := (rBits + w - 1) / w
-	n := w * nw
+	n := rBits
 	var frParams ScalarField
 	if n > int(frParams.NbLimbs()*frParams.BitsPerLimb()) {
 		return nil, errors.New("recoded scalar exceeds scalar field emulation capacity")
 	}
+	tw := n - w*(nw-1)
 	nbUnified := 0
 	for t := nw - 1; t >= 1; t-- {
-		if new(big.Int).Lsh(big.NewInt(1), uint(w*(t+1))).Cmp(r) <= 0 {
+		endBit := w * (t + 1)
+		if t == nw-1 {
+			endBit = n
+		}
+		if new(big.Int).Lsh(big.NewInt(1), uint(endBit)).Cmp(r) <= 0 {
 			break
 		}
 		nbUnified++
@@ -97,7 +106,6 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 		}, nil
 	}
 
-	half := 1 << (w - 1)
 	windows := make([][][4]*big.Int, nw)
 	var Bt bn254.G2Jac
 	Bt.FromAffine(&P)
@@ -107,8 +115,13 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 				Bt.DoubleAssign()
 			}
 		}
+		tw := w
+		if t == nw-1 {
+			tw = n - w*(nw-1)
+		}
 		var D bn254.G2Jac
 		D.Set(&Bt).DoubleAssign()
+		half := 1 << (tw - 1)
 		odd := make([]bn254.G2Affine, half)
 		acc := new(bn254.G2Jac).Set(&Bt)
 		odd[0].FromJacobian(acc)
@@ -116,9 +129,9 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 			acc.AddAssign(&D)
 			odd[m].FromJacobian(acc)
 		}
-		tab := make([][4]*big.Int, 1<<w)
+		tab := make([][4]*big.Int, 1<<tw)
 		for j := range tab {
-			d := 2*j - (1 << w) + 1
+			d := 2*j - (1 << tw) + 1
 			var e bn254.G2Affine
 			if d > 0 {
 				e = odd[(d-1)/2]
@@ -137,7 +150,7 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 	var negPAff bn254.G2Affine
 	negPAff.Neg(&P)
 	negP.FromAffine(&negPAff)
-	topEven := make([][4]*big.Int, 1<<w)
+	topEven := make([][4]*big.Int, 1<<tw)
 	for j := range topEven {
 		var e bn254.G2Affine
 		e.X.A0.SetBigInt(windows[nw-1][j][0])
@@ -159,6 +172,7 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 		w:         w,
 		nw:        nw,
 		n:         n,
+		tw:        tw,
 		nbUnified: nbUnified,
 		windows:   windows,
 		topEven:   topEven,
@@ -321,7 +335,7 @@ func (g2 *G2) g2CombChainStep(lamPrev, xAcc, xTPrev, yTPrev *fields_bn254.E2, q 
 // scalarMulComb computes [s]P for the constant base point of the tables d.
 // It returns (0,0) when s ≡ 0 (mod r).
 func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
-	w, n, nw := d.w, d.n, d.nw
+	w, n, nw, tw := d.w, d.n, d.nw, d.tw
 	rets, err := g2.fr.NewHintWithNativeOutput(g2CombRecodeHint, 1+n, s)
 	if err != nil {
 		panic(fmt.Sprintf("comb recode hint: %v", err))
@@ -341,10 +355,10 @@ func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
 	for t := 0; t < nw-1; t++ {
 		pts[t] = g2.g2CombSelect(d.windows[t], cbits[t*w:(t+1)*w])
 	}
-	stacked := make([][4]*big.Int, 0, 2<<w)
+	stacked := make([][4]*big.Int, 0, 2<<tw)
 	stacked = append(stacked, d.topEven...)
 	stacked = append(stacked, d.windows[nw-1]...)
-	topBits := make([]frontend.Variable, 0, w+1)
+	topBits := make([]frontend.Variable, 0, tw+1)
 	topBits = append(topBits, cbits[(nw-1)*w:]...)
 	topBits = append(topBits, b0)
 	pts[nw-1] = g2.g2CombSelect(stacked, topBits)

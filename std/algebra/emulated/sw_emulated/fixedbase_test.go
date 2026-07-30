@@ -60,7 +60,7 @@ func TestScalarMulBaseCombSecp256k1(t *testing.T) {
 		_, _ = rnd.SetRandom()
 		return rnd.BigInt(new(big.Int))
 	}
-	for _, w := range []int{4, 8} {
+	for _, w := range []int{4, 5, 8} {
 		for _, s := range combTestScalars(r, 3, randFn) {
 			var S secp256k1.G1Affine
 			S.ScalarMultiplication(&g, s)
@@ -87,7 +87,7 @@ func TestScalarMulBaseCombBN254(t *testing.T) {
 		_, _ = rnd.SetRandom()
 		return rnd.BigInt(new(big.Int))
 	}
-	for _, w := range []int{4, 8} {
+	for _, w := range []int{4, 5, 8} {
 		for _, s := range combTestScalars(r, 3, randFn) {
 			var S bn254.G1Affine
 			S.ScalarMultiplication(&g, s)
