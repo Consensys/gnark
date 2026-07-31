@@ -58,9 +58,6 @@ func TestNativeG2CombScalarMulBase(t *testing.T) {
 	for _, s := range scalars {
 		var S bls12377.G2Affine
 		S.ScalarMultiplication(&g2, s)
-		var expected g2AffP
-		expected.Assign(&S)
-		_ = expected
 		circuit := nativeG2BaseMulCount{}
 		var w nativeG2BaseMulCount
 		w.S = s
