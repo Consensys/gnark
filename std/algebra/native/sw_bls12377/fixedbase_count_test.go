@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bls "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -22,6 +23,33 @@ func (c *nativeBaseMulCount) Define(api frontend.API) error {
 	res.ScalarMulBase(api, c.S)
 	res.AssertIsEqual(api, c.Q)
 	return nil
+}
+
+func nativeCombZeroRecodeHint(_ *big.Int, _ []*big.Int, outputs []*big.Int) error {
+	for _, out := range outputs {
+		out.SetUint64(0)
+	}
+	return nil
+}
+
+func nativeCombWrappedScalar(n int) *big.Int {
+	twoN := new(big.Int).Lsh(big.NewInt(1), uint(n))
+	return new(big.Int).Sub(ecc.BW6_761.ScalarField(), twoN)
+}
+
+func nativeCombNegativeTwoNScalar(n int) *big.Int {
+	twoN := new(big.Int).Lsh(big.NewInt(1), uint(n))
+	twoN.Neg(twoN)
+	return twoN.Mod(twoN, fr_bls.Modulus())
+}
+
+func nativeCombSolveWithZeroRecode(circuit, witness frontend.Circuit) error {
+	return test.IsSolved(
+		circuit,
+		witness,
+		ecc.BW6_761.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(g1CombRecodeHint), nativeCombZeroRecodeHint),
+	)
 }
 
 func TestNativeBaseMulCount(t *testing.T) {
@@ -66,4 +94,21 @@ func TestNativeCombScalarMulBase(t *testing.T) {
 		err := test.IsSolved(&circuit, &witness, ecc.BW6_761.ScalarField())
 		assert.NoError(err, "s=%s", s.String())
 	}
+}
+
+func TestNativeCombRejectsWrappedScalarRecode(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bls12377.Generators()
+	d, err := g1CombDataFor(g.X.BigInt(new(big.Int)), g.Y.BigInt(new(big.Int)))
+	assert.NoError(err)
+
+	var wrong bls12377.G1Affine
+	wrong.ScalarMultiplication(&g, nativeCombNegativeTwoNScalar(d.n))
+	witness := nativeBaseMulCount{
+		S: nativeCombWrappedScalar(d.n),
+		Q: G1Affine{X: wrong.X.BigInt(new(big.Int)), Y: wrong.Y.BigInt(new(big.Int))},
+	}
+
+	err = nativeCombSolveWithZeroRecode(&nativeBaseMulCount{}, &witness)
+	assert.Error(err, "wrapped scalar accepted with malicious all-zero comb recode")
 }

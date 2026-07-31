@@ -168,7 +168,8 @@ func g2CombSelect(api frontend.API, table [][4]*big.Int, flags []frontend.Variab
 }
 
 // g2CombScalarMul computes [s]P for the constant base point of the tables d.
-// It returns (0,0) when s ≡ 0 (mod r). The scalar must be reduced (s < r).
+// It returns (0,0) when s ≡ 0 (mod r). The recoding constraints force s < 2^n;
+// callers that need canonical scalar encodings must separately enforce s < r.
 func g2CombScalarMul(api frontend.API, d *g2CombData, s frontend.Variable) *g2AffP {
 	w, n, nw := d.w, d.n, d.nw
 	rets, err := api.Compiler().NewHint(g1CombRecodeHint, 1+n, s)
@@ -185,6 +186,7 @@ func g2CombScalarMul(api frontend.API, d *g2CombData, s frontend.Variable) *g2Af
 		cSum = api.Add(cSum, api.Mul(cbits[i], new(big.Int).Set(coef)))
 		coef.Lsh(coef, 1)
 	}
+	api.AssertIsEqual(cbits[n-1], 1)
 	twoN := new(big.Int).Lsh(big.NewInt(1), uint(n))
 	api.AssertIsEqual(api.Add(cSum, b0), api.Add(s, twoN))
 

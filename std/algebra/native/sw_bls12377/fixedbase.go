@@ -18,8 +18,9 @@ import (
 //
 //   - the scalar is recoded into the odd k' = s + 1 − b0 represented by n
 //     signed binary digits, witnessed as the bits of c = (k' + 2^n − 1)/2 and
-//     pinned by the exact native identity 2c + b0 = s + 2^n (no wrap-around:
-//     2^{n+1} is far below the native modulus);
+//     pinned by the exact native identity 2c + b0 = s + 2^n. The top bit of c
+//     is constrained to 1, proving 2c + b0 ≥ 2^n and excluding native-field
+//     wrap-around;
 //   - windows of w digits select from compile-time constant tables
 //     [d(j)·2^{w·t}]P. With constant tables the selection is a free affine
 //     combination of the one-hot flags, so only the flag products cost
@@ -198,7 +199,8 @@ func g1CombSelect(api frontend.API, table [][2]*big.Int, flags []frontend.Variab
 }
 
 // g1CombScalarMul computes [s]P for the constant base point of the tables d.
-// It returns (0,0) when s ≡ 0 (mod r). The scalar must be reduced (s < r).
+// It returns (0,0) when s ≡ 0 (mod r). The recoding constraints force s < 2^n;
+// callers that need canonical scalar encodings must separately enforce s < r.
 func g1CombScalarMul(api frontend.API, d *g1CombData, s frontend.Variable) *G1Affine {
 	w, n, nw := d.w, d.n, d.nw
 	rets, err := api.Compiler().NewHint(g1CombRecodeHint, 1+n, s)
@@ -208,9 +210,10 @@ func g1CombScalarMul(api frontend.API, d *g1CombData, s frontend.Variable) *G1Af
 	b0 := rets[0]
 	cbits := rets[1:]
 	api.AssertIsBoolean(b0)
-	// exact native identity 2·c + b0 = s + 2^n: all quantities are below
-	// 2^{n+1} which is far below the native modulus, so the identity holds
-	// over the integers and pins k' = 2c − (2^n − 1) = s + 1 − b0.
+	// The top bit of c proves 2c+b0 ≥ 2^n. Since 2c+b0 < 2^{n+1}
+	// and 2^{n+1} is far below the native modulus, the equality below cannot
+	// be satisfied by a wrapped s+2^n value. It therefore holds over the
+	// integers and pins k' = 2c − (2^n − 1) = s + 1 − b0.
 	cSum := frontend.Variable(0)
 	coef := big.NewInt(2)
 	for i := range cbits {
@@ -218,6 +221,7 @@ func g1CombScalarMul(api frontend.API, d *g1CombData, s frontend.Variable) *G1Af
 		cSum = api.Add(cSum, api.Mul(cbits[i], new(big.Int).Set(coef)))
 		coef.Lsh(coef, 1)
 	}
+	api.AssertIsEqual(cbits[n-1], 1)
 	twoN := new(big.Int).Lsh(big.NewInt(1), uint(n))
 	api.AssertIsEqual(api.Add(cSum, b0), api.Add(s, twoN))
 

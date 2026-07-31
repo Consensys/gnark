@@ -69,3 +69,24 @@ func TestNativeG2CombScalarMulBase(t *testing.T) {
 		assert.NoError(err, "s=%s", s.String())
 	}
 }
+
+func TestNativeG2CombRejectsWrappedScalarRecode(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, _, g2 := bls12377.Generators()
+	d, err := g2CombDataFor(
+		g2.X.A0.BigInt(new(big.Int)),
+		g2.X.A1.BigInt(new(big.Int)),
+		g2.Y.A0.BigInt(new(big.Int)),
+		g2.Y.A1.BigInt(new(big.Int)),
+	)
+	assert.NoError(err)
+
+	var wrong bls12377.G2Affine
+	wrong.ScalarMultiplication(&g2, nativeCombNegativeTwoNScalar(d.n))
+	var witness nativeG2BaseMulCount
+	witness.S = nativeCombWrappedScalar(d.n)
+	witness.Q.Assign(&wrong)
+
+	err = nativeCombSolveWithZeroRecode(&nativeG2BaseMulCount{}, &witness)
+	assert.Error(err, "wrapped scalar accepted with malicious all-zero comb recode")
+}
