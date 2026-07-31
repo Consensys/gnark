@@ -48,7 +48,11 @@ type g2CombData struct {
 	// For the lower windows d(j) = 2j − 2^w + 1; for the top window w is
 	// replaced by tw.
 	windows [][][4]*big.Int
-	topEven [][4]*big.Int
+	// doubles[t][j] = 2*windows[t][j], used by the screened complete tail
+	// when a trailing addition degenerates into a doubling.
+	doubles        [][][4]*big.Int
+	topEven        [][4]*big.Int
+	topEvenDoubles [][4]*big.Int
 }
 
 var g2CombCache sync.Map
@@ -105,8 +109,17 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 			a.Y.A1.BigInt(new(big.Int)),
 		}, nil
 	}
+	toDoubleBig := func(a *bls12381.G2Affine) ([4]*big.Int, error) {
+		var j bls12381.G2Jac
+		j.FromAffine(a)
+		j.DoubleAssign()
+		var d bls12381.G2Affine
+		d.FromJacobian(&j)
+		return toBig(&d)
+	}
 
 	windows := make([][][4]*big.Int, nw)
+	doubles := make([][][4]*big.Int, nw)
 	var Bt bls12381.G2Jac
 	Bt.FromAffine(&P)
 	for t := 0; t < nw; t++ {
@@ -130,6 +143,7 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 			odd[m].FromJacobian(acc)
 		}
 		tab := make([][4]*big.Int, 1<<tw)
+		dbl := make([][4]*big.Int, 1<<tw)
 		for j := range tab {
 			d := 2*j - (1 << tw) + 1
 			var e bls12381.G2Affine
@@ -143,14 +157,21 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 				return nil, err
 			}
 			tab[j] = c
+			dc, err := toDoubleBig(&e)
+			if err != nil {
+				return nil, fmt.Errorf("double comb table point: %w", err)
+			}
+			dbl[j] = dc
 		}
 		windows[t] = tab
+		doubles[t] = dbl
 	}
 	var negP bls12381.G2Jac
 	var negPAff bls12381.G2Affine
 	negPAff.Neg(&P)
 	negP.FromAffine(&negPAff)
 	topEven := make([][4]*big.Int, 1<<tw)
+	topEvenDoubles := make([][4]*big.Int, 1<<tw)
 	for j := range topEven {
 		var e bls12381.G2Affine
 		e.X.A0.SetBigInt(windows[nw-1][j][0])
@@ -167,15 +188,22 @@ func g2CombDataFor(x0, x1, y0, y1 *big.Int, w int) (*g2CombData, error) {
 			return nil, fmt.Errorf("parity-fold table: %w", err)
 		}
 		topEven[j] = c
+		dc, err := toDoubleBig(&res)
+		if err != nil {
+			return nil, fmt.Errorf("double parity-fold table point: %w", err)
+		}
+		topEvenDoubles[j] = dc
 	}
 	d := &g2CombData{
-		w:         w,
-		nw:        nw,
-		n:         n,
-		tw:        tw,
-		nbUnified: nbUnified,
-		windows:   windows,
-		topEven:   topEven,
+		w:              w,
+		nw:             nw,
+		n:              n,
+		tw:             tw,
+		nbUnified:      nbUnified,
+		windows:        windows,
+		doubles:        doubles,
+		topEven:        topEven,
+		topEvenDoubles: topEvenDoubles,
 	}
 	g2CombCache.Store(key, d)
 	return d, nil
@@ -332,10 +360,41 @@ func (g2 *G2) g2CombChainStep(lamPrev, xAcc, xTPrev, yTPrev *fields_bls12381.E2,
 	return lam, &fields_bls12381.E2{A0: *x0, A1: *x1}
 }
 
+// g2CombTailAdd is a complete addition specialized for the comb tail. The
+// table point q is finite and qDouble = 2q is selected from the matching
+// constant double table. Exceptional cases are screened before the incomplete
+// chord assertion and are routed to a fixed safe pair whose result is discarded.
+func (g2 *G2) g2CombTailAdd(p *G2Affine, q, qDouble *g2AffP) *G2Affine {
+	qAff := &G2Affine{P: *q}
+	qDoubleAff := &G2Affine{P: *qDouble}
+
+	isPInf := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+	xEqual := g2.Ext2.IsZero(g2.Ext2.Sub(&q.X, &p.P.X))
+	yEqual := g2.Ext2.IsZero(g2.Ext2.Sub(&q.Y, &p.P.Y))
+	pFinite := g2.api.Sub(1, isPInf)
+	isSame := g2.api.And(g2.api.And(xEqual, yEqual), pFinite)
+	isInverse := g2.api.And(g2.api.And(xEqual, g2.api.Sub(1, yEqual)), pFinite)
+	exceptional := g2.api.Or(isPInf, xEqual)
+
+	safeP := &G2Affine{P: *g2.g2Gen}
+	safeQ := &G2Affine{P: *g2.g2GenNbits}
+	routedP := g2.Select(exceptional, safeP, p)
+	routedQ := g2.Select(exceptional, safeQ, qAff)
+	result := g2.add(routedP, routedQ)
+
+	zero := g2.Ext2.Zero()
+	infinity := &G2Affine{P: g2AffP{X: *zero, Y: *zero}}
+	result = g2.Select(isSame, qDoubleAff, result)
+	result = g2.Select(isInverse, infinity, result)
+	result = g2.Select(isPInf, qAff, result)
+	return result
+}
+
 // scalarMulComb computes [s]P for the constant base point of the tables d.
 // It returns (0,0) when s ≡ 0 (mod r).
 func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
 	w, n, nw, tw := d.w, d.n, d.nw, d.tw
+	nbInc := nw - 1 - d.nbUnified
 	rets, err := g2.fr.NewHintWithNativeOutput(g2CombRecodeHint, 1+n, s)
 	if err != nil {
 		panic(fmt.Sprintf("comb recode hint: %v", err))
@@ -352,18 +411,27 @@ func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
 	g2.fr.AssertIsEqual(lhs, rhs)
 
 	pts := make([]g2AffP, nw)
+	dbls := make([]g2AffP, nw)
 	for t := 0; t < nw-1; t++ {
 		pts[t] = g2.g2CombSelect(d.windows[t], cbits[t*w:(t+1)*w])
+		if t > nbInc {
+			dbls[t] = g2.g2CombSelect(d.doubles[t], cbits[t*w:(t+1)*w])
+		}
 	}
 	stacked := make([][4]*big.Int, 0, 2<<tw)
 	stacked = append(stacked, d.topEven...)
 	stacked = append(stacked, d.windows[nw-1]...)
+	stackedDoubles := make([][4]*big.Int, 0, 2<<tw)
+	stackedDoubles = append(stackedDoubles, d.topEvenDoubles...)
+	stackedDoubles = append(stackedDoubles, d.doubles[nw-1]...)
 	topBits := make([]frontend.Variable, 0, tw+1)
 	topBits = append(topBits, cbits[(nw-1)*w:]...)
 	topBits = append(topBits, b0)
 	pts[nw-1] = g2.g2CombSelect(stacked, topBits)
+	if nw-1 > nbInc {
+		dbls[nw-1] = g2.g2CombSelect(stackedDoubles, topBits)
+	}
 
-	nbInc := nw - 1 - d.nbUnified
 	var res *G2Affine
 	if nbInc >= 1 {
 		// implicit-y chain: at the first step the accumulator is T_0 whose
@@ -393,7 +461,7 @@ func (g2 *G2) scalarMulComb(d *g2CombData, s *Scalar) *G2Affine {
 		res = &G2Affine{P: pts[0]}
 	}
 	for t := nbInc + 1; t <= nw-1; t++ {
-		res = g2.AddUnified(res, &G2Affine{P: pts[t]})
+		res = g2.g2CombTailAdd(res, &pts[t], &dbls[t])
 	}
 	return res
 }
