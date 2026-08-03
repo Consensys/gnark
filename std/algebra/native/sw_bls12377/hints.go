@@ -13,6 +13,7 @@ import (
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalarG1Simple,
+		g1CombRecodeHint,
 		scalarMulGLVG1Hint,
 		rationalReconstructExt,
 		pairingCheckHint,

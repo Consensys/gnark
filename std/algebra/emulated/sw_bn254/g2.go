@@ -451,6 +451,14 @@ func (g2 *G2) Select(b frontend.Variable, p, q *G2Affine) *G2Affine {
 //
 // [EEMP25]: https://eprint.iacr.org/2025/933
 func (g2 *G2) ScalarMul(Q *G2Affine, s *Scalar, opts ...algopts.AlgebraOption) *G2Affine {
+	// when Q is a compile-time constant subgroup point (for example a fixed
+	// verification-key or SRS point), use the fixed-base comb method with
+	// precomputed tables (see fixedbase_g2.go). It uses complete arithmetic
+	// and handles the zero scalar; [algopts.WithIncompleteArithmetic] is a
+	// no-op on this path.
+	if d, ok := g2.g2CombTryConst(Q); ok {
+		return g2.scalarMulComb(d, s)
+	}
 	return g2.scalarMulGLVAndFakeGLV(Q, s, opts...)
 }
 
