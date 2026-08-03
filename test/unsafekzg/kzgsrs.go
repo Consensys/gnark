@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -17,8 +18,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
@@ -59,7 +60,7 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 
 	curveID := utils.FieldToCurve(ccs.Field())
 
-	log := logger.Logger().With().Str("package", "kzgsrs").Int("size", int(sizeCanonical)).Str("curve", curveID.String()).Logger()
+	log := logger.Logger().With(slog.String("package", "kzgsrs"), slog.Int("size", int(sizeCanonical)), slog.String("curve", curveID.String()))
 
 	cfg, err := options(opts...)
 	if err != nil {
@@ -67,34 +68,34 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 	}
 
 	key := cacheKey(curveID, sizeCanonical, cfg.toxicValue)
-	log.Debug().Str("key", key).Msg("fetching SRS from mem cache")
+	logger.Trace(log, "fetching SRS from mem cache", slog.String("key", key))
 	memLock.RLock()
 	entry, ok := cache[key]
 	memLock.RUnlock()
 	if ok {
-		log.Debug().Msg("SRS found in mem cache")
+		logger.Trace(log, "SRS found in mem cache")
 		return entry.canonical, entry.lagrange, nil
 	}
-	log.Debug().Msg("SRS not found in mem cache")
+	logger.Trace(log, "SRS not found in mem cache")
 
 	if cfg.fsCache {
-		log.Debug().Str("key", key).Str("cacheDir", cfg.cacheDir).Msg("fetching SRS from fs cache")
+		logger.Trace(log, "fetching SRS from fs cache", slog.String("key", key), slog.String("cacheDir", cfg.cacheDir))
 		fsLock.RLock()
 		entry, err = fsRead(key, cfg.cacheDir)
 		fsLock.RUnlock()
 		if err == nil {
-			log.Debug().Str("key", key).Msg("SRS found in fs cache")
+			logger.Trace(log, "SRS found in fs cache", slog.String("key", key))
 			canonical, lagrange = entry.canonical, entry.lagrange
 			memLock.Lock()
 			cache[key] = cacheEntry{canonical, lagrange}
 			memLock.Unlock()
 			return
 		} else {
-			log.Debug().Str("key", key).Err(err).Msg("SRS not found in fs cache")
+			logger.Trace(log, "SRS not found in fs cache", slog.String("key", key), slog.Any("err", err))
 		}
 	}
 
-	log.Debug().Msg("SRS not found in cache, generating")
+	logger.Trace(log, "SRS not found in cache, generating")
 
 	// not in cache, generate
 	canonical, lagrange, err = newSRS(curveID, sizeCanonical, cfg.toxicValue)
@@ -109,7 +110,7 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 	memLock.Unlock()
 
 	if cfg.fsCache && cfg.toxicValue == nil {
-		log.Debug().Str("key", key).Str("cacheDir", cfg.cacheDir).Msg("writing SRS to fs cache")
+		logger.Trace(log, "writing SRS to fs cache", slog.String("key", key), slog.String("cacheDir", cfg.cacheDir))
 		fsLock.Lock()
 		fsWrite(key, cfg.cacheDir, canonical, lagrange)
 		fsLock.Unlock()

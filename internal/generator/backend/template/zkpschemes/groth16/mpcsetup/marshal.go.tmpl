@@ -1,6 +1,11 @@
 import (
-	"io"
+	"context"
 	"encoding/binary"
+	"io"
+	"log/slog"
+	"time"
+
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/utils"
 	gIo "github.com/consensys/gnark/io"
 	
@@ -8,8 +13,18 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/mpcsetup"
 )
 
+func logSerializationDebug(start time.Time, n int64, err error, attrs ...slog.Attr) {
+	attrs = append(attrs, slog.Duration("took", time.Since(start)), slog.Int64("bytes", n), slog.Bool("success", err == nil))
+	logger.Logger().LogAttrs(context.Background(), slog.LevelDebug, "backend serialization", attrs...)
+}
+
 // WriteTo implements io.WriterTo
 func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "mpc_phase1"))
+	}()
+
 	var dn int64
 	for _, v := range []io.WriterTo{
 		&p.proofs.Tau,
@@ -30,6 +45,11 @@ func (p *Phase1) WriteTo(writer io.Writer) (n int64, err error) {
 
 // ReadFrom implements io.ReaderFrom
 func (p *Phase1) ReadFrom(reader io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "mpc_phase1"))
+	}()
+
 	var dn int64
 	for _, v := range []io.ReaderFrom{
 		&p.proofs.Tau,
@@ -75,6 +95,11 @@ func (p *Phase2) refsSlice() []any {
 
 // WriteTo implements io.WriterTo
 func (p *Phase2) WriteTo(writer io.Writer) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "mpc_phase2"))
+	}()
+
 	// write the parameters
 	if err = binary.Write(writer, binary.BigEndian, uint16(len(p.Parameters.G2.Sigma))); err != nil {
 		return -1, err // binary.Write doesn't return the number of bytes written
@@ -108,6 +133,11 @@ func (p *Phase2) WriteTo(writer io.Writer) (n int64, err error) {
 
 // ReadFrom implements io.ReaderFrom
 func (p *Phase2) ReadFrom(reader io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "mpc_phase2"))
+	}()
+
 	var nbCommitments uint16
 
 	if err = binary.Read(reader, binary.BigEndian, &nbCommitments); err != nil {
@@ -171,7 +201,12 @@ func (c *SrsCommons) refsSlice() []any {
 	return refs
 }
 
-func (c *SrsCommons) WriteTo(writer io.Writer) (int64, error) {
+func (c *SrsCommons) WriteTo(writer io.Writer) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "mpc_srs_commons"))
+	}()
+
 	enc := curve.NewEncoder(writer)
 	for _, v := range c.refsSlice() {
 		if err := enc.Encode(v); err != nil {
@@ -183,6 +218,11 @@ func (c *SrsCommons) WriteTo(writer io.Writer) (int64, error) {
 
 // ReadFrom implements io.ReaderFrom
 func (c *SrsCommons) ReadFrom(reader io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "mpc_srs_commons"))
+	}()
+
 	var N uint64
 	dec := curve.NewDecoder(reader)
 	if err = dec.Decode(&N); err != nil {

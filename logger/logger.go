@@ -1,45 +1,76 @@
-// Package logger provides a configurable logger across gnark components
+// Package logger provides a deprecated zerolog-compatible logger.
 //
-// The root logger defined by default uses github.com/rs/zerolog with a console writer
+// Deprecated: use log/slog with github.com/consensys/gnark/internal/logger
+// inside gnark. This package will be removed soon.
 package logger
 
 import (
 	"io"
-	"os"
+	"sync"
 	"testing"
+
+	internallogger "github.com/consensys/gnark/internal/logger"
 
 	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
 )
 
-var logger zerolog.Logger
+const deprecationMessage = "github.com/consensys/gnark/logger is deprecated and will be removed soon; use log/slog instead"
+
+var (
+	logger         zerolog.Logger
+	deprecatedOnce sync.Once
+)
 
 func init() {
-	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: "15:04:05"}
-	logger = zerolog.New(output).With().Timestamp().Logger()
+	logger = newSlogBackedZerolog()
 
 	if !debug.Debug && testing.Testing() {
 		logger = zerolog.Nop()
 	}
-
 }
 
-// SetOutput changes the output of the global logger
+// SetOutput changes the output of the global logger.
+//
+// Deprecated: use log/slog directly. This package will be removed soon.
 func SetOutput(w io.Writer) {
-	logger = logger.Output(w)
+	warnDeprecated()
+	logger = zerolog.New(w).Level(zerolog.TraceLevel)
 }
 
-// Set allows a gnark user to overhide the global logger
+// Set allows a gnark user to override the global logger.
+//
+// Deprecated: use log/slog directly. This package will be removed soon.
 func Set(l zerolog.Logger) {
+	warnDeprecated()
 	logger = l
 }
 
-// Disable disables logging
+// Disable disables logging.
+//
+// Deprecated: use log/slog directly. This package will be removed soon.
 func Disable() {
+	warnDeprecated()
 	logger = zerolog.Nop()
 }
 
-// Logger returns a sublogger for a component
+// Logger returns the legacy zerolog-compatible logger.
+//
+// Deprecated: use log/slog directly. This package will be removed soon.
 func Logger() zerolog.Logger {
+	warnDeprecated()
 	return logger
+}
+
+func newSlogBackedZerolog() zerolog.Logger {
+	return internallogger.ToZerolog(internallogger.Logger())
+}
+
+func warnDeprecated() {
+	if logger.GetLevel() == zerolog.Disabled {
+		return
+	}
+	deprecatedOnce.Do(func() {
+		internallogger.Logger().Warn(deprecationMessage)
+	})
 }

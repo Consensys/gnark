@@ -6,15 +6,24 @@
 package cs
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // WriteTo encodes R1CS into provided io.Writer using cbor
-func (cs *system) WriteTo(w io.Writer) (int64, error) {
+func (cs *system) WriteTo(w io.Writer) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logger.Logger().LogAttrs(context.Background(), slog.LevelDebug, "serialize constraint system", slog.Duration("took", time.Since(start)), slog.Int64("bytes", n), slog.Bool("success", err == nil))
+	}()
+
 	b, err := cs.System.ToBytes()
 	if err != nil {
 		return 0, err
@@ -40,18 +49,23 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	// write the system
-	n, err := w.Write(b)
+	writtenSystem, err := w.Write(b)
 	if err != nil {
-		return int64(n), err
+		return int64(writtenSystem), err
 	}
 
 	// write the coeff table
-	m, err := w.Write(c)
-	return int64(n+m) + 4*8, err
+	writtenCoeffs, err := w.Write(c)
+	return int64(writtenSystem+writtenCoeffs) + 4*8, err
 }
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
-func (cs *system) ReadFrom(r io.Reader) (int64, error) {
+func (cs *system) ReadFrom(r io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logger.Logger().LogAttrs(context.Background(), slog.LevelDebug, "deserialize constraint system", slog.Duration("took", time.Since(start)), slog.Int64("bytes", n), slog.Bool("success", err == nil))
+	}()
+
 	var totalLen uint64
 	if err := binary.Read(r, binary.LittleEndian, &totalLen); err != nil {
 		return 0, err
@@ -76,11 +90,11 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 	if _, err := io.ReadFull(r, data); err != nil {
 		return 0, err
 	}
-	n, err := cs.System.FromBytes(data)
+	readSystem, err := cs.System.FromBytes(data)
 	if err != nil {
 		return 0, err
 	}
-	data = data[n:]
+	data = data[readSystem:]
 
 	if err := cs.CoeffTable.fromBytes(data); err != nil {
 		return 0, err

@@ -5,11 +5,11 @@ package sw_bls12377
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/compilelogger"
@@ -215,7 +215,7 @@ func (p *G1Affine) scalarMulGLV(api frontend.API, Q G1Affine, s frontend.Variabl
 		panic(err)
 	}
 	if cfg.IncompleteArithmetic {
-		compilelogger.LogOnce(api.Compiler(), zerolog.InfoLevel,
+		compilelogger.LogOnce(api.Compiler(), slog.LevelInfo,
 			"sw_bls12377/g1/scalarMulGLV",
 			"WithIncompleteArithmetic is deprecated for (*sw_bls12377.G1Affine).scalarMulGLV and complete arithmetic is always used")
 	}

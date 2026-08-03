@@ -9,6 +9,7 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - sloglint
   settings:
     staticcheck:
       checks:
@@ -20,6 +21,15 @@ linters:
       excludes:
         - G115
         - G602
+    sloglint:
+      attr-only: true
+      no-mixed-args: true
+      static-msg: true
+      no-global: all
+      custom-funcs:
+        - name: github.com/consensys/gnark/internal/logger.Trace
+          msg-pos: 1
+          args-pos: 2
   exclusions:
     generated: disable
     presets:

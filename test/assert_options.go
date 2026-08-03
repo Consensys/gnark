@@ -1,6 +1,7 @@
 package test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -8,6 +9,7 @@ import (
 	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/logger"
 )
 
 // TestingOption defines option for altering the behavior of Assert methods.
@@ -25,6 +27,8 @@ type testingConfig struct {
 
 	validAssignments   []frontend.Circuit
 	invalidAssignments []frontend.Circuit
+
+	logger *slog.Logger
 }
 
 // default options
@@ -51,6 +55,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	if smallfieldTestFlag {
 		opt.checkSmallField = true
 	}
+	opt.logger = logger.Logger()
 
 	// apply user provided options.
 	for _, option := range opts {
@@ -224,6 +229,18 @@ func WithoutSmallfieldCheck() TestingOption {
 func WithoutCurveChecks() TestingOption {
 	return func(tc *testingConfig) error {
 		tc.curves = nil
+		return nil
+	}
+}
+
+// WithLogger sets the logger used by the assertions. If this option is not
+// provided, then the default logger is used. Passing nil disables logging.
+func WithLogger(log *slog.Logger) TestingOption {
+	return func(opt *testingConfig) error {
+		if log == nil {
+			log = logger.DisabledLogger()
+		}
+		opt.logger = log
 		return nil
 	}
 }

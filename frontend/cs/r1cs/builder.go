@@ -5,6 +5,7 @@ package r1cs
 
 import (
 	"errors"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"sort"
@@ -22,7 +23,6 @@ import (
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 
 	babybearr1cs "github.com/consensys/gnark/constraint/babybear"
 	bls12377r1cs "github.com/consensys/gnark/constraint/bls12-377"
@@ -137,6 +137,10 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 	bldr.cZero = constraint.LinearExpression{constraint.Term{VID: 0, CID: constraint.CoeffIdZero}}
 
 	return bldr
+}
+
+func (builder *builder[E]) Logger() *slog.Logger {
+	return builder.config.Logger
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -275,14 +279,11 @@ func init() {
 // Compile constructs a rank-1 constraint system
 func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], error) {
 	// TODO if already compiled, return builder.cs object
-	log := logger.Logger()
-	log.Info().
-		Int("nbConstraints", builder.cs.GetNbConstraints()).
-		Msg("building constraint builder")
+	log := builder.Logger()
 
 	// ensure all inputs and hints are constrained
 	if err := builder.cs.CheckUnconstrainedWires(); err != nil {
-		log.Warn().Msg("circuit has unconstrained inputs")
+		log.Warn("circuit has unconstrained inputs")
 		if !builder.config.IgnoreUnconstrainedInputs {
 			return nil, err
 		}
