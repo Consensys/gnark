@@ -722,7 +722,7 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 // divE2WithZeroGuard computes n/d as a line slope, but when d == 0 it returns 0
 // with the quotient *constrained* to 0 rather than left as a free (prover-chosen)
 // hint value. A plain DivUnchecked(n, 0) only enforces λ·0 == n, i.e. 0 == 0,
-// which leaves λ unconstrained; that is the F-9 soundness gap when Q = (0,0)
+// which leaves λ unconstrained; that is the soundness gap when Q = (0,0)
 // (the point at infinity) is fed to the Miller loop and every affine line
 // evaluation becomes 0/0. Non-degenerate steps (d ≠ 0) are unchanged, and the
 // degenerate value matches the honest 0/0 = 0 convention, so completeness (incl.

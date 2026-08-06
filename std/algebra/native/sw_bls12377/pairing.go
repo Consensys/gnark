@@ -489,7 +489,7 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvalu
 // divE2WithZeroGuard returns n/d as a Miller-loop line slope, but constrains the
 // quotient to 0 when d == 0 instead of leaving it as a free (prover-chosen) hint
 // value. A plain DivUnchecked(n, 0) only enforces l·0 == n, i.e. 0 == 0, which
-// leaves l unconstrained; that is the F-9 soundness gap when Q = (0,0) (the point
+// leaves l unconstrained; that is the soundness gap when Q = (0,0) (the point
 // at infinity) is fed to the Miller loop and every affine line evaluation becomes
 // 0/0. Non-degenerate steps (d != 0) are unchanged, and the degenerate value
 // matches the honest 0/0 = 0 convention, so completeness (incl. legitimate

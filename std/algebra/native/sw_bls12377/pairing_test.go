@@ -338,8 +338,8 @@ func zeroHintOutputs(_ *big.Int, _, outputs []*big.Int) error {
 	return nil
 }
 
-// TestPairingCheckClassicalRejectsZeroWitness is a regression test for the
-// zero-residue-witness soundness bug (audit finding F-8): PairingCheck
+// TestPairingCheckRejectsZeroWitness is a regression test for the
+// zero-residue-witness soundness bug: PairingCheck
 // seeds the Miller accumulator with residueWitness, so the final check
 // res·scalingFactor == Frobenius(residueWitness) is homogeneous in
 // residueWitness and the all-zero pairingCheckHint output degenerates it to
