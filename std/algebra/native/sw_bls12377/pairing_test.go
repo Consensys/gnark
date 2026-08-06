@@ -179,7 +179,7 @@ type pairingCheckBLS377 struct {
 
 func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
 
-	err := pairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -203,32 +203,6 @@ func TestPairingCheckBLS377(t *testing.T) {
 
 }
 
-type pairingCheckTorusBLS377 struct {
-	P1, P2 G1Affine
-	Q1, Q2 G2Affine
-}
-
-func (circuit *pairingCheckTorusBLS377) Define(api frontend.API) error {
-	err := pairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	return nil
-}
-
-func TestPairingCheckTorusBLS377(t *testing.T) {
-	// pairing test data
-	P, Q := pairingCheckData()
-	witness := pairingCheckTorusBLS377{
-		P1: NewG1Affine(P[0]),
-		P2: NewG1Affine(P[1]),
-		Q1: NewG2Affine(Q[0]),
-		Q2: NewG2Affine(Q[1]),
-	}
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&pairingCheckTorusBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
-}
-
 type groupMembership struct {
 	P G1Affine
 	Q G2Affine
@@ -249,7 +223,7 @@ type threePairingCheckBLS377 struct {
 
 func (circuit *threePairingCheckBLS377) Define(api frontend.API) error {
 
-	err := pairingCheckClassical(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -273,34 +247,6 @@ func TestThreePairingCheckBLS377(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&threePairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
-}
-
-type threePairingCheckTorusBLS377 struct {
-	P1, P2, P3 G1Affine
-	Q1, Q2, Q3 G2Affine
-}
-
-func (circuit *threePairingCheckTorusBLS377) Define(api frontend.API) error {
-	err := pairingCheckTorus(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	return nil
-}
-
-func TestThreePairingCheckTorusBLS377(t *testing.T) {
-	// pairing test data
-	P, Q := threePairingCheckData()
-	witness := threePairingCheckTorusBLS377{
-		P1: NewG1Affine(P[0]),
-		P2: NewG1Affine(P[1]),
-		P3: NewG1Affine(P[2]),
-		Q1: NewG2Affine(Q[0]),
-		Q2: NewG2Affine(Q[1]),
-		Q3: NewG2Affine(Q[2]),
-	}
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&threePairingCheckTorusBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 }
 
 func TestGroupMembership(t *testing.T) {
@@ -393,14 +339,14 @@ func zeroHintOutputs(_ *big.Int, _, outputs []*big.Int) error {
 }
 
 // TestPairingCheckClassicalRejectsZeroWitness is a regression test for the
-// zero-residue-witness soundness bug (audit finding F-8): pairingCheckClassical
+// zero-residue-witness soundness bug (audit finding F-8): PairingCheck
 // seeds the Miller accumulator with residueWitness, so the final check
 // res·scalingFactor == Frobenius(residueWitness) is homogeneous in
 // residueWitness and the all-zero pairingCheckHint output degenerates it to
 // 0 == 0 for any P, Q. The invertibility anchor
 // (residueWitness·residueWitness⁻¹ == 1) must reject it. Uses the same valid
 // inputs as TestPairingCheckBLS377.
-func TestPairingCheckClassicalRejectsZeroWitness(t *testing.T) {
+func TestPairingCheckRejectsZeroWitness(t *testing.T) {
 	assert := test.NewAssert(t)
 	P, Q := pairingCheckData()
 	witness := pairingCheckBLS377{
@@ -412,4 +358,26 @@ func TestPairingCheckClassicalRejectsZeroWitness(t *testing.T) {
 	err := test.IsSolved(&pairingCheckBLS377{}, &witness, ecc.BW6_761.ScalarField(),
 		test.WithReplacementHint(solver.GetHintID(pairingCheckHint), zeroHintOutputs))
 	assert.Error(err, "all-zero residue witness must be rejected by the invertibility anchor")
+}
+
+// TestPairingCheckRejectsFalseStatement checks that PairingCheck rejects a false
+// pairing-product statement. Here e([3]G1,[5]G2)·e([7]G1,[11]G2) has exponent
+// 3·5+7·11 = 92 ≢ 0 mod r, so the product is ≠ 1 and the check must fail.
+func TestPairingCheckRejectsFalseStatement(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g1, g2 := bls12377.Generators()
+	var p1, p2 bls12377.G1Affine
+	p1.ScalarMultiplication(&g1, big.NewInt(3))
+	p2.ScalarMultiplication(&g1, big.NewInt(7))
+	var q1, q2 bls12377.G2Affine
+	q1.ScalarMultiplication(&g2, big.NewInt(5))
+	q2.ScalarMultiplication(&g2, big.NewInt(11))
+	witness := pairingCheckBLS377{
+		P1: NewG1Affine(p1),
+		P2: NewG1Affine(p2),
+		Q1: NewG2Affine(q1),
+		Q2: NewG2Affine(q2),
+	}
+	err := test.IsSolved(&pairingCheckBLS377{}, &witness, ecc.BW6_761.ScalarField())
+	assert.Error(err, "false pairing-product statement must be rejected")
 }
