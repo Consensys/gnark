@@ -380,7 +380,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
 	d.Sub(api, p1.X, p2.X)
-	l1.DivUnchecked(api, n, d)
+	l1 = divE2WithZeroGuard(api, n, d)
 
 	// x3 =lambda1**2-(p1.x+p2.x)
 	x3.Square(api, l1)
@@ -396,7 +396,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
 	n.Double(api, p1.Y)
 	d.Sub(api, x3, p1.X)
-	l2.DivUnchecked(api, n, d)
+	l2 = divE2WithZeroGuard(api, n, d)
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute x4 = lambda2**2-(x1+x3)
@@ -430,7 +430,7 @@ func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, *lineEvaluation) {
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
 	d.MulByFp(api, p1.Y, 2)
-	l.DivUnchecked(api, n, d)
+	l = divE2WithZeroGuard(api, n, d)
 
 	// xr = lambda**2-2*p1.x
 	xr.Square(api, l)
@@ -461,7 +461,7 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvalu
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
 	d.Sub(api, p1.X, p2.X)
-	l1.DivUnchecked(api, n, d)
+	l1 = divE2WithZeroGuard(api, n, d)
 
 	// x3 =lambda1**2-p1.x-p2.x
 	x3.Square(api, l1)
@@ -476,7 +476,7 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvalu
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
 	n.Double(api, p1.Y)
 	d.Sub(api, x3, p1.X)
-	l2.DivUnchecked(api, n, d)
+	l2 = divE2WithZeroGuard(api, n, d)
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute line2
@@ -484,4 +484,23 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvalu
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
 	return &line1, &line2
+}
+
+// divE2WithZeroGuard returns n/d as a Miller-loop line slope, but constrains the
+// quotient to 0 when d == 0 instead of leaving it as a free (prover-chosen) hint
+// value. A plain DivUnchecked(n, 0) only enforces l·0 == n, i.e. 0 == 0, which
+// leaves l unconstrained; that is the F-9 soundness gap when Q = (0,0) (the point
+// at infinity) is fed to the Miller loop and every affine line evaluation becomes
+// 0/0. Non-degenerate steps (d != 0) are unchanged, and the degenerate value
+// matches the honest 0/0 = 0 convention, so completeness (incl. legitimate
+// G2-infinity inputs) is preserved.
+func divE2WithZeroGuard(api frontend.API, n, d fields_bls12377.E2) fields_bls12377.E2 {
+	dIsZero := d.IsZero(api)
+	var one, zero, dSafe, l, res fields_bls12377.E2
+	one.SetOne()
+	zero.SetZero()
+	dSafe.Select(api, dIsZero, one, d)
+	l.DivUnchecked(api, n, dSafe)
+	res.Select(api, dIsZero, zero, l)
+	return res
 }

@@ -641,7 +641,7 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 	// compute λ1 = (y2-y1)/(x2-x1)
 	n := pr.Ext2.Sub(&p1.Y, &p2.Y)
 	d := pr.Ext2.Sub(&p1.X, &p2.X)
-	λ1 := pr.Ext2.DivUnchecked(n, d)
+	λ1 := pr.divE2WithZeroGuard(n, d)
 
 	// compute x3 =λ1²-x1-x2
 	x30 := pr.curveF.Eval([][]*baseEl{{&λ1.A0, &λ1.A0}, {&λ1.A1, &λ1.A1}, {&p1.X.A0}, {&p2.X.A0}}, []int{1, -1, -1, -1})
@@ -658,7 +658,7 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *
 	// compute λ2 = -λ1-2y1/(x3-x1)
 	n = pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
 	d = pr.Ext2.Sub(x3, &p1.X)
-	λ2 := pr.Ext2.DivUnchecked(n, d)
+	λ2 := pr.divE2WithZeroGuard(n, d)
 	λ2 = pr.Ext2.Add(λ2, λ1)
 	λ2 = pr.Ext2.Neg(λ2)
 
@@ -695,7 +695,7 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 	n := pr.Ext2.Square(&p1.X)
 	n = pr.Ext2.MulByConstElement(n, big.NewInt(3))
 	d := pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
-	λ := pr.Ext2.DivUnchecked(n, d)
+	λ := pr.divE2WithZeroGuard(n, d)
 
 	// xr = λ²-2x
 	xr0 := pr.curveF.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p1.X.A0}}, []int{1, -1, -2})
@@ -719,6 +719,21 @@ func (pr *Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 }
 
+// divE2WithZeroGuard computes n/d as a line slope, but when d == 0 it returns 0
+// with the quotient *constrained* to 0 rather than left as a free (prover-chosen)
+// hint value. A plain DivUnchecked(n, 0) only enforces λ·0 == n, i.e. 0 == 0,
+// which leaves λ unconstrained; that is the F-9 soundness gap when Q = (0,0)
+// (the point at infinity) is fed to the Miller loop and every affine line
+// evaluation becomes 0/0. Non-degenerate steps (d ≠ 0) are unchanged, and the
+// degenerate value matches the honest 0/0 = 0 convention, so completeness (incl.
+// legitimate G2-infinity inputs) is preserved.
+func (pr *Pairing) divE2WithZeroGuard(n, d *fields_bls12381.E2) *fields_bls12381.E2 {
+	dIsZero := pr.Ext2.IsZero(d)
+	dSafe := pr.Ext2.Select(dIsZero, pr.Ext2.One(), d)
+	λ := pr.Ext2.DivUnchecked(n, dSafe)
+	return pr.Ext2.Select(dIsZero, pr.Ext2.Zero(), λ)
+}
+
 // tripleStep triples p1 in affine coordinates, and evaluates the line in Miller loop
 func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
@@ -730,7 +745,7 @@ func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvalua
 	three := big.NewInt(3)
 	n = pr.Ext2.MulByConstElement(n, three)
 	d := pr.Ext2.Double(&p1.Y)
-	λ1 := pr.Ext2.DivUnchecked(n, d)
+	λ1 := pr.divE2WithZeroGuard(n, d)
 
 	// compute line1
 	line1.R0 = *λ1
@@ -745,7 +760,7 @@ func (pr *Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvalua
 	// omit yr computation, and
 	// compute λ2 = 2y/(x2 − x) − λ1.
 	x1x2 := pr.Ext2.Sub(&p1.X, x2)
-	λ2 := pr.Ext2.DivUnchecked(d, x1x2)
+	λ2 := pr.divE2WithZeroGuard(d, x1x2)
 	λ2 = pr.Ext2.Sub(λ2, λ1)
 
 	// compute line2
