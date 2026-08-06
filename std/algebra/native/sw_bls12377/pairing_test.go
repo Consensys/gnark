@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/test"
@@ -380,4 +381,35 @@ func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine, 
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q[0], Q[1]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
 	return
+}
+
+// zeroHintOutputs is a malicious hint replacement returning the all-zero
+// witness. It is used to exercise the residue-witness invertibility anchor.
+func zeroHintOutputs(_ *big.Int, _, outputs []*big.Int) error {
+	for i := range outputs {
+		outputs[i].SetInt64(0)
+	}
+	return nil
+}
+
+// TestPairingCheckClassicalRejectsZeroWitness is a regression test for the
+// zero-residue-witness soundness bug (audit finding F-8): pairingCheckClassical
+// seeds the Miller accumulator with residueWitness, so the final check
+// res·scalingFactor == Frobenius(residueWitness) is homogeneous in
+// residueWitness and the all-zero pairingCheckHint output degenerates it to
+// 0 == 0 for any P, Q. The invertibility anchor
+// (residueWitness·residueWitness⁻¹ == 1) must reject it. Uses the same valid
+// inputs as TestPairingCheckBLS377.
+func TestPairingCheckClassicalRejectsZeroWitness(t *testing.T) {
+	assert := test.NewAssert(t)
+	P, Q := pairingCheckData()
+	witness := pairingCheckBLS377{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+	}
+	err := test.IsSolved(&pairingCheckBLS377{}, &witness, ecc.BW6_761.ScalarField(),
+		test.WithReplacementHint(solver.GetHintID(pairingCheckHint), zeroHintOutputs))
+	assert.Error(err, "all-zero residue witness must be rejected by the invertibility anchor")
 }

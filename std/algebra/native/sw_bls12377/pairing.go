@@ -288,6 +288,14 @@ func pairingCheckClassical(api frontend.API, P []G1Affine, Q []G2Affine) error {
 	scalingFactor.B2.A0 = hint[16]
 	scalingFactor.B2.A1 = hint[17]
 
+	// Constrain residueWitness to be invertible (non-zero). The final check
+	// res·scalingFactor == Frobenius(residueWitness) is homogeneous in
+	// residueWitness (the Miller accumulator below is seeded with it), so the
+	// all-zero witness would satisfy it (0 == 0) for any P, Q. Inverse asserts
+	// residueWitness·residueWitness⁻¹ == 1, ruling that out.
+	var residueWitnessInv GT
+	residueWitnessInv.Inverse(api, residueWitness)
+
 	lines := make([]lineEvaluations, nQ)
 	for i := range Q {
 		if Q[i].Lines == nil {

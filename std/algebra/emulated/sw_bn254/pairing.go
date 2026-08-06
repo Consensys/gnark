@@ -163,6 +163,13 @@ func (pr *Pairing) AssertFinalExponentiationIsOne(a *GTEl) {
 	nine := big.NewInt(9)
 	residueWitness := pr.Ext12.FromTower([12]*baseEl{res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11]})
 
+	// Constrain residueWitness to be invertible (non-zero). The check below,
+	// x·cubicNonResiduePower == residueWitness^λ, is homogeneous in the hint
+	// outputs residueWitness and cubicNonResiduePower, so the all-zero witness
+	// would satisfy it (0 == 0) for any x. Inverse asserts
+	// residueWitness·residueWitness⁻¹ == 1, ruling that out.
+	pr.Ext12.Inverse(residueWitness)
+
 	// constrain cubicNonResiduePower to be in Fp6
 	// that is: a100=a101=a110=a111=a120=a121=0
 	// or
