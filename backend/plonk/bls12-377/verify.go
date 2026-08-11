@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 
 	"time"
@@ -22,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -34,13 +34,12 @@ var (
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
-
-	log := logger.Logger().With().Str("curve", "bls12-377").Str("backend", "plonk").Logger()
-	start := time.Now()
 	cfg, err := backend.NewVerifierConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("create backend config: %w", err)
 	}
+	log := cfg.Logger.With(slog.String("curve", "bls12-377"), slog.String("backend", "plonk"))
+	start := time.Now()
 
 	if len(vk.CommitmentConstraintIndexes) != len(vk.Qcp) {
 		return errInvalidVerifyingKey
@@ -317,7 +316,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		vk.Kzg,
 	)
 
-	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
+	log.Debug("verifier done", slog.Duration("took", time.Since(start)))
 
 	return err
 }

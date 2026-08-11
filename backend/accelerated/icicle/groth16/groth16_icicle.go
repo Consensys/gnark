@@ -4,6 +4,7 @@ package groth16
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -18,7 +19,7 @@ import (
 	cs_bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
 	cs_bw6761 "github.com/consensys/gnark/constraint/bw6-761"
-	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/internal/logger"
 
 	icicle_bls12377 "github.com/consensys/gnark/backend/accelerated/icicle/groth16/bls12-377"
 	icicle_bls12381 "github.com/consensys/gnark/backend/accelerated/icicle/groth16/bls12-381"
@@ -53,10 +54,10 @@ func warmUpDevice(config *icicle.Config) {
 		if err != icicle_runtime.Success {
 			panic(fmt.Sprintf("ICICLE get device count error: %s", err.AsString()))
 		}
-		log.Debug().Int("nbDev", nbDev).Msg("ICICLE devices detected")
+		log.Debug("ICICLE devices detected", slog.Int("nbDev", nbDev))
 		for id := 0; id < nbDev; id++ {
 			device := icicle_runtime.CreateDevice(config.Backend.String(), id)
-			log.Debug().Int32("id", device.Id).Str("type", device.GetDeviceType()).Msg("ICICLE device created")
+			log.Debug("ICICLE device created", slog.Int("id", int(device.Id)), slog.String("type", device.GetDeviceType()))
 			icicle_runtime.RunOnDevice(&device, func(args ...any) {
 				stream, err := icicle_runtime.CreateStream()
 				if err != icicle_runtime.Success {

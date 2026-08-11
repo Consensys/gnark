@@ -5,6 +5,7 @@ package scs
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"reflect"
 	"sort"
@@ -21,7 +22,6 @@ import (
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/smallfields/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
 
 	babybearr1cs "github.com/consensys/gnark/constraint/babybear"
 	bls12377r1cs "github.com/consensys/gnark/constraint/bls12-377"
@@ -133,6 +133,10 @@ func newBuilder[E constraint.Element](field *big.Int, config frontend.CompileCon
 	b.batchInverseGate = b.cs.AddBlueprint(&constraint.BlueprintBatchInverse[E]{})
 
 	return b
+}
+
+func (builder *builder[E]) Logger() *slog.Logger {
+	return builder.config.Logger
 }
 
 func (builder *builder[E]) Field() *big.Int {
@@ -288,15 +292,12 @@ func init() {
 }
 
 func (builder *builder[E]) Compile() (constraint.ConstraintSystemGeneric[E], error) {
-	log := logger.Logger()
-	log.Info().
-		Int("nbConstraints", builder.cs.GetNbConstraints()).
-		Msg("building constraint builder")
+	log := builder.Logger()
 
 	// ensure all inputs and hints are constrained
 	err := builder.cs.CheckUnconstrainedWires()
 	if err != nil {
-		log.Warn().Msg("circuit has unconstrained inputs")
+		log.Warn("circuit has unconstrained inputs")
 		if !builder.config.IgnoreUnconstrainedInputs {
 			return nil, err
 		}

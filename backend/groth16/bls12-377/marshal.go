@@ -10,11 +10,20 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils/unsafe"
+	"github.com/consensys/gnark/internal/logger"
 	"github.com/consensys/gnark/internal/utils"
 
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"time"
 )
+
+func logSerializationDebug(start time.Time, n int64, err error, attrs ...slog.Attr) {
+	attrs = append(attrs, slog.Duration("took", time.Since(start)), slog.Int64("bytes", n), slog.Bool("success", err == nil))
+	logger.Logger().LogAttrs(context.Background(), slog.LevelDebug, "backend serialization", attrs...)
+}
 
 // WriteTo writes binary encoding of the Proof elements to writer
 // points are stored in compressed form Ar | Krs | Bs
@@ -30,7 +39,12 @@ func (proof *Proof) WriteRawTo(w io.Writer) (n int64, err error) {
 	return proof.writeTo(w, true)
 }
 
-func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
+func (proof *Proof) writeTo(w io.Writer, raw bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "proof"), slog.Bool("raw", raw))
+	}()
+
 	var enc *curve.Encoder
 	if raw {
 		enc = curve.NewEncoder(w, curve.RawEncoding())
@@ -60,6 +74,10 @@ func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
 // ReadFrom attempts to decode a Proof from reader
 // Proof must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
 func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "proof"))
+	}()
 
 	dec := curve.NewDecoder(r)
 
@@ -100,7 +118,12 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 // follows bellman format:
 // https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
 // [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
-func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
+func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "verifying_key"), slog.Bool("raw", raw))
+	}()
+
 	var enc *curve.Encoder
 	if raw {
 		enc = curve.NewEncoder(w, curve.RawEncoding())
@@ -128,7 +151,7 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 			return enc.BytesWritten(), err
 		}
 	}
-	var n int64
+	var commitmentKeysBytes int64
 	for i := range vk.CommitmentKeys {
 		var (
 			m   int64
@@ -139,12 +162,12 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		} else {
 			m, err = vk.CommitmentKeys[i].WriteTo(w)
 		}
-		n += m
+		commitmentKeysBytes += m
 		if err != nil {
-			return n + enc.BytesWritten(), err
+			return commitmentKeysBytes + enc.BytesWritten(), err
 		}
 	}
-	return n + enc.BytesWritten(), nil
+	return commitmentKeysBytes + enc.BytesWritten(), nil
 }
 
 // ReadFrom attempts to decode a VerifyingKey from reader
@@ -162,7 +185,12 @@ func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 	return vk.readFrom(r, true)
 }
 
-func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
+func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "verifying_key"), slog.Bool("subgroup_checks", !raw))
+	}()
+
 	var dec *curve.Decoder
 	if raw {
 		dec = curve.NewDecoder(r, curve.NoSubgroupChecks())
@@ -195,7 +223,7 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 
 	vk.PublicAndCommitmentCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
 
-	var n int64
+	var commitmentKeysBytes int64
 	for i := 0; i < int(nbCommitments); i++ {
 		var (
 			m   int64
@@ -207,22 +235,22 @@ func (vk *VerifyingKey) readFrom(r io.Reader, raw bool) (int64, error) {
 		} else {
 			m, err = commitmentKey.ReadFrom(r)
 		}
-		n += m
+		commitmentKeysBytes += m
 		if err != nil {
-			return n + dec.BytesRead(), fmt.Errorf("read commitment key %d: %w", i, err)
+			return commitmentKeysBytes + dec.BytesRead(), fmt.Errorf("read commitment key %d: %w", i, err)
 		}
 		vk.CommitmentKeys = append(vk.CommitmentKeys, commitmentKey)
 	}
 	if len(vk.CommitmentKeys) != int(nbCommitments) {
-		return n + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(vk.CommitmentKeys))
+		return commitmentKeysBytes + dec.BytesRead(), fmt.Errorf("invalid number of commitment keys. Expected %d got %d", nbCommitments, len(vk.CommitmentKeys))
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
-		return n + dec.BytesRead(), fmt.Errorf("precompute: %w", err)
+		return commitmentKeysBytes + dec.BytesRead(), fmt.Errorf("precompute: %w", err)
 	}
 
-	return n + dec.BytesRead(), nil
+	return commitmentKeysBytes + dec.BytesRead(), nil
 }
 
 // WriteTo writes binary encoding of the key elements to writer
@@ -239,8 +267,13 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 	return pk.writeTo(w, true)
 }
 
-func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
-	n, err := pk.Domain.WriteTo(w)
+func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "serialize"), slog.String("object", "proving_key"), slog.Bool("raw", raw))
+	}()
+
+	n, err = pk.Domain.WriteTo(w)
 	if err != nil {
 		return n, err
 	}
@@ -312,8 +345,13 @@ func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 	return pk.readFrom(r, curve.NoSubgroupChecks())
 }
 
-func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
-	n, err := pk.Domain.ReadFrom(r)
+func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (n int64, err error) {
+	start := time.Now()
+	defer func() {
+		logSerializationDebug(start, n, err, slog.String("backend", "groth16"), slog.String("operation", "deserialize"), slog.String("object", "proving_key"), slog.Bool("subgroup_checks", len(decOptions) == 0))
+	}()
+
+	n, err = pk.Domain.ReadFrom(r)
 	if err != nil {
 		return n, fmt.Errorf("read domain: %w", err)
 	}

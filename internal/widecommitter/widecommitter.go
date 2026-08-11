@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/logger"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -31,8 +30,8 @@ func From(newBuilder frontend.NewBuilderU32) frontend.NewBuilderU32 {
 		if err != nil {
 			return nil, err
 		}
-		log := logger.Logger()
-		log.Warn().Msg("using fake wide committer, no checks will be performed. Use only for testing")
+		log := b.Compiler().Logger()
+		log.Warn("using fake wide committer, no checks will be performed. Use only for testing")
 		return &wrappedBuilder{b}, nil
 	}
 }

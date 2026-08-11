@@ -2,6 +2,7 @@ package gnark_test
 
 import (
 	"bytes"
+	"log/slog"
 	"math/big"
 	"testing"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test/unsafekzg"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,11 +48,11 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:30 > 13 is the addition\n")
-	expected.WriteString("debug_test.go:32 > 26 42\n")
-	expected.WriteString("debug_test.go:34 > bits 1\n")
-	expected.WriteString("debug_test.go:35 > circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:39 > m .*\n")
+	expected.WriteString("msg=api.Println source=debug_test.go:30 debug=\"13 is the addition\"\n")
+	expected.WriteString("msg=api.Println source=debug_test.go:32 debug=\"26 42\"\n")
+	expected.WriteString("msg=api.Println source=debug_test.go:34 debug=\"bits 1\"\n")
+	expected.WriteString("msg=api.Println source=debug_test.go:35 debug=\"circuit {A: 2, B: 11}\"\n")
+	expected.WriteString("msg=api.Println source=debug_test.go:39 debug=\"m .*\"\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -177,7 +177,18 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey && a.Value.Kind() == slog.KindTime {
+				return slog.Attr{}
+			}
+			if a.Key == slog.LevelKey && a.Value.Kind() == slog.KindAny {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}))
 	_, err = plonk.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
 	return buf.String(), err
 }
@@ -198,7 +209,18 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey && a.Value.Kind() == slog.KindTime {
+				return slog.Attr{}
+			}
+			if a.Key == slog.LevelKey && a.Value.Kind() == slog.KindAny {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}))
 	_, err = groth16.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
 	return buf.String(), err
 }

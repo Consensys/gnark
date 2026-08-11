@@ -4,10 +4,11 @@
 package compilelogger
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/logger"
-	"github.com/rs/zerolog"
 )
 
 type compileLoggerKey struct {
@@ -21,11 +22,12 @@ type compileLoggerKey struct {
 // Recommended identifier format is "component/feature" to allow filtering by
 // component and grouping related messages together.
 //
-// msg can be a format string and args are the corresponding arguments, as in logger.Logger().Msgf(msg, args...).
+// msg and args are passed directly to the logger, allowing for structured
+// logging. See [slog.Logger.Log] for details on supported formats.
 //
 // LogOnce panics if the api does not implement [kvstore.Store], which should
 // never happen since the compiler is expected to implement it.
-func LogOnce(api frontend.Compiler, level zerolog.Level, identifier, msg string, args ...any) {
+func LogOnce(api frontend.Compiler, level slog.Level, identifier, msg string, args ...any) {
 	kv, ok := api.(kvstore.Store)
 	if !ok {
 		panic("compiler should implement key-value store")
@@ -37,6 +39,6 @@ func LogOnce(api frontend.Compiler, level zerolog.Level, identifier, msg string,
 	// set the key to avoid logging again with the same identifier
 	kv.SetKeyValue(key, struct{}{})
 
-	l := logger.Logger()
-	l.WithLevel(level).Msgf(msg, args...)
+	//nolint:sloglint // LogOnce is a compile-time logging wrapper; call sites are responsible for static messages and attrs.
+	api.Logger().Log(context.Background(), level, msg, args...)
 }

@@ -9,10 +9,12 @@ import (
 	"io"
 	"time"
 
-	"github.com/consensys/gnark/backend/witness"
+	"log/slog"
+
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/logger"
+
+	"github.com/consensys/gnark/backend/witness"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -52,15 +54,19 @@ func newSystem(capacity int, t constraint.SystemType) *system {
 // If it's a R1CS returns R1CSSolution
 // If it's a SparseR1CS returns SparseR1CSSolution
 func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, error) {
-	log := logger.Logger().With().Int("nbConstraints", cs.GetNbConstraints()).Logger()
+	opt, err := csolver.NewConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+	log := opt.Logger.With(slog.Int("nbConstraints", cs.GetNbConstraints()))
 	start := time.Now()
 
 	v := witness.Vector().(fr.Vector)
 
 	// init the solver
-	solver, err := newSolver(cs, v, opts...)
+	solver, err := newSolver(cs, v, &opt)
 	if err != nil {
-		log.Err(err).Send()
+		log.Error("constraint system solver init failed", slog.Any("err", err))
 		return nil, err
 	}
 
@@ -77,11 +83,11 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 	// run it.
 	if err := solver.run(); err != nil {
-		log.Err(err).Send()
+		log.Error("constraint system solving failed", slog.Any("err", err))
 		return nil, err
 	}
 
-	log.Debug().Dur("took", time.Since(start)).Msg("constraint system solver done")
+	log.Debug("constraint system solver done", slog.Duration("took", time.Since(start)))
 
 	// format the solution
 	// TODO @gbotrel revisit post-refactor
