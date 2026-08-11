@@ -22,6 +22,8 @@ func GetHints() []solver.Hint {
 		pairingCheckHint,
 		millerLoopAndCheckFinalExpHint,
 		scalarMulG2Hint,
+		g2CombRecodeHint,
+		g2CombChainLambdaHint,
 		rationalReconstructExtG2,
 	}
 }

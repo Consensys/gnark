@@ -101,6 +101,65 @@ func TestScalarMulG2EdgeCases(t *testing.T) {
 	}
 }
 
+type scalarMulConstG2Circuit struct {
+	S   Scalar
+	Res G2Affine
+
+	px0, px1 *big.Int
+	py0, py1 *big.Int
+}
+
+func (c *scalarMulConstG2Circuit) Define(api frontend.API) error {
+	g2, err := NewG2(api)
+	if err != nil {
+		return fmt.Errorf("new G2 struct: %w", err)
+	}
+	P := G2Affine{P: g2AffP{
+		X: fields_bls12381.E2{
+			A0: emulated.ValueOf[BaseField](c.px0),
+			A1: emulated.ValueOf[BaseField](c.px1),
+		},
+		Y: fields_bls12381.E2{
+			A0: emulated.ValueOf[BaseField](c.py0),
+			A1: emulated.ValueOf[BaseField](c.py1),
+		},
+	}}
+	res := g2.ScalarMul(&P, &c.S)
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestScalarMulConstG2Comb(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, _, gen := bls12381.Generators()
+	var P bls12381.G2Affine
+	P.ScalarMultiplication(&gen, big.NewInt(12345))
+	px0, px1 := P.X.A0.BigInt(new(big.Int)), P.X.A1.BigInt(new(big.Int))
+	py0, py1 := P.Y.A0.BigInt(new(big.Int)), P.Y.A1.BigInt(new(big.Int))
+	r := fr_bls12381.Modulus()
+	scalars := []*big.Int{
+		big.NewInt(0),
+		big.NewInt(1),
+		big.NewInt(2),
+		big.NewInt(3),
+		new(big.Int).Sub(r, big.NewInt(1)),
+		new(big.Int).Sub(r, big.NewInt(2)),
+		new(big.Int).Lsh(big.NewInt(1), 128),
+	}
+	for _, s := range scalars {
+		var S bls12381.G2Affine
+		S.ScalarMultiplication(&P, s)
+		circuit := scalarMulConstG2Circuit{px0: px0, px1: px1, py0: py0, py1: py1}
+		witness := scalarMulConstG2Circuit{
+			px0: px0, px1: px1, py0: py0, py1: py1,
+			S:   emulated.ValueOf[ScalarField](s),
+			Res: NewG2Affine(S),
+		}
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err, "s=%s", s.String())
+	}
+}
+
 type addG2Circuit struct {
 	In1, In2   G2Affine
 	Res        G2Affine

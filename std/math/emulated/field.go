@@ -173,6 +173,21 @@ func (f *Field[T]) NewElement(v any) *Element[T] {
 	return c
 }
 
+// UnsafeFromLimbs constructs an element from the given limbs without
+// enforcing any range checks on them. The caller MUST guarantee that every
+// limb value is strictly less than 2^BitsPerLimb, otherwise the result is
+// unsound. It is useful in gadgets where the limbs are bounded by
+// construction, for example when they are convex combinations of constant
+// limbs selected by a one-hot vector.
+func (f *Field[T]) UnsafeFromLimbs(limbVals []frontend.Variable) *Element[T] {
+	if len(limbVals) != int(f.fParams.NbLimbs()) {
+		panic("limb count mismatch")
+	}
+	cp := make([]frontend.Variable, len(limbVals))
+	copy(cp, limbVals)
+	return f.newInternalElement(cp, 0)
+}
+
 // Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
@@ -296,6 +311,18 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		}
 	}
 	return
+}
+
+// ConstantValue returns the constant value of the element modulo the field
+// modulus and a boolean indicating if the element is in fact a compile-time
+// constant. It allows gadgets to specialize for constant inputs (for example
+// scalar multiplication by a constant point can use precomputed tables).
+func (f *Field[T]) ConstantValue(v *Element[T]) (*big.Int, bool) {
+	c, ok := f.constantValue(v)
+	if !ok {
+		return nil, false
+	}
+	return c.Mod(c, f.fParams.Modulus()), true
 }
 
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
