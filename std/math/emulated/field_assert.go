@@ -155,6 +155,17 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	if a.isStrictZero() {
 		return 1
 	}
+	// fast path - when the element is constant, evaluate at compile time. This
+	// also keeps constant elements out of the reduction below: for a constant
+	// wider than the modulus it would fold to a constant element whose limb
+	// count depends on the reduced value (zero limbs for 0 mod p), which the
+	// limb-indexing below cannot handle.
+	if cv, cConst := f.constantValue(a); cConst {
+		if cv.Mod(cv, f.fParams.Modulus()).Sign() == 0 {
+			return 1
+		}
+		return 0
+	}
 
 	// to avoid using strict reduction (which is expensive as requires binary
 	// assertion that value is less than modulus), we use ordinary reduction but

@@ -1357,6 +1357,55 @@ func TestIsZeroNonModulusWidth(t *testing.T) {
 	testIsZeroNonModulusWidth[emparams.Mod1e512](t)
 }
 
+// IsZeroConstWideCircuit builds wide elements out of compile-time constant
+// limbs, the case where the reduction inside IsZero folds to a constant
+// element whose limb count depends on the reduced value (zero limbs for 0).
+type IsZeroConstWideCircuit[T FieldParams] struct {
+	Dummy frontend.Variable
+}
+
+func (c *IsZeroConstWideCircuit[T]) Define(api frontend.API) error {
+	var fp T
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	constWide := func(v *big.Int) *Element[T] {
+		vlimbs := make([]*big.Int, 2*int(fp.NbLimbs()))
+		for i := range vlimbs {
+			vlimbs[i] = new(big.Int)
+		}
+		if err := limbs.Decompose(v, fp.BitsPerLimb(), vlimbs); err != nil {
+			panic(err)
+		}
+		lvars := make([]frontend.Variable, len(vlimbs))
+		for i := range vlimbs {
+			lvars[i] = vlimbs[i]
+		}
+		return f.newInternalElement(lvars, 0)
+	}
+	twoP := new(big.Int).Lsh(fp.Modulus(), 1)
+	api.AssertIsEqual(f.IsZero(constWide(twoP)), 1)
+	api.AssertIsEqual(f.IsZero(constWide(new(big.Int).Add(twoP, big.NewInt(5)))), 0)
+	api.AssertIsEqual(c.Dummy, 0)
+	return nil
+}
+
+func testIsZeroConstWide[T FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		assert.CheckCircuit(&IsZeroConstWideCircuit[T]{},
+			test.WithValidAssignment(&IsZeroConstWideCircuit[T]{Dummy: 0}),
+		)
+	}, testName[T]())
+}
+
+func TestIsZeroConstWide(t *testing.T) {
+	testIsZeroConstWide[Goldilocks](t)
+	testIsZeroConstWide[BN254Fr](t)
+	testIsZeroConstWide[emparams.Mod1e512](t)
+}
+
 type PolyEvalCircuit[T FieldParams] struct {
 	Inputs         []Element[T]
 	TermsByIndices [][]int
