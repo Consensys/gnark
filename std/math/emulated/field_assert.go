@@ -2,6 +2,8 @@ package emulated
 
 import (
 	"fmt"
+	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
@@ -182,6 +184,28 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 		// the 0-or-p check below would misclassify multiples of p — and the
 		// limb-wise comparison against the modulus would index out of range.
 		// Force a full modular reduction to the modulus width first.
+		if f.useSmallFieldOptimization() {
+			// In small-field mode mulMod flattens multi-limb inputs through a
+			// plain native recomposition (toSingleLimbElement), which wraps in
+			// the native field once the element is wider than the native
+			// modulus and understates the overflow either way. Fold the limbs
+			// with mod-p-reduced coefficients instead: the result is congruent
+			// mod p, fits the native field by the small-field-mode invariant,
+			// and carries an honest overflow for the reduction below.
+			pv := f.fParams.Modulus()
+			base := new(big.Int).Lsh(big.NewInt(1), f.fParams.BitsPerLimb())
+			base.Mod(base, pv)
+			coef := new(big.Int).Set(base)
+			acc := ca.Limbs[0]
+			for i := 1; i < len(ca.Limbs); i++ {
+				acc = f.api.MulAcc(acc, ca.Limbs[i], new(big.Int).Set(coef))
+				coef.Mul(coef, base).Mod(coef, pv)
+			}
+			// value < n * 2^(w+overflow) * p, i.e. the single limb is bounded
+			// by 2^(w + overflow + pBits + ceil(log2(n)))
+			foldOverflow := ca.overflow + uint(pv.BitLen()) + uint(bits.Len(uint(len(ca.Limbs))))
+			ca = f.newInternalElement([]frontend.Variable{acc}, foldOverflow)
+		}
 		ca = f.mulMod(ca, f.One(), 0, nil)
 	}
 

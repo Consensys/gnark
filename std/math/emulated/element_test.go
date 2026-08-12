@@ -1308,29 +1308,40 @@ func testIsZeroNonModulusWidth[T FieldParams](t *testing.T) {
 	var fp T
 	p := fp.Modulus()
 	assert := test.NewAssert(t)
-	assert.Run(func(assert *test.Assert) {
-		nbWideLimbs := 2 * int(fp.NbLimbs())
-		wide := func(v *big.Int, expected int) *IsZeroEdgeCase[T] {
-			w := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs), Expected: expected}
-			vlimbs := make([]*big.Int, nbWideLimbs)
-			for i := range vlimbs {
-				vlimbs[i] = new(big.Int)
+	// 2x the modulus limb count, and 8x — for single-limb small-field params
+	// (e.g. Goldilocks) the latter exceeds the native field bit length (a
+	// 512-bit hash output over a 64-bit modulus), so a native recomposition of
+	// the limbs would wrap.
+	for _, mult := range []int{2, 8} {
+		nbWideLimbs := mult * int(fp.NbLimbs())
+		assert.Run(func(assert *test.Assert) {
+			wide := func(v *big.Int, expected int) *IsZeroEdgeCase[T] {
+				w := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs), Expected: expected}
+				vlimbs := make([]*big.Int, nbWideLimbs)
+				for i := range vlimbs {
+					vlimbs[i] = new(big.Int)
+				}
+				err := limbs.Decompose(v, fp.BitsPerLimb(), vlimbs)
+				assert.NoError(err)
+				for i := range vlimbs {
+					w.Limbs[i] = vlimbs[i]
+				}
+				return w
 			}
-			err := limbs.Decompose(v, fp.BitsPerLimb(), vlimbs)
-			assert.NoError(err)
-			for i := range vlimbs {
-				w.Limbs[i] = vlimbs[i]
-			}
-			return w
-		}
-		pSquared := new(big.Int).Mul(p, p)
-		assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs)},
-			test.WithValidAssignment(wide(new(big.Int).Lsh(p, 1), 1)),                    // 2p == 0 mod p, but 2p is outside the 0-or-p range
-			test.WithValidAssignment(wide(pSquared, 1)),                                  // p^2 == 0 mod p, occupies the high limbs
-			test.WithValidAssignment(wide(new(big.Int).Add(pSquared, big.NewInt(5)), 0)), // p^2 + 5 == 5 mod p
-			test.WithValidAssignment(wide(big.NewInt(0), 1)),
-		)
-	}, testName[T]())
+			pSquared := new(big.Int).Mul(p, p)
+			// a multiple of p that occupies the top limb of the wide element
+			topShift := uint(nbWideLimbs)*fp.BitsPerLimb() - uint(p.BitLen()) - 2
+			pTop := new(big.Int).Lsh(p, topShift)
+			assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs)},
+				test.WithValidAssignment(wide(new(big.Int).Lsh(p, 1), 1)),                    // 2p == 0 mod p, but 2p is outside the 0-or-p range
+				test.WithValidAssignment(wide(pSquared, 1)),                                  // p^2 == 0 mod p
+				test.WithValidAssignment(wide(new(big.Int).Add(pSquared, big.NewInt(5)), 0)), // p^2 + 5 == 5 mod p
+				test.WithValidAssignment(wide(pTop, 1)),                                      // p*2^k == 0 mod p, occupies the high limbs
+				test.WithValidAssignment(wide(new(big.Int).Add(pTop, big.NewInt(5)), 0)),     // p*2^k + 5 == 5 mod p
+				test.WithValidAssignment(wide(big.NewInt(0), 1)),
+			)
+		}, testName[T](), fmt.Sprintf("wide=%d", mult))
+	}
 	assert.Run(func(assert *test.Assert) {
 		plimbs := make([]*big.Int, int(fp.NbLimbs()))
 		for i := range plimbs {
