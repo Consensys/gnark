@@ -1294,6 +1294,69 @@ func TestIsZeroEdgeCases(t *testing.T) {
 	testIsZeroEdgeCases[emparams.Mod1e512](t)
 }
 
+// testIsZeroNonModulusWidth checks IsZero on elements whose limb count differs
+// from the modulus width. Such elements have zero overflow, so [Field.Reduce]
+// passes them through unchanged:
+//   - wider than the modulus (e.g. a [Field.FromBits] result over a hash
+//     output twice the modulus bit length): the value may be a multiple of p
+//     larger than 2p, which the 0-or-p comparison cannot classify — and the
+//     limb-wise comparison against the modulus indexed out of range.
+//   - narrower than the modulus: the comparison checked only the given prefix
+//     of the modulus limbs, returning a false positive for an element equal
+//     to the low limbs of p.
+func testIsZeroNonModulusWidth[T FieldParams](t *testing.T) {
+	var fp T
+	p := fp.Modulus()
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		nbWideLimbs := 2 * int(fp.NbLimbs())
+		wide := func(v *big.Int, expected int) *IsZeroEdgeCase[T] {
+			w := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs), Expected: expected}
+			vlimbs := make([]*big.Int, nbWideLimbs)
+			for i := range vlimbs {
+				vlimbs[i] = new(big.Int)
+			}
+			err := limbs.Decompose(v, fp.BitsPerLimb(), vlimbs)
+			assert.NoError(err)
+			for i := range vlimbs {
+				w.Limbs[i] = vlimbs[i]
+			}
+			return w
+		}
+		pSquared := new(big.Int).Mul(p, p)
+		assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, nbWideLimbs)},
+			test.WithValidAssignment(wide(new(big.Int).Lsh(p, 1), 1)),                    // 2p == 0 mod p, but 2p is outside the 0-or-p range
+			test.WithValidAssignment(wide(pSquared, 1)),                                  // p^2 == 0 mod p, occupies the high limbs
+			test.WithValidAssignment(wide(new(big.Int).Add(pSquared, big.NewInt(5)), 0)), // p^2 + 5 == 5 mod p
+			test.WithValidAssignment(wide(big.NewInt(0), 1)),
+		)
+	}, testName[T]())
+	assert.Run(func(assert *test.Assert) {
+		plimbs := make([]*big.Int, int(fp.NbLimbs()))
+		for i := range plimbs {
+			plimbs[i] = new(big.Int)
+		}
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
+		assert.NoError(err)
+		if fp.NbLimbs() == 1 || plimbs[0].Sign() == 0 {
+			// a single-limb prefix of p is only a counterexample when it is a
+			// strict, non-zero prefix
+			return
+		}
+		// a single-limb element equal to the lowest limb of p is not zero
+		// mod p, but a prefix-only comparison would claim it is
+		assert.CheckCircuit(&IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, 1)},
+			test.WithValidAssignment(&IsZeroEdgeCase[T]{Limbs: []frontend.Variable{plimbs[0]}, Expected: 0}),
+		)
+	}, testName[T]())
+}
+
+func TestIsZeroNonModulusWidth(t *testing.T) {
+	testIsZeroNonModulusWidth[Goldilocks](t)
+	testIsZeroNonModulusWidth[BN254Fr](t)
+	testIsZeroNonModulusWidth[emparams.Mod1e512](t)
+}
+
 type PolyEvalCircuit[T FieldParams] struct {
 	Inputs         []Element[T]
 	TermsByIndices [][]int

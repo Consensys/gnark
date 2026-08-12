@@ -164,6 +164,15 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// correspond to the modulus limbs.
 	ca := f.Reduce(a)
 	p := f.Modulus()
+	if len(ca.Limbs) > len(p.Limbs) {
+		// [Field.Reduce] does not reduce zero-overflow elements even when they
+		// are wider than the modulus (e.g. a [Field.FromBits] result over more
+		// bits than the modulus width). Such a value is not bounded by 2p, so
+		// the 0-or-p check below would misclassify multiples of p — and the
+		// limb-wise comparison against the modulus would index out of range.
+		// Force a full modular reduction to the modulus width first.
+		ca = f.mulMod(ca, f.One(), 0, nil)
+	}
 
 	// we use two approaches for checking if the element is exactly zero. The
 	// first approach is to check that every limb individually is zero. The
@@ -194,9 +203,18 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// however, for checking if the element is p, we can not use the
 	// optimization as we may have underflows. So we have to check every limb
 	// individually.
+	// the element may have fewer limbs than the modulus (e.g. a short
+	// [Field.FromBits] result), in which case the missing high limbs are zero.
+	// We must still compare against every modulus limb — comparing only the
+	// prefix would return a false positive for an element equal to the low
+	// limbs of p.
 	resP := f.api.IsZero(f.api.Sub(p.Limbs[0], ca.Limbs[0]))
-	for i := 1; i < len(ca.Limbs); i++ {
-		resP = f.api.Mul(resP, f.api.IsZero(f.api.Sub(p.Limbs[i], ca.Limbs[i])))
+	for i := 1; i < len(p.Limbs); i++ {
+		var caLimb frontend.Variable = 0
+		if i < len(ca.Limbs) {
+			caLimb = ca.Limbs[i]
+		}
+		resP = f.api.Mul(resP, f.api.IsZero(f.api.Sub(p.Limbs[i], caLimb)))
 	}
 	return f.api.Or(res0, resP)
 }
