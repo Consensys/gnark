@@ -23,15 +23,21 @@ func init() {
 }
 
 func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeInput(nativeInputs, nativeOutputs, func(nnMod *big.Int, nninputs, nnOutputs []*big.Int) error {
-		if len(nninputs) != 1 {
-			return errors.New("expecting one input")
+	return emulated.UnwrapHintContext(nativeMod, nativeInputs, nativeOutputs, func(hc emulated.HintContext) error {
+		moduli := hc.EmulatedModuli()
+		if len(moduli) != 1 {
+			return errors.New("expecting one modulus")
 		}
+		nativeInputs, _ := hc.NativeInputsOutputs()
+		if len(nativeInputs) != 1 {
+			return errors.New("expecting one native input")
+		}
+		_, nnOutputs := hc.InputsOutputs(moduli[0])
 		if len(nnOutputs) != 2 {
 			return errors.New("expecting two outputs")
 		}
 		cc := getInnerCurveConfig(nativeMod)
-		sp := ecc.SplitScalar(nninputs[0], cc.glvBasis)
+		sp := ecc.SplitScalar(nativeInputs[0], cc.glvBasis)
 		nnOutputs[0].Set(&(sp[0]))
 		nnOutputs[1].Neg(&(sp[1]))
 
@@ -39,7 +45,7 @@ func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 	})
 }
 
-func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1, s2 frontend.Variable) {
+func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2 frontend.Variable) {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 	sapi, err := emulated.NewField[emparams.GrumpkinFr](api)
 	if err != nil {
@@ -51,7 +57,7 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := sapi.NewHintWithNativeInput(decomposeScalar, 2, s)
+	_, sd, err := sapi.NewHintGeneric(decomposeScalar, 0, 2, []frontend.Variable{s}, nil, emulated.WithHintOutputRangeCheckBits(map[int]int{0: 127, 1: 127}))
 	if err != nil {
 		panic(err)
 	}

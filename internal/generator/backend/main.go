@@ -244,7 +244,8 @@ func main() {
 		assertNoError(generateGkrBackend(cfg))
 
 		fmt.Println("generating test vectors for gkr and sumcheck")
-		runCmd("go", "run", "../../gkr/test_vectors")
+		testVectorsDir := filepath.Join("..", "..", "gkr", "test_vectors")
+		runCmdInDir(testVectorsDir, "go", "run", ".")
 		wg.Done()
 	}()
 
@@ -258,8 +259,13 @@ func main() {
 }
 
 func runCmd(name string, arg ...string) {
+	runCmdInDir("", name, arg...)
+}
+
+func runCmdInDir(dir, name string, arg ...string) {
 	fmt.Println(name, strings.Join(arg, " "))
 	cmd := exec.Command(name, arg...)
+	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	assertNoError(cmd.Run())

@@ -190,7 +190,7 @@ func (p *G1Affine) scalarMulGLV(api frontend.API, q G1Affine, s frontend.Variabl
 	// curve.
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	s1, s2 := callDecomposeScalar(api, s, true)
+	s1, s2 := callDecomposeScalar(api, s)
 
 	nbits := 127
 	s1bits := api.ToBinary(s1, nbits)
@@ -477,8 +477,8 @@ func (p *G1Affine) jointScalarMulUnsafe(api frontend.API, q, r G1Affine, s, t fr
 // DoubleAndAdd accumulator collisions.
 func (p *G1Affine) jointScalarMulGLVUnsafe(api frontend.API, q, r G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
-	s1, s2 := callDecomposeScalar(api, s, false)
-	t1, t2 := callDecomposeScalar(api, t, false)
+	s1, s2 := callDecomposeScalar(api, s)
+	t1, t2 := callDecomposeScalar(api, t)
 	nbits := cc.fr.BitLen()>>1 + 1
 
 	s1bits := api.ToBinary(s1, nbits)

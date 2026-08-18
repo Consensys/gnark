@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
+	"github.com/consensys/gnark/std/rangecheck"
 )
 
 // UnwrapHint unwraps the native inputs into nonnative inputs. Then it calls
@@ -306,10 +307,12 @@ func wrapGenericHintInputs[T1, T2 FieldParams](
 }
 
 // unwrapGenericHintOutputs unwraps the wrapped outputs from the hint function
-// into elements of different fields.
-func unwrapGenericHintOutputs[T1, T2 FieldParams](field *big.Int, fp1 *Field[T1], fp2 *Field[T2],
+// into elements of different fields. If cfg is non-nil, per-output range checks
+// from [WithHintOutputRangeCheckBits] are applied: native outputs (indices
+// 0..nbNativeOutputs-1), then emulated1 outputs, then emulated2 outputs.
+func unwrapGenericHintOutputs[T1, T2 FieldParams](api frontend.API, field *big.Int, fp1 *Field[T1], fp2 *Field[T2],
 	nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs int,
-	hintOutputs []frontend.Variable,
+	hintOutputs []frontend.Variable, cfg *hintConfig,
 ) (nativeOutputs []frontend.Variable, emulated1Outputs []*Element[T1], emulated2Outputs []*Element[T2], err error) {
 	effNbLimbs1, _ := GetEffectiveFieldParams[T1](field)
 	effNbLimbs2, _ := GetEffectiveFieldParams[T2](field)
@@ -318,14 +321,32 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](field *big.Int, fp1 *Field[T1]
 		return nil, nil, nil, fmt.Errorf("hint outputs length mismatch: expected %d, got %d", nbExpectedOutputs, len(hintOutputs))
 	}
 	nativeOutputs = hintOutputs[:nbNativeOutputs]
+	// apply range checks on native outputs when requested
+	rchecker := rangecheck.New(api)
+	for i := range nbNativeOutputs {
+		bits, ok := cfg.outputRangeCheckBits[i]
+		if !ok {
+			continue
+		}
+		if bits > 0 {
+			if bits > field.BitLen() {
+				return nil, nil, nil, fmt.Errorf("range check bits for native output %d exceed native field modulus bit size %d", i, field.BitLen())
+			}
+			rchecker.Check(nativeOutputs[i], bits)
+		}
+		// bits <= 0: no check
+	}
 	if nbEmulated1Outputs > 0 {
 		if fp1 == nil {
 			return nil, nil, nil, errors.New("nil emulated1 field")
 		}
 		emulated1Outputs = make([]*Element[T1], nbEmulated1Outputs)
 		for i := range nbEmulated1Outputs {
-			limbs := hintOutputs[nbNativeOutputs+i*int(effNbLimbs1) : nbNativeOutputs+(i+1)*int(effNbLimbs1)]
-			emulated1Outputs[i] = fp1.packLimbs(limbs, true)
+			allLimbs := hintOutputs[nbNativeOutputs+i*int(effNbLimbs1) : nbNativeOutputs+(i+1)*int(effNbLimbs1)]
+			// apply range checks on emulated outputs when requested.
+			if err := unwrapOutputRangeCheck(cfg, nbNativeOutputs, i, fp1, allLimbs, emulated1Outputs); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 	if nbEmulated2Outputs > 0 {
@@ -334,11 +355,46 @@ func unwrapGenericHintOutputs[T1, T2 FieldParams](field *big.Int, fp1 *Field[T1]
 		}
 		emulated2Outputs = make([]*Element[T2], nbEmulated2Outputs)
 		for i := range nbEmulated2Outputs {
-			limbs := hintOutputs[nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+i*int(effNbLimbs2) : nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+(i+1)*int(effNbLimbs2)]
-			emulated2Outputs[i] = fp2.packLimbs(limbs, true)
+			allLimbs := hintOutputs[nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+i*int(effNbLimbs2) : nbNativeOutputs+nbEmulated1Outputs*int(effNbLimbs1)+(i+1)*int(effNbLimbs2)]
+			// apply range checks on emulated outputs when requested.
+			if err := unwrapOutputRangeCheck(cfg, nbNativeOutputs+nbEmulated1Outputs, i, fp2, allLimbs, emulated2Outputs); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 	}
 	return nativeOutputs, emulated1Outputs, emulated2Outputs, nil
+}
+
+func unwrapOutputRangeCheck[T FieldParams](cfg *hintConfig, startIdx, idx int, fp *Field[T], limbs []frontend.Variable, outputs []*Element[T]) error {
+	bits, ok := cfg.outputRangeCheckBits[startIdx+idx]
+	if !ok {
+		// there is no override
+		outputs[idx] = fp.packLimbs(limbs, true)
+		return nil
+	}
+	if bits > 0 {
+		// if there is an override with positive bits, then we need to apply
+		// range check to the limbs and pack with custom width
+
+		// sanity check that the given bound is not larger than the field modulus bit size
+		if bits > int(fp.fParams.Modulus().BitLen()) {
+			return fmt.Errorf("range check output %d bits override %d exceed field modulus bit size %d", startIdx+idx, bits, fp.fParams.Modulus().BitLen())
+		}
+
+		// lets compute the expected number of limbs we have based on the bits
+		nbCustomLimbs := (bits + int(fp.fParams.BitsPerLimb()) - 1) / int(fp.fParams.BitsPerLimb())
+		// we don't need to assert that the limbs beyond nbCustomLimbs are zero,
+		// we only return the element with custom number of limbs so the caller
+		// can never access the potentially non-zero limbs beyond nbCustomLimbs,
+		// and thus there is no soundness issue.
+		outputs[idx] = fp.packLimbsWithWidth(limbs[:nbCustomLimbs], bits)
+	} else {
+		// bits <= 0: pack with default width but without range check.
+		// however, return it as non-internal so that when it is used as input to another operation,
+		// it will be properly range checked.
+		outputs[idx] = &Element[T]{Limbs: limbs, overflow: 0, internal: false}
+	}
+	return nil
 }
 
 // Hint is a non-native hint function which takes a [HintContext] as an argument
@@ -391,7 +447,11 @@ type Hint func(HintContext) error
 //	         // here we can use hc to access inputs and outputs for the given field modulus
 //	    })
 //	}
-func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOutputs int, nativeInputs []frontend.Variable, nonNativeInputs []*Element[T]) ([]frontend.Variable, []*Element[T], error) {
+func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOutputs int, nativeInputs []frontend.Variable, nonNativeInputs []*Element[T], opts ...HintOption) ([]frontend.Variable, []*Element[T], error) {
+	cfg, err := applyHintOptions(opts, []int{nbNativeOutputs, nbEmulatedOutputs})
+	if err != nil {
+		return nil, nil, fmt.Errorf("apply hint options: %w", err)
+	}
 	for i := range nonNativeInputs {
 		nonNativeInputs[i].Initialize(f.api.Compiler().Field())
 	}
@@ -403,7 +463,7 @@ func (f *Field[T]) NewHintGeneric(hf solver.Hint, nbNativeOutputs, nbEmulatedOut
 	if err != nil {
 		return nil, nil, fmt.Errorf("call hint: %w", err)
 	}
-	nres, em1res, em2res, err := unwrapGenericHintOutputs[T, T](f.api.Compiler().Field(), f, nil, nbNativeOutputs, nbEmulatedOutputs, 0, outputs)
+	nres, em1res, em2res, err := unwrapGenericHintOutputs[T, T](f.api, f.api.Compiler().Field(), f, nil, nbNativeOutputs, nbEmulatedOutputs, 0, outputs, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unwrap generic hint context: %w", err)
 	}
@@ -594,7 +654,12 @@ func NewVarGenericHint[T1, T2 FieldParams](
 	emulated1Inputs []*Element[T1],
 	emulated2Inputs []*Element[T2],
 	hf solver.Hint,
+	opts ...HintOption,
 ) (nativeOutputs []frontend.Variable, emulated1Outputs []*Element[T1], emulated2Outputs []*Element[T2], err error) {
+	cfg, err := applyHintOptions(opts, []int{nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("apply hint options: %w", err)
+	}
 	fp1, err := NewField[T1](api)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create emulated1 field: %w", err)
@@ -619,7 +684,129 @@ func NewVarGenericHint[T1, T2 FieldParams](
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("call hint: %w", err)
 	}
-	return unwrapGenericHintOutputs(nativeField, fp1, fp2,
+	return unwrapGenericHintOutputs(api, nativeField, fp1, fp2,
 		nbNativeOutputs, nbEmulated1Outputs, nbEmulated2Outputs,
-		outputs)
+		outputs, cfg)
+}
+
+// hintConfig holds the configuration for a generic hint.
+type hintConfig struct {
+	// outputRangeCheckBits holds the number of bits being range checked for
+	// each output of the hint. The indexing starts from native outputs and then
+	// goes through emulated outputs in order. If not set, then we range check
+	// the default number of bits for the field (i.e. the bit size of the
+	// modulus), except for the native field where we do not perform range
+	// checks by default (as it is natively enforced by the field). This is used
+	// to optimize the hint when we know that the outputs will be in a certain
+	// range, so we can perform range checks on the outputs and avoid some
+	// constraints in the hint logic.
+	outputRangeCheckBits map[int]int
+}
+
+// HintOption is a functional option for configuring the generic hint.
+// The generic hint functions [Field.NewHintGeneric] and [NewVarGenericHint] accept a
+// variable number of these options to customize the behavior of the hint.
+type HintOption func(*hintConfig) error
+
+// applyHintOptions applies the given options to a new genericHintConfig.
+func applyHintOptions(opts []HintOption, nbOutputs []int) (*hintConfig, error) {
+	cfg := &hintConfig{}
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			return nil, err
+		}
+	}
+	// validate that the output range check bits do not have indices larger than the total number of outputs
+	if cfg.outputRangeCheckBits != nil {
+		for idx := range cfg.outputRangeCheckBits {
+			if idx < 0 {
+				return nil, fmt.Errorf("output range check bits index cannot be negative, got %d", idx)
+			}
+			totalOutputs := 0
+			for _, n := range nbOutputs {
+				totalOutputs += n
+			}
+			if idx >= totalOutputs {
+				return nil, fmt.Errorf("output range check bits index %d is out of range for total outputs %d", idx, totalOutputs)
+			}
+		}
+	}
+	return cfg, nil
+}
+
+// WithHintOutputRangeCheckBits allows to set the number of bits being range
+// checked for each output of the hint. The indexing starts from native outputs
+// and then goes through emulated outputs in order.
+//
+// When not set for any specific output, then we perform the default range checking:
+//
+//   - for native outputs, we do not perform range checks by default (as it is natively
+//     enforced by the field)
+//
+//   - for emulated outputs, we range check the default number of bits for the field
+//     (i.e. the bit size of the modulus). But we don't perform strict range checking
+//     against the modulus, only for the bit length. In case the modulus is not a power
+//     of 2, then it means that we can have some values which are in the range of the
+//     bit length but are still larger than the modulus. This is to avoid some
+//     constraints in the hint logic and it is still safe as long as the hint logic
+//     does not rely on strict range checks against the modulus.
+//
+//     There is a method [Field.AssertIsInRange] if such strict range checks are needed.
+//
+// When set, then we perform range checking as follows:
+//   - when the bits > 0, then we range check the output to be less than 2^bits.
+//     This is useful when we know that the output will be in a certain range which is
+//     smaller than the field modulus, so we can perform range checks on the outputs
+//     and avoid some constraints in the hint logic.
+//   - when the bits <= 0, then we do not perform range checks on the outputs, not even
+//     the default ones. This is useful in case where we want to enforce range checking
+//     logic in the circuit itself. By default it is unsafe to use.
+//
+// This also affects how many limbs the returned outputs have. When the bits >
+// 0, then we ensure that the number of limbs is sufficient to represent values
+// up to 2^bits. When the bits <= 0, then we do not perform any checks on the
+// number of limbs and it is default, given by the emulation parameters.
+//
+// All checks are done in-circuit, the solver does not enforce any checks on the
+// hint outputs, so it is the responsibility of the user to ensure that the hint
+// logic is consistent with the range checks being performed.
+//
+// For example when we work over native field BN254, emulated fields BLS12381Fp
+// and BLS12381Fr, having correpondingly 2, 3, 4 outputs, then the indexing of
+// the outputs is as follows:
+//   - output 0 and 1 are native outputs
+//   - output 2, 3, 4 are emulated outputs for BLS12381Fp
+//   - output 5, 6, 7, 8 are emulated outputs for BLS12381Fr
+//
+// We would call the NewVarGenericHint function as follows:
+//
+//	 nativeOutputs, emulatedFpOutputs, emulatedFrOutputs, err := emulated.NewVarGenericHint(
+//		 api,
+//		 3,
+//		 4,
+//		 5,
+//		 nativeInputs,
+//		 emulatedFpInputs,
+//		 emulatedFrInputs,
+//		 MyHintFn,
+//		 emulated.WithHintOutputRangeCheckBits(map[int]int{
+//		     0: 4, // range check the first native output to be less than 16
+//		     1: 8, // range check the second native output to be less than 256
+//		     2: 10, // range check the first emulated output for BLS12381Fp to be less than 1024
+//		     // no range check for the second and third emulated outputs for BLS12381Fp
+//		     // no range check for the emulated outputs for BLS12381Fr
+//		 }),
+//
+// )
+func WithHintOutputRangeCheckBits(outputRangeCheckBits map[int]int) func(*hintConfig) error {
+	return func(cfg *hintConfig) error {
+		if outputRangeCheckBits == nil {
+			return errors.New("output range check bits map cannot be nil")
+		}
+		if cfg.outputRangeCheckBits != nil {
+			return errors.New("output range check bits map is already set")
+		}
+		cfg.outputRangeCheckBits = outputRangeCheckBits
+		return nil
+	}
 }

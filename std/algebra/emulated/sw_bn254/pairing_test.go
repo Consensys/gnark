@@ -157,6 +157,33 @@ func TestMillerLoopSingleTestSolve(t *testing.T) {
 	}, "case=g1-g2-zero")
 }
 
+func TestMillerLoopRejectsOffTwistG2(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, p, q := bn254.Generators()
+
+	// Scaling (x, y) by (s^2, s^3) maps Q to an isomorphic curve with
+	// coefficient s^6*b; for s^6 != 1, the result is off the original twist.
+	var s, s2, s3 bn254.E2
+	s.A0.SetUint64(2)
+	s.A1.SetZero()
+	s2.Square(&s)
+	s3.Mul(&s2, &s)
+	q.X.Mul(&q.X, &s2)
+	q.Y.Mul(&q.Y, &s3)
+	assert.False(q.IsOnCurve())
+
+	lines := bn254.PrecomputeLines(q)
+	res, err := bn254.MillerLoopFixedQ([]bn254.G1Affine{p}, [][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines})
+	assert.NoError(err)
+	witness := MillerLoopSingleCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&MillerLoopSingleCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.Error(err, "expected off-twist G2 input to be rejected")
+}
+
 type FinalExponentiation struct {
 	InGt GTEl
 	Res  GTEl

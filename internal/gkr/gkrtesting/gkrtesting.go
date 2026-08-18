@@ -192,17 +192,20 @@ func (p ScheduleInfo) ToProvingSchedule() (constraint.GkrProvingSchedule, error)
 			if groups == nil {
 				groups = []constraint.GkrClaimGroup{}
 			}
-			s[i] = constraint.GkrSumcheckLevel(groups)
+			lvl := constraint.GkrSumcheckLevel(groups)
+			s[i] = &lvl
 		case "skip":
 			if step.ClaimGroup == nil {
 				return nil, fmt.Errorf("level %d: type=skip but claimGroup is absent", i)
 			}
-			s[i] = constraint.GkrSkipLevel(*step.ClaimGroup)
+			lvl := constraint.GkrSkipLevel(*step.ClaimGroup)
+			s[i] = &lvl
 		case "singleSourceZeroCheck":
 			if step.ClaimGroup == nil {
 				return nil, fmt.Errorf("level %d: type=singleSourceZeroCheck but claimGroup is absent", i)
 			}
-			s[i] = constraint.GkrSingleSourceZeroCheckLevel(*step.ClaimGroup)
+			lvl := constraint.GkrSingleSourceZeroCheckLevel(*step.ClaimGroup)
+			s[i] = &lvl
 		default:
 			return nil, errors.New("unknown ProvingLevel type: " + step.Type)
 		}

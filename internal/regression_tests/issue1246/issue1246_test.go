@@ -17,7 +17,7 @@ func (circuit *notBoolCond) Define(api frontend.API) error {
 	d := api.Select(circuit.Condition, circuit.Y1, circuit.Y2)
 
 	// per api definition, d should hold either Y1 or Y2.
-	// we have y1 = 2, y2 = 4, condition = 2 (non boolean)
+	// we have y1 = 2, y2 = 4, condition = 2 (non-boolean)
 	// r = condition(y1-y2) + y2
 	api.AssertIsEqual(d, 0)
 

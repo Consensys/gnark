@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
@@ -18,6 +19,9 @@ import (
 type mulG2Circuit struct {
 	In, Res G2Affine
 	S       Scalar
+
+	incompleteArithmetic bool
+	skipGeneric          bool
 }
 
 func (c *mulG2Circuit) Define(api frontend.API) error {
@@ -25,10 +29,16 @@ func (c *mulG2Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new G2 struct: %w", err)
 	}
-	res1 := g2.scalarMulGLV(&c.In, &c.S)
-	res2 := g2.scalarMulGeneric(&c.In, &c.S)
+	opts := []algopts.AlgebraOption{}
+	if c.incompleteArithmetic {
+		opts = append(opts, algopts.WithIncompleteArithmetic())
+	}
+	res1 := g2.ScalarMul(&c.In, &c.S, opts...)
 	g2.AssertIsEqual(res1, &c.Res)
-	g2.AssertIsEqual(res2, &c.Res)
+	if !c.skipGeneric {
+		res2 := g2.scalarMulGeneric(&c.In, &c.S)
+		g2.AssertIsEqual(res2, &c.Res)
+	}
 	return nil
 }
 
@@ -49,6 +59,46 @@ func TestScalarMulG2TestSolve(t *testing.T) {
 	}
 	err := test.IsSolved(&mulG2Circuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+func TestScalarMulG2EdgeCases(t *testing.T) {
+	_, _, _, gen := bls12381.Generators()
+	var zero, negGen, sevenGen bls12381.G2Affine
+	negGen.Neg(&gen)
+	sevenGen.ScalarMultiplication(&gen, big.NewInt(7))
+
+	testCases := []struct {
+		name                 string
+		point                bls12381.G2Affine
+		scalar               *big.Int
+		expected             bls12381.G2Affine
+		incompleteArithmetic bool
+	}{
+		{name: "zero-scalar", point: gen, scalar: big.NewInt(0), expected: zero},
+		{name: "one", point: gen, scalar: big.NewInt(1), expected: gen},
+		{name: "minus-one", point: gen, scalar: big.NewInt(-1), expected: negGen},
+		{name: "zero-point", point: zero, scalar: big.NewInt(7), expected: zero},
+		{name: "incomplete-option", point: gen, scalar: big.NewInt(7), expected: sevenGen, incompleteArithmetic: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := test.NewAssert(t)
+			circuit := mulG2Circuit{
+				incompleteArithmetic: tc.incompleteArithmetic,
+				skipGeneric:          true,
+			}
+			witness := mulG2Circuit{
+				In:                   NewG2Affine(tc.point),
+				S:                    emulated.ValueOf[ScalarField](tc.scalar),
+				Res:                  NewG2Affine(tc.expected),
+				incompleteArithmetic: tc.incompleteArithmetic,
+				skipGeneric:          true,
+			}
+			err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+			assert.NoError(err)
+		})
+	}
 }
 
 type addG2Circuit struct {

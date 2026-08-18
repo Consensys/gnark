@@ -116,26 +116,26 @@ func TestSumcheckLevel(t *testing.T) {
 	}{
 		{
 			name: "single wire",
-			level: constraint.GkrSumcheckLevel{
+			level: &constraint.GkrSumcheckLevel{
 				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 			},
 		},
 		{
 			name: "two groups",
-			level: constraint.GkrSumcheckLevel{
+			level: &constraint.GkrSumcheckLevel{
 				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 				{Wires: []int{3}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 			},
 		},
 		{
 			name: "one group with two wires",
-			level: constraint.GkrSumcheckLevel{
+			level: &constraint.GkrSumcheckLevel{
 				{Wires: []int{4, 3}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 			},
 		},
 		{
 			name: "mixed: single + multi-wire group",
-			level: constraint.GkrSumcheckLevel{
+			level: &constraint.GkrSumcheckLevel{
 				{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 				{Wires: []int{3, 2}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 			},
@@ -199,19 +199,19 @@ func TestSkipLevel(t *testing.T) {
 	}{
 		{
 			name:  "single input wire",
-			level: constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
+			level: &constraint.GkrSkipLevel{Wires: []int{0}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 		},
 		{
 			name:  "single identity gate",
-			level: constraint.GkrSkipLevel{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
+			level: &constraint.GkrSkipLevel{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 		},
 		{
 			name:  "add gate",
-			level: constraint.GkrSkipLevel{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
+			level: &constraint.GkrSkipLevel{Wires: []int{4}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 		},
 		{
 			name:  "two identity gates one group",
-			level: constraint.GkrSkipLevel{Wires: []int{2, 3}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
+			level: &constraint.GkrSkipLevel{Wires: []int{2, 3}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 		},
 	}
 	for _, tc := range singleClaim {
@@ -405,7 +405,7 @@ func TestSingleMulGateExplicitSchedule(t *testing.T) {
 	// Explicit schedule: one GkrProvingLevel for wire 2.
 	// GkrClaimSource{Level:1} is the initial-challenge sentinel (len(schedule)=1).
 	schedule := constraint.GkrProvingSchedule{
-		constraint.GkrSumcheckLevel{
+		&constraint.GkrSumcheckLevel{
 			{Wires: []int{2}, ClaimSources: []constraint.GkrClaimSource{ {Level: 1} }},
 		},
 	}

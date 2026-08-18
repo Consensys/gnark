@@ -63,7 +63,7 @@ func newResources(c Circuit, schedule constraint.GkrProvingSchedule, assignment 
 // proveSkipLevel evaluates each unique gate input at each inherited evaluation point and records
 // the outgoing evaluation points on the resources.
 func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
-	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	level := r.schedule[levelI].(*constraint.GkrSkipLevel)
 	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	uniqueInputs := r.circuit.UniqueGateInputs(level)
@@ -79,12 +79,12 @@ func (r *resources) proveSkipLevel(levelI int) sumcheckProof {
 // verifySkipLevel verifies a SkipSumcheck level: checks that the finalEvalProof
 // is consistent with the assignment and gate evaluations, and records outgoing eval points.
 func (r *resources) verifySkipLevel(levelI int, proof Proof) error {
-	level := r.schedule[levelI].(constraint.GkrSkipLevel)
+	level := r.schedule[levelI].(*constraint.GkrSkipLevel)
 	outPoints := gkrcore.CollectOutgoingEvalPoints(level, levelI, r.outgoingEvalPoints)
 
 	finalEval := proof[levelI].finalEvalProof
 	_, inputIndices := r.circuit.InputMapping(level)
-	group := constraint.GkrClaimGroup(level)
+	group := constraint.GkrClaimGroup(*level)
 	initialChallengeI := len(r.schedule)
 
 	for levelWireI, wI := range group.Wires {
@@ -137,11 +137,11 @@ func Prove(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAss
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
 		switch r.schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			proof[levelI] = r.proveSkipLevel(levelI)
-		case constraint.GkrSingleSourceZeroCheckLevel:
+		case *constraint.GkrSingleSourceZeroCheckLevel:
 			proof[levelI] = r.proveSingleSourceZeroCheckLevel(levelI)
-		case constraint.GkrSumcheckLevel:
+		case *constraint.GkrSumcheckLevel:
 			proof[levelI] = r.proveSumcheckLevel(levelI)
 		default:
 			panic(fmt.Sprintf("level %d: unknown proving level type %T", levelI, r.schedule[levelI]))
@@ -170,11 +170,11 @@ func Verify(c Circuit, schedule constraint.GkrProvingSchedule, assignment WireAs
 
 	for levelI := len(schedule) - 1; levelI >= 0; levelI-- {
 		switch r.schedule[levelI].(type) {
-		case constraint.GkrSkipLevel:
+		case *constraint.GkrSkipLevel:
 			err = r.verifySkipLevel(levelI, proof)
-		case constraint.GkrSingleSourceZeroCheckLevel:
+		case *constraint.GkrSingleSourceZeroCheckLevel:
 			err = r.verifySingleSourceZeroCheckLevel(levelI, proof)
-		case constraint.GkrSumcheckLevel:
+		case *constraint.GkrSumcheckLevel:
 			err = r.verifySumcheckLevel(levelI, proof)
 		default:
 			panic(fmt.Sprintf("level %d: unknown proving level type %T", levelI, r.schedule[levelI]))

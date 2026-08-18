@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/test"
 )
@@ -661,4 +662,246 @@ func testMatchingFieldHint[T FieldParams](t *testing.T) {
 func TestMatchingFieldHint(t *testing.T) {
 	testMatchingFieldHint[BN254Fr](t)
 	testMatchingFieldHint[BLS12381Fr](t)
+}
+
+func hintSquareAllInputs(mod *big.Int, inputs, outputs []*big.Int) error {
+	return UnwrapHintContext(mod, inputs, outputs, func(ctx HintContext) error {
+		nativeInputs, nativeOutputs := ctx.NativeInputsOutputs()
+		if len(nativeInputs) != len(nativeOutputs) {
+			return fmt.Errorf("expected same number of native inputs and outputs, got %d inputs and %d outputs", len(nativeInputs), len(nativeOutputs))
+		}
+		for i := range nativeOutputs {
+			nativeOutputs[i].Mul(nativeInputs[i], nativeInputs[i])
+			nativeOutputs[i].Mod(nativeOutputs[i], ctx.NativeModulus())
+		}
+		for _, m := range ctx.EmulatedModuli() {
+			emulatedInputs, emulatedOutputs := ctx.InputsOutputs(m)
+			if len(emulatedInputs) != len(emulatedOutputs) {
+				return fmt.Errorf("expected same number of emulated inputs and outputs for modulus %s, got %d inputs and %d outputs", m.String(), len(emulatedInputs), len(emulatedOutputs))
+			}
+			for i := range emulatedOutputs {
+				emulatedOutputs[i].Mul(emulatedInputs[i], emulatedInputs[i])
+				emulatedOutputs[i].Mod(emulatedOutputs[i], m)
+			}
+		}
+
+		return nil
+	})
+}
+
+type customRangeCheckHintCircuit1[T1 FieldParams] struct {
+	NativeIn         [2]frontend.Variable
+	Emulated1In      [2]Element[T1]
+	rangeCheckAmount map[int]int
+}
+
+func (c *customRangeCheckHintCircuit1[T1]) Define(api frontend.API) error {
+	f, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	// request 2 native and 2 emulated outputs, with a range check option
+	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 2, 2, c.NativeIn[:], []*Element[T1]{&c.Emulated1In[0], &c.Emulated1In[1]},
+		WithHintOutputRangeCheckBits(c.rangeCheckAmount))
+	if err != nil {
+		return fmt.Errorf("new hint: %w", err)
+	}
+	for i := range outNat {
+		api.AssertIsDifferent(outNat[i], c.NativeIn[i])
+	}
+	for i := range outEm {
+		f.AssertIsDifferent(outEm[i], &c.Emulated1In[i])
+	}
+	return nil
+}
+
+func TestCustomRangeCheckHint(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		rangeCheckAmount: map[int]int{1: 8, 3: 8},
+	}
+	witness := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		NativeIn:    [2]frontend.Variable{3, 4},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](5), ValueOf[Secp256k1Fp](6)},
+	}
+	invalidWitness := customRangeCheckHintCircuit1[Secp256k1Fp]{
+		NativeIn:    [2]frontend.Variable{1 << 7, 1 << 6},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](1 << 7), ValueOf[Secp256k1Fp](1 << 6)},
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
+		test.WithCurves(ecc.BN254),
+		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
+}
+
+// varGenericHintCircuit exercises [NewVarGenericHint] which operates over the
+// native field and two distinct emulated fields. We reuse hintSquareAllInputs
+// which iterates over the native field and all emulated moduli. Note that the
+// two emulated fields must use distinct moduli (and distinct from the native
+// modulus), as the hint context looks up inputs/outputs by modulus value.
+type varGenericHintCircuit[T1, T2 FieldParams] struct {
+	NativeIn         [2]frontend.Variable
+	Emulated1In      [2]Element[T1]
+	Emulated2In      [2]Element[T2]
+	rangeCheckAmount map[int]int
+}
+
+func (c *varGenericHintCircuit[T1, T2]) Define(api frontend.API) error {
+	f1, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field 1: %w", err)
+	}
+	f2, err := NewField[T2](api)
+	if err != nil {
+		return fmt.Errorf("new field 2: %w", err)
+	}
+	outNat, outEm1, outEm2, err := NewVarGenericHint(api, 2, 2, 2,
+		c.NativeIn[:],
+		[]*Element[T1]{&c.Emulated1In[0], &c.Emulated1In[1]},
+		[]*Element[T2]{&c.Emulated2In[0], &c.Emulated2In[1]},
+		hintSquareAllInputs,
+		WithHintOutputRangeCheckBits(c.rangeCheckAmount),
+	)
+	if err != nil {
+		return fmt.Errorf("new var generic hint: %w", err)
+	}
+	for i := range outNat {
+		api.AssertIsDifferent(outNat[i], c.NativeIn[i])
+	}
+	for i := range outEm1 {
+		f1.AssertIsDifferent(outEm1[i], &c.Emulated1In[i])
+	}
+	for i := range outEm2 {
+		f2.AssertIsDifferent(outEm2[i], &c.Emulated2In[i])
+	}
+	return nil
+}
+
+func TestVarGenericHint(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
+		rangeCheckAmount: map[int]int{0: 8, 2: 8, 4: 8},
+	}
+	witness := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
+		NativeIn:    [2]frontend.Variable{3, 4},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](5), ValueOf[Secp256k1Fp](6)},
+		Emulated2In: [2]Element[BLS12381Fr]{ValueOf[BLS12381Fr](7), ValueOf[BLS12381Fr](8)},
+	}
+	invalidWitness := varGenericHintCircuit[Secp256k1Fp, BLS12381Fr]{
+		NativeIn:    [2]frontend.Variable{1 << 32, 1 << 8},
+		Emulated1In: [2]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](1 << 32), ValueOf[Secp256k1Fp](1 << 8)},
+		Emulated2In: [2]Element[BLS12381Fr]{ValueOf[BLS12381Fr](1 << 32), ValueOf[BLS12381Fr](1 << 8)},
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
+		test.WithCurves(ecc.BN254),
+		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
+}
+
+// zeroBitsHintCircuit exercises the bits==0 range check option, which disables
+// range checking (same as bits<0). The hint outputs are returned as-is, not
+// forced to zero, and no range check constraints are emitted.
+type zeroBitsHintCircuit[T1 FieldParams] struct {
+	NativeIn    frontend.Variable
+	Emulated1In Element[T1]
+}
+
+func (c *zeroBitsHintCircuit[T1]) Define(api frontend.API) error {
+	f, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	// output index 0 is the native output, index 1 is the emulated output; both
+	// with bits==0, i.e. no range check.
+	outNat, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 1, 1, []frontend.Variable{c.NativeIn}, []*Element[T1]{&c.Emulated1In},
+		WithHintOutputRangeCheckBits(map[int]int{0: 0, 1: 0}))
+	if err != nil {
+		return fmt.Errorf("new hint: %w", err)
+	}
+	// the actual hint outputs are returned (not forced to zero) and are usable.
+	nRes := api.Mul(c.NativeIn, c.NativeIn)
+	api.AssertIsEqual(outNat[0], nRes)
+	emRes := f.Mul(&c.Emulated1In, &c.Emulated1In)
+	f.AssertIsEqual(outEm[0], emRes)
+	return nil
+}
+
+func TestZeroBitsHint(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := zeroBitsHintCircuit[Secp256k1Fp]{}
+	witness := zeroBitsHintCircuit[Secp256k1Fp]{
+		NativeIn:    5,
+		Emulated1In: ValueOf[Secp256k1Fp](6),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness),
+		test.WithCurves(ecc.BN254),
+		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
+}
+
+// multiLimbRangeCheckHintCircuit exercises a positive bits range check that
+// spans multiple limbs. Secp256k1Fp uses 64-bit limbs, so 130 bits requires 3
+// limbs and exercises packLimbsWithWidth across a limb boundary (unlike the
+// 8-bit single-limb case in TestCustomRangeCheckHint).
+type multiLimbRangeCheckHintCircuit[T1 FieldParams] struct {
+	Emulated1In [1]Element[T1]
+}
+
+func (c *multiLimbRangeCheckHintCircuit[T1]) Define(api frontend.API) error {
+	f, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	_, outEm, err := f.NewHintGeneric(hintSquareAllInputs, 0, 1, nil, []*Element[T1]{&c.Emulated1In[0]},
+		WithHintOutputRangeCheckBits(map[int]int{0: 130}))
+	if err != nil {
+		return fmt.Errorf("new hint: %w", err)
+	}
+	f.AssertIsDifferent(outEm[0], &c.Emulated1In[0])
+	return nil
+}
+
+func TestMultiLimbRangeCheckHint(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := multiLimbRangeCheckHintCircuit[Secp256k1Fp]{}
+	// valid: (2^60)^2 = 2^120 < 2^130.
+	validIn := new(big.Int).Lsh(big.NewInt(1), 60)
+	// invalid: (2^66)^2 = 2^132 >= 2^130, so the range check fails.
+	invalidIn := new(big.Int).Lsh(big.NewInt(1), 66)
+	witness := multiLimbRangeCheckHintCircuit[Secp256k1Fp]{
+		Emulated1In: [1]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](validIn)},
+	}
+	invalidWitness := multiLimbRangeCheckHintCircuit[Secp256k1Fp]{
+		Emulated1In: [1]Element[Secp256k1Fp]{ValueOf[Secp256k1Fp](invalidIn)},
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithInvalidAssignment(&invalidWitness),
+		test.WithCurves(ecc.BN254),
+		test.WithSolverOpts(solver.WithHints(hintSquareAllInputs)))
+}
+
+// badIndexHintCircuit requests a single emulated output (output index 0) but
+// allows the test to supply an arbitrary range check index map to exercise the
+// validation in applyHintOptions.
+type badIndexHintCircuit[T1 FieldParams] struct {
+	In  Element[T1]
+	idx map[int]int
+}
+
+func (c *badIndexHintCircuit[T1]) Define(api frontend.API) error {
+	f, err := NewField[T1](api)
+	if err != nil {
+		return fmt.Errorf("new field: %w", err)
+	}
+	_, _, err = f.NewHintGeneric(hintSquareAllInputs, 0, 1, nil, []*Element[T1]{&c.In},
+		WithHintOutputRangeCheckBits(c.idx))
+	return err
+}
+
+func TestHintRangeCheckOptionValidation(t *testing.T) {
+	assert := test.NewAssert(t)
+	// out-of-range index: only one output exists (index 0), index 5 is invalid.
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder,
+		&badIndexHintCircuit[Secp256k1Fp]{idx: map[int]int{5: 8}})
+	assert.Error(err, "expected error for out-of-range output range check index")
+	// negative index is invalid.
+	_, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder,
+		&badIndexHintCircuit[Secp256k1Fp]{idx: map[int]int{-1: 8}})
+	assert.Error(err, "expected error for negative output range check index")
 }
