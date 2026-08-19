@@ -1,4 +1,28 @@
 
+<a name="v0.16.0"></a>
+## [v0.16.0] - 2026-08-19
+### Build
+- **deps:** bump golang.org/x/crypto from 0.48.0 to 0.52.0 in the go_modules group across 1 directory ([#1793](https://github.com/Consensys/gnark/issues/1793))
+### Chore
+- update dependencies (gnark-crypto v0.21.0) ([#1803](https://github.com/Consensys/gnark/issues/1803))
+- remove FRI verifier gadget ([#1777](https://github.com/Consensys/gnark/issues/1777))
+- pin and update GitHub Actions to latest releases ([#1784](https://github.com/Consensys/gnark/issues/1784))
+### Feat
+- map-to-curve relations ([#1746](https://github.com/Consensys/gnark/issues/1746))
+### Fix
+- do not discard returned value in Miller loop precomputelines ([#1786](https://github.com/Consensys/gnark/issues/1786))
+- validate Plonk proof structure according to verifying key ([#1787](https://github.com/Consensys/gnark/issues/1787))
+- GLV subscalar range checks ([#1778](https://github.com/Consensys/gnark/issues/1778))
+- GKR Poseidon serialization ([#1770](https://github.com/Consensys/gnark/issues/1770))
+### Perf
+- optimize `Lookup2` and `Xor(x,0)` ([#1801](https://github.com/Consensys/gnark/issues/1801))
+- twisted Edwards lattice-based double-base MSM ([#1765](https://github.com/Consensys/gnark/issues/1765))
+- G2 lattice-based GLV+FakeGLV scalar-mul ([#1764](https://github.com/Consensys/gnark/issues/1764))
+- use lattice scalar decomposition for tighter scalar-mul bounds ([#1763](https://github.com/Consensys/gnark/issues/1763))
+- **bls12-377:** randomized Schwartz-Zippel in native Fp6 and Fp12 ([#1760](https://github.com/Consensys/gnark/issues/1760))
+### Refactor
+- enforce least-privilege in GitHub Actions workflows ([#1785](https://github.com/Consensys/gnark/issues/1785))
+
 <a name="v0.15.0"></a>
 ## [v0.15.0] - 2026-03-11
 ### Build
@@ -3103,6 +3127,7 @@
 - Merge pull request [#8](https://github.com/Consensys/gnark/issues/8) from ConsenSys/internal-curve-tests
 - Merge pull request [#7](https://github.com/Consensys/gnark/issues/7) from ConsenSys/develop Fixed [#6](https://github.com/Consensys/gnark/issues/6)
 - Merge pull request [#5](https://github.com/Consensys/gnark/issues/5) from ConsenSys/go1.14_deps
+[v0.16.0]: https://github.com/Consensys/gnark/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/Consensys/gnark/compare/v0.14.0...v0.15.0
 [v0.14.0]: https://github.com/Consensys/gnark/compare/v0.13.0...v0.14.0
 [v0.13.0]: https://github.com/Consensys/gnark/compare/v0.12.0...v0.13.0
