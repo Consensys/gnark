@@ -272,9 +272,11 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		// Div(3p.X², 2p.Y) before selecting).
 		//   • chord   numerator = q.Y - p.Y,  denominator = q.X - p.X
 		//   • tangent numerator = 3·p.X²,     denominator = 2·p.Y
-		// The combined denominator is zero only when p = q = (0,0); in that
-		// case the infinity-selectors below override `result` with p anyway,
-		// so we can safely divide by a dummy 1 and force λ to 0.
+		// The combined denominator is zero when p = q = (0,0) and also when
+		// doubling a rational 2-torsion point (p = q, p.Y = 0, e.g. (1,0) on
+		// BW6-761). In every such case an infinity-selector below overrides
+		// `result` with O (or p), so we can safely divide by a dummy 1 and force
+		// λ to 0 here.
 		numChord := c.baseApi.Sub(&q.Y, &p.Y)
 		denChord := xDiff
 		denTangent := c.baseApi.MulConst(&p.Y, big.NewInt(2))
@@ -313,15 +315,24 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		result = c.Select(isPInfinity, q, result)
 		// if q=(0,0) return p
 		result = c.Select(isQInfinity, p, result)
-		// if p = −q (same X, different Y) return O.
-		// The remaining xEqual=1 and y2IsZero=1 case is doubling a 2-torsion
-		// point with p=q, p.Y=0, p.X≠0. That should also return O, but none of
-		// the currently supported j=0 curves have rational 2-torsion, so we do
-		// not special-case it here. The (0,0) case is already handled above via
-		// the infinity selectors.
+		// Return O whenever two finite points share the same X and their sum is
+		// the point at infinity. Two sub-cases:
+		//   • p = −q  (same X, different Y): the chord is vertical.
+		//   • doubling a rational 2-torsion point (same X, p = q, p.Y = 0): the
+		//     tangent is vertical. BW6-761 uses y² = x³ − 1 and DOES have a
+		//     finite order-2 point (1,0), so this case is reachable; the old
+		//     "no j=0 curve has rational 2-torsion" assumption was wrong and let
+		//     a prover certify (1,0)+(1,0) = (−2,0) instead of O.
+		// Both sub-cases collapse to: same X and (different Y or p.Y = 0). Guard
+		// with areFinite so O + Q (with Q.Y = 0) is not turned into O — the
+		// infinity selectors above already handle the (0,0) inputs.
 		yEqual := c.baseApi.IsZero(c.baseApi.Sub(&p.Y, &q.Y))
 		areFinite := c.api.And(c.api.Sub(1, isPInfinity), c.api.Sub(1, isQInfinity))
-		isInverse := c.api.And(c.api.And(xEqual, c.api.Sub(1, yEqual)), areFinite)
+		pyIsZero := c.baseApi.IsZero(&p.Y)
+		isInverse := c.api.And(
+			c.api.And(xEqual, areFinite),
+			c.api.Or(c.api.Sub(1, yEqual), pyIsZero),
+		)
 		result = c.Select(isInverse, infinity, result)
 	} else {
 		// ---------------------------------------------------------------

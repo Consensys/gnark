@@ -142,8 +142,15 @@ func tangentSlopeVal(p, x, y, a, out *big.Int) error {
 }
 
 // unifiedSlopeHint computes the slope of the j-invariant-0 unified addition:
-// the tangent 3x1²/(2y1) when x1 ≡ x2, the chord (y2−y1)/(x2−x1) otherwise,
-// and 0 when the selected denominator vanishes. Inputs: x1, y1, x2, y2.
+// the tangent 3x1²/(2y1) when x1 ≡ x2, the chord (y2−y1)/(x2−x1) otherwise.
+// When x1 ≡ x2 but the tangent denominator 2y1 vanishes (doubling a rational
+// 2-torsion point such as (1,0) on BW6-761), it returns the numerator 3x1²:
+// the caller substitutes a dummy denominator denSafe = 1 in that case, so the
+// deferred assertion λ·denSafe − 3x1² ≡ 0 demands λ = 3x1² for the honest
+// prover. Returning 0 there (as a plain tangent hint would) makes the honest
+// witness fail while a forged hint could pass, so we mirror denSafe = 1 here.
+// The λ this yields is discarded by the caller's select and the result is
+// overridden with O. Inputs: x1, y1, x2, y2.
 func unifiedSlopeHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(p *big.Int, in, out []*big.Int) error {
 		if len(in) != 4 || len(out) != 1 {
@@ -156,6 +163,15 @@ func unifiedSlopeHint(_ *big.Int, inputs, outputs []*big.Int) error {
 		dx := new(big.Int).Sub(x2, x1)
 		dx.Mod(dx, p)
 		if dx.Sign() == 0 {
+			den := new(big.Int).Lsh(y1, 1)
+			den.Mod(den, p)
+			if den.Sign() == 0 {
+				// degenerate tangent (2y1 ≡ 0): denSafe = 1 downstream, so
+				// return the bare numerator 3x1².
+				out[0].Mul(x1, x1)
+				out[0].Mul(out[0], big.NewInt(3)).Mod(out[0], p)
+				return nil
+			}
 			return tangentSlopeVal(p, x1, y1, nil, out[0])
 		}
 		dx.ModInverse(dx, p)
