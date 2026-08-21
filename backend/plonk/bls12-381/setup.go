@@ -7,6 +7,7 @@ package plonk
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
@@ -90,6 +91,23 @@ type ProvingKey struct {
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
+
+	// trace is the circuit-fixed Lagrange-basis trace (selectors + permutation),
+	// captured at Setup so the prover clones it per-proof instead of rebuilding it
+	// with NewTrace on every Prove (~2.3s for a 7M-constraint circuit). Transient:
+	// not serialized — a proving key read from disk has trace == nil and the prover
+	// falls back to NewTrace.
+	trace *Trace
+
+	// qkCanonical is the base Qk selector in canonical/Regular basis. The base Qk is
+	// circuit-fixed (the prover completes a *clone* with the public inputs), so its
+	// canonical form is too — caching it lets the linearized polynomial skip a per-proof
+	// inverse-FFT. Transient like trace; nil => the prover canonicalizes per-proof.
+	qkCanonical []fr.Element
+
+	// tracePool recycles per-proof trace clones (each ~2.4GB) so steady-state proves pay a
+	// memcpy (cloneInto) instead of allocating + zeroing fresh buffers. Transient.
+	tracePool sync.Pool
 }
 
 func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -132,10 +150,24 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	// Note: at this stage, the permutation takes in account the placeholders
 	trace := NewTrace(spr, domain)
 
+	// keep the circuit-fixed Lagrange-basis trace on the proving key so the prover can
+	// clone it per-proof instead of rebuilding it with NewTrace on every Prove. commitTrace
+	// below only reads coefficients (kzg.Commit), so pk.trace stays in Lagrange form — which
+	// is what the prover needs (it does its own per-proof Lagrange->canonical conversions).
+	pk.trace = trace
+
+	// cache the canonical/Regular base Qk so the linearized polynomial skips the per-proof
+	// inverse-FFT (the base Qk is circuit-fixed; the prover completes a clone with the
+	// public inputs). Computed off a clone so pk.trace.Qk stays in Lagrange form.
+	qkCanon := trace.Qk.Clone()
+	qkCanon.ToCanonical(domain).ToRegular()
+	pk.qkCanonical = qkCanon.Coefficients()
+
+	// pre-warm one trace clone so even the first Prove pays a cloneInto memcpy rather than
+	// a 2.4GB allocate+zero (the allocation happens here, at untimed Setup).
+	pk.tracePool.Put(trace.clone())
+
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
-	// All the above polynomials are expressed in canonical basis afterwards. This is why
-	// we save lqk before, because the prover needs to complete it in Lagrange form, and
-	// then express it on the Lagrange coset basis.
 	if err := vk.commitTrace(trace, domain, pk.KzgLagrange); err != nil {
 		return nil, nil, err
 	}
@@ -228,6 +260,67 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 	trace.S3 = s[2]
 
 	return &trace
+}
+
+// clone returns a deep copy of the trace. Every polynomial is copied so the prover's
+// in-place Lagrange->canonical conversions (computeNumerator / completeQk / the
+// linearized poly's Qk.ToCanonical) operate on per-proof memory and never mutate the
+// cached pk.trace. The raw permutation S is copied too (it is only read by the prover,
+// but copying keeps the cache fully isolated).
+func (t *Trace) clone() *Trace {
+	cp := func(p *iop.Polynomial) *iop.Polynomial {
+		if p == nil {
+			return nil
+		}
+		return p.Clone()
+	}
+	c := &Trace{
+		Ql: cp(t.Ql), Qr: cp(t.Qr), Qm: cp(t.Qm), Qo: cp(t.Qo), Qk: cp(t.Qk),
+		S1: cp(t.S1), S2: cp(t.S2), S3: cp(t.S3),
+	}
+	if t.S != nil {
+		c.S = append([]int64(nil), t.S...)
+	}
+	if t.Qcp != nil {
+		c.Qcp = make([]*iop.Polynomial, len(t.Qcp))
+		for i := range t.Qcp {
+			c.Qcp[i] = cp(t.Qcp[i])
+		}
+	}
+	return c
+}
+
+// cloneInto resets dst to a fresh copy of t, reusing dst's already-allocated coefficient
+// buffers — the per-proof clone without the 2.4GB allocate+zero. dst must be a prior
+// t.clone() for the same circuit (matching sizes). Resets basis/layout (the prover mutates
+// them in place) and overwrites the coefficients. Returns false if the structure mismatches
+// (caller then falls back to a fresh clone).
+func (t *Trace) cloneInto(dst *Trace) bool {
+	cp := func(src, d *iop.Polynomial) bool {
+		if src == nil || d == nil {
+			return src == d
+		}
+		sc, dc := src.Coefficients(), d.Coefficients()
+		if len(sc) != len(dc) {
+			return false
+		}
+		d.Basis, d.Layout = src.Basis, src.Layout
+		copy(dc, sc)
+		return true
+	}
+	if len(t.Qcp) != len(dst.Qcp) || len(t.S) != len(dst.S) {
+		return false
+	}
+	ok := cp(t.Ql, dst.Ql) && cp(t.Qr, dst.Qr) && cp(t.Qm, dst.Qm) && cp(t.Qo, dst.Qo) && cp(t.Qk, dst.Qk) &&
+		cp(t.S1, dst.S1) && cp(t.S2, dst.S2) && cp(t.S3, dst.S3)
+	for i := range t.Qcp {
+		ok = ok && cp(t.Qcp[i], dst.Qcp[i])
+	}
+	if !ok {
+		return false
+	}
+	copy(dst.S, t.S)
+	return true
 }
 
 // commitTrace commits to every polynomial in the trace, and put
