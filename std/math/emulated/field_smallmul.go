@@ -316,6 +316,17 @@ func (f *Field[T]) smallCheckZero(a *Element[T]) {
 	bitsPerLimb := int(f.fParams.BitsPerLimb())
 	qBits := bitsPerLimb + int(a.overflow) - modBits + 1
 
+	// Individually range-check the quotient. The native equality below
+	// (a == q*p mod P_native) is on its own vacuous: for any a a prover can set
+	// q = a*p⁻¹ mod P_native and it holds. Soundness therefore relies entirely
+	// on q being bounded. The batched unweighted Σq range check is NOT
+	// sufficient here because zero-check entries are excluded from the γ-batch,
+	// so two forged checks with huge quotients q₁,q₂ that cancel mod P_native
+	// (q₁+q₂ small) would slip through. Binding each q to qBits keeps q*p below
+	// the native modulus, so a == q*p holds over the integers and proves
+	// a ≡ 0 (mod p) with no possible cross-entry cancellation.
+	f.rangeCheck(q, qBits)
+
 	// Add entry: a * 1 = q * p + 0
 	// We use 0 directly as the remainder (not from hint) to ensure soundness.
 	// The batch check will verify a = q * p, proving a ≡ 0 (mod p).
