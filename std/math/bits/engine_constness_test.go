@@ -1,6 +1,7 @@
 package bits_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -209,5 +210,45 @@ func TestConstnessPropagates(t *testing.T) {
 	}
 	if !lit {
 		t.Error("1 + 2 must read as constant")
+	}
+}
+
+// mulProbe records the constness of a product where one operand is a witness whose
+// solved value lands on the two cases Mul has an allocation shortcut for.
+type mulProbe struct {
+	Witness frontend.Variable `gnark:",public"`
+	byWit   *bool
+	byConst *bool
+}
+
+func (c *mulProbe) Define(api frontend.API) error {
+	_, w := api.Compiler().ConstantValue(api.Mul(frontend.Variable(7), c.Witness))
+	_, k := api.Compiler().ConstantValue(api.Mul(frontend.Variable(7), frontend.Variable(1)))
+	*c.byWit, *c.byConst = w, k
+	return nil
+}
+
+// TestMulShortcutDoesNotOverClaim covers the allocation shortcut in Mul, which returns
+// before taint and so used to decide constness from the runtime value of its second
+// operand. A witness that solves to 0 came back as the Go literal 0 and read as
+// constant; a witness that solves to 1 came back as i1 and inherited i1's constness.
+// Neither builder can fold a product of two variables, so both were over-claims.
+func TestMulShortcutDoesNotOverClaim(t *testing.T) {
+	for _, solved := range []int{0, 1} {
+		t.Run(fmt.Sprintf("witness=%d", solved), func(t *testing.T) {
+			var byWit, byConst bool
+			if err := test.IsSolved(
+				&mulProbe{byWit: &byWit, byConst: &byConst},
+				&mulProbe{Witness: solved}, ecc.BN254.ScalarField(),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if byWit {
+				t.Errorf("7 * witness read as constant when the witness solves to %d", solved)
+			}
+			if !byConst {
+				t.Error("7 * 1 must still read as constant")
+			}
+		})
 	}
 }

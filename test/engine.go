@@ -232,7 +232,11 @@ func (e *engine) Neg(i1 frontend.Variable) frontend.Variable {
 func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	atomic.AddUint64(&cptMul, 1)
 	b2 := e.toBigInt(i2)
-	if len(in) == 0 && b2.IsUint64() && b2.Uint64() <= 1 {
+	// The allocation shortcut returns before taint, so it may only be taken when i2 is
+	// genuinely constant. Gated on the runtime value alone, a witness that happens to
+	// solve to 0 or 1 would make the product read as constant, which is the over-claim
+	// this file exists to avoid: neither builder can fold a product of two variables.
+	if len(in) == 0 && e.isConstValue(i2) && b2.IsUint64() && b2.Uint64() <= 1 {
 		// special path to avoid useless allocations
 		if b2.Uint64() == 0 {
 			return 0
