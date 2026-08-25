@@ -2,6 +2,8 @@ package emulated
 
 import (
 	"fmt"
+	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/profile"
@@ -155,6 +157,17 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	if a.isStrictZero() {
 		return 1
 	}
+	// fast path - when the element is constant, evaluate at compile time. This
+	// also keeps constant elements out of the reduction below: for a constant
+	// wider than the modulus it would fold to a constant element whose limb
+	// count depends on the reduced value (zero limbs for 0 mod p), which the
+	// limb-indexing below cannot handle.
+	if cv, cConst := f.constantValue(a); cConst {
+		if cv.Mod(cv, f.fParams.Modulus()).Sign() == 0 {
+			return 1
+		}
+		return 0
+	}
 
 	// to avoid using strict reduction (which is expensive as requires binary
 	// assertion that value is less than modulus), we use ordinary reduction but
@@ -164,6 +177,37 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// correspond to the modulus limbs.
 	ca := f.Reduce(a)
 	p := f.Modulus()
+	if len(ca.Limbs) > len(p.Limbs) {
+		// [Field.Reduce] does not reduce zero-overflow elements even when they
+		// are wider than the modulus (e.g. a [Field.FromBits] result over more
+		// bits than the modulus width). Such a value is not bounded by 2p, so
+		// the 0-or-p check below would misclassify multiples of p — and the
+		// limb-wise comparison against the modulus would index out of range.
+		// Force a full modular reduction to the modulus width first.
+		if f.useSmallFieldOptimization() {
+			// In small-field mode mulMod flattens multi-limb inputs through a
+			// plain native recomposition (toSingleLimbElement), which wraps in
+			// the native field once the element is wider than the native
+			// modulus and understates the overflow either way. Fold the limbs
+			// with mod-p-reduced coefficients instead: the result is congruent
+			// mod p, fits the native field by the small-field-mode invariant,
+			// and carries an honest overflow for the reduction below.
+			pv := f.fParams.Modulus()
+			base := new(big.Int).Lsh(big.NewInt(1), f.fParams.BitsPerLimb())
+			base.Mod(base, pv)
+			coef := new(big.Int).Set(base)
+			acc := ca.Limbs[0]
+			for i := 1; i < len(ca.Limbs); i++ {
+				acc = f.api.MulAcc(acc, ca.Limbs[i], new(big.Int).Set(coef))
+				coef.Mul(coef, base).Mod(coef, pv)
+			}
+			// value < n * 2^(w+overflow) * p, i.e. the single limb is bounded
+			// by 2^(w + overflow + pBits + ceil(log2(n)))
+			foldOverflow := ca.overflow + uint(pv.BitLen()) + uint(bits.Len(uint(len(ca.Limbs))))
+			ca = f.newInternalElement([]frontend.Variable{acc}, foldOverflow)
+		}
+		ca = f.mulMod(ca, f.One(), 0, nil)
+	}
 
 	// we use two approaches for checking if the element is exactly zero. The
 	// first approach is to check that every limb individually is zero. The
@@ -194,9 +238,18 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// however, for checking if the element is p, we can not use the
 	// optimization as we may have underflows. So we have to check every limb
 	// individually.
+	// the element may have fewer limbs than the modulus (e.g. a short
+	// [Field.FromBits] result), in which case the missing high limbs are zero.
+	// We must still compare against every modulus limb — comparing only the
+	// prefix would return a false positive for an element equal to the low
+	// limbs of p.
 	resP := f.api.IsZero(f.api.Sub(p.Limbs[0], ca.Limbs[0]))
-	for i := 1; i < len(ca.Limbs); i++ {
-		resP = f.api.Mul(resP, f.api.IsZero(f.api.Sub(p.Limbs[i], ca.Limbs[i])))
+	for i := 1; i < len(p.Limbs); i++ {
+		var caLimb frontend.Variable = 0
+		if i < len(ca.Limbs) {
+			caLimb = ca.Limbs[i]
+		}
+		resP = f.api.Mul(resP, f.api.IsZero(f.api.Sub(p.Limbs[i], caLimb)))
 	}
 	return f.api.Or(res0, resP)
 }
