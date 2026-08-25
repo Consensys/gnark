@@ -1,0 +1,356 @@
+struct Fr {
+  limbs: array<u32, 8>,
+}
+
+struct Fr16 {
+  limbs: array<u32, 16>,
+}
+
+struct Params {
+  count: u32,
+  m: u32,
+  _pad0: u32,
+  _pad1: u32,
+}
+
+const FR_LIMB16_MASK: u32 = 0xffffu;
+const FR_QINV_NEG_16: u32 = 0xffffu;
+
+const FR_MODULUS16: array<u32, 16> = array<u32, 16>(
+  0x0001u, 0x0000u,
+  0x8000u, 0x0a11u,
+  0x0001u, 0xd000u,
+  0x76feu, 0x59aau,
+  0xb001u, 0x5c37u,
+  0x4d1eu, 0x60b4u,
+  0xa556u, 0x9a2cu,
+  0x655eu, 0x12abu,
+);
+
+@group(0) @binding(0) var<storage, read> input_values: array<u32>;
+@group(0) @binding(1) var<storage, read> input_twiddles: array<u32>;
+@group(0) @binding(2) var<storage, read_write> output: array<u32>;
+@group(0) @binding(3) var<uniform> params: Params;
+
+fn adc(a: u32, b: u32, carry: u32) -> vec2<u32> {
+  let sum0 = a + b;
+  let carry0 = select(0u, 1u, sum0 < a);
+  let sum1 = sum0 + carry;
+  let carry1 = select(0u, 1u, sum1 < sum0);
+  return vec2<u32>(sum1, carry0 | carry1);
+}
+
+fn sbb(a: u32, b: u32, borrow: u32) -> vec2<u32> {
+  let diff0 = a - b;
+  let borrow0 = select(0u, 1u, a < b);
+  let diff1 = diff0 - borrow;
+  let borrow1 = select(0u, 1u, diff1 > diff0);
+  return vec2<u32>(diff1, borrow0 | borrow1);
+}
+
+fn fr_modulus() -> Fr {
+  var z: Fr;
+  z.limbs[0] = 0x00000001u;
+  z.limbs[1] = 0x0a118000u;
+  z.limbs[2] = 0xd0000001u;
+  z.limbs[3] = 0x59aa76feu;
+  z.limbs[4] = 0x5c37b001u;
+  z.limbs[5] = 0x60b44d1eu;
+  z.limbs[6] = 0x9a2ca556u;
+  z.limbs[7] = 0x12ab655eu;
+  return z;
+}
+
+fn fr_gte(x: Fr, y: Fr) -> bool {
+  if (x.limbs[7] != y.limbs[7]) {
+    return x.limbs[7] > y.limbs[7];
+  }
+  if (x.limbs[6] != y.limbs[6]) {
+    return x.limbs[6] > y.limbs[6];
+  }
+  if (x.limbs[5] != y.limbs[5]) {
+    return x.limbs[5] > y.limbs[5];
+  }
+  if (x.limbs[4] != y.limbs[4]) {
+    return x.limbs[4] > y.limbs[4];
+  }
+  if (x.limbs[3] != y.limbs[3]) {
+    return x.limbs[3] > y.limbs[3];
+  }
+  if (x.limbs[2] != y.limbs[2]) {
+    return x.limbs[2] > y.limbs[2];
+  }
+  if (x.limbs[1] != y.limbs[1]) {
+    return x.limbs[1] > y.limbs[1];
+  }
+  return x.limbs[0] >= y.limbs[0];
+}
+
+fn fr_add_modulus(x: Fr) -> Fr {
+  let q = fr_modulus();
+  var z: Fr;
+  var carry = 0u;
+  var lane = adc(x.limbs[0], q.limbs[0], carry);
+  z.limbs[0] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[1], q.limbs[1], carry);
+  z.limbs[1] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[2], q.limbs[2], carry);
+  z.limbs[2] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[3], q.limbs[3], carry);
+  z.limbs[3] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[4], q.limbs[4], carry);
+  z.limbs[4] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[5], q.limbs[5], carry);
+  z.limbs[5] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[6], q.limbs[6], carry);
+  z.limbs[6] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[7], q.limbs[7], carry);
+  z.limbs[7] = lane.x;
+  return z;
+}
+
+fn fr_sub_modulus(x: Fr) -> Fr {
+  let q = fr_modulus();
+  var z: Fr;
+  var borrow = 0u;
+  var lane = sbb(x.limbs[0], q.limbs[0], borrow);
+  z.limbs[0] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[1], q.limbs[1], borrow);
+  z.limbs[1] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[2], q.limbs[2], borrow);
+  z.limbs[2] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[3], q.limbs[3], borrow);
+  z.limbs[3] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[4], q.limbs[4], borrow);
+  z.limbs[4] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[5], q.limbs[5], borrow);
+  z.limbs[5] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[6], q.limbs[6], borrow);
+  z.limbs[6] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[7], q.limbs[7], borrow);
+  z.limbs[7] = lane.x;
+  return z;
+}
+
+fn fr_add(x: Fr, y: Fr) -> Fr {
+  var z: Fr;
+  var carry = 0u;
+  var lane = adc(x.limbs[0], y.limbs[0], carry);
+  z.limbs[0] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[1], y.limbs[1], carry);
+  z.limbs[1] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[2], y.limbs[2], carry);
+  z.limbs[2] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[3], y.limbs[3], carry);
+  z.limbs[3] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[4], y.limbs[4], carry);
+  z.limbs[4] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[5], y.limbs[5], carry);
+  z.limbs[5] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[6], y.limbs[6], carry);
+  z.limbs[6] = lane.x;
+  carry = lane.y;
+  lane = adc(x.limbs[7], y.limbs[7], carry);
+  z.limbs[7] = lane.x;
+  if ((lane.y != 0u) || fr_gte(z, fr_modulus())) {
+    return fr_sub_modulus(z);
+  }
+  return z;
+}
+
+fn fr_sub(x: Fr, y: Fr) -> Fr {
+  var z: Fr;
+  var borrow = 0u;
+  var lane = sbb(x.limbs[0], y.limbs[0], borrow);
+  z.limbs[0] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[1], y.limbs[1], borrow);
+  z.limbs[1] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[2], y.limbs[2], borrow);
+  z.limbs[2] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[3], y.limbs[3], borrow);
+  z.limbs[3] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[4], y.limbs[4], borrow);
+  z.limbs[4] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[5], y.limbs[5], borrow);
+  z.limbs[5] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[6], y.limbs[6], borrow);
+  z.limbs[6] = lane.x;
+  borrow = lane.y;
+  lane = sbb(x.limbs[7], y.limbs[7], borrow);
+  z.limbs[7] = lane.x;
+  if (lane.y != 0u) {
+    return fr_add_modulus(z);
+  }
+  return z;
+}
+
+fn fr_unpack16(x: Fr) -> Fr16 {
+  var z: Fr16;
+  for (var i = 0u; i < 8u; i = i + 1u) {
+    z.limbs[2u * i] = x.limbs[i] & FR_LIMB16_MASK;
+    z.limbs[2u * i + 1u] = x.limbs[i] >> 16u;
+  }
+  return z;
+}
+
+fn fr_pack16(x: Fr16) -> Fr {
+  var z: Fr;
+  for (var i = 0u; i < 8u; i = i + 1u) {
+    z.limbs[i] = x.limbs[2u * i] | (x.limbs[2u * i + 1u] << 16u);
+  }
+  return z;
+}
+
+fn fr16_gte_modulus(x: Fr16) -> bool {
+  for (var i: i32 = 15; i >= 0; i = i - 1) {
+    let idx = u32(i);
+    let xLimb = x.limbs[idx];
+    let qLimb = FR_MODULUS16[idx];
+    if (xLimb != qLimb) {
+      return xLimb > qLimb;
+    }
+  }
+  return true;
+}
+
+fn fr16_sub_modulus(x: Fr16) -> Fr16 {
+  var z: Fr16;
+  var borrow = 0u;
+  for (var i = 0u; i < 16u; i = i + 1u) {
+    let lane = sbb(x.limbs[i], FR_MODULUS16[i], borrow);
+    z.limbs[i] = lane.x & FR_LIMB16_MASK;
+    borrow = lane.y;
+  }
+  return z;
+}
+
+fn fr_mul(x: Fr, y: Fr) -> Fr {
+  let a = fr_unpack16(x);
+  let b = fr_unpack16(y);
+  var t: array<u32, 17>;
+
+  for (var i = 0u; i < 16u; i = i + 1u) {
+    var carry = 0u;
+    let bi = b.limbs[i];
+    for (var j = 0u; j < 16u; j = j + 1u) {
+      let aLimb = a.limbs[j];
+      let uv = t[j] + (aLimb * bi) + carry;
+      t[j] = uv & FR_LIMB16_MASK;
+      carry = uv >> 16u;
+    }
+    t[16] = carry;
+
+    let m = (t[0] * FR_QINV_NEG_16) & FR_LIMB16_MASK;
+    carry = 0u;
+    for (var j = 0u; j < 16u; j = j + 1u) {
+      let qLimb = FR_MODULUS16[j];
+      let uv = t[j] + (m * qLimb) + carry;
+      if (j > 0u) {
+        t[j - 1u] = uv & FR_LIMB16_MASK;
+      }
+      carry = uv >> 16u;
+    }
+    let uv = t[16] + carry;
+    t[15] = uv & FR_LIMB16_MASK;
+    t[16] = uv >> 16u;
+  }
+
+  var z16: Fr16;
+  for (var i = 0u; i < 16u; i = i + 1u) {
+    z16.limbs[i] = t[i];
+  }
+  if ((t[16] != 0u) || fr16_gte_modulus(z16)) {
+    z16 = fr16_sub_modulus(z16);
+  }
+  return fr_pack16(z16);
+}
+
+fn fr_load_from(buffer_kind: u32, index: u32) -> Fr {
+  let base = index * 8u;
+  var z: Fr;
+  if (buffer_kind == 0u) {
+    z.limbs[0] = input_values[base + 0u];
+    z.limbs[1] = input_values[base + 1u];
+    z.limbs[2] = input_values[base + 2u];
+    z.limbs[3] = input_values[base + 3u];
+    z.limbs[4] = input_values[base + 4u];
+    z.limbs[5] = input_values[base + 5u];
+    z.limbs[6] = input_values[base + 6u];
+    z.limbs[7] = input_values[base + 7u];
+    return z;
+  }
+  z.limbs[0] = input_twiddles[base + 0u];
+  z.limbs[1] = input_twiddles[base + 1u];
+  z.limbs[2] = input_twiddles[base + 2u];
+  z.limbs[3] = input_twiddles[base + 3u];
+  z.limbs[4] = input_twiddles[base + 4u];
+  z.limbs[5] = input_twiddles[base + 5u];
+  z.limbs[6] = input_twiddles[base + 6u];
+  z.limbs[7] = input_twiddles[base + 7u];
+  return z;
+}
+
+fn fr_store(index: u32, value: Fr) {
+  let base = index * 8u;
+  output[base + 0u] = value.limbs[0];
+  output[base + 1u] = value.limbs[1];
+  output[base + 2u] = value.limbs[2];
+  output[base + 3u] = value.limbs[3];
+  output[base + 4u] = value.limbs[4];
+  output[base + 5u] = value.limbs[5];
+  output[base + 6u] = value.limbs[6];
+  output[base + 7u] = value.limbs[7];
+}
+
+override WORKGROUP_SIZE: u32 = 64;
+
+@compute @workgroup_size(WORKGROUP_SIZE)
+fn fr_ntt_stage_main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let pair = id.x;
+  let vector = id.y;
+  let half_count = params.count / 2u;
+  let batch_count = max(params._pad0, 1u);
+  if (pair >= half_count || vector >= batch_count) {
+    return;
+  }
+
+  let m = params.m;
+  let j = pair % m;
+  let block = pair / m;
+  let vector_base = vector * params.count;
+  let left_index = vector_base + block * 2u * m + j;
+  let right_index = left_index + m;
+
+  let left = fr_load_from(0u, left_index);
+  let twiddle = fr_load_from(1u, j);
+  let right = fr_mul(fr_load_from(0u, right_index), twiddle);
+
+  fr_store(left_index, fr_add(left, right));
+  fr_store(right_index, fr_sub(left, right));
+}
