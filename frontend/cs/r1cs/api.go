@@ -811,6 +811,11 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 
 	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
 	existingCommitmentIndexes := commitments.CommitmentIndexes()
+	// privateCommittedSeeker.Seek returns an index into the original, unsliced
+	// commitment list, but existingCommitmentIndexes gets progressively sliced
+	// down below as we walk t.VID in increasing order. Keep an unsliced copy to
+	// look the committer index up against.
+	allCommitmentIndexes := existingCommitmentIndexes
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
 	// we want to build a sorted slice of committed variables, without duplicates
@@ -878,7 +883,7 @@ func (builder *builder[E]) Commit(v ...frontend.Variable) (frontend.Variable, er
 		// Cannot commit to a secret variable that has already been committed to
 		// instead we commit to its commitment
 		if committer := privateCommittedSeeker.Seek(t.VID); committer != -1 {
-			committerWireIndex := existingCommitmentIndexes[committer]                                        // commit to this commitment instead
+			committerWireIndex := allCommitmentIndexes[committer]                                             // commit to this commitment instead
 			vars = append(vars, expr.LinearExpression[E]{{Coeff: builder.cs.One(), VID: committerWireIndex}}) // TODO Replace with mont 1
 			builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: committerWireIndex})                   // pushing to heap mid-op is okay because toCommit > t.VID > anything popped so far
 			continue
